@@ -4,12 +4,14 @@
 // @reads /modules/notifications/migrations/0001_notifications_state.sql
 // @reads /modules/notifications/migrations/0002_settings_effects.sql
 // @reads /modules/notifications/migrations/0004_fanout_sent.sql
+// @reads /modules/notifications/migrations/0005_fanout_email.sql
 import test from "node:test";
 import assert from "node:assert/strict";
 import { harness } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { alice, as, bob, svc } from "../fixtures/seed.ts";
 import { consumers } from "../impl.ts";
+import { emailTiming } from "../handlers/rules.ts";
 
 const sender = as(svc);
 const admins = (h: Harness): void => {
@@ -135,4 +137,60 @@ test("the approval reminder email: a failure is tried again a moment later; afte
   await g.call("notifications.send", input, sender);   // the Gate's own reminder lands on the same key
   await g.call("notifications.send", input, sender);
   assert.deepEqual(g.emails.map((m) => m.subject), ["Something is waiting on you"], "not \"once\" meaning never: it goes out once");
+});
+
+test("a data folder whose fanout table was made by the first 0004 (no email_pending column): the fanout works", async () => {
+  const h = harness();
+  admins(h);
+  h.sqlite.exec(`DROP TABLE notifications_fanout_sent; CREATE TABLE "notifications_fanout_sent" ("event_id" TEXT NOT NULL, "target" TEXT NOT NULL, "notification_id" TEXT, "at" INTEGER NOT NULL, PRIMARY KEY ("event_id", "target"));`);
+  const fan = consumers["notifications.fanout"];
+  const ctx = h.ctxFor(null, sender);
+  h.emailFail((m) => m.to === bob.id);
+  await fan.run(ctx, { id: "evt_old_table", name: "space.deletion_cancelled", payload: { by: bob.id } } as never);
+  h.emailFail(null);
+  await fan.run(ctx, { id: "evt_old_table", name: "space.deletion_cancelled", payload: { by: bob.id } } as never);
+  assert.deepEqual(h.emails.map((m) => m.to).sort(), [alice.id, bob.id].sort());
+});
+
+test("a dead mail server does not hold the fanout: after one recipient's email fails all its tries, the rest are marked pending at once", async () => {
+  const h = harness();
+  admins(h);
+  const fan = consumers["notifications.fanout"];
+  const ctx = h.ctxFor(null, sender);
+  const ev = { id: "evt_mail_down", name: "space.deletion_scheduled", payload: { by: alice.id, at: Date.UTC(2026, 10, 18, 9, 0, 0) } };
+  h.emailFail(() => true);
+  const t0 = Date.now();
+  await fan.run(ctx, ev as never);
+  const took = Date.now() - t0;
+  assert.ok(took < 2_000, `one recipient's tries, not every recipient's: ${took} ms`);
+  h.emailFail(null);
+  await fan.run(ctx, ev as never);
+  assert.deepEqual(h.emails.map((m) => m.to).sort(), [alice.id, bob.id].sort(), "both were left pending and are sent on the next delivery");
+});
+
+test("an email try that never answers counts as failed after its time, so a hung mail server cannot hold the fanout", async () => {
+  const h = harness();
+  admins(h);
+  const fan = consumers["notifications.fanout"];
+  const ctx = h.ctxFor(null, sender);
+  const was = { ...emailTiming };
+  emailTiming.tryMs = 50;
+  try {
+    h.emailHang((m) => m.to === bob.id);
+    await fan.run(ctx, { id: "evt_mail_hang", name: "space.deletion_cancelled", payload: { by: bob.id } } as never);   // answers: bob's tries timed out
+    h.emailHang(null);
+    await fan.run(ctx, { id: "evt_mail_hang", name: "space.deletion_cancelled", payload: { by: bob.id } } as never);
+    assert.deepEqual(h.emails.map((m) => m.to).sort(), [alice.id, bob.id].sort());
+  } finally { Object.assign(emailTiming, was); }
+});
+
+test("an approval reminder whose email failed all its tries is scheduled once more, and only once", async () => {
+  const h = harness();
+  const input = { to: alice.id, kind: "approval.backstop", subject: { type: "task", id: "tsk_7" }, title: "Retainer", collapseKey: "approval.backstop:tsk_7" };
+  h.emailFail(() => true);
+  await h.call("notifications.send", input, sender);
+  const again = h.schedules.filter((s) => s.cap === "notifications.send");
+  assert.equal(again.length, 1, "rescheduled once");
+  await h.call("notifications.send", again[0]!.input, sender);   // the rescheduled one fails too
+  assert.equal(h.schedules.filter((s) => s.cap === "notifications.send").length, 1, "not again: a reminder is rescheduled once");
 });

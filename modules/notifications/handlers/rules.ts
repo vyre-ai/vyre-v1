@@ -45,7 +45,7 @@ export async function send(ctx: NotifCtx, input: SendIn, handed = false): Promis
  * One notification. `emailFailed`: an email that is the point of this kind (EMAIL_KINDS, the approval reminder) did not go out. `redo`: this recipient was cut off mid-send before (the fanout's
  * mark has no notification), so the kind's email goes out even when the row collapses into the one already filed: whether it went is unknown, and never told is worse than told twice.
  */
-export async function sendOne(ctx: NotifCtx, input: SendIn, handed = false, redo = false): Promise<{ outcome: Outcome; notificationId?: string; emailFailed?: true }> {
+export async function sendOne(ctx: NotifCtx, input: SendIn, handed = false, redo = false, mail: MailState = { down: false }): Promise<{ outcome: Outcome; notificationId?: string; emailFailed?: true }> {
   const def = kindOf(input.kind);
   if (!def || !LISTED.includes(def)) raise(ctx, "validation.bad_input", "That kind of notification does not exist.", { errors: ["/kind: unknown"] });
   let person = input.to;
@@ -55,7 +55,7 @@ export async function sendOne(ctx: NotifCtx, input: SendIn, handed = false, redo
     const away = readAway(ctx.db, person, now);
     const hand = readSettings(ctx.db, person).handTo;
     if (away && away.delegate.kind === "none" && hand && hand !== person) {
-      return sendOne(ctx, { ...input, to: hand, data: { ...(input.data ?? {}), handedFrom: person } }, true, redo);
+      return sendOne(ctx, { ...input, to: hand, data: { ...(input.data ?? {}), handedFrom: person } }, true, redo, mail);
     }
   }
   const rules = readRules(ctx.db, person);
@@ -122,8 +122,15 @@ export async function sendOne(ctx: NotifCtx, input: SendIn, handed = false, redo
 
   if (def.key === "approval.requested" && !collapsed) await scheduleBackstop(ctx, def, person, rules.emailBackstop, input, title);
   let emailed = true;
-  if (def.key === "approval.backstop" && rules.emailBackstop) emailed = await sendBackstopEmail(ctx, person, row, collapseKey ?? row.id);
-  if (EMAIL_KINDS.has(def.key) && (!collapsed || redo)) emailed = await sendKindEmail(ctx, person, row);
+  if (def.key === "approval.backstop" && rules.emailBackstop) {
+    emailed = await sendBackstopEmail(ctx, person, row, collapseKey ?? row.id, mail);
+    // not sent after its tries: the reminder is scheduled once more, a while later (the mail server may be back); a reminder that was already the second try is not rescheduled again
+    if (!emailed && input.data?.["emailRetry"] !== true && ctx.schedule) {
+      try { await ctx.schedule(ctx.now() + BACKSTOP_RETRY_MS, "notifications.send", { ...input, data: { ...(input.data ?? {}), emailRetry: true } }); }
+      catch (e) { ctx.log?.warn("reminder not rescheduled", (e as Error).message); }
+    }
+  }
+  if (EMAIL_KINDS.has(def.key) && (!collapsed || redo)) emailed = await sendKindEmail(ctx, person, row, mail);
   return { outcome: capped ? "capped" : row.level, notificationId: row.id, ...(emailed ? {} : { emailFailed: true as const }) };
 }
 
@@ -139,35 +146,47 @@ async function scheduleBackstop(ctx: NotifCtx, def: KindDef, person: string, wan
 /** Kinds that also go out as one email to the person, whatever their backstop setting: a Space scheduled for deletion, and the deletion cancelled. */
 export const EMAIL_KINDS: ReadonlySet<string> = new Set(["space.deletion_scheduled", "space.deletion_cancelled"]);
 /**
- * An email that is the point of its kind, tried a few times a moment apart (EMAIL_RETRY_MS) before it counts as failed. False when it was meant to go and did not; a server with no email transport
- * sends none, and that is not a failure.
+ * How an email that is the point of its kind is tried: up to three tries, `retryMs` apart, each given `tryMs` to answer (a try that does not answer counts as failed; it may still arrive).
+ * A test may change these.
  */
-export const EMAIL_RETRY_MS: readonly number[] = [300, 1_000];
-async function emailWithRetry(ctx: NotifCtx, msg: { to: string; subject: string; deepLink: string }, what: string): Promise<boolean> {
+export const emailTiming = { retryMs: [300, 1_000] as readonly number[], tryMs: 10_000 };
+/** One delivery's view of the mail server: once an email has failed every try, the rest of the delivery does not try (a dead mail server must not hold the fanout). */
+export interface MailState { down: boolean }
+/** How long before a reminder whose email failed every try is sent once more. */
+const BACKSTOP_RETRY_MS = 15 * 60_000;
+/**
+ * False when the email was meant to go and did not. A server with no email transport sends none (today no install has one: host/src/daemon/main.ts passes no seams.push): that is said in the log
+ * and answered true, because no try can ever succeed there and nothing should wait on one.
+ */
+async function emailWithRetry(ctx: NotifCtx, msg: { to: string; subject: string; deepLink: string }, what: string, mail: MailState): Promise<boolean> {
   const p = pushPort();
-  if (!p?.email) return true;
+  if (!p?.email) { ctx.log?.warn(`${what} not sent: this server has no email transport`); return true; }
+  if (mail.down) return false;
   for (let i = 0; ; i++) {
-    try { await p.email(msg); return true; }
-    catch (e) {
-      if (i >= EMAIL_RETRY_MS.length) { ctx.log?.warn(`${what} failed`, (e as Error).message); return false; }
-      await new Promise((r) => setTimeout(r, EMAIL_RETRY_MS[i]));
-    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([p.email(msg), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`no answer in ${emailTiming.tryMs} ms`)), emailTiming.tryMs); })]);
+      return true;
+    } catch (e) {
+      if (i >= emailTiming.retryMs.length) { ctx.log?.warn(`${what} failed`, (e as Error).message); mail.down = true; return false; }
+      await new Promise((r) => setTimeout(r, emailTiming.retryMs[i]));
+    } finally { if (timer) clearTimeout(timer); }
   }
 }
-async function sendKindEmail(ctx: NotifCtx, person: string, row: Row): Promise<boolean> {
-  return emailWithRetry(ctx, { to: person, subject: row.title, deepLink: row.kind === "space.deletion_scheduled" ? "vyre://console/spacedel" : "vyre://inbox" }, "notification email");
+async function sendKindEmail(ctx: NotifCtx, person: string, row: Row, mail: MailState): Promise<boolean> {
+  return emailWithRetry(ctx, { to: person, subject: row.title, deepLink: row.kind === "space.deletion_scheduled" ? "vyre://console/spacedel" : "vyre://inbox" }, "notification email", mail);
 }
 /** The email of a notification already filed, again (the fanout's next try for a recipient whose email failed). */
-export async function resendKindEmail(ctx: NotifCtx, person: string, notificationId: string): Promise<boolean> {
+export async function resendKindEmail(ctx: NotifCtx, person: string, notificationId: string, mail: MailState = { down: false }): Promise<boolean> {
   const r = ctx.db.all("SELECT * FROM notifications_items WHERE id = ? AND person = ?", notificationId, person)[0] as Record<string, unknown> | undefined;
   if (!r || !EMAIL_KINDS.has(String(r["kind"]))) return true;
-  return sendKindEmail(ctx, person, { kind: String(r["kind"]), title: String(r["title"]) } as Row);
+  return sendKindEmail(ctx, person, { kind: String(r["kind"]), title: String(r["title"]) } as Row, mail);
 }
-async function sendBackstopEmail(ctx: NotifCtx, person: string, row: Row, key: string): Promise<boolean> {
-  if (!pushPort()?.email) return true;
+async function sendBackstopEmail(ctx: NotifCtx, person: string, row: Row, key: string, mail: MailState): Promise<boolean> {
+  if (!pushPort()?.email) { ctx.log?.warn("backstop email not sent: this server has no email transport"); return true; }
   const fresh = ctx.db.run("INSERT OR IGNORE INTO notifications_backstops (key, at) VALUES (?, ?)", key, ctx.now()).changes > 0;
   if (!fresh) return true;   // once per approval
-  const ok = await emailWithRetry(ctx, { to: person, subject: "Something is waiting on you", deepLink: row.subject ? `vyre://${row.subject.type}/${row.subject.id}` : `vyre://${row.place}` }, "backstop email");
+  const ok = await emailWithRetry(ctx, { to: person, subject: "Something is waiting on you", deepLink: row.subject ? `vyre://${row.subject.type}/${row.subject.id}` : `vyre://${row.place}` }, "backstop email", mail);
   // not sent after its tries: the once-mark goes, so the next reminder for this approval (the Gate's own, which lands on the same key) sends it, rather than "once" meaning never
   if (!ok) ctx.db.run("DELETE FROM notifications_backstops WHERE key = ?", key);
   return ok;
