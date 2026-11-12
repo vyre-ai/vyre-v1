@@ -6731,7 +6731,7 @@ const routes1: Route[] = [
     "v": 1,
     "module": "computers",
     "effects": "write",
-    "permission": "computers.take_over",
+    "permission": "computers.watch",
     "level": "use",
     "resource": {
       "type": "space"
@@ -6785,7 +6785,7 @@ const routes1: Route[] = [
     "v": 1,
     "module": "computers",
     "effects": "write",
-    "permission": "computers.take_over",
+    "permission": "computers.watch",
     "level": "use",
     "resource": {
       "type": "space"
@@ -6821,7 +6821,7 @@ const routes1: Route[] = [
     "v": 1,
     "module": "computers",
     "effects": "write",
-    "permission": "computers.take_over",
+    "permission": "computers.watch",
     "level": "use",
     "resource": {
       "type": "space"
