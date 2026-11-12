@@ -1,0 +1,1 @@
+- Chats: after you press Stop, the agent treats that ask as closed. Your next message is answered on its own; the agent no longer picks the stopped job back up or runs its command again unless you ask. This holds after an update or a restart too.
