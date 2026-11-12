@@ -276,6 +276,8 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
             type: "usage", inputTokens: inTokens, outputTokens: u.outputTokens, contextTokens: inTokens,
             ...(told.has("cacheReadTokens") ? { cacheReadTokens: u.cacheReadTokens } : {}), ...(told.has("cacheWriteTokens") ? { cacheWriteTokens: u.cacheWriteTokens } : {}),
             ...(u.reasoningTokens !== undefined ? { reasoningTokens: u.reasoningTokens } : {}), ...(u.costUsd !== undefined ? { costUsd: u.costUsd } : {}),
+            // a request that named no model ran on the provider's default: its label is the model the provider reported, else the provider's name, never blank
+            ...(model === "" ? { model: u.model ?? deps.adapter.id } : {}),
           };
         }
         if (stop === "filtered" && text === "" && pending.length === 0) { yield { type: "error", code: "provider.filtered", message: "The provider declined to answer." }; return; }

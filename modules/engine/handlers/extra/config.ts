@@ -109,6 +109,19 @@ export async function policySet(
   return { ok: true };
 }
 
+/** Drivers whose provider runs a request that names no model on the account's own default (agent/src/drivers/api: ProviderAdapter.defaultsModel; OpenRouter only). */
+export const PROVIDER_DEFAULT_DRIVERS: ReadonlySet<string> = new Set(["openrouter"]);
+/**
+ * A request that names no model, on a provider that picks its own default: the model is not known before it runs, so a Space policy that limits models (allowedModels) or excludes the provider
+ * refuses it before anything is sent. Null when it may run.
+ */
+export function providerDefaultBlocked(policy: Pick<Policy, "allowedModels" | "allowedProviders">, provider: string): "policy_model" | null {
+  if ((policy.allowedModels ?? []).length > 0) return "policy_model";
+  if ((policy.allowedProviders ?? []).length > 0 && !policy.allowedProviders.includes(provider)) return "policy_model";
+  return null;
+}
+export const PROVIDER_DEFAULT_WORDS = "This Space only allows certain AI models, so this needs a model picked. Choose one in the chat's model menu, or set the agent's model in its settings.";
+
 /** Why a provider or model may not run, or null. `label` is the label of the open record or thread, when there is one. */
 export function blockedBy(policy: Policy, o: { provider?: string | undefined; model?: string | undefined; label?: string | undefined; keepsNothing?: boolean | undefined }): "label_provider" | "policy_model" | null {
   // Restricted records go only to an account that keeps nothing, whatever the label list says (when the caller knows the account)

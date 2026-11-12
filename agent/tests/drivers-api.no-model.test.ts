@@ -32,3 +32,18 @@ test("OpenRouter picks its own default model when a request names none: the requ
   assert.equal("model" in body, false, "no model field: OpenRouter runs it on the account's default");
   assert.equal(out.some((e) => e.type === "error"), false, JSON.stringify(out.filter((e) => e.type === "error")));
 });
+
+test("an OpenRouter turn on its own default names the model it ran, from the stream; a stream that names none gives the provider's name, never a blank", async () => {
+  const { openrouter } = await import("../src/drivers/api/openai.ts");
+  const { chunked } = await import("../src/drivers/api/testing.ts");
+  const usageModel = async (wire: string): Promise<string | undefined> => {
+    const f = fakeFetch(() => ({ chunks: chunked(wire, 64) }));
+    const s = spec("openrouter/x");
+    const session = createApiSession({ adapter: openrouter, account: { ref: "#Team_Router", base: openrouter.defaultBase }, base: openrouter.defaultBase, fetch: f.fetch, authorize, clock: fakeClock(), context: () => ctx() }, { ...s, agent: { ...s.agent, model: "" } });
+    const out: DriverEvent[] = [];
+    for await (const e of session.send(turnInput(""))) out.push(e);
+    return (out.find((e) => e.type === "usage") as { model?: string } | undefined)?.model;
+  };
+  assert.equal(await usageModel(fixture("openai-text")), "gpt-5", "the model the stream says it ran (the fixture's chunks name gpt-5)");
+  assert.equal(await usageModel(fixture("openai-text").replace(/"model":"[^"]*",?/g, "")), "openrouter", "none named: the provider's name");
+});

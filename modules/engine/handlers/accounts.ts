@@ -7,10 +7,11 @@ import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import { resolveAccount, probeAccount, providerOfModel, UnknownAccount, usableHere } from "../../../agent/src/accounts/index.ts";
 import type { AccountRow, AccountStatus, ProbeResult, SpaceUses, Trigger } from "../../../agent/src/accounts/index.ts";
 import { costTier } from "../../../agent/src/accounts/cost.ts";
-import { saveTested, savedTested } from "../live-models.ts";
-import { fitModel } from "../space-key-turns.ts";
+import { savedTested } from "../live-models.ts";
 import { unavailableFor } from "../model-health.ts";
 import { applyRememberedPick, stateOf } from "./control.ts";
+import { raise } from "../projections.ts";
+import { PROVIDER_DEFAULT_DRIVERS, PROVIDER_DEFAULT_WORDS, providerDefaultBlocked } from "./extra/config.ts";
 
 interface ProviderRow {
   id: string; providerKey: string; name: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; handle?: string; itemId: string;
@@ -26,7 +27,7 @@ interface ProviderRow {
 }
 interface ThreadOut { thread: { label?: string; starter: string; agents: Array<{ agentId: string; accountRef?: string; provider?: string; model?: string }> } }
 interface AgentOut { agent: { accountPolicy: "asker" | "key"; accountKey?: string; workKey?: string; accountFallback?: string[]; model?: string } }
-interface PolicyOut { allowedAccounts: "any" | "company" }
+interface PolicyOut { allowedAccounts: "any" | "company"; allowedModels?: string[]; allowedProviders?: string[] }
 interface DefaultsOut { fallback: Array<{ accountRef?: string }> }
 interface PlacementOut { placement: "host" | "device" | "wait" }
 
@@ -127,25 +128,6 @@ export async function accountsList(ctx: Ctx, input: { place?: "chat" | "automati
 type TurnKind = "chat" | "wake" | "automation" | "goal" | "agent_work";
 const TRIGGER: Readonly<Record<TurnKind, Trigger>> = { chat: "message", wake: "wake", automation: "task", goal: "goal", agent_work: "routine" };
 
-/**
- * The first model a key serves, for a request that names none (a turn whose agent has no model, a Space job): the list this engine kept from the key's last test, else the key is asked once now
- * (providers.test, the model menu's own check) and the answer kept. Undefined when the key lists none or cannot be asked: the request then says no model is set.
- */
-export async function firstModelOf(ctx: Ctx, ref: string, loaded?: Loaded): Promise<string | undefined> {
-  const accounts = loaded ?? await load(ctx);
-  const row = accounts.rows.find((x) => x.ref === ref);
-  let served: string[] = row?.models ? [...row.models] : [];
-  if (served.length === 0) { try { served = savedTested(ctx.db as never, ref); } catch { /* nothing kept */ } }
-  const providerId = accounts.idByRef.get(ref);
-  if (served.length === 0 && providerId) {
-    try {
-      const r = (await ctx.call("providers.test", { providerId })) as { ok?: boolean; models?: string[] };
-      if (r.ok === true && Array.isArray(r.models) && r.models.length > 0) { served = r.models; try { saveTested(ctx.db as never, ref, row?.driver ?? "", ctx.now(), served); } catch { /* kept next time */ } }
-    } catch { /* the key could not be asked now */ }
-  }
-  return fitModel(undefined, served);
-}
-
 export async function accountResolve(ctx: Ctx, input: { threadId: string; agentId: string; askerId?: string; stepKey?: string; unavailable?: string[]; kind?: TurnKind; dry?: boolean }) {
   const [t, a, policy, defaults, placement, accounts] = await Promise.all([
     ctx.call("threads.get", { threadId: input.threadId }) as Promise<ThreadOut>,
@@ -193,16 +175,17 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
     // a thread with Restricted data runs only on an account that keeps nothing: every other account is passed over
     ...((input.unavailable?.length || t.thread.label === "restricted") ? { unavailable: [...(input.unavailable ?? []).map(c), ...(t.thread.label === "restricted" ? accounts.rows.filter((r) => r.keepsNothing !== true).map((r) => r.ref) : [])] } : {}),
   });
+  // nothing names a model, and the paying key's provider runs on its own default (OpenRouter): the Space policy is checked first, since the model is not known before the turn runs
+  const payingRow = res.allowed && res.accountRef ? accounts.rows.find((r) => r.ref === res.accountRef) : undefined;
+  if (model === undefined && payingRow && PROVIDER_DEFAULT_DRIVERS.has(payingRow.driver)) {
+    const why = providerDefaultBlocked({ allowedModels: policy.allowedModels ?? [], allowedProviders: policy.allowedProviders ?? [] }, payingRow.driver);   // the driver is the provider id for these
+    if (why !== null) raise(ctx as never, "permission.provider_label", PROVIDER_DEFAULT_WORDS, { reason: why });
+  }
   // the Vault item behind the account, so the turn worker can meter usage against it (record_usage itemId)
   const itemId = res.accountRef ? accounts.itemByRef.get(res.accountRef) : undefined;
-  // neither the chat nor the agent names a model: the turn runs on the paying key's own first listed model (what its check listed, as a vendor's /models does), the rule the Space AI key
-  // already uses (fitModel). A key that lists none leaves it unset, and the turn says "No model is set for this chat" instead of sending an empty one.
-  let runModel = model ?? (res.accountRef ? fitModel(undefined, accounts.rows.find((r) => r.ref === res.accountRef)?.models ?? []) : undefined);
-  // a key whose list this engine never kept (a person's own key, just added): the list the model menu reads, kept from the last test, else asked once now and kept
-  if (runModel === undefined && res.allowed && res.accountRef && input.dry !== true) runModel = await firstModelOf(ctx, res.accountRef, accounts);
   // an account ahead of this one was passed over: what pays is a fallback, whatever the reason word says
   const fellBack = res.accountRef !== null && res.tried.some((a) => !a.used && (a.why === "expired" || a.why === "failed" || a.why === "failed_this_turn" || a.why === "capped"));
-  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}), ...(res.pin ? { pin: res.pin } : {}), ...(fellBack ? (() => { const c = res.tried.find((a) => !a.used && a.why === "capped"); return c ? { cappedFrom: c.ref } : {}; })() : {}), ...(res.via && ["chat_key", "thread", "work", "step", "space", "backup"].includes(res.via) ? { via: res.via } : {}), ...(res.allowed && runModel ? { model: runModel } : {}), ...(!res.allowed && res.noModel ? { why: "no_model" as const, ...(model ? { model } : {}), servedModels: res.servedModels ?? [] } : !res.allowed && res.unblock ? { why: res.unblock.why } : {}),
+  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}), ...(res.pin ? { pin: res.pin } : {}), ...(fellBack ? (() => { const c = res.tried.find((a) => !a.used && a.why === "capped"); return c ? { cappedFrom: c.ref } : {}; })() : {}), ...(res.via && ["chat_key", "thread", "work", "step", "space", "backup"].includes(res.via) ? { via: res.via } : {}), ...(res.allowed && model ? { model } : {}), ...(!res.allowed && res.noModel ? { why: "no_model" as const, ...(model ? { model } : {}), servedModels: res.servedModels ?? [] } : !res.allowed && res.unblock ? { why: res.unblock.why } : {}),
     ...(res.modelFallback && res.accountRef && model ? { modelFallback: { from: model, ...(accounts.rows.find((r) => r.ref === res.accountRef)?.models?.[0] ? { to: accounts.rows.find((r) => r.ref === res.accountRef)!.models![0]! } : {}) } } : {}) };
 }
 

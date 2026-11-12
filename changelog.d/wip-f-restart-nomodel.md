@@ -1,3 +1,3 @@
-- A chat or an AI step whose agent has no model of its own now runs on the first model your AI key lists, instead of stopping with "No model is set".
-- On OpenRouter, a chat whose agent has no model runs on your OpenRouter default model, as it did before rc.26.
-- Hook checks, room digests and other background jobs on an API key run on the key's first listed model when none is named, instead of failing.
+- On OpenRouter, a chat, an AI step or a background job whose agent names no model runs on your OpenRouter default model again, as it did before rc.26. The model it ran shows under the reply.
+- If your Space allows only certain AI models, or excludes OpenRouter, such a turn is stopped before anything is sent, with a note to pick a model.
+- Hook checks and room digests use the model their chat runs on, instead of none.

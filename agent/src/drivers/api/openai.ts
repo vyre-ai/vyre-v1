@@ -114,6 +114,8 @@ function decoder(): StreamDecoder {
         out.push(...flush());
         out.push({ type: "stop", reason: reason === "tool_calls" || reason === "function_call" ? "tool_use" : reason === "length" ? "length" : reason === "content_filter" ? "filtered" : reason === "stop" ? "end" : "other" });
       }
+      // the model the provider says it ran: what a turn on OpenRouter's own default records
+      if (typeof j["model"] === "string" && j["model"] !== "") out.push({ type: "usage", usage: { model: j["model"] as string } });
       const u = j["usage"] as Record<string, any> | undefined;
       if (u) {
         const usage: Partial<Usage> = {};
