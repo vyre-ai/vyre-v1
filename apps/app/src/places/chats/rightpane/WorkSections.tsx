@@ -189,7 +189,7 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
     // what the agent did in its browser, step by step: the same list a computer's session has (computers.browser.timeline, f-wire 12 Nov)
     entries.push({ key: "l-browser-steps", type: "label", text: "Steps", right: stepsLine(steps.length) });
     if (steps.length === 0) entries.push({ key: "no-browser-steps", type: "empty", text: "Nothing yet. Steps appear as it works." });
-    entries.push(...stepEntries({ steps, live: v.state === "open" && v.caption !== undefined, asleep: v.state === "closed", clock, sel, onSelect: setSel, onCopy: (text) => void copyText(deps, text), key: "browser-step" }));
+    entries.push(...stepEntries({ steps, live: v.state === "open" && v.caption !== undefined, asleep: v.state === "closed", clock, sel, onSelect: setSel, onCopy: (text) => void copyText(deps, text), key: "browser-step", where: "browser" }));
     // the logins its profile keeps are for the people who may see and take over the browser
     if (v.canTakeOver) entries.push({ key: "l-sites", type: "label", text: "Signed in on its browser" });
     if (v.canTakeOver && v.sites.length === 0) entries.push({ key: "no-sites", type: "empty", text: "Not signed in anywhere yet." });

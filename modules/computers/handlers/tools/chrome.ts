@@ -7,7 +7,7 @@
 import { maskValue } from "../record.ts";
 import { raise } from "../../projections.ts";
 import type { CompCtx } from "../../projections.ts";
-import { call, clip, defined, keepShot, prepare, run, shape, siteOf, whereOf } from "./common.ts";
+import { pageOf, call, clip, defined, keepShot, prepare, run, shape, siteOf, whereOf } from "./common.ts";
 import type { ToolAnswer, ToolArgs, ToolSpec } from "./common.ts";
 
 interface Base { computerId?: string | undefined; inMyChrome?: boolean | undefined; tabId?: string | undefined }
@@ -125,7 +125,7 @@ export async function fill(ctx: CompCtx, input: Base & { fields: Array<{ ref: st
 
 export async function open(ctx: CompCtx, input: { computerId?: string | undefined; inMyChrome?: boolean | undefined; url: string; newTab?: boolean }) {
   if (typeof input.url !== "string" || !HTTP.test(input.url)) raise(ctx, "validation.bad_input", "Open an http or https address.");
-  const spec: ToolSpec = { name: "chrome_open", caption: (a) => `Opened ${siteOf(a["url"])}`, timeoutMs: 60_000 };
+  const spec: ToolSpec = { name: "chrome_open", caption: (a) => `Opened ${pageOf(a["url"])}`, timeoutMs: 60_000 };
   const out = await run(ctx, input, spec, defined({ url: input.url, newTab: input.newTab }));
   return shape(ctx, "chrome_open", out, { tabId: "s", url: "s", title: "s", downloads: "a?" });
 }

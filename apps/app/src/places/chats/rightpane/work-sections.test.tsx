@@ -283,11 +283,23 @@ test("mounted: the Browser section lists what the agent did in its browser, step
     assert.ok(asked.some(([c, i]) => c === "computers.browser.timeline" && (i as { agentId?: string }).agentId === s.data.agent.agentId), "the agent's own browser timeline is read");
     const t = textOf(root);
     assert.ok(t.includes("2 steps"));
-    assert.ok(t.includes("Chrome · ") && !t.includes("chrome_open"), "the tool reads as a word, never its own name");
+    assert.ok(t.includes("Browser · ") && !t.includes("Chrome · ") && !t.includes("chrome_open"), "a step in the agent's Space browser reads Browser (review, 12 Nov), never the tool's own name");
+    assert.ok(!/· now\b/.test(t), "one wording for a recent step");
     assert.ok(t.indexOf("Opened the pricing page") < t.indexOf("Opened the bank login · No picture: a Vault value is on this page"), "oldest first, the caption as it came");
     await press(find(root, "row-step-stp_b1"));
     await flush(); await flush();
     assert.ok(asked.some(([c, i]) => c === "files.read" && (i as { fileId?: string }).fileId === "fil_pricing"), "the step's picture is read from Files");
     assert.ok(find(root, "browser-step-picture"), "and shown where the live view is");
   } finally { off(); }
+});
+
+test("one word for where work happened: Browser for the agent's Space browser, Your Chrome for the person's own, the app on an agent's computer", async () => {
+  const { placeWord, stepWho } = await import("./model.ts");
+  assert.equal(placeWord("chrome_open", "browser"), "Browser");
+  assert.equal(placeWord("chrome_open", "my-chrome"), "Your Chrome");
+  assert.equal(placeWord("chrome_open"), "Chrome");
+  assert.equal(placeWord("terminal_run"), "Terminal");
+  assert.equal(placeWord(null, "browser"), "Browser");
+  assert.equal(stepWho({ by: "agent", tool: "chrome_open" } as never, "browser"), "Browser");
+  assert.equal(stepWho({ by: "person", tool: "chrome_open" } as never, "browser"), "You");
 });

@@ -14,6 +14,7 @@ import type { PaneDeps } from "./actions.ts";
 import { useOnline, usePaneData, useScreenQuery } from "./data.tsx";
 import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { agoLabel, computerView, dayMonth, stepRows, stepWho, stepsLine, toolWord } from "./model.ts";
+import type { WorkPlace } from "./model.ts";
 import type { Clock, Computer, Session, Step } from "./model.ts";
 import { Icon, LeadIcon, PaneList, TextButton, Tool } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
@@ -347,7 +348,7 @@ export function offsetLabel(ms: number): string {
  * The rows of a session's steps, newest last: one per step with its caption, who took it and when, Show This Step, Copy Caption and (for a computer) Make a Skill from Here. The Computer tab draws
  * a computer's steps with it, and the Browser section an agent's steps in its Space browser profile (f-wire, 12 Nov): one list for both.
  */
-export function stepEntries(o: { steps: readonly Step[]; live: boolean; asleep: boolean; clock: Clock; sel: number | null; onSelect(i: number | null): void; onCopy(text: string): void; onSkill?: (stepId: string) => void; key?: string }): Entry[] {
+export function stepEntries(o: { steps: readonly Step[]; live: boolean; asleep: boolean; clock: Clock; sel: number | null; onSelect(i: number | null): void; onCopy(text: string): void; onSkill?: (stepId: string) => void; key?: string; where?: WorkPlace }): Entry[] {
   const out: Entry[] = [];
   const { steps } = o;
   steps.forEach((x, i) => {
@@ -359,9 +360,10 @@ export function stepEntries(o: { steps: readonly Step[]; live: boolean; asleep: 
       ...(o.onSkill ? [{ separator: true as const }, { label: "Make a Skill from Here", onSelect: () => o.onSkill!(x.stepId) }] : []),
     ];
     // A finished session reads as the prototype's: the tool and how far into the session the step was (Chrome · 0:02); a live one says how long ago.
-    const when = running ? "now" : o.asleep ? offsetLabel(x.at - (steps[0]?.at ?? x.at)) : agoLabel(x.at, o.clock);
+    // one wording for a recent step: "just now", as agoLabel says it (review, 12 Nov)
+    const when = running ? "just now" : o.asleep ? offsetLabel(x.at - (steps[0]?.at ?? x.at)) : agoLabel(x.at, o.clock);
     out.push({
-      key: `${o.key ?? "step"}-${x.stepId}`, type: "row", title: x.caption, note: `${stepWho(x)} · ${when}`, selected: o.sel === i,
+      key: `${o.key ?? "step"}-${x.stepId}`, type: "row", title: x.caption, note: `${stepWho(x, o.where)} · ${when}`, selected: o.sel === i,
       leading: <Thumb dark={toolWord(x.tool) === "Terminal"} person={x.by === "person"} />, onPress: () => o.onSelect(last ? null : i), menu, testID: `step-${x.stepId}`,
     });
   });

@@ -177,7 +177,7 @@ test("an action adds a step with words and the agent's name, a look adds none, a
   await tool["computers.chrome.click"]!(agent.ctx, { ref: "e2" });
   await tool["computers.screen.key"]!(agent.ctx, { combo: "ctrl+l" });
   const rows = steps(w.h).slice(before);
-  assert.deepEqual(rows.map((r) => r["caption"]), ["Opened example.com", "Clicked Submit", "Pressed ctrl+l"]);
+  assert.deepEqual(rows.map((r) => r["caption"]), ["Opened example.com/form", "Clicked Submit", "Pressed ctrl+l"]);
   assert.deepEqual(rows.map((r) => r["tool"]), ["chrome_open", "chrome_click", "screen_key"]);
   assert.ok(rows.every((r) => r["by_who"] === "agent"));
   assert.equal(rows[1]?.["frame_file_id"], "fil_shot1", "the frame agentd sent is the step's picture");

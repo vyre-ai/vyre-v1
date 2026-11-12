@@ -469,6 +469,11 @@ export function siteOf(url: unknown): string {
   if (typeof url !== "string") return "a page";
   try { return new URL(url).host || url.slice(0, 60); } catch { return url.slice(0, 60); }
 }
+/** A page for a caption: its host and path (no query), so two steps on one site name different pages ("Opened harborquotes.com/pricing"). */
+export function pageOf(url: unknown): string {
+  if (typeof url !== "string") return "a page";
+  try { const u = new URL(url); const path = u.pathname === "/" ? "" : u.pathname.replace(/\/$/, ""); return clip(`${u.host}${path}`, 80) || url.slice(0, 60); } catch { return url.slice(0, 60); }
+}
 export const clip = (v: unknown, n = 50): string => { const s = String(v ?? "").replace(/\s+/g, " ").trim(); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
 
 // ---- shape of an answer ----------------------------------------------------------------------------------------------------------------------------------
