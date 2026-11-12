@@ -584,6 +584,8 @@ test("(o) the mark follows the work: a task the Run's agent creates is marked to
       const marked = chain.some((t) => /^automation:/.test(String((x.d.db!.all("SELECT source FROM gate_taint WHERE thread_id = ? AND cleared_at IS NULL", t)[0] as { source?: string } | undefined)?.source ?? "")));
       assert.ok(marked, `the helper's thread, or the thread it works under, carries the mark: ${JSON.stringify(chain)} ${done.join(" / ")}`);
     }
+    // leave nothing running: the helper's turn and any other ends before the daemon stops (turns parked on a card wait, which is fine)
+    await waitFor(async () => (x.d.db!.all("SELECT 1 FROM engine_turns WHERE state = 'running'").length === 0 ? true : null), 30_000, () => JSON.stringify(x.d.db!.all("SELECT agent_id, state FROM engine_turns")));
   } finally { await x.w.stop(); }
 });
 
