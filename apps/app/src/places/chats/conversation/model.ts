@@ -633,6 +633,12 @@ export function keyAlreadyUsed(e: unknown): boolean {
   return d?.reason === "idempotency_conflict" && d.cap === "chat.post";
 }
 
+/** What a failed try does to the pending list: the message is already in the thread (the post's own key was used) and its bubble goes; any other failure leaves the bubble as "Not sent." for Retry. */
+export function afterFailure(list: readonly Pending[], key: string, e: unknown): Pending[] {
+  if (keyAlreadyUsed(e)) return list.filter((x) => x.key !== key);
+  return list.map((x) => (x.key === key ? { ...x, state: "failed" as const } : x));
+}
+
 /** The files of a send after their upload: each one that had no stored file gets the id the upload made, in order, so a retry attaches them again instead of uploading again. */
 export function withUploaded(files: readonly PendingFile[] | undefined, ids: readonly string[]): PendingFile[] | undefined {
   if (!files) return files as undefined;
