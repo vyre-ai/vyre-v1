@@ -70,7 +70,10 @@ export async function invitesCreate(ctx: MembersCtx, input: {
   const again = ctx.db.all(`SELECT * FROM members_invites WHERE idem_key = ?`, idem)[0] as InviteRow | undefined;
   if (again) {
     // a retry after a lost answer: the code is stored only as a hash, so an open invite gets a fresh code and the same id
-    if (again.state !== "open") raise(tid, "validation.precondition_failed", "that invite is no longer open");
+    // said plainly, and nothing is minted for an invite that cannot be used (review Pass 7 G3): its codes, the first and any later one, are all spent with it
+    if (again.state === "accepted") raise(tid, "validation.precondition_failed", "that invite was already used");
+    if (again.state !== "open") raise(tid, "validation.precondition_failed", "that invite was revoked");
+    if (again.expires_at <= now) raise(tid, "validation.precondition_failed", "that invite has expired");
     // the code already handed out stays valid beside the fresh one (a slow answer and a retry must never kill the link the owner just sent): same entropy, only hashes kept
     const code = newCode();
     ctx.db.run(`INSERT OR REPLACE INTO members_invite_codes (code_hash, invite) VALUES (?, ?)`, again.code_hash, again.id);

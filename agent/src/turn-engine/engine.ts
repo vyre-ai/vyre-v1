@@ -527,7 +527,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       emit({ type: "turn.block", threadId: st.thread.id, turnId: turn.id, idx: blockIdx++, kind });
       lastFlush = hr();
     };
+    // stopped before it ran (a Stop pressed while it was starting): nothing more happens, no session, no hook, no prompt, and no Unblock asking for an account (review F1, F2)
+    const stoppedEarly = (): never => { throw Object.assign(new Error("stopped before it started"), { code: "cancelled" }); };
     try {
+      if (run.cancelled) stoppedEarly();
       if (refused) throw Object.assign(new Error(refused.message), { code: refused.code });
       if (!agent) throw Object.assign(new Error("agent is not in this thread"), { code: "unknown_agent" });
       if (account === null && resolveFailed) throw Object.assign(new Error(resolveMessage ?? "the account could not be resolved just now"), { code: typeof resolveCode === "string" ? resolveCode : "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
@@ -544,7 +547,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       run.session = session;
       // what really runs is what the record keeps: a session that says its model (a swapped or limited one) wins over the one the chat asked for, and a swap to the account's own default is not the asked model
       { const ran = (session as { model?: unknown }).model; if (typeof ran === "string") turn.model = ran; else if (paying?.modelFallback) turn.model = paying.modelFallback.to ?? null; }
-      if (run.cancelled) await session.cancel();
+      // a Stop that came while the session was opening: the session is let go and nothing is sent (review F1)
+      if (run.cancelled) { await session.cancel(); stoppedEarly(); }
       // the hooks layer, for every driver alike: once per turn, however many accounts it tries
       const hookNotes: string[] = [];
       if (opts.hooks && !hooksAsked && !wait) {
@@ -856,7 +860,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       // pressed in the moment between the queue and the run (the account is being read): mark that turn, so it ends cancelled as it starts. The press answers at once (lead, 12 Nov: a Stop under load)
       const starting = st.starting;
       const early = !st.running && starting && (only === undefined || starting.agentId === only) ? starting : null;
-      if (early) { early.stop = o?.reason ?? "stop"; markStopping(threadId, early.qseq); }   // on the row before the press answers: a restart now must not start it
+      if (early) {
+        early.stop = o?.reason ?? "stop";
+        // kept in the queue too, not only in memory, before the press answers: a restart before this turn starts must not hand it out again (recover requeues rows still marked running;
+        // review F3). Stopping, not cancelled: the next host closes it as cancelled and says so in the chat once (recover).
+        markStopping(threadId, early.qseq);
+      }
       const everything = o?.clearQueue === true;
       const run = st.running;
       const hit = run !== null && !run.cancelled && (only === undefined || run.agentId === only) ? run : null;

@@ -599,7 +599,10 @@ function ConversationView(): ReactElement {
       const addPeople = people.length === 0 ? Promise.resolve<unknown>(null) : channelHere !== null
         ? Promise.resolve(data.call("channels.members.add", { channelId: channelHere, personIds: people, mentionedIn: m.messageId }))
         : people.reduce<Promise<unknown>>((at, personId) => at.then(() => data.call("threads.members.add", { threadId: thread.threadId, personId, mentionedIn: m.messageId })), Promise.resolve());
-      const done = agents.reduce<Promise<unknown>>((at, agentId) => at.then(() => data.call("threads.add_agent", { threadId: thread.threadId, agentId, mode: "listen" })), addPeople);
+      // in a chat a mentioned agent already joined on the post (chat.post); a channel's agents are its managers' to add, through the channel, as the people are
+      const done = agents.reduce<Promise<unknown>>((at, agentId) => at.then(() => (channelHere !== null
+        ? data.call("channels.agents.add", { channelId: channelHere, agentId })
+        : data.call("threads.add_agent", { threadId: thread.threadId, agentId, mode: "listen" }))), addPeople);
       void done.then(() => setNotHereBusy(null), (e: unknown) => { setNotHereBusy(null); setNotHereError((cur) => ({ ...cur, [m.messageId]: `${addFailedWords(e)}` })); });
     };
     const dismiss = (): void => setNotHereGone((cur) => { const next = new Set([...cur, m.messageId]); writeDismissed(dismissKey, next); return next; });
