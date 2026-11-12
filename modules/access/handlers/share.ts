@@ -465,7 +465,10 @@ export async function updateGrant(ctx:ShareCtx,input:{grantId:string;level?:Leve
  assertFlags(ctx,store,res,conditions,grant.conditions);assertDelegation(ctx,store,res,grant.subject,level,conditions,grant.id);
  const ss=shareOf(ctx),wasFresh=isFresh(ctx,store,ss);grant.level=level;grant.conditions=conditions;
  const updated:{grantId:string;level:Level;expiresAt?:number}={grantId:grant.id,level};if(conditions.expiresAt!==undefined)updated.expiresAt=conditions.expiresAt;
- ctx.emit("grant.updated",grant.id,updated);changed(ctx,store,"assignment");commit(ctx,store,ss,wasFresh,[res.id],false);return {grant:grantView(grant)};
+ ctx.emit("grant.updated",grant.id,updated);
+ // a record share lowered lowers its copy on the record's folder in the same call
+ const roots=[res.id,...(grant.resource.type==="record"?followRecordShare(ctx,store,grant.resource.id,grant.subject):[])];
+ changed(ctx,store,"assignment");commit(ctx,store,ss,wasFresh,roots,false);return {grant:grantView(grant)};
 }
 
 /**
@@ -529,7 +532,12 @@ export async function share(ctx: ShareCtx, input: {
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
   const key = input.idempotencyKey ? `share:${ctx.principal.id}:${input.idempotencyKey}` : "";
-  if (key) { const hit = ss.idem.get(key); if (hit) return hit as { grant: GrantRec }; }
+  // a key means "this same request": its remembered answer stands only while the grant it made is still there. Once that grant was taken away, the same key shares again (the person was
+  // removed and added back), instead of answering with a grant that no longer exists
+  if (key) {
+    const hit = ss.idem.get(key) as { grant?: { id?: string } } | undefined;
+    if (hit) { if (!hit.grant?.id || store.grants.has(hit.grant.id)) return hit as { grant: GrantRec }; ss.idem.delete(key); }
+  }
   const res = resourceOf(ctx, store, input.resource);
   input = { ...input, level: agentLevel(res.type, input.level) };   // Can chat with is Can use
   // a person's Assistant (and an outside agent they connected) is theirs alone: nobody else can be given it, whatever the level
@@ -630,6 +638,8 @@ export async function automationSenders(ctx: ShareCtx, input: { automationId: st
 function mayRemove(ctx: ShareCtx, store: AccessStore, g: GrantRec): boolean {
   // the host taking back a project role it wrote (a Space admin removed the person through projects.members.remove, which checked the right): only a grant that carries a project source
   if (isHostService(ctx.principal) && g.source?.startsWith("project:")) return true;
+  // the host taking back what a chat membership gave (grants tagged chat:<thread>) when the person or agent leaves or is taken out (host/src/daemon/daemon.ts CHAT_LEAVES)
+  if (isHostService(ctx.principal) && g.source?.startsWith("chat:")) return true;
   if (g.resource.id === "*") return !!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage");
   const res = store.resources.get(g.resource.id);
   if (!res) return !!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage");
@@ -665,6 +675,8 @@ export async function unshare(ctx: ShareCtx, input: { grantId?: string; resource
     if (g.resource.id !== "*") roots.add(g.resource.id);
     ctx.emit("grant.revoked", g.id, { grantId: g.id, subject: g.subject, resource: g.resource, reason: "unshared" });
   }
+  // a record share that goes takes its copy on the record's folder with it, in this call
+  for (const g of doomed) if (g.resource.type === "record") for (const f of followRecordShare(ctx, store, g.resource.id, g.subject)) roots.add(f);
   changed(ctx, store, "assignment");
   for (const g of doomed) {
     if (g.resource.type === "folder") ctx.emit("folder.shared", g.resource.id, { folderId: g.resource.id, subject: g.subject, removed: true });
@@ -758,6 +770,30 @@ function exportersOf(store: AccessStore, res: ResourceRec): Exporters {
   if (res.row?.["exportChosen"] === true) return "chosen";
   for (const g of store.grants.values()) if (g.resource.id === res.id && g.conditions.export === true) return "chosen";
   return "admins";
+}
+
+/**
+ * A share on a record was taken away or lowered: the copy of it the projects module made on the record's Files folder (source projfolder:<recordId>, modules/projects/handlers/folders.ts
+ * syncAccess) follows in the same call, so the person cannot keep the folder after losing the record. The copy keeps at most the highest level the same subject still holds directly on the record;
+ * with nothing left there it goes. Answers the folders it changed.
+ */
+const MIRROR_ORDER = ["view", "use", "edit", "manage"];
+function followRecordShare(ctx: ShareCtx, store: AccessStore, recordId: string, subject: SubjectRef): string[] {
+  const source = `projfolder:${recordId}`;
+  const left = [...store.grants.values()].filter((g) => g.resource.type === "record" && g.resource.id === recordId && g.subject.kind === subject.kind && g.subject.id === subject.id);
+  const keep = left.reduce((m, g) => Math.max(m, MIRROR_ORDER.indexOf(g.level)), -1);
+  const touched: string[] = [];
+  for (const g of [...store.grants.values()]) {
+    if (g.source !== source || g.resource.type !== "folder" || g.subject.kind !== subject.kind || g.subject.id !== subject.id) continue;
+    if (keep < 0) { dropGrant(ctx, store, g); touched.push(g.resource.id); continue; }
+    if (MIRROR_ORDER.indexOf(g.level) > keep) {
+      const level = MIRROR_ORDER[keep] as Level;
+      store.grants.set(g.id, { ...g, level });
+      ctx.emit("grant.updated", g.id, { grantId: g.id, level });
+      touched.push(g.resource.id);
+    }
+  }
+  return touched;
 }
 
 function dropGrant(ctx: ShareCtx, store: AccessStore, g: GrantRec): void {

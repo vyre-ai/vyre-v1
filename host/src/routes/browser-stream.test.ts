@@ -161,3 +161,24 @@ test("an MJPEG view of a still page whose viewer stopped taking anything is clos
   viewer.destroy();
   void closed;
 });
+
+test("a person who can no longer watch (signed out, suspended, removed): their open views end at once, the socket and the MJPEG stream", async (t) => {
+  const w = await world();
+  t.after(w.close);
+  w.issue("sock", false);
+  const v = await open(w.port, "/browsers/agt_dex/ws?ticket=sock");
+  for (let i = 0; i < 40 && v.frames === 0; i++) await sleep(25);
+  assert.ok(v.frames > 0, "the view is live");
+  w.issue("mjpeg", false);
+  const res = await fetch(`http://127.0.0.1:${w.port}/browsers/agt_dex/stream?ticket=mjpeg`);
+  assert.equal(res.status, 200);
+  const reader = res.body!.getReader();
+  await reader.read();
+  const closed = new Promise<number>((r) => v.ws.addEventListener("close", (e) => r(e.code)));
+  assert.equal(w.relay.endPerson("usr_other"), 0, "someone else's end touches nothing");
+  assert.equal(w.relay.endPerson("usr_dana"), 2, "both of Dana's views end");
+  assert.equal(await closed, 1008);
+  let ended = false;
+  for (let i = 0; i < 40 && !ended; i++) ended = (await reader.read()).done;
+  assert.equal(ended, true, "the MJPEG stream ends");
+});

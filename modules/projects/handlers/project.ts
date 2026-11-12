@@ -9,6 +9,7 @@ import {
   isSpaceAdmin, stagesOf, tolerant, updateOf, visible, writeRecord, draftOf, saveDraft, attachesOf, templateBy,
 } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
+import { oneAtATime as queued } from "../../../lib/one-at-a-time.ts";
 import { seedTemplates, startPage } from "./overview.ts";
 import type { In, Member, Project, ProjectsCtx, Role, Source, TaskView } from "../projections.ts";
 
@@ -35,7 +36,7 @@ export async function grantOnProject(ctx: ProjectsCtx, projectId: string): Promi
     const matrix = await tolerant<{ kind?: string }>(ctx, "spaces.matrix", {}, {});
     for (const m of membersOf(ctx.db, projectId)) {
       if (matrix.kind === "personal" && m.principal === me(ctx)) continue;
-      await call(ctx, "access.share", { resource: { type: "project", id: projectId }, subject: subjectOf(m), level: LEVEL_OF[m.role], source: sourceTag(projectId) }, { idempotencyKey: `prj-share:${projectId}:${m.principal}:${m.role}:project` });
+      await call(ctx, "access.share", { resource: { type: "project", id: projectId }, subject: subjectOf(m), level: LEVEL_OF[m.role], source: sourceTag(projectId) }, { idempotencyKey: `prj-share:${projectId}:${m.principal}:${m.role}:project:${globalThis.crypto.randomUUID()}` });
     }
   });
 }
@@ -46,19 +47,8 @@ export async function grantOnProject(ctx: ProjectsCtx, projectId: string): Promi
  * away. In the queue each one reads and writes as a whole, so a call that takes a role away answers only when nothing still running can write that role back. Nothing in the queue waits for
  * another entry of the same project (the calls it makes go to other modules), so it cannot wait on itself.
  */
-const queues = new Map<string, Promise<void>>();
-export async function oneAtATime<T>(ctx: Pick<ProjectsCtx, "space">, projectId: string, work: () => Promise<T>): Promise<T> {
-  const k = `${ctx.space}:${projectId}`;
-  const before = queues.get(k) ?? Promise.resolve();
-  let done!: () => void;
-  const mine = new Promise<void>((r) => { done = r; });
-  const tail = before.then(() => mine);
-  queues.set(k, tail);
-  await before;
-  try { return await work(); } finally {
-    done();
-    if (queues.get(k) === tail) queues.delete(k);
-  }
+export function oneAtATime<T>(ctx: Pick<ProjectsCtx, "space">, projectId: string, work: () => Promise<T>): Promise<T> {
+  return queued(`project:${ctx.space}:${projectId}`, work, { onLimit: (key, ms) => (ctx as Partial<ProjectsCtx>).log?.warn("projects: a role change took too long; the next one runs", { key, limitMs: ms }) });
 }
 
 /** Tasks for counts; a project still opens when Tasks does not answer. */
@@ -104,7 +94,7 @@ async function applyRoleNow(ctx: ProjectsCtx, p: Project, principal: string, rol
  */
 async function shareRole(ctx: ProjectsCtx, p: Project, r: { type: string; id: string }, member: Member, role: Role): Promise<void> {
   try {
-    await call(ctx, "access.share", { resource: r, subject: subjectOf(member), level: LEVEL_OF[role], source: sourceTag(p.projectId) }, { idempotencyKey: `prj-share:${p.projectId}:${member.principal}:${role}:${r.type}:${ctx.now()}` });
+    await call(ctx, "access.share", { resource: r, subject: subjectOf(member), level: LEVEL_OF[role], source: sourceTag(p.projectId) }, { idempotencyKey: `prj-share:${p.projectId}:${member.principal}:${role}:${r.type}:${globalThis.crypto.randomUUID()}` });
   } catch (e) {
     const code = codeOf(e);
     if (code !== "permission.not_contained" && code !== "permission.no_grant") throw e;
@@ -157,8 +147,10 @@ export function removeMember(ctx: ProjectsCtx, p: Project, m: Member): Promise<v
 async function removeMemberNow(ctx: ProjectsCtx, p: Project, asked: Member): Promise<void> {
   const m = memberOf(ctx.db, p.projectId, asked.principal) ?? asked;   // the role as it stands now, in the queue (a change may have run while this waited)
   for (const r of resourcesOf(p)) await call(ctx, "access.unshare", { resource: r, subject: subjectOf(m), source: sourceTag(p.projectId) });
-  if (m.kind === "person" && p.channelId) await tolerant(ctx, "channels.members.remove", { channelId: p.channelId, personId: m.principal }, null);
-  if (m.kind === "agent" && p.channelId) await tolerant(ctx, "channels.agents.remove", { channelId: p.channelId, agentId: m.principal }, null);
+  // out of the project's channel too, and plainly: a refusal fails the remove (the role stays, so a retry finishes it), never "removed" while they are still in. A channel that is gone is no refusal.
+  // The daemon runs these two as the host for projects.members.remove and the teammates calls, on this project's own channel only (host/src/daemon/daemon.ts), whoever the caller is.
+  if (m.kind === "person" && p.channelId) await outOfChannel(ctx, "channels.members.remove", { channelId: p.channelId, personId: m.principal });
+  if (m.kind === "agent" && p.channelId) await outOfChannel(ctx, "channels.agents.remove", { channelId: p.channelId, agentId: m.principal });
   dropMember(ctx.db, p.projectId, m.principal);
   if (m.role === "lead") {
     const fields = await readRecord(ctx, p);
@@ -167,13 +159,33 @@ async function removeMemberNow(ctx: ProjectsCtx, p: Project, asked: Member): Pro
   emitP(ctx, "project.member_removed", p.projectId, { principal: m.principal });
 }
 
+/**
+ * Out of the project's own channel. A not-found is believed only when the channel itself reads as gone: an invite-only channel also answers not_found to someone outside it, so the channel is read
+ * again (in the daemon this read, like the removal, runs as the host on the project's own channel, host/src/daemon/daemon.ts CHANNEL_FOLLOWS) and a channel that is still there fails the remove.
+ */
+async function outOfChannel(ctx: ProjectsCtx, cap: string, input: Record<string, unknown> & { channelId: string }): Promise<void> {
+  try { await call(ctx, cap, input); } catch (e) {
+    if (codeOf(e) !== "validation.not_found") throw e;
+    let gone = false;
+    try { await call(ctx, "channels.get", { channelId: input.channelId }); } catch (g) { gone = codeOf(g) === "validation.not_found"; }
+    if (!gone) throw e;
+  }
+}
+
+/** Take this principal off the project if they are on it, reading the row in the project's queue: a role still waiting there (behind the consumer) lands first, and this remove then takes it. */
+export function removeIfMember(ctx: ProjectsCtx, p: Project, principal: string, only?: (m: Member) => boolean): Promise<boolean> {
+  return oneAtATime(ctx, p.projectId, async () => {
+    const m = memberOf(ctx.db, p.projectId, principal);
+    if (!m || (only && !only(m))) return false;
+    await removeMemberNow(ctx, p, m);
+    return true;
+  });
+}
+
 export async function membersRemove(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   const p = manageToChangeRoles(ctx, input.projectId);
-  const m = memberOf(ctx.db, p.projectId, input.principal);
-  if (!m) return { removed: false };
-  await removeMember(ctx, p, m);
-  return { removed: true };
+  return { removed: await removeIfMember(ctx, p, input.principal) };
 }
 
 // ---- making a project ----

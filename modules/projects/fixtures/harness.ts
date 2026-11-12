@@ -115,7 +115,12 @@ export function fakeWorld(clock: { t: number }) {
     "agents.create": (i, o) => keyed(o, "ag", () => { const agentId = next("agt"); agents.set(agentId, { agentId, name: i.name, ...(i.role ? { role: i.role } : {}), status: "awake", ...(i.projectId ? { teammateOf: i.projectId } : {}) }); return { agent: agents.get(agentId) }; }),
     "agents.get": (i) => ({ agent: agents.get(i.agentId) ?? (i.agentId === BOT ? { agentId: BOT, name: "Helper", status: "awake" } : fail("validation.not_found", "no such agent")) }),
     "agents.delete": (i) => { trashed.push(i.agentId); agents.delete(i.agentId); return { deleted: true }; },
-    "access.share": (i, o) => keyed(o, "as", () => { const id = next("gnt"); grants.push({ id, resource: i.resource, subject: i.subject, level: i.level, source: i.source }); return { grant: { id } }; }),
+    // as the real access.share: one grant per resource, subject and source; sharing it again updates its level (a key only replays one request)
+    "access.share": (i, o) => keyed(o, "as", () => {
+      const same = grants.find((g) => g.resource.type === i.resource.type && g.resource.id === i.resource.id && g.subject.kind === i.subject.kind && g.subject.id === i.subject.id && g.source === i.source);
+      if (same) { same.level = i.level; return { grant: { id: same.id } }; }
+      const id = next("gnt"); grants.push({ id, resource: i.resource, subject: i.subject, level: i.level, source: i.source }); return { grant: { id } };
+    }),
     "access.unshare": (i) => {
       const before = grants.length;
       if (i.grantId) { const at = grants.findIndex((g) => g.id === i.grantId); if (at >= 0) grants.splice(at, 1); return { revoked: before - grants.length }; }

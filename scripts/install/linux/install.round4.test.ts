@@ -14,9 +14,11 @@ const SERVER = path.join(HERE, "vyre-server");
 const read = (f: string): string => fs.readFileSync(f, "utf8");
 const tmp = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-install-test-"));
 
+// An engine on this computer's own kernel (vyre-server decides by the boot id read inside Docker): these tests model a Linux server whose Docker runs on its own kernel.
+const SAME_ENGINE = `Ubuntu|${((): string => { try { return fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim(); } catch { return "no-boot-id"; } })()}`;
 type Out = { status: number | null; stdout: string; stderr: string };
 function sh(script: string, body: string, env: Record<string, string> = {}): Out {
-  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_TEST_OS: "Linux", ...env } });
+  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_TEST_ENGINE: SAME_ENGINE, VYRE_TEST_OS: "Linux", ...env } });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 function fakeHost(dir: string, opts: { fs?: string; src?: string; layers?: string[] }): { mounts: string; lsblk: string } {
@@ -354,7 +356,7 @@ test("--uninstall --purge does what it says and says what it did: contents of a 
   assert.ok(fs.existsSync(data), "a mount point cannot be removed");
   assert.deepEqual(fs.readdirSync(data), [], "but it is emptied, backups included");
   assert.ok(!fs.existsSync(dirVyre));
-  assert.match(out.stdout, /Removed: the server's containers and Docker volumes, the Space's data \(the folder .* stays, because it is a separate volume's mount point, but it is empty\), every backup in .*backups, the install folder/);
+  assert.match(out.stdout, /Removed: the server's containers and Docker volumes \(the Space browser's and its agents' sign-ins too\), the Space's data \(the folder .* stays, because it is a separate volume's mount point, but it is empty\), every backup in .*backups, the install folder/);
   assert.match(out.stdout, /Not removed: the Docker images it pulled .*, Docker itself, your DNS records, certificates issued for the name, and any backup you copied somewhere else\./);
   fs.rmSync(dir, { recursive: true });
 });

@@ -35,6 +35,8 @@ export interface BrowserStream {
   /** GET /browsers/<agent>/stream. False when the request is not for this route. */
   handle(req: http.IncomingMessage, res: http.ServerResponse): boolean;
   views(): number;
+  /** The person can no longer watch (signed out, suspended, removed): every view of theirs ends now. Returns how many. */
+  endPerson(personId: string): number;
 }
 
 function plain(res: http.ServerResponse, status: number, code: string, message: string): void {
@@ -51,6 +53,8 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
   const PING_MS = deps.pingMs ?? 10_000;
   const DEAD_MS = deps.deadMs ?? 30_000;
   let views = 0;
+  // the open views, by whose ticket opened them, so they can be ended the moment that person loses access
+  const open = new Set<{ personId: string; end(): void }>();
 
   function mjpeg(req: http.IncomingMessage, res: http.ServerResponse, agentId: string): void {
     const ticket = new URL(req.url ?? "/", "http://x").searchParams.get("ticket") ?? "";
@@ -66,6 +70,9 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
       let up: Response;
       try { up = await fetch(opened.url, { signal: abort.signal }); } catch { finish(); return plain(res, 502, "provider.unavailable", "The browser did not open its view."); }
       if (!up.ok || !up.body) { finish(); return plain(res, 502, "provider.unavailable", "The browser did not open its view."); }
+      const entry = { personId: opened.personId, end: () => { abort.abort(); try { res.end(); } catch { /* gone */ } } };
+      open.add(entry);
+      res.once("close", () => open.delete(entry));
       res.writeHead(200, { "content-type": up.headers.get("content-type") ?? "multipart/x-mixed-replace", "cache-control": "no-store", connection: "close" });
       const reader = up.body.getReader();
       let behindSince = 0;
@@ -128,6 +135,9 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
         peer.ping?.();
       }, PING_MS);
       (alive as { unref?: () => void }).unref?.();
+      const entry = { personId: opened.personId, end: () => { peer.close(1008); try { up.close(); } catch { /* gone */ } } };
+      open.add(entry);
+      peer.onClose(() => open.delete(entry));
       up.addEventListener("message", (ev: MessageEvent) => { if (typeof ev.data === "string") peer.send(ev.data); else peer.send(new Uint8Array(ev.data as ArrayBuffer)); });
       up.addEventListener("close", () => { peer.close(1000); release(); });
       peer.onClose(() => { clearInterval(alive); release(); try { up.close(); } catch { /* gone */ } });
@@ -165,5 +175,10 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
       return true;
     },
     views: () => views,
+    endPerson(personId) {
+      let n = 0;
+      for (const e of [...open]) if (e.personId === personId) { open.delete(e); e.end(); n++; }
+      return n;
+    },
   };
 }
