@@ -14,6 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { holdMarker } from "../src/daemon/damaged-db.ts";
+import { STOP_BOUND_MS, reportArgs, watchStop } from "./stop-watch-kit.test.ts";
 
 const MAIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "daemon", "main.ts");
 const args = (dir: string, port: number): string[] => ["--experimental-strip-types", MAIN, "--role", "space", "--data-dir", dir, "--host", "127.0.0.1", "--port", String(port), "--space", "spc_damaged0001"];
@@ -26,19 +27,20 @@ async function freePort(): Promise<number> {
   return p;
 }
 
-type Run = { code: Promise<number | null>; err: () => string; out: () => string; kill: (s: NodeJS.Signals) => void };
+type Run = { code: Promise<number | null>; err: () => string; out: () => string; term: () => void; stopMs: () => number | null; evidence: () => string };
 function start(dir: string, port: number, untilListening = false): Run {
-  const child = spawn(process.execPath, args(dir, port), { stdio: ["ignore", "pipe", "pipe"] });
+  const reports = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-stop-report-"));
+  const child = spawn(process.execPath, [...reportArgs(reports), ...args(dir, port)], { stdio: ["ignore", "pipe", "pipe"] });
+  const watch = watchStop(child, dir, reports);
   let err = "", out = "";
   child.stderr.on("data", (c: Buffer) => { err += c.toString("utf8"); });
-  let asked = false;
-  // a clean stop is not what this test is about: SIGTERM once it listens, and SIGKILL if a busy box makes the stop slow
-  child.stdout.on("data", (c: Buffer) => { out += c.toString("utf8"); if (untilListening && !asked && out.includes("listening on")) { asked = true; child.kill("SIGTERM"); setTimeout(() => child.kill("SIGKILL"), 20_000).unref(); } });
+  // SIGTERM once it listens; the stop it starts is measured, never cut short
+  child.stdout.on("data", (c: Buffer) => { out += c.toString("utf8"); if (untilListening && out.includes("listening on")) watch.term(); });
   const code = new Promise<number | null>((resolve, reject) => {
-    const t = setTimeout(() => { child.kill("SIGKILL"); reject(new Error(`still running after 60 s\nstderr: ${err}\nstdout: ${out}`)); }, 60_000);
+    const t = setTimeout(() => { const ev = watch.evidence(); child.kill("SIGKILL"); reject(new Error(`still running after 90 s\nstderr: ${err}\nstdout: ${out}\n${ev}`)); }, 90_000);
     child.once("exit", (c) => { clearTimeout(t); resolve(c); });
   });
-  return { code, err: () => err, out: () => out, kill: (s) => child.kill(s) };
+  return { code, err: () => err, out: () => out, term: watch.term, stopMs: watch.stopMs, evidence: watch.evidence };
 }
 
 /** Every page after the first overwritten with noise: the header and the schema still read, the tables do not. */
@@ -60,6 +62,7 @@ for (const name of ["events.db"]) {
       const first = start(dir, port, true);
       await first.code;
       assert.match(first.out(), /listening on/, `the first start makes the Space: ${first.err()}`);
+      assert.ok(first.stopMs()! <= STOP_BOUND_MS, `the stop after SIGTERM took ${first.stopMs()} ms\n${first.evidence()}`);
       damage(path.join(dir, name));
       // the start that meets it: one line, exit 3
       const fail = start(dir, port);
@@ -70,6 +73,9 @@ for (const name of ["events.db"]) {
       assert.match(lines[0]!, line);
       // the restart: it holds
       const unchanged = contents(dir);
+      // the journal files the failed start's own open left beside the damaged file are cleared, so the list shows whether the hold's one check makes any
+      for (const e of ["-wal", "-shm"]) fs.rmSync(path.join(dir, name) + e, { force: true });
+      const filesBefore = fs.readdirSync(dir).sort();
       const held = start(dir, port);
       let res: Response | undefined;
       for (let i = 0; i < 100 && !res; i++) { try { res = await fetch(`http://127.0.0.1:${port}/healthz`); } catch { await new Promise((r) => setTimeout(r, 100)); } }
@@ -82,14 +88,16 @@ for (const name of ["events.db"]) {
       const other = await fetch(`http://127.0.0.1:${port}/v1/notes/list`, { method: "POST" });
       await other.text();
       assert.equal(other.status, 503, "every request");
+      assert.deepEqual(fs.readdirSync(dir).sort(), filesBefore, "the check opened the damaged file immutable: no -shm or -wal made beside it");
       // after its one check of the damaged file it touches nothing: not a byte, not a timestamp
       const before = fingerprint(dir);
       await new Promise((r) => setTimeout(r, 1500));
       assert.equal(fingerprint(dir), before, "nothing in the data folder was touched while it held");
       assert.equal(contents(dir), unchanged, "no database changed, from the start of the hold on");
       assert.equal(held.err().trim().split("\n").length, 1, `one line while it holds: ${held.err()}`);
-      held.kill("SIGTERM");
+      held.term();
       assert.equal(await held.code, 0, "it stops on SIGTERM");
+      assert.ok(held.stopMs()! <= STOP_BOUND_MS, `the held server's stop took ${held.stopMs()} ms\n${held.evidence()}`);
     } finally { fs.rmSync(holdMarker(dir), { force: true }); fs.rmSync(dir, { recursive: true, force: true }); }
   });
 }
