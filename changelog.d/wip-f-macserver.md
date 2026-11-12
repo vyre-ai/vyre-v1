@@ -5,3 +5,7 @@
 - A server that cannot start because events.db or modules.db is damaged says which file and how to put back a backup, instead of only "database disk image is malformed".
 - vyre-server doctor on a Mac speaks Mac: FileVault, not LUKS or systemctl, and a server installed with the plain-disk choice is a warning with its date, not DOWN.
 - vyre-server works on macOS older than 12.3 (no readlink -f), and an update no longer replaces the Mac's vyre-server command with the Linux one.
+- The server's own kernel is now told by its boot id, not its version, so a Linux computer running Docker inside a VM on the same kernel version is treated as a VM; when Docker does not answer, no database is opened from this computer.
+- A backup copy that arrives cut short is caught and counted as a failed backup, and nothing older is removed for it.
+- Two backups taken in the same second no longer overwrite each other, and many manual backups no longer push out the latest backups taken before an update or a restore; each removed backup is named.
+- On a Mac, the backup hint says to copy the file off this Mac instead of naming root.

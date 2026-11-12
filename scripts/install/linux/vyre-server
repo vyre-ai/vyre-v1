@@ -58,8 +58,8 @@ KEEP_BACKUPS=3
 KEEP_RELEASES=3
 
 say() { printf '%s\n' "$*"; }
-die() { printf 'vyre-server: %s\n' "$*" >&2; exit "${2:-1}"; }
-cleanup() { [ -z "$TMP" ] || rm -rf "$TMP"; [ -z "${STAGE:-}" ] || rm -rf "$STAGE"; [ -z "${RSTAGE:-}" ] || rm -rf "$RSTAGE"; [ -z "${LOCKDIR:-}" ] || rm -f "$LOCKDIR/pid"; rmdir "$LOCKDIR" 2>/dev/null || true; return 0; }
+die() { printf 'vyre-server: %s\n' "$1" >&2; exit "${2:-1}"; }
+cleanup() { [ -z "$TMP" ] || rm -rf "$TMP"; [ -z "${STAGE:-}" ] || rm -rf "$STAGE"; [ -z "${RSTAGE:-}" ] || rm -rf "$RSTAGE"; [ -z "${LOCKDIR:-}" ] || rm -f "$LOCKDIR/pid" "$LOCKDIR/child"; rmdir "$LOCKDIR" 2>/dev/null || true; return 0; }
 
 # BEGIN diskcheck
 # disk_encrypted DIR: 0 when the volume that holds DIR is encrypted, 1 when it is not, 2 when it cannot be told.
@@ -308,23 +308,35 @@ json_str() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n\t' 
 # computer's own kernel: then its locks and its shared-memory index are the ones the server uses. On a Mac, and with any engine in a virtual machine (Docker Desktop, OrbStack,
 # Colima), the server runs on another kernel: a host sqlite3 or node that opens the file through the shared folder cannot see the server's locks, runs recovery and checkpoints
 # against a file the server is writing, and damages it (12 Nov 2026, a Mac mini: logs.db and modules.db, during an update's backup). There every read, snapshot and check goes into
-# the virtual machine: `docker exec` into the running vyred (the writer's own kernel), else `docker run` of the server's image with nothing else running. A copy the server never has
+# the virtual machine: `docker exec` into the running vyred (the writer's own kernel), else `docker run` of the server's image (in the same VM, so the same kernel as the server). A copy the server never has
 # open (a staged backup, an unpacked one) may still use host tools. This block is the same text in vyre-server and in both installers (a test compares them).
 SPACEDB_SAME=""
 spacedb_os() { if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_OS:-}" ]; then printf '%s' "$VYRE_TEST_OS"; else uname -s; fi; }
-# engine_same_kernel: 0 when the Docker engine shares this computer's kernel. A Mac: never (Docker always runs in a virtual machine there). Linux: the engine's kernel (docker info's
-# KernelVersion) is this one's (uname -r), and the engine is not Docker Desktop. An engine that does not answer on Linux counts as this kernel: no other kernel then has the files open.
+# engine_same_kernel: 0 when the Docker engine's containers run on this computer's own kernel. Decided by the kernel itself, not its version: the boot id
+# (/proc/sys/kernel/random/boot_id, a new random value at each boot that no namespace changes) read here and read inside a container (the running vyred, else a one-shot
+# container of the server image). Equal version strings prove nothing: a Linux host running Colima, Lima or Multipass on the same Ubuntu kernel package reports the same
+# KernelVersion from a VM. A Mac is never the same kernel, nor is Docker Desktop. It fails safe: an engine that does not answer, a boot id that cannot be read on either side,
+# or any other doubt means "not the same kernel" (the container path, or a plain failure), never host tools. VYRE_TEST_ENGINE ("<OperatingSystem>|<boot id>") stands in for
+# Docker's two answers in test mode only.
+spacedb_host_boot() {
+  _sbf=/proc/sys/kernel/random/boot_id
+  [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_BOOT_ID_FILE:-}" ] || _sbf=$VYRE_TEST_BOOT_ID_FILE
+  head -n 1 "$_sbf" 2>/dev/null || true
+}
+spacedb_engine_boot() {
+  if _sbc=$(spacedb_vyred); then docker exec "$_sbc" cat /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1; return 0; fi
+  _sbi=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  [ -z "$_sbi" ] || docker run --rm --network none --entrypoint cat "$_sbi" /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1
+  return 0
+}
 engine_same_kernel() {
   if [ -z "$SPACEDB_SAME" ]; then
-    if [ "$(spacedb_os)" = Darwin ]; then SPACEDB_SAME=1
-    else
-      _sk=$(docker info --format '{{.KernelVersion}}|{{.OperatingSystem}}' 2>/dev/null | head -n 1) || _sk=""
-      case "$_sk" in
-        ""|"|"*) SPACEDB_SAME=0 ;;
-        *"Docker Desktop"*) SPACEDB_SAME=1 ;;
-        "$(uname -r)|"*) SPACEDB_SAME=0 ;;
-        *) SPACEDB_SAME=1 ;;
-      esac
+    SPACEDB_SAME=1
+    if [ "$(spacedb_os)" != Darwin ]; then
+      if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_ENGINE:-}" ]; then _sk=${VYRE_TEST_ENGINE%%|*}; _seb=${VYRE_TEST_ENGINE#*|}
+      else _sk=$(docker info --format '{{.OperatingSystem}}' 2>/dev/null | head -n 1) || _sk=""; _seb=""; [ -z "$_sk" ] || _seb=$(spacedb_engine_boot); fi
+      _shb=$(spacedb_host_boot)
+      case "$_sk" in ""|*"Docker Desktop"*) ;; *) [ -z "$_shb" ] || [ "$_shb" != "$_seb" ] || SPACEDB_SAME=0 ;; esac
     fi
   fi
   return "$SPACEDB_SAME"
@@ -361,6 +373,7 @@ spacedb_node() {
 # spacedb_vm KIND DB [ARG]: as space_db, inside the virtual machine. 3 when there is no safe reader (no Docker, no running vyred and no server image named).
 spacedb_vm() {
   command -v docker >/dev/null 2>&1 || return 3
+  docker info >/dev/null 2>&1 || return 3
   SPACEDB_CID=$(spacedb_vyred) || SPACEDB_CID=""
   SPACEDB_IMG=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
   [ -n "$SPACEDB_CID$SPACEDB_IMG" ] || return 3
@@ -368,7 +381,12 @@ spacedb_vm() {
   case "$1" in
     snapshot)
       rm -f "$3" "$3.part"
-      if spacedb_node "$SPACEDB_SNAP_JS" "$_sp" >"$3.part" && [ "$(head -c 15 "$3.part" 2>/dev/null)" = "SQLite format 3" ]; then mv -f "$3.part" "$3"; return 0; fi
+      # the container checked its own copy; what reached this computer is checked again here (a copy nobody has open, so host tools are safe on it): a stream cut short is a failure
+      if spacedb_node "$SPACEDB_SNAP_JS" "$_sp" >"$3.part" && [ "$(head -c 15 "$3.part" 2>/dev/null)" = "SQLite format 3" ]; then
+        mv -f "$3.part" "$3"
+        spacedb_host check "$3" && return 0 || _sc=$?
+        rm -f "$3"; [ "$_sc" = 3 ] && return 3; return 1
+      fi
       rm -f "$3.part"; return 1 ;;
     check) spacedb_node "$SPACEDB_CHECK_JS" "$_sp" ;;
     query) spacedb_node "$SPACEDB_QUERY_JS" "$_sp" "$3" "${VYRE_TEST_SQLITE_TIMEOUT:-3000}" 2>/dev/null ;;
@@ -716,7 +734,9 @@ backup_data() {
   [ -s "$DATA_DIR/space/events.db" ] || die "there is no Space in $DATA_DIR (no space/events.db): is the data volume mounted? No backup was written, and the earlier backups were left as they are."
   mkdir -p "$BACKUP_DIR" "$DIR/state"
   chmod 0700 "$BACKUP_DIR"
-  out="$BACKUP_DIR/vyre-$1-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+  # a name no backup has yet: two backups in the same second get -2, -3 (before, the second silently replaced the first)
+  stamp=$(date -u +%Y%m%dT%H%M%SZ); out="$BACKUP_DIR/vyre-$1-$stamp.tar.gz"; bn=1
+  while [ -e "$out" ] || [ -e "$out.part" ]; do bn=$((bn + 1)); out="$BACKUP_DIR/vyre-$1-$stamp-$bn.tar.gz"; done
   need_mb=$(du -sm "$DATA_DIR/space" "$DATA_DIR/caddy" 2>/dev/null | awk '{ n += $1 } END { print n + 0 }')
   free_mb=$(df -Pm "$BACKUP_DIR" | awk 'NR==2 {print $4}')
   [ "${free_mb:-0}" -gt "$((need_mb * 2 + 256))" ] || die "not enough room for a backup ($need_mb MB of data, $free_mb MB free); nothing was changed."
@@ -732,9 +752,26 @@ backup_data() {
   tar -tzf "$out.part" >/dev/null || backup_fail "the backup did not read back; nothing was changed."
   tar -tzf "$out.part" | grep -q '^space/events.db$' || backup_fail "the backup holds no Space (space/events.db is missing); nothing was changed and the earlier backups were kept."
   rm -rf "$STAGE"; STAGE=""
-  mv "$out.part" "$out"
-  ls -1t "$BACKUP_DIR"/vyre-*.tar.gz 2>/dev/null | awk -v k="$KEEP_BACKUPS" 'NR > k' | while read -r old; do rm -f "$old"; done
+  mv "$out.part" "$out" || backup_fail "the backup could not be put in place; nothing was changed."
+  [ -s "$out" ] || backup_fail "the backup is empty after it was written; nothing was changed."
   BACKUP_FILE=$out
+  prune_backups
+}
+
+# prune_backups: old backups go by kind, never across kinds, so many manual backups never push out the one taken before an update or a restore (12 Nov: twelve manual backups
+# evicted the only good copy from before a failed update). Kept: the newest 3 manual (and other) backups, the newest 2 taken before an update (vyre-pre-<version>-...), the newest 2
+# taken before a restore. What goes is named.
+prune_backups() {
+  ls -1t "$BACKUP_DIR"/vyre-*.tar.gz 2>/dev/null | awk -v k="$KEEP_BACKUPS" '
+    { n = $0; sub(/.*\//, "", n)
+      if (n ~ /^vyre-pre-restore-/) { kind = "pre-restore"; keep = 2 }
+      else if (n ~ /^vyre-pre-[0-9]/) { kind = "pre-update"; keep = 2 }
+      else { kind = "other"; keep = k }
+      if (++seen[kind] > keep) print $0 }' | while IFS= read -r old; do
+    [ "$old" != "$out" ] || continue
+    rm -f "$old" && say "  Removed an older backup: $(basename "$old")"
+  done
+  return 0
 }
 
 # fs_device PATH: the device the folder holding PATH sits on (first column of df), to tell whether a backup is on the same disk as the data.
@@ -750,8 +787,14 @@ fs_device() {
 # backup_note: a backup on the same disk as the data is no protection against losing the disk or the server; say so, and the one command that copies it out.
 backup_note() {
   if [ "$(fs_device "$(dirname "$BACKUP_FILE")")" = "$(fs_device "$DATA_DIR")" ]; then
-    say "  This backup is on the same disk as the Space's data. If this server or its disk is lost, the backup is lost with it. Copy it somewhere else, from your own computer:"
-    say "    scp $(login_name)@$(hostname -f 2>/dev/null || hostname):$BACKUP_FILE ."
+    if [ "$(spacedb_os)" = Darwin ]; then
+      # a Mac's own name (name.local) rarely answers from elsewhere, and the server runs as the person, not root: give the file and say where it must go
+      say "  This backup is on the same disk as the Space's data. If this Mac or its disk is lost, the backup is lost with it. Copy this file off this Mac (an external disk, or another computer):"
+      say "    $BACKUP_FILE"
+    else
+      say "  This backup is on the same disk as the Space's data. If this server or its disk is lost, the backup is lost with it. Copy it somewhere else, from your own computer:"
+      say "    scp root@$(hostname -f 2>/dev/null || hostname):$BACKUP_FILE ."
+    fi
   fi
 }
 
@@ -818,7 +861,8 @@ cmd_restore() {
     # In a subshell so that a failure is this restore's to handle: with BACKUP_KEEP_STOPPED the server stays stopped either way. A database that will not copy (code 6) is what a damaged
     # Space looks like, and putting a backup back is the cure, so the current folder is kept whole under a dated name instead of being backed up.
     if ( trap - EXIT; BACKUP_KEEP_STOPPED=1; backup_data pre-restore; printf '%s\n' "$BACKUP_FILE" >"$RSTAGE/.backup-file" ); then
-      BACKUP_FILE=$(cat "$RSTAGE/.backup-file"); rm -f "$RSTAGE/.backup-file"
+      BACKUP_FILE=$(cat "$RSTAGE/.backup-file" 2>/dev/null || true); rm -f "$RSTAGE/.backup-file"
+      [ -n "$BACKUP_FILE" ] && [ -s "$BACKUP_FILE" ] || { dc up -d --remove-orphans >/dev/null 2>&1 || true; resume_strays; die "the backup of the current data is missing after it was written; nothing was changed."; }
       say "  Backed up to $BACKUP_FILE"
     else
       brc=$?
@@ -1078,7 +1122,11 @@ lock_update_operation() {
   # A lock whose owner has died (pid file names a process that is gone) is reclaimed; one with no pid file is left for a person to look at.
   if [ -d "$operation_lock_path" ] && [ -f "$operation_lock_path/pid" ]; then
     owner=$(cat "$operation_lock_path/pid" 2>/dev/null || true)
-    case "$owner" in ""|*[!0-9]*) ;; *) kill -0 "$owner" 2>/dev/null || { rm -f "$operation_lock_path/pid"; rmdir "$operation_lock_path" 2>/dev/null || true; } ;; esac
+    # the second half of an update (a child of the first) writes its own pid as `child`: the lock is live while either is alive, so a first half killed alone never lets
+    # another command take the lock and roll back while the second half is still bringing the new release up
+    kid=$(cat "$operation_lock_path/child" 2>/dev/null || true)
+    case "$kid" in ""|*[!0-9]*) kid_alive=1; [ -n "$kid" ] || kid_alive=0 ;; *) kill -0 "$kid" 2>/dev/null && kid_alive=1 || kid_alive=0 ;; esac
+    case "$owner" in ""|*[!0-9]*) ;; *) kill -0 "$owner" 2>/dev/null || [ "$kid_alive" = 1 ] || { rm -f "$operation_lock_path/pid" "$operation_lock_path/child"; rmdir "$operation_lock_path" 2>/dev/null || true; } ;; esac
   fi
   # A failed contender owns nothing: EXIT cleanup must leave the active lock alone.
   if mkdir "$operation_lock_path" 2>/dev/null; then LOCKDIR=$operation_lock_path; printf '%s\n' "$$" >"$operation_lock_path/pid"
@@ -1123,8 +1171,9 @@ update_delegate() {
   new="$DIR/releases/$REL_VERSION/bin/vyre-server"
   [ "${VYRE_UPDATE_CONTINUE:-0}" != 1 ] || return 1
   [ -f "$new" ] && grep -q 'VYRE_UPDATE_CONTINUE' "$new" 2>/dev/null || return 1
-  # a signal to this half waits for the child (which has its own traps) and is then handled below, so it can never undo what the child finished
-  trap 'UPDATE_SIGNALLED=1' INT TERM HUP
+  # a signal to this half does nothing until the child (which has its own traps and puts the old release back itself) has ended; then only the child's exit code decides,
+  # so this half can never undo what the child finished
+  trap ':' INT TERM HUP
   VYRE_UPDATE_CONTINUE=1 VYRE_UPDATE_FROM=$from VYRE_UPDATE_TO=$REL_VERSION VYRE_UPDATE_STARTED=$started VYRE_UPDATE_LOCK_PID=$$ VYRE_HANDOFF=1 VYRE_DIR=$DIR \
     sh "$new" update "$@" && urc=0 || urc=$?
   trap - INT TERM HUP
@@ -1163,6 +1212,7 @@ update_continue() {
   parse_update_args "$@"
   lp=$(cat "$DIR/state/update.lock/pid" 2>/dev/null || true)
   [ -n "$lp" ] && [ "$lp" = "${VYRE_UPDATE_LOCK_PID:-}" ] && kill -0 "$lp" 2>/dev/null || die "this is the second half of an update, but the update lock is not held by the first half that started it; nothing was changed."
+  printf '%s\n' "$$" >"$DIR/state/update.lock/child"
   from=${VYRE_UPDATE_FROM:-}; REL_VERSION=${VYRE_UPDATE_TO:-}; started=${VYRE_UPDATE_STARTED:-$(date +%s)}
   [ -n "$from" ] && [ -f "$DIR/releases/$REL_VERSION/.complete" ] || die "the second half of the update was not told which release to install; nothing was changed."
   update_apply
@@ -1179,7 +1229,6 @@ update_apply() {
     docker pull -q "$ref" >/dev/null || die "could not pull $ref; nothing was changed."
   done
   trap update_interrupted INT TERM HUP
-  : >"$DIR/state/update.started" 2>/dev/null || true
   if [ "$STOPPED_BACKUP" = 1 ]; then
     # the old order, for a person who wants one copy that is consistent across every database file: the server is down for the whole backup
     backup_data "pre-$REL_VERSION"
@@ -1194,6 +1243,8 @@ update_apply() {
     dc stop >/dev/null || true
     stop_strays
   fi
+  # past the backup: from here on the server has been stopped by this update (the first half says so if this half stops early)
+  : >"$DIR/state/update.started" 2>/dev/null || true
   prev_link=$(readlink "$DIR/current")
   [ -n "$prev_link" ] || { dc up -d --remove-orphans >/dev/null 2>&1 || true; die "the install has no current release to go back to; nothing was changed."; }
   printf '%s\n' "$prev_link" >"$DIR/state/update.pending"
@@ -1216,7 +1267,7 @@ update_apply() {
     printf '%s\n' "$UPDATE_URL" >"$DIR/update-url"
     rm -f "$DIR/state/update.pending"
     record_update "$from" "$REL_VERSION" ok "$secs" ""
-    prune_releases
+    prune_releases || true
     prune_images || true
     say "Updated to $REL_VERSION in $secs s."
     return 0

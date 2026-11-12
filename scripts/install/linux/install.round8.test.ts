@@ -5,7 +5,7 @@
 // directly, with a fake docker that runs the real node with the container's /data mapped to the Space folder, and recording sqlite3 and node in front of the host's PATH.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -20,6 +20,9 @@ const tmp = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-r8-"));
 const esc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const NODE = process.execPath;
 const HOST_KERNEL = spawnSync("uname", ["-r"], { encoding: "utf8" }).stdout.trim();
+const HOST_BOOT = ((): string => { try { return fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim(); } catch { return ""; } })();
+/** An engine on this computer's own kernel, as docker answers for it: the same kernel version and the same boot id. */
+const SAME = { kernel: `${HOST_KERNEL}|Ubuntu 24.04.5 LTS`, boot: HOST_BOOT };
 
 type Out = { status: number | null; stdout: string; stderr: string };
 function sh(script: string, body: string, env: Record<string, string> = {}): Out {
@@ -46,18 +49,21 @@ case "$1" in
     esac
     exit 0 ;;
   exec)
-    shift; [ "$1" != -i ] || shift; shift; [ "$1" = node ] || exit 126; shift
+    shift; [ "$1" != -i ] || shift; shift
+    if [ "$1" = cat ]; then [ -n "\${FAKE_BOOT:-}" ] || exit 1; printf '%s\\n' "$FAKE_BOOT"; exit 0; fi
+    [ "$1" = node ] || exit 126; shift
     MAP_DATA=$FAKE_SPACE ;;
   run)
     shift; MAP_DATA=""; MAP_IN=""
     while [ $# -gt 0 ]; do
       case "$1" in
         -v) m=$2; src=\${m%%:*}; rest=\${m#*:}; dst=\${rest%%:*}; [ "$dst" != /data ] || MAP_DATA=$src; [ "$dst" != /in ] || MAP_IN=$src; shift 2 ;;
-        --entrypoint) shift 2; break ;;
+        --entrypoint) EP=$2; shift 2; break ;;
         *) shift ;;
       esac
     done
-    shift ;;
+    shift
+    if [ "$EP" = cat ]; then [ -n "\${FAKE_BOOT:-}" ] || exit 1; printf '%s\\n' "$FAKE_BOOT"; exit 0; fi ;;
   *) exit 0 ;;
 esac
 n=$#
@@ -66,6 +72,7 @@ for a do
   set -- "$@" "$a"
 done
 shift "$n"
+if [ -n "\${FAKE_TRUNCATE:-}" ]; then "$REAL_NODE" "$@" | head -c "$FAKE_TRUNCATE"; exit 0; fi
 exec "$REAL_NODE" "$@"
 `;
 
@@ -74,7 +81,7 @@ const FAKE_SQLITE_JS = `const {DatabaseSync}=require("node:sqlite");const a=proc
 const [file,sql]=rest;try{const d=new DatabaseSync(file,ro?{readOnly:true}:{});d.exec("PRAGMA busy_timeout=3000");const st=d.prepare(sql);const rows=/^\\s*(select|pragma)/i.test(sql)?st.all():(st.run(),[]);for(const r of rows)console.log(Object.values(r).join("|"));d.close()}catch(e){console.error("Error: "+e.message);process.exit(1)}`;
 
 /** Host tools that record every call and then do the real work: sqlite3 (emulated with node), node, and a chown that fails as it does for a person who is not root. */
-function world(dir: string, o: { kernel?: string; running?: boolean; image?: boolean } = {}): Record<string, string> {
+function world(dir: string, o: { kernel?: string; boot?: string; running?: boolean; image?: boolean } = {}): Record<string, string> {
   const bin = path.join(dir, "fakebin");
   fs.mkdirSync(bin, { recursive: true });
   fs.writeFileSync(path.join(bin, "docker"), FAKE_DOCKER, { mode: 0o755 });
@@ -85,7 +92,7 @@ function world(dir: string, o: { kernel?: string; running?: boolean; image?: boo
   if (o.running) fs.writeFileSync(path.join(dir, "running"), ""); else fs.rmSync(path.join(dir, "running"), { force: true });
   const img = o.image === false ? "" : `VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:${"b".repeat(64)}\n`;
   if (!fs.existsSync(path.join(dir, "compose.env")) || o.image === false) fs.writeFileSync(path.join(dir, "compose.env"), img);
-  return { PATH: `${bin}:${process.env.PATH ?? ""}`, FAKE_DIR: dir, FAKE_SPACE: path.join(dir, "data", "space"), FAKE_KERNEL: o.kernel ?? "", REAL_NODE: NODE, VYRE_DIR: dir };
+  return { PATH: `${bin}:${process.env.PATH ?? ""}`, FAKE_DIR: dir, FAKE_SPACE: path.join(dir, "data", "space"), FAKE_KERNEL: o.kernel ?? "6.8.0-colima|Ubuntu 24.04 (Colima's VM)", FAKE_BOOT: o.boot ?? "", REAL_NODE: NODE, VYRE_DIR: dir };
 }
 const MAC_ENV = { VYRE_TEST_OS: "Darwin" };
 
@@ -150,25 +157,57 @@ test("on a Mac with the server stopped the backup reads through the server image
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("a Linux engine in a virtual machine (another kernel) is treated like a Mac; the engine on this kernel keeps the host tools exactly as before", () => {
+test("the kernel is told by its boot id, not its version: a VM with the same kernel version is a VM, and silence or an unreadable boot id is never 'same'", () => {
   const dir = tmp();
   try {
     mkSpace(dir, "K");
-    const vm = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`, world(dir, { running: true, kernel: "6.10.14-linuxkit|Docker Desktop" }));
+    const ask = (env: Record<string, string>): string => sh(SERVER, `DATA_DIR="${dir}/data"; engine_same_kernel && echo same || echo vm`, env).stdout.trim();
+    // the same boot id: this kernel; the backup uses the host's own tools, as before
+    const same = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`, world(dir, { running: true, ...SAME }));
+    assert.equal(same.status, 0, same.stderr);
+    assert.ok(hostTouches(dir).some((l) => /^(sqlite3 .*|node --no-warnings -e .*)VACUUM INTO/.test(l)), "this kernel: the host's own sqlite3 (or node) takes the snapshot, as before");
+    assert.doesNotMatch(read(path.join(dir, "docker.log")), /docker (exec \S+ node|run .*--entrypoint node)/, "no container reads a database");
+    assert.match(read(path.join(dir, "docker.log")), /^docker exec cid1 cat \/proc\/sys\/kernel\/random\/boot_id$/m, "the boot id was read in the running vyred");
+    // a VM with the same kernel version string (Colima, Lima or Multipass on the same Ubuntu kernel): another boot id, so the VM reads it
+    fs.rmSync(path.join(dir, "host.log")); fs.rmSync(path.join(dir, "docker.log"));
+    const vm = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`, world(dir, { running: true, kernel: SAME.kernel, boot: "0f0e0d0c-another-kernel" }));
     assert.equal(vm.status, 0, vm.stderr);
     assert.deepEqual(hostTouches(dir), [], "another kernel: the VM reads it");
     assert.match(read(path.join(dir, "docker.log")), /^docker exec cid1 node/m);
-    fs.rmSync(path.join(dir, "docker.log"));
-    const same = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`, world(dir, { running: true, kernel: `${HOST_KERNEL}|Ubuntu 24.04.5 LTS` }));
-    assert.equal(same.status, 0, same.stderr);
-    assert.ok(hostTouches(dir).some((l) => /^(sqlite3 .*|node --no-warnings -e .*)VACUUM INTO/.test(l)), "this kernel: the host's own sqlite3 (or node) takes the snapshot, as before");
-    assert.doesNotMatch(read(path.join(dir, "docker.log")), /docker (exec|run)/, "no container is used for it");
-    // an engine that does not answer on Linux: the files are this kernel's
-    fs.rmSync(path.join(dir, "host.log"));
-    const none = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; engine_same_kernel && echo same || echo vm`, world(dir, { kernel: "" }));
-    assert.equal(none.stdout.trim(), "same");
-    const mac = sh(SERVER, `engine_same_kernel && echo same || echo vm`, { ...world(dir, { kernel: `${HOST_KERNEL}|x` }), ...MAC_ENV });
-    assert.equal(mac.stdout.trim(), "vm", "a Mac is always a virtual machine, whatever docker says");
+    // vyred is down: the boot id is read in a one-shot container of the server image
+    assert.equal(ask(world(dir, { running: false, ...SAME })), "same");
+    assert.match(read(path.join(dir, "docker.log")), /^docker run --rm --network none --entrypoint cat ghcr\.io\/vyre-ai\/vyred@sha256:b+ \/proc\/sys\/kernel\/random\/boot_id$/m);
+    // fail safe: the engine silent, the boot id unreadable in the container, the boot id unreadable here, Docker Desktop, a Mac
+    assert.equal(ask(world(dir, { running: true, kernel: "", boot: HOST_BOOT })), "vm", "an engine that does not answer");
+    assert.equal(ask(world(dir, { running: true, kernel: SAME.kernel, boot: "" })), "vm", "no boot id from the engine");
+    assert.equal(ask({ ...world(dir, { running: true, ...SAME }), VYRE_TEST_BOOT_ID_FILE: path.join(dir, "no-such-boot-id") }), "vm", "no boot id here");
+    assert.equal(ask(world(dir, { running: true, kernel: "6.10.14-linuxkit|Docker Desktop", boot: HOST_BOOT })), "vm", "Docker Desktop");
+    assert.equal(ask({ ...world(dir, { running: true, ...SAME }), ...MAC_ENV }), "vm", "a Mac, whatever docker says");
+    // the engine silent: the backup fails plainly and changes nothing (before, it fell back to host tools)
+    fs.rmSync(path.join(dir, "host.log"), { force: true });
+    const before = fs.readdirSync(path.join(dir, "backups")).sort();
+    const silent = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`, world(dir, { running: true, kernel: "" }));
+    assert.notEqual(silent.status, 0);
+    assert.match(silent.stderr, /Start Docker \(and the server\), then run this again/);
+    assert.deepEqual(hostTouches(dir), []);
+    assert.deepEqual(fs.readdirSync(path.join(dir, "backups")).sort(), before);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("a snapshot stream cut short (the copy command still exits 0) is a failed backup: nothing is written and no earlier backup is pruned", () => {
+  const dir = tmp();
+  try {
+    mkSpace(dir, "T");
+    db(path.join(dir, "data/space/events.db"), `INSERT INTO t SELECT hex(randomblob(800)) FROM (WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<400) SELECT x FROM c)`);
+    const env = { ...world(dir, { running: true }), ...MAC_ENV };
+    for (let i = 0; i < 3; i++) assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`, env).status, 0);
+    const before = fs.readdirSync(path.join(dir, "backups")).sort();
+    assert.equal(before.length, 3);
+    const r = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; sleep(){ :; }; backup_data manual live`, { ...env, FAKE_TRUNCATE: "8192" });
+    assert.notEqual(r.status, 0, "a cut-off copy is not a backup");
+    assert.match(r.stderr, /could not take a consistent copy of \S+\.db\n/);
+    assert.match(r.stderr, /nothing was changed\.\n$/, "the plain line ends there (it once carried the exit code)");
+    assert.deepEqual(fs.readdirSync(path.join(dir, "backups")).sort(), before, "no new backup, and the three earlier ones are all still there");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -265,7 +304,7 @@ test("an update is finished by the new release's own script: an old script that 
   const dir = tmp();
   try {
     const text = read(SERVER);
-    const env = updateWorld(dir, world(dir, { running: true, kernel: `${HOST_KERNEL}|Ubuntu` }));
+    const env = updateWorld(dir, world(dir, { running: true, ...SAME }));
     // the new release's script records each run, so a loop or a hand-back would show
     const newScript = text.replace(/^set -eu$/m, () => `set -eu\necho "new ran: $* continue=\${VYRE_UPDATE_CONTINUE:-0} lockpid=$(cat "$VYRE_DIR/state/update.lock/pid" 2>/dev/null)" >>"$VYRE_DIR/new-ran.log"`);
     const oldScript = withFetchStub(buggyOld(text)).replace(/^set -eu$/m, () => `set -eu\necho "old ran: $* pid=$$" >>"$VYRE_DIR/old-ran.log"`);
@@ -295,7 +334,7 @@ test("a second half that fails leaves the server on the old version and healthy,
   const dir = tmp();
   try {
     const text = read(SERVER);
-    const env = updateWorld(dir, world(dir, { running: true, kernel: `${HOST_KERNEL}|Ubuntu` }));
+    const env = updateWorld(dir, world(dir, { running: true, ...SAME }));
     // the new version never becomes healthy: its health check fails until it is switched back
     const newScript = text.replace(/^check_quiet\(\) \{/m, () => `check_quiet() { [ "$(cur_version)" != 1.1.0 ] || return 1; check_quiet_real; }\ncheck_quiet_real() {`);
     releases(dir, { old: withFetchStub(text), new: newScript });
@@ -341,7 +380,9 @@ test("@heavy on a VM host the backup snapshots through docker exec into a real c
     fs.writeFileSync(path.join(dir, "compose.env"), "VYRE_IMAGE=node:24-bookworm-slim\n");
     const bin = path.join(dir, "fakebin");
     fs.mkdirSync(bin);
-    fs.writeFileSync(path.join(bin, "sqlite3"), `#!/bin/sh\nprintf '%s\\n' "sqlite3 $*" >>"${dir}/host.log"\nexit 1\n`, { mode: 0o755 });
+    // the host's own tools record every call and do the real work (the streamed copy is checked with them on this side)
+    fs.writeFileSync(path.join(dir, "fake-sqlite3.js"), FAKE_SQLITE_JS);
+    fs.writeFileSync(path.join(bin, "sqlite3"), `#!/bin/sh\nprintf '%s\\n' "sqlite3 $*" >>"${dir}/host.log"\nexec "${NODE}" --no-warnings "${dir}/fake-sqlite3.js" "$@"\n`, { mode: 0o755 });
     fs.writeFileSync(path.join(bin, "node"), `#!/bin/sh\nprintf '%s\\n' "node $*" >>"${dir}/host.log"\nexec "${NODE}" "$@"\n`, { mode: 0o755 });
     const realDocker = spawnSync("sh", ["-c", "command -v docker"], { encoding: "utf8" }).stdout.trim();
     fs.writeFileSync(path.join(bin, "docker"), `#!/bin/sh\nprintf '%s\\n' "docker $1 $2" >>"${dir}/docker.log"\nexec "${realDocker}" "$@"\n`, { mode: 0o755 });
@@ -374,7 +415,7 @@ test("when neither version comes back, the update names the damaged database and
   const dir = tmp();
   try {
     const text = read(SERVER);
-    const env = updateWorld(dir, world(dir, { running: true, kernel: `${HOST_KERNEL}|Ubuntu` }));
+    const env = updateWorld(dir, world(dir, { running: true, ...SAME }));
     const neverHealthy = text.replace(/^check_quiet\(\) \{/m, () => "check_quiet() { return 1; }\ncheck_quiet_unused() {");
     releases(dir, { old: withFetchStub(text), new: neverHealthy });
     fs.writeFileSync(path.join(dir, "server.log"), "vyred-1  | vyred: modules.db is damaged (database disk image is malformed), so the Space cannot start. It is not repaired here. Put back the last good backup on the server: vyre-server restore <backup file> --yes\n");
@@ -395,7 +436,7 @@ test("restore goes through when the current data is damaged: the damaged folder 
   const dir = tmp();
   try {
     mkSpace(dir, "GOOD");
-    const env = world(dir, { kernel: `${HOST_KERNEL}|Ubuntu` });
+    const env = world(dir, SAME);
     const mk = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data good live; echo "$BACKUP_FILE"`, env);
     assert.equal(mk.status, 0, mk.stderr);
     const file = mk.stdout.trim().split("\n").pop()!;
@@ -480,5 +521,69 @@ test("an update never replaces the Mac installer's command (it names Docker's fo
     const r = sh(SERVER, `DIR="${dir}"; refresh_bin`, { VYRE_BIN_DIR: binDir });
     assert.equal(r.status, 0, r.stderr);
     assert.equal(read(path.join(binDir, "vyre-server")), mac, "left as the Mac installer wrote it");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// ---- from the real-Mac run (lead, 12 Nov) and the review
+
+test("two backups in the same second get two names, and many manual backups never push out the newest backups taken before an update or a restore; what goes is named", () => {
+  const dir = tmp();
+  try {
+    mkSpace(dir, "P");
+    const env = world(dir, SAME);
+    const take = (tag: string): Out => sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; date(){ case "$*" in *%Y%m%dT*) echo 20261112T004605Z ;; *) command date "$@" ;; esac; }; backup_data ${tag} live; echo "$BACKUP_FILE"`, env);
+    const names = (): string[] => fs.readdirSync(path.join(dir, "backups")).filter((n) => n.endsWith(".tar.gz")).sort();
+    const a = take("manual"), b = take("manual");
+    assert.equal(a.status, 0, a.stderr); assert.equal(b.status, 0, b.stderr);
+    assert.deepEqual(names(), ["vyre-manual-20261112T004605Z-2.tar.gz", "vyre-manual-20261112T004605Z.tar.gz"], "the second did not replace the first");
+    for (const n of names()) fs.rmSync(path.join(dir, "backups", n));
+    // one before an update, one before a restore, then twelve manual ones
+    assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data pre-1.1.0 live`, env).status, 0);
+    assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data pre-restore live`, env).status, 0);
+    let last: Out = a;
+    for (let i = 0; i < 12; i++) last = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`, env);
+    const left = names();
+    assert.equal(left.filter((n) => n.startsWith("vyre-manual-")).length, 3, left.join(" "));
+    assert.equal(left.filter((n) => n.startsWith("vyre-pre-1.1.0-")).length, 1, "the backup from before the update stays");
+    assert.equal(left.filter((n) => n.startsWith("vyre-pre-restore-")).length, 1, "the backup from before the restore stays");
+    assert.match(last.stdout, /^  Removed an older backup: vyre-manual-\S+\.tar\.gz$/m, "what goes is named");
+    // the kinds keep their own few: a third backup before an update pushes out only the oldest of that kind
+    for (const v of ["1.2.0", "1.3.0"]) assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data pre-${v} live`, env).status, 0);
+    const pre = names().filter((n) => /^vyre-pre-\d/.test(n));
+    assert.equal(pre.length, 2, pre.join(" "));
+    assert.ok(!pre.some((n) => n.startsWith("vyre-pre-1.1.0-")), "the oldest pre-update backup went first");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("the copy-off hint on a Mac names the file and says to take it off this Mac, never root@", () => {
+  const dir = tmp();
+  try {
+    mkSpace(dir, "H");
+    const r = sh(SERVER, `DATA_DIR="${dir}/data"; cmd_backup`, { ...world(dir, { running: true }), ...MAC_ENV, VYRE_TEST_FS_DEVICE: `${dir}=/dev/disk3s1` });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /Copy this file off this Mac \(an external disk, or another computer\):\n    \S+\/backups\/vyre-manual-\S+\.tar\.gz$/m);
+    assert.doesNotMatch(r.stdout, /root@/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("the update lock stays held while the second half runs, even when the first half was killed alone", () => {
+  const dir = tmp();
+  try {
+    const lock = path.join(dir, "state", "update.lock");
+    fs.mkdirSync(lock, { recursive: true });
+    const gone = spawnSync("sh", ["-c", "sh -c 'echo $$' "], { encoding: "utf8" }).stdout.trim();
+    const kid = spawn("sleep", ["30"]);
+    try {
+      fs.writeFileSync(path.join(lock, "pid"), `${gone}\n`);
+      fs.writeFileSync(path.join(lock, "child"), `${kid.pid}\n`);
+      const held = sh(SERVER, `trap cleanup EXIT; lock_update_operation; echo took`, { VYRE_DIR: dir });
+      assert.equal(held.status, 75, held.stdout + held.stderr);
+      assert.ok(fs.existsSync(path.join(lock, "child")), "the live second half keeps its lock");
+    } finally { kid.kill(); }
+    fs.writeFileSync(path.join(lock, "child"), `${gone}\n`);
+    const free = sh(SERVER, `trap cleanup EXIT; lock_update_operation; echo took`, { VYRE_DIR: dir });
+    assert.equal(free.status, 0, free.stderr);
+    assert.match(free.stdout, /took/, "both halves gone: the lock is taken back");
+    assert.equal(fs.existsSync(lock), false, "and released at the end, child file and all");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

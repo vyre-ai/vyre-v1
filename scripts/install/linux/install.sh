@@ -70,7 +70,7 @@ MIN_FREE_MB=${VYRE_MIN_FREE_MB:-10240}
 MARK="Vyre Server, installed by install.sh"
 
 say() { printf '%s\n' "$*"; }
-die() { printf 'vyre: %s\n' "$*" >&2; exit "${2:-1}"; }
+die() { printf 'vyre: %s\n' "$1" >&2; exit "${2:-1}"; }
 cleanup() { [ -z "$TMP" ] || rm -rf "$TMP"; return 0; }
 
 # show CMD...: the command as one line, for "would run:".
@@ -513,23 +513,35 @@ fs_device() {
 # computer's own kernel: then its locks and its shared-memory index are the ones the server uses. On a Mac, and with any engine in a virtual machine (Docker Desktop, OrbStack,
 # Colima), the server runs on another kernel: a host sqlite3 or node that opens the file through the shared folder cannot see the server's locks, runs recovery and checkpoints
 # against a file the server is writing, and damages it (12 Nov 2026, a Mac mini: logs.db and modules.db, during an update's backup). There every read, snapshot and check goes into
-# the virtual machine: `docker exec` into the running vyred (the writer's own kernel), else `docker run` of the server's image with nothing else running. A copy the server never has
+# the virtual machine: `docker exec` into the running vyred (the writer's own kernel), else `docker run` of the server's image (in the same VM, so the same kernel as the server). A copy the server never has
 # open (a staged backup, an unpacked one) may still use host tools. This block is the same text in vyre-server and in both installers (a test compares them).
 SPACEDB_SAME=""
 spacedb_os() { if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_OS:-}" ]; then printf '%s' "$VYRE_TEST_OS"; else uname -s; fi; }
-# engine_same_kernel: 0 when the Docker engine shares this computer's kernel. A Mac: never (Docker always runs in a virtual machine there). Linux: the engine's kernel (docker info's
-# KernelVersion) is this one's (uname -r), and the engine is not Docker Desktop. An engine that does not answer on Linux counts as this kernel: no other kernel then has the files open.
+# engine_same_kernel: 0 when the Docker engine's containers run on this computer's own kernel. Decided by the kernel itself, not its version: the boot id
+# (/proc/sys/kernel/random/boot_id, a new random value at each boot that no namespace changes) read here and read inside a container (the running vyred, else a one-shot
+# container of the server image). Equal version strings prove nothing: a Linux host running Colima, Lima or Multipass on the same Ubuntu kernel package reports the same
+# KernelVersion from a VM. A Mac is never the same kernel, nor is Docker Desktop. It fails safe: an engine that does not answer, a boot id that cannot be read on either side,
+# or any other doubt means "not the same kernel" (the container path, or a plain failure), never host tools. VYRE_TEST_ENGINE ("<OperatingSystem>|<boot id>") stands in for
+# Docker's two answers in test mode only.
+spacedb_host_boot() {
+  _sbf=/proc/sys/kernel/random/boot_id
+  [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_BOOT_ID_FILE:-}" ] || _sbf=$VYRE_TEST_BOOT_ID_FILE
+  head -n 1 "$_sbf" 2>/dev/null || true
+}
+spacedb_engine_boot() {
+  if _sbc=$(spacedb_vyred); then docker exec "$_sbc" cat /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1; return 0; fi
+  _sbi=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  [ -z "$_sbi" ] || docker run --rm --network none --entrypoint cat "$_sbi" /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1
+  return 0
+}
 engine_same_kernel() {
   if [ -z "$SPACEDB_SAME" ]; then
-    if [ "$(spacedb_os)" = Darwin ]; then SPACEDB_SAME=1
-    else
-      _sk=$(docker info --format '{{.KernelVersion}}|{{.OperatingSystem}}' 2>/dev/null | head -n 1) || _sk=""
-      case "$_sk" in
-        ""|"|"*) SPACEDB_SAME=0 ;;
-        *"Docker Desktop"*) SPACEDB_SAME=1 ;;
-        "$(uname -r)|"*) SPACEDB_SAME=0 ;;
-        *) SPACEDB_SAME=1 ;;
-      esac
+    SPACEDB_SAME=1
+    if [ "$(spacedb_os)" != Darwin ]; then
+      if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_ENGINE:-}" ]; then _sk=${VYRE_TEST_ENGINE%%|*}; _seb=${VYRE_TEST_ENGINE#*|}
+      else _sk=$(docker info --format '{{.OperatingSystem}}' 2>/dev/null | head -n 1) || _sk=""; _seb=""; [ -z "$_sk" ] || _seb=$(spacedb_engine_boot); fi
+      _shb=$(spacedb_host_boot)
+      case "$_sk" in ""|*"Docker Desktop"*) ;; *) [ -z "$_shb" ] || [ "$_shb" != "$_seb" ] || SPACEDB_SAME=0 ;; esac
     fi
   fi
   return "$SPACEDB_SAME"
@@ -566,6 +578,7 @@ spacedb_node() {
 # spacedb_vm KIND DB [ARG]: as space_db, inside the virtual machine. 3 when there is no safe reader (no Docker, no running vyred and no server image named).
 spacedb_vm() {
   command -v docker >/dev/null 2>&1 || return 3
+  docker info >/dev/null 2>&1 || return 3
   SPACEDB_CID=$(spacedb_vyred) || SPACEDB_CID=""
   SPACEDB_IMG=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
   [ -n "$SPACEDB_CID$SPACEDB_IMG" ] || return 3
@@ -573,7 +586,12 @@ spacedb_vm() {
   case "$1" in
     snapshot)
       rm -f "$3" "$3.part"
-      if spacedb_node "$SPACEDB_SNAP_JS" "$_sp" >"$3.part" && [ "$(head -c 15 "$3.part" 2>/dev/null)" = "SQLite format 3" ]; then mv -f "$3.part" "$3"; return 0; fi
+      # the container checked its own copy; what reached this computer is checked again here (a copy nobody has open, so host tools are safe on it): a stream cut short is a failure
+      if spacedb_node "$SPACEDB_SNAP_JS" "$_sp" >"$3.part" && [ "$(head -c 15 "$3.part" 2>/dev/null)" = "SQLite format 3" ]; then
+        mv -f "$3.part" "$3"
+        spacedb_host check "$3" && return 0 || _sc=$?
+        rm -f "$3"; [ "$_sc" = 3 ] && return 3; return 1
+      fi
       rm -f "$3.part"; return 1 ;;
     check) spacedb_node "$SPACEDB_CHECK_JS" "$_sp" ;;
     query) spacedb_node "$SPACEDB_QUERY_JS" "$_sp" "$3" "${VYRE_TEST_SQLITE_TIMEOUT:-3000}" 2>/dev/null ;;
