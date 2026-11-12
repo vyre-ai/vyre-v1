@@ -120,6 +120,8 @@ export interface SpanRecord {
 export interface GateHook {
   /** Does a Gate apply to this call (capability `gate` with its `when`)? Null lets the call through. */
   applies(cap: CapabilityDef, input: unknown, seed: CtxSeed): { act: string } | null | Promise<{ act: string } | null>;
+  /** Held with act "approve": an agent giving access, or keeping words for later, in a thread an Automation's outside-started Run marked (lib/automation-content.ts). Top-level calls only. */
+  fromAutomationContent?(cap: CapabilityDef, seed: CtxSeed): Promise<boolean>;
   /** A call the Gate let through on a person's yes failed before it went out: the yes goes back for a corrected retry. */
   giveBack?(input: unknown): Promise<void>;
   /** Park the call as an approval task (4.6) and return its ids. `runAs: "person"`: an agent asked the person it acts for (CtxSeed.askPerson); the hold runs as that person, and only they approve it. */
@@ -483,6 +485,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         noteRead({ thread: seed.thread, agent: seed.principal.id, asker: seed.actingFor, resource: { type: resource.type, id: resource.id } });
       }
     }
+    // a stranger's words, carried in by an Automation's outside-started Run, never give anyone access or become a standing Automation, agent, Routine, hook or skill without a yes (lead 12 Nov)
+    if (!approved && depth === 0 && (await deps.gate?.fromAutomationContent?.(c, seed).catch(() => true)) === true) return park(c, input, seed, traceId, did(), "approve", null);
     // the capability's own Gate (spec 2.14): fail closed when a Gate is declared and nothing can park the call
     if (c.gate && c.gate.act !== "none" && !approved) {
       if (!deps.gate) throw fail("internal.unavailable", traceId, { message: "Approvals are not available right now.", details: { cap: c.name, act: c.gate.act } });

@@ -13,6 +13,7 @@
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { EngineAgent } from "../../../agent/src/turn-engine/types.ts";
 import { ensure, sqlMessages, withMessageId } from "../projections.ts";
+import { AUTOMATION_MARK, isOutsideTrigger } from "../../../lib/automation-content.ts";
 import type { EngineCtx } from "../projections.ts";
 
 type Obj = Record<string, unknown>;
@@ -35,8 +36,6 @@ const isPerson = (id: unknown): id is string => typeof id === "string" && id.sta
 const isAgentId = (id: unknown): id is string => typeof id === "string" && id.startsWith("agt_");
 /** What a task that waits for a person says in its thread, once. */
 export const WAITING_NOTE = "baton.waiting";
-/** Triggers whose payload a stranger can write (steps-core brief.ts marks the same as outside content). */
-const OUTSIDE_TRIGGERS: ReadonlySet<string> = new Set(["email_received", "webhook", "form_submit"]);
 export const WAITING_LINE = "This came from an automation and has nobody's permission to act yet. Open it to run it as yourself.";
 export const WAITING_LINE_CHANGED = "The automation that made this now runs as someone else, so this work waits for a person. Open it to run it as yourself.";
 export const WAITING_LINE_AGENT = "An agent made this task, and no person's permission to act on it is on record. Open it to run it as yourself.";
@@ -327,8 +326,8 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   // acts for (only they clear it by speaking, gate grants.ts), whoever that person is: the runs-as person, or someone who started or was handed the task (pass 2, 2). It keeps the mode it has
   // (Auto by default), like a chat where the agent read a page: the Gate's own rules stop the dangerous acts, and the mark means no earlier typed ask lets one through (lead 12 Nov)
   const made = automationMade(task);
-  if (made !== null && OUTSIDE_TRIGGERS.has(made.trigger)) {
-    await host.call("gate.taint.mark", { threads: [threadId], source: `automation:${made.automationId}:${asker}` })
+  if (made !== null && isOutsideTrigger(made.trigger)) {
+    await host.call("gate.taint.mark", { threads: [threadId], source: `${AUTOMATION_MARK}${made.automationId}:${asker}` })
       .catch((e: unknown) => host.log?.("an automation's thread could not be marked as outside content", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
   }
   const woken: string[] = [];

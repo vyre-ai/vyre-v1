@@ -11,7 +11,7 @@ Give a person, group, role, agent or automation a level on a resource (flows dow
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | approve when gate.outside_marked(input) |
+| Gate | none |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

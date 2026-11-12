@@ -293,7 +293,7 @@ export default defineManifest({
       on: ['file', '/fileId'], tool: 'files', label: 'check', cli: 'vyre files diff',
     }),
     // ---- sharing
-    write('files.share', 'Share a file with a person, group, role or agent at View, Use, Edit or Manage (folders use access.share)', { gate: { act: 'approve', when: 'gate.outside_marked(input)' },
+    write('files.share', 'Share a file with a person, group, role or agent at View, Use, Edit or Manage (folders use access.share)', {
       in: { fileId: id.file, subject: subjectRef, level }, out: { ok: t.bool() }, on: ['file', '/fileId'], level: 'manage', audit: 'always', tool: 'files',
     }),
     outward('files.share_external', 'Make a view-only link to a file for someone outside the Space, with an expiry', {

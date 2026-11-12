@@ -11,7 +11,7 @@ Choose who a record type or one record is open to: everyone, only people added o
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | approve when gate.outside_marked(input) |
+| Gate | none |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

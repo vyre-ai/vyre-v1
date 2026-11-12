@@ -313,7 +313,7 @@ export default defineManifest({
       out: { taskId: id.task, messageId: id.message }, on: ['thread', '/threadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low',
       agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.not_found'],
     }),
-    write('chat.share', 'Share a message to another chat (a channel or a person): a card there carries it, and a card here says where it went; both open the other chat. You must be able to write in the chat it goes to', { gate: { act: 'approve', when: 'gate.outside_marked(input)' },
+    write('chat.share', 'Share a message to another chat (a channel or a person): a card there carries it, and a card here says where it went; both open the other chat. You must be able to write in the chat it goes to', {
       in: { ...threadT, messageId: id.message, toThreadId: id.thread, to: t.opt(t.str({ description: 'A name for the place it went (a channel name); default the chat itself' })) },
       out: { messageId: id.message, toThreadId: id.thread },
       on: ['thread', '/threadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low', agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.not_found', 'validation.precondition_failed'],

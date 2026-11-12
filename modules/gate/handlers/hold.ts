@@ -2,6 +2,7 @@
 // the hold lists, and the two things the module does on its own: recover() after a crash and rejectAllOf() when a person leaves.
 // gate.park is called by the invoke pipeline with the payload hash it computed; the Gate stores it with the decision id, writes both onto the task as reserved working notes
 // (tasks.working_notes.set decision_id and payload_hash, once each) and sets two timers: gate.expire at the timeout and one approval.backstop notification at the backstop hour.
+import { isOutsideTrigger, triggerWords } from "../../../lib/automation-content.ts";
 import { holdSentence, holdTitle } from "../../../lib/hold-words.ts";
 import type { HoldNames } from "../../../lib/hold-words.ts";
 import { outwardOf } from "../../../lib/outward.ts";
@@ -33,7 +34,6 @@ async function askerOf(ctx: GateCtx, p: PrincipalRef, actingFor: string | undefi
   return undefined;
 }
 
-const TRIGGER_WORDS: Record<string, string> = { email_received: "email", webhook: "webhook", form_submit: "form" };
 
 /** "Started by the automation <name> (<trigger>)" for a thread that is the task thread of an Automation's outside-started Run, else "". */
 async function automationStartLine(ctx: GateCtx, threadId: string): Promise<string> {
@@ -43,9 +43,9 @@ async function automationStartLine(ctx: GateCtx, threadId: string): Promise<stri
     if (th?.scopeType !== "task" || typeof th.scopeId !== "string") return "";
     const t = ((await ctx.call("tasks.get", { taskId: th.scopeId })) as { task?: { createdBy?: string; workingNotes?: Record<string, string> } } | null)?.task;
     const automationId = t?.workingNotes?.["automation.id"], trigger = t?.workingNotes?.["automation.trigger"] ?? "";
-    if (typeof automationId !== "string" || t?.createdBy !== `svc_${automationId.slice(4)}` || !(trigger in TRIGGER_WORDS)) return "";
+    if (typeof automationId !== "string" || t?.createdBy !== `svc_${automationId.slice(4)}` || !isOutsideTrigger(trigger)) return "";
     const name = ((await ctx.call("automations.get", { automationId })) as { automation?: { name?: string } } | null)?.automation?.name ?? "an automation";
-    return `Started by the automation ${name} (${TRIGGER_WORDS[trigger]})`;
+    return `Started by the automation ${name} (${triggerWords(trigger)})`;
   } catch { return ""; }
 }
 /** Open asks one agent may have waiting for one person (lead ruling, 3 Nov). */

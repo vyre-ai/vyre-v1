@@ -11,7 +11,7 @@ Turn the Request to join link on (the address people open), or change the role i
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | approve when gate.outside_marked(input) |
+| Gate | none |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

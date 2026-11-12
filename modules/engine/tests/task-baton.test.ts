@@ -192,3 +192,16 @@ test("the person who started a waiting automation task is asked again at the wak
   assert.match(String(no.h.called.find((c) => c.cap === "tasks.working_notes.set")?.input.value), /can no longer give this agent work/);
   assert.equal(no.h.called.find((c) => c.cap === "agents.outside.usable")?.input.as, BOSS, "asked as the starter");
 });
+
+test("a task a record change started is marked as holding outside content; one a schedule started is not (pass 3: every trigger but schedule, manual and button is outside)", async () => {
+  const auto = "aut_0123456789abcdef0123456789abcdef";
+  const mk = (trigger: string) => task({ createdBy: `svc_${auto.slice(4)}`, source: { kind: "run", id: "run_1" }, workingNotes: { "automation.id": auto, "automation.trigger": trigger } });
+  const stubs = { "automations.runs_as.get": () => ({ kind: "space", runsAs: BOSS, name: "Bo Boss", ok: true }), "agents.outside.usable": () => ({ usable: true }), "audit.append": () => ({}), "gate.taint.mark": () => ({ ok: true }) };
+  const changed = scene({ tsk_t1: mk("record_change") }, stubs);
+  assert.deepEqual(await changed.run("task.created", "tsk_t1"), [DOER]);
+  const mark = changed.h.called.find((c) => c.cap === "gate.taint.mark");
+  assert.equal(mark?.input.source, `automation:${auto}:${BOSS}`);
+  const timed = scene({ tsk_t1: mk("schedule") }, stubs);
+  assert.deepEqual(await timed.run("task.created", "tsk_t1"), [DOER]);
+  assert.equal(timed.h.called.some((c) => c.cap === "gate.taint.mark"), false);
+});

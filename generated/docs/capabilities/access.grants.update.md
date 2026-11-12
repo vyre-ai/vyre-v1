@@ -11,7 +11,7 @@ Change the level, conditions or expiry of a grant
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | approve when gate.outside_marked(input) |
+| Gate | none |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

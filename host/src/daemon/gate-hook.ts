@@ -6,6 +6,7 @@
 //   verify   the sealed approval token tasks.act minted must carry the hash of exactly this call, for this caller, and not be past its expiry. gate.release then re-invokes the parked
 //            call as its original caller with that token (CallOpts.approvalToken and .onBehalfOf, honoured by the pipeline for gate.release alone).
 // The daemon wraps this hook with withGateNesting, so one approval covers one send and not its provider call.
+import { HELD_FROM_AUTOMATION_SET } from "../../../lib/automation-content.ts";
 import { canonical, sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { OUTWARD_ACTS, bringsOutside, linksIn, targetsOf } from "../../../lib/grants.ts";
@@ -25,8 +26,8 @@ export interface GateHookDeps {
    * expression language has no such functions, so the Gate asks the module; an evaluator that throws counts as holding, like an unreadable expression.
    */
   evaluators?: Record<string, (input: unknown, seed: Pick<CtxSeed, "principal" | "thread">) => boolean | Promise<boolean>>;
-  /** Is any of these threads marked as holding outside content (a page an agent read, an email, form or webhook an Automation's Run was started by) and not cleared by its person speaking? */
-  marked?(threads: readonly string[]): boolean;
+  /** Does any of these threads carry an uncleared mark from an Automation's outside-started Run ("automation:..."), as opposed to a page an agent read on a person's ask? */
+  automationMarked?(threads: readonly string[]): boolean | Promise<boolean>;
   /** The held row an approval names (the host owns modules.db): who asked, whom for, run and thread, the stored payload hash and its state. Null when there is none. */
   /** What a capability that can go out without saying so does on this call: the act and where it goes. Null when this call stays here. */
   outward?(cap: string, input: unknown): { act: string; targets: string[] } | null;
@@ -86,10 +87,7 @@ export function createGateHook(d: GateHookDeps): GateHook {
     const r = (await d.call("gate.links.known", { url, threads: threads(seed.thread) })) as { known?: unknown } | null;
     return r?.known !== true;
   };
-  // Giving someone access (a share, a group, an invite, a public link) is held when an agent does it in a thread that holds outside content: a stranger's words must not open the Space to
-  // anyone. An ordinary chat, and every person's own press, is as before (lead 12 Nov).
-  const outsideMarked = (_input: unknown, seed: Pick<CtxSeed, "principal" | "thread">): boolean => seed.principal.kind === "agent" && seed.thread !== undefined && d.marked?.(threads(seed.thread)) === true;
-  const conditions = { evaluators: { ...d.evaluators, "links.is_composed": composed, "gate.outside_marked": outsideMarked } } as Pick<GateHookDeps, "evaluators">;
+  const conditions = { evaluators: { ...d.evaluators, "links.is_composed": composed } } as Pick<GateHookDeps, "evaluators">;
   const always = (cap: CapabilityDef, seed: CtxSeed): { person: string; agentId: string; threads: string[]; cap: string } | undefined =>
     (seed.actingFor?.startsWith("usr_") && seed.principal.kind === "agent" ? { person: seed.actingFor, agentId: seed.principal.id, threads: seed.thread ? threads(seed.thread) : [], cap: cap.name } : undefined);
   /** The turn grants a call let through spent, by its input, until the call ends: a call refused before it goes out hands them back. */
@@ -102,6 +100,13 @@ export function createGateHook(d: GateHookDeps): GateHook {
       await d.call("gate.grants.give_back", { ids });
     },
     mode: (thread) => d.mode?.(thread),
+    // Giving someone access, or keeping words for later turns (lib/automation-content.ts), is held when an agent does it in a thread an Automation's outside-started Run marked: a stranger's
+    // words must not open the Space to anyone or become a standing Automation, agent, Routine, hook or skill. An ordinary chat, a page read on a person's ask, and every person's own press are
+    // as in rc.25 (lead 12 Nov).
+    async fromAutomationContent(cap, seed) {
+      if (!HELD_FROM_AUTOMATION_SET.has(cap.name) || seed.principal.kind !== "agent" || seed.thread === undefined) return false;
+      return (await d.automationMarked?.(threads(seed.thread))) === true;
+    },
     async allowed(cap, input, seed) {
       const a = always(cap, seed);
       if (!a) return false;

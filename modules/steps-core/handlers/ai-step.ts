@@ -8,11 +8,11 @@
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 import type { JsonSchema } from "../../../packages/contracts/src/types.ts";
 import { stepError } from "../projections.ts";
-import { buildBrief, MAX_BRIEF_INPUT, OUTSIDE_TRIGGERS } from "./brief.ts";
+import { buildBrief, isOutside, MAX_BRIEF_INPUT } from "./brief.ts";
 import type { StepCall, StepEnv, StepNode, StepResult } from "./control.ts";
 
 /** A Run a stranger could start (an email, a form, a webhook): its trigger and inputs go in the brief as outside content. */
-const outsideOf = (env: StepEnv): { from: string } | undefined => (env.run.trigger !== undefined && OUTSIDE_TRIGGERS.has(env.run.trigger) ? { from: env.run.trigger } : undefined);
+const outsideOf = (env: StepEnv): { from: string } | undefined => (env.run.trigger !== undefined && isOutside(env.run.trigger) ? { from: env.run.trigger } : undefined);
 
 type Rec = Record<string, unknown>;
 const rec = (v: unknown): v is Rec => typeof v === "object" && v !== null && !Array.isArray(v);

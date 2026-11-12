@@ -11,7 +11,7 @@ Share a file with a person, group, role or agent at View, Use, Edit or Manage (f
 | Grant level | manage |
 | Risk | medium |
 | Resource | file (/fileId) |
-| Gate | approve when gate.outside_marked(input) |
+| Gate | none |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

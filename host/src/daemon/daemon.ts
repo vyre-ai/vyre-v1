@@ -92,8 +92,6 @@ export function createMadeFilesAnnouncer(a: { db: { all(sql: string, ...args: un
 
 /** An agent's own reports on its own task: what an outside-started Automation Run may do in Ask first without a card (ownTaskReport). */
 const OWN_TASK_REPORTS: ReadonlySet<string> = new Set(["tasks.submit", "tasks.ask", "tasks.block", "tasks.working_notes.set", "chat.post"]);
-/** Triggers whose payload a stranger can write (steps-core brief.ts, the engine's task baton). */
-const OUTSIDE_TRIGGER_KEYS: ReadonlySet<string> = new Set(["email_received", "webhook", "form_submit"]);
 
 export function createAgentHomeCaller(a: { db: { all(sql: string, ...args: unknown[]): unknown[] }; spaceId: string; invoke: Invoke }) {
   return async (agentId: string, cap: string, input: unknown): Promise<unknown> => {
@@ -122,6 +120,7 @@ import { releaseImage } from "../seams/release-images.ts";
 import { createTerminalHostSeam } from "../seams/terminal-host.ts";
 import { createEngineSessionHost } from "../seams/engine-session.ts";
 import { gateTeamAgents } from "../seams/team-vault.ts";
+import { isOutsideTrigger } from "../../../lib/automation-content.ts";
 import type { LookupSource, TeamItem } from "../seams/team-vault.ts";
 import { findDockerSocket } from "../seams/docker-socket.ts";
 import { READER_LOSS, createEngineHost } from "../seams/engine.ts";
@@ -1060,7 +1059,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const t = ((await read("tasks.get", { taskId: th.scopeId })) as { task?: { createdBy?: string; workingNotes?: Record<string, string> } } | null)?.task;
           const automationId = t?.workingNotes?.["automation.id"], trigger = t?.workingNotes?.["automation.trigger"] ?? "";
           if (typeof automationId !== "string" || !/^aut_[a-z0-9]+$/.test(automationId) || t?.createdBy !== `svc_${automationId.slice(4)}`) return null;
-          return { taskId: th.scopeId, automationId, trigger, outside: OUTSIDE_TRIGGER_KEYS.has(trigger) };
+          return { taskId: th.scopeId, automationId, trigger, outside: isOutsideTrigger(trigger) };
         } catch { return null; }
       };
       const hookRunner = createHookRunner({
@@ -1296,9 +1295,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           evaluators: moduleWhens(loaded.moduleExports, () => db, (cap, input) => system(cap, input)),
           outward: moduleOutward(loaded.moduleExports), fetches: moduleFetches(loaded.moduleExports),
           threads: threadChain,
-          marked: (ids) => {
+          // an uncleared Automation mark on the thread or one above it; when the table cannot be read, held only for a thread that belongs to an Automation's outside-started Run
+          automationMarked: async (ids) => {
             if (ids.length === 0) return false;
-            try { return db!.all(`SELECT 1 FROM gate_taint WHERE thread_id IN (${ids.map(() => "?").join(", ")}) AND cleared_at IS NULL LIMIT 1`, ...ids).length > 0; } catch { return true; }   // cannot tell: held
+            try { return db!.all(`SELECT 1 FROM gate_taint WHERE thread_id IN (${ids.map(() => "?").join(", ")}) AND cleared_at IS NULL AND source LIKE 'automation:%' LIMIT 1`, ...ids).length > 0; }
+            catch { for (const id of ids) { const at = await automationTaskOfThread(id); if (at?.outside) return true; } return false; }
           },
           mode: (id) => {
             // 1 plan, 2 auto, anything else ask (modules/chat/projections.ts): a Job is never looser than the chat above it

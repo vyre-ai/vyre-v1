@@ -60,7 +60,7 @@ export default defineManifest({
   capabilities: [
     // ---- invites
     read('members.invites.list', 'List invites', { ...V, in: { state: t.opt(t.enm('open', 'accepted', 'revoked', 'expired')), ...pageIn }, out: { invites: t.arr(inviteRow), ...pageOut }, perm: 'members.invite', tool: 'meta', team: true }),
-    write('members.invites.create', 'Invite a person: role, groups, the agents, projects and channels they start in, expiry; returns the link (address, one-time code, Space key fingerprint)', { gate: { act: 'approve', when: 'gate.outside_marked(input)' },
+    write('members.invites.create', 'Invite a person: role, groups, the agents, projects and channels they start in, expiry; returns the link (address, one-time code, Space key fingerprint)', {
       ...V, idem: 'key', in: { role: id.role, email: t.opt(email), groups: t.opt(t.arr(id.group)), agents: t.opt(t.arr(id.agent)), projects: t.opt(t.arr(id.project)), channels: t.opt(t.arr(id.channel)), expiresInDays: t.opt(t.int({ minimum: 1, maximum: 90 })), aiKeyHandle: t.opt(id.handle) },
       out: { invite: inviteRow, link: t.str({ description: 'Shown once; the code is stored only as a hash', examples: ['https://team.example.com/join/K7P2-9QXA'] }) },
       perm: 'members.invite', emits: ['member.invited'], audit: 'always', tool: 'meta', team: true,
@@ -73,7 +73,7 @@ export default defineManifest({
     write('members.invites.revoke', 'Revoke an open invite', { ...V, in: { inviteId: id.invite }, out: ok, perm: 'members.invite', emits: ['member.invite_revoked'], audit: 'always', tool: 'meta', team: true }),
     // ---- the reusable Request to join link: people ask, an admin decides. A request is a name and an email; Approve makes a one-time invite at the link's role (members.invites.create's path), so nobody joins without an admin.
     read('members.join_link.get', 'The reusable Request to join link: on or off, the role people join as, the address when on (shown again any time), and how many requests wait', { ...V, in: {}, out: { link: joinLink }, perm: 'members.invite', tool: 'meta', team: true }),
-    write('members.join_link.create', 'Turn the Request to join link on (the address people open), or change the role it admits at; defaults to Guest, the least role. Turning it on after Off makes a fresh address', { gate: { act: 'approve', when: 'gate.outside_marked(input)' },
+    write('members.join_link.create', 'Turn the Request to join link on (the address people open), or change the role it admits at; defaults to Guest, the least role. Turning it on after Off makes a fresh address', {
       ...V, in: { role: t.opt(id.role) }, out: { link: joinLink }, perm: 'members.invite', emits: ['member.join_link_changed'], audit: 'always', tool: 'meta', team: true, errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
     write('members.join_link.rotate', 'Make a new Request to join address; the old one stops working at once and requests already waiting stay', { ...V, in: {}, out: { link: joinLink }, perm: 'members.invite', emits: ['member.join_link_changed'], audit: 'always', tool: 'meta', team: true, errors: ['validation.precondition_failed'] }),
