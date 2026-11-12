@@ -645,3 +645,41 @@ test("a Stop during redelivery itself: the turn the next host brought back is st
   assert.equal(c.events("T").filter((e) => e.type === "turn.cancelled").length, 1);
   holdA.open();
 });
+
+test("the reason a turn was stopped (limit, interrupt, left, moved) is kept on its row, so the line after a restart says the right thing", async () => {
+  const clock = manualClock();
+  const queue = createMemoryQueue();
+  const leases = createMemoryLeases();
+  const hold = gate();
+  const pa = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, now: clock.now });
+  const b = createTurnEngine({ holder: "host:b", openSession: scriptedProvider({ script: ok }).openSession, queue, leases, now: clock.now, lostTurn: (row) => `trn_row${row.qseq}` });
+  a.openThread(thread("T"));
+  b.openThread(thread("T"));
+  a.receive({ threadId: "T", author: person("dana") });
+  await until(() => pa.sessions.length === 1);
+  await a.stop("T", { reason: "limit" });
+  clock.advance(21_000);
+  b.recover("T");
+  await b.idle("T");
+  assert.deepEqual(b.events("T").filter((e) => e.type === "turn.cancelled").map((e) => [(e as { reason?: string }).reason, (e as { qseq?: number }).qseq]), [["limit", 1]]);
+  hold.open();
+});
+
+test("a Stop always answers, even when its row cannot be written (the turn still stops here)", async () => {
+  const queue = createMemoryQueue();
+  const broken = { ...queue, setState: (...args: Parameters<typeof queue.setState>) => { if (args[2] === "stopping") throw new Error("database is locked"); queue.setState(...args); } };
+  const hold = gate();
+  const p = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const logged: string[] = [];
+  const e = createTurnEngine({ holder: "host:a", openSession: p.openSession, queue: broken, log: (m) => { logged.push(m); } });
+  e.openThread(thread("T"));
+  e.receive({ threadId: "T", author: person("dana") });
+  await until(() => p.sessions.length === 1);
+  const r = await e.stop("T");
+  assert.equal(r.stopped.length, 1, "the Stop answered and found the turn");
+  assert.match(logged.join(" "), /could not be written/);
+  hold.open();
+  await e.idle("T");
+  assert.equal(e.turns("T")[0]?.state, "cancelled");
+});

@@ -16,7 +16,7 @@ async function stopAgentIn(ctx: EngineCtx, engine: TurnEngine | null, threadId: 
     return;
   }
   sqlQueue(ctx.db).cancelQueued(threadId, agentId);
-  ctx.db.run("UPDATE engine_thread_queue SET state = 'cancelled' WHERE thread_id = ? AND agent_id = ? AND state = 'running'", threadId, agentId);
+  ctx.db.run("UPDATE engine_thread_queue SET state = 'cancelled' WHERE thread_id = ? AND agent_id = ? AND state IN ('running', 'stopping')", threadId, agentId);
   ctx.db.run("DELETE FROM engine_waits WHERE thread_id = ? AND agent_id = ?", threadId, agentId);
 }
 
@@ -85,7 +85,7 @@ export const LOST_AFTER_MS = 60_000;
 export function markLostJobs(ctx: EngineCtx): string[] {
   const rows = ctx.db.all(
     `SELECT j.job_id AS id FROM engine_crew_job j WHERE j.state = 'working' AND j.started_at < ?
-       AND NOT EXISTS (SELECT 1 FROM engine_thread_queue q WHERE q.thread_id = j.thread_id AND q.state IN ('queued', 'running'))
+       AND NOT EXISTS (SELECT 1 FROM engine_thread_queue q WHERE q.thread_id = j.thread_id AND q.state IN ('queued', 'running', 'stopping'))
        AND NOT EXISTS (SELECT 1 FROM engine_waits w WHERE w.thread_id = j.thread_id)`, ctx.now() - LOST_AFTER_MS,
   ) as Row[];
   const ids = rows.map((r) => str(r["id"]));

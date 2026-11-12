@@ -96,6 +96,8 @@ export interface QueueItem {
   qseq: number;
   /** The turn this row started has called a tool: it may have acted on the world, so it is never run again without a person saying so. */
   touched?: boolean;
+  /** why a Stop stopped this row (stop, interrupt, limit, left, moved), kept with "stopping" so the line after a restart says the right thing */
+  stopReason?: string;
   kind: QueueKind;
   messageId: string | null;
   agentId: string;
@@ -179,7 +181,8 @@ export type EngineEvent =
   | { type: "turn.completed"; threadId: string; turnId: string; agentId: string }
   | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** the account the turn ran on (its reference and engine), so the chat can say which sign-in needs doing */ account?: { ref: string; driver: string }; /** a turn a dead host left (code host_lost): its queue row and whom it ran for */ qseq?: number; asker?: string; /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string; /** a usage-limit failure that said when the account is usable again (epoch ms) */ resetsAt?: number }
   | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string; /** why it was stopped: interrupt, stop, limit, left, moved, lease */ reason?: string;
-      /** set on a stopped turn a dead host left (recover): who it ran for, so the agent can still say in the chat that it stopped */ asker?: string }
+      /** set on a stopped turn a dead host left (recover): who it ran for, so the agent can still say in the chat that it stopped */ asker?: string;
+      /** set with asker by recover: the queue row, so the dead turn's record is closed */ qseq?: number }
   | { type: "agent.handoff"; threadId: string; to: Placement }
   | { type: "queue.consumed"; threadId: string; qseq: number; messageId: string | null };
 

@@ -82,6 +82,8 @@ export interface EngineOptions {
   admit?: (q: { threadId: string; agentId: string; asker: string }) => Promise<{ code: string; message: string } | null>;
   /** The turn id a queue row left running by a dead host goes by (the one its row was recorded under), so what is said about it can be acted on. */
   lostTurn?: (row: QueueItem) => string;
+  /** Where the engine says something went wrong that is not a turn's own event (a Stop it could not write down). */
+  log?: (msg: string, attrs?: Record<string, unknown>) => void;
   /** A turn ended (completed, failed or cancelled): meter its usage. Not called for a turn parked on a held call until it ends. */
   onTurnEnd?: (turn: Readonly<TurnRow>, account: ResolvedAccount | null) => Promise<void> | void;
   /** A turn ended without waiting while a question it asked is still open: withdraw it, so no card or task is left behind for nobody. */
@@ -361,8 +363,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   /** The Stop on the queue row, only while the row is still this host's running one (another host that took the thread over owns it from then on). */
-  function markStopping(threadId: string, qseq: number): void {
-    if (queue.list(threadId).find((r) => r.qseq === qseq)?.state === "running") queue.setState(threadId, qseq, "stopping");
+  function markStopping(threadId: string, qseq: number, why: string): void {
+    // a Stop always answers: a store that cannot be written now leaves the turn stopped in memory, as before, and says so in the log
+    try { if (queue.list(threadId).find((r) => r.qseq === qseq)?.state === "running") queue.setState(threadId, qseq, "stopping", why); }
+    catch (e) { opts.log?.("a Stop could not be written on its queue row; it holds until this host stops", { threadId, qseq, error: e instanceof Error ? e.message : String(e) }); }
   }
 
   async function cancelRunning(st: ThreadState, why: string): Promise<void> {
@@ -371,7 +375,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     run.cancelled = true;
     run.why = why;
     // durable before anything answers: a restart before this turn has wound down finds its row stopping and closes it, rather than running it again (recover). A lost lease is not ours to write.
-    if (why !== "lease") markStopping(st.thread.id, run.qseq);
+    if (why !== "lease") markStopping(st.thread.id, run.qseq, why);
     try { await run.session?.cancel(); } catch { /* the turn is ending either way */ }
   }
 
@@ -869,7 +873,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         early.stop = o?.reason ?? "stop";
         // kept in the queue too, not only in memory, before the press answers: a restart before this turn starts must not hand it out again (recover requeues rows still marked running;
         // review F3). Stopping, not cancelled: the next host closes it as cancelled and says so in the chat once (recover).
-        markStopping(threadId, early.qseq);
+        markStopping(threadId, early.qseq, early.stop ?? "stop");
       }
       const everything = o?.clearQueue === true;
       const run = st.running;
@@ -893,7 +897,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     async stopTurn(threadId, qseq, reason = "stop") {
       const st = need(threadId);
       if (st.running && st.running.qseq === qseq) { if (st.running.cancelled) return "running"; await cancelRunning(st, reason); return "running"; }
-      if (!st.running && st.starting && st.starting.qseq === qseq) { st.starting.stop = reason; markStopping(threadId, qseq); return "starting"; }
+      if (!st.running && st.starting && st.starting.qseq === qseq) { st.starting.stop = reason; markStopping(threadId, qseq, reason); return "starting"; }
       const row = queue.list(threadId).find((r) => r.qseq === qseq);
       if (row?.state === "queued") { queue.setState(threadId, qseq, "cancelled"); return "queued"; }
       return null;
@@ -967,8 +971,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       // A turn the person stopped whose host died before it ended: closed as cancelled, and the chat says so once. It never runs again.
       for (const row of queue.list(threadId).filter((r) => r.state === "stopping")) {
         queue.setState(threadId, row.qseq, "cancelled");
-        emit({ type: "turn.cancelled", threadId, turnId: opts.lostTurn?.(row) ?? `lost:${threadId}:${row.qseq}`, agentId: row.agentId, reason: "stop",
-          asker: row.from.startsWith("usr_") ? row.from : st.thread.starter });
+        emit({ type: "turn.cancelled", threadId, turnId: opts.lostTurn?.(row) ?? `lost:${threadId}:${row.qseq}`, agentId: row.agentId, reason: row.stopReason ?? "stop",
+          asker: row.from.startsWith("usr_") ? row.from : st.thread.starter, qseq: row.qseq });
       }
       const dead = queue.running(threadId);
       // A turn that posted its reply and died before the row was closed is finished: running it again would answer the same message twice.
