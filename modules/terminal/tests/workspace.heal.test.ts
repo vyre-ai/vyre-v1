@@ -1063,12 +1063,12 @@ test("T6: a person with the agent's tab open sees why it went blank when the age
   const m = manager(dk, { projectsOf: () => ["prj_site"] });
   const host = createWorkspaceTerminalHost({ manager: m, sleep: fast });
   await host.open({ terminalId: "trm_live", target: { host: "agent_computer", agentId: AGENT }, name: "agent", cols: 100, rows: 30, folders: [] });
-  const first = await host.read("trm_live", { since: 0 });
+  const first = await host.read("trm_live", { lines: 30, since: 0 });
   await m.cut(AGENT, "prj_site");
   assert.equal(dk.box(NAME).running, false, "the cut stopped it");
-  const told = await host.read("trm_live", { since: first.next });
+  const told = await host.read("trm_live", { lines: 30, since: first.next });
   assert.match(told.text, /The agent was removed from a project, so its workspace restarted without that project's folder\. What was running in it stopped\./);
-  const again = await host.read("trm_live", { since: told.next });
+  const again = await host.read("trm_live", { lines: 30, since: told.next });
   assert.doesNotMatch(again.text, /removed from a project/, "said once");
   m.close();
 });

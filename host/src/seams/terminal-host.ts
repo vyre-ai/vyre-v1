@@ -46,6 +46,14 @@ export interface WorkspacesConfig {
   image?: string;
   /** Minutes of no use before a workspace sleeps, in ms. Default 10 minutes. */
   idleMs?: number;
+  /** The Space these workspaces are this daemon's for (the vyre.space label): another daemon on the same Docker never sleeps, removes or releases them. */
+  owner?: string;
+  /** Is this agent this Space's? Workspaces made before the Space label are claimed only by the Space whose agent they are. */
+  ownsAgent?: (agentId: string) => boolean;
+  /** Asked before every make or wake: throws for an agent in Trash. */
+  admit?: (a: { agentId: string; state: "create" | "wake" }) => Promise<void> | void;
+  /** Is this agent in Trash now (agents_agent.deletedAt)? undefined when it cannot be told (third look T2). */
+  inTrash?: (agentId: string) => boolean | undefined;
   /** The mirror of each agent's folder in Files onto ~/Vyre in its workspace: the computers module's home sync and tar reader, made by the daemon as the agent principal. Omitted: no mirror. */
   home?: {
     sync(o: { agentId: string; computerId: string; fs: never; manifest: string }): { pass(): Promise<{ failed: number }> };

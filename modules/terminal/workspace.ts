@@ -1084,7 +1084,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     hostSubnets: async () => {
       const r = await http({ method: "GET", path: "/networks" }).catch(() => null);
       if (!r || r.status !== 200) return null;
-      try { return (JSON.parse(dec.decode(r.body)) as Net[]).flatMap((n) => (n.IPAM?.Config ?? []).map((c) => c.Subnet ?? "")).filter(Boolean); } catch { return null; }
+      try { return (JSON.parse(dec.decode(r.body)) as Array<{ IPAM?: { Config?: Array<{ Subnet?: string }> } }>).flatMap((n) => (n.IPAM?.Config ?? []).map((c) => c.Subnet ?? "")).filter(Boolean); } catch { return null; }
     },
     awake: (agentId) => (AGENT_ID.test(agentId) ? api.containerRunning(workspaceName(agentId)).catch(() => false) : Promise.resolve(false)),
     takeNote(agentId) { const n = sleptNote.get(agentId) ?? null; sleptNote.delete(agentId); return n; },

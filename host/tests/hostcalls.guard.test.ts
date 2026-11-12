@@ -111,7 +111,7 @@ test("cutting an agent's workspace from a project (terminal.workspace_revoke) ru
   for (const from of ["projects.members.remove", "projects.teammates.remove"]) {
     touched.length = 0;
     const r = await invoke(cap as never, input, { space: "spc_t", principal: admin, origin: "user", depth: 1, callerCap: from } as CtxSeed);
-    assert.deepEqual([r.output, touched], [{ done: true }, ["workspace_revoke"]], from);
+    assert.deepEqual([(r as { output?: unknown }).output, touched], [{ done: true }, ["workspace_revoke"]], from);
   }
   touched.length = 0;
   for (const [why, seed] of [

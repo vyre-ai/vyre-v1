@@ -179,7 +179,7 @@ test("health: tmux missing, or present with the number of Vyre sessions in it", 
   const { tm, host } = rig({ version: "tmux 3.5a" });
   await open(host, "trm_a1");
   await open(host, "trm_a2");
-  tm.sessions.set("someone-elses", { name: "someone-elses", cols: 1, rows: 1, cwd: "/", lines: [], typed: "", hung: false, env: {} });
+  tm.sessions.set("someone-elses", { name: "someone-elses", cols: 1, rows: 1, cwd: "/", lines: [], typed: "", hung: false, env: {}, opts: new Map() });
   assert.deepEqual(await host.health(), { ok: true, detail: "tmux 3.5a", sessions: 2 });
 });
 
