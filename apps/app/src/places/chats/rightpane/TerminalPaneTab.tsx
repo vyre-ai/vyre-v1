@@ -9,7 +9,7 @@ import type { TerminalData } from "../terminal/data.ts";
 import { TerminalTab } from "../terminal/TerminalTab.tsx";
 import { loadHosts, openHostCall, thisDeviceId } from "../terminal/hosts.ts";
 import type { HostChoice } from "../terminal/hosts.ts";
-import { errorWords } from "../mounts/live.ts";
+import { errorCode, errorWords } from "../mounts/live.ts";
 import { collect } from "../conversation/model.ts";
 import { Icon } from "./parts.tsx";
 
@@ -36,9 +36,13 @@ export type Opened = { s: "opened"; terminalId: string } | { s: "choose"; hosts:
  */
 export async function openHere(d: Pick<TerminalData, "call" | "newKey" | "agent" | "team" | "nameOf" | "clock">, opts: OpenOpts = {}): Promise<Opened> {
   let host: HostChoice | undefined;
-  // the chat's agent has a workspace this person may enter: the terminal opens there, in the same sessions the agent's commands use
-  if (d.agent && (await inWorkspace(d, d.agent.agentId))) host = { key: `agent:${d.agent.agentId}`, label: "", kind: "agent", online: true, agentId: d.agent.agentId };
-  else if (d.agent?.computerId) host = { key: `agent:${d.agent.computerId}`, label: "", kind: "agent", online: true, agentId: d.agent.agentId, computerId: d.agent.computerId };
+  // the chat's agent has a workspace this person may enter: the terminal opens there, in the same sessions the agent's commands use. A server that cannot start one (no image, no
+  // Docker: provider.unavailable) is not where the pane stops: it goes on to this computer or the hosts there are, and says so when there are none (Personal first hour, 12 Nov)
+  if (d.agent && (await inWorkspace(d, d.agent.agentId))) {
+    try { return { s: "opened", terminalId: await openOn(d, { key: `agent:${d.agent.agentId}`, label: "", kind: "agent", online: true, agentId: d.agent.agentId }, opts) }; }
+    catch (e) { if (errorCode(e) !== "provider.unavailable") throw e; }
+  }
+  if (d.agent?.computerId) host = { key: `agent:${d.agent.computerId}`, label: "", kind: "agent", online: true, agentId: d.agent.agentId, computerId: d.agent.computerId };
   else {
     const deviceId = await thisDeviceId(d.call);
     if (deviceId) host = { key: `device:${deviceId}`, label: "This computer", kind: "device", online: true, deviceId };

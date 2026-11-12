@@ -90,9 +90,15 @@ test("a clean daemon stop and start, and a SIGKILL and start, leave an agent's r
   const count = async (): Promise<number> => Number((await docker(["exec", name, "sh", "-c", "cat /tmp/vyre-count 2>/dev/null || echo 0"])).out.trim().split("\n")[0] || 0);
   const counting = async (what: string): Promise<void> => { const a = await count(); await sleep(3000); const b = await count(); console.log(`RESTART ${what}: ${a} then ${b}`); assert.ok(b > a, `${what}: the command still runs (${a} then ${b})`); };
 
+  // the first command's answer, not only its container: a second message while that turn still runs is steering (injected into it), and the stand-in model, like a model that
+  // has already chosen its next step, does not act on it. On a cold CI runner the first turn outlived "container exists + 2 s", so the loop was never run (12 Nov, heavy-live).
+  const answers = async (): Promise<number> => (((await call(token, "chat.messages.list", { threadId })).data.messages as Array<{ author?: { kind?: string }; body?: string }> | undefined) ?? []).filter((m) => m.author?.kind === "agent" && /TOOL RESULT/.test(m.body ?? "")).length;
+  const t0 = Date.now();
   await post("echo ready", "rs-ready");
   await until("the workspace", 120_000, async () => ((await docker(["inspect", name])).code === 0 ? true : null));
-  await sleep(2000);
+  const made = Date.now() - t0;
+  await until("the first command's answer", 120_000, async () => ((await answers()) >= 1 ? true : null));
+  console.log(`RESTART first command: container after ${made} ms, answer after ${Date.now() - t0} ms`);
   await post("i=0; while true; do i=$((i+1)); echo $i > /tmp/vyre-count; sleep 1; done", "rs-loop");
   await until("the counter", 60_000, async () => ((await count()) >= 2 ? true : null));
 

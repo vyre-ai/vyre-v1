@@ -78,3 +78,26 @@ test("Open terminal in a chat whose agent has a workspace opens in that workspac
     assert.deepEqual(r.calls.find((c) => c.cap === "terminal.open")?.input, { host: "device", deviceId: "dev_mac", idempotencyKey: "k" }, JSON.stringify(ws));
   }
 });
+
+test("a workspace the server cannot start (no image, no Docker: provider.unavailable) does not end the pane on that error: it opens where a terminal can, or says there is none (Personal first hour, 12 Nov)", async () => {
+  const ws = { agent: { agentId: "agt_1", name: "Assistant" }, "terminal.workspace": { state: "none", canAttach: true } };
+  const refusing = (r: ReturnType<typeof rig>) => {
+    const inner = r.d.call;
+    r.d.call = async (cap: string, input: unknown) => {
+      if (cap === "terminal.open" && (input as { host?: string }).host === "agent_computer") { r.calls.push({ cap, input: input as Record<string, unknown> }); throw Object.assign(new Error("This server can't start agent workspaces yet."), { code: "provider.unavailable" }); }
+      return inner(cap, input);
+    };
+    return r;
+  };
+  // the web, no computer of theirs online: the plain "none" line, never the workspace's error
+  assert.deepEqual(await openHere(refusing(rig([], ws)).d), { s: "none" });
+  // on their own computer: the terminal opens there
+  const mac = refusing(rig([{ id: "dev_mac", name: "Mac", class: "desktop", current: true, lastSeenAt: 1 }], ws));
+  assert.deepEqual(await openHere(mac.d), { s: "opened", terminalId: "trm_new" });
+  assert.deepEqual(mac.calls.filter((c) => c.cap === "terminal.open").map((c) => c.input["host"]), ["agent_computer", "device"]);
+  // any other refusal is still the pane's to say
+  const other = rig([], ws);
+  const inner = other.d.call;
+  other.d.call = async (cap: string, input: unknown) => { if (cap === "terminal.open") throw Object.assign(new Error("That workspace is not yours to open."), { code: "permission.not_found" }); return inner(cap, input); };
+  await assert.rejects(() => openHere(other.d), /not yours/);
+});
