@@ -272,8 +272,9 @@ export const consumers = {
         if (r.emailFailed) unsent++;
         if (r.notificationId) out.push(r.notificationId);
       }
-      // an email that is the point of its kind did not go out: the delivery is not done, so the host tries the event again (the next try sends only those emails; after its tries it gives up and logs)
-      if (unsent > 0 && event.id) throw new Error(`${unsent} email${unsent === 1 ? "" : "s"} could not be sent; the next try sends ${unsent === 1 ? "it" : "them"} again`);
+      // an email that is the point of its kind did not go out after its tries (rules.ts emailWithRetry): its mark keeps email_pending, so the next delivery of this event (a restart, a crash)
+      // sends it again, alone; nobody waiting on it is ever marked reached
+      if (unsent > 0) ctx.log?.warn("the fanout could not send every email; the ones left are sent on the next delivery of the event", { unsent });
       return out;
     },
   },

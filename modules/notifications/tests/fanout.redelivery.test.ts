@@ -92,30 +92,47 @@ test("a delivery cut off after a recipient's mark and before their send answered
   assert.equal(rows(h, "space.deletion_scheduled"), 2);
 });
 
-test("an email that failed for a kind where the email is the point (the Space deletion notices): the recipient is tried again on the next try, and the ones already told are not", async () => {
+test("an email that is the point of its kind (the Space deletion notices) and fails once is tried again a moment later and goes out in the same delivery", async () => {
+  const h = harness();
+  admins(h);
+  const fan = consumers["notifications.fanout"];
+  const ctx = h.ctxFor(null, sender);
+  let failed = 0;
+  h.emailFail((m) => m.to === bob.id && failed++ === 0);
+  await fan.run(ctx, { id: "evt_delete_blip", name: "space.deletion_cancelled", payload: { by: bob.id } } as never);
+  assert.deepEqual(h.emails.map((m) => m.to).sort(), [alice.id, bob.id].sort());
+});
+
+test("an email that is the point of its kind and fails all its tries: the recipient is not marked reached, and the next delivery of the event sends that email alone", async () => {
   const h = harness();
   admins(h);
   const fan = consumers["notifications.fanout"];
   const ctx = h.ctxFor(null, sender);
   const ev = { id: "evt_delete_fail", name: "space.deletion_cancelled", payload: { by: bob.id } };
   h.emailFail((m) => m.to === bob.id);
-  await assert.rejects(() => fan.run(ctx, ev as never), /email/, "the delivery says it is not done, so the host tries the event again (bounded by its tries)");
+  await fan.run(ctx, ev as never);
   assert.deepEqual(h.emails.map((m) => m.to), [alice.id]);
   h.emailFail(null);
-  await fan.run(ctx, ev as never);
-  assert.deepEqual(h.emails.map((m) => m.to).sort(), [alice.id, bob.id].sort(), "bob's email goes out on the next try; alice gets one");
+  await fan.run(ctx, ev as never);   // the next delivery (a restart or a crash hands it over again)
+  assert.deepEqual(h.emails.map((m) => m.to).sort(), [alice.id, bob.id].sort(), "bob's email goes out; alice gets one");
   assert.equal(rows(h, "space.deletion_cancelled"), 2, "no second Inbox line");
   await fan.run(ctx, ev as never);
   assert.equal(h.emails.length, 2, "once both are told, a further delivery sends nothing");
 });
 
-test("the approval reminder email that failed is tried again by the scheduled job's retry, and goes out once", async () => {
+test("the approval reminder email: a failure is tried again a moment later; after all its tries fail, the next reminder for that approval sends it, once", async () => {
   const h = harness();
   const input = { to: alice.id, kind: "approval.backstop", subject: { type: "task", id: "tsk_9" }, title: "Retainer", collapseKey: "approval.backstop:tsk_9" };
-  h.emailFail(() => true);
-  await assert.rejects(() => h.call("notifications.send", input, sender), /email/, "the scheduled job sees a failure and retries with backoff");
-  h.emailFail(null);
+  let failed = 0;
+  h.emailFail(() => failed++ === 0);
   await h.call("notifications.send", input, sender);
-  await h.call("notifications.send", input, sender);
-  assert.deepEqual(h.emails.map((m) => m.subject), ["Something is waiting on you"]);
+  assert.deepEqual(h.emails.map((m) => m.subject), ["Something is waiting on you"], "the second try went out");
+  const g = harness();
+  g.emailFail(() => true);
+  await g.call("notifications.send", input, sender);
+  assert.equal(g.emails.length, 0);
+  g.emailFail(null);
+  await g.call("notifications.send", input, sender);   // the Gate's own reminder lands on the same key
+  await g.call("notifications.send", input, sender);
+  assert.deepEqual(g.emails.map((m) => m.subject), ["Something is waiting on you"], "not \"once\" meaning never: it goes out once");
 });
