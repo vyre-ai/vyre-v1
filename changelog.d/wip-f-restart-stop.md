@@ -1,1 +1,2 @@
 - A turn you stop stays stopped when the server restarts. Before, if the server restarted after you pressed Stop and before the turn had wound down (or while it was still starting), the turn ran again after the restart and replied. Now the chat shows it stopped, once.
+- Stopping an automation's run or cancelling an agent's task now stops the agent's turn too, and that stays stopped across a restart.

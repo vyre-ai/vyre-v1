@@ -183,6 +183,11 @@ export interface TurnEngine {
   stop(threadId: string, opts?: { agentId?: string; clearQueue?: boolean; /** why, in a word the chat turns into a sentence: stop (a person pressed Stop), limit, left, moved */ reason?: string }): Promise<StopResult>;
   /** Take a message that is waiting in the queue out of it (it stays in the chat; the agent will not answer it). Returns how many queued rows were cancelled: 0 when it is not waiting, as when its turn has started. */
   dropQueued(threadId: string, messageId: string): number;
+  /**
+   * Stop one turn by its queue row (a routine's Run stopped by its owner): queued, the row is cancelled; starting or running, it is stopped and its row marked stopping before this answers.
+   * Answers what it found, or null when that row is not waiting or running here.
+   */
+  stopTurn(threadId: string, qseq: number, reason?: string): Promise<"queued" | "starting" | "running" | null>;
   /** "Stop and send" for a message that is already stored: cancel the running turn and queue the responders first. Without a message it only cancels. */
   interrupt(threadId: string, messageId?: string): Promise<InterruptResult>;
   /** A held tool call was answered (approved or denied): queue the wake that continues the parked turn. Null when the task is unknown or already answered. */
@@ -885,6 +890,14 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       return { stopped, released, dropped, ...(early ? { starting: 1 } : {}) };
     },
     dropQueued(threadId, messageId) { need(threadId); return dropRows(threadId, messageId); },
+    async stopTurn(threadId, qseq, reason = "stop") {
+      const st = need(threadId);
+      if (st.running && st.running.qseq === qseq) { if (st.running.cancelled) return "running"; await cancelRunning(st, reason); return "running"; }
+      if (!st.running && st.starting && st.starting.qseq === qseq) { st.starting.stop = reason; markStopping(threadId, qseq); return "starting"; }
+      const row = queue.list(threadId).find((r) => r.qseq === qseq);
+      if (row?.state === "queued") { queue.setState(threadId, qseq, "cancelled"); return "queued"; }
+      return null;
+    },
     async interrupt(threadId, messageId) {
       const st = need(threadId);
       const run = st.running !== null && !st.running.cancelled ? st.running : null;

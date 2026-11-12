@@ -572,3 +572,76 @@ test("crash after a Stop on a starting turn: the row says stopping, and the next
   assert.equal(pa.sessions.length, 0);
   assert.equal(b.events("T").filter((e) => e.type === "turn.cancelled").length, 1);
 });
+
+test("crash after a Stop: the stopped turn is closed once, and the message queued behind it runs on the next host", async () => {
+  const clock = manualClock();
+  const queue = createMemoryQueue();
+  const leases = createMemoryLeases();
+  const hold = gate();
+  const pa = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, now: clock.now });
+  const pb = scriptedProvider({ script: ok });
+  const b = createTurnEngine({ holder: "host:b", openSession: pb.openSession, queue, leases, now: clock.now, lostTurn: (row) => `trn_row${row.qseq}` });
+  a.openThread(thread("T"));
+  b.openThread(thread("T"));
+  a.receive({ threadId: "T", author: person("dana") });
+  await until(() => pa.sessions.length === 1);
+  a.receive({ threadId: "T", author: person("dana") });   // the next message waits behind it
+  await a.stop("T");
+  clock.advance(21_000);
+  assert.equal(b.recover("T"), true);
+  await b.idle("T");
+  assert.deepEqual(queue.list("T").map((r) => r.state), ["cancelled", "done"], "the stopped one closed, the next one ran");
+  assert.equal(pb.sessions.length, 1);
+  assert.equal(b.events("T").filter((e) => e.type === "turn.cancelled").length, 1);
+  hold.open();
+});
+
+test("stopTurn stops one turn by its queue row: a queued row is cancelled on the row, a running one is stopped and marked stopping first, another turn is untouched", async () => {
+  const queue = createMemoryQueue();
+  const hold = gate();
+  const p = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const e = createTurnEngine({ holder: "host:a", openSession: p.openSession, queue });
+  e.openThread(thread("T"));
+  e.receive({ threadId: "T", author: person("dana") });
+  await until(() => p.sessions.length === 1);
+  const second = e.wake("T", "intake", { routine: true, from: "dana" });
+  assert.equal(await e.stopTurn("T", second, "stop"), "queued");
+  assert.equal(queue.list("T").find((r) => r.qseq === second)?.state, "cancelled");
+  assert.equal(await e.stopTurn("T", 999, "stop"), null);
+  const t0 = Date.now();
+  assert.equal(await e.stopTurn("T", 1, "stop"), "running");
+  assert.ok(Date.now() - t0 < 200, "answers at once");
+  assert.equal(queue.list("T")[0]?.state, "stopping");
+  hold.open();
+  await e.idle("T");
+  assert.deepEqual(queue.list("T").map((r) => r.state), ["cancelled", "cancelled"]);
+});
+
+test("a Stop during redelivery itself: the turn the next host brought back is stopped as it starts, and a further crash still does not run it", async () => {
+  const clock = manualClock();
+  const queue = createMemoryQueue();
+  const leases = createMemoryLeases();
+  const holdA = gate();
+  const pa = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await holdA.wait; } });
+  const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, now: clock.now });
+  const pb = scriptedProvider({ script: ok });
+  const b = createTurnEngine({ holder: "host:b", openSession: pb.openSession, queue, leases, now: clock.now, resolveAccount: () => new Promise(() => undefined) });   // b dies while its redelivered turn reads its account
+  const pc = scriptedProvider({ script: ok });
+  const c = createTurnEngine({ holder: "host:c", openSession: pc.openSession, queue, leases, now: clock.now, lostTurn: (row) => `trn_row${row.qseq}` });
+  for (const e of [a, b, c]) e.openThread(thread("T"));
+  a.receive({ threadId: "T", author: person("dana") });
+  await until(() => pa.sessions.length === 1);
+  clock.advance(21_000);   // a died with its turn running and untouched: b brings it back
+  assert.equal(b.recover("T"), true);
+  await until(() => queue.list("T")[0]?.state === "running");
+  const r = await b.stop("T");
+  assert.equal(r.starting, 1, "the Stop found the redelivered turn starting");
+  assert.equal(queue.list("T")[0]?.state, "stopping");
+  clock.advance(21_000);   // b dies too
+  assert.equal(c.recover("T"), true);
+  await c.idle("T");
+  assert.equal(pc.sessions.length + pb.sessions.length, 0, "it never runs");
+  assert.equal(c.events("T").filter((e) => e.type === "turn.cancelled").length, 1);
+  holdA.open();
+});
