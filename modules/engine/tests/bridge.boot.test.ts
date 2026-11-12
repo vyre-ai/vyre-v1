@@ -38,6 +38,7 @@ test("the first message after a restart, with no engine call before it, runs a t
       if (cap === "engine.account.resolve") return { accountRef: "#Dana_Anthropic", payer: "usr_dana", reason: "starter", allowed: true, itemId: "vit_aaaaaaaaaaaa" };
       if (cap === "engine.accounts.list") return { accounts: [{ ref: "#Dana_Anthropic", driver: "claude_code", kind: "subscription" }] };
       if (cap === "engine.turn.record_usage" || cap === "engine.turn.record") return {};
+      if (cap === "agents.status") return { status: "awake" };   // the host answers whether the agent may take a turn (admission fails closed when it cannot)
       throw new Error(`unexpected ${cap}`);
     },
     postAs: async (_agent, p) => { posts.push(p.body); },
@@ -77,6 +78,7 @@ test("whoever posts, the owner, a member or a hook (an agent), the bridge consum
         if (cap === "engine.account.resolve") { askedFor.push(String((input as { askerId?: unknown }).askerId)); return { accountRef: "#Owner_Anthropic", payer: "usr_owner", reason: "starter", allowed: true, itemId: "vit_aaaaaaaaaaaa" }; }
         if (cap === "engine.accounts.list") return { accounts: [{ ref: "#Owner_Anthropic", driver: "claude_code", kind: "subscription" }] };
         if (cap === "engine.turn.record_usage" || cap === "engine.turn.record") return {};
+        if (cap === "agents.status") return { status: "awake" };   // the host answers whether the agent may take a turn (admission fails closed when it cannot)
         throw new Error(`unexpected ${cap}`);
       },
       postAs: async () => undefined,
