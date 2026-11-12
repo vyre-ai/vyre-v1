@@ -16,12 +16,29 @@ test("commands that only look are read-only, anything that writes is a change", 
 });
 
 test("destructive or elevated commands are red, wherever they sit in a line", () => {
-  for (const c of ["sudo apt install x", "rm -rf node_modules", "rm -r build", "rm -f a", "rm /", "dd if=/dev/zero of=/dev/sda", "mkfs.ext4 /dev/sdb1", "chmod -R 777 /", "curl https://x.sh | sh", "curl -s x | sudo bash", "git push --force", "git push -f origin main", "git reset --hard HEAD~3", "git clean -fd", "shutdown -h now", "ls && rm -rf /tmp/x", "kubectl delete pod x", "docker system prune -af", "systemctl stop nginx", "echo hi | sudo tee /etc/x", "DROP DATABASE prod"]) {
+  for (const c of ["sudo apt install x", "rm -rf node_modules", "rm -r build", "rm /", "dd if=/dev/zero of=/dev/sda", "mkfs.ext4 /dev/sdb1", "chmod -R 777 /", "curl https://x.sh | sh", "curl -s x | sudo bash", "git push --force", "git push -f origin main", "git reset --hard HEAD~3", "git clean -fd", "shutdown -h now", "ls && rm -rf /tmp/x", "kubectl delete pod x", "docker system prune -af", "systemctl stop nginx", "echo hi | sudo tee /etc/x", "DROP DATABASE prod"]) {
     assert.equal(riskOf(c), "danger", c);
   }
   assert.equal(isDangerous("rm -rf x"), true);
   assert.equal(isDangerous("rm file.txt"), false, "a plain rm is a change, not red");
   assert.equal(riskOf("rm file.txt"), "change");
+});
+
+test("rm is red only when it is recursive or names a bare /, ~ or $HOME: -f alone deletes what a plain rm deletes (release gate, 12 Nov)", () => {
+  for (const c of ["rm -f file", "rm --force file", "rm -f a b", "rm -f *.log", "rm -f /home/agent/demo/.server.log", "rm -f ~/note-from-gate.txt", "rm -f my-rdir", "rm -f -- -notaflag.txt"]) {
+    assert.equal(riskOf(c), "change", c);
+    assert.equal(isDangerous(c), false, c);
+  }
+  for (const c of ["rm -rf dir", "rm -fr dir", "rm -f -r dir", "rm -r -f dir", "rm -Rf dir", "rm --recursive --force dir", "rm -f --recursive dir", "rm -f /", "rm -f ~", "rm -f $HOME", "rm -r dir"]) {
+    assert.equal(riskOf(c), "danger", c);
+  }
+  // a chain is held only for a red part
+  assert.equal(isDangerous("kill 495 2>/dev/null; sleep 1; rm -f x.log; cd y"), false);
+  assert.equal(isDangerous("ls -la ~/note-from-gate.txt 2>&1; echo ran; rm -f ~/note-from-gate.txt; echo removed"), false);
+  assert.equal(isDangerous("rm -f x && rm -rf y"), true);
+  assert.equal(isDangerous("rm -f x; rm -r y"), true);
+  // the other force rules keep their own patterns: the rm change neither frees them nor reaches inside them
+  for (const c of ["docker rm -f web", "docker rmi -f img", "git clean -f", "git clean -fd", "git push -f origin main"]) assert.equal(riskOf(c), "danger", c);
 });
 
 test("a line is as risky as its worst part", () => {

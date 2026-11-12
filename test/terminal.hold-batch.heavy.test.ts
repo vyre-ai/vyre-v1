@@ -146,8 +146,8 @@ async function setUp(t: { after: (f: () => Promise<void>) => void }, tag: string
   return { d, token, said, holds, post, allow, runs, box };
 }
 
-const rmA = (key: string) => ({ command: "ls ~/a.txt; echo a >> ~/runs-a.log; rm -f ~/a.txt; echo removed-a", idempotencyKey: key });
-const rmB = (key: string) => ({ command: "ls ~/b.txt; echo b >> ~/runs-b.log; rm -f ~/b.txt; echo removed-b", idempotencyKey: key });
+const rmA = (key: string) => ({ command: "ls ~/a.txt; echo a >> ~/runs-a.log; rm -rf ~/a.txt; echo removed-a", idempotencyKey: key });
+const rmB = (key: string) => ({ command: "ls ~/b.txt; echo b >> ~/runs-b.log; rm -rf ~/b.txt; echo removed-b", idempotencyKey: key });
 
 async function shape(t: { after: (f: () => Promise<void>) => void }, tag: string, s: Script, o: { quick?: boolean; slowCloseMs?: number } = {}): Promise<{ log: string[] }> {
   const k = await setUp(t, tag);

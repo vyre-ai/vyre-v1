@@ -23,7 +23,8 @@ const SUB_READ: Readonly<Record<string, ReadonlySet<string>>> = {
 
 const DANGER: ReadonlyArray<RegExp> = [
   /(^|[\s;&|])sudo\b/, /(^|[\s;&|])su(\s|$)/, /(^|[\s;&|])doas\b/,
-  /\brm\s+(-[a-zA-Z]*[rRf][a-zA-Z]*|--recursive|--force)\b/, /\brm\s+([^|;&]*\s)?(\/|~|\$HOME)(\s|$)/,
+  // rm is red when it is recursive (an r or R in any of its flag groups, or --recursive) or names a bare /, ~ or $HOME. -f alone is not: it deletes what a plain rm deletes (release gate, 12 Nov)
+  /\brm\s+([^|;&]*\s)?(-[a-zA-Z]*[rR][a-zA-Z]*|--recursive)(\s|$)/, /\brm\s+([^|;&]*\s)?(\/|~|\$HOME)(\s|$)/,
   /\bdd\s+[^|;&]*\bof=/, /\bmkfs(\.\w+)?\b/, /\bfdisk\b|\bparted\b|\bwipefs\b|\bshred\b/,
   /\b(shutdown|reboot|halt|poweroff|init\s+[06])\b/,
   /\b(chmod|chown|chgrp)\s+[^|;&]*-[a-zA-Z]*R/, /\bchmod\s+(-\w+\s+)?[0-7]*777\b/,
