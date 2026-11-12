@@ -6,7 +6,7 @@ import { AgentForm } from "./AgentForm.tsx";
 import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch, workPatch, chatKeyPatch } from "./model.ts";
 import type { AgentDraft, VaultItem } from "./model.ts";
 
-const draft: AgentDraft = { name: " Collector ", does: "Chases unpaid invoices", face: "f1", instructions: "", model: "", fallbackModel: "", computer: "own" };
+const draft: AgentDraft = { name: " Collector ", does: "Chases unpaid invoices", face: "f1", instructions: "", model: "", fallbackModel: "" };
 const item = (id: string, name: string): VaultItem => ({ id, name } as VaultItem);
 
 test("a new agent's instructions are drafted from what it does", () => {
@@ -38,16 +38,17 @@ test("Can use grants a Shared item at Use and skips a Mine item, which the agent
 });
 
 test("the fields become agents.create and agents.update input", () => {
-  assert.deepEqual(createInput(draft, "k1"), { name: "Collector", role: "Chases unpaid invoices", face: "f1", computer: true, idempotencyKey: "k1" });
+  assert.deepEqual(createInput(draft, "k1"), { name: "Collector", role: "Chases unpaid invoices", face: "f1", idempotencyKey: "k1" });
   assert.deepEqual(updatePatch({ ...draft, model: "opus" }), { name: "Collector", role: "Chases unpaid invoices", face: "f1", model: "opus", fallbackModel: null });
 });
 
 const page = (team: boolean): string => renderToStaticMarkup(<AgentForm agentId={null} call={async () => ({})} newKey={() => "k"} onDone={() => undefined} onCancel={() => undefined} say={() => undefined} {...(team ? { sharing: { directory: { people: [], groups: [], roles: [], agents: [], channels: [], automations: [] } as never, meName: "Ada", meId: "p1", nameOf: (id: string) => id } } : {})} />);
 
-test("the page draws its sections in order", () => {
+test("the page draws its sections in order, and none of them offers a computer", () => {
   const out = page(true);
+  assert.ok(!out.includes("agent-computer-") && !out.includes("Its own computer") && !out.includes("No computer"), "every agent has a terminal and a browser: there is nothing to choose");
   let at = 0;
-  for (const s of ["agent-name", "agent-does", "Instructions", "Context", "Can reach", "Computer", "Who can use it", "Preferred model", "Create agent"]) { const i = out.indexOf(s, at); assert.ok(i >= at, s); at = i; }
+  for (const s of ["agent-name", "agent-does", "Instructions", "Context", "Can reach", "Who can use it", "Preferred model", "Create agent"]) { const i = out.indexOf(s, at); assert.ok(i >= at, s); at = i; }
 });
 
 test("Who can use it is hidden in a Personal Space", () => {

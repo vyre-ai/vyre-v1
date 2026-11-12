@@ -15,7 +15,7 @@ const say: DriverEvent[] = [{ type: "text", text: "Hello." }, { type: "usage", i
 
 test("a new chat's first reply has its turn: of_message answers with the model and the account", async () => {
   const h = harness({ threads: THREADS });
-  const posts: Array<{ clientId: string }> = [];
+  const posts: Array<{ clientId: string; body?: string }> = [];
   const host: EngineHostSeam = {
     holder: "host:spc_enginetest", openSession: scriptedProvider({ script: say }).openSession, now: () => 1_760_000_000_000,
     postAs: async (_a, post) => { posts.push(post as never); return {}; },
@@ -25,6 +25,7 @@ test("a new chat's first reply has its turn: of_message answers with the model a
       if (cap === "engine.turn.record" || cap === "engine.turn.record_usage" || cap === "engine.turn.of_message") return (handlers as Record<string, (c: unknown, i: unknown) => unknown>)[cap]!(h.ctx, input);
       if (cap === "threads.get") return { thread: THREADS[0] };
       if (cap === "chat.transcript.summarize" || cap === "chat.transcript.append") return {};
+      if (cap === "agents.status") return { status: "awake" };   // the host answers whether the agent may take a turn (admission fails closed when it cannot)
       throw new Error(`unexpected ${cap} ${as ?? ""}`);
     },
   };
@@ -37,6 +38,7 @@ test("a new chat's first reply has its turn: of_message answers with the model a
     await until(() => posts.length > 0);
     await new Promise<void>((r) => setTimeout(r, 200));
     const out = (await (handlers as Record<string, (c: unknown, i: unknown) => unknown>)["engine.turn.of_message"]!({ ...h.ctx, principal: { kind: "person", id: "usr_dana" } }, { threadId: THREAD, messageId: posts[0]!.clientId })) as { turn: { model: string; paid?: string; accountRef?: string } };
+    assert.equal(posts[0]!.body, "Hello.", "the turn ran and its reply was posted (not a refusal)");
     assert.equal(out.turn.model, "claude-sonnet-5-5");
   } finally { hostSeams.setEngineHost(null); }
 });

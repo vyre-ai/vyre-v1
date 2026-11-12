@@ -34,7 +34,7 @@ import type { HelperChatData } from "../helper/data.tsx";
 import type { NeedsYouData } from "../needsyou/data.tsx";
 import type { PaneAgent } from "../rightpane/data.tsx";
 import type { TerminalData } from "../terminal/data.ts";
-import { machinesTarget } from "../../../console/shell/route.ts";   // the one way into Console > Computers with a machine selected (l-consolidate)
+import { computersTarget, machinesTarget } from "../../../console/shell/route.ts";   // the one way into Console > Computers with a machine selected (l-consolidate)
 
 type RecentOut = CapMap["chat.recent"]["out"];
 type ThreadOut = CapMap["threads.get"]["out"];
@@ -42,13 +42,6 @@ type ComputersOut = CapMap["computers.list"]["out"];
 
 /** The button beside a line the place shows. */
 export interface LineAction { label: string; run(): void }
-
-export const COMPUTER_UNREACHED = "Could not reach the computer. Try again.";
-
-/** What to say when an agent's computer cannot be opened: no failure means the list has no computer for it; anything else is the connection. */
-export function computerLine(failure: unknown, name: string): string {
-  return failure === null ? `${name} has no computer yet.` : COMPUTER_UNREACHED;
-}
 
 let keySeq = 0;
 /** A fresh idempotency key for one write. */
@@ -366,6 +359,7 @@ export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: Pane
       ...base.nav, openThread: (id: string) => go.thread(id), openHelper: (id: string) => go.thread(id), openComputer: (id: string) => go.computer(id),
       openTerminal: (id: string) => go.terminalOfComputer(id), openAgentPage: (id: string) => go.agent(id),
       openMachines: (nodeId?: string) => rt.open(machinesTarget(nodeId)),
+      openComputerInConsole: (computerId: string) => rt.open(computersTarget(computerId)),
     },
   };
 }

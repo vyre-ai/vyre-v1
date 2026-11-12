@@ -25,9 +25,22 @@ export async function findChromium(): Promise<{ chromium: any; exe: string } | n
   if (process.platform === "darwin" && !process.env["VYRE_E2E_ON_MAC"]) return null; // never on the Mac: the build box runs these
   const chromium = await playwrightChromium();
   if (!chromium) return null;
-  const candidates = [process.env["CHROME_BIN"], (() => { try { return chromium.executablePath(); } catch { return undefined; } })(), "/usr/bin/chromium", "/usr/bin/chromium-browser"];
-  const exe = candidates.find((c) => c && fs.existsSync(c));
+  const candidates = [process.env["CHROME_BIN"], (() => { try { return chromium.executablePath(); } catch { return undefined; } })(), "/usr/bin/chromium", "/usr/bin/chromium-browser"].filter((c): c is string => !!c && fs.existsSync(c));
+  // the extension runs only in a full Chromium: a headless shell (what CHROME_BIN names for the app walks) is taken only when there is nothing else, and then
+  // extensionChromeProblem says so at once instead of the test waiting for an extension worker that never starts
+  const exe = candidates.find((c) => !isHeadlessShell(c)) ?? candidates[0];
   return exe ? { chromium, exe } : null;
+}
+
+const isHeadlessShell = (exe: string): boolean => /chrome-headless-shell|headless_shell/.test(exe);
+
+/**
+ * Why this Chromium cannot run the extension, or null. A test that loads the extension asks first, before it starts a daemon or a site: with the headless shell the extension's
+ * service worker never starts, launch() throws, and whatever the test had started kept the file alive until a runner killed it (12 Nov 2026: three such files orphaned for hours).
+ */
+export function extensionChromeProblem(found: { exe: string }): string | null {
+  if (!isHeadlessShell(found.exe)) return null;
+  return `this test loads the Vyre for Chrome extension, which needs a full Chromium; the only one here is the headless shell (${found.exe}), which runs no extensions. Install a full one (npx playwright install chromium) or point CHROME_BIN at it.`;
 }
 
 export type Handler = (input: Record<string, any>, extra?: Record<string, any>) => unknown | Promise<unknown>;
@@ -57,6 +70,8 @@ export function site(pages: Record<string, string | ((req: http.IncomingMessage,
  * Every call is recorded in `calls`. Returns the browser context, the extension's service worker, and helpers.
  */
 export async function launch(found: { chromium: any; exe: string }, o: { ops?: Record<string, Handler>; caps?: Record<string, Handler>; colorScheme?: "light" | "dark"; incognito?: boolean; agent?: boolean; daemon?: { url: string; token: string } } = {}) {
+  const why = extensionChromeProblem(found);
+  if (why) throw new Error(why);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-e2e-"));
   const data = path.join(dir, "data");
   const profile = path.join(dir, "profile");

@@ -137,3 +137,17 @@ export function sharedWait(w: { state: string; line?: string } | undefined, b: {
 }
 const DEFAULT_WAIT = "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.";
 const workspaceWordsLine = (l: string | undefined): string => l ?? DEFAULT_WAIT;
+
+/** What the "Older desktop" row says about the move of the old desktop's sign-ins, in plain words: what will happen, what happened, or why it did not. */
+export function olderDesktopNote(m: { state: "done" | "partial" | "failed"; at: number; error?: string } | undefined, day: (ms: number) => string): string {
+  if (!m) return "Its sign-ins move to this agent's browser when the desktop is asleep.";
+  if (m.state === "done") return `Its sign-ins moved to this agent's browser on ${day(m.at)}. The old desktop is kept until you remove it.`;
+  if (m.state === "partial") return `${m.error ?? "Its sign-ins did not all move."} The old desktop is kept until you remove it.`;
+  if (m.error?.startsWith("Moving its sign-ins was interrupted")) return m.error;
+  return `Moving its sign-ins did not work yet${m.error ? `: ${m.error.replace(/\.+$/, "")}` : ""}. It will be tried again.`;
+}
+
+/** The row's menu: Remove is an owner's or admin's and lives in Console > Computers, so only they, and only where the pane can open the Console, are offered it. */
+export function olderDesktopMenu(a: { canRemove: boolean; open?: (() => void) | undefined }): Array<{ label: string; danger: true; onSelect: () => void }> {
+  return a.canRemove && a.open ? [{ label: "Remove in Console > Computers", danger: true, onSelect: a.open }] : [];
+}

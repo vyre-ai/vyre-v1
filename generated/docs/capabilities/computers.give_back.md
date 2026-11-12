@@ -48,6 +48,11 @@ type Out = {
     takeoverBy?: string;
     recording: boolean;
     error?: string;
+    moved?: {
+      state: "done" | "partial" | "failed";
+      at: number;
+      error?: string;
+    };
   };
 };
 ```
@@ -79,6 +84,11 @@ type Out = {
       "host": "server",
       "lastActiveAt": 1760000000000,
       "lastFrameAt": 1760000000000,
+      "moved": {
+        "at": 1760000000000,
+        "error": "example",
+        "state": "done"
+      },
       "nodeId": "example",
       "recording": true,
       "state": "provisioning",

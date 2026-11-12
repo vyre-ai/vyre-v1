@@ -10,6 +10,9 @@ import type { OpenItem } from "./open-link.ts";
 import { TELL_SENT } from "./reach.ts";
 import { belowPhone } from "../../../../../ui/src/SidePane/layout.ts";
 
+/** The places a banner may open (the notification row's place). */
+const PLACES = new Set(["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console"]);
+
 const leave = (): void => {
   const h = (globalThis as { history?: { state: unknown; replaceState(s: unknown, t: string, u: string): void } }).history;
   const at = (globalThis as { location?: { pathname?: string } }).location?.pathname ?? "";
@@ -29,6 +32,15 @@ export function OpenLink({ hub, rt, me, spaceId }: { hub: Pick<ShellHub, "go">; 
     const item = takeOpen();
     if (item === null) return undefined;
     const nav = rt.call("console.nav", {}).then((o) => adminPages({ groups: [], ...(o as object) } as Parameters<typeof adminPages>[0]), () => new Set<string>());
+    // a link to a place rather than one thing (a desktop banner, a notice email): the place itself, every person's own; Console only for someone it lets in (the same console.nav check
+    // decideOpen uses), anyone else lands in their Inbox. Never a place the person cannot open.
+    if (item.kind === "place") {
+      if (!PLACES.has(item.id)) { setHeld(null); return undefined; }
+      const go = (place: string): void => { if (!live) return; setHeld(null); leave(); hub.go(place as Parameters<typeof hub.go>[0]); };
+      if (item.id !== "console") { go(item.id); return () => { live = false; }; }
+      void nav.then((pages) => go(pages.size > 0 ? "console" : "inbox"));
+      return () => { live = false; };
+    }
     void decideOpen(item, { viewer: () => ({ id: me, spaceId }), call: (c, i) => rt.call(c, i), consolePages: () => nav, memo: new Map() }).then((d) => {
       if (!live) return;
       setHeld(null);

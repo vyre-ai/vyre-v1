@@ -16,13 +16,13 @@ import type { Caller } from "./seed.ts";
 // guard, so the fixture asks the runtime for the built-in. Swap this for the testkit's in-memory database when it exports one.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 // the migration carries the entity tables too (same as the generated schema), so the fixture applies it alone
-const migration = ["0001_notifications_state.sql", "0002_settings_effects.sql", "0004_fanout_sent.sql", "0005_fanout_email.sql"].map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8")).join("\n");
+const migration = ["0001_notifications_state.sql", "0002_settings_effects.sql", "0004_fanout_sent.sql", "0005_fanout_email.sql", "0006_email_record.sql"].map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8")).join("\n");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
 export interface Ev { name: string; subject: string; payload: Record<string, unknown>; id: string }
 export interface CallLog { cap: string; input: any }   // eslint-disable-line @typescript-eslint/no-explicit-any
 export interface ScheduleLog { id: string; at: number | string; cap: string; input: any }   // eslint-disable-line @typescript-eslint/no-explicit-any
-export interface Emailed { to: string; subject: string; deepLink: string }
+export interface Emailed { to: string; subject: string; line: string; open: { kind: string; id: string } }
 type Callee = (input: any, who: Caller) => unknown;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
 export interface HarnessOptions {
@@ -53,7 +53,8 @@ export function harness(o: HarnessOptions = {}) {
   const pushes: PushMessage[] = [];
   const emails: Emailed[] = [];
   const callees: Record<string, Callee> = {};
-  const state = { idleMs: o.computerIdleMs, sendResult: o.sendResult ?? "ok", emailHang: null as null | ((m: Emailed) => boolean), emailFail: null as null | ((m: Emailed) => boolean) };
+  const state = { idleMs: o.computerIdleMs, sendResult: o.sendResult ?? "ok", emailHang: null as null | ((m: Emailed) => boolean), emailFail: null as null | ((m: Emailed) => boolean), emailAnswer: undefined as undefined | "no_mailbox" | "no_address" | "suppressed" | "held" };
+  const gaveUp: Array<{ to: string; kind: string }> = [];
   let schSeq = 0;
   const emitsOf = (cap: string): Set<string> => new Set(registry.capabilities.find((c) => c.name === cap)?.emits ?? []);
 
@@ -64,8 +65,11 @@ export function harness(o: HarnessOptions = {}) {
     async email(m) {
       if (state.emailHang?.(m)) return new Promise<void>(() => undefined);   // the send is cut off (a stop let the consumer go, or a crash): it never answers
       if (state.emailFail?.(m)) throw new Error("mail down");
-      emails.push(m);
+      if (state.emailAnswer) return state.emailAnswer;   // the transport did not send it, and says why (a Space with no sending mailbox, a person with no address)
+      emails.push({ to: m.to, subject: m.subject, line: m.line, open: m.open });   // what the email says; the idempotency key it carries is the transport's
+      return "sent";
     },
+    async gaveUp(m) { gaveUp.push(m); },
   };
   setPushPort(o.noPort ? null : port);
 
@@ -73,7 +77,7 @@ export function harness(o: HarnessOptions = {}) {
     const allowed = cap ? emitsOf(cap) : null;
     return {
       space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}), trace: { traceId: TRACE },
-      ...(who.device ? { device: who.device } : {}), ...(who.run ? { run: who.run } : {}),
+      ...(who.device ? { device: who.device } : {}), ...(who.run ? { run: who.run } : {}), depth: who.depth ?? 0, ...(who.origin ? { origin: who.origin } : {}),
       now: () => clock,
       db: scopedDb("notifications", raw, TRACE),
       emit(name, subject, payload) {
@@ -132,6 +136,9 @@ export function harness(o: HarnessOptions = {}) {
     emailHang(f: null | ((m: Emailed) => boolean)): void { state.emailHang = f; },
     /** an email to whoever `f` picks fails (null: none) */
     emailFail(f: null | ((m: Emailed) => boolean)): void { state.emailFail = f; },
+    /** the transport answers this instead of sending (undefined: it sends) */
+    emailAnswer(a: undefined | "no_mailbox" | "no_address" | "suppressed" | "held"): void { state.emailAnswer = a; },
+    gaveUp,
     close(): void { setPushPort(null); },
   };
 }

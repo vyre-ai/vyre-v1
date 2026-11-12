@@ -5,12 +5,13 @@
 // @reads /modules/notifications/migrations/0002_settings_effects.sql
 // @reads /modules/notifications/migrations/0004_fanout_sent.sql
 // @reads /modules/notifications/migrations/0005_fanout_email.sql
+// @reads /modules/notifications/migrations/0006_email_record.sql
 import test from "node:test";
 import assert from "node:assert/strict";
 import { harness } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { alice, as, bob, svc } from "../fixtures/seed.ts";
-import { consumers } from "../impl.ts";
+import { EMAIL_RETRY_TRIES, consumers, retryPendingEmails } from "../impl.ts";
 import { emailTiming } from "../handlers/rules.ts";
 
 const sender = as(svc);
@@ -193,4 +194,75 @@ test("an approval reminder whose email failed all its tries is scheduled once mo
   assert.equal(again.length, 1, "rescheduled once");
   await h.call("notifications.send", again[0]!.input, sender);   // the rescheduled one fails too
   assert.equal(h.schedules.filter((s) => s.cap === "notifications.send").length, 1, "not again: a reminder is rescheduled once");
+});
+
+const outcomes = (h: Harness): string[] => (h.sqlite.prepare("SELECT person || ':' || outcome AS o FROM notifications_email_log ORDER BY rowid").all() as Array<{ o: string }>).map((r) => r.o);
+
+test("a Space with no sending mailbox: the transport says so, nothing counts as sent, nothing is left pending to retry, and the reason is recorded", async () => {
+  const h = harness();
+  admins(h);
+  h.emailAnswer("no_mailbox");
+  const fan = consumers["notifications.fanout"];
+  await fan.run(h.ctxFor(null, sender), { id: "evt_no_box", name: "space.deletion_scheduled", payload: { by: alice.id, at: Date.UTC(2026, 10, 18, 9, 0, 0) } } as never);
+  assert.equal(h.emails.length, 0);
+  assert.deepEqual(outcomes(h).sort(), [`${alice.id}:no_mailbox`, `${bob.id}:no_mailbox`].sort());
+  assert.equal((h.sqlite.prepare("SELECT COUNT(*) AS n FROM notifications_fanout_email").get() as { n: number }).n, 0, "not a failure: no retry loop");
+});
+
+test("a person who turned email off for a kind is not emailed it; the reason is recorded", async () => {
+  const h = harness();
+  admins(h);
+  h.sqlite.prepare("INSERT INTO notifications_kind_levels (person, kind, level, channels) VALUES (?, ?, ?, ?)").run(bob.id, "space.deletion_scheduled", "interrupt", JSON.stringify(["desktop"]));
+  const fan = consumers["notifications.fanout"];
+  await fan.run(h.ctxFor(null, sender), { id: "evt_off", name: "space.deletion_scheduled", payload: { by: alice.id, at: Date.UTC(2026, 10, 18, 9, 0, 0) } } as never);
+  assert.deepEqual(h.emails.map((m) => m.to), [alice.id]);
+  assert.ok(outcomes(h).includes(`${bob.id}:off`));
+});
+
+test("the periodic pass: a deletion email that failed its delivery is sent by the next pass, once; one that keeps failing is given up after its tries and the host is told once", async () => {
+  const h = harness();
+  admins(h);
+  const fan = consumers["notifications.fanout"];
+  const ctx = h.ctxFor(null, sender);
+  h.emailFail((m) => m.to === bob.id);
+  await fan.run(ctx, { id: "evt_pass", name: "space.deletion_scheduled", payload: { by: alice.id, at: Date.UTC(2026, 10, 18, 9, 0, 0) } } as never);
+  assert.deepEqual(h.emails.map((m) => m.to), [alice.id]);
+  h.emailFail(null);
+  assert.deepEqual(await retryPendingEmails(ctx), { sent: 1, failed: 0, gaveUp: 0 });
+  assert.deepEqual(h.emails.map((m) => m.to).sort(), [alice.id, bob.id].sort());
+  assert.deepEqual(await retryPendingEmails(ctx), { sent: 0, failed: 0, gaveUp: 0 }, "nothing left");
+
+  const g = harness();
+  admins(g);
+  const gctx = g.ctxFor(null, sender);
+  const was = { ...emailTiming };
+  emailTiming.retryMs = [];
+  try {
+    g.emailFail((m) => m.to === bob.id);
+    await consumers["notifications.fanout"].run(gctx, { id: "evt_dead", name: "space.deletion_cancelled", payload: { by: alice.id } } as never);
+    for (let i = 0; i < EMAIL_RETRY_TRIES; i++) assert.equal((await retryPendingEmails(gctx)).failed, 1);
+    assert.deepEqual(await retryPendingEmails(gctx), { sent: 0, failed: 0, gaveUp: 1 });
+    assert.deepEqual(g.gaveUp, [{ to: bob.id, kind: "space.deletion_cancelled" }]);
+    assert.deepEqual(await retryPendingEmails(gctx), { sent: 0, failed: 0, gaveUp: 0 }, "told once");
+  } finally { Object.assign(emailTiming, was); }
+});
+
+test("with a sending mailbox the deletion notice is emailed once per admin, and the approval reminder once", async () => {
+  const h = harness();
+  admins(h);
+  await consumers["notifications.fanout"].run(h.ctxFor(null, sender), { id: "evt_ok", name: "space.deletion_scheduled", payload: { by: alice.id, at: Date.UTC(2026, 10, 18, 9, 0, 0) } } as never);
+  assert.deepEqual(h.emails.map((m) => m.to).sort(), [alice.id, bob.id].sort());
+  const input = { to: alice.id, kind: "approval.backstop", subject: { type: "task", id: "tsk_ok" }, title: "Retainer", collapseKey: "approval.backstop:tsk_ok" };
+  await h.call("notifications.send", input, sender);
+  await h.call("notifications.send", input, sender);
+  assert.equal(h.emails.filter((m) => m.subject === "Something is waiting on you").length, 1);
+  assert.ok(outcomes(h).every((o) => o.endsWith(":sent")));
+});
+
+test("one role the reader refuses does not empty the admins: the others still hear of the Space's deletion", async () => {
+  const h = harness();
+  h.callee("access.roles.list", () => ({ roles: [{ id: "owner", name: "Owner" }, { id: "rol_admin", name: "Admin" }] }));
+  h.callee("access.roles.get", (i: { roleId: string }) => { if (i.roleId === "owner") throw new Error("validation.bad_input"); return { holders: [{ kind: "person", id: bob.id }] }; });
+  const made = await consumers["notifications.fanout"].run(h.ctxFor(null, sender), { id: "evt_roles", name: "space.deletion_scheduled", payload: { by: alice.id, at: Date.UTC(2026, 10, 18, 9, 0, 0) } } as never);
+  assert.equal(made.length, 1, "bob, the admin, is told");
 });

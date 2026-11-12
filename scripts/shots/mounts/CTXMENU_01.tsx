@@ -12,8 +12,8 @@ export const title = "Right-click menus in the Chats sidebar";
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
   useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
-  const sample = useMemo(() => { const s = createSampleSidebar(northwind); s.menus.computers.set("agt_intake", { computerId: "cmp_intake", state: "working" }); return s; }, []);
-  const data = useMemo(() => ({ ...sample.data, people: (northwind.people ?? []).map((p) => ({ id: p.id, name: p.name })) }), [sample]);
+  const sample = useMemo(() => { const pin = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("pin"); const s = createSampleSidebar(pin ? { ...northwind, agents: northwind.agents.map((a) => (a.agentId === pin ? { ...a, starred: true } : a)) } : northwind); s.menus.computers.set("agt_intake", { computerId: "cmp_intake", state: "working" }); return s; }, []);
+  const data = useMemo(() => ({ ...sample.data, nav: { ...sample.data.nav, openSubject: () => undefined }, people: (northwind.people ?? []).map((p) => ({ id: p.id, name: p.name })) }), [sample]);
   if (!q) return <View style={{ flex: 1 }} />;
   const member = q.get("kind") === "agentmember";
   const tree = <View style={{ width: 300, flex: 1, borderRightWidth: 1, borderRightColor: "var(--line)" as string }}><ChatsSidebar data={data} window={{ start: 0, end: 500 }} open={null} /></View>;

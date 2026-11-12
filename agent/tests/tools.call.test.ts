@@ -254,10 +254,10 @@ test("a model error keeps a plain reason word and drops an id-shaped one", async
   assert.equal(modelError(makeError("validation.precondition_failed", "trc_4", { message: "y", details: { reason: "agent_settings" } })).details?.reason, "agent_settings", "a second call gets the same answer");
 });
 
-test("an agent refused computers.provision is told a person presses Give it a computer, and a card in the chat opens the agent", async () => {
+test("an agent that asks for a computer is told what it has, and no card asks a person to set one up", async () => {
   const { loadGenerated } = await import("../src/tools/harness.ts");
   const { takeWork } = await import("../src/tools/work-cards.ts");
-  const { GIVE_COMPUTER_WORDS } = await import("../src/tools/call.ts");
+  const { NO_COMPUTER_WORDS } = await import("../src/tools/call.ts");
   const loaded = loadGenerated();
   const session = createToolSession({ catalog: loaded.catalog, defaults: loaded.defaults, canEngineer: () => false, levelFor: () => null, traceId: () => "trace_fixed",
     invoke: (async () => { throw new HostError(makeError("permission.no_grant", "trace_fixed")); }) as never });
@@ -265,12 +265,10 @@ test("an agent refused computers.provision is told a person presses Give it a co
   const out = await session.call(ctx({ turnId: "trn_gc" }), "computers_provision", { agentId: "agt_intake", idempotencyKey: "k" });
   assert.equal(out.kind, "error");
   const text = JSON.stringify(out.kind === "error" ? out.result.content : {});
-  assert.match(text, /Give it a computer/);
-  assert.match(text, /About/);
-  assert.ok(text.includes("Do not say you lack permission"));
-  assert.equal(GIVE_COMPUTER_WORDS.includes("About tab"), true);
-  const cards = takeWork("trn_gc");
-  assert.equal(cards.length, 1);
-  assert.equal(cards[0]?.title, "Give this agent a computer");
-  assert.deepEqual(cards[0]?.target, { type: "agent", id: "agt_intake" });
+  assert.match(text, /terminal_run/);
+  assert.match(text, /chrome_open/);
+  assert.match(text, /own Chrome only if they ask/);
+  assert.doesNotMatch(text, /Give it a computer|About tab|lack permission/);
+  assert.equal(NO_COMPUTER_WORDS.includes("terminal_run"), true);
+  assert.deepEqual(takeWork("trn_gc"), [], "nothing for a person to press, so no card");
 });
