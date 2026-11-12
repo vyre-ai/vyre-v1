@@ -324,13 +324,12 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
     if (task.workingNotes[WAITING_NOTE] !== undefined) await host.call("tasks.working_notes.delete", { taskId: task.id, key: WAITING_NOTE, idempotencyKey: `baton-waiting-off:${task.id}:${sig}` }).catch(() => undefined);
   }
   // a task an Automation's Run made from outside (an email, a form, a webhook) carries a stranger's words in its brief: its thread is marked as holding outside content for the person the turn
-  // acts for (only they clear it by speaking, gate grants.ts) and runs in Ask first, whoever that person is: the runs-as person, or someone who started or was handed the task (pass 2, 2)
+  // acts for (only they clear it by speaking, gate grants.ts), whoever that person is: the runs-as person, or someone who started or was handed the task (pass 2, 2). It keeps the mode it has
+  // (Auto by default), like a chat where the agent read a page: the Gate's own rules stop the dangerous acts, and the mark means no earlier typed ask lets one through (lead 12 Nov)
   const made = automationMade(task);
   if (made !== null && OUTSIDE_TRIGGERS.has(made.trigger)) {
     await host.call("gate.taint.mark", { threads: [threadId], source: `automation:${made.automationId}:${asker}` })
       .catch((e: unknown) => host.log?.("an automation's thread could not be marked as outside content", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
-    await host.call("threads.set_mode", { threadId, mode: "ask", idempotencyKey: `baton-ask:${task.id}:${asker}` }, asker)
-      .catch((e: unknown) => host.log?.("an automation's thread could not be set to Ask first", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
   }
   const woken: string[] = [];
   let outside = false;

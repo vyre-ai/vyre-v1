@@ -11,7 +11,7 @@ Add a person or agent to a group (groups hold no groups)
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | approve when gate.outside_marked(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

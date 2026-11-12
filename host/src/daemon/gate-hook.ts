@@ -25,6 +25,8 @@ export interface GateHookDeps {
    * expression language has no such functions, so the Gate asks the module; an evaluator that throws counts as holding, like an unreadable expression.
    */
   evaluators?: Record<string, (input: unknown, seed: Pick<CtxSeed, "principal" | "thread">) => boolean | Promise<boolean>>;
+  /** Is any of these threads marked as holding outside content (a page an agent read, an email, form or webhook an Automation's Run was started by) and not cleared by its person speaking? */
+  marked?(threads: readonly string[]): boolean;
   /** The held row an approval names (the host owns modules.db): who asked, whom for, run and thread, the stored payload hash and its state. Null when there is none. */
   /** What a capability that can go out without saying so does on this call: the act and where it goes. Null when this call stays here. */
   outward?(cap: string, input: unknown): { act: string; targets: string[] } | null;
@@ -84,7 +86,10 @@ export function createGateHook(d: GateHookDeps): GateHook {
     const r = (await d.call("gate.links.known", { url, threads: threads(seed.thread) })) as { known?: unknown } | null;
     return r?.known !== true;
   };
-  const conditions = { evaluators: { ...d.evaluators, "links.is_composed": composed } } as Pick<GateHookDeps, "evaluators">;
+  // Giving someone access (a share, a group, an invite, a public link) is held when an agent does it in a thread that holds outside content: a stranger's words must not open the Space to
+  // anyone. An ordinary chat, and every person's own press, is as before (lead 12 Nov).
+  const outsideMarked = (_input: unknown, seed: Pick<CtxSeed, "principal" | "thread">): boolean => seed.principal.kind === "agent" && seed.thread !== undefined && d.marked?.(threads(seed.thread)) === true;
+  const conditions = { evaluators: { ...d.evaluators, "links.is_composed": composed, "gate.outside_marked": outsideMarked } } as Pick<GateHookDeps, "evaluators">;
   const always = (cap: CapabilityDef, seed: CtxSeed): { person: string; agentId: string; threads: string[]; cap: string } | undefined =>
     (seed.actingFor?.startsWith("usr_") && seed.principal.kind === "agent" ? { person: seed.actingFor, agentId: seed.principal.id, threads: seed.thread ? threads(seed.thread) : [], cap: cap.name } : undefined);
   /** The turn grants a call let through spent, by its input, until the call ends: a call refused before it goes out hands them back. */

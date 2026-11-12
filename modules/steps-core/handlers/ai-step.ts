@@ -194,8 +194,8 @@ async function taskStep(env: StepEnv, node: StepNode, cfg: Rec, call: StepCall, 
     // the brief is the first thing in the task's thread, and an unattended task works without asking first (anything that leaves Vyre is still held)
     const threadId = made?.task?.threadId;
     if (threadId) {
-      // a Run a stranger could start stays in Ask first: the words in the brief are theirs (review 12 Nov, 3)
-      await soft(() => env.ctx.call!("threads.set_mode", { threadId, mode: outsideOf(env) ? "ask" : "auto", idempotencyKey: `${call.key}:mode` }));
+      // every Run keeps Auto: one a stranger could start is marked as holding outside content instead (the engine's task baton), and the Gate's own rules stop its dangerous acts (lead 12 Nov)
+      await soft(() => env.ctx.call!("threads.set_mode", { threadId, mode: "auto", idempotencyKey: `${call.key}:mode` }));
       await soft(() => env.ctx.call!("chat.post", { threadId, body: brief, idempotencyKey: `${call.key}:brief` }));
     }
     return waiting;

@@ -70,4 +70,6 @@ Changed contracts, all in `manifests/automations.ts`; no version moved, because 
 
 The fix that lets an outside-started Run finish (an agent's own reports on its own task in Ask first) changed no contract: it is a host rule in the invoke pipeline.
 
+Giving access from stranger content (the share gap): `access.share@1`, `access.grants.update@1`, `access.groups.add_member@1`, `access.audience_set@1` (manifests/access.ts), `files.share@1` (manifests/files.ts), `chat.share@1` (manifests/chat.ts), `notes.share@1` (manifests/notes.ts), `members.invites.create@1` and `members.join_link.create@1` (manifests/members.ts) gain `gate: { act: 'approve', when: 'gate.outside_marked(input)' }`. The condition holds only when the caller is an agent and the thread (or a thread above it) is marked as holding outside content and not cleared; a person's own call and an agent in an ordinary chat are exactly as before. Input, output, level, permission and errors are unchanged.
+
 Signed: lead, 12 Nov 2026

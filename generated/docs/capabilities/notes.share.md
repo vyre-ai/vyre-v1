@@ -11,7 +11,7 @@ Share a note with people or the Space, change a role, or take it back. Only the 
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | approve when gate.outside_marked(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |

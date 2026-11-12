@@ -11,7 +11,7 @@ Share a message to another chat (a channel or a person): a card there carries it
 | Grant level | use |
 | Risk | low |
 | Resource | thread (/threadId) |
-| Gate | none |
+| Gate | approve when gate.outside_marked(input) |
 | Idempotency | key |
 | Offline | online |
 | Audit | none |

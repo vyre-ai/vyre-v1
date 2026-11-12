@@ -76,7 +76,7 @@ export default defineManifest({
     write('notes.label', 'Add or remove labels on a note', {
       ...M, in: { ...target, add: t.opt(t.arr(label)), remove: t.opt(t.arr(label)) }, out: { note: noteRow }, emits: ['notes.updated'], offline: 'patch', errors: ['validation.not_found'],
     }),
-    write('notes.share', 'Share a note with people or the Space, change a role, or take it back. Only the owner shares', {
+    write('notes.share', 'Share a note with people or the Space, change a role, or take it back. Only the owner shares', { gate: { act: 'approve', when: 'gate.outside_marked(input)' },
       ...M, in: { ...target, people: t.opt(t.arr(t.obj({ personId: id.user, role: t.enm('edit', 'view', 'remove') }))), space: t.opt(spaceShare), notify: t.opt(t.obj({ message: t.opt(t.str()) })) },
       out: { note: noteRow }, emits: ['notes.shared'], audit: 'sensitive', offline: 'online', agent: false, errors: ['validation.not_found', 'permission.no_grant'],
     }),

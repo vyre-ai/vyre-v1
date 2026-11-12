@@ -1296,6 +1296,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           evaluators: moduleWhens(loaded.moduleExports, () => db, (cap, input) => system(cap, input)),
           outward: moduleOutward(loaded.moduleExports), fetches: moduleFetches(loaded.moduleExports),
           threads: threadChain,
+          marked: (ids) => {
+            if (ids.length === 0) return false;
+            try { return db!.all(`SELECT 1 FROM gate_taint WHERE thread_id IN (${ids.map(() => "?").join(", ")}) AND cleared_at IS NULL LIMIT 1`, ...ids).length > 0; } catch { return true; }   // cannot tell: held
+          },
           mode: (id) => {
             // 1 plan, 2 auto, anything else ask (modules/chat/projections.ts): a Job is never looser than the chat above it
             try {
