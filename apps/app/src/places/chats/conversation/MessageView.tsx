@@ -594,6 +594,8 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         if (isChromeHeld(b.type)) return <HeldSendCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
         if (isChromeStep(b.type)) return <ChromeStepCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
         if (isApprovalUp(b)) return <ApprovalLine key={b.id} id={m.messageId} who={item.who.name} threadId={String((b.data as { threadId?: unknown } | null)?.threadId ?? "")} open={(t) => actions.openMessage?.(t, "")} />;
+        // a helper's raised approval card links nowhere: the helper's chat is its asker's, and a reader who may not open it is never sent there (lead, 12 Nov, H3)
+        if (b.type === "from_thread" && raisedHelperCard(m)) return null;
         if (b.type === "from_thread") {
           const tid = String((b.data as { threadId?: unknown } | null)?.threadId ?? "");
           return <Pressable key={b.id} accessibilityRole="link" testID={`from-thread-${m.messageId}`} onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)}><Text style={st.fromThread}>{typeof (b.data as { messageId?: unknown } | null)?.messageId === "string" && (b.data as { messageId: string }).messageId !== "" ? FROM_THREAD_LINE : "Open the thread"}</Text></Pressable>;
@@ -641,7 +643,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
       {collect(errors, (b) => <ErrorRowView key={b.id} block={b} actions={actions} />)}
       {collect(m.blocks.some(isApprovalUp) ? statuses.filter((x) => x.kind !== "note") : statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text>
         : x.kind === "wait" ? <View key={x.id} testID={`status-${x.id}`} style={st.waitRow}><Text style={st.edited}>{x.text}</Text><TextButton link label={x.action.label} testID={`status-${x.action.key}`} onPress={() => actions.errorNext(x.action.key)} /></View>
-        : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={item.who.name} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files} /> : null))}
+        : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={helperName(m, item.who.name, actions.crew?.status ?? null)} {...(raisedHelperCard(m) ? { othersLine: `${helperName(m, item.who.name, actions.crew?.status ?? null)} is waiting for the OK of the person who asked.` } : {})} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files} /> : null))}
       {item.who.forPerson && actions.agentMute && actions.agentMute.offerFor === m.messageId && onBehalfOf(m)?.teammate === actions.agentMute.me ? (
         <Pressable accessibilityRole="button" testID={`agent-mute-${m.messageId}`} onPress={() => actions.agentMute!.mute(item.who.forPerson!)}>
           <Text style={[st.via, st.muteLine]}>{`Mute agent messages from ${firstName(item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
@@ -921,3 +923,19 @@ export const st = StyleSheet.create({
   kvK: { width: 72, fontSize: 12, color: "var(--ink-3)" as string },
   kvV: { flex: 1, fontSize: 12.5, color: "var(--ink-2)" as string },
 });
+
+/**
+ * Whose card it is (lead, 12 Nov, H4): a helper's held call raised into the chat it was started from (a message with a from_thread line) names the helper, so two waiting helpers of one agent read
+ * apart: "Rates on the web (Scout)". Any other card names the agent.
+ */
+export function helperName(m: { blocks: ReadonlyArray<{ type: string; data?: unknown }> }, agent: string, crew: { members: ReadonlyArray<{ id: string; title?: string }> } | null): string {
+  const from = m.blocks.find((b) => b.type === "from_thread");
+  const tid = String((from?.data as { threadId?: unknown } | undefined)?.threadId ?? "");
+  const title = tid !== "" ? crew?.members.find((x) => x.id === tid)?.title : undefined;
+  return title ? `${title} (${agent})` : agent;
+}
+
+/** A helper's held call raised into the chat it was started from (engine bridge): a waiting turn_status with a from_thread line. */
+export function raisedHelperCard(m: { blocks: ReadonlyArray<{ type: string; data?: unknown }> }): boolean {
+  return m.blocks.some((b) => b.type === "from_thread") && m.blocks.some((b) => b.type === "turn_status" && (b.data as { state?: unknown } | undefined)?.state === "waiting");
+}

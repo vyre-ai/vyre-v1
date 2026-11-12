@@ -39,7 +39,7 @@ async function subjectOf(data: Data, cap: string, input: Record<string, unknown>
 /** 24-hour clock time of a moment, in a zone or the viewer's own. */
 const clock = (at: number, timeZone?: string): string => { try { return new Date(at).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: false, ...(timeZone ? { timeZone } : {}) }); } catch { return new Date(at).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: false }); } };
 
-export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, editor }: { taskId: string; /** a helper's request wears the helper's own face: the id its face is drawn from */ faceSeed?: string; agent: string; agentId: string; data: Data; /** an agent asking for its person wears that person's face (lane l-agentdm) */ face?: string; /** the held card's editor, when a test or a screenshot puts its own in */ editor?: HeldEditor }): ReactElement | null {
+export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, editor, othersLine }: { taskId: string; /** what a reader who may not see the request reads instead (lead, 12 Nov, H3): it waits for someone else, said plainly; without it they see nothing */ othersLine?: string; /** a helper's request wears the helper's own face: the id its face is drawn from */ faceSeed?: string; agent: string; agentId: string; data: Data; /** an agent asking for its person wears that person's face (lane l-agentdm) */ face?: string; /** the held card's editor, when a test or a screenshot puts its own in */ editor?: HeldEditor }): ReactElement | null {
   const [task, setTask] = useState<Task | null | undefined>(undefined);
   const [subject, setSubject] = useState<string | undefined>(undefined);
   const [theirTz, setTheirTz] = useState<string | undefined>(undefined);
@@ -79,6 +79,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
   useEffect(() => { mounted.current = true; void load(); return () => { mounted.current = false; }; }, [load]);
   useFollow(data.changes, load, task === undefined || (task !== null && outcomeOf(task.state) === null && outcome === null));
 
+  if (task === null && othersLine) return <Text testID={`approval-others-${taskId}`} style={{ fontSize: 13, color: "var(--ink-3)" as string, marginVertical: 4 }}>{othersLine}</Text>;
   if (task === undefined || task === null) return null;
   const held = heldOf(task.blocks);
   // a held message, email, text or post: the one held card (held-card.tsx). The Gate writes who, how, when and what into the hold; a hold parked before that is read from its input the same way.
