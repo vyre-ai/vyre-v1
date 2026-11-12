@@ -37,6 +37,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   url: string;
   title: string;
   tree: string;
@@ -68,6 +70,8 @@ type Out = {
     "tabId": "example"
   },
   "output": {
+    "note": "example",
+    "reopened": true,
     "title": "example",
     "tree": "example",
     "truncated": true,
