@@ -1,5 +1,5 @@
 // @heavy docker
-// Release gate, 12 Nov (lane f-gate, job C6): an agent runs `sleep 120` in its workspace through terminal_run, the person presses Stop, and the agent's next command (echo next-ok) answers
+// Release gate, 12 Nov (lane f-gate, job C6; the stand-in now ends a stopped turn as a killed model process does, test/memory-live-kit.ts): an agent runs `sleep 120` in its workspace through terminal_run, the person presses Stop, and the agent's next command (echo next-ok) answers
 // within seconds in a usable shell, on a real daemon with real Docker and the stand-in model. Needs VYRE_HEAVY_DOCKER=1; VYRE_WORKSPACE_TEST_IMAGE names an image built from images/agent-workspace.
 import test from "node:test";
 import assert from "node:assert/strict";
