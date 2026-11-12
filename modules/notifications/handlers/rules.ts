@@ -3,6 +3,7 @@
 // asks push.ts to deliver an Interrupt. Everything is per person; a caller reads and changes only their own settings.
 import { makeId } from "../../../packages/contracts/src/ids.ts";
 import {
+  NOT_SENT_KINDS,
   AGENT_INTERRUPTS_PER_HOUR, COLLAPSE_WINDOW_MS, DIRECT_KINDS, HOUR, KINDS, NEEDS_YOU_KINDS, UNMUTABLE_KINDS, activeMutes, clean, isMuted, isService, kindOf, meOf, outRow,
   raise, readAway, readChain, readRules, render, rowOf, sourcesOf, withinHours, writeRules,
 } from "../projections.ts";
@@ -33,6 +34,12 @@ function levelFor(ctx: NotifCtx, def: KindDef, person: string, urgent: boolean):
   const quietEnd = heldByQuiet(def, level, settings, rules.workingHours?.tz ?? "UTC", ctx.now(), NEEDS_YOU_KINDS.has(def.key));
   if (quietEnd !== undefined) return { level: "digest", quietEnd };
   return { level };
+}
+
+/** The notifications.send capability: what an agent, a module or the schedule asks for. A kind nothing files and nobody can switch off is refused (NOT_SENT_KINDS). */
+export async function sendCap(ctx: NotifCtx, input: SendIn): Promise<{ outcome: Outcome; notificationId?: string }> {
+  if (NOT_SENT_KINDS.has(input.kind)) raise(ctx, "validation.bad_input", "That kind of notification is Vyre's own and is not sent this way. Use a direct message or a task instead.", { errors: ["/kind: not sent"] });
+  return send(ctx, input);
 }
 
 export async function send(ctx: NotifCtx, input: SendIn, handed = false): Promise<{ outcome: Outcome; notificationId?: string }> {

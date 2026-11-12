@@ -4,8 +4,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import { harness } from "../fixtures/db.ts";
-import { alice, as, bob, cara, svc } from "../fixtures/seed.ts";
+import { codeOf, harness } from "../fixtures/db.ts";
+import { alice, as, bob, bot, cara, svc } from "../fixtures/seed.ts";
 import { consumers } from "../impl.ts";
 import { registry } from "../../../generated/registry.ts";
 
@@ -122,4 +122,17 @@ test("the lines the lead's decision wired (12 Nov): health and sync trouble to e
   assert.deepEqual(await run("site.build_failed", { siteId: "sit_1", deploymentId: "dep_1", reason: "x" }, "system"), [], "a build nobody started tells nobody");
   assert.deepEqual((await run("connection.needs_reconnect", { connectionId: "con_1", connector: "hubspot" })).map((r) => [r.kind, r.title]), [["sync.attention", "Sync needs attention on the hubspot connection"], ["sync.attention", "Sync needs attention on the hubspot connection"]]);
   assert.deepEqual((await run("sync.op_rejected", { cap: "records.update", code: "x", deviceId: "dev_1", opId: "op_1", personId: cara.id })).map((r) => [r.person, r.title]), [[cara.id, "Sync needs attention on your device"]]);
+});
+
+test("an agent's notifications_send cannot reach a person with a kind that has no switch; the capability refuses exactly the kinds Settings hides (review W4)", async () => {
+  const { NOT_SENT_KINDS } = await import("../projections.ts");
+  const app = fs.readFileSync(fileURLToPath(new URL("../../../apps/app/src/places/settings/pages-a.tsx", import.meta.url)), "utf8");
+  const hidden = [...(/UNSENT_KINDS[^=]*= new Set\(\[([^\]]*)\]\)/.exec(app)?.[1] ?? "").matchAll(/"([a-z_.]+)"/g)].map((m) => m[1]!).sort();
+  assert.deepEqual([...NOT_SENT_KINDS].sort(), hidden, "what the send capability refuses is what Settings has no switch for");
+  const h = harness();
+  for (const kind of hidden) {
+    await assert.rejects(h.call("notifications.send", { to: alice.id, kind, title: "x" }, as(bot)), (e: unknown) => codeOf(e) === "validation.bad_input", `${kind} is refused`);
+  }
+  const ok = await h.call("notifications.send", { to: alice.id, kind: "dm", title: "Hello" }, as(bot));
+  assert.ok(ok.notificationId || ok.outcome, "a kind with a switch is still sent");
 });

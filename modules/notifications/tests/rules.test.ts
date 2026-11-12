@@ -6,6 +6,8 @@ import { harness } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { HOUR, MIN, NOW, alice, as, bob, bot, bot2, sendInput, svc } from "../fixtures/seed.ts";
 import { KINDS, consumers, kindOf, withinHours } from "../impl.ts";
+import { NOT_SENT_KINDS } from "../projections.ts";
+import { send } from "../handlers/rules.ts";
 import { registry } from "../../../generated/registry.ts";
 
 const me = as(alice);
@@ -52,7 +54,8 @@ const SAMPLE: Record<string, Record<string, unknown>> = {
 for (const def of KINDS.filter((k) => k.key !== "vault.rotation_due")) {
   test(`kind ${def.key}: lands at ${def.level} in ${def.place} with its actions and a readable line`, async () => {
     const h = harness();
-    const r = await h.call("notifications.send", sendInput({ kind: def.key, data: SAMPLE[def.key] }), sender);
+    // a kind nothing files is refused at the capability (NOT_SENT_KINDS, review W4); how it lands is still what a future filer gets, so it is sent the way the fanout sends
+    const r = NOT_SENT_KINDS.has(def.key) ? await send(h.ctxFor("notifications.send", sender), sendInput({ kind: def.key, data: SAMPLE[def.key] })) as any : await h.call("notifications.send", sendInput({ kind: def.key, data: SAMPLE[def.key] }), sender);   // eslint-disable-line @typescript-eslint/no-explicit-any
     assert.equal(r.outcome, def.level);
     const n = row(h, r.notificationId);
     assert.equal(n.level, def.level);
