@@ -883,9 +883,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // the event-loop lag guard: a block over 200 ms is warned with the jobs in flight, and the worst lag rides in the machines report
   loopLag({ running: () => scheduler.runningNames(), warn: (msg, attrs) => sink.log({ space: space ?? "-", level: 40, msg, place: "scheduler", attrs }) });
 
+  /** The terminal module's first read of the agent workspaces' subnets, awaited before the server listens (third look T5). */
+  let workspacesReady: (() => Promise<void>) | null = null;
   try {
-    /** The terminal module's first read of the agent workspaces' subnets, awaited before the server listens (third look T5). */
-    let workspacesReady: (() => Promise<void>) | null = null;
     if (hasSpace) {
       // ---- the Space: modules.db, events.db, access, handlers, invoke, gateway
       db = openDb(paths.modules);
