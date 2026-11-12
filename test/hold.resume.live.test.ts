@@ -1,12 +1,12 @@
 // The link rule in a plain Auto chat (lead, 12 Nov): a link the agent put together is a read until something a stranger wrote has been read in the chat since the person last spoke. The first composed
 // link goes through with no card; once that page was read, a composed link to another host waits for the person; allowed, it runs once (the wake carries its result, nothing is held again); the
-// person's next message clearing the mark is proven in modules/gate/tests/grants.test.ts. Real daemon, Gate and tools; the model is scripted. (The pages do not resolve here; a read that fails still read what came back.)
+// person's next message makes the next composed link free again. Real daemon, Gate and tools; the model is scripted. (The pages do not resolve here; a read that fails still read what came back.)
 import test from "node:test";
 import assert from "node:assert/strict";
 import { claimedSpace, scriptedModel, stop, waitFor } from "./support/eco-live.ts";
 type Msg = { author: { kind: string; id: string }; body: string; blocks: Array<{ type: string; data?: Record<string, unknown> }> };
 
-test("a composed link: free first, held after outside content was read, allowed once", async () => {
+test("a composed link: free first, held after outside content was read, allowed once, free again after the person speaks", async () => {
   let lead = ""; const results: string[] = [];
   const model = scriptedModel(async function* (input, run) {
     if (input.agent.id !== lead) return;
@@ -32,5 +32,10 @@ test("a composed link: free first, held after outside content was read, allowed 
     await s.api("tasks.act", { taskId: t1, action: "approve", idempotencyKey: "p-allow" });
     await waitFor(async () => (results.some((r) => r.startsWith("resumed:true")) ? true : null), 30_000, () => results.join(" | "));
     assert.equal((await cards()).length, 1, "allowed once, it ran once: nothing was held again");
+    // the person speaks: the mark is behind their word, so that turn's first composed link is free and no approve task is made (the second wake after an approval no longer runs first)
+    await s.api("chat.post", { threadId: chat, body: "and one more", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "p-ask2" });
+    await waitFor(async () => (results.length >= 3 ? true : null), 30_000, () => results.join(" | "));
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.equal((await cards()).length, 1, `no new card: ${results.join(" | ")}`);
   } finally { await stop(s.d); }
 });

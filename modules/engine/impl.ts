@@ -9,7 +9,7 @@ import { forgetProvider } from "./model-health.ts";
 import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { EngineOptions, TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { bindEngine, keepForRestart, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
+import { wasParked, bindEngine, keepForRestart, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
 import type { Db } from "./projections.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { bridgeConsumers } from "./handlers/bridge.ts";
@@ -244,6 +244,8 @@ export const consumers = keptWhileStopping({
       const person = p.actingFor?.startsWith("usr_") ? p.actingFor : p.askedBy?.kind === "agent" && p.by?.startsWith("usr_") ? p.by : undefined;
       if (!host || !p.taskId || !p.holdId || !p.threadId?.startsWith("thr_") || !agentId || !person) return [];
       try { if (ctx.db.all("SELECT 1 AS x FROM engine_waits WHERE task_id = ?", p.taskId).length > 0) return []; } catch { /* no parked turns yet */ }
+      // a parked turn's hold whose wait row the resume already removed: that turn continues by itself; a second wake here would start a turn the person's newest message did not open
+      if (wasParked(p.taskId)) return [];
       const engine = await ensureRuntime(ctx);
       if (!engine) return [];
       const approved = event.name === "gate.approved";
