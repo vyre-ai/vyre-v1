@@ -21,6 +21,7 @@ test("a Claude Code turn with no model named is recorded on the model the engine
       if (cap === "engine.accounts.list") return { accounts: [{ ref: "#Dana_Claude", driver: "claude_code", kind: "subscription", status: "ok", mine: true, title: "Claude Code", name: "Claude Code" }] };
       if (cap === "engine.turn.record" || cap === "engine.turn.record_usage") return (handlers as Record<string, (c: unknown, i: unknown) => unknown>)[cap]!({ ...h.ctx, principal: { kind: "person", id: as ?? "usr_dana" } }, input);
       if (cap === "threads.get") return { thread: THREADS[0] };
+      if (cap === "agents.status") return { status: "awake" };   // the host answers whether the agent may take a turn (admission fails closed when it cannot)
       throw new Error(`unexpected ${cap}`);
     },
   };

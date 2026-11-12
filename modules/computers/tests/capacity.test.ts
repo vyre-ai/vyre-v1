@@ -248,3 +248,19 @@ test("a host built with its own capacity reports that, not the machine's memory 
   const r = await real.capacity!();
   assert.ok(r.totalMb > 0 && r.cpus > 0, "without an override it reads the machine");
 });
+
+// Lead, 12 Nov (from f-term): the waiting line said "add a compute server" for every kind, which cannot help a workspace on a Space server with Docker, nor the Space browser (it lives on the Space host).
+test("the waiting line says only what is true for the kind: a desktop may get a compute server, a workspace and a browser start by themselves", async () => {
+  const { waitingLine } = await import("../capacity.ts");
+  assert.equal(waitingLine("the Space server", "workspace"), "Waiting for room on the Space server. The workspace starts by itself when there is room.", "the same line as the workspace's own (modules/terminal)");
+  assert.equal(waitingLine("the Space server", "browser"), "Waiting for room on the Space server. The agent's browser starts by itself when there is room.");
+  assert.equal(waitingLine("the Space server", "desktop"), "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.");
+  const h = harness();
+  h.fake.host.capacity = async () => ({ totalMb: 1550, freeMb: 10, cpus: 2, os: "linux" });
+  for (const [kind, want] of [["workspace", /The workspace starts by itself/], ["browser", /The agent's browser starts by itself/]] as const) {
+    const got = await claimRoom(h.ctx, { kind, key: `k_${kind}` });
+    assert.equal(got.state, "waiting");
+    assert.match(String(got.line), want, kind);
+    assert.doesNotMatch(String(got.line), /compute server/, kind);
+  }
+});

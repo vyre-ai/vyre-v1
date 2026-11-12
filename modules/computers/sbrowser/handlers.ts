@@ -9,6 +9,8 @@ import { mayTakeOver, profileAccess, profileIdOf } from "./policy.ts";
 import type { ProfileAccess, ProfileAgent } from "./policy.ts";
 import { spaceBrowser } from "./port.ts";
 import type { ProfileRow, SpaceBrowser } from "./port.ts";
+import { currentHold, dropHold, heldBy, setHold, touchHold } from "./hold.ts";
+import { needRoom, roomWaitLine, waitingForRoom, waitingProfiles } from "./room.ts";
 
 const TICKET_MS = 5 * 60_000;
 
@@ -59,7 +61,11 @@ const rowOut = (r: ProfileRow, access: Exclude<ProfileAccess, "none">, line?: st
 
 async function rowOf(ctx: CompCtx, sb: SpaceBrowser, agentId: string, access: Exclude<ProfileAccess, "none">) {
   const row = (await sb.profiles().catch((e: unknown) => refuse(ctx, e))).profiles.find((x) => x.profileId === agentId);
-  return rowOut(row ?? { profileId: agentId, running: false, tabs: 0, busy: false, takeover: false, viewers: 0, lastActiveAt: 0, held: 0, paused: false }, access);
+  // who has the controls is the module's word (sbrowser/hold.ts): it outlives a restart of the browser service
+  const by = heldBy(ctx, agentId) ?? undefined;
+  const base = row ?? { profileId: agentId, running: false, tabs: 0, busy: false, takeover: false, viewers: 0, lastActiveAt: 0, held: 0, paused: false };
+  const { takeoverBy: _was, ...rest } = base;
+  return rowOut({ ...rest, takeover: by !== undefined, ...(by ? { takeoverBy: by } : {}) }, access);
 }
 
 export async function profiles(ctx: CompCtx, _input: Record<string, never>) {
@@ -72,17 +78,21 @@ export async function profiles(ctx: CompCtx, _input: Record<string, never>) {
     const agent = await agentOf(ctx, row.profileId);
     if (!agent) continue;
     const access = profileAccess(agent, person, admin);
-    if (access !== "none") out.push(rowOut(row, access, waitingNote(ctx.db, row.profileId)));
+    const by = heldBy(ctx, row.profileId) ?? undefined;
+    const { takeoverBy: _was, ...rest } = row;
+    if (access !== "none") out.push(rowOut({ ...rest, takeover: by !== undefined, ...(by ? { takeoverBy: by } : {}) }, access, waitingNote(ctx.db, row.profileId) ?? roomWaitLine(row.profileId)));
   }
   // a browser waiting for room has not reached the service yet: it is listed with the line
-  for (const r of rowsOf(ctx.db, "SELECT claim_key FROM computers_claim WHERE kind = 'browser' AND state = 'waiting'")) {
-    const id = String(r["claim_key"]);
+  const waiting = new Set([...rowsOf(ctx.db, "SELECT claim_key FROM computers_claim WHERE kind = 'browser' AND state = 'waiting'").map((r) => String(r["claim_key"])), ...waitingProfiles().filter((id) => roomWaitLine(id) !== null)]);
+  for (const id of waiting) {
     if (out.some((x) => x.agentId === id)) continue;
     const agent = await agentOf(ctx, id);
     const access = agent ? profileAccess(agent, person, admin) : "none";
-    if (access !== "none") out.push(rowOut({ profileId: id, running: false, tabs: 0, busy: false, takeover: false, viewers: 0, lastActiveAt: 0, held: 0, paused: false }, access, waitingNote(ctx.db, id)));
+    if (access !== "none") out.push(rowOut({ profileId: id, running: false, tabs: 0, busy: false, takeover: false, viewers: 0, lastActiveAt: 0, held: 0, paused: false }, access, waitingNote(ctx.db, id) ?? roomWaitLine(id)));
   }
-  return { profiles: out, maxRunning: all.maxRunning };
+  // the browser slots of this server, for one quiet line in Console > Computers: how many run now (every Space's on this server), how many it holds at once, how many calls wait for one
+  const slots = { running: all.profiles.filter((p) => p.running).length, limit: all.maxRunning, waiting: waitingForRoom() };
+  return { profiles: out, maxRunning: all.maxRunning, slots };
 }
 
 export async function stream(ctx: CompCtx, input: { agentId: string }) {
@@ -90,8 +100,12 @@ export async function stream(ctx: CompCtx, input: { agentId: string }) {
   const sb = browserOrRaise(ctx);
   const { person, access } = await mayWatch(ctx, input.agentId);
   // the browser service wakes for a viewer; the address it gives stays in the Space, and the viewer gets the Space's own relay path with a ticket for this person (host/src/routes/browser-stream.ts)
+  // the view wakes the browser: it needs room on the host like any browser that starts
+  await needRoom(ctx, sb, input.agentId);
   let size: { width?: number; height?: number } = {};
-  try { const r = await sb.stream({ profileId: input.agentId }); if (r.width && r.height) size = { width: r.width, height: r.height }; } catch (e) { refuse(ctx, e); }
+  try { const r = await sb.stream({ profileId: input.agentId, personId: person }); if (r.width && r.height) size = { width: r.width, height: r.height }; } catch (e) { refuse(ctx, e); }
+  // the person at the controls opening the view is using the hold; a service that restarted is told about it again
+  if (heldBy(ctx, input.agentId) === person) { touchHold(ctx, input.agentId, person); await currentHold(ctx, sb, input.agentId); }
   // a person who holds the controls gets a ticket that carries their input; anyone else only frames
   const row = await rowOf(ctx, sb, input.agentId, access);
   const t = await mintTicket(ctx.db, row.takeoverBy === person ? "takeover" : "stream", input.agentId, person, ctx.now());
@@ -109,34 +123,51 @@ export async function browserStreamOpen(ctx: CompCtx, input: { ticket: string; a
   const who = await redeemTicket(ctx.db, String(input.ticket), ctx.now());
   if (!who || who.computerId !== String(input.agentId) || (who.kind !== "stream" && who.kind !== "takeover")) return null;
   let target: Awaited<ReturnType<SpaceBrowser["stream"]>>;
-  try { target = await sb.stream({ profileId: who.computerId }); } catch { return null; }
+  try { target = await sb.stream({ profileId: who.computerId, personId: who.personId }); } catch { return null; }
   if (!target.ws || !target.url) return null;
-  const holds = (await sb.profiles().catch(() => ({ profiles: [] as ProfileRow[] }))).profiles.find((p) => p.profileId === who.computerId)?.takeoverBy === who.personId;
+  let holds = heldBy(ctx, who.computerId) === who.personId;
+  if (holds) { touchHold(ctx, who.computerId, who.personId); holds = (await currentHold(ctx, sb, who.computerId))?.personId === who.personId; }
   return { url: target.url, ws: target.ws, personId: who.personId, input: who.kind === "takeover" && holds };
 }
 
 /** Does this person still hold the controls of this agent's browser? */
-export async function browserStreamInput(_ctx: CompCtx, input: { agentId: string; personId: string }): Promise<boolean> {
-  const sb = spaceBrowser();
-  if (!sb) return false;
-  return (await sb.profiles().catch(() => ({ profiles: [] as ProfileRow[] }))).profiles.find((p) => p.profileId === String(input.agentId))?.takeoverBy === String(input.personId);
+export async function browserStreamInput(ctx: CompCtx, input: { agentId: string; personId: string }): Promise<boolean> {
+  ensure(ctx.db);
+  if (!spaceBrowser()) return false;
+  const held = heldBy(ctx, String(input.agentId)) === String(input.personId);
+  if (held) touchHold(ctx, String(input.agentId), String(input.personId));
+  return held;
 }
+
+export const TAKEOVER_REOPENED = "This browser was reopened since you last saw it, so its page was reloaded.";
 
 export async function takeOver(ctx: CompCtx, input: { agentId: string }) {
   const sb = browserOrRaise(ctx);
   const { person, access } = await mayWatch(ctx, input.agentId, true);
-  try { await sb.takeover({ profileId: input.agentId, personId: person }); } catch (e) { refuse(ctx, e); }
-  return { profile: await rowOf(ctx, sb, input.agentId, access) };
+  ensure(ctx.db);
+  const other = heldBy(ctx, input.agentId);
+  if (other !== null && other !== person && (await currentHold(ctx, sb, input.agentId)) !== null) raise(ctx, "validation.precondition_failed", "Someone else has the controls.");
+  // the table first, then browserd: an agent's call that reads the table after this line waits, and one that read it before cannot undo it (browserd never releases on a call)
+  setHold(ctx, input.agentId, person);
+  let got: { reopened?: boolean } | void = undefined;
+  try { got = await sb.takeover({ profileId: input.agentId, personId: person, space: ctx.space }); } catch (e) { if (other === null) dropHold(ctx, input.agentId); refuse(ctx, e); }
+  // the browser was reopened since a person last saw it (closed to make room, or stopped when idle): its page was reloaded, and the pane says so in one line
+  return { profile: await rowOf(ctx, sb, input.agentId, access), ...(got && got.reopened ? { note: TAKEOVER_REOPENED } : {}) };
 }
 
 export async function giveBack(ctx: CompCtx, input: { agentId: string }) {
   const sb = browserOrRaise(ctx);
   const { person, access } = await mayWatch(ctx, input.agentId, true);
-  const now = await rowOf(ctx, sb, input.agentId, access);
+  ensure(ctx.db);
+  const by = heldBy(ctx, input.agentId) ?? (await sb.profiles().catch(() => ({ profiles: [] as ProfileRow[] }))).profiles.find((p) => p.profileId === input.agentId)?.takeoverBy;
   // the person who has the controls gives them back; so may an admin (the person went away)
-  if (now.takeoverBy !== undefined && now.takeoverBy !== person && access !== "admin") raise(ctx, "permission.no_grant", "Someone else has the controls.");
-  try { await sb.giveBack(input.agentId); } catch (e) { refuse(ctx, e); }
-  return { profile: await rowOf(ctx, sb, input.agentId, access) };
+  if (by !== undefined && by !== person && access !== "admin") raise(ctx, "permission.no_grant", "Someone else has the controls.");
+  // giving back always works: the module's hold goes first, so the agent has its tools even when the browser service does not answer now (a restarted one holds nothing)
+  // the release carries when it was decided: a takeover by someone else that reaches browserd before it is not undone by it
+  const decidedAt = Date.now();
+  dropHold(ctx, input.agentId);
+  try { await sb.giveBack(input.agentId, { before: decidedAt }); } catch (e) { ctx.log.warn("sbrowser: give back did not reach the browser service", { agentId: input.agentId, reason: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); }
+  return { profile: await rowOf(ctx, sb, input.agentId, access).catch(() => rowOut({ profileId: input.agentId, running: false, tabs: 0, busy: false, takeover: false, viewers: 0, lastActiveAt: 0, held: 0, paused: false }, access)) };
 }
 
 /** The agent's browser steps, newest last: what computers.timeline gives for a computer, for a profile. */
@@ -162,6 +193,9 @@ export async function signOut(ctx: CompCtx, input: { agentId: string; site: stri
   const sb = browserOrRaise(ctx);
   await mayWatch(ctx, input.agentId, true);
   if (!/^[a-z0-9.-]{1,253}$/i.test(input.site)) raise(ctx, "validation.bad_input", "Name the site as its host name, such as app.example.com.");
+  ensure(ctx.db);
+  // signing out starts the browser: it needs room on the host first
+  await needRoom(ctx, sb, input.agentId);
   try { return { ok: await sb.signOut(input.agentId, input.site) }; } catch (e) { refuse(ctx, e); }
 }
 

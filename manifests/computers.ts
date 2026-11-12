@@ -31,7 +31,9 @@ const browserRow = t.obj({
   state: t.enm('running', 'asleep', 'waiting', 'error'), line: t.opt(t.str({ description: 'Why it waits (no room on the host) or what went wrong, in a plain line' })),
   takeoverBy: t.opt(id.user), paired: t.bool({ description: 'Vyre for Chrome in the profile is connected to the Space as this agent, so Vault logins fill' }), access: t.enm('owner', 'admin', 'viewer'),
 });
-const downloadsOut = t.opt(t.arr(t.obj({ name: t.str(), path: t.str({ description: "Where it is in the agent's Files, under Downloads", examples: ['Downloads/report.pdf'] }), fileId: id.file }), { description: 'Files the browser finished downloading since the last step: they are in Files now, and this is where' }));
+/** On the first answer after the browser was reopened (closed to make room, or stopped when idle, and its pages reloaded): the agent takes a new snapshot before it acts on refs. */
+const reopenOut = { reopened: t.opt(t.bool({ description: 'The browser was reopened since the last step and its pages reloaded: refs from before are gone' })), note: t.opt(t.str({ description: 'What to do about it, in one line' })) };
+const downloadsOut = t.opt(t.arr(t.obj({ name: t.str(), path: t.str({ description: "Where it is in the agent's Files, under Downloads", examples: ['Downloads/report.pdf'] }), fileId: t.opt(id.file), note: t.opt(t.str({ description: 'Why a download is not in Files (it is too large to move), in plain words: tell the person' })) }), { description: 'Files the browser finished downloading since the last step: they are in Files now, and this is where. One too large to move has no fileId and a note' }));
 const comp = { computerId: id.computer };
 const optComp = { computerId: t.opt(id.computer) };
 /** Chrome tools run on the agent's own computer. `inMyChrome` is the one way to ask for the asking person's own Chrome, and only when they asked for it in this turn. */
@@ -136,22 +138,25 @@ export default defineManifest({
       in: { ...comp, site: t.str() }, out: { ok: t.bool() }, on: ['computer', '/computerId'], perm: 'computers.take_over', emits: ['computer.session_signed_out', 'computer.started'], tool: 'computer', audit: 'sensitive',
     }),
     read('computers.browser.profiles', "The agent browsers in this Space's browser that you may watch: running or asleep, tabs, whether the agent is using it, and who has the controls", {
-      in: {}, out: { profiles: t.arr(browserRow), maxRunning: t.int({ description: 'How many browsers the Space browser holds at once' }) }, perm: 'computers.watch', label: 'filter', offline: 'online', errors: ['provider.unavailable'],
+      in: {}, out: { profiles: t.arr(browserRow), maxRunning: t.int({ description: 'How many browsers the Space browser holds at once' }),
+        slots: t.opt(t.obj({ running: t.int({ description: 'Browsers running now on this server, every Space\'s' }), limit: t.int({ description: 'How many it runs at once' }), waiting: t.int({ description: 'Browser calls waiting for one to free up' }) })) }, perm: 'computers.watch', label: 'filter', offline: 'online', errors: ['provider.unavailable'],
     }),
     read('computers.browser.stream', "Live view of an agent's browser, relayed by the Space: MJPEG or a WebSocket with a ticket that opens once, for one minute; frames are live-only, never stored. Wakes the browser", {
       in: { agentId: id.agent }, out: { transport: t.enm('mjpeg'), url: t.str({ description: 'The Space\'s own relay path, /browsers/<agent>/stream?ticket=...' }), ws: t.opt(t.str({ description: 'The same view over a WebSocket, which also carries your input once you have taken over' })), width: t.opt(t.int({ description: "The page's real width in pixels: scale pointer positions from this, never from a constant" })), height: t.opt(t.int({ description: "The page's real height in pixels" })), expiresAt: t.ts() }, perm: 'computers.watch', label: 'check', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.not_found'],
     }),
+    // The Space browser's own rule decides who takes over, gives back and signs out (sbrowser/policy.ts): a personal agent's browser is its owner's, a team agent's its owner's and the admins'. The capability asks
+    // only for the right every member holds to watch, so a plain member can take over their own Assistant's browser; computers.take_over (an agent computer) is not theirs and is not asked for here.
     write('computers.browser.take_over', "Take over an agent's browser (\"You're in control\"): its tools wait, your clicks and keys reach the page. An Assistant's or personal agent's browser is its person's alone; a team agent's goes to its owner and admins; one shared with named people may be watched by them but not taken over", {
-      in: { agentId: id.agent }, out: { profile: browserRow }, perm: 'computers.take_over', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.precondition_failed'],
+      in: { agentId: id.agent }, out: { profile: browserRow, note: t.opt(t.str({ description: 'One line for the pane, when the browser was reopened since you last saw it and its page was reloaded' })) }, perm: 'computers.watch', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.precondition_failed'],
     }),
     write('computers.browser.give_back', "Give an agent's browser back to the agent; the person who has the controls or an admin may", {
-      in: { agentId: id.agent }, out: { profile: browserRow }, perm: 'computers.take_over', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable'],
+      in: { agentId: id.agent }, out: { profile: browserRow }, perm: 'computers.watch', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable'],
     }),
     read('computers.browser.sessions', "The sites an agent's browser is signed in to (cookies the profile holds), by site, never a value. Wakes the browser when it is asleep. Only for a browser you may watch", {
       in: { agentId: id.agent }, out: { sessions: t.arr(sessionRow) }, perm: 'computers.watch', label: 'check', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.not_found'],
     }),
     write('computers.browser.sign_out', "Sign an agent's browser out of a site: its cookies and storage for that site are cleared. The owner and admins only", {
-      in: { agentId: id.agent, site: t.str() }, out: { ok: t.bool() }, perm: 'computers.take_over', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.bad_input'],
+      in: { agentId: id.agent, site: t.str() }, out: { ok: t.bool() }, perm: 'computers.watch', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.bad_input'],
     }),
     read('computers.browser.timeline', "What an agent did in its Space browser, step by step with a picture each: the same timeline as a computer's, for the agent's profile. Only for a browser you may watch", {
       in: { agentId: id.agent, runId: t.opt(id.run), threadId: t.opt(id.thread), ...pageIn }, out: { steps: t.arr(stepRow), ...pageOut }, perm: 'computers.watch', label: 'filter', errors: ['permission.no_grant', 'validation.not_found'],
@@ -162,69 +167,69 @@ export default defineManifest({
 
     // ---- Chrome tools (Vyre for Chrome signed in as the agent)
     read('computers.chrome.snapshot', 'Read the page as an accessibility tree with element refs; prefer this over screenshots', {
-      in: { ...chromeWhere, tabId, selector: t.opt(t.str()), format: t.opt(t.enm('tree', 'text')) }, out: { url: t.str(), title: t.str(), tree: t.str(), truncated: t.bool() },
+      in: { ...chromeWhere, tabId, selector: t.opt(t.str()), format: t.opt(t.enm('tree', 'text')) }, out: { ...reopenOut, url: t.str(), title: t.str(), tree: t.str(), truncated: t.bool() },
       ...local({ mcpName: 'chrome_snapshot', agent: { planMode: 'allowed' } }),
     }),
     write('computers.chrome.act', 'Act on an element or key: click, hover, press, select, scroll, check; a send, post or payment is held and returns an id', {
       in: { ...chromeWhere, tabId, ref: t.opt(ref), action: t.enm('click', 'double_click', 'hover', 'press', 'select', 'scroll', 'check', 'uncheck', 'focus'), value: t.opt(t.str()) },
-      out: { ok: t.bool(), heldId: t.opt(t.str()), snapshot: t.opt(t.str()), downloads: downloadsOut }, ...local({ mcpName: 'chrome_act', risk: 'medium', idem: 'none' }),
+      out: { ...reopenOut, ok: t.bool(), heldId: t.opt(t.str()), snapshot: t.opt(t.str()), downloads: downloadsOut }, ...local({ mcpName: 'chrome_act', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.click', 'Click an element by ref or by coordinates', {
       in: { ...chromeWhere, tabId, ref: t.opt(ref), x: t.opt(t.int()), y: t.opt(t.int()), button: t.opt(t.enm('left', 'right', 'middle')) },
-      out: { ok: t.bool(), heldId: t.opt(t.str()), downloads: downloadsOut }, ...local({ mcpName: 'chrome_click', risk: 'medium', idem: 'none' }),
+      out: { ...reopenOut, ok: t.bool(), heldId: t.opt(t.str()), downloads: downloadsOut }, ...local({ mcpName: 'chrome_click', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.type', 'Type text into the focused element or a ref; secrets only as #Handle.field references', {
-      in: { ...chromeWhere, tabId, ref: t.opt(ref), text: t.str(), submit: t.opt(t.bool()) }, out: { ok: t.bool(), heldId: t.opt(t.str()) },
+      in: { ...chromeWhere, tabId, ref: t.opt(ref), text: t.str(), submit: t.opt(t.bool()) }, out: { ...reopenOut, ok: t.bool(), heldId: t.opt(t.str()), downloads: downloadsOut },
       ...local({ mcpName: 'chrome_type', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.fill', 'Fill form fields; values may be #Handle.field references that the computer vault filler substitutes at the last moment', {
-      in: { ...chromeWhere, tabId, fields: t.arr(t.obj({ ref, value: t.str() }), { minItems: 1 }) }, out: { ok: t.bool(), filled: t.int() },
+      in: { ...chromeWhere, tabId, fields: t.arr(t.obj({ ref, value: t.str() }), { minItems: 1 }) }, out: { ...reopenOut, ok: t.bool(), filled: t.int() },
       ...local({ mcpName: 'chrome_fill', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.open', 'Open a URL, reusing the open tab by default (never one tab per step)', {
-      in: { ...chromeWhere, url: t.str({ pattern: '^https?://', examples: ['https://example.com'] }), newTab: t.opt(t.bool()) }, out: { tabId: t.str(), url: t.str(), title: t.str(), downloads: downloadsOut },
+      in: { ...chromeWhere, url: t.str({ pattern: '^https?://', examples: ['https://example.com'] }), newTab: t.opt(t.bool()) }, out: { ...reopenOut, tabId: t.str(), url: t.str(), title: t.str(), downloads: downloadsOut },
       ...local({ mcpName: 'chrome_open', idem: 'none' }),
     }),
     write('computers.chrome.tabs', 'List, find, use, open or close tabs. find looks for tabs already open for a site (in the person\'s own Chrome: their open tabs); use works in one; a tab that was not yours to begin with is never closed', {
-      in: { ...chromeWhere, action: t.enm('list', 'use', 'find', 'new', 'close'), tabId, url: t.opt(t.str()), site: t.opt(t.str({ description: 'find only: the site, as an address or a host such as mail.google.com', examples: ['mail.google.com'] })) }, out: { tabs: t.arr(t.obj({ tabId: t.str(), url: t.str(), title: t.str(), active: t.bool() })) },
+      in: { ...chromeWhere, action: t.enm('list', 'use', 'find', 'new', 'close'), tabId, url: t.opt(t.str()), site: t.opt(t.str({ description: 'find only: the site, as an address or a host such as mail.google.com', examples: ['mail.google.com'] })) }, out: { ...reopenOut, tabs: t.arr(t.obj({ tabId: t.str(), url: t.str(), title: t.str(), active: t.bool() })) },
       ...local({ mcpName: 'chrome_tabs', idem: 'none' }),
     }),
     write('computers.chrome.wait', 'Wait for a load, text, selector, network idle or a time', {
       in: { ...chromeWhere, tabId, until: t.enm('load', 'text', 'selector', 'network_idle', 'time'), value: t.opt(t.str()), timeoutMs: t.opt(t.int({ minimum: 100, maximum: 120000 })) },
-      out: { ok: t.bool(), waitedMs: t.int(), downloads: downloadsOut }, ...local({ mcpName: 'chrome_wait', idem: 'none', risk: 'low' }),
+      out: { ...reopenOut, ok: t.bool(), waitedMs: t.int(), downloads: downloadsOut }, ...local({ mcpName: 'chrome_wait', idem: 'none', risk: 'low' }),
     }),
     read('computers.chrome.screenshot', 'Screenshot of the tab or one element, stored in the agent folder and rendered as a screenshot block', {
-      in: { ...chromeWhere, tabId, ref: t.opt(ref), fullPage: t.opt(t.bool()) }, out: { fileId: id.file, width: t.int(), height: t.int() },
+      in: { ...chromeWhere, tabId, ref: t.opt(ref), fullPage: t.opt(t.bool()) }, out: { ...reopenOut, fileId: id.file, width: t.int(), height: t.int() },
       ...local({ mcpName: 'chrome_screenshot', agent: { planMode: 'allowed', blocks: ['screenshot'] } }),
     }),
     write('computers.chrome.eval', 'Run a JavaScript expression in the page and return the result', {
-      in: { ...chromeWhere, tabId, expression: t.str() }, out: { result: t.json() }, ...local({ mcpName: 'chrome_eval', risk: 'high', idem: 'none', audit: 'sensitive' }),
+      in: { ...chromeWhere, tabId, expression: t.str() }, out: { ...reopenOut, result: t.json() }, ...local({ mcpName: 'chrome_eval', risk: 'high', idem: 'none', audit: 'sensitive' }),
     }),
     read('computers.chrome.console', 'Read the page console messages', {
-      in: { ...chromeWhere, tabId, level: t.opt(t.enm('log', 'warn', 'error')), limit: t.opt(t.int({ minimum: 1, maximum: 500 })) }, out: { messages: t.arr(t.obj({ level: t.str(), text: t.str(), at: t.ts() })) },
+      in: { ...chromeWhere, tabId, level: t.opt(t.enm('log', 'warn', 'error')), limit: t.opt(t.int({ minimum: 1, maximum: 500 })) }, out: { ...reopenOut, messages: t.arr(t.obj({ level: t.str(), text: t.str(), at: t.ts() })) },
       ...local({ mcpName: 'chrome_console' }),
     }),
     read('computers.chrome.net', 'Read network requests of the tab with timing; bodies are masked by the vault scrubber', {
       in: { ...chromeWhere, tabId, filter: t.opt(t.str()), bodies: t.opt(t.bool()), limit: t.opt(t.int({ minimum: 1, maximum: 500 })) },
-      out: { requests: t.arr(t.obj({ method: t.str(), url: t.str(), status: t.opt(t.int()), ms: t.opt(t.int()), body: t.opt(t.str()) })) }, ...local({ mcpName: 'chrome_net' }),
+      out: { ...reopenOut, requests: t.arr(t.obj({ method: t.str(), url: t.str(), status: t.opt(t.int()), ms: t.opt(t.int()), body: t.opt(t.str()) })) }, ...local({ mcpName: 'chrome_net' }),
     }),
     read('computers.chrome.inspect', 'Inspect one element: attributes, computed text, box and role', {
-      in: { ...chromeWhere, tabId, ref }, out: { element: t.rec() }, ...local({ mcpName: 'chrome_inspect' }),
+      in: { ...chromeWhere, tabId, ref }, out: { ...reopenOut, element: t.rec() }, ...local({ mcpName: 'chrome_inspect' }),
     }),
     read('computers.chrome.state', 'URL, title and load state of a tab', {
-      in: { ...chromeWhere, tabId }, out: { url: t.str(), title: t.str(), loading: t.bool(), downloads: downloadsOut }, ...local({ mcpName: 'chrome_state' }),
+      in: { ...chromeWhere, tabId }, out: { ...reopenOut, url: t.str(), title: t.str(), loading: t.bool(), downloads: downloadsOut }, ...local({ mcpName: 'chrome_state' }),
     }),
     read('computers.chrome.status', 'Status of Vyre for Chrome in this computer: connected, paused by Esc, held items', {
-      in: { ...chromeWhere }, out: { connected: t.bool(), paused: t.bool(), held: t.arr(t.str()) }, ...local({ mcpName: 'chrome_status' }),
+      in: { ...chromeWhere }, out: { ...reopenOut, connected: t.bool(), paused: t.bool(), held: t.arr(t.str()) }, ...local({ mcpName: 'chrome_status' }),
     }),
     write('computers.chrome.stop', 'Stop everything Chrome is doing until the person answers', {
-      in: { ...chromeWhere, reason: t.opt(t.str()) }, out: { stopped: t.bool() }, ...local({ mcpName: 'chrome_stop', idem: 'natural', risk: 'low' }),
+      in: { ...chromeWhere, reason: t.opt(t.str()) }, out: { ...reopenOut, stopped: t.bool() }, ...local({ mcpName: 'chrome_stop', idem: 'natural', risk: 'low' }),
     }),
     write('computers.chrome.resume', 'Resume after a stop or an Esc press once the person has answered', {
-      in: { ...chromeWhere }, out: { resumed: t.bool() }, ...local({ mcpName: 'chrome_resume', idem: 'natural', risk: 'low' }),
+      in: { ...chromeWhere }, out: { ...reopenOut, resumed: t.bool() }, ...local({ mcpName: 'chrome_resume', idem: 'natural', risk: 'low' }),
     }),
     outward('computers.chrome.send', 'Send a held send, post or payment: the person approves it first (Gate)', {
-      in: { ...chromeWhere, heldId: t.str() }, out: { sent: t.bool(), taskId: t.opt(id.task) }, gate: 'send',
+      in: { ...chromeWhere, heldId: t.str() }, out: { ...reopenOut, sent: t.bool(), taskId: t.opt(id.task), downloads: downloadsOut }, gate: 'send',
       ...local({ mcpName: 'chrome_send', agent: { planMode: 'blocked' } }),
     }),
     write('computers.chrome.batch', 'Run several Chrome steps in one call; stops at the first held item', {
@@ -232,15 +237,15 @@ export default defineManifest({
       out: { results: t.arr(t.obj({ tool: t.str(), ok: t.bool(), result: t.opt(t.json()), heldId: t.opt(t.str()) })) }, ...local({ mcpName: 'chrome_batch', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.plan', 'Tell the person the steps about to be taken in the browser before taking them', {
-      in: { ...chromeWhere, goal: t.str(), steps: t.opt(t.arr(t.str())) }, out: { ok: t.bool() }, ...local({ mcpName: 'chrome_plan', idem: 'none', risk: 'low' }),
+      in: { ...chromeWhere, goal: t.str(), steps: t.opt(t.arr(t.str())) }, out: { ...reopenOut, ok: t.bool() }, ...local({ mcpName: 'chrome_plan', idem: 'none', risk: 'low' }),
     }),
     outward('computers.chrome.api', 'Call a site backend with the session of this browser; non-GET calls pass the Gate', {
       in: { ...chromeWhere, method: t.enm('GET', 'POST', 'PUT', 'PATCH', 'DELETE'), url: t.str({ pattern: '^https?://', examples: ['https://example.com/api/items'] }), headers: t.opt(t.rec(t.str())), body: t.opt(t.json()) },
-      out: { status: t.int(), headers: t.rec(t.str()), body: t.json() }, gate: { act: 'post', when: "input.method != 'GET'" },
+      out: { ...reopenOut, status: t.int(), headers: t.rec(t.str()), body: t.json() }, gate: { act: 'post', when: "input.method != 'GET'" },
       ...local({ mcpName: 'chrome_api', agent: { planMode: 'blocked' } }),
     }),
     read('computers.chrome.sources', 'List scripts, requests and storage a page uses (to work out backend calls for a recipe)', {
-      in: { ...chromeWhere, tabId }, out: { scripts: t.arr(t.str()), endpoints: t.arr(t.obj({ method: t.str(), url: t.str() })) }, ...local({ mcpName: 'chrome_sources' }),
+      in: { ...chromeWhere, tabId }, out: { ...reopenOut, scripts: t.arr(t.str()), endpoints: t.arr(t.obj({ method: t.str(), url: t.str() })) }, ...local({ mcpName: 'chrome_sources' }),
     }),
 
     // ---- Screen tools (full desktop on demand)

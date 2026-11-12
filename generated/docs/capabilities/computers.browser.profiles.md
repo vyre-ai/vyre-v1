@@ -45,6 +45,11 @@ type Out = {
       access: "owner" | "admin" | "viewer";
     }>;
   maxRunning: number;
+  slots?: {
+    running: number;
+    limit: number;
+    waiting: number;
+  };
 };
 ```
 
@@ -79,7 +84,12 @@ type Out = {
         "takeoverBy": "usr_a1b2c3",
         "viewers": 1
       }
-    ]
+    ],
+    "slots": {
+      "limit": 1,
+      "running": 1,
+      "waiting": 1
+    }
   }
 }
 ```

@@ -34,6 +34,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   connected: boolean;
   paused: boolean;
   held: Array<string>;
@@ -65,7 +67,9 @@ type Out = {
     "held": [
       "example"
     ],
-    "paused": true
+    "note": "example",
+    "paused": true,
+    "reopened": true
   }
 }
 ```

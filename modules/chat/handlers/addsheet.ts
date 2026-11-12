@@ -13,7 +13,7 @@ import type { ChatCtx, ThreadRec } from "../projections.ts";
 import { agentMayChange, load, out } from "./g24a.ts";
 import { readFloor } from "./floor.ts";
 import { deliver, mayGovernChannel, rootOf } from "./post.ts";
-import { grantsOf, revokeGrants, shareOwnedWithReaders, sourceOf, trashOwned } from "./owned.ts";
+import { followHome, grantsOf, revokeGrants, shareOwnedWithReaders, sourceOf, trashOwned } from "./owned.ts";
 import type { Granted } from "./owned.ts";
 
 type Row = Record<string, unknown>;
@@ -124,6 +124,8 @@ export async function agentCreate(ctx: ChatCtx, input: { threadId: string; name:
   try {
     if (mode === "lead") demoteLead(ctx, t.id, agentId);
     addAgent(ctx, t.id, { agentId, mode: mode === "lead" ? "lead" : "listen", addedBy: askerOf(ctx), owned: true, quiet: mode === "quiet" });
+    // its files folder follows this chat: closed to the Space when the chat is (owned.ts followHome); an agent whose folder would stay open is not made
+    await followHome(ctx, t.id, agentId);
   } catch (e) {
     await trashOwned(ctx, [agentId]);
     throw e;

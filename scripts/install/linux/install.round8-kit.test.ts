@@ -20,7 +20,10 @@ export const tmp = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-r8-
 export const esc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export const NODE = process.execPath;
 export const HOST_KERNEL = spawnSync("uname", ["-r"], { encoding: "utf8" }).stdout.trim();
-export const HOST_BOOT = ((): string => { try { return fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim(); } catch { return ""; } })();
+// One fixed boot id stands for "this computer's kernel" on both sides: the host's (VYRE_TEST_BOOT_ID_FILE, which world() passes) and the engine's (the fake docker's FAKE_BOOT
+// for SAME). No test reads /proc, so these run the same on a macOS runner, which has none.
+export const HOST_BOOT = "5a5e5a5e-0000-4000-8000-this-kernel-test";
+export const BOOT_FILE = ((): string => { const f = path.join(os.tmpdir(), `vyre-r8-boot-id-${process.pid}`); fs.writeFileSync(f, `${HOST_BOOT}\n`); return f; })();
 /** An engine on this computer's own kernel, as docker answers for it: the same kernel version and the same boot id. */
 export const SAME = { kernel: `${HOST_KERNEL}|Ubuntu 24.04.5 LTS`, boot: HOST_BOOT };
 
@@ -92,7 +95,7 @@ export function world(dir: string, o: { kernel?: string; boot?: string; running?
   if (o.running) fs.writeFileSync(path.join(dir, "running"), ""); else fs.rmSync(path.join(dir, "running"), { force: true });
   const img = o.image === false ? "" : `VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:${"b".repeat(64)}\n`;
   if (!fs.existsSync(path.join(dir, "compose.env")) || o.image === false) fs.writeFileSync(path.join(dir, "compose.env"), img);
-  return { PATH: `${bin}:${process.env.PATH ?? ""}`, FAKE_DIR: dir, FAKE_SPACE: path.join(dir, "data", "space"), FAKE_KERNEL: o.kernel ?? "6.8.0-colima|Ubuntu 24.04 (Colima's VM)", FAKE_BOOT: o.boot ?? "", REAL_NODE: NODE, VYRE_DIR: dir };
+  return { PATH: `${bin}:${process.env.PATH ?? ""}`, FAKE_DIR: dir, FAKE_SPACE: path.join(dir, "data", "space"), FAKE_KERNEL: o.kernel ?? "6.8.0-colima|Ubuntu 24.04 (Colima's VM)", FAKE_BOOT: o.boot ?? "", REAL_NODE: NODE, VYRE_DIR: dir, VYRE_TEST_BOOT_ID_FILE: BOOT_FILE };
 }
 export const MAC_ENV = { VYRE_TEST_OS: "Darwin" };
 
