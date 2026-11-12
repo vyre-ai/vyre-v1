@@ -8,6 +8,7 @@ import { resolveAccount, probeAccount, providerOfModel, UnknownAccount, usableHe
 import type { AccountRow, AccountStatus, ProbeResult, SpaceUses, Trigger } from "../../../agent/src/accounts/index.ts";
 import { costTier } from "../../../agent/src/accounts/cost.ts";
 import { savedTested } from "../live-models.ts";
+import { fitModel } from "../space-key-turns.ts";
 import { unavailableFor } from "../model-health.ts";
 import { applyRememberedPick, stateOf } from "./control.ts";
 
@@ -175,9 +176,12 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
   });
   // the Vault item behind the account, so the turn worker can meter usage against it (record_usage itemId)
   const itemId = res.accountRef ? accounts.itemByRef.get(res.accountRef) : undefined;
+  // neither the chat nor the agent names a model: the turn runs on the paying key's own first listed model (what its check listed, as a vendor's /models does), the rule the Space AI key
+  // already uses (fitModel). A key that lists none leaves it unset, and the turn says "No model is set for this chat" instead of sending an empty one.
+  const runModel = model ?? (res.accountRef ? fitModel(undefined, accounts.rows.find((r) => r.ref === res.accountRef)?.models ?? []) : undefined);
   // an account ahead of this one was passed over: what pays is a fallback, whatever the reason word says
   const fellBack = res.accountRef !== null && res.tried.some((a) => !a.used && (a.why === "expired" || a.why === "failed" || a.why === "failed_this_turn" || a.why === "capped"));
-  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}), ...(res.pin ? { pin: res.pin } : {}), ...(fellBack ? (() => { const c = res.tried.find((a) => !a.used && a.why === "capped"); return c ? { cappedFrom: c.ref } : {}; })() : {}), ...(res.via && ["chat_key", "thread", "work", "step", "space", "backup"].includes(res.via) ? { via: res.via } : {}), ...(res.allowed && model ? { model } : {}), ...(!res.allowed && res.noModel ? { why: "no_model" as const, ...(model ? { model } : {}), servedModels: res.servedModels ?? [] } : !res.allowed && res.unblock ? { why: res.unblock.why } : {}),
+  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}), ...(res.pin ? { pin: res.pin } : {}), ...(fellBack ? (() => { const c = res.tried.find((a) => !a.used && a.why === "capped"); return c ? { cappedFrom: c.ref } : {}; })() : {}), ...(res.via && ["chat_key", "thread", "work", "step", "space", "backup"].includes(res.via) ? { via: res.via } : {}), ...(res.allowed && runModel ? { model: runModel } : {}), ...(!res.allowed && res.noModel ? { why: "no_model" as const, ...(model ? { model } : {}), servedModels: res.servedModels ?? [] } : !res.allowed && res.unblock ? { why: res.unblock.why } : {}),
     ...(res.modelFallback && res.accountRef && model ? { modelFallback: { from: model, ...(accounts.rows.find((r) => r.ref === res.accountRef)?.models?.[0] ? { to: accounts.rows.find((r) => r.ref === res.accountRef)!.models![0]! } : {}) } } : {}) };
 }
 

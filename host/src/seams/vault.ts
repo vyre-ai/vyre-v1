@@ -103,7 +103,9 @@ export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: 
       if (!make) return { ok: false, models: [], detail: "This provider cannot be tested from here." };
       if (!p.apiKey) return { ok: false, models: [], detail: "There is no key to test." };
       // Tests only (scripts/test-run.ts sets it): a fixture key is checked against no real provider, which would refuse it. A key with "invalid" in it is refused, as a real provider refuses a bad one.
-      if (process.env["VYRE_TEST_KEY_CHECK"] === "accept") return /invalid/i.test(p.apiKey) ? { ok: false, models: [], detail: "The provider did not accept this key.", refused: true } : { ok: true, models: [] };
+      // It lists what a real check of that provider lists: one stand-in model where the provider's check lists models (a turn whose agent names none runs on it, as on a real key); none for
+      // OpenRouter, whose check (/auth/key) lists none and which runs a request that names no model on the account's own default.
+      if (process.env["VYRE_TEST_KEY_CHECK"] === "accept") return /invalid/i.test(p.apiKey) ? { ok: false, models: [], detail: "The provider did not accept this key.", refused: true } : { ok: true, models: p.providerKey === "openrouter" ? [] : [`${p.providerKey}-test-model`] };
       ({ url, headers, pick } = make(p.apiKey));
     }
     try {

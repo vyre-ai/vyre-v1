@@ -234,7 +234,7 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
   async function* send(input: TurnInput): AsyncGenerator<DriverEvent> {
     sends += 1;
     // no model: a provider answers 400 "`model` must be a non-empty string", which reads as a refusal. Nothing is sent; the turn says how to pick one.
-    if (model === "") { yield { type: "error", status: 0, code: "engine.no_model", message: NO_MODEL_LINE }; return; }
+    if (model === "" && deps.adapter.defaultsModel !== true) { yield { type: "error", status: 0, code: "engine.no_model", message: NO_MODEL_LINE }; return; }
     const ac = new AbortController();
     abort = ac;
     results.clear();

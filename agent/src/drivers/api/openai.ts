@@ -135,6 +135,7 @@ function decoder(): StreamDecoder {
 
 export function openaiCompatible(o: CompatOptions): ProviderAdapter {
   return {
+    ...(o.router ? { defaultsModel: true } : {}),
     id: o.id,
     defaultBase: o.base,
     defaultMaxOutput: o.defaultMaxOutput,
@@ -153,7 +154,8 @@ export function openaiCompatible(o: CompatOptions): ProviderAdapter {
           ...(o.opencode ? { "user-agent": vyreUserAgent(), [OPENCODE_SESSION]: req.conversation ?? req.prefixHash } : {}),
         },
         body: {
-          model: req.model, stream: true, stream_options: { include_usage: true },
+          // OpenRouter runs a request that names no model on the account's default: the field is left out, never sent empty
+          ...(req.model !== "" || !o.router ? { model: req.model } : {}), stream: true, stream_options: { include_usage: true },
           [o.tokenField]: req.maxOutputTokens,
           ...(o.cacheKey ? { prompt_cache_key: req.prefixHash } : {}),
           ...(o.router ? { usage: { include: true }, provider: { data_collection: "deny" } } : {}),

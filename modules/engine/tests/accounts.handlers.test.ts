@@ -217,3 +217,15 @@ test("account.resolve: a backup that pays because the account ahead hit its cap 
   const r = await accountResolve(fake(routes([mine, team], { "agents.get": () => ({ agent: { accountPolicy: "key", accountKey: "#Team_Credits" } }), "engine.defaults.get": () => ({ fallback: [] }) })).ctx, { threadId: "thr_1", agentId: "agt_1" });
   assert.deepEqual([r.accountRef, r.cappedFrom, r.fellBack], ["#Other_Team", "#Team_Credits", true]);
 });
+
+test("account.resolve: a chat and an agent that name no model run on the paying key's own first listed model; a key that lists none leaves the model unset", async () => {
+  const noModel = { "threads.get": () => ({ thread: { starter: "usr_dana", agents: [{ agentId: "agt_1" }] } }), "agents.get": () => ({ agent: { accountPolicy: "asker" } }) };
+  for (const [scope, models, want] of [["mine", ["claude-haiku-5-5", "claude-sonnet-5-5"], "claude-haiku-5-5"], ["mine", [], undefined]] as const) {
+    const out = await accountResolve(fake(routes([prov({ id: "prv_1", handle: "#Dana_Anthropic", scope, models: [...models] })], { ...noModel, "engine.defaults.get": () => ({ fallback: [] }) })).ctx, { threadId: "thr_1", agentId: "agt_1" });
+    assert.equal(out.allowed, true);
+    assert.equal(out.model, want, JSON.stringify(models));
+  }
+  // a model the chat or the agent names still wins
+  const named = await accountResolve(fake(routes([prov({ id: "prv_1", handle: "#Dana_Anthropic", models: ["claude-haiku-5-5", "claude-sonnet-5-5"] })], { "engine.defaults.get": () => ({ fallback: [] }) })).ctx, { threadId: "thr_1", agentId: "agt_1" });
+  assert.equal(named.model, "claude-sonnet-5-5");
+});

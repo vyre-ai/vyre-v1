@@ -79,6 +79,8 @@ export interface ProviderAdapter {
   modelName(model: string): string;
   /** Default output cap when the agent sets none. */
   readonly defaultMaxOutput: number;
+  /** The provider runs a request that names no model on the account's own default (OpenRouter documents this): such a request goes out without a model field, not refused. */
+  readonly defaultsModel?: boolean;
   /** True when the provider's input token count already includes cached tokens (OpenAI style). Anthropic reports them apart, so the session adds them. */
   readonly inputIncludesCache: boolean;
   request(req: CallRequest): WireRequest;

@@ -18,3 +18,17 @@ test("no model: nothing is sent, and the turn says how to pick one", async () =>
   assert.equal(err?.code, "engine.no_model");
   assert.match(err!.message, /^No model is set for this chat\. Pick one in the chat's model menu/);
 });
+
+test("OpenRouter picks its own default model when a request names none: the request goes out with no model field, never an empty one", async () => {
+  const { openrouter } = await import("../src/drivers/api/openai.ts");
+  const { chunked } = await import("../src/drivers/api/testing.ts");
+  const f = fakeFetch(() => ({ chunks: chunked(fixture("openai-text"), 64) }));
+  const s = spec("openrouter/x");
+  const session = createApiSession({ adapter: openrouter, account: { ref: "#Team_Router", base: openrouter.defaultBase }, base: openrouter.defaultBase, fetch: f.fetch, authorize, clock: fakeClock(), context: () => ctx() }, { ...s, agent: { ...s.agent, model: "" } });
+  const out: DriverEvent[] = [];
+  for await (const e of session.send(turnInput(""))) out.push(e);
+  assert.equal(f.requests.length, 1, "it reached OpenRouter");
+  const body = f.requests[0]!.body as Record<string, unknown>;
+  assert.equal("model" in body, false, "no model field: OpenRouter runs it on the account's default");
+  assert.equal(out.some((e) => e.type === "error"), false, JSON.stringify(out.filter((e) => e.type === "error")));
+});

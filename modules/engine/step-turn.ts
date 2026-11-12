@@ -170,9 +170,10 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
     }
   }
   // on the Space AI key the step runs on a model the key unlocks: the agent's when the key serves it, else the first one
+  // on any other key, an agent that names no model runs on the key's own first listed model (as a chat turn does, accounts.ts); a key that lists none leaves it unset
   const stepModel = paid.row.spaceKey === true
     ? fitModel(withAgent?.agent.model, await (ctx.call("providers.space_key.get", {}) as Promise<{ models?: string[] }>).then((r) => r.models ?? [], () => [] as string[]))
-    : withAgent?.agent.model;
+    : withAgent?.agent.model || fitModel(undefined, paid.row.models ?? []);
   const agent: EngineAgent = { id: agentKey, ...(withAgent ? { name: withAgent.agent.name } : {}), mode: "lead", ...(stepModel ? { model: stepModel } : {}) };
   const slug = hex(input.idempotencyKey);
   const threadId = `thr_step${slug}`;
