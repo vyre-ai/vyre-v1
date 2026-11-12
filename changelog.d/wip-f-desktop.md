@@ -21,3 +21,4 @@
 - After a move nothing is deleted: the old desktop's container, its profile volume and its row stay, and only Remove in Console > Computers deletes them, which cannot be undone. A live view someone opens on the agent's empty browser in the seconds before the sign-ins are copied in can lose those seconds of use.
 - Removing an older desktop from its row opens Console > Computers on that computer's own page.
 - An older desktop's Vault channel now acts for the person whose turn is using it, only while their calls run: not for the agent's owner for the computer's whole life. With no person behind a call there is no channel, and an owner change leaves nothing of the old owner's access.
+- A turn's Vault channel on an older desktop can no longer be given to two people at once or left live after the calls end; it also expires on its own a little after a call's time limit.

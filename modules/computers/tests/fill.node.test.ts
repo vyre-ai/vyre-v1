@@ -55,3 +55,27 @@ test("a call on a computer on a server gets a Vault channel for its person only 
     bindRemote(null);
   }
 });
+
+test("on a computer that joined the Space the same person's next call reuses the channel within a short time (one node job, not one per call); another person's call ends it at once", async () => {
+  const { leaseFill, setFillLinger } = await import("../handlers/tools/common.ts");
+  const p = harness({ respond: { "agents.get": (b) => ({ agent: { agentId: b["agentId"], folderId: "fld_intake", ownerId: "usr_dana" } }) } });
+  const issued: string[] = [];
+  let revoked = 0;
+  bindFill({ issue: async (x) => { issued.push(x.asker); return { fillToken: "t".repeat(48), revoke() { revoked++; } }; }, url: () => "http://host.docker.internal:8420/computers/fill", nodeSecure: () => true });
+  bindRemote(() => p.fake.host as never);
+  setFillLinger(5_000);
+  try {
+    const made = await (await import("../handlers/lifecycle.ts")).provision(p.ctx, { agentId: INTAKE, idempotencyKey: "k-linger" });
+    p.ctx.db.run("UPDATE computers_computers SET node_id = ? WHERE computer_id = ?", "srv_home", made.computer.computerId);
+    const row = computerBy(p.ctx.db, made.computer.computerId)!;
+    const dana = asPerson(p, { kind: "agent", id: INTAKE }, { actingFor: "usr_dana" });
+    const omar = asPerson(p, { kind: "agent", id: INTAKE }, { actingFor: "usr_omar" });
+    (await leaseFill(dana.ctx, row, p.fake.host as never))!.done();
+    (await leaseFill(dana.ctx, row, p.fake.host as never))!.done();
+    assert.deepEqual(issued, ["usr_dana"], "two calls in a row, one channel");
+    assert.equal(p.fake.named("configure").length, 1, "one node job");
+    (await leaseFill(omar.ctx, row, p.fake.host as never))!.done();
+    assert.deepEqual(issued, ["usr_dana", "usr_omar"]);
+    assert.equal(revoked, 1, "the first person's lingering channel ended when the second person came");
+  } finally { setFillLinger(null); bindFill(null); bindRemote(null); }
+});

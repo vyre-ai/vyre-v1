@@ -315,10 +315,22 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
 // The Vault channel of an older desktop acts for the person whose turn is using it, for as long as that turn's calls run, as the Space browser's does (a token per turn): never for the agent's owner for the
 // computer's whole life. With no person behind the call there is no channel at all. agentd holds one filler, so one person's calls hold the desktop's channel at a time; another person's call waits briefly,
 // then says so. A token that ended leaves agentd holding a dead one, which the host refuses.
-const deskGrants = new Map<string, { asker: string; revoke(): void; calls: number }>();
+interface Desk { asker: string; calls: number; revoke(): void; extend?(): void; ready: Promise<boolean>; timer?: ReturnType<typeof setTimeout> }
+const deskGrants = new Map<string, Desk>();
 let fillWaitMs = 5_000;
 /** For tests: how long a person's call waits for another person's calls on the same desktop. */
 export function setFillWait(ms: number | null): void { fillWaitMs = ms ?? 5_000; }
+/** A token for a desktop call cannot outlive the call's own time limit by more than this: a revoke that is missed is never for ever. */
+const TOKEN_TTL_MS = MAX_TOOL_MS + 30_000;
+/** On a computer that joined the Space, configuring agentd is a node job (up to one poll away), so the same person's next call within this time reuses the channel instead of making another. */
+let lingerMs = 15_000;
+/** For tests. */
+export function setFillLinger(ms: number | null): void { lingerMs = ms ?? 15_000; }
+function drop(computerId: string, g: Desk): void {
+  if (g.timer) clearTimeout(g.timer);
+  if (deskGrants.get(computerId) === g) deskGrants.delete(computerId);
+  g.revoke();
+}
 export async function leaseFill(ctx: CompCtx, c: ComputerRow, host: ComputerHost): Promise<{ done(): void } | null> {
   const binding = boundFill();
   if (!binding) return null;
@@ -328,27 +340,40 @@ export async function leaseFill(ctx: CompCtx, c: ComputerRow, host: ComputerHost
   // a computer on a server of the person's reaches the Space over a network link: it gets a channel only when that link is private
   if (node !== null && binding.nodeSecure?.(node) !== true) return null;
   const until = Date.now() + fillWaitMs;
-  for (let cur = deskGrants.get(c.computerId); cur && cur.asker !== asker; cur = deskGrants.get(c.computerId)) {
+  for (;;) {
+    const cur = deskGrants.get(c.computerId);
+    if (!cur || cur.asker === asker) break;
+    if (cur.calls <= 0) { drop(c.computerId, cur); break; }   // another person's channel that only lingers: ended at once
     if (Date.now() >= until) raise(ctx, "provider.unavailable", "Someone else's request is using this desktop's Vault channel right now. Try again in a moment.");
     await new Promise((res) => setTimeout(res, 50));
   }
+  const join = (g: Desk): { done(): void } => { g.calls += 1; if (g.timer) { clearTimeout(g.timer); delete g.timer; } g.extend?.(); return { done: () => release(c.computerId, g, node !== null) }; };
   const held = deskGrants.get(c.computerId);
-  if (held) { held.calls += 1; return { done: () => release(c.computerId, held) }; }
-  let issued: { fillToken: string; revoke(): void };
-  try {
-    issued = await binding.issue({ computerId: c.computerId, agentId: c.agentId, asker, turn: true, ...(node !== null ? { nodeId: node } : {}) });
-  } catch { return null; }
-  const g = { asker, revoke: issued.revoke, calls: 1 };
+  if (held) return (await held.ready) ? join(held) : null;
+  // the slot is taken before anything is awaited, so two calls that start together cannot both issue a token
+  const g: Desk = { asker, calls: 0, revoke: () => undefined, ready: Promise.resolve(false) };
+  g.ready = (async () => {
+    try {
+      const issued = await binding.issue({ computerId: c.computerId, agentId: c.agentId, asker, turn: true, ttlMs: TOKEN_TTL_MS, ...(node !== null ? { nodeId: node } : {}) });
+      g.revoke = issued.revoke; if (issued.extend) g.extend = issued.extend;
+      await host.configure({ computerId: c.computerId, tabLimit: c.tabLimit, fillUrl: binding.url(), fillToken: issued.fillToken });
+      return true;
+    } catch {
+      if (deskGrants.get(c.computerId) === g) deskGrants.delete(c.computerId);
+      g.revoke();
+      return false;
+    }
+  })();
   deskGrants.set(c.computerId, g);
-  try { await host.configure({ computerId: c.computerId, tabLimit: c.tabLimit, fillUrl: binding.url(), fillToken: issued.fillToken }); } catch {
-    deskGrants.delete(c.computerId); issued.revoke();
-    return null;
-  }
-  return { done: () => release(c.computerId, g) };
+  g.calls = 1;
+  if (!(await g.ready)) return null;
+  return { done: () => release(c.computerId, g, node !== null) };
 }
-function release(computerId: string, g: { revoke(): void; calls: number }): void {
+function release(computerId: string, g: Desk, linger: boolean): void {
   g.calls -= 1;
-  if (g.calls <= 0 && deskGrants.get(computerId) === g) { deskGrants.delete(computerId); g.revoke(); }
+  if (g.calls > 0 || deskGrants.get(computerId) !== g) return;
+  if (linger && lingerMs > 0) { g.timer = setTimeout(() => drop(computerId, g), lingerMs); g.timer.unref?.(); return; }
+  drop(computerId, g);
 }
 
 export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
