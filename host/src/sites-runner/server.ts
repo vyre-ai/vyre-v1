@@ -144,6 +144,17 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
       await docker("POST", `${url.pathname}`, data, { "content-type": "application/json", "content-length": data.length }, res);
       return;
     }
+    if (v.kind === "network-disconnect") {
+      const raw = await readBody(req, 64 * 1024);
+      let parsed: { Container?: unknown } = {};
+      try { parsed = JSON.parse((raw ?? Buffer.alloc(0)).toString("utf8") || "{}") as { Container?: unknown }; } catch { parsed = {}; }
+      const who = parsed?.Container;
+      const labels = typeof who === "string" ? await labelsOf(who) : null;
+      if (!labels || labels["vyre.ingress"] !== "1") { say(`refused leaving ${v.network}`); refuse(res, 403, "Refused by the sites runner: only the ingress leaves a site's network."); return; }
+      const data = Buffer.from(JSON.stringify({ Container: who, Force: false }));
+      await docker("POST", url.pathname, data, { "content-type": "application/json", "content-length": data.length }, res);
+      return;
+    }
     if (v.kind === "network-create" || v.kind === "network-connect") {
       const raw = await readBody(req, 64 * 1024);
       let parsed: unknown;

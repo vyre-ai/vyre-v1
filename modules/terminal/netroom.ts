@@ -37,15 +37,22 @@ export function networkRoom(subnets: readonly string[], pools: readonly Pool[] =
   return { used: taken.size, total, left: Math.max(0, total - taken.size) };
 }
 
+/** The /28s of the site range (10.213.0.0/16, modules/sites/handlers/site-subnets.ts) the subnets take: each site has one since 12 Nov. */
+export function siteRoom(subnets: readonly string[]): { used: number; total: number; left: number } {
+  return networkRoom(subnets, [{ base: "10.213.0.0/16", size: 28 }]);
+}
+
 /** Fewer than this many left: server health says so before a site is refused. */
 export const FEW_NETWORKS_LEFT = 5;
 
 export interface RoomFinding { key: string; state: "healthy" | "degraded"; detail: string; next: string }
 
-/** Server health's line for it (the Console's health facts and `vyre-server doctor` from inside the gateway). */
-export function networkRoomFinding(r: { used: number; total: number; left: number }, ok: string): RoomFinding {
-  const detail = `Docker on this server has about ${r.left} of ${r.total} networks left. Each site takes one; agent workspaces share one.`;
-  return r.left >= FEW_NETWORKS_LEFT
+/** Server health's line for it (the Console's health facts and `vyre-server doctor` from inside the gateway). With `sites`, the room for sites in their own range too. */
+export function networkRoomFinding(r: { used: number; total: number; left: number }, ok: string, sites?: { used: number; total: number; left: number }): RoomFinding {
+  const detail = sites
+    ? `Room for ${sites.left} more sites (of ${sites.total}). Docker on this server has about ${r.left} of ${r.total} other networks left; agent workspaces share one.`
+    : `Docker on this server has about ${r.left} of ${r.total} networks left. Each site takes one; agent workspaces share one.`;
+  return r.left >= FEW_NETWORKS_LEFT && (sites === undefined || sites.left >= FEW_NETWORKS_LEFT)
     ? { key: "host.docker_networks", state: "healthy", detail, next: ok }
     : { key: "host.docker_networks", state: "degraded", detail, next: "Remove sites you no longer use, or give Docker more address pools (default-address-pools in its daemon.json) and restart it." };
 }

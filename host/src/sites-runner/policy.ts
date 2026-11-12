@@ -91,16 +91,34 @@ export function containerBody(name: string, body: unknown): { body: Record<strin
   return { body: { ...body, HostConfig: { ...h, CapDrop: ["ALL"], SecurityOpt: ["no-new-privileges"], LogConfig: LOGS, Privileged: false } } };
 }
 
-/** A site's network: a plain bridge with its label, nothing else (no host access, no IP ranges, no driver options). */
+/**
+ * Where site networks take their addresses (12 Nov): each site has one /28 of 10.213.0.0/16 (4096 sites), named in its create, so sites do not use Docker's default address pools, which hold
+ * about 31 networks for everything on the host. modules/sites/handlers/runner.ts picks them from the same range.
+ */
+export const SITE_RANGE = "10.213.0.0/16";
+export const SITE_PREFIX = 28;
+/** Is this exactly one /28 of the site range, on its boundary? */
+export function siteSubnetOk(s: unknown): boolean {
+  const m = typeof s === "string" ? /^10\.213\.(\d{1,3})\.(\d{1,3})\/28$/.exec(s) : null;
+  if (!m) return false;
+  const c = Number(m[1]), d = Number(m[2]);
+  return c <= 255 && d <= 255 && d % 16 === 0;
+}
+
+/** A site's network: a bridge with its label and one /28 of the site range, nothing else (no host access, no other range, no gateway or address choices, no driver options). */
 export function networkBody(body: unknown): { body: Record<string, unknown> } | { why: string } {
   if (!isObj(body)) return { why: "the network config is not an object" };
-  for (const k of Object.keys(body)) if (!["Name", "Driver", "Labels", "CheckDuplicate"].includes(k)) return { why: `a site network may not set ${k}` };
+  for (const k of Object.keys(body)) if (!["Name", "Driver", "Labels", "CheckDuplicate", "IPAM"].includes(k)) return { why: `a site network may not set ${k}` };
+  const ipam = body["IPAM"];
+  if (!isObj(ipam) || Object.keys(ipam).some((k) => k !== "Config") || !Array.isArray(ipam["Config"]) || ipam["Config"].length !== 1) return { why: `a site network names exactly one /${SITE_PREFIX} of ${SITE_RANGE}` };
+  const cfg = ipam["Config"][0] as unknown;
+  if (!isObj(cfg) || Object.keys(cfg).some((k) => k !== "Subnet") || !siteSubnetOk(cfg["Subnet"])) return { why: `a site network names exactly one /${SITE_PREFIX} of ${SITE_RANGE}, with no gateway or address range of its own` };
   const labels = isObj(body["Labels"]) ? body["Labels"] : {};
   const siteId = String(labels["vyre.site"] ?? "");
   if (!SITE_ID.test(siteId)) return { why: "a site network carries vyre.site=<site>" };
   if (body["Name"] !== networkOf(siteId)) return { why: "a site network is named vyre-site-<its site>" };
   if (body["Driver"] !== undefined && body["Driver"] !== "bridge") return { why: "a site network is a bridge" };
-  return { body: { Name: body["Name"], Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.site": siteId } } };
+  return { body: { Name: body["Name"], Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.site": siteId }, IPAM: { Config: [{ Subnet: cfg["Subnet"] as string }] } } };
 }
 
 /** An exec into a site container: a command, its env, its output; never another user, privileged or a TTY. */
@@ -115,7 +133,7 @@ export function execBody(body: unknown): { body: Record<string, unknown> } | { w
 /** An image name Docker would look for on Docker Hub under `vyre/`: never fetched (see the pull rule in judge). */
 export const LOCAL_ONLY = /^((index\.)?docker\.io\/)?vyre\//;
 /** The first look at a request: what kind it is, or why it is refused. Requests on a container are checked again once its labels are read (siteContainer). */
-export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: string; action: string } | { ok: true; kind: "exec-start" | "exec-inspect"; id: string } | { ok: true; kind: "network-create" } | { ok: true; kind: "volume-create" } | { ok: true; kind: "network-connect"; network: string } | { ok: true; kind: "network-subnets" } {
+export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: string; action: string } | { ok: true; kind: "exec-start" | "exec-inspect"; id: string } | { ok: true; kind: "network-create" } | { ok: true; kind: "volume-create" } | { ok: true; kind: "network-connect"; network: string } | { ok: true; kind: "network-subnets" } | { ok: true; kind: "network-disconnect"; network: string } {
   const p = bare(r.path);
   const m = r.method.toUpperCase();
   if ((m === "GET" || m === "HEAD") && (p === "/_ping" || p === "/version")) return { ok: true, kind: "plain" };
@@ -159,7 +177,9 @@ export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: 
   if (m === "POST" && p === "/networks/create") return { ok: true, kind: "network-create" };
   // how many networks the host has left (server health, 12 Nov): the list of networks, answered with their subnets only (no names, labels or containers), and with no filters asked for
   if (m === "GET" && p === "/networks") return [...r.query.keys()].length === 0 ? { ok: true, kind: "network-subnets" } : no("the list of networks is read whole, as subnets only");
-  const net = /^\/networks\/([a-z0-9-]{1,40})(?:\/(connect))?$/.exec(p);
+  const net = /^\/networks\/([a-z0-9-]{1,40})(?:\/(connect|disconnect))?$/.exec(p);
+  // the ingress leaves a site's old network (made before 12 Nov from Docker's pools) so it can be made again in the site range, only while none of the site's containers is on it
+  if (net && net[2] === "disconnect") return m === "POST" && NET_NAME.test(net[1] as string) ? { ok: true, kind: "network-disconnect", network: net[1] as string } : no("only the ingress leaves a site's network");
   // the shared workspaces' network may be read (its subnet and options, for the daemon's guard and the module's check), never removed or joined here
   if (net && net[1] === WS_SHARED_NET && m === "GET" && !net[2]) return { ok: true, kind: "plain" };
   if (net && (NET_NAME.test(net[1] as string) || COMPUTER_NET.test(net[1] as string) || WS_NET.test(net[1] as string) || net[1] === SBROWSER_NET)) {

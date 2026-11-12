@@ -12,7 +12,7 @@ import type { WorkspaceManager, WorkspaceOptions, WorkspaceTerminalHost } from "
 import { createWorkspaceFleet, remoteDockerHttp } from "./fleet.ts";
 import type { WorkspaceFleet } from "./fleet.ts";
 import type { AdoptArgs, Db, PlaceOf, Target, TermCtx, TermState, TerminalHost, ValueSource } from "./projections.ts";
-import { networkRoom, networkRoomFinding } from "./netroom.ts";
+import { networkRoom, networkRoomFinding, siteRoom } from "./netroom.ts";
 import type { RoomFinding } from "./netroom.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
@@ -718,7 +718,7 @@ export async function networkRoomFindings(ok: string): Promise<RoomFinding[]> {
   // while workspaces go on Docker's default network because the shared one cannot be had: one line an admin sees, gone once the network exists (third look T3)
   const note = workspaceManager?.networkNote() ?? null;
   return [
-    ...(subnets ? [networkRoomFinding(networkRoom(subnets), ok)] : []),
+    ...(subnets ? [networkRoomFinding(networkRoom(subnets), ok, siteRoom(subnets))] : []),
     ...(note ? [{ key: "host.workspace_network", state: "degraded" as const, detail: note, next: "Free Docker address pools (remove networks you no longer use, or add default-address-pools to Docker's daemon.json), then restart Docker. Workspaces move to their own network when they are next quiet." }] : []),
   ];
 }
