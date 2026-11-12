@@ -1,10 +1,10 @@
 {
-  "version": "1.0.0-rc.25",
+  "version": "1.0.0-rc.26",
   "lines": [
-    "Vyre Server now installs on a Mac with Apple silicon.",
-    "Vault items work in an agent's terminal, and their values never show up in what the agent prints.",
-    "Removing someone from a project takes their access away at once. Signing out ends that session everywhere.",
-    "Links that did nothing now open: Ask in chat from Tasks, Ask the Assistant from a project, Open on a note.",
-    "A large Space starts in seconds, and creating records stays fast as it grows."
+    "Add an OpenAI or Anthropic key and say hello: the Assistant replies without you picking a model first.",
+    "Stop means stop. The agent's running command ends, your next message is answered on its own, and a stopped turn stays stopped after a restart.",
+    "An agent opens public links in a chat without asking. Sending, sharing and deleting folders still wait for your yes.",
+    "An agent made in a private chat can be reached only by the people in that chat.",
+    "A working agent's row says what it is doing, such as running a command or reading a page."
   ]
 }
