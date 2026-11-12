@@ -1,7 +1,8 @@
 // @tsx
-// Release gate (12 Nov 2026): ordinary web research with no helpers. "Look up the population of Reykjavik on the web and tell me the source." Does the first link read go through or stop with a card; a second
-// lookup in the same turn; a lookup in the next turn; what each card says (exact title and body, copied to the log). Personal Space in the app, then a Team channel where a member (not the owner) asks.
-// Nothing is pressed: a card is only recorded. Skips without OPENCODE_API_KEY. Lines start with GATE LOOKUP.
+// Release gate (12 Nov 2026): ordinary web research with no helpers, and one approval that still exists. Personal Space, real model.
+// Part 1: three lookups in one Auto chat ("look up the population of Reykjavik ... and tell me the source", then two more). Per ask: the time from the ask to the agent's reply, whether a card showed (exact text copied), turn states.
+// Part 2: the chat is switched to Ask first, the agent is asked to write a file, the card appears, Allow is pressed as a person would; times from the Allow press to the held turn leaving "waiting" and to the reply.
+// Lines start with GATE LOOKUP. Skips without OPENCODE_API_KEY.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -10,72 +11,65 @@ import { execFileSync } from "node:child_process";
 import { edge, dismissOnboarding } from "./real-app-harness.test.ts";
 import { GATE_MODEL, REAL_KEY, bootGate, claimInBrowser, gateSkip, tokenOf } from "./gate-kit.test.ts";
 
-type Page = import("playwright-core").Page;
-const body = async (p: Page): Promise<string> => ((await p.evaluate("document.body.innerText").catch(() => "")) as string).replace(/\n+/g, " | ");
+const body = async (p: import("playwright-core").Page): Promise<string> => ((await p.evaluate("document.body.innerText").catch(() => "")) as string).replace(/\n+/g, " | ");
 
-for (const kind of ["personal", "team"] as const) {
-  test(`GATE lookup, ${kind} Space: a plain web lookup, no helpers`, { skip: gateSkip() || (process.env["GATE_KIND"] && process.env["GATE_KIND"] !== kind ? "another kind is selected" : false), timeout: 900_000 }, async () => {
-    const { chromium } = await import("playwright-core");
-    const shots = path.join(process.env["VYRE_GATE_SHOTS"] ?? "/tmp/vyre-gate-shots", `lookup-${kind}`); fs.mkdirSync(shots, { recursive: true });
-    const d = await bootGate(kind, "Lookup Space");
-    const web = await edge(process.env["VYRE_APP_DIST"]!, d.address);
-    const browser = await chromium.launch({ executablePath: process.env["CHROME_BIN"] || chromium.executablePath(), args: ["--no-sandbox"] });
-    let agentId = "";
-    try {
-      const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } }); const page = await ctx.newPage();
-      await claimInBrowser(page, d.claim!.replace(d.address, web.origin), { name: "Look Owner", username: "look", password: "look walk password 1" }); await dismissOnboarding(page);
-      const token = await tokenOf(page);
-      const call = async (cap: string, data: unknown = {}, tok = token): Promise<any> => { const r = await ctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${tok}` }, data: { idempotencyKey: `l-${Math.random()}`, ...(data as object) } }); const j = (await r.json().catch(() => ({}))) as any; if (r.status() !== 200) throw new Error(`${cap}: ${r.status()} ${JSON.stringify(j).replaceAll(REAL_KEY, "***").slice(0, 200)}`); return j.data; };   // eslint-disable-line @typescript-eslint/no-explicit-any
-      if (kind === "team") { await call("providers.space_key.set", { providerKey: "opencode-go", apiKey: REAL_KEY }); await call("engine.models.list", { refresh: true, wait: true }); }
-      else await call("providers.add", { providerKey: "opencode-go", connection: "api_key", apiKey: REAL_KEY, scope: "mine" });
-      let asker = token; let askerPage = page; let thread = ""; let mention = "";
-      if (kind === "personal") {
-        const agent = (await call("agents.list")).agents[0] as { agentId: string }; agentId = agent.agentId; mention = agentId;
-        await call("agents.update", { agentId, patch: { model: GATE_MODEL } });
-        thread = (await call("chat.start", { kind: "chat", agentIds: [agentId], title: "lookup" })).thread.threadId;
-      } else {
-        const dex = (await call("agents.create", { name: "Dex", role: "Answers questions, looks things up on the web.", computer: false })).agent as { agentId: string }; agentId = dex.agentId; mention = dex.agentId;
-        await call("agents.update", { agentId, patch: { model: GATE_MODEL } });
-        const home = (await call("channels.home")).channel as { channelId: string; mainThreadId: string };
-        await call("channels.agents.add", { channelId: home.channelId, agentId: dex.agentId, mode: "listen" }); thread = home.mainThreadId;
-        const roles = (await call("access.roles.list")).roles as Array<{ id: string; name: string }>;
-        const made = await call("members.invites.create", { role: roles.find((r) => r.name === "Member")!.id }); const link = new URL(made.link);
-        const mctx = await browser.newContext({ viewport: { width: 1280, height: 860 } }); const mp = await mctx.newPage();
-        await mp.goto(web.origin + link.pathname + link.hash, { waitUntil: "load" }); await mp.getByTestId("step-accept").waitFor({ timeout: 20_000 }); await mp.getByTestId("web").click();
-        await mp.getByTestId("first").fill("Maya"); await mp.getByTestId("last").fill("Lin"); await mp.getByTestId("next").click();
-        await mp.getByTestId("username").fill("maya"); await mp.getByTestId("password").fill("look walk password 1"); await mp.getByTestId("confirm").fill("look walk password 1"); await mp.getByTestId("next").click();
-        await mp.getByTestId("device").fill("Gate browser"); await mp.getByTestId("next").click(); await mp.getByTestId("ai-none").click(); await mp.getByTestId("next").click();
-        await mp.getByTestId("shell").waitFor({ timeout: 40_000 }); await dismissOnboarding(mp);
-        asker = await tokenOf(mp); askerPage = mp;
-        await mp.goto(`${web.origin}/chats`, { waitUntil: "load" }); await mp.getByTestId("shell").waitFor({ timeout: 30_000 }); await mp.getByText(/^#?vyre$/).first().click().catch(() => undefined);
+test("GATE lookup (Personal Space): three lookups, then an Ask first approval with timings", { skip: gateSkip(), timeout: 900_000 }, async () => {
+  const { chromium } = await import("playwright-core");
+  const shots = path.join(process.env["VYRE_GATE_SHOTS"] ?? "/tmp/vyre-gate-shots", "lookup"); fs.mkdirSync(shots, { recursive: true });
+  const d = await bootGate("personal", "Lookup Space");
+  const web = await edge(process.env["VYRE_APP_DIST"]!, d.address);
+  const browser = await chromium.launch({ executablePath: process.env["CHROME_BIN"] || chromium.executablePath(), args: ["--no-sandbox"] });
+  let agentId = "";
+  try {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } }); const page = await ctx.newPage();
+    await claimInBrowser(page, d.claim!.replace(d.address, web.origin), { name: "Look Owner", username: "look", password: "look walk password 1" }); await dismissOnboarding(page);
+    const token = await tokenOf(page);
+    const call = async (cap: string, data: unknown = {}): Promise<any> => { const r = await ctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token}` }, data: { idempotencyKey: `l-${Math.random()}`, ...(data as object) } }); const j = (await r.json().catch(() => ({}))) as any; if (r.status() !== 200) throw new Error(`${cap}: ${r.status()} ${JSON.stringify(j).replaceAll(REAL_KEY, "***").slice(0, 200)}`); return j.data; };   // eslint-disable-line @typescript-eslint/no-explicit-any
+    await call("providers.add", { providerKey: "opencode-go", connection: "api_key", apiKey: REAL_KEY, scope: "mine" });
+    agentId = (await call("agents.list")).agents[0].agentId as string; await call("agents.update", { agentId, patch: { model: GATE_MODEL } });
+    const thread = (await call("chat.start", { kind: "chat", agentIds: [agentId], title: "lookup" })).thread.threadId as string;
+    await page.goto(`${web.origin}/chats`, { waitUntil: "load" }); await page.getByTestId("shell").waitFor({ timeout: 30_000 }); await page.getByText("lookup", { exact: true }).first().click().catch(() => undefined); await page.waitForTimeout(1500);
+    type T = { state: string; startedAt?: number };
+    const turns = async (): Promise<T[]> => ((await call("engine.turns.list", { threadId: thread })).turns ?? []);
+    const agentReplies = async (): Promise<number> => ((await call("chat.messages.list", { threadId: thread })).messages as Array<{ author: { kind: string }; body: string }>).filter((m) => m.author.kind === "agent" && m.body.trim() !== "").length;
+    const cardText = async (): Promise<string> => { const b = await body(page); const m = b.match(/[^|]*wants to[^|]*\|[^|]*(Approve|Allow|Review)[^|]*\|[^|]*/g); return (m ?? []).join(" // "); };
+    const post = (text: string): Promise<unknown> => call("chat.post", { threadId: thread, body: text, mentions: [{ kind: "agent", id: agentId }] });
+    const ask = async (label: string, text: string, limit = 240_000): Promise<void> => {
+      const n0 = await agentReplies(); const t0 = Date.now(); await post(text);
+      let cardAt = -1, answerAt = -1, states = "";
+      while (Date.now() - t0 < limit) {
+        const t = await turns(); states = [...new Set(t.slice(0, 3).map((x) => x.state))].join(",");
+        if (cardAt < 0 && /wants to/.test(await body(page))) { cardAt = Date.now() - t0; await page.screenshot({ path: path.join(shots, `${label}-card.png`) }); }
+        if (answerAt < 0 && (await agentReplies()) > n0) answerAt = Date.now() - t0;
+        if (answerAt >= 0 && !t.some((x) => x.state === "running" || x.state === "queued")) break;
+        if (cardAt >= 0 && answerAt < 0 && Date.now() - t0 > cardAt + 30_000) break;   // a card is holding the turn: stop waiting, the card is the result
+        await page.waitForTimeout(500);
       }
-      const turnsOf = async (): Promise<Array<{ state: string; startedAt?: number }>> => ((await call("engine.turns.list", { threadId: thread })).turns ?? []);
-      const ask = async (label: string, text: string, waitMs = 150_000): Promise<void> => {
-        const t0 = Date.now(); await call("chat.post", { threadId: thread, body: text, mentions: [{ kind: "agent", id: mention }] }, asker);
-        let cardSeen = -1; let end = ""; let state = "";
-        while (Date.now() - t0 < waitMs) {
-          const b = await body(askerPage);
-          if (cardSeen < 0 && /Allow|Approval|Always allow|needs you|Needs you|hold/i.test(b.slice(b.lastIndexOf(text.slice(0, 20))))) { cardSeen = Date.now() - t0; await askerPage.screenshot({ path: path.join(shots, `${label}-card.png`) }); }
-          const t = await turnsOf(); state = t.map((x) => x.state).slice(0, 3).join(",");
-          if (t.length && !t.some((x) => x.state === "running" || x.state === "queued")) break;
-          await askerPage.waitForTimeout(700);
-        }
-        end = await body(askerPage); await askerPage.screenshot({ path: path.join(shots, `${label}-end.png`) });
-        const tail = end.slice(Math.max(0, end.lastIndexOf(text.slice(0, 20))), end.lastIndexOf(text.slice(0, 20)) + 900);
-        const cards = (await call("tasks.list", { scope: "all", kinds: ["approve"], states: ["todo", "doing"], limit: 50 }).catch((e: Error) => ({ tasks: [], err: e.message }))) as { tasks?: Array<{ title?: string; summary?: string; kind?: string }>; err?: string };
-        const buttons = await askerPage.evaluate(() => [...document.querySelectorAll("[role=button],button")].map((b) => (b as HTMLElement).innerText.trim()).filter((x) => /allow|deny|always|approve|decline/i.test(x)).join(" / "));
-        console.log(`GATE LOOKUP ${kind} ${label} CARDS: ${JSON.stringify((cards.tasks ?? []).map((x) => [x.title, x.summary]))} ${cards.err ?? ""}; buttons on screen: ${buttons}`);
-        console.log(`GATE LOOKUP ${kind} ${label}: after ${Date.now() - t0} ms turn states [${state}]; card seen at ${cardSeen} ms; screen after the ask: ${tail}`);
-      };
-      await ask("1-first", "Look up the population of Reykjavik on the web and tell me the source.");
-      const allow = askerPage.getByRole("button", { name: /^Allow$/ }).first();
-      if (await allow.count()) { const tA = Date.now(); await allow.click({ force: true }); let st = ""; for (let i = 0; i < 200; i++) { const t = await turnsOf(); st = t.map((x) => x.state).slice(0, 3).join(","); if (t.length && !t.some((x) => x.state === "running" || x.state === "queued" || x.state === "waiting")) break; await askerPage.waitForTimeout(700); } await askerPage.screenshot({ path: path.join(shots, "1b-after-allow.png") }); const e = await body(askerPage); console.log(`GATE LOOKUP ${kind} after Allow: ${Date.now() - tA} ms, turn states [${st}]; screen: ${e.slice(Math.max(0, e.lastIndexOf("Look up the population")), e.lastIndexOf("Look up the population") + 700)}`); } else console.log(`GATE LOOKUP ${kind}: no Allow button on screen`);
-      await ask("2-second", "Now look up the population of Akureyri on the web too and tell me the source.");
-      await ask("3-both-in-one", "In one answer, look up the population of Kopavogur and of Hafnarfjordur on the web, with a source for each.");
-      assert.ok(thread);
-    } finally {
-      await browser.close(); web.close(); await d.stop();
-      if (agentId !== "") for (const id of execFileSync("docker", ["ps", "-aq", "--filter", `label=vyre.workspace=${agentId}`], { encoding: "utf8" }).split("\n").filter(Boolean)) execFileSync("docker", ["rm", "-f", id]);
+      await page.screenshot({ path: path.join(shots, `${label}-end.png`) });
+      console.log(`GATE LOOKUP ${label}: reply after ${answerAt} ms; card first seen after ${cardAt} ms; turn states [${states}]; cards on screen: ${await cardText() || "none"}`);
+    };
+    await ask("1-reykjavik", "Look up the population of Reykjavik on the web and tell me the source.");
+    await ask("2-akureyri", "Now look up the population of Akureyri on the web too and tell me the source.");
+    await ask("3-two-towns", "In one answer, look up the population of Kopavogur and of Hafnarfjordur on the web, with a source for each.");
+    // part 2: Ask first
+    await call("threads.set_mode", { threadId: thread, mode: "ask" });
+    const n0 = await agentReplies(); const tAsk = Date.now();
+    await post("Create a file called note-from-gate.txt in your Vyre folder with the single line: written after approval. Then tell me it is done.");
+    let cardAt = -1; for (let i = 0; i < 240 && cardAt < 0; i++) { if (/wants to|Allow/.test(await body(page)) && await page.getByRole("button", { name: /^Allow$/ }).count()) cardAt = Date.now() - tAsk; else await page.waitForTimeout(500); }
+    await page.screenshot({ path: path.join(shots, "4-ask-first-card.png") });
+    console.log(`GATE LOOKUP ask-first: card after ${cardAt} ms; text: ${await cardText() || (await body(page)).slice(-300)}; buttons: ${await page.evaluate(() => [...document.querySelectorAll("[role=button],button")].map((b) => (b as HTMLElement).innerText.trim()).filter((x) => /allow|deny|always|approve|decline/i.test(x)).join(" / "))}`);
+    for (let card = 1; card <= 3; card++) {
+      const allow = page.getByRole("button", { name: /^Allow$/ }).first(); if (!(await allow.count())) break;
+      const tPress = Date.now(); await allow.click({ force: true });
+      let leftWaiting = -1, replied = -1;
+      while (Date.now() - tPress < 180_000) { const t = await turns(); if (leftWaiting < 0 && !t.slice(0, 1).some((x) => x.state === "waiting")) leftWaiting = Date.now() - tPress; if (replied < 0 && (await agentReplies()) > n0) replied = Date.now() - tPress; if (replied >= 0) break; if (leftWaiting >= 0 && await page.getByRole("button", { name: /^Allow$/ }).count() > 0) break; await page.waitForTimeout(300); }
+      console.log(`GATE LOOKUP ask-first Allow #${card}: held turn left waiting after ${leftWaiting} ms; agent reply after ${replied} ms; another Allow still on screen: ${await page.getByRole("button", { name: /^Allow$/ }).count()}`);
+      if (replied >= 0) break;
     }
-  });
-}
+    await page.screenshot({ path: path.join(shots, "5-ask-first-end.png") });
+    assert.ok(thread);
+  } finally {
+    await browser.close(); web.close(); await d.stop();
+    if (agentId !== "") for (const id of execFileSync("docker", ["ps", "-aq", "--filter", `label=vyre.workspace=${agentId}`], { encoding: "utf8" }).split("\n").filter(Boolean)) execFileSync("docker", ["rm", "-f", id]);
+  }
+});
