@@ -4,7 +4,7 @@
 // DECISION: "Working" is the awake state; an awake computer with nothing to do is Working without a caption. Idle sleep is the job sleepIdle (the host schedules it), not a capability.
 // DECISION: Take over wakes a sleeping computer first, then pauses the agent's tools and hands the desktop to the person; a person must act (an agent cannot take over).
 import {
-  actorOf, addStep, boundFill, computerBy, computerOut, computerOf, DEFAULT_IDLE_MINUTES, DEFAULT_TAB_LIMIT, dropFill, ensure, holdFill, hostFor, hostOf, boundHost, isTeam, mintId, nodeOf, mintTicket, needComputer, needTeam, raise, rowsOf, setComputer, setStepCaption,
+  actorOf, addStep, computerBy, computerOut, computerOf, DEFAULT_IDLE_MINUTES, DEFAULT_TAB_LIMIT, dropFill, ensure, hostFor, hostOf, boundHost, isTeam, mintId, nodeOf, mintTicket, needComputer, needTeam, raise, rowsOf, setComputer, setStepCaption,
 } from "../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, Probe, SessionInfo } from "../projections.ts";
 import { finishRecording } from "./record.ts";
@@ -248,30 +248,6 @@ function storeSessions(ctx: CompCtx, computerId: string, sessions: readonly Sess
 }
 
 /** Start a sleeping computer. The row says Waking while the host works, then Working; a host that fails leaves an error the person can read, and the next wake tries again. */
-/**
- * Give a running computer its Vault channel (P-L2_21): a token for this computer, the agent that lives on it and the person that agent acts for (its owner), and the address to post to.
- * A computer that cannot take it still works, it just refuses a #Handle ("no channel to the Vault"); nothing is typed and the token is ended.
- */
-async function connectFill(ctx: CompCtx, host: ComputerHost, c: ComputerRow): Promise<void> {
-  const binding = boundFill();
-  if (!binding) return;
-  // A computer on a server of the person's reaches the Space over a network link: it gets a Vault channel only when that link is private (the fill endpoint refuses a plain link too).
-  const node = nodeOf(ctx.db, c.computerId);
-  if (node !== null && binding.nodeSecure?.(node) !== true) { ctx.log.warn("the computer has no Vault channel: its server's link to the Space is not private", { computerId: c.computerId }); return; }
-  let grant: { fillToken: string; revoke(): void } | null = null;
-  try {
-    const out = (await ctx.call("agents.get", { agentId: c.agentId })) as { agent?: { ownerId?: string } };
-    const asker = out.agent?.ownerId;
-    if (!asker) return;
-    grant = await binding.issue({ computerId: c.computerId, agentId: c.agentId, asker, ...(node !== null ? { nodeId: node } : {}) });
-    await host.configure({ computerId: c.computerId, tabLimit: c.tabLimit, fillUrl: binding.url(), fillToken: grant.fillToken });
-    holdFill(c.computerId, grant);
-  } catch {
-    grant?.revoke();
-    ctx.log.warn("the computer did not take its Vault channel", { computerId: c.computerId });
-  }
-}
-
 export async function awaken(ctx: CompCtx, c: ComputerRow, by: string): Promise<ComputerRow> {
   // an older desktop is never started while its Chrome folder is being copied
   await holdWhileMoving(ctx, c.computerId);
@@ -296,7 +272,7 @@ export async function awaken(ctx: CompCtx, c: ComputerRow, by: string): Promise<
     setComputer(ctx.db, c.computerId, { state: "error", error: reason, caption: null });
     raise(ctx, "internal.unexpected", `The computer did not start: ${reason}`, { reason });
   }
-  await connectFill(ctx, host, c);
+  // no Vault channel is given at wake: each tool call brings one for the person whose turn it is (tools/common.ts leaseFill)
   setComputer(ctx.db, c.computerId, { state: "working", last_active_at: ctx.now() });
   ctx.log.info("computer: ready", { computerId: c.computerId });
   ctx.emit("computer.started", c.computerId, { computerId: c.computerId, agentId: c.agentId, by });

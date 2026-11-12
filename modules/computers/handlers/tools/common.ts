@@ -8,7 +8,7 @@
 //   recording and every answer can be scrubbed; `frame` is the screen after the step (the timeline's picture); `caption` is its words.
 // Errors are only ones the capabilities declare: a person at the controls, a held item and a bad argument are validation.bad_input; Esc, a computer still starting and a silent agentd are provider.unavailable.
 // Handles are never resolved here: "agent computer logins stay on that computer" (ARCH 6.11), agentd substitutes them at the last moment and scrubs its own output. This module scrubs again.
-import { actorOf, addStep, agentFolder, boundFill, clean, hostFor, ensure, mintId, needComputer, needTeam, filledTabsOf, givenCount, handedSince, markFilledTab, raise, rememberSecrets, tabsOpen, rowsOf, setComputer } from "../../projections.ts";
+import { actorOf, addStep, agentFolder, boundFill, clean, hostFor, nodeOf, ensure, mintId, needComputer, needTeam, filledTabsOf, givenCount, handedSince, markFilledTab, raise, rememberSecrets, tabsOpen, rowsOf, setComputer } from "../../projections.ts";
 import { personalChrome } from "../../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from "../../projections.ts";
 import { awaken } from "../lifecycle.ts";
@@ -312,6 +312,45 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
 }
 
 /** One call to agentd and everything after it: scrub, remember what was filled, keep the frame, add the step. Returns the capability's output. */
+// The Vault channel of an older desktop acts for the person whose turn is using it, for as long as that turn's calls run, as the Space browser's does (a token per turn): never for the agent's owner for the
+// computer's whole life. With no person behind the call there is no channel at all. agentd holds one filler, so one person's calls hold the desktop's channel at a time; another person's call waits briefly,
+// then says so. A token that ended leaves agentd holding a dead one, which the host refuses.
+const deskGrants = new Map<string, { asker: string; revoke(): void; calls: number }>();
+let fillWaitMs = 5_000;
+/** For tests: how long a person's call waits for another person's calls on the same desktop. */
+export function setFillWait(ms: number | null): void { fillWaitMs = ms ?? 5_000; }
+export async function leaseFill(ctx: CompCtx, c: ComputerRow, host: ComputerHost): Promise<{ done(): void } | null> {
+  const binding = boundFill();
+  if (!binding) return null;
+  if (ctx.principal.kind === "agent" && ctx.actingFor === undefined) return null;   // no turn, no Vault
+  const asker = actorOf(ctx);
+  const node = nodeOf(ctx.db, c.computerId);
+  // a computer on a server of the person's reaches the Space over a network link: it gets a channel only when that link is private
+  if (node !== null && binding.nodeSecure?.(node) !== true) return null;
+  const until = Date.now() + fillWaitMs;
+  for (let cur = deskGrants.get(c.computerId); cur && cur.asker !== asker; cur = deskGrants.get(c.computerId)) {
+    if (Date.now() >= until) raise(ctx, "provider.unavailable", "Someone else's request is using this desktop's Vault channel right now. Try again in a moment.");
+    await new Promise((res) => setTimeout(res, 50));
+  }
+  const held = deskGrants.get(c.computerId);
+  if (held) { held.calls += 1; return { done: () => release(c.computerId, held) }; }
+  let issued: { fillToken: string; revoke(): void };
+  try {
+    issued = await binding.issue({ computerId: c.computerId, agentId: c.agentId, asker, turn: true, ...(node !== null ? { nodeId: node } : {}) });
+  } catch { return null; }
+  const g = { asker, revoke: issued.revoke, calls: 1 };
+  deskGrants.set(c.computerId, g);
+  try { await host.configure({ computerId: c.computerId, tabLimit: c.tabLimit, fillUrl: binding.url(), fillToken: issued.fillToken }); } catch {
+    deskGrants.delete(c.computerId); issued.revoke();
+    return null;
+  }
+  return { done: () => release(c.computerId, g) };
+}
+function release(computerId: string, g: { revoke(): void; calls: number }): void {
+  g.calls -= 1;
+  if (g.calls <= 0 && deskGrants.get(computerId) === g) { deskGrants.delete(computerId); g.revoke(); }
+}
+
 export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
   if (r.personal) return personalCall(ctx, spec, args);
   if (r.browser) return browserCall(ctx, r.browser.profileId, spec, args);
@@ -321,12 +360,13 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
   if (spec.name === "chrome_screenshot" && !(await pictureAllowed(c.computerId, list, args["tabId"]))) raise(ctx, "validation.bad_input", HOLDS_VALUE, { reason: "vault_value_on_page" });
   const given = givenCount(c.computerId);
   let raw: ToolAnswer;
+  const lease = await leaseFill(ctx, c, r.host);
   try {
     const byPerson = c.state === "takeover" && ctx.principal.kind === "person" && c.takeoverBy !== undefined && actorOf(ctx) === c.takeoverBy;
     raw = await r.host.tool({ computerId: c.computerId, tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), ...(byPerson ? { by: "person" as const } : {}) });
   } catch (e) {
     return refuse(ctx, e, c.computerId);
-  }
+  } finally { lease?.done(); }
   if (!isRecord(raw)) raise(ctx, "provider.unavailable", "The computer answered with something that is not an object.");
   const { used, frame, caption, ...rest } = raw;
   rememberSecrets(c.computerId, secretsOf(used), { handedOut: false });
