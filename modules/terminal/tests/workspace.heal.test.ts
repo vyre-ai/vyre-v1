@@ -688,20 +688,22 @@ test("the terminal module registers the subnets its workspaces are on, for the d
 test("S1: a workspace made before the shared network keeps working while the network cannot be made (pools used up), moves when it can, and a network of that name that is not ours is never used", async () => {
   let fails = true;
   const logs: string[] = [];
+  const clock = { t: 1_000_000 };
   const dk = engine({ networkFails: () => fails });
   // made before 12 Nov: on Docker's default bridge, with the label of that time
   const old = workspaceContainerConfig(AGENT, "vyre/agent-workspace:1", { projects: [] }, {}, "bridge");
   await dk.http({ method: "POST", path: "/containers/create", query: { name: NAME }, json: old });
   await dk.http({ method: "POST", path: `/containers/${NAME}/start` });
-  const m = manager(dk, { log: (_l, msg) => { logs.push(msg); } });
+  const m = manager(dk, { now: () => clock.t, log: (_l, msg) => { logs.push(msg); } });
   assert.equal((await m.exec(AGENT, ["tmux", "-V"])).code, 0, "it still works");
   assert.equal(dk.ops("remove").filter((x) => x.name === NAME).length, 0, "and was not taken away");
   assert.ok(logs.includes("workspace.network_fallback"));
   // a new workspace is made on the bridge too, rather than refused
   assert.equal(await m.ensure("agt_new"), "created");
   assert.equal(dk.box(workspaceName("agt_new")).config["HostConfig"]["NetworkMode"], "bridge");
-  // the pools free up: the next quiet wake moves it to the shared network
+  // the pools free up: the next quiet wake after the minute's wait (third look T3) moves it to the shared network
   fails = false;
+  clock.t += 61_000;
   await m.ensure(AGENT);
   assert.equal(dk.box(NAME).config["HostConfig"]["NetworkMode"], "vyre-workspaces", "moved once the network could be made");
   m.close();
@@ -787,8 +789,14 @@ test("a Personal Space (its kind bound as the daemon binds it) with no computer 
   try { await h["terminal.open"]!(hn.ctx, { host: "agent_computer", agentId: "agt_dana_assistant", idempotencyKey: idem() }); } catch (e) { err = e; }
   assert.equal(codeOf(err), "provider.unavailable");
   const message = (err as { error: { message: string } }).error.message;
-  assert.equal(message, "This workspace can't run right now: Docker is not running on this computer, and no server with Docker is online for it. Start Docker, or add a server with Docker in Console > Computers.");
+  assert.equal(message, "No computer can run this agent's commands right now. Turn on the computer it runs on, or add a computer with Docker in Settings, Computer.");
   assert.doesNotMatch(message, /Team Space|machine/);
+  // with the agent's name when the caller may read it; and a call that names no agent is told that first
+  const named: TermCtx = { ...hn.ctx, call: (async (cap: string) => (cap === "agents.get" ? { agent: { name: "Desk", ownerId: "usr_dana" } } : undefined)) as never };
+  try { await h["terminal.open"]!(named, { host: "agent_computer", agentId: "agt_desk", idempotencyKey: idem() }); } catch (e) { err = e; }
+  assert.equal((err as { error: { message: string } }).error.message, "No computer can run Desk's commands right now. Turn on the computer it runs on, or add a computer with Docker in Settings, Computer.");
+  try { await h["terminal.open"]!(hn.ctx, { host: "agent_computer", idempotencyKey: idem() }); } catch (e) { err = e; }
+  assert.equal(codeOf(err), "validation.bad_input");
 });
 
 // ---- two daemons on one Docker engine ---------------------------------------------------------------------------------------------------------------------
@@ -986,4 +994,81 @@ test("nit: a Trash retention under one day counts as governance's default, never
     const ctx: TermCtx = { ...hn.ctx, call: (async () => ({ kinds: [{ key: "trash", value: v }] })) as never };
     assert.equal(await trashKeepMs(ctx), TRASH_KEEP_MS, v);
   }
+});
+
+// ---- third look T3 and T5: the network fallback, and the subnets from the start ------------------------------------------------------------------------------
+
+test("T3: while the shared network cannot be had, it is tried once a minute (not on every exec), with one log line a minute, and the Console's health says so until the network exists", async () => {
+  let fails = true;
+  const clock = { t: 1_000_000 };
+  const dk = engine({ networkFails: () => fails });
+  let tries = 0;
+  const http: typeof dk.http = (req) => { if (req.method === "POST" && req.path === "/networks/create") tries++; return dk.http(req); };
+  const logs: string[] = [];
+  const m = createWorkspaceManager({ api: createDockerApi(http), http, idleMs: 600_000, now: () => clock.t, log: (_l, msg) => { logs.push(msg); } });
+  const creates = (): number => tries;
+  await m.exec(AGENT, ["tmux", "-V"]);
+  for (let i = 0; i < 20; i++) await m.exec(AGENT, ["tmux", "-V"]);
+  assert.equal(creates(), 1, "one try, not one per exec");
+  assert.equal(logs.filter((x) => x === "workspace.network_fallback").length, 1, "one log line");
+  assert.match(m.networkNote() ?? "", /^Agent workspaces are on Docker's default network because the shared one could not be made: all predefined address pools have been fully subnetted\. They work, but can reach each other\.$/);
+  clock.t += 61_000;
+  fails = false;
+  await m.ensure("agt_other");
+  assert.equal(creates(), 2, "tried again after a minute");
+  assert.equal(m.networkNote(), null, "cleared once the network exists");
+  m.close();
+});
+
+test("T3: one failed try in a fresh process never moves a workspace already on the shared network back to the bridge", async () => {
+  const dk = engine();
+  const first = manager(dk);
+  await first.exec(AGENT, ["tmux", "-V"]);
+  assert.equal(dk.box(NAME).config["HostConfig"]["NetworkMode"], "vyre-workspaces");
+  await first.sleep(AGENT);
+  first.close();
+  // a new process; its first try at the network fails for a moment (a timeout), though the network is there
+  let once = true;
+  const http: typeof dk.http = async (req) => { if (once && req.method === "POST" && req.path === "/networks/create") { once = false; throw new Error("timed out"); } return dk.http(req); };
+  const removesBefore = dk.ops("remove").length;
+  const after = createWorkspaceManager({ api: createDockerApi(http), http, idleMs: 600_000 });
+  assert.equal((await after.exec(AGENT, ["tmux", "-V"])).code, 0);
+  assert.equal(dk.box(NAME).config["HostConfig"]["NetworkMode"], "vyre-workspaces", "kept where it is");
+  assert.equal(dk.ops("remove").length, removesBefore, "not rebuilt");
+  after.close();
+});
+
+test("T5: right after a restart the subnets of running workspaces are known before any sweep or command, and a workspace on the default bridge puts the bridge's subnet on the list", async () => {
+  const dk = engine();
+  const first = manager(dk);
+  await first.exec(AGENT, ["tmux", "-V"]);
+  first.close();
+  const after = manager(dk);
+  await after.ready();
+  assert.deepEqual(after.subnets(), ["172.31.0.0/24"], "the shared network's subnet, with no sweep and no command yet");
+  after.close();
+  // an old workspace on Docker's default bridge
+  const dk2 = engine();
+  const old = workspaceContainerConfig("agt_old", "vyre/agent-workspace:1", { projects: [] }, {}, "bridge");
+  await dk2.http({ method: "POST", path: "/containers/create", query: { name: workspaceName("agt_old") }, json: old });
+  await dk2.http({ method: "POST", path: `/containers/${workspaceName("agt_old")}/start` });
+  const m2 = manager(dk2);
+  await m2.ready();
+  assert.ok(m2.subnets().includes("172.17.0.0/16"), `the bridge is listed: ${m2.subnets().join(", ")}`);
+  m2.close();
+});
+
+test("T6: a person with the agent's tab open sees why it went blank when the agent is taken off a project, once, as the agent is told", async () => {
+  const dk = engine();
+  const m = manager(dk, { projectsOf: () => ["prj_site"] });
+  const host = createWorkspaceTerminalHost({ manager: m, sleep: fast });
+  await host.open({ terminalId: "trm_live", target: { host: "agent_computer", agentId: AGENT }, name: "agent", cols: 100, rows: 30, folders: [] });
+  const first = await host.read("trm_live", { since: 0 });
+  await m.cut(AGENT, "prj_site");
+  assert.equal(dk.box(NAME).running, false, "the cut stopped it");
+  const told = await host.read("trm_live", { since: first.next });
+  assert.match(told.text, /The agent was removed from a project, so its workspace restarted without that project's folder\. What was running in it stopped\./);
+  const again = await host.read("trm_live", { since: told.next });
+  assert.doesNotMatch(again.text, /removed from a project/, "said once");
+  m.close();
 });

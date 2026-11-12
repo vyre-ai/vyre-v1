@@ -43,3 +43,7 @@
 - A server with many awake agent workspaces stays quiet when nothing happens: the Files mirror slows down while a workspace is idle and is quick again as soon as someone works in it.
 - A site that cannot get a network because the server has run out of room for networks now says "This server has no room for another site's network yet" instead of Docker's error.
 - Server health shows how many networks the server's Docker has left, and warns when fewer than five are.
+- An agent's workspace volumes are removed once it has been in Trash longer than the Space keeps things, and a restored agent never loses them.
+- When agent workspaces have to use Docker's default network, server health says so and what to do; Vyre tries the shared network again once a minute instead of on every command.
+- A person with an agent's tab open sees why it went blank when the agent was taken off a project.
+- Opening an agent's terminal with no computer to run it on says "No computer can run <agent>'s commands right now" and how to fix it.

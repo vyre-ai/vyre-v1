@@ -9,6 +9,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { boot, standIn, waitFor } from "./memory-live-kit.ts";
 import { loadConfig } from "../host/src/daemon/config.ts";
 import { CODE_ROOT } from "../host/src/daemon/daemon.ts";
@@ -164,6 +165,10 @@ async function scenario(t: import("node:test").TestContext, kind: "team" | "pers
   if (kind === "team") {
     await run(`sleep 999999 >/dev/null 2>&1 &`, "ws-bg");
     await ok(d, token, "projects.members.remove", { projectId, principal: agent });
+    // the removal itself reached the cut through its host call (third look: a mis-wire would be swallowed by tolerant(), and the consumer would hide it): the cut's log line is there when it answers
+    d.sink.flush();
+    const cutLines = new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT attrs FROM logs WHERE msg = 'workspace.project_cut'").all() as Array<{ attrs: string | null }>;
+    assert.ok(cutLines.some((r) => (r.attrs ?? "").includes(projectId) && (r.attrs ?? "").includes(agent)), "projects.members.remove reached terminal.workspace_revoke and its cut");
     // in force when the call returns: at that moment no running container of the agent mounts the project (stopped by the removal's own call; a consumer may have made it again since, without it)
     const at = (await docker(["inspect", "-f", "{{.State.Running}} {{json .HostConfig.Binds}}", name], 30_000)).out.trim().split("\n")[0] ?? "";
     assert.ok(!(at.startsWith("true") && at.includes(`vyre-wsproj-${projectId}`)), `no running workspace mounts the project when the removal answers: ${at}`);

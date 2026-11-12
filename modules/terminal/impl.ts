@@ -715,8 +715,16 @@ export const agentSubnets = (): string[] => workspaceManager?.subnets() ?? [];
 /** Server health's count of the networks this host's Docker has left (12 Nov: each site takes one; agent workspaces share one), or nothing when Docker does not answer. */
 export async function networkRoomFindings(ok: string): Promise<RoomFinding[]> {
   const subnets = await workspaceManager?.hostSubnets().catch(() => null);
-  return subnets ? [networkRoomFinding(networkRoom(subnets), ok)] : [];
+  // while workspaces go on Docker's default network because the shared one cannot be had: one line an admin sees, gone once the network exists (third look T3)
+  const note = workspaceManager?.networkNote() ?? null;
+  return [
+    ...(subnets ? [networkRoomFinding(networkRoom(subnets), ok)] : []),
+    ...(note ? [{ key: "host.workspace_network", state: "degraded" as const, detail: note, next: "Free Docker address pools (remove networks you no longer use, or add default-address-pools to Docker's daemon.json), then restart Docker. Workspaces move to their own network when they are next quiet." }] : []),
+  ];
 }
+
+/** The subnets of the networks running workspaces are on, read: the daemon awaits this before it takes calls, so its guard refuses them from the first one (third look T5). */
+export async function workspacesReady(): Promise<void> { await workspaceManager?.ready().catch(() => undefined); }
 
 /** Jobs the host runs on a clock. */
 export const periodic = {

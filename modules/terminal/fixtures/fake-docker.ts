@@ -90,7 +90,7 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
       const b = boxes.get(name);
       const act = r[2] ?? (m === "DELETE" ? "remove" : "");
       if (!b) return json(404, { message: "no such container" });
-      if (act === "json") return json(200, { State: { Running: b.running }, Config: { Labels: b.config["Labels"] ?? {} }, HostConfig: { Binds: b.config["HostConfig"]?.["Binds"] ?? [] } });
+      if (act === "json") return json(200, { State: { Running: b.running }, Config: { Labels: b.config["Labels"] ?? {} }, HostConfig: { Binds: b.config["HostConfig"]?.["Binds"] ?? [], NetworkMode: b.config["HostConfig"]?.["NetworkMode"] ?? "default" } });
       if (act === "start") { if (!b.running) { b.running = true; b.starts += 1; b.tmux = fakeTmux(o.tmux); } note("start", name); return empty(204); }
       if (act === "stop") { b.running = false; note("stop", name); return empty(204); }
       if (act === "wait") { note("wait", name); return json(200, { StatusCode: helperExit }); }
@@ -127,6 +127,8 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
     }
     if (/^\/networks\/[^/]+$/.test(p) && m === "GET") {
       const n = p.slice("/networks/".length);
+      // Docker's default bridge is always there
+      if (n === "bridge") return json(200, { Name: "bridge", Labels: {}, Options: {}, IPAM: { Config: [{ Subnet: "172.17.0.0/16" }] } });
       const i = [...networks].indexOf(n);
       return i < 0 ? json(404, { message: "no such network" }) : json(200, { Name: n, Labels: netLabels.get(n) ?? {}, Options: netOptions.get(n) ?? {}, IPAM: { Config: [{ Subnet: `172.31.${i}.0/24` }] } });
     }

@@ -175,6 +175,10 @@ export interface WorkspaceManager {
    * container and keeps its own routes from it (host/src/routes/site-host.ts agentCaller, through the terminal module's agentSubnets).
    */
   subnets(): string[];
+  /** Read the subnets of the networks workspaces are on now (made with the manager; the daemon awaits it before it takes calls, third look T5). */
+  ready(): Promise<void>;
+  /** The health line while workspaces go on Docker's default network because the shared one cannot be had, or null. */
+  networkNote(): string | null;
   /** The subnets of every network on this host's Docker (behind the runner: subnets only), for the count of networks it has left; null when Docker does not answer. */
   hostSubnets(): Promise<string[] | null>;
   /** Is its container running now: one look at that container only (a tab's 400 ms read asks this, so it must not list every workspace). */
@@ -370,6 +374,25 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   async function readSubnets(): Promise<void> {
     type Net = { IPAM?: { Config?: Array<{ Subnet?: string }> } };
     let list: Net[] = [];
+    // what the running workspaces are on (third look T5): behind the runner, the old networks of one workspace are read by name; a workspace on Docker's default bridge (the fallback, or one made
+    // before 12 Nov and not moved yet) puts the bridge's subnet on the list, so the daemon's guard refuses it too
+    let onBridge = false;
+    try {
+      const r = await http({ method: "GET", path: "/containers/json", query: { all: "false", filters: JSON.stringify({ label: ["vyre.workspace"] }) } });
+      if (r.status === 200) {
+        for (const x of JSON.parse(dec.decode(r.body)) as Array<{ Labels?: Record<string, string>; HostConfig?: { NetworkMode?: string } }>) {
+          const id = x.Labels?.["vyre.workspace"] ?? "";
+          if (!AGENT_ID.test(id) || !mine(x.Labels, id)) continue;
+          const mode = x.HostConfig?.NetworkMode ?? "";
+          if (o.runner && OLD_NET.test(mode)) madeNets.add(mode);
+          if (mode === "bridge" || mode === "default") onBridge = true;
+        }
+      }
+    } catch { /* read again at the next sweep */ }
+    if (onBridge && !o.runner) {
+      const r = await http({ method: "GET", path: "/networks/bridge" }).catch(() => null);
+      if (r?.status === 200) list.push(JSON.parse(dec.decode(r.body)) as Net);
+    }
     if (o.runner) {
       for (const name of [SHARED_NETWORK, ...madeNets]) {
         const r = await http({ method: "GET", path: `/networks/${name}` }).catch(() => null);
@@ -379,7 +402,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     } else {
       const r = await http({ method: "GET", path: "/networks", query: { filters: JSON.stringify({ label: ["vyre.workspaces"] }) } }).catch(() => null);
       if (!r || r.status !== 200) return;
-      list = JSON.parse(dec.decode(r.body)) as Net[];
+      list.push(...(JSON.parse(dec.decode(r.body)) as Net[]));
     }
     nets = [...new Set(list.flatMap((n) => (n.IPAM?.Config ?? []).map((c) => c.Subnet ?? "")).filter((x) => /^\d+\.\d+\.\d+\.\d+\/\d+$/.test(x)))];
   }
@@ -472,8 +495,18 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
    * never used (isolation would fail without a word). False when it cannot be had now (Docker's address pools used up, a limited engine): the caller keeps the default bridge and logs it.
    */
   let sharedReady = false;
+  /** When the shared network last could not be had, and Docker's reason: one try and one log line a minute while it cannot (third look T3); the health line says so. */
+  let sharedFailedAt = -Infinity;
+  let sharedFailure: string | null = null;
+  const SHARED_RETRY_MS = 60_000;
   async function sharedNetwork(): Promise<boolean> {
     if (sharedReady) return true;
+    if (now() - sharedFailedAt < SHARED_RETRY_MS) return false;
+    const ok = await trySharedNetwork();
+    if (ok) { sharedFailure = null; sharedFailedAt = -Infinity; } else sharedFailedAt = now();
+    return ok;
+  }
+  async function trySharedNetwork(): Promise<boolean> {
     const create = async (): Promise<DockerResponse | null> => { try { return await http({ method: "POST", path: "/networks/create", json: SHARED_NETWORK_BODY }); } catch { return null; } };
     let made = await create();
     // a host whose address pools are full of the old per-workspace networks: a pool is freed by removing the old network of a workspace that is not running (it moves to the shared one at its
@@ -488,9 +521,11 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       const j = r?.status === 200 ? (JSON.parse(dec.decode(r.body)) as { Labels?: Record<string, string>; Options?: Record<string, string> }) : null;
       if (j && j.Labels?.["vyre.workspaces"] === "shared" && j.Options?.["com.docker.network.bridge.enable_icc"] === "false") { sharedReady = true; await readSubnets(); return true; }
       log("warn", "workspace.network_not_ours", { network: SHARED_NETWORK });
+      sharedFailure = "a network with its name is there that is not Vyre's, or lets containers reach each other";
       return false;
     }
     log("warn", "workspace.network_fallback", { network: SHARED_NETWORK, status: made?.status ?? 0, detail: made ? bodyText(made.body) : "no answer" });
+    sharedFailure = made ? bodyText(made.body).slice(0, 200) || `Docker answered ${made.status}` : "Docker did not answer";
     return false;
   }
   /** Remove one old per-workspace network of a workspace that is not running (or of none), to free an address pool. True when one went. */
@@ -511,6 +546,12 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
    */
   async function networkFor(agentId: string): Promise<string> {
     if (await sharedNetwork()) return SHARED_NETWORK;
+    // a workspace already on the shared network stays there while the network is there (a failed try is often a moment's, as a timeout): it is never moved back (third look T3)
+    const cur = await inspect(workspaceName(agentId)).catch(() => null);
+    if (cur?.network === SHARED_NETWORK) {
+      const r = await http({ method: "GET", path: `/networks/${SHARED_NETWORK}` }).catch(() => null);
+      if (r === null || r.status !== 404) return SHARED_NETWORK;
+    }
     return o.runner ? workspaceNetworkName(agentId) : "bridge";
   }
 
@@ -1022,6 +1063,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
 
   // a workspace left running by the process before this one (an update restarts the daemon) sleeps when idle like any other, whether or not anything uses it again
   startTimer();
+  // the subnets of the networks workspaces already running are on, read now rather than at the first sweep minutes later, so the daemon's guard refuses them from its first call (third look T5)
+  const firstRead: Promise<void> = readSubnets().catch(() => undefined);
 
   return {
     ensure, exec, provision,
@@ -1036,6 +1079,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     },
     restore(agentId) { gone.delete(agentId); restarts.delete(agentId); },
     subnets: () => [...nets],
+    ready: () => firstRead,
+    networkNote: () => (sharedFailure !== null && !o.runner ? `Agent workspaces are on Docker's default network because the shared one could not be made: ${sharedFailure}. They work, but can reach each other.` : null),
     hostSubnets: async () => {
       const r = await http({ method: "GET", path: "/networks" }).catch(() => null);
       if (!r || r.status !== 200) return null;
@@ -1205,7 +1250,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
   const streamMs = w.streamMs ?? 150;
   const nameOf = (terminalId: string): string => `${prefix}${terminalId}`;
   /** `gen`: the container start the session was last made or seen in (-1: not yet looked at since a restart); `seen`: the start it was known in, to tell a session the person ended from one a restart lost. */
-  const where = new Map<string, { agentId: string; cols: number; rows: number; cwd?: string; gen: number; seen?: number }>();
+  const where = new Map<string, { agentId: string; cols: number; rows: number; cwd?: string; gen: number; seen?: number; told?: number }>();
   const tmuxHosts = new Map<string, TmuxHost>();
 
   // ---- live frames: tmux pipe-pane into a file in /tmp, read back from an offset, one reader per session however many tabs watch ----
@@ -1314,6 +1359,9 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     async read(id, r) {
       const x = where.get(id);
       if (r.since === undefined || !x) return inSession(id, (h) => h.read(id, r));
+      // the workspace was stopped or made again under the open tab for a reason (the agent left a project, went to Trash): the person sees the line the agent gets, once (third look T6)
+      const why = m.restartLine(x.agentId, x.gen);
+      if (why !== null && x.told !== x.gen) { x.told = x.gen; return { text: `\n${why}\n`, next: r.since }; }   // the pane writes \n as \r\n
       // the live read of an open tab: an asleep workspace has nothing new to show, and is left asleep until someone types or the agent runs something
       const up = await m.awake(x.agentId).catch(() => false);
       if (!up) return { text: "", next: r.since };

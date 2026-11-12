@@ -884,6 +884,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   loopLag({ running: () => scheduler.runningNames(), warn: (msg, attrs) => sink.log({ space: space ?? "-", level: 40, msg, place: "scheduler", attrs }) });
 
   try {
+    /** The terminal module's first read of the agent workspaces' subnets, awaited before the server listens (third look T5). */
+    let workspacesReady: (() => Promise<void>) | null = null;
     if (hasSpace) {
       // ---- the Space: modules.db, events.db, access, handlers, invoke, gateway
       db = openDb(paths.modules);
@@ -979,6 +981,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       let grantOwnPlaces: ((owner: string) => Promise<void>) | null = null;
       const reg = registry as unknown as RegistryLike;
       const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), seamImporter: fileSeamImporter(codeRoot), exportsImporter: fileExportsImporter(codeRoot), db, ...(o.http ? { fetch: o.http } : {}) });
+      workspacesReady = (): Promise<void> => (loaded.moduleExports.get("terminal") as { workspacesReady?: () => Promise<void> } | undefined)?.workspacesReady?.() ?? Promise.resolve();
       const telemetry = createTelemetryRecorder({ space, db, module: loaded.moduleExports.get("logs"), now, secrets: () => [token], capabilities: registry.capabilities.map(cap => cap.name) });
       if (telemetry) { sink.setObserver(telemetry.write, telemetry.position(sink.sourceId)); capTelemetry = () => telemetry.cap(); }
       closers.push(() => { try { sink.flush(); } catch { /* The committed native source replays on the next boot. */ } finally { sink.setObserver(undefined); } });
@@ -2667,6 +2670,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (liveTicketRoute.handle(req, res) || browserStream.handle(req, res) || publicPath.handle(req, res) || siteSigninPage.handle(req, res) || mcpRoute.handle(req, res) || (gitProxy?.handle(req, res) ?? false) || chromeBridge.handle(req, res) || chromeAgentsRoute.handle(req, res) || githubSignInRoute.handle(req, res) || githubConnectRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || localWorkRoute.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
       listener(req, res);
     });
+    // the agent workspaces' subnets are read before the first call, so the guard refuses one left running by the process before this one at once (third look T5); a Docker that does not answer
+    // within 5 s does not hold the start, and they are read again at the first sweep
+    await Promise.race([workspacesReady?.() ?? Promise.resolve(), new Promise<void>((r) => setTimeout(r, 5000).unref?.())]).catch(() => undefined);
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);

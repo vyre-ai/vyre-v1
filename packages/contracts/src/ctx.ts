@@ -47,6 +47,8 @@ export interface Ctx {
   thread?: string;
   origin: string;
   depth: number;
+  /** On a nested call: the capability whose handler made it (the pipeline sets it; a caller cannot). */
+  callerCap?: string;
   device?: string;
   now(): number;
   db: ScopedDb;
