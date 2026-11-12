@@ -116,3 +116,16 @@ export function handleOfItem(db: { all(sql: string, ...a: unknown[]): unknown[] 
   try { const r = db.all(`SELECT "handle" FROM vault_meta WHERE "id" = ?`, itemId)[0] as { handle?: unknown } | undefined; return typeof r?.handle === "string" ? r.handle : "This key"; } catch { return "This key"; }
 }
 
+
+/**
+ * rc.25 behaviour on the sync-spec path only (see daemon.ts keyHostCheck): the spec's sample and survey probe, or a connection sync_specs.apply made (a cn_sync_specs row for this connector
+ * AND connection) going to exactly its own spec's app.domain. Anything else is false and keeps the per-key host rule. rc.27 replaces this with the first-use card.
+ */
+export function syncSpecHostAllowed(tables: { all(sql: string, ...a: unknown[]): unknown[] } | null, k: { connector: string; connectionId: string }, host: string): boolean {
+  if (k.connector === "sync_spec" && k.connectionId === "probe") return true;
+  try {
+    const row = tables?.all("SELECT spec FROM cn_sync_specs WHERE connector = ? AND connection_id = ?", k.connector, k.connectionId)[0] as { spec?: string } | undefined;
+    const domain = row?.spec ? (JSON.parse(row.spec) as { app?: { domain?: unknown } }).app?.domain : undefined;
+    return typeof domain === "string" && domain.trim().toLowerCase().replace(/\.$/, "") === host;
+  } catch { return false; }
+}
