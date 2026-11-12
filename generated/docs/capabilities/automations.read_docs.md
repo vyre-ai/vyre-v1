@@ -1,6 +1,6 @@
 # automations.read_docs
 
-Read one public API docs page as plain text, with its same-site links. For an OpenAPI document, one line per operation. GET only, no key, public hosts only. Give focus to get just the passages around a word.
+Read one public API docs page as text, with its same-site links; an OpenAPI document as one line per operation. Any public https page, even one you put together (in an Automation started from outside, that waits for the person). GET, no key. focus: just the passages around a word.
 
 | | |
 |---|---|

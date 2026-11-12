@@ -1,6 +1,6 @@
 # automations.read_link
 
-Open a web page from the server and read it as plain text, with its links. Use it for any link the person gave or a page you read links to. A link you put together yourself waits for the person, because its address can carry data. GET only, no key, public hosts only
+Open a web page from the server and read it as plain text, with its links. You may open any public https link, including one you put together yourself. Inside an Automation started from outside, a link you put together waits for the person. GET only, no key, public hosts only
 
 | | |
 |---|---|

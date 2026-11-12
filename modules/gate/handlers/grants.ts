@@ -56,10 +56,11 @@ function stepCovered(ctx: GateCtx, step: StepRef, act: string, targets: readonly
 
 /** Spend the person's own ask on this call. Every target must be one they named. A request that named none covers any target, and a call that shows none (a crew push, a saved draft) takes any ask for its act: once, and only in a thread no outside content has reached, because nothing checks where it goes. */
 /** The chain's outside-content marks: what a stranger wrote was read in one of these threads. `marked` when one is not cleared yet (the person has not spoken since). */
-function taintOf(ctx: GateCtx, threads: readonly string[]): { any: boolean; marked: boolean } {
+function taintOf(ctx: GateCtx, threads: readonly string[], source?: string): { any: boolean; marked: boolean } {
   if (threads.length === 0) return { any: false, marked: false };
-  const rows = ctx.db.all(`SELECT cleared_at FROM gate_taint WHERE thread_id IN (${threads.map(() => "?").join(", ")})`, ...threads) as unknown as { cleared_at: number | null }[];
-  return { any: rows.length > 0, marked: rows.some((t) => t.cleared_at === null) };
+  const rows = ctx.db.all(`SELECT cleared_at, source FROM gate_taint WHERE thread_id IN (${threads.map(() => "?").join(", ")})`, ...threads) as unknown as { cleared_at: number | null; source: string | null }[];
+  const mine = source === undefined ? rows : rows.filter((t) => String(t.source ?? "").startsWith(source));
+  return { any: mine.length > 0, marked: mine.some((t) => t.cleared_at === null) };
 }
 
 function turnSpent(ctx: GateCtx, act: string, targets: readonly string[], turn: { person: string; threads: string[] }): string[] {
@@ -184,10 +185,11 @@ export async function linksKnown(ctx: GateCtx, input: In): Promise<unknown> {
   const l = normalLink(String(input.url));
   if (l === null) return { known: false };
   const threads = input.threads as string[];
-  // A link the agent put together is a read while nothing a stranger wrote has been read in this chain since the person last spoke: only the person's words and the model's own knowledge steer it,
-  // so it is the agent opening a link (owner, 2 Nov: agents may open any link). Once outside content was read, a composed address can carry what the agent knows to a place that content chose: then
-  // only a link the person gave or the content itself linked to is a read (lead, 12 Nov). No thread to judge is never unmarked: the hook counts that as composed before it asks.
-  if (threads.length > 0 && !taintOf(ctx, threads).marked) return { known: true };
+  // In an ordinary chat an agent may open any link (owner, 2 Nov; lead's ruling for rc.26, 12 Nov): read_link and read_docs are GET only, keyless and public hosts only, so a link the agent put
+  // together is a read, before or after it read a page. Only a chain that carries an uncleared mark from an Automation's trigger (a stranger-started Run that nobody watches) holds a composed link:
+  // there only a link the person gave or the content itself linked to is a read. Residual risk (BACKLOG): a page can ask the agent to open an address that carries chat text. No thread to judge is
+  // never free: the hook counts that as composed before it asks.
+  if (threads.length > 0 && !taintOf(ctx, threads, "automation:").marked) return { known: true };
   return { known: ctx.db.all(`SELECT 1 AS x FROM gate_links WHERE link = ? AND thread_id IN (${threads.map(() => "?").join(", ")})`, await sha(l), ...threads).length > 0 };
 }
 
