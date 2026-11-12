@@ -34,3 +34,16 @@ test("partial carries its reason", async () => {
     assert.match(m.error ?? "", /signs in again once/);
   } finally { bindMigration(null); }
 });
+
+test("an interrupted import is never shown as its internal mark", async () => {
+  const h = harness();
+  bindMigration(ports);
+  try {
+    await provision(h.ctx, { agentId: "agt_dex", idempotencyKey: "k" });
+    h.db.run("INSERT INTO computers_migration (computer_id, agent_id, state, attempts, error, at) SELECT computer_id, agent_id, 'failed', 0, 'importing: the daemon went away', 1 FROM computers_computers");
+    const m = (await list(h.ctx, {})).computers[0]!["moved"] as { state: string; error?: string };
+    assert.equal(m.state, "failed");
+    assert.equal(m.error, "Moving its sign-ins was interrupted. It will be tried again.");
+    assert.ok(!/importing:/.test(JSON.stringify(m)));
+  } finally { bindMigration(null); }
+});

@@ -75,6 +75,7 @@ function waitMore(ctx: CompCtx, c: ComputerRow, reason: string): void {
 export function resetMoveState(): void { nowWaits.clear(); }
 
 const IMPORTING = "importing: ";
+export const INTERRUPTED = "Moving its sign-ins was interrupted. It will be tried again.";
 /** A refusal that comes before the Space browser touches the profile (busy, held): the import did not start. */
 const BEFORE_TOUCH = (e: unknown): boolean => { const r = (e as { reason?: unknown } | null)?.reason; return r === "profile_held" || r === "profile_busy"; };
 function markImporting(ctx: CompCtx, c: ComputerRow, a: { workspaceId: string | null; profileId: string | null; attempts: number }): void {
@@ -129,6 +130,7 @@ function moveOne(ctx: CompCtx, p: MigrationPorts, c: ComputerRow): Promise<Step>
     let workspaceId = prior?.["workspace_id"] ? String(prior["workspace_id"]) : null;
     let profileId = prior?.["profile_id"] ? String(prior["profile_id"]) : null;
     let importStarted = false;
+    let ours = false;
     try {
       workspaceId = (await p.ensureWorkspace(ctx, { agentId: c.agentId, computerId: c.computerId })).workspaceId;
       profileId = (await p.ensureBrowserProfile(ctx, { agentId: c.agentId, computerId: c.computerId })).profileId;
@@ -140,7 +142,7 @@ function moveOne(ctx: CompCtx, p: MigrationPorts, c: ComputerRow): Promise<Step>
       if (p.browserReady) await p.browserReady(ctx, { agentId: c.agentId, profileId });
       // a browser profile that already holds sign-ins is never written over: they were made there since the agent's browser calls went to the Space browser. The exception is the folder of an import
       // of ours that a restart cut short (the mark below). With no way to ask, nothing is decided: the move waits (not now), because nothing final may be recorded from a guess.
-      const ours = ownImport(ctx, c.computerId);
+      ours = ownImport(ctx, c.computerId);
       if (!ours) {
         if (!p.profileInUse) throw Object.assign(new Error("The Space browser cannot yet say whether this agent's browser profile is in use."), { code: "unavailable" });
         if (await p.profileInUse(ctx, { agentId: c.agentId, profileId })) {
@@ -148,18 +150,21 @@ function moveOne(ctx: CompCtx, p: MigrationPorts, c: ComputerRow): Promise<Step>
           return "partial";
         }
       }
+      if (ours) importStarted = true;   // a profile that was ever marked is only ever finished by a complete import
       const data = await host.chromeData(c.computerId);
       // it must have stayed asleep from before the copy to after it
       if (!asleep(ctx, c.computerId)) return "retry";
       // The computer answered that it has no Chrome folder. One that was never started has none to give, and moves with nothing to import. One that has run does have one, so "not found" means the
       // sign-ins were not handed over: that is said (partial, with the reason), never recorded as a move that carried them.
       if (data === null && c.lastActiveAt !== undefined) {
+        if (ours) throw new Error("This computer's Chrome profile was not found, so the interrupted import cannot be finished yet.");
         record(ctx, c, "partial", { workspaceId, profileId, attempts, bytes: 0, error: "This computer's Chrome profile was not found, so its sign-ins did not move. The agent signs in again once." });
         ctx.log.warn("computers: the old computer had no Chrome profile to hand over", { computerId: c.computerId, agentId: c.agentId });
         return "partial";
       }
       // what is copied is only sign-ins and settings (no caches); that, not the disk, is measured
       if (data !== null && data.tar.length > MAX_COPY_BYTES) {
+        if (ours) throw new Error("This computer's Chrome sign-ins are too large to copy, so the interrupted import cannot be finished.");
         record(ctx, c, "partial", { workspaceId, profileId, attempts, bytes: 0, error: `This computer's Chrome sign-ins and settings are ${Math.round(data.tar.length / 1_048_576)} MB, more than the ${MAX_COPY_BYTES / 1_048_576} MB that can be copied safely, so they did not move. The agent signs in again once.` });
         return "partial";
       }
@@ -172,7 +177,7 @@ function moveOne(ctx: CompCtx, p: MigrationPorts, c: ComputerRow): Promise<Step>
     } catch (e) {
       // not now: no attempt is used and the wait before the next try grows. If the import had not begun nothing is recorded; if it had, its mark stays unless the Space browser refused it before touching the profile.
       if (notNow(e)) {
-        if (importStarted && !BEFORE_TOUCH(e)) { /* the mark stays: the folder may be half written */ } else if (importStarted) clearMark(ctx, c, prior);
+        if (importStarted && (ours || !BEFORE_TOUCH(e))) { markImporting(ctx, c, { workspaceId, profileId, attempts: attempts - 1 }); /* the mark stays: the folder may be half written */ } else if (importStarted) clearMark(ctx, c, prior);
         waitMore(ctx, c, say(e));
         return "retry";
       }
@@ -253,5 +258,5 @@ export function moveOf(ctx: Pick<CompCtx, "db">, computerId: string): { state: "
   if (!r) return undefined;
   const state = String(r["state"]);
   if (state !== "done" && state !== "partial" && state !== "failed") return undefined;
-  return { state: state as "done" | "partial" | "failed", at: Number(r["at"]), ...(r["error"] ? { error: String(r["error"]).startsWith(IMPORTING) ? (String(r["error"]).slice(IMPORTING.length) || "The move was interrupted") : String(r["error"]) } : {}) };
+  return { state: state as "done" | "partial" | "failed", at: Number(r["at"]), ...(r["error"] ? { error: String(r["error"]).startsWith(IMPORTING) ? INTERRUPTED : String(r["error"]) } : {}) };
 }

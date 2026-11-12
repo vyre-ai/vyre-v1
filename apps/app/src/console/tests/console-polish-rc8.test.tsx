@@ -124,4 +124,5 @@ test("an old desktop's row says in one plain line how its move ended", async () 
   assert.match(movedLine({ state: "done", at }), /^Moved to a workspace and the Space browser on 12 Nov\. Remove this desktop when you no longer need it$/);
   assert.match(movedLine({ state: "partial", at }), /agent signs in again once/);
   assert.match(movedLine({ state: "failed", at, error: "The workspace is not ready." }), /did not work: The workspace is not ready$/);
+  assert.equal(movedLine({ state: "failed", at, error: "Moving its sign-ins was interrupted. It will be tried again." }), "Moving its sign-ins was interrupted. It will be tried again", "an interrupted import is said plainly, never as its internal mark");
 });

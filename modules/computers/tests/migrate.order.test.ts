@@ -329,3 +329,32 @@ test("a desktop that is woken during the slow steps is not even read: the asleep
     assert.deepEqual(w.h.rows("SELECT attempts FROM computers_migration"), []);
   } finally { off(); }
 });
+
+test("a profile that was ever marked importing is only finished by a complete import: a held refusal keeps the mark, and no pass records partial or done from a half-written profile", async () => {
+  const events = browser();
+  ports();
+  try {
+    const w = await world({ asleep: true });
+    withChrome(w, { tar: TAR });
+    let mode: "crash" | "held" | "clean" = "crash";
+    let complete = 0;
+    bindMigrationPort("importChromeData", async (_c, a) => {
+      if (mode === "crash") { signedIn = ["half.example"]; throw new Error("the daemon went away"); }
+      if (mode === "held") throw Object.assign(new Error("held"), { reason: "profile_held" });
+      complete++; return { bytes: a.data.tar.length };
+    });
+    await migrateComputers(w.h.ctx);
+    assert.match(String(w.h.rows("SELECT error FROM computers_migration")[0]?.["error"]), /^importing: /, "marked after the cut-short import");
+    mode = "held";
+    w.h.advance(2 * 60_000);
+    await migrateComputers(w.h.ctx);
+    assert.match(String(w.h.rows("SELECT error FROM computers_migration")[0]?.["error"]), /^importing: /, "a held refusal keeps the mark");
+    assert.notEqual(migrationRows(w.h.ctx)[0]?.state, "partial");
+    mode = "clean";
+    w.h.advance(2 * 3_600_000);
+    await migrateComputers(w.h.ctx);
+    assert.equal(migrationRows(w.h.ctx)[0]?.state, "done");
+    assert.equal(complete, 1, "one complete import");
+    void events;
+  } finally { bindMigrationPort("importChromeData", async (_c, a) => spaceBrowser()!.importChrome(a.profileId, a.data.tar)); off(); }
+});

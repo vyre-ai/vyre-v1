@@ -219,6 +219,7 @@ export function movedLine(m: { state: "done" | "partial" | "failed"; at: number;
   const day = new Date(m.at).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   if (m.state === "done") return `Moved to a workspace and the Space browser on ${day}. Remove this desktop when you no longer need it`;
   if (m.state === "partial") return `Moved to a workspace and the Space browser on ${day}, but its sign-ins did not come along: the agent signs in again once. Remove this desktop when you no longer need it`;
+  if (m.error?.startsWith("Moving its sign-ins was interrupted")) return m.error.replace(/\.$/, "");
   return `The move to a workspace and the Space browser did not work${m.error ? `: ${m.error.replace(/\.+$/, "")}` : ""}`;
 }
 type Computer = Computers["computers"][number];

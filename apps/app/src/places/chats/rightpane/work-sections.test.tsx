@@ -9,7 +9,7 @@ import { ChatRightPane } from "./ChatRightPane.tsx";
 import { RightPaneDataProvider } from "./data.tsx";
 import type { ChatRightPaneData } from "./data.tsx";
 import { BrowserCard, TerminalCard, WorkSections, usesWorkModel } from "./WorkSections.tsx";
-import { attachedNote, browserAction, browserWords, orderSessions, ownerLabel, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
+import { olderDesktopNote, attachedNote, browserAction, browserWords, orderSessions, ownerLabel, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
 import type { BrowserData, BrowserView, WorkspaceData, WorkspaceView } from "./work-model.ts";
 import { createSample } from "./sample.ts";
 import type { PaneDeps } from "./actions.ts";
@@ -306,4 +306,13 @@ test("mounted: the Browser section lists what the agent did in its browser, step
     assert.ok(asked.some(([c, i]) => c === "files.read" && (i as { fileId?: string }).fileId === "fil_pricing"), "the step's picture is read from Files");
     assert.ok(find(root, "browser-step-picture"), "and shown where the live view is");
   } finally { off(); }
+});
+
+test("the older desktop's row says what will happen, what happened or why, in plain words, and never an internal mark", () => {
+  const day = (): string => "12 Nov";
+  assert.match(olderDesktopNote(undefined, day), /move to this agent's browser when the desktop is asleep/);
+  assert.equal(olderDesktopNote({ state: "done", at: 1 }, day), "Its sign-ins moved to this agent's browser on 12 Nov. The old desktop is kept until you remove it.");
+  assert.match(olderDesktopNote({ state: "partial", at: 1, error: "Dex already uses its browser on the Space, so the sign-ins were not copied." }, day), /not copied\. The old desktop is kept/);
+  assert.equal(olderDesktopNote({ state: "failed", at: 1, error: "Moving its sign-ins was interrupted. It will be tried again." }, day), "Moving its sign-ins was interrupted. It will be tried again.");
+  assert.match(olderDesktopNote({ state: "failed", at: 1, error: "The workspace is not ready." }, day), /did not work yet: The workspace is not ready\. It will be tried again\.$/);
 });
