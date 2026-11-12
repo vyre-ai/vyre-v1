@@ -80,6 +80,8 @@ export interface WorkspaceOptions {
   http: DockerHttp;
   image?: string;
   limits?: Partial<{ cpus: number; memoryMb: number; pids: number; reserveMb: number }>;
+  /** The longest a mirror waits between passes when nothing happens in the workspace. Default 60 s. */
+  mirrorMaxMs?: number;
   /** How long after a command the project folders it may have changed are mirrored (a file must sit unchanged for a second first). Default 1200 ms. */
   projectKickMs?: number;
   /** A workspace with nothing using it for this long sleeps. Default 10 minutes. */
@@ -173,6 +175,8 @@ export interface WorkspaceManager {
    * container and keeps its own routes from it (host/src/routes/site-host.ts agentCaller, through the terminal module's agentSubnets).
    */
   subnets(): string[];
+  /** Is its container running now: one look at that container only (a tab's 400 ms read asks this, so it must not list every workspace). */
+  awake(agentId: string): Promise<boolean>;
   /** The line a workspace put to sleep at the 12-hour ceiling owes its next command, once (then null). */
   takeNote(agentId: string): string | null;
   /** The agent came back from Trash: its workspace may be made again (over the volumes it kept). */
@@ -349,11 +353,12 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const mounted = new Map<string, string[]>();
   const chain = new Map<string, Promise<unknown>>();
   let timer: ReturnType<typeof setInterval> | null = null;
-  const homes = new Map<string, { sync: { pass(): Promise<{ failed: number }> }; timer: ReturnType<typeof setInterval> | null }>();
+  type Paced = { timer: ReturnType<typeof setTimeout> | null; delay: number; stopped: boolean; tick?: () => void };
+  const homes = new Map<string, { sync: { pass(): Promise<{ failed: number }> } } & Paced>();
   // the projects each awake workspace mounts, who last worked in each project, and its mirror
   const agentProjects = new Map<string, string[]>();
   const projectActor = new Map<string, string>();
-  const projects = new Map<string, { sync: { pass(): Promise<{ failed: number }> } | null; timer: ReturnType<typeof setInterval> | null; kick: ReturnType<typeof setTimeout> | null; holder: string | null }>();
+  const projects = new Map<string, { sync: { pass(): Promise<{ failed: number }> } | null; kick: ReturnType<typeof setTimeout> | null; holder: string | null } & Paced>();
   let imageKnown = false;
   let discovered = false;
   /** The subnets of the workspaces' networks (subnets()), read when one is made and at every sweep. */
@@ -552,10 +557,10 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       },
     };
   }
-  function homeOf(agentId: string): { sync: { pass(): Promise<{ failed: number }> }; timer: ReturnType<typeof setInterval> | null } | null {
+  function homeOf(agentId: string): ({ sync: { pass(): Promise<{ failed: number }> } } & Paced) | null {
     if (!o.home) return null;
     let h = homes.get(agentId);
-    if (!h) { h = { sync: o.home.sync({ agentId, computerId: `ws_${agentId}`, fs: diskOf(agentId), manifest: o.home.manifest(agentId) }), timer: null }; homes.set(agentId, h); }
+    if (!h) { h = { sync: o.home.sync({ agentId, computerId: `ws_${agentId}`, fs: diskOf(agentId), manifest: o.home.manifest(agentId) }), timer: null, delay: 0, stopped: false }; homes.set(agentId, h); }
     return h;
   }
   /** One round of the mirror; true when it finished with nothing left undone (or there is no mirror), so a caller about to stop the container knows nothing was lost. */
@@ -576,13 +581,43 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     stopProjects(agentId);
     return ok;
   }
+  /**
+   * A mirror's passes, paced (12 Nov: forty awake workspaces must cost next to nothing while nothing happens): every `base` while someone worked in the last minute, then twice as long after each pass,
+   * up to MIRROR_MAX_MS; a command or a keystroke brings it back to `base` at once (nudge).
+   */
+  const MIRROR_MAX_MS = o.mirrorMaxMs ?? 60_000;
+  const ACTIVE_MS = 60_000;
+  function pace(x: Paced, base: number, activeAt: () => number, pass: () => Promise<unknown>): void {
+    x.stopped = false;
+    x.delay = base;
+    const tick = (): void => {
+      x.timer = null;
+      void pass().catch(() => undefined).finally(() => {
+        if (x.stopped || x.timer) return;
+        x.delay = now() - activeAt() < ACTIVE_MS ? base : Math.min(MIRROR_MAX_MS, Math.max(base, x.delay * 2));
+        x.timer = setTimeout(tick, x.delay);
+        x.timer.unref?.();
+      });
+    };
+    x.tick = tick;
+    x.timer = setTimeout(tick, base);
+    x.timer.unref?.();
+  }
+  /** Back to `base` now: someone works in it again. */
+  function nudge(x: Paced | undefined, base: number): void {
+    if (!x || x.stopped || !x.timer || !x.tick || x.delay <= base) return;
+    clearTimeout(x.timer);
+    x.delay = base;
+    x.timer = setTimeout(x.tick, base);
+    x.timer.unref?.();
+  }
+  const mirrorBase = (): number => o.home?.intervalMs ?? 3000;
   function startHome(agentId: string): void {
     const h = homeOf(agentId);
     if (!h || h.timer) return;
-    h.timer = setInterval(() => { void api.containerRunning(workspaceName(agentId)).then((up) => (up ? homePass(agentId) : undefined)).catch(() => undefined); }, o.home?.intervalMs ?? 3000);
-    h.timer.unref?.();
+    pace(h, mirrorBase(), () => lastTouch.get(agentId) ?? 0, async () => { if (await api.containerRunning(workspaceName(agentId)).catch(() => false)) await homePass(agentId); });
   }
-  function stopHome(agentId: string): void { const h = homes.get(agentId); if (h?.timer) { clearInterval(h.timer); h.timer = null; } }
+  function stopHome(agentId: string): void { const h = homes.get(agentId); if (h) { h.stopped = true; if (h.timer) { clearTimeout(h.timer); h.timer = null; } } }
 
   // ---- the project folders: a volume the agents on a project share, mirrored with the project's folder in Files, with history that says which agent changed what ----
   // The disk is read through any running workspace that mounts it. A pass runs as the agent that last worked in the project (every command an agent runs makes it the one, and a pass follows a second
@@ -625,7 +660,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     const via = await runningMounter(projectId);
     if (via === null) return true;
     const as = projectActor.get(projectId) ?? via;
-    const p = projects.get(projectId) ?? { sync: null, timer: null, kick: null, holder: null };
+    const p = projects.get(projectId) ?? { sync: null, timer: null, kick: null, holder: null, delay: 0, stopped: true };
     projects.set(projectId, p);
     try {
       // the mirror is made for the agent whose calls it makes and the workspace whose disk it reads; either changing makes a new one (the manifest, which is the project's, is shared)
@@ -638,16 +673,16 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     if (!o.home?.syncProject) return;
     agentProjects.set(agentId, [...ps]);
     for (const projectId of ps) {
-      const p = projects.get(projectId) ?? { sync: null, timer: null, kick: null, holder: null };
+      const p = projects.get(projectId) ?? { sync: null, timer: null, kick: null, holder: null, delay: 0, stopped: false };
       projects.set(projectId, p);
       if (p.timer) continue;
-      p.timer = setInterval(() => {
-        void runningMounter(projectId).then(async (via) => {
-          if (via === null) { if (p.timer) { clearInterval(p.timer); p.timer = null; } return; }
-          await projectPass(projectId);
-        }).catch(() => undefined);
-      }, o.home.intervalMs ?? 3000);
-      p.timer.unref?.();
+      // the project's last activity: the latest command of any agent whose workspace mounts it
+      const active = (): number => Math.max(0, ...[...agentProjects].filter(([, ps2]) => ps2.includes(projectId)).map(([a]) => lastTouch.get(a) ?? 0));
+      pace(p, mirrorBase(), active, async () => {
+        const via = await runningMounter(projectId);
+        if (via === null) { p.stopped = true; return; }
+        await projectPass(projectId);
+      });
     }
   }
   /** A command ran in this agent's workspace: the project folders it mounts are the ones it may have changed, and it is the agent they are attributed to. A pass follows, after the second a file must sit unchanged. */
@@ -815,6 +850,9 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     await ensure(agentId);
     lastUsed.set(agentId, now());
     lastTouch.set(agentId, now());
+    // someone works in it: its mirrors go back to their quick pace
+    nudge(homes.get(agentId), mirrorBase());
+    for (const pid of agentProjects.get(agentId) ?? []) nudge(projects.get(pid), mirrorBase());
     try { return await execIn(agentId, argv, x?.env); }
     catch (e) {
       // the container stopped between the wake and the exec (a sweep, or someone stopped it): wake it once more
@@ -976,6 +1014,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     },
     restore(agentId) { gone.delete(agentId); restarts.delete(agentId); },
     subnets: () => [...nets],
+    awake: (agentId) => (AGENT_ID.test(agentId) ? api.containerRunning(workspaceName(agentId)).catch(() => false) : Promise.resolve(false)),
     takeNote(agentId) { const n = sleptNote.get(agentId) ?? null; sleptNote.delete(agentId); return n; },
     async cut(agentId, projectId) {
       if (!AGENT_ID.test(agentId) || !PROJECT_ID.test(projectId)) return;
@@ -1077,7 +1116,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     close() {
       if (timer) { clearInterval(timer); timer = null; }
       for (const id of [...homes.keys()]) stopHome(id);
-      for (const p of projects.values()) { if (p.timer) clearInterval(p.timer); if (p.kick) clearTimeout(p.kick); p.timer = null; p.kick = null; }
+      for (const p of projects.values()) { p.stopped = true; if (p.timer) clearTimeout(p.timer); if (p.kick) clearTimeout(p.kick); p.timer = null; p.kick = null; }
     },
   };
 }
@@ -1249,7 +1288,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       const x = where.get(id);
       if (r.since === undefined || !x) return inSession(id, (h) => h.read(id, r));
       // the live read of an open tab: an asleep workspace has nothing new to show, and is left asleep until someone types or the agent runs something
-      const up = (await m.list().catch(() => [])).find((w) => w.agentId === x.agentId)?.state === "running";
+      const up = await m.awake(x.agentId).catch(() => false);
       if (!up) return { text: "", next: r.since };
       if (x.gen !== m.generation(x.agentId)) {
         if ((await m.exec(x.agentId, ["tmux", "has-session", "-t", nameOf(id)], { quiet: true })).code !== 0) return { text: "", next: r.since };
@@ -1285,7 +1324,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       for (const id of ids) {
         // a status read never wakes a sleeping workspace: asleep, its sessions are idle in the list until something uses them; one tmux does not hold (yet) is made again on its next use
         const x = where.get(id);
-        const live = x ? (await m.list()).find((r) => r.agentId === x.agentId)?.state === "running" : false;
+        const live = x ? await m.awake(x.agentId) : false;
         if (!x || !live) { out.push({ terminalId: id, state: x ? "idle" : "exited", exitCode: null }); continue; }
         // gone from the container it lived in: the person ended it (exit), so it reads as exited; gone because the container was started again since: idle, made again on its next use
         const sameStart = (x.gen !== -1 ? x.gen : x.seen) === m.generation(x.agentId);
@@ -1302,7 +1341,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     },
     async close(id) {
       const x = where.get(id);
-      if (x) { const live = (await m.list()).find((r) => r.agentId === x.agentId)?.state === "running"; if (live) await tmuxFor(x.agentId).close(id); where.delete(id); return; }
+      if (x) { const live = await m.awake(x.agentId); if (live) await tmuxFor(x.agentId).close(id); where.delete(id); return; }
       const found = await m.find(nameOf(id));
       if (found !== null) await tmuxFor(found).close(id);
     },

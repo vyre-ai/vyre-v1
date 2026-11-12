@@ -40,3 +40,4 @@
 - An agent's own state reads Active or Idle, so it no longer says Awake while its workspace says Asleep on the same screen.
 - Agent workspaces on a Team server now share one network with traffic between them off, as on a computer's own Docker, so a server holds far more than 30 of them; workspaces on a network of their own move over when quiet and their old network goes.
 - When a server is full, the workspace that has been quiet longest goes to sleep so a new one starts at once; a new one waits only when every awake workspace is busy.
+- A server with many awake agent workspaces stays quiet when nothing happens: the Files mirror slows down while a workspace is idle and is quick again as soon as someone works in it.

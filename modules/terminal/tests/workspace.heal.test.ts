@@ -841,3 +841,38 @@ test("a full host puts its longest-quiet workspace to sleep and starts the newco
   assert.equal(dk.box(workspaceName("agt_third")).running, true);
   m.close();
 });
+
+// ---- 12 Nov: an awake workspace costs next to nothing while nothing happens ----------------------------------------------------------------------------------------
+
+test("the Files mirror slows down while nothing happens in a workspace (each quiet pass waits twice as long, up to its most) and comes back at once with a command", async () => {
+  const at: number[] = [];
+  const home: NonNullable<WorkspaceOptions["home"]> = {
+    sync: () => ({ async pass() { at.push(Date.now()); return { failed: 0 }; } }),
+    readTar: () => ({ files: new Map(), dirs: new Set(), refused: [], complete: true }),
+    manifest: (id) => `/m/${id}.json`,
+    intervalMs: 10,
+  };
+  const dk = engine();
+  const m = manager(dk, { home, mirrorMaxMs: 160, now: () => Date.now() - 10 * 60_000 });   // the clock says nobody worked in the last minute
+  await m.ensure(AGENT);
+  const t0 = Date.now();
+  await new Promise((x) => setTimeout(x, 600));
+  const quiet = at.filter((x) => x >= t0).length;
+  assert.ok(quiet <= 9, `at most a handful of passes in 600 ms while quiet (10, 20, 40, 80, 160, 160 ...), not 60: ${quiet}`);
+  m.close();
+
+  // working: every 10 ms; a command after a quiet spell brings the next pass at once
+  const at2: number[] = [];
+  const home2 = { ...home, sync: () => ({ async pass() { at2.push(Date.now()); return { failed: 0 }; } }) };
+  const dk2 = engine();
+  let fake = Date.now() - 10 * 60_000;
+  const m2 = manager(dk2, { home: home2, mirrorMaxMs: 400, now: () => fake });
+  await m2.ensure(AGENT);
+  await new Promise((x) => setTimeout(x, 500));   // it has slowed to its most
+  fake = Date.now();
+  await m2.exec(AGENT, ["tmux", "-V"]);
+  const t1 = Date.now();
+  await new Promise((x) => setTimeout(x, 60));
+  assert.ok(at2.some((x) => x >= t1 && x - t1 < 60), "a pass within a few ms of the command, not after the long wait");
+  m2.close();
+});
