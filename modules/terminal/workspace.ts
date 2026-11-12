@@ -84,7 +84,7 @@ export interface WorkspaceOptions {
    * Where mirrors are rooted in Files, for a Files change to bring forward only the mirrors it touches (lead, 12 Nov): the agent's folder, the project's folder, a folder's ancestors (itself first),
    * a file's folder. Null where it cannot be told. Omitted: every slowed mirror is brought forward on any change.
    */
-  folders?: { agentRoot(agentId: string): string | null; projectRoot(projectId: string): string | null; ancestors(folderId: string): string[] | null; ofFile(fileId: string): string | null; lastWriteBy?(agentId: string): number | null };
+  folders?: { agentRoot(agentId: string): string | null; projectRoot(projectId: string): string | null; ancestors(folderId: string): string[] | null; ofFile(fileId: string): string | null };
   /** Does this agent have a turn running now (the engine's turns)? undefined when that cannot be read. A workspace is never put to sleep to make room while it does (lead, 12 Nov). */
   inTurn?: (agentId: string) => boolean | undefined;
   /** The longest a mirror waits between passes when nothing happens in the workspace. Default 60 s. */
@@ -193,7 +193,7 @@ export interface WorkspaceManager {
   /** Before a command: one pass of the workspace's mirrors when they slowed down, at most `ms`; false when that did not finish in time. */
   freshen(agentId: string, ms?: number): Promise<boolean>;
   /** Something changed in Files (the folders and file the event names): the slowed mirrors it touches make their next pass soon. */
-  filesChanged(change?: { folderIds?: readonly string[]; fileId?: string }): void;
+  filesChanged(change?: { folderIds?: readonly string[]; fileId?: string; by?: string }): void;
   /** A person's open tab read the workspace's screen: it counts as attached for a short while (making room passes it over). */
   viewed(agentId: string): void;
   /** The line a workspace put to sleep at the 12-hour ceiling owes its next command, once (then null). */
@@ -648,6 +648,9 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   /** Passes in flight, shared: a pass asked for while one runs waits for that one (a run's freshen, the paced timer and a wake never run two at once on one mirror). When each mirror last finished one. */
   const inflight = new Map<string, Promise<boolean>>();
   const lastPass = new Map<string, number>();
+  /** Each agent's latest write through Files (from the Files events' `by`), and the agents whose first command in this process has freshened. */
+  const lastWrites = new Map<string, number>();
+  const freshenedOnce = new Set<string>();
   /** When each mirror's latest pass started: a Files write after it is not in the workspace yet. */
   const passStarted = new Map<string, number>();
   function shared(key: string, f: () => Promise<boolean>): Promise<boolean> {
@@ -676,9 +679,12 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     const slowed = (x: Paced | undefined): boolean => x !== undefined && x.delay > mirrorBase();
     // not on age alone: at the quick pace a command would wait for a pass on every command (fifth look V3); a mirror at the quick pace is caught up within its next pass anyway
     const stale = (key: string): boolean => { const x = key.startsWith("h:") ? homes.get(key.slice(2)) : projects.get(key.slice(2)); return slowed(x) || (x?.dirty ?? false); };
-    // the agent's own last Files write, read now from the tables (the Files event's consumer may not have run yet): one made after the latest pass started is copied in first (sixth look W3)
-    const wrote = o.folders?.lastWriteBy?.(agentId) ?? null;
-    if (wrote !== null && homes.has(agentId) && wrote >= (passStarted.get(`h:${agentId}`) ?? 0)) { const h = homes.get(agentId); if (h) h.dirty = true; }
+    // the agent's own last Files write (kept from the Files events, eighth look Y2: no table scan per command): one made after the latest pass started is copied in first. Its first command
+    // after this process started freshens once, since a write just before the restart was not seen
+    const wrote = lastWrites.get(agentId) ?? null;
+    const first = !freshenedOnce.has(agentId);
+    freshenedOnce.add(agentId);
+    if (homes.has(agentId) && (first || (wrote !== null && wrote >= (passStarted.get(`h:${agentId}`) ?? 0)))) { const h = homes.get(agentId); if (h) h.dirty = true; }
     // a pass already running may have read Files before the drop: it is waited for, then a new one runs
     const after = async (key: string, f: () => Promise<boolean>): Promise<boolean> => { const have = inflight.get(key); if (have) await have.catch(() => false); return f(); };
     const work: Array<Promise<boolean>> = [];
@@ -697,7 +703,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
    * brought forward, so a drop is never missed.
    */
   const rootOf = new Map<string, string | null>();
-  function filesChanged(change: { folderIds?: readonly string[]; fileId?: string } = {}): void {
+  function filesChanged(change: { folderIds?: readonly string[]; fileId?: string; by?: string } = {}): void {
+    if (change.by !== undefined && /^agt_/.test(change.by)) lastWrites.set(change.by, now());
     const f = o.folders;
     // every mirror the change touches is marked (its next command waits for one pass); the slowed ones among them also make that pass soon
     const slowedHomes = [...homes];

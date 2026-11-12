@@ -19,9 +19,9 @@ import type { RoomFinding } from "./netroom.ts";
  * The folders and file a Files event names: every folder it touches, so a mirror on either side is brought forward (a file or folder moved between two agents' folders: both; sixth look W2,
  * folder.moved names the parents as fromParentId and toParentId).
  */
-export function filesChangeOf(p: Record<string, unknown>): { folderIds: string[]; fileId?: string } {
+export function filesChangeOf(p: Record<string, unknown>): { folderIds: string[]; fileId?: string; by?: string } {
   const folderIds = ["folderId", "fromFolderId", "toFolderId", "parentId", "fromParentId", "toParentId"].map((k) => p[k]).filter((v): v is string => typeof v === "string");
-  return { folderIds: [...new Set(folderIds)], ...(typeof p["fileId"] === "string" ? { fileId: p["fileId"] } : {}) };
+  return { folderIds: [...new Set(folderIds)], ...(typeof p["fileId"] === "string" ? { fileId: p["fileId"] } : {}), ...(typeof p["by"] === "string" ? { by: p["by"] } : {}) };
 }
 
 import { STOPPED_LINE } from "./stop-line.ts";

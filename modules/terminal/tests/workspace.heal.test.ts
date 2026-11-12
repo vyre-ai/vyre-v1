@@ -1267,6 +1267,7 @@ test("V3: in a workspace at the quick pace a command does not wait for a mirror 
   await host.open({ terminalId: "trm_v3", target: { host: "agent_computer", agentId: AGENT }, name: "agent", cols: 80, rows: 24, folders: [] });
   await new Promise((r) => setTimeout(r, 400));   // the wake's pass is done
   const timed = async (): Promise<number> => { const t0 = Date.now(); await host.run("trm_v3", { command: "echo hi", env: {}, timeoutMs: 5000 }); return Date.now() - t0; };
+  await timed();   // the agent's first command in this process freshens once (Y2)
   const before = inPass;
   const quick = await timed();
   assert.equal(inPass, before, "no pass for a command at the quick pace");
@@ -1318,24 +1319,27 @@ test("W2: a folder moved between two agents' folders names both parents, so both
   assert.deepEqual(filesChangeOf({ fileId: "fil_1", fromFolderId: "fld_a", toFolderId: "fld_b" }), { folderIds: ["fld_a", "fld_b"], fileId: "fil_1" });
 });
 
-test("W3: at the quick pace, a command right after the agent's own Files write waits for one pass, though the Files event's consumer has not run yet", async () => {
+test("W3 (Y2): at the quick pace, a command right after the agent's own Files write waits for one pass; its first command after a restart freshens once; no table is read", async () => {
   let inPass = 0;
-  let lastWrite: number | null = null;
+
   const home: NonNullable<WorkspaceOptions["home"]> = {
     sync: () => ({ async pass() { inPass++; await new Promise((r) => setTimeout(r, 200)); return { failed: 0 }; } }),
     readTar: () => ({ files: new Map(), dirs: new Set(), refused: [], complete: true }),
     manifest: (id) => `/m/${id}.json`,
     intervalMs: 3000,
   };
-  const folders = { agentRoot: () => "fld_a", projectRoot: () => null, ancestors: () => null, ofFile: () => null, lastWriteBy: () => lastWrite };
+  const folders = { agentRoot: () => "fld_a", projectRoot: () => "fld_p", ancestors: () => ["fld_elsewhere"], ofFile: () => null };
   const m = manager(engine(), { home, folders });
   const host = createWorkspaceTerminalHost({ manager: m, sleep: fast });
   await host.open({ terminalId: "trm_w3", target: { host: "agent_computer", agentId: AGENT }, name: "agent", cols: 80, rows: 24, folders: [] });
   await new Promise((r) => setTimeout(r, 300));
-  const before = inPass;
+  let before = inPass;
+  await host.run("trm_w3", { command: "echo first", env: {}, timeoutMs: 5000 });
+  assert.ok(inPass > before, "the agent's first command in this process freshens once");
+  before = inPass;
   await host.run("trm_w3", { command: "echo hi", env: {}, timeoutMs: 5000 });
   assert.equal(inPass, before, "no own write since the last pass: no wait");
-  lastWrite = Date.now();   // the agent wrote through Files; no event consumed yet
+  m.filesChanged({ folderIds: ["fld_elsewhere"], by: AGENT });   // the agent wrote through Files (an event that names it)
   await host.run("trm_w3", { command: "cat note.md", env: {}, timeoutMs: 5000 });
   assert.ok(inPass > before, "a pass ran before the command");
   m.close();
