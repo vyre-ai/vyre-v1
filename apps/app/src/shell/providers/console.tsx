@@ -82,7 +82,7 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "activity") return <ActivityPage />;
   if (id === "apps") return <AppsPage />;
   if (id === "servers") return <ServersPage />;
-  if (id === "agentcomputers") return <AgentComputersPage />;
+  if (id === "agentcomputers") return <AgentComputersPage computerId={args["computerId"]} />;
   if (id === "ci") return <CiRunnersPage />;
   if (id === "ghapp") return <GithubAppPage />;
   if (id === "spacedel") return <SpaceDeletePage />;

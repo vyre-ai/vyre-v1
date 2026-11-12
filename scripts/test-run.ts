@@ -6,9 +6,9 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { splitPerf } from "./lib/perf-skip.mjs";
+import { endGroupsOnExit, killGroup, spawnGroup } from "./lib/proc-group.mjs";
 import { withPatternSlow } from "./lib/slow-list.mjs";
 import type { SlowEntry } from "./slow-check.ts";
 
@@ -52,12 +52,18 @@ export function runFile(file: string, opts: { cwd?: string; capMs?: number } = {
   const loader = tsx ? ["--import", "tsx", "--import", path.join(cwd0, "scripts/shots/rn-alias.mjs")] : [];
   const capMs = opts.capMs ?? DEFAULT_CAP_MS, cwd = opts.cwd ?? process.cwd(), t0 = Date.now();
   return new Promise((resolve) => {
-    const p = spawn(process.execPath, [...loader, "--test", "--test-reporter=spec", "--test-reporter-destination=stdout", `--test-reporter=${path.join(path.dirname(fileURLToPath(import.meta.url)), "lib/failure-reporter.mjs")}`, "--test-reporter-destination=stdout", `--test-timeout=${capMs}`, file], { cwd, stdio: ["ignore", "pipe", "pipe"], env });
+    endGroupsOnExit();
+    const p = spawnGroup(process.execPath, [...loader, "--test", "--test-reporter=spec", "--test-reporter-destination=stdout", `--test-reporter=${path.join(path.dirname(fileURLToPath(import.meta.url)), "lib/failure-reporter.mjs")}`, "--test-reporter-destination=stdout", `--test-timeout=${capMs}`, file], { cwd, stdio: ["ignore", "pipe", "pipe"], env });
     let out = "", overCap = false;
     p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
-    const dog = setTimeout(() => { overCap = true; p.kill("SIGKILL"); }, capMs + 2000); // watchdog 2 s after the cap, so a file just over it is reported over-cap with its breakdown, not killed mid-test
-    p.on("close", (code) => {
+    // watchdog 2 s after the cap, so a file just over it is reported over-cap with its breakdown, not killed mid-test; it ends the file's whole process group (proc-group.mjs)
+    let leftover = "";
+    const dog = setTimeout(() => { overCap = true; void killGroup(p).then((gone) => { if (!gone) leftover = `\nwatchdog: ${file}: some of its processes were still there 5 s after the kill\n`; }); }, capMs + 2000);
+    p.on("close", async (code) => {
       clearTimeout(dog);
+      // whatever the file left behind (a child of its own that outlived it) goes with it, and is waited for
+      if (!(await killGroup(p))) leftover ||= `\n${file}: some of its processes were still there 5 s after the file ended\n`;
+      out += leftover;
       const ms = Date.now() - t0;
       overCap = overCap || ms > capMs;
       const rows = breakdown(out);

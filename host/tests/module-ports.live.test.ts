@@ -23,10 +23,15 @@ test("the ports: a Personal Space answers not a team, a Team Space answers team,
   assert.equal(team["computers"]!("spc_1"), false);
   assert.equal(await stopper!("usr_dana"), true);
   assert.deepEqual(stopped, ["usr_dana"]);
-  bindSpacePorts(modules, { team: true, stopSandbox: async () => false });
+  const teamDeps = { team: true, stopSandbox: async () => false };
+  bindSpacePorts(modules, teamDeps);
   assert.equal(team["terminal"]!("spc_1"), true);
+  // two daemons in one process: the Team one stops, and the Personal one still running keeps its own answer (review, 12 Nov: stopping either unbound both)
+  unbindSpacePorts(modules, teamDeps);
+  assert.equal(team["terminal"]!("spc_1"), false, "the daemon still running is a Personal Space again");
+  assert.equal(await stopper!("usr_dana"), true);
   unbindSpacePorts(modules);
-  assert.deepEqual(Object.keys(team), [], "a stopping daemon puts the module defaults back");
+  assert.deepEqual(Object.keys(team), [], "the last daemon to stop puts the module defaults back");
   assert.equal(stopper, null);
   assert.deepEqual(bindSpacePorts(new Map(), { team: true, stopSandbox: async () => false }), [], "a module that is not loaded is skipped");
 });

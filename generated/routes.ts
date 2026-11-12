@@ -6641,7 +6641,7 @@ const routes1: Route[] = [
     "v": 1,
     "module": "computers",
     "effects": "write",
-    "permission": "computers.take_over",
+    "permission": "computers.watch",
     "level": "use",
     "resource": {
       "type": "space"
@@ -6695,7 +6695,7 @@ const routes1: Route[] = [
     "v": 1,
     "module": "computers",
     "effects": "write",
-    "permission": "computers.take_over",
+    "permission": "computers.watch",
     "level": "use",
     "resource": {
       "type": "space"
@@ -6731,7 +6731,7 @@ const routes1: Route[] = [
     "v": 1,
     "module": "computers",
     "effects": "write",
-    "permission": "computers.take_over",
+    "permission": "computers.watch",
     "level": "use",
     "resource": {
       "type": "space"
@@ -6771,7 +6771,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "medium",
@@ -6790,7 +6791,8 @@ const routes1: Route[] = [
     "level": "use",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "key",
     "risk": "high",
@@ -6809,7 +6811,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "medium",
@@ -6828,7 +6831,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "medium",
@@ -6847,7 +6851,8 @@ const routes1: Route[] = [
     "level": "view",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -6866,7 +6871,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "high",
@@ -6885,7 +6891,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "medium",
@@ -6904,7 +6911,8 @@ const routes1: Route[] = [
     "level": "view",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -6923,7 +6931,8 @@ const routes1: Route[] = [
     "level": "view",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -6942,7 +6951,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "medium",
@@ -6961,7 +6971,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "low",
@@ -6980,7 +6991,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -6999,7 +7011,8 @@ const routes1: Route[] = [
     "level": "view",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -7018,7 +7031,8 @@ const routes1: Route[] = [
     "level": "use",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "key",
     "risk": "high",
@@ -7037,7 +7051,8 @@ const routes1: Route[] = [
     "level": "view",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -7056,7 +7071,8 @@ const routes1: Route[] = [
     "level": "view",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -7075,7 +7091,8 @@ const routes1: Route[] = [
     "level": "view",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -7094,7 +7111,8 @@ const routes1: Route[] = [
     "level": "view",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -7113,7 +7131,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -7132,7 +7151,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "medium",
@@ -7151,7 +7171,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "medium",
@@ -7170,7 +7191,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "low",
@@ -7208,7 +7230,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "high",
@@ -7227,7 +7250,8 @@ const routes1: Route[] = [
     "level": "view",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -7246,7 +7270,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "medium",
@@ -7265,7 +7290,8 @@ const routes1: Route[] = [
     "level": "view",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -7284,7 +7310,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "medium",
@@ -7543,7 +7570,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "medium",
@@ -7562,7 +7590,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "medium",
@@ -7581,7 +7610,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "medium",
@@ -7600,7 +7630,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "low",
@@ -7619,7 +7650,8 @@ const routes1: Route[] = [
     "level": "view",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -7638,7 +7670,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "low",
@@ -7657,7 +7690,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "medium",
@@ -7676,7 +7710,8 @@ const routes1: Route[] = [
     "level": "edit",
     "resource": {
       "type": "computer",
-      "id": "/computerId"
+      "id": "/computerId",
+      "self": "agent"
     },
     "idempotency": "none",
     "risk": "low",

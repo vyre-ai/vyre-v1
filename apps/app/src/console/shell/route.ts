@@ -7,10 +7,13 @@ export interface ConsoleTarget { screen: "console.page"; args: { page: string } 
 /** The target that opens Computers with this machine selected; the machine id is "space", srv_x or device:dev_x. */
 export function machinesTarget(machineId?: string): ConsoleTarget { return { screen: "console.page", args: { page: `machines~${machineId && machineId.length > 0 ? machineId : "space"}` } }; }
 
+/** The target that opens Console > Computers > Agent computers with this agent computer's own page open (where Remove is). */
+export function computersTarget(computerId: string): ConsoleTarget { return { screen: "console.page", args: { page: `agentcomputers~${computerId}` } }; }
+
 /** "machines~srv_x" to the page and the args that page takes; a plain page id (old ids too) to itself. Null for nothing usable. */
 export function parseConsolePage(raw: string | undefined): { page: string; args: Record<string, string> } | null {
   if (!raw) return null;
   const [name = "", id] = raw.split("~", 2);
   const page = resolve(name);
-  return id ? { page, args: page === "machines" ? { machineId: id } : {} } : { page, args: {} };
+  return id ? { page, args: page === "machines" ? { machineId: id } : page === "agentcomputers" ? { computerId: id } : {} } : { page, args: {} };
 }

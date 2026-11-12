@@ -7,7 +7,7 @@
 import { maskValue } from "../record.ts";
 import { raise } from "../../projections.ts";
 import type { CompCtx } from "../../projections.ts";
-import { call, clip, defined, keepShot, prepare, run, shape, siteOf, whereOf } from "./common.ts";
+import { pageOf, call, clip, defined, keepShot, prepare, run, shape, siteOf, whereOf } from "./common.ts";
 import type { ToolAnswer, ToolArgs, ToolSpec } from "./common.ts";
 
 interface Base { computerId?: string | undefined; inMyChrome?: boolean | undefined; tabId?: string | undefined }
@@ -30,7 +30,9 @@ export async function screenshot(ctx: CompCtx, input: Base & { ref?: string; ful
   const r = await prepare(ctx, whereOf(input), spec);
   if (!r) raise(ctx, "validation.bad_input", "The computer is asleep.");
   const out = await call(ctx, r, spec, defined({ tabId: input.tabId, ref: input.ref, fullPage: input.fullPage }));
-  return keepShot(ctx, r.computer, "chrome_screenshot", out);
+  const kept = await keepShot(ctx, r.computer, "chrome_screenshot", out);
+  // the first answer after the browser was reopened says so (browserStep)
+  return out["reopened"] === true ? { ...kept, reopened: true, ...(typeof out["note"] === "string" ? { note: out["note"] } : {}) } : kept;
 }
 
 export async function consoleMessages(ctx: CompCtx, input: Base & { level?: string; limit?: number }) {
@@ -108,7 +110,7 @@ export async function type(ctx: CompCtx, input: Base & { ref?: string; text: str
   // The caption never carries the text: it may be a secret or a #Handle.field the computer is about to fill.
   const spec: ToolSpec = { name: "chrome_type", caption: (a, o) => held(o, `${a["submit"] === true ? "Typed and submitted" : "Typed"}${a["ref"] ? ` into element ${clip(a["ref"], 20)}` : ""}`) };
   const out = await run(ctx, input, spec, defined({ tabId: input.tabId, ref: input.ref, text: input.text, submit: input.submit }));
-  return shape(ctx, "chrome_type", out, { ok: "b", heldId: "s?" });
+  return shape(ctx, "chrome_type", out, { ok: "b", heldId: "s?", downloads: "a?" });
 }
 
 export async function fill(ctx: CompCtx, input: Base & { fields: Array<{ ref: string; value: string }> }) {
@@ -125,7 +127,7 @@ export async function fill(ctx: CompCtx, input: Base & { fields: Array<{ ref: st
 
 export async function open(ctx: CompCtx, input: { computerId?: string | undefined; inMyChrome?: boolean | undefined; url: string; newTab?: boolean }) {
   if (typeof input.url !== "string" || !HTTP.test(input.url)) raise(ctx, "validation.bad_input", "Open an http or https address.");
-  const spec: ToolSpec = { name: "chrome_open", caption: (a) => `Opened ${siteOf(a["url"])}`, timeoutMs: 60_000 };
+  const spec: ToolSpec = { name: "chrome_open", caption: (a) => `Opened ${pageOf(a["url"])}`, timeoutMs: 60_000 };
   const out = await run(ctx, input, spec, defined({ url: input.url, newTab: input.newTab }));
   return shape(ctx, "chrome_open", out, { tabId: "s", url: "s", title: "s", downloads: "a?" });
 }
@@ -180,7 +182,7 @@ export async function resume(ctx: CompCtx, input: { computerId?: string | undefi
 export async function send(ctx: CompCtx, input: { computerId?: string | undefined; inMyChrome?: boolean | undefined; heldId: string }) {
   if (typeof input.heldId !== "string" || input.heldId === "") raise(ctx, "validation.bad_input", "Give the id of the held item.");
   const out = await run(ctx, input, { name: "chrome_send", caption: () => "Sent what was waiting for approval", timeoutMs: 60_000 }, { heldId: input.heldId });
-  return shape(ctx, "chrome_send", out, { sent: "b", taskId: "s?" });
+  return shape(ctx, "chrome_send", out, { sent: "b", taskId: "s?", downloads: "a?" });
 }
 
 // ---- api

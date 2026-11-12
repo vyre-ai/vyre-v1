@@ -133,12 +133,17 @@ test("the container is held to the computer profile: no capability, no new privi
   assert.deepEqual(small.HostConfig.Binds, ["vyre-sbrowser-x-data:/data:rw"]);
 });
 
-test("stop and forget do nothing when the container is not running; profiles lists what browserd says", async () => {
+test("stop does nothing when the container is not running, forget starts it to remove a deleted agent's folder (its sign-ins must not stay), and profiles lists what browserd says", async () => {
   const e = engine((a) => (a === "status" ? ok({ profiles: [{ profileId: "agt_dex", running: true, tabs: 1, busy: false, takeover: false, viewers: 0, lastActiveAt: 1, held: 0, paused: false }], maxRunning: 4 }) : ok({})));
   const sb = createDockerSpaceBrowser({ api: e.api, sleep: async () => {} });
-  await sb.stop("agt_dex"); await sb.forget("agt_dex");
+  await sb.stop("agt_dex");
   assert.equal(e.execs.length, 0);
-  assert.deepEqual(await sb.profiles(), { profiles: [], maxRunning: 6 });
+  const est = await sb.profiles();
+  assert.deepEqual(est.profiles, []);
+  assert.ok(est.maxRunning >= 1, "a service that is not running says how many it would hold, from memory");
+  await sb.forget("agt_gone");
+  assert.equal(e.starts, 1, "the service started for the removal");
+  assert.ok(e.execs.some((x) => x.cmd[1] === "forget" && JSON.parse(String(x.cmd[2])).profileId === "agt_gone"), "and the folder was removed");
   await sb.tool({ profileId: "agt_dex", tool: "chrome_status", args: {}, timeoutMs: 1000 });
   const p = await sb.profiles();
   assert.equal(p.profiles[0]!.profileId, "agt_dex");
@@ -176,11 +181,193 @@ test("Chrome's data of an old computer replaces the profile's: the folder is emp
 });
 
 test("the container's limits grow with how many browsers it holds, within what the runner allows", () => {
-  const six = browserContainerConfig({ api: {} as DockerApi });
+  // an admin's bound of six: the old sizing
+  const six = browserContainerConfig({ api: {} as DockerApi, maxRunning: 6 });
   assert.equal(six.HostConfig.Memory, (512 + 6 * 512) * 1024 * 1024);
   assert.equal(six.HostConfig.NanoCpus, 3e9);
+  // no bound (owner, 12 Nov): the host's memory budget, never above the runner's 8 GB, and half its cores up to 4; no fixed count is passed to browserd
+  const small = browserContainerConfig({ api: {} as DockerApi, host: { memoryMb: 4096, cpus: 2 } });
+  assert.equal(small.HostConfig.Memory, (4096 - 1536) * 1024 * 1024);
+  assert.equal(small.HostConfig.NanoCpus, 1e9);
+  assert.ok(!small.Env.some((x) => x.startsWith("VYRE_BROWSER_MAX_RUNNING=")));
+  assert.equal(small.HostConfig.PidsLimit, 2048, "a small host: the usual cap");
+  assert.equal(browserContainerConfig({ api: {} as DockerApi, host: { memoryMb: 16384, cpus: 8 } }).HostConfig.PidsLimit, 100 + 120 * Math.floor((16384 - 1536 - 512) / 256), "the process cap follows the browsers memory holds (about 120 tasks each)");
+  assert.equal(browserContainerConfig({ api: {} as DockerApi, host: { memoryMb: 32768, cpus: 16 }, runner: {} }).HostConfig.PidsLimit, 100 + 120 * Math.floor((32768 - 1536 - 512) / 256), "behind the runner: the task cap its policy allows for that host");
+  const big = browserContainerConfig({ api: {} as DockerApi, host: { memoryMb: 32768, cpus: 16 }, runner: {} });
+  assert.equal(big.HostConfig.Memory, (32768 - 1536) * 1024 * 1024, "behind the runner the same: its policy allows the host's budget (computers-policy.ts sbrowserBounds)");
+  assert.equal(browserContainerConfig({ api: {} as DockerApi, host: { memoryMb: 32768, cpus: 16 } }).HostConfig.Memory, (32768 - 1536) * 1024 * 1024, "without it: the host's whole budget");
+  assert.equal(big.HostConfig.NanoCpus, 4e9);
+  assert.deepEqual(reviewComputerConfig(big), []);
   const huge = browserContainerConfig({ api: {} as DockerApi, maxRunning: 40 });
   assert.equal(huge.HostConfig.Memory, 8192 * 1024 * 1024, "never above the runner's cap");
   assert.equal(huge.HostConfig.NanoCpus, 4e9);
   assert.deepEqual(reviewComputerConfig(huge), []);
+});
+
+test("with Engine access and no runner the service gets a network of its own, names the host on it for the Vault channel, and the daemon learns its subnet", async () => {
+  const e = engine(() => ok({}));
+  const reqs: Array<{ method: string; path: string; json?: unknown }> = [];
+  const http = async (r: { method: string; path: string; json?: unknown }) => {
+    reqs.push({ method: r.method, path: r.path, ...(r.json !== undefined ? { json: r.json } : {}) });
+    if (r.method === "GET" && r.path === "/networks/vyre-sbrowsernet") return { status: 200, body: new TextEncoder().encode(JSON.stringify({ IPAM: { Config: [{ Subnet: "172.29.0.0/16", Gateway: "172.29.0.1" }] } })) };
+    return { status: r.path === "/networks/create" ? 201 : 200, body: new Uint8Array() };
+  };
+  const sb = createDockerSpaceBrowser({ api: e.api, http, sleep: async () => {} });
+  await sb.tool({ profileId: "agt_dex", tool: "chrome_status", args: {}, timeoutMs: 1000 });
+  const c = e.created[0]!.config;
+  assert.equal(c.HostConfig.NetworkMode, "vyre-sbrowsernet", "not the default bridge, beside every other container and the host");
+  assert.deepEqual(c.HostConfig.ExtraHosts, ["host.docker.internal:172.29.0.1"], "the daemon is reached at the network's own gateway, where it knows the caller");
+  assert.ok(!reqs.some((r) => r.path.endsWith("/connect")), "no ingress joins without the runner");
+  assert.deepEqual(sb.subnets?.(), ["172.29.0.0/16"]);
+  const { bindSpaceBrowser } = await import("../sbrowser/port.ts");
+  const { computerSubnets } = await import("../impl.ts");
+  bindSpaceBrowser(sb);
+  try { assert.ok(computerSubnets().includes("172.29.0.0/16"), "a request from the Space browser reaches only the Vault channel of the daemon"); } finally { bindSpaceBrowser(null); }
+  assert.deepEqual(reviewComputerConfig(c), []);
+});
+
+// Review finding 4 (12 Nov): a call was repeated whenever the error said "not answering", which ctl also printed after the request was sent. Only a request that never reached browserd is asked again.
+test("a call is asked again only when ctl says browserd was not up (nothing was sent); one lost after it was sent is an error, never repeated", async () => {
+  for (const [stderr, again] of [
+    [{ code: "unavailable", message: "browserd is not up yet: connect ENOENT /tmp/browserd.sock" }, true],
+    [{ code: "unavailable", message: "browserd stopped while it worked on the request: read ECONNRESET" }, false],
+    [{ code: "unavailable", message: "browserd is not answering: write EPIPE" }, false],
+  ] as const) {
+    let tools = 0;
+    const e = engine((action) => {
+      if (action === "status") return ok({});
+      tools += 1;
+      return tools === 1 ? { exitCode: 3, stdout: "", stderr: `${JSON.stringify(stderr)}\n` } : ok({ ok: true });
+    });
+    const sb = createDockerSpaceBrowser({ api: e.api, sleep: async () => {} });
+    const r = await sb.tool({ profileId: "agt_dex", tool: "chrome_click", args: { ref: "e1" }, timeoutMs: 1000 }).then(() => "done", (x: unknown) => (x as Error).message);
+    assert.equal(tools, again ? 2 : 1, `${stderr.message}: sent ${tools} times`);
+    assert.equal(r === "done", again, stderr.message);
+  }
+});
+
+test("ctl says whether the request was sent: no socket is 'not up yet' (exit 3), a browserd that drops the request is 'stopped while it worked' (exit 4)", async () => {
+  const { spawnSync, spawn } = await import("node:child_process");
+  const { createServer } = await import("node:net");
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const ctl = path.join(path.dirname(new URL(import.meta.url).pathname), "../../../images/space-browser/browserd/ctl");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ctl-"));
+  try {
+    const none = spawnSync(process.execPath, [ctl, "tool", "{}"], { env: { ...process.env, VYRE_BROWSERD_SOCKET: path.join(dir, "absent.sock") }, encoding: "utf8" });
+    assert.equal(none.status, 3);
+    assert.match(none.stderr, /browserd is not up yet/);
+    const sockPath = path.join(dir, "b.sock");
+    const server = createServer((c) => { c.once("data", () => c.destroy()); });
+    await new Promise<void>((r) => server.listen(sockPath, () => r()));
+    const out = await new Promise<{ status: number | null; stderr: string }>((resolve) => {
+      const p = spawn(process.execPath, [ctl, "tool", "{}"], { env: { ...process.env, VYRE_BROWSERD_SOCKET: sockPath } });
+      let err = ""; p.stderr.on("data", (d: Buffer) => { err += d.toString(); });
+      p.on("exit", (status) => resolve({ status, stderr: err }));
+    });
+    server.close();
+    assert.equal(out.status, 4, out.stderr);
+    assert.match(out.stderr, /browserd stopped while it worked on the request/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("a container of an earlier release that is busy or held is kept until it is quiet, with a line saying so, then replaced", async () => {
+  let busy = true;
+  const e = engine((action) => (action === "status" ? ok({ profiles: [{ profileId: "agt_dex", running: true, tabs: 1, busy, takeover: false, viewers: 0, lastActiveAt: 1, held: 0, paused: false }] }) : ok({ ok: true })));
+  await e.api.containerStart("vyre-sbrowser");   // it runs already, made by an earlier release
+  let removed = 0;
+  const api = { ...e.api, async containerRemove(id: string) { removed += 1; await e.api.containerRemove(id); } };
+  const enc = (v: unknown) => new TextEncoder().encode(JSON.stringify(v));
+  const http = async (r: { method: string; path: string }) => {
+    if (r.method === "GET" && r.path === "/containers/vyre-sbrowser/json") return { status: 200, body: enc({ Id: "c-old", Image: "sha256:old", HostConfig: { NetworkMode: "bridge" }, Config: { Env: [] } }) };
+    if (r.method === "GET" && r.path.startsWith("/images/")) return { status: 200, body: enc(r.path.includes("sha256%3Aold") || r.path.includes("sha256:old") ? { Id: "sha256:old", Created: "2026-11-01T00:00:00Z" } : { Id: "sha256:new", Created: "2026-11-12T00:00:00Z" }) };
+    if (r.method === "GET" && r.path.startsWith("/networks/")) return { status: 200, body: enc({ IPAM: { Config: [{ Subnet: "172.30.0.0/16", Gateway: "172.30.0.1" }] } }) };
+    return { status: r.path === "/networks/create" ? 201 : 200, body: new Uint8Array() };
+  };
+  const lines: string[] = [];
+  const sb = createDockerSpaceBrowser({ api, http, sleep: async () => {}, log: (m) => lines.push(m), recheckMs: 0 });
+  await sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 });
+  assert.equal(removed, 0, "busy: not replaced under the agent");
+  assert.ok(lines.some((l) => /replaced as soon as no agent is using its browser/.test(l)), JSON.stringify(lines));
+  busy = false;
+  await sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 });
+  assert.equal(removed, 1, "quiet: replaced");
+  assert.equal(e.created.length, 1);
+  assert.equal(e.created[0]!.config.HostConfig.NetworkMode, "vyre-sbrowsernet");
+});
+
+// Second look (12 Nov): ctl is plain JavaScript that no typecheck sees. It must at least parse.
+test("browserd's control program parses (node --check), and the native messaging host is a valid shell script", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const path = await import("node:path");
+  const dir = path.join(path.dirname(new URL(import.meta.url).pathname), "../../../images/space-browser/browserd");
+  const ctl = spawnSync(process.execPath, ["--check", path.join(dir, "ctl")], { encoding: "utf8" });
+  assert.equal(ctl.status, 0, ctl.stderr);
+  const host = spawnSync("sh", ["-n", path.join(dir, "bridge-host")], { encoding: "utf8" });
+  assert.equal(host.status, 0, host.stderr);
+});
+
+// Lead, 12 Nov (6c): on a Mac or Windows the daemon runs on the computer itself and Docker is a virtual machine that already resolves host.docker.internal to it; only Linux needs the name given.
+test("host.docker.internal is pointed at the network's gateway on Linux only; on macOS and Windows Docker's own answer stays", () => {
+  const net = { gateway: "172.29.0.1" };
+  const on = (platform: NodeJS.Platform) => browserContainerConfig({ api: {} as DockerApi, platform }, net).HostConfig.ExtraHosts;
+  assert.deepEqual(on("linux"), ["host.docker.internal:172.29.0.1"]);
+  assert.deepEqual(on("darwin"), []);
+  assert.deepEqual(on("win32"), []);
+  assert.deepEqual(browserContainerConfig({ api: {} as DockerApi, platform: "linux", runner: { ingress: "vyre-vyred" } }, net).HostConfig.ExtraHosts, [], "behind the runner the daemon is the ingress on the network");
+});
+
+// Lead, 12 Nov: lane f-desktop's move treats "a person has the controls" and "the browser is busy" as "try again later" and needs a reason that does not change with the wording.
+test("a refusal's reason travels from browserd through ctl to the module: profile_held and profile_busy", async () => {
+  const { toolErrorOf } = await import("../impl.ts");
+  assert.equal(toolErrorOf(`${JSON.stringify({ code: "unavailable", message: "any words at all", reason: "profile_busy" })}\n`, 1).reason, "profile_busy");
+  assert.equal(toolErrorOf(`${JSON.stringify({ code: "paused", message: "other words", reason: "profile_held" })}\n`, 1).reason, "profile_held");
+  assert.equal(toolErrorOf(`${JSON.stringify({ code: "unavailable", message: "x", reason: "made_up" })}\n`, 1).reason, undefined, "only the known reasons");
+  const { spawn } = await import("node:child_process");
+  const { createServer } = await import("node:net");
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const ctl = path.join(path.dirname(new URL(import.meta.url).pathname), "../../../images/space-browser/browserd/ctl");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ctl-r-"));
+  const sockPath = path.join(dir, "b.sock");
+  const server = createServer((c) => { c.once("data", () => c.end(`${JSON.stringify({ ok: false, code: "unavailable", message: "This agent's browser is busy", reason: "profile_busy" })}\n`)); });
+  await new Promise<void>((r) => server.listen(sockPath, () => r()));
+  try {
+    const err = await new Promise<string>((resolve) => { const p = spawn(process.execPath, [ctl, "reset_chrome", "{}"], { env: { ...process.env, VYRE_BROWSERD_SOCKET: sockPath } }); let e = ""; p.stderr.on("data", (d: Buffer) => { e += d.toString(); }); p.on("exit", () => resolve(e)); });
+    assert.equal(toolErrorOf(err, 1).reason, "profile_busy", "ctl prints it");
+  } finally { server.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// Third look (12 Nov): two suspected flaps in the replacement of an earlier release's container.
+test("the container is replaced only one way: an error is never a difference, an older daemon leaves a newer container alone, and the same image with other settings is replaced at most once per start", async () => {
+  const enc = (v: unknown) => new TextEncoder().encode(JSON.stringify(v));
+  const run = async (o: { container: Record<string, unknown>; ours?: Record<string, unknown>; theirs?: Record<string, unknown> | "missing"; netFails?: boolean }) => {
+    const e = engine(() => ok({}));
+    await e.api.containerStart("vyre-sbrowser");
+    let removed = 0;
+    const api = { ...e.api, async containerRemove(id: string) { removed += 1; await e.api.containerRemove(id); } };
+    const http = async (r: { method: string; path: string }) => {
+      if (r.method === "GET" && r.path === "/containers/vyre-sbrowser/json") return { status: 200, body: enc(o.container) };
+      if (r.method === "GET" && r.path.startsWith("/images/")) {
+        const id = decodeURIComponent(r.path.slice("/images/".length, -"/json".length));
+        if (id === "sha256:theirs") return o.theirs === "missing" ? { status: 404, body: new Uint8Array() } : { status: 200, body: enc(o.theirs ?? { Id: "sha256:theirs", Created: "2026-11-01T00:00:00Z" }) };
+        return { status: 200, body: enc(o.ours ?? { Id: "sha256:ours", Created: "2026-11-12T00:00:00Z" }) };
+      }
+      if (r.method === "GET" && r.path.startsWith("/networks/")) return o.netFails ? { status: 500, body: new Uint8Array() } : { status: 200, body: enc({ IPAM: { Config: [{ Subnet: "172.30.0.0/16", Gateway: "172.30.0.1" }] } }) };
+      return { status: r.path === "/networks/create" ? 201 : 200, body: new Uint8Array() };
+    };
+    const sb = createDockerSpaceBrowser({ api, http, sleep: async () => {}, log: () => undefined, platform: "linux" });
+    await sb.tool({ profileId: "agt_dex", tool: "chrome_status", args: {}, timeoutMs: 1000 });
+    return removed;
+  };
+  const old = { Image: "sha256:theirs", Created: "2026-11-01T00:00:00Z", HostConfig: { NetworkMode: "bridge" }, Config: { Env: [] } };
+  assert.equal(await run({ container: old }), 1, "an older image's container is replaced");
+  assert.equal(await run({ container: old, theirs: "missing" }), 1, "one whose image is gone (pruned) too");
+  assert.equal(await run({ container: old, theirs: { Id: "sha256:theirs", Created: "2026-12-01T00:00:00Z" } }), 0, "a newer image's container is left to the newer daemon");
+  assert.equal(await run({ container: old, netFails: true }), 0, "the network could not be read: unknown, not different");
+  const sameImage = { Image: "sha256:ours", HostConfig: { NetworkMode: "bridge" }, Config: { Env: [] } };
+  assert.equal(await run({ container: { ...sameImage, Created: "2020-01-01T00:00:00Z" } }), 1, "same image, other settings, made before this daemon started: replaced");
+  assert.equal(await run({ container: { ...sameImage, Created: new Date(Date.now() + 60_000).toISOString() } }), 0, "made since this daemon started (by the other daemon): left alone");
 });

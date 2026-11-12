@@ -9,7 +9,7 @@ const MAX_FRAME = 8 * 1024 * 1024;
 
 /** Cuts a stream of concatenated JPEG images into images. A JPEG's entropy data stores 0xFF as 0xFF 0x00, so the first 0xFF 0xD9 after 0xFF 0xD8 is the end of that image. */
 export function createJpegSplitter(onFrame: (jpeg: Buffer) => void): (chunk: Buffer) => void {
-  let buf = Buffer.alloc(0);
+  let buf: Buffer = Buffer.alloc(0);
   return (chunk) => {
     buf = buf.length === 0 ? chunk : Buffer.concat([buf, chunk]);
     for (;;) {

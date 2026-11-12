@@ -3,9 +3,8 @@
 import type { CapMap } from "../../../../../../generated/types.ts";
 
 export type VaultItem = CapMap["vault.items.list"]["out"]["items"][number];
-export type ComputerChoice = "none" | "own" | "yours";
 
-export interface AgentDraft { name: string; does: string; face: string; instructions: string; model: string; fallbackModel: string; computer: ComputerChoice; /** The Space AI account for its own work (a Vault handle); empty or absent is Automatic. */ workKey?: string; /** The Chat key: a Space account that pays for every person's chats with this agent instead of their own. Empty or absent is off. */ chatKey?: string; /** The Chat key switch; on with no account chosen sends nothing. */ chatOn?: boolean }
+export interface AgentDraft { name: string; does: string; face: string; instructions: string; model: string; fallbackModel: string; /** The Space AI account for its own work (a Vault handle); empty or absent is Automatic. */ workKey?: string; /** The Chat key: a Space account that pays for every person's chats with this agent instead of their own. Empty or absent is off. */ chatKey?: string; /** The Chat key switch; on with no account chosen sends nothing. */ chatOn?: boolean }
 
 export const FACES_OFFERED = 6;
 
@@ -41,7 +40,7 @@ export function grantsFor(picked: readonly VaultItem[]): VaultItem[] {
 }
 
 export function createInput(d: AgentDraft, key: string): CapMap["agents.create"]["in"] {
-  return { name: d.name.trim(), ...(d.does.trim() ? { role: d.does.trim() } : {}), ...(d.face ? { face: d.face } : {}), ...(d.model ? { model: d.model } : {}), computer: d.computer === "own", idempotencyKey: key };
+  return { name: d.name.trim(), ...(d.does.trim() ? { role: d.does.trim() } : {}), ...(d.face ? { face: d.face } : {}), ...(d.model ? { model: d.model } : {}), idempotencyKey: key };
 }
 
 export function updatePatch(d: AgentDraft): Record<string, unknown> {

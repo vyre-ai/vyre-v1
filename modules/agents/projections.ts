@@ -1087,7 +1087,7 @@ export const CREATE_AGENT_SKILL = [
   "",
   "Use this when a person asks for a new agent.",
   "",
-  "1. Ask, with ask_question, only what you cannot work out: what the agent is for (the role line), who may chat with it and who may change it, which model, whether it needs its own computer, and what it may touch (tools, Vault key names, limits).",
+  "1. Ask, with ask_question, only what you cannot work out: what the agent is for (the role line), who may chat with it and who may change it, which model, and what it may touch (tools, Vault key names, limits).",
   "2. Do not create anything yet. Propose exactly one plan with plan_propose: the title names the agent, and the steps are what will exist afterwards (the record, the Agents/<name> folder with its files, the role line, the limits).",
   "3. That plan is the one Approve card. Wait for the person to approve it. If they edit a step, follow the edit. If they reject it, stop.",
   "4. After approval call agents.create once with what was approved, then tell the person where the agent lives.",
@@ -1104,7 +1104,7 @@ export function createAgentPlan(threadId: string, input: CreateAgentInput): { th
     { text: `Make the folder Agents/${input.name.trim()} with AGENT.md, agent.toml and the decided tree`, detail: "memory, skills, routines, knowledge, inbox, work, downloads, logs, chats" },
   ];
   if (input.model !== undefined && input.model !== "") steps.push({ text: `Run it on ${input.model}` });
-  if (input.computer === true) steps.push({ text: "Give it a computer", detail: "Team Space only" });
+  // `computer: true` only marks the agent; every agent has a workspace and a browser of its own (6 Nov), so the plan has no computer step to approve
   const tools = input.tools;
   if (tools && (tools.allowed.length > 0 || tools.denied.length > 0)) steps.push({ text: "Set what it may use", detail: [tools.allowed.length > 0 ? `allowed: ${tools.allowed.join(", ")}` : "", tools.denied.length > 0 ? `denied: ${tools.denied.join(", ")}` : ""].filter(Boolean).join("; ") });
   if (input.limits && Object.keys(input.limits).length > 0) steps.push({ text: "Set its limits", detail: Object.entries(input.limits).map(([k, v]) => `${k} ${String(v)}`).join(", ") });

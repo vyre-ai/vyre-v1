@@ -54,8 +54,6 @@ export interface ChatRightPaneProps {
   initialTab?: TabKey;
   /** Draw only the pane body, with no side-pane frame: an agent's profile opened as a tab inside another pane. */
   embedded?: boolean;
-  /** Start with the Computer tab on the setup of an agent that has no computer yet (what "Give it a computer" in About does). */
-  setup?: boolean;
   /** The hook to show and flash when the Hooks tab was opened from a line in the chat. */
   hookSel?: string | null;
   onTab?: (tab: TabKey) => void;
@@ -103,7 +101,7 @@ export function ChatRightPaneLoading({ open, onToggle }: { open: boolean; onTogg
   );
 }
 
-function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, setup: setupFirst, onTab, window, paneWidth, openRoutine, extra, embedded }: ChatRightPaneProps): ReactElement {
+function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, onTab, window, paneWidth, openRoutine, extra, embedded }: ChatRightPaneProps): ReactElement {
   const data = usePaneData();
   const online = useOnline();
   const menu = useMenu();
@@ -114,9 +112,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, setup:
   const noComputers = !work && !hasComputers(data.space);
   // every agent has a workspace once the work model is bound: the Computer tab is always there, with nothing to set up
   const hasComputer = work || (data.agent.computerId ?? "") !== "";
-  // "Give it a computer" in About opens the Computer tab on the setup, until the agent has one
-  const [setup, setSetup] = useState(setupFirst === true);
-  const showComputer = hasComputer || (setup && !noComputers);
+  const showComputer = hasComputer;
   // a long session opens on its Overview (lane l-session); any other chat on About
   const session = useSession();
   const longSession = session?.summary.long === true;
@@ -179,7 +175,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, setup:
     {online ? null : <Text testID="pane-offline" style={st.offline}>Offline. Showing what this device keeps.</Text>}
     <View testID={`pane-body-${tab}`} style={st.body}>
       {tab === "overview" && session ? <SessionOverview call={data.call} threadId={data.threadId} agentId={data.agent.agentId} summary={session.summary} status={crewLive?.status ?? null} clock={(ts) => timeWords(ts, data.clock())} onHelper={(id) => crewLive?.show(id)} who={(id) => (data.me && id === data.me.id ? "You" : data.nameOf?.(id) ?? id)} onJump={(id) => session.jump(id)} /> : null}
-      {tab === "about" ? <AboutTab agent={agent} name={data.agent.name} hasComputer={showComputer} {...(!noComputers && !showComputer ? { onGive: () => { setSetup(true); setOwn("computer"); onTab?.("computer"); } } : {})} onOpenFiles={() => { setOwn("files"); onTab?.("files"); }} onOpenKnows={() => { setOwn("memory"); onTab?.("memory"); }} /> : null}
+      {tab === "about" ? <AboutTab agent={agent} name={data.agent.name} hasComputer={showComputer} onOpenFiles={() => { setOwn("files"); onTab?.("files"); }} onOpenKnows={() => { setOwn("memory"); onTab?.("memory"); }} /> : null}
       {tab === "computer" ? <ComputerPane deps={deps} {...(window ? { window } : {})} /> : null}
       {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
       {tab === "hooks" ? <HooksTab deps={deps} selected={hookSel ?? null} {...(window ? { window } : {})} /> : null}

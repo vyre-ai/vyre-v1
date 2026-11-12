@@ -131,15 +131,18 @@ export async function shareOwnedWith(ctx: ChatCtx, threadId: string, person: str
 export async function convergeAgent(ctx: ChatCtx, threadId: string, agentId: string): Promise<void> {
   const t = threadBy(ctx.db, threadId);
   if (!t || !ctx.call) return;
-  await followHome(ctx, threadId, agentId);
   const root = rootOf(ctx, t);
   if (homeIsClosed(ctx, threadId)) {
+    // the readers' grants first, then the cut: a sweep stopped half way leaves the folder as it was or closed with its readers in, never closed with them out. Run twice, it writes the same
+    // grants again (a grant of the same subject, resource and source is updated in place) and sets the same audience
     const readers = [...new Set([...(root.starter?.startsWith("usr_") ? [root.starter] : []), ...membersOf(ctx.db, root.id).filter((p) => p.startsWith("usr_"))])];
     for (const person of readers) await oneAtATime(queueOf(ctx, person), async () => { await grant(ctx, threadId, agentId, { kind: "person", id: person }); }, limits(ctx));
+    await followHome(ctx, threadId, agentId);
     // a chat that was open gave the whole Space its agent: that goes now
     try { await ctx.call("access.unshare", { resource: { type: "agent", id: agentId }, subject: { kind: "group", id: "space" }, source: sourceOf(threadId) }); }
     catch (e) { warn(ctx, "an agent a chat made stayed shown to the whole Space after the chat was closed", e, { threadId, agentId }); throw e; }
   } else {
+    await followHome(ctx, threadId, agentId);
     await grant(ctx, threadId, agentId, { kind: "group", id: "space" });
   }
 }

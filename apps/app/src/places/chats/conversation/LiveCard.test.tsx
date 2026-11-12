@@ -103,3 +103,44 @@ test("a browser step once the browser is idle is its picture, Done, with the cap
     assert.ok(textOf(find(root, "live-card-b4")).includes(caption));
   } finally { restore(); }
 });
+
+// review, 12 Nov: never "Live" unless the browser is really driven, never an empty dark box, and the card names where the work was by the same word the Steps list uses
+test("before the first read the card says nothing is live and shows the page with a quiet Opening line, not a dark box", async () => {
+  const restore = installDom();
+  try {
+    let answer: (v: unknown) => void = () => undefined;
+    const cfg: LiveCardConfig = { call: (cap) => (cap === "computers.browser.profiles" ? new Promise((r) => { answer = r; }) : Promise.resolve({})), now: () => 1, openComputer: () => undefined, agentId: "agt_lead" };
+    const root = await mount(createRoot, <LiveCard id="b5" agentId="agt_web" fileId="fil_1" caption="Opened harborquotes.com/pricing" cfg={cfg} />);
+    await flush();
+    const text = textOf(find(root, "live-card-b5"));
+    assert.ok(!/Live/.test(text), text);
+    assert.equal(textOf(find(root, "live-card-waiting-line-b5")), "Opening…");
+    assert.ok(textOf(find(root, "live-card-waiting-b5")).includes("harborquotes.com/pricing"), "the page address");
+    answer({ profiles: [] });
+  } finally { restore(); }
+});
+
+test("after the turn (the browser running but not driven) the card says Done, never Live, and is labelled Browser", async () => {
+  const restore = installDom();
+  try {
+    const r = browserRig({ running: true, busy: false });
+    const root = await mount(createRoot, <LiveCard id="b6" agentId="agt_web" fileId="fil_1" caption="Opened harborquotes.com/plans" cfg={r.cfg} />);
+    await flush(); await flush();
+    assert.equal(textOf(find(root, "live-card-when-b6")), "Done");
+    assert.ok(textOf(find(root, "live-card-b6")).includes("Browser · Opened harborquotes.com/plans"), textOf(find(root, "live-card-b6")));
+    assert.ok(!textOf(find(root, "live-card-b6")).includes("Chrome"));
+  } finally { restore(); }
+});
+
+test("a picture that could not be had says so in one line instead of a dark box", async () => {
+  const restore = installDom();
+  try {
+    const cfg: LiveCardConfig = {
+      call: async (cap) => { if (cap === "computers.browser.profiles") return { profiles: [] }; if (cap === "files.read") throw new Error("gone"); return {}; },
+      now: () => 1, openComputer: () => undefined, agentId: "agt_lead",
+    };
+    const root = await mount(createRoot, <LiveCard id="b7" agentId="agt_web" fileId="fil_x" caption="Opened harborquotes.com" cfg={cfg} />);
+    await flush(); await flush(); await flush();
+    assert.equal(textOf(find(root, "live-card-waiting-line-b7")), "No picture of this step could be taken.");
+  } finally { restore(); }
+});

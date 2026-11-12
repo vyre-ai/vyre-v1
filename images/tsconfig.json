@@ -1,0 +1,6 @@
+{
+  "//": "The programs that run inside Vyre's images (agentd, browserd) are typechecked like any package: CI's typecheck step finds this file above a changed file. A name that hides a function (a boolean called newTab, then newTab(url)) fails here, not on an agent's computer. Node's types come from tools/gen, the one place CI installs TypeScript (the gates job has no other node_modules).",
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": { "types": ["node"], "typeRoots": ["../tools/gen/node_modules/@types"] },
+  "include": ["agent-computer/agentd/**/*.ts", "space-browser/browserd/**/*.ts"]
+}

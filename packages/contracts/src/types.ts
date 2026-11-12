@@ -134,7 +134,7 @@ export type Toolset =
   | 'computer' | 'agents' | 'tasks' | 'meta' | 'engineer';
 
 export type ResourceBinding =
-  | { type: ResourceType; id: string /* JSON pointer into input, e.g. '/recordId' */; parent?: string; resolve?: 'name' | 'handle' /* the pointer holds a Vault name or handle that the gateway resolves to the id before authorize */ }
+  | { type: ResourceType; id: string /* JSON pointer into input, e.g. '/recordId' */; parent?: string; self?: 'agent' /* the id may be left out by an agent caller: the call is then about the agent's own things (its computer, its Space browser), bound to the Space and kept to the caller's own by the handler (f-wire, 12 Nov) */; resolve?: 'name' | 'handle' /* the pointer holds a Vault name or handle that the gateway resolves to the id before authorize */ }
   | { type: ResourceType; create: true; parent: string }       // creation checks the parent
   | { type: 'entity'; entity: string; id: string /* JSON pointer to the row id; access comes from the EntityDef acl (parent, multi, fallback, owner) */ }
   | { type: 'dynamic'; ref: string /* JSON pointer to a {type,id} ResourceRef input */; allowed?: ResourceType[]; parent?: string }

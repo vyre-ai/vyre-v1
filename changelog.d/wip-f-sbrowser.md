@@ -1,0 +1,40 @@
+- One agent's browser in the Space browser can no longer see, open, close or drive another agent's browser: each browser talks to Vyre over its own private channel and opens no DevTools port, and no page or tool can open a file of the browser service.
+- An agent's Space browser opens the tabs it had when it stopped after a quiet spell.
+- The Space browser's start page keeps showing the agent's name for as long as its browser runs, not only for its first day.
+- A page an agent opens in the Space browser can reach only the Space's Vault channel, not the rest of the Space's server, also on a server or a computer that runs Docker without the container runner; there the browser now finds the Vault channel too.
+- An agent moved to Trash keeps its Space browser sign-ins while it can be restored; they are removed once it has been in Trash for 30 days.
+- While a person has taken over an agent's Space browser, every one of the agent's browser tools waits, also after the Space browser restarts during the takeover.
+- A takeover nobody uses for 15 minutes ends by itself and the agent is told so in plain words; giving the browser back always works, even when the Space browser does not answer at that moment.
+- The first browser step after the Space browser restarts waits for it to be ready instead of failing.
+- A member can take over, give back and sign out their own Assistant's Space browser; an admin still cannot touch someone else's Assistant or personal agent's browser.
+- Opening an agent's live view or signing its browser out of a site now waits for room on the Space server like any browser that starts, and two browsers starting at once can no longer go past what the Space browser holds.
+- Room held for Space browsers that stopped is given back every half minute, also after the Space restarts, and a browser waiting for room starts by itself when room opens.
+- Moving an old agent computer's sign-ins into the Space browser no longer cuts off a step the agent is taking or a person who has taken over; it waits for a quiet moment.
+- The browser step that downloads a file now says where it landed in Files in that same step, and typing or sending a held item reports downloads too.
+- A download over 20 MB is reported once in plain words (it stays in the agent's Space browser and is not put in Files) instead of being tried at every step.
+- On a Linux server, no container Vyre starts for agents (Space browser, workspaces, agent computers) can reach the cloud's metadata address, which can hand out the server's credentials; the rest of their internet is unchanged, and `vyre-server doctor` says whether the block is in place.
+- Opening a page in a new tab, or after the last tab was closed, works again in agents' browsers (agent computers and the Space browser).
+- A give back that did not reach the Space browser no longer leaves the agent blocked: the agent's next step puts it right.
+- A takeover is kept going only by the person who took over (their open live view or their input); an agent waiting and checking its browser, or someone else watching, no longer keeps it from ending after 15 quiet minutes.
+- A browser step is never sent a second time on its own after the Space browser stopped while working on it; the agent is told the step did not finish.
+- Clicks, typing and opening pages in the Space browser no longer pause a moment after each step to look for a download; a step waits only when it really started one.
+- After an update, a Space browser made by an earlier release is replaced by the new one as soon as no agent is using it, so the protections above reach Spaces that already used it; every profile keeps its sign-ins.
+- A page in an agent's browser can no longer reach the rest of the Space's server by calling the server's other addresses (its LAN or public address); the Space decides by where a request comes from.
+- An agent's browser step that was already on its way when a person took over can no longer undo the takeover or act on the page the person now controls.
+- Two Spaces on one computer no longer release each other's takeovers in the Space browser they share.
+- The cloud metadata block on a Linux server lets DNS through (some clouds answer DNS on that address), is put back by the daily update check after a firewall reload, and `vyre-server doctor` says in plain words when it cannot be put in place and why.
+- A live view whose viewer went away (a closed laptop) is closed after half a minute, so it no longer keeps a takeover going.
+- A workspace or an agent's browser waiting for room now says it starts by itself when there is room, instead of advising a compute server that would not help it.
+- On a Mac or Windows computer, the Space browser reaches the Vault channel as Docker itself resolves it, so Vault fills keep working there.
+- An agent in Trash keeps its browser sign-ins for as long as the Space keeps its Trash (an admin's setting is followed; 30 days by default).
+- A Linux server without ip6tables still blocks the cloud metadata address over IPv4, and `vyre-server doctor` names the missing IPv6 half.
+- An abandoned live view no longer keeps a takeover going when the page shows nothing new.
+- The Space browser runs as many agents' browsers at once as the server's memory holds, instead of a fixed six; when the server is full, the browser nobody has used longest is closed to make room and opens again, signed in, at its next step.
+- Many agents starting their browsers at the same moment no longer stall or stop the Space browser: starts take turns, and a browser that cannot be started is a plain refusal.
+- On a Team server, the Space browser may now use as much of the server's memory as the server has to spare (it was held to 8 GB and about 16 browsers), within a bound the server computes for itself.
+- `vyre-server stop` and an uninstall also stop the Space browser; a Space browser whose Space has not used it for 10 minutes closes its browsers cleanly and stops by itself, and opens again, signed in, on the next use.
+- A browser is never closed to make room while its agent is working, while anyone watches it or has the controls, or while a send waits for approval. Once its agent's work is done it may be closed 10 seconds after its last step (90 seconds when Vyre cannot yet tell whether the agent is working, such as right after a restart). When every browser is in use, a new one waits its turn and opens when one is free; after 10 seconds its row says "Waiting for a free browser on this server. 3 ahead."
+- An agent whose browser was reopened (to make room, or after it sat idle) is told on its next step that its pages were reloaded, and a click on an element from before is refused until it looks at the page again; the person watching sees the same.
+- On a server shared by two Spaces, one Space closes only the other's browsers that have sat idle for 90 seconds with nobody watching and nothing waiting for approval.
+- A live view of a page that is not changing now ends when the viewer goes away, instead of staying open.
+- `--uninstall --purge` now also removes this Space's agents' browser sign-ins. When another Space on the same server shares the browser, its agents stay signed in; the shared browser itself is removed only with the last Space.
