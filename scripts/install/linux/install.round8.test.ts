@@ -587,3 +587,67 @@ test("the update lock stays held while the second half runs, even when the first
     assert.equal(fs.existsSync(lock), false, "and released at the end, child file and all");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+// ---- bringing an old Mac forward safely
+
+test("re-running the Mac installer over an old install switches `current` before it loads the daily update, and never loads it for a release whose updater predates the fix", () => {
+  const text = read(MAC);
+  const main = text.slice(text.indexOf("\nmain() {"));
+  assert.ok(main.indexOf("  link_current\n") > 0 && main.indexOf("  link_current\n") < main.indexOf("  write_agents\n"), "link_current (the new updater in place) comes before write_agents (the daily job)");
+  const dir = tmp();
+  try {
+    releases(dir, { old: "#!/bin/sh\n# vyre-server: run and look after Vyre Server (an old one)\n", new: read(SERVER) });
+    const agents = path.join(dir, "agents");
+    const run = (): Out => sh(MAC, `DIR="${dir}"; AGENT_DIR="${agents}"; BIN_DIR="${dir}/bin"; DRY=0; write_agents`, { ...MAC_ENV });
+    // current is the old release: the job files are written, the job is not turned on, and the person is told why
+    const old = run();
+    assert.equal(old.status, 0, old.stderr);
+    assert.match(old.stdout, /The daily update is not turned on: the release in .* has an updater that would back up the live databases from macOS\./);
+    assert.equal(sh(MAC, `DIR="${dir}"; update_job_safe && echo safe || echo unsafe`, MAC_ENV).stdout.trim(), "unsafe");
+    // current is a release with the fixed updater
+    fs.rmSync(path.join(dir, "current")); fs.symlinkSync("releases/1.1.0", path.join(dir, "current"));
+    const ok = run();
+    assert.equal(ok.status, 0, ok.stderr);
+    assert.doesNotMatch(ok.stdout, /not turned on/);
+    assert.equal(sh(MAC, `DIR="${dir}"; update_job_safe && echo safe || echo unsafe`, MAC_ENV).stdout.trim(), "safe");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("a release manifest with v 2 (a release that needs this updater) is read by the fixed scripts; any other version is refused before anything is fetched", () => {
+  for (const script of [SERVER, INSTALL, MAC]) {
+    const dir = tmp();
+    try {
+      const m = (v: number): Out => {
+        fs.writeFileSync(path.join(dir, "m.json"), JSON.stringify({ v, channel: "stable" }));
+        return sh(script, `TMP="${dir}"; CHANNEL=stable; UPDATE_URL=https://x.example/; WANT=""; WANT_SHA256=""; fetch(){ case "$1" in *.json) cp "${dir}/m.json" "$2" ;; *) : >"$2" ;; esac; }; verify_manifest(){ return 0; }; fetch_release`, script === MAC ? MAC_ENV : {});
+      };
+      for (const v of [1, 2]) {
+        const r = m(v);
+        assert.notEqual(r.status, 0);
+        assert.doesNotMatch(r.stderr, /not a version this installer reads/, `${script} reads v ${v}`);
+        assert.match(r.stderr, /no server version/, "and goes on to the next check");
+      }
+      assert.match(m(3).stderr, /not a version this installer reads; nothing was installed\./, `${script} refuses v 3`);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  }
+});
+
+test("the second half runs even when the first half was sourced (VYRE_SOURCE_ONLY=1 in its environment), and a child that ends without switching is a failed update", () => {
+  const dir = tmp();
+  try {
+    const text = read(SERVER);
+    const env = updateWorld(dir, world(dir, { running: true, ...SAME }));
+    releases(dir, { old: text, new: text });
+    const r = sh(SERVER, `fetch_release(){ REL_VERSION=1.1.0; }; unpack_release(){ :; }; trap cleanup EXIT; cmd_update --yes --version 1.1.0`, { ...env, VYRE_TEST_OS: "Linux" });
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+    assert.match(r.stdout, /Updated to 1\.1\.0/, "the child did the update");
+    // a "new release" whose script stops at once with 0 but carries the marker
+    releases(dir, { old: text, new: "#!/bin/sh\n# VYRE_UPDATE_CONTINUE (claims to finish, does nothing)\nexit 0\n" });
+    fs.rmSync(path.join(dir, "state"), { recursive: true, force: true });
+    const f = sh(SERVER, `fetch_release(){ REL_VERSION=1.1.0; }; unpack_release(){ :; }; trap cleanup EXIT; cmd_update --yes --version 1.1.0`, { ...env, VYRE_TEST_OS: "Linux" });
+    assert.equal(f.status, 1, f.stderr + f.stdout);
+    assert.match(f.stderr, /the new release's updater ended without installing 1\.1\.0/);
+    assert.equal(fs.readlinkSync(path.join(dir, "current")), "releases/1.0.0");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+

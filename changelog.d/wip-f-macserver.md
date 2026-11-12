@@ -9,3 +9,5 @@
 - A backup copy that arrives cut short is caught and counted as a failed backup, and nothing older is removed for it.
 - Two backups taken in the same second no longer overwrite each other, and many manual backups no longer push out the latest backups taken before an update or a restore; each removed backup is named.
 - On a Mac, the backup hint says to copy the file off this Mac instead of naming root.
+- Mac servers on rc.25 or older: before updating, turn off automatic updates (launchctl bootout gui/$(id -u)/ai.vyre.server-update), run the Mac install line again (it puts the fixed updater in place without opening the databases from macOS), then the installer turns the daily update back on.
+- The Mac installer turns the daily update on only when the installed release carries the fixed updater.

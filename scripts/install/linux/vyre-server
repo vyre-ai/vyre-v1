@@ -183,7 +183,9 @@ fetch_release() {
   fetch "$base/$CHANNEL.json.sig" "$TMP/manifest.sig" 30 || die "could not fetch the manifest's signature; nothing was installed."
   verify_manifest "$TMP/manifest.json" "$TMP/manifest.sig" || die "the release signature does not match the Vyre release key in this installer; nothing was installed."
   say "  ok  the release signature verifies"
-  [ "$(jq -r '.v // empty' "$TMP/manifest.json")" = 1 ] || die "the release manifest is not a version this installer reads; nothing was installed."
+  # v 1, or v 2: a release that needs this newer updater. Every script of rc.25 and older reads only v 1 and stops right here, before any image pull or backup, saying "nothing was
+  # installed": a release published with v 2 is never carried out by the old updater (whose backup on a Mac reads the live databases from macOS). Run the install line again to update.
+  case "$(jq -r '.v // empty' "$TMP/manifest.json")" in 1|2) ;; *) die "the release manifest is not a version this installer reads; nothing was installed." ;; esac
   [ "$(jq -r '.channel // empty' "$TMP/manifest.json")" = "$CHANNEL" ] || die "the manifest is for another channel than $CHANNEL; nothing was installed."
   REL_VERSION=$(jq -r '.server.version // empty' "$TMP/manifest.json")
   url=$(jq -r '.server.tarball // empty' "$TMP/manifest.json")
@@ -1174,9 +1176,12 @@ update_delegate() {
   # a signal to this half does nothing until the child (which has its own traps and puts the old release back itself) has ended; then only the child's exit code decides,
   # so this half can never undo what the child finished
   trap ':' INT TERM HUP
-  VYRE_UPDATE_CONTINUE=1 VYRE_UPDATE_FROM=$from VYRE_UPDATE_TO=$REL_VERSION VYRE_UPDATE_STARTED=$started VYRE_UPDATE_LOCK_PID=$$ VYRE_HANDOFF=1 VYRE_DIR=$DIR \
+  # VYRE_SOURCE_ONLY=0: a first half that was itself sourced (a test, a proof script) must not make the child load its functions and quietly do nothing
+  VYRE_SOURCE_ONLY=0 VYRE_UPDATE_CONTINUE=1 VYRE_UPDATE_FROM=$from VYRE_UPDATE_TO=$REL_VERSION VYRE_UPDATE_STARTED=$started VYRE_UPDATE_LOCK_PID=$$ VYRE_HANDOFF=1 VYRE_DIR=$DIR \
     sh "$new" update "$@" && urc=0 || urc=$?
   trap - INT TERM HUP
+  # a child that says it finished must have switched: anything else is a second half that did not run
+  if [ "$urc" = 0 ] && [ "$(cur_version)" != "$REL_VERSION" ]; then printf 'vyre-server: the new release'"'"'s updater ended without installing %s.\n' "$REL_VERSION" >&2; urc=1; fi
   case "$urc" in
     0|4|5) ;;
     *)

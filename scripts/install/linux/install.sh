@@ -440,7 +440,9 @@ fetch_release() {
   fetch "$base/$CHANNEL.json.sig" "$TMP/manifest.sig" 30 || die "could not fetch the manifest's signature; nothing was installed."
   verify_manifest "$TMP/manifest.json" "$TMP/manifest.sig" || die "the release signature does not match the Vyre release key in this installer; nothing was installed."
   say "  ok  the release signature verifies"
-  [ "$(jq -r '.v // empty' "$TMP/manifest.json")" = 1 ] || die "the release manifest is not a version this installer reads; nothing was installed."
+  # v 1, or v 2: a release that needs this newer updater. Every script of rc.25 and older reads only v 1 and stops right here, before any image pull or backup, saying "nothing was
+  # installed": a release published with v 2 is never carried out by the old updater (whose backup on a Mac reads the live databases from macOS). Run the install line again to update.
+  case "$(jq -r '.v // empty' "$TMP/manifest.json")" in 1|2) ;; *) die "the release manifest is not a version this installer reads; nothing was installed." ;; esac
   [ "$(jq -r '.channel // empty' "$TMP/manifest.json")" = "$CHANNEL" ] || die "the manifest is for another channel than $CHANNEL; nothing was installed."
   REL_VERSION=$(jq -r '.server.version // empty' "$TMP/manifest.json")
   url=$(jq -r '.server.tarball // empty' "$TMP/manifest.json")
