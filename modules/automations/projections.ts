@@ -3,6 +3,7 @@
 // Durable tables: migrations/0001_automations.sql. Every statement names only automations_* tables (ctx.db refuses anything else, ARCH B2).
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
+import { isOwnPress } from "../../lib/trust.ts";
 
 export type Kind = "personal" | "space";
 export type Status = "on" | "off" | "draft" | "paused";
@@ -36,6 +37,8 @@ export interface Alerts {
 export interface Automation {
   id: string; name: string; description?: string; kind: Kind; groupId?: string; folderId?: string; ownerId: string; status: Status; pausedReason?: string;
   version: number; definition: Definition; followers: string[]; alerts: Alerts; createdBy: string; createdAt: number; updatedAt: number;
+  /** A Space automation's "runs as" person: who last turned it on, published a change to it while on, or put it on the Space, by their own press. Its agent work acts for them (lead 12 Nov). */
+  runsAs?: string;
 }
 export interface VersionRow { versionId: string; n: number; by: string; at: number; reason?: string; name?: string }
 export interface GroupRow { id: string; name: string; count: number; order: number }
@@ -149,15 +152,16 @@ function rowToAutomation(r: Raw): Automation {
   const g = str(r.group_id); if (g !== undefined) a.groupId = g;
   const f = str(r.folder_id); if (f !== undefined) a.folderId = f;
   const p = str(r.paused_reason); if (p !== undefined) a.pausedReason = p;
+  const ra = str(r.runs_as); if (ra !== undefined) a.runsAs = ra;
   return a;
 }
 
 export function saveAutomation(db: Db, a: Automation): void {
   db.run(
     `INSERT OR REPLACE INTO automations_defs (id, name, description, kind, group_id, folder_id, owner_id, status, paused_reason, version, definition, followers, alerts,
-       created_by, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+       created_by, created_at, updated_at, deleted_at, runs_as) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
     a.id, a.name, nul(a.description), a.kind, nul(a.groupId), nul(a.folderId), a.ownerId, a.status, nul(a.pausedReason), a.version, js(a.definition), js(a.followers), js(a.alerts),
-    a.createdBy, a.createdAt, a.updatedAt,
+    a.createdBy, a.createdAt, a.updatedAt, nul(a.runsAs),
   );
 }
 export function findAutomation(db: Db, id: string, withDeleted = false): Automation | undefined {
@@ -183,8 +187,17 @@ export function markRestored(ctx: AutoCtx, id: string): void { ctx.db.run("UPDAT
 export function out(a: Automation): Record<string, unknown> {
   return clean({
     id: a.id, name: a.name, description: a.description, kind: a.kind, groupId: a.groupId, ownerId: a.ownerId, status: a.status, pausedReason: a.pausedReason,
-    version: a.version, definition: a.definition, followers: a.followers, alerts: a.alerts, createdAt: a.createdAt, updatedAt: a.updatedAt,
+    version: a.version, definition: a.definition, followers: a.followers, alerts: a.alerts, createdAt: a.createdAt, updatedAt: a.updatedAt, runsAs: a.kind === "space" ? a.runsAs : undefined,
   });
+}
+
+/**
+ * Who presses for a Space automation: a person's own press, not an agent acting for them and not an outside tool's call (isPersonPress). Their press is the yes its agent work runs on; any other
+ * caller's change leaves the automation running as nobody until a person turns it on again.
+ */
+export function noteRunsAs(ctx: AutoCtx, a: Automation): void {
+  if (a.kind !== "space") return;
+  if (isOwnPress(ctx)) a.runsAs = ctx.principal.id; else delete a.runsAs;
 }
 
 // ---- versions ----

@@ -1,14 +1,14 @@
 // One entry of the conversation. Yours is a bubble on the right; anyone else's has a header (face, name, time) when the author changes; an agent's work folds into one line; native
 // cards (question, plan, terminal, changeset, file) sit under the text; an error is one inline row (what, why, next). Hover shows Copy and Edit and the rest; right-click opens the same
 // list; the keyboard reaches both. Every row is memoised on its item, so a streaming message re-renders alone.
-import { HelperRow } from "./helper-row.tsx";
+import { helperRowOf, HelperRow } from "./helper-row.tsx";
 import { CrewBlock } from "../session/CrewBlock.tsx";
 import { QuestionCard } from "./question-card.tsx";
 import { StatusCard, isStatusCard } from "./status-cards.tsx";
 import { AwayRow, HourMark, JumpRow } from "../session/rows.tsx";
 import type { SessionItem } from "../session/model.ts";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
-import { holdsOf, mergeStateOf, withTeammates } from "../crew/model.ts";
+import { mergeStateOf, withTeammates } from "../crew/model.ts";
 import { FROM_THREAD_LINE } from "../crew/also.tsx";
 import { barShows, citable, citeBody, citeRender } from "../crew/cite.tsx";
 import type { CrewMember, CrewStatusOut } from "../crew/model.ts";
@@ -606,12 +606,10 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           const totals = live && members.every((x) => memberOf(live, x.id) !== undefined) && live.members.filter((x) => x.kind === "helper").length === rows ? live.totals
             : { members: rows, working: members.filter((x) => x.state === "working").length, done: members.filter((x) => x.state === "done").length, needsYou: members.filter((x) => x.state === "needs_you").length, failed: members.filter((x) => x.state === "failed").length, stopped: members.filter((x) => x.state === "stopped").length, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: Math.max(0, ...members.map((x) => x.elapsedMs)) };
           const c = actions.crew;
-          // a helper that waits for a person's yes shows its held request here, in the chat the person reads: the same approval card as anywhere (Allow, Always allow, Deny)
           // the coders on this strip: Review all and Merge sit in its header, and nothing is posted per coder
           const coders = members.filter((x) => (x as { kind?: string }).kind === "teammate") as Array<CrewMember & { jobId?: string }>;
           const mergeState = mergeStateOf(members);
           const coderMerge = mergeState !== "none" && c?.merge ? { state: mergeState, onReview: () => c.openPane(), onMerge: () => c.merge(coders.flatMap((x) => (x.jobId ? [x.jobId] : []))) } : null;
-          const holds = holdsOf(members);
           return (
             <View key={b.id}>
               <CrewBlock members={members} totals={totals} {...(actions.files ? { call: actions.files.call as unknown as (cap: string, input: unknown) => Promise<unknown> } : {})} {...(coderMerge ? { merge: coderMerge } : {})} selectedId={c?.selected ?? null} onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))} {...(c ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) } : {})} />
@@ -620,12 +618,15 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
                   <MarkdownBlocks blocks={bodyBlocks(`${m.messageId}#answer`, citeBody(namedIds((b.data as { after: string }).after, actions.nameOf), crewRows.length))} {...(citeLink ? { renderLink: ((href: string, kids: ReactNode, key: number) => citeLink(href, kids, key) ?? null) as never } : {})} />
                 </View>
               ) : null}
-              {/* ui-rows-lint: not a list (the approval cards of helpers that wait for a yes, each the same card as anywhere else in the chat) */}
-              {actions.files ? holds.map((x) => <ApprovalCard key={`hold-${x.id}`} taskId={x.holdTaskId} agent={x.name ?? x.title} agentId={x.agentId} faceSeed={x.id} data={actions.files!} />) : null}
+              {/* a helper that waits for a yes: its approval card is the helper's own message in this chat, raised there when it parked (engine bridge), the same card as anywhere; its row here says what it waits for */}
             </View>
           );
         }
-        if (b.type === "helper" && !isCrewStart(b)) return <HelperRow key={b.id} block={b} onOpen={(id) => actions.openMessage?.(id, "")} />;
+        if (b.type === "helper" && !isCrewStart(b)) {
+          const tid = helperRowOf(b).threadId;
+          const w = actions.crew?.status?.members.find((x) => x.id === tid && x.state === "needs_you");
+          return <HelperRow key={b.id} block={b} onOpen={(id) => actions.openMessage?.(id, "")} {...(w ? { waiting: (w as { step?: string }).step ?? "Needs your OK" } : {})} />;
+        }
         if (isStatusCard(b.type)) return <StatusCard key={b.id} id={b.id} type={b.type} data={b.data} host={cardHost(actions)} />;
         if (b.type === "question" && b.state === "waiting") {
           const d = (b.data ?? {}) as Record<string, unknown>;

@@ -79,7 +79,7 @@ export function harness(o: HarnessOptions = {}) {
   function ctxFor(cap: string | null, who: Caller): AutoCtx {
     const allowed = emitsOf(cap);
     return {
-      space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}),
+      space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}), origin: (who as { origin?: string }).origin ?? "user",   // a call as from the app, as the gateway makes it
       trace: { traceId: TRACE }, now: () => clock, db: scopedDb("automations", raw, TRACE), baseUrl: "https://acme.example.com",
       emit(name, subject, payload) {
         if (!allowed.has(name)) throw new Error(`${cap ?? "the consumer"} emitted ${name}, which it does not declare`);

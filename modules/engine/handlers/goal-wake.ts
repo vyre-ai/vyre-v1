@@ -34,6 +34,9 @@ export async function onGoalEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   let busy = false;
   try { busy = engine.turns(threadId).some((t) => (t.state === "running" || t.state === "waiting") && t.agentId === agentId); } catch { /* not open on this host yet */ }
   if (busy) return [];
+  // the goal's owner must still be able to give its lead agent work (an agent handed to someone else, or a share taken back, stops it): not found or no is not a wake (review 12 Nov, should-fix)
+  const usable = (await host.call("agents.outside.usable", { agentId }, owner).catch(() => null)) as { usable?: boolean } | null;
+  if (usable?.usable !== true) { host.log?.("a goal's lead agent is no longer the owner's to give work, so it was not woken", { goalId, agentId }); return []; }
   if (!(await openThread(ctx.db as never, host, engine, threadId, agentId, owner, owner))) return [];
   engine.wake(threadId, agentId);
   return [agentId];

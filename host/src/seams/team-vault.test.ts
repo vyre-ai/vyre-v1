@@ -101,3 +101,34 @@ test("fifth look: a handle with no field on an item whose fields cannot be read 
   });
   assert.deepEqual(await g.lookup("#X", { agentId: "agt_scout", asker: "usr_dana", where: "computer" }), { kind: "denied", reason: "team_shared" });
 });
+
+test("a computer's own Vault calls (vault.items.match, vault.use) are held to the same rule: no Mine item, a Shared one only as shared for the agent; refused before the Vault is asked (lead 12 Nov)", async () => {
+  const byId = Object.fromEntries(Object.values(ITEMS).map((i) => [i.itemId, i]));
+  const refused: string[] = [];
+  const called: Array<{ cap: string; item?: unknown }> = [];
+  const deps: TeamVaultDeps = {
+    team: true, agentOf: (a) => AGENTS[a] ?? null, resolve: (h) => ITEMS[h.replace(/\..*$/, "")] ?? null, itemById: (id) => byId[id] ?? null,
+    sharedWithAgent: (a, i, f) => SHARED[`${a}:${i}`]?.(f) ?? false, askersOf: (a) => (a in ASKERS ? ASKERS[a]! : null),
+    personMayUse: (p, i, f) => USES.has(`${p}:${i}`) || f.every((x) => USES.has(`${p}:${i}:${x}`)), deviceOwner: () => null, refused: (r) => { refused.push(`${r.handle}:${r.reason}`); },
+  };
+  const source = {
+    lookup: async (): Promise<VaultLookup> => ({ kind: "unknown" }),
+    invoke: async (cap: string, input: Record<string, unknown>) => {
+      called.push({ cap, item: input["item"] });
+      if (cap === "vault.items.match") return { items: ["vit_mine", "vit_agent", "vit_dana_only", "vit_space"].map((id) => ({ item: { id } })) };
+      const item = ITEMS[`#${String(input["item"]).replace(/^#/, "")}`];
+      return { itemId: item?.itemId ?? "vit_unknown", handle: input["item"], fields: ["key"] };
+    },
+  };
+  const g = gateTeamAgents(source, deps) as typeof source;
+  const who = { agentId: "agt_scout", asker: "usr_dana" };
+  const match = (await g.invoke("vault.items.match", { url: "https://x.example" }, who)) as { items: Array<{ item: { id: string } }> };
+  assert.deepEqual(match.items.map((x) => x.item.id), ["vit_agent", "vit_space"], "her Mine item and an item not every asker may use are not listed in a team agent's computer");
+  await assert.rejects(g.invoke("vault.use", { item: "#Dana_Mine" }, who), (e: unknown) => (e as { error?: { code?: string } }).error?.code === "permission.no_grant");
+  await assert.rejects(g.invoke("vault.use", { item: "Dana_Only" }, who));
+  assert.deepEqual(called.filter((c) => c.cap === "vault.use"), [], "refused before the Vault was asked: no use recorded");
+  assert.deepEqual(refused, ["#Dana_Mine:team_agent", "Dana_Only:team_shared"]);
+  assert.deepEqual(await g.invoke("vault.use", { item: "#For_Scout" }, who), { itemId: "vit_agent", handle: "#For_Scout", fields: ["key"] });
+  // her own Assistant's computer is hers: nothing changes there
+  assert.equal(((await g.invoke("vault.items.match", { url: "https://x.example" }, { agentId: "agt_dana_asst", asker: "usr_dana" })) as { items: unknown[] }).items.length, 4);
+});

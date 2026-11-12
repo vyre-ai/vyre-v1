@@ -54,6 +54,7 @@ The hash of `notifications.send@1` changed from 4274fa4300adf0432f0d36182549c6e8
 
 Signed: lead, 12 Nov 2026
 
+
 ## 12 Nov 2026: the Space browser's slots, reopen notice and member takeover (lane f-sbrowser)
 
 Changed contracts, all in `manifests/computers.ts`; no capability was added or removed, and no version moved, because every change is an optional output field or a looser permission the handler still checks:
@@ -70,3 +71,29 @@ Signed: lead, 12 Nov 2026 (all of the above: slots, browser_full, reopened and n
 Added on the reviewer's seventh look and signed below: `computers.browser.take_over@1` gains an optional output `note`, one line for the pane when the browser was reopened since the person last saw it and its page was reloaded; and acts on the page (`click`, `act`, `type`, `fill`, `send`, `api`, `eval`) may now be refused with the reason `browser_reopened` until the agent has seen the reloaded page.
 
 Signed: lead, 12 Nov 2026 (the optional note on computers.browser.take_over, and the browser_reopened refusal on acts)
+
+
+## 12 Nov 2026: notifications.send narrows the agent tool's kinds (lane f-notify, paragraph added by lane f-trust)
+
+The hash of `notifications.send@1` changed from 4274fa4300adf0432f0d36182549c6e83f4df16f52880bc20ca874d66fd9f1d0 to 7e92d4bebba03ae2536cbd528ddb29d7d150d12ba8cd75ed70ae70df6a62490d in commit 9bc1392c8. The manifest gained `surfaces.agent.only`, a generator option that cuts one enum on the agent's tool only: an agent may send only the kinds about it talking to someone (dm, mention, item.shared, agent.task_finished). The capability itself is unchanged: the same input, output, level, permission, events and errors, and module code still sends every kind. Why: the other kinds come from Vyre and its modules, so the agent's tool should not offer them; the server refuses them anyway (SENDABLE_KINDS in modules/notifications/handlers/rules.ts). The lane f-trust change that makes a forwarded call (a stored schedule, a template step, a Kit step) count as its caller's own call touches no manifest and no snapshot. Snapshot: docs/frozen/snapshots/notifications.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+
+## 12 Nov 2026: an Automation's runs-as person, and its read (lane f-vaultuse)
+
+Changed contracts, all in `manifests/automations.ts`; no version moved, because every change is an optional output field, a new read, a new event, or an event a write may now also emit:
+
+- The automation row (every capability that returns one: `automations.get@1`, `list`, `create`, `update`, `set_enabled`, `promote`, `restore_version`, `move`, `make_personal_copy`, `undelete`, `set_owner`, `templates.use`, `packages.import`) gains an optional `runsAs`: for a Space automation, the person whose yes its agent work runs on (who last turned it on, published a change to it while on, restored a version while on, or put it on the Space, by their own press); absent when nobody has.
+- New read `automations.runs_as.get@1` `{ automationId, agentId?, runId? }` -> `{ kind, runsAs?, name?, trigger?, ok, reason?: nobody | not_active | assistant, line? }`, level view on the automation: whose yes the automation's agent work runs on now, and why not when it cannot.
+- New event `automation.runs_as_changed` `{ automationId, from, to, by, why: on | save | restore | promote | cleared }`, retention audit.
+- `automations.update@1`, `automations.set_enabled@1`, `automations.restore_version@1` and `automations.promote@1` may now also emit `automation.runs_as_changed`, when the call moves the runs-as person.
+
+The fix that lets an outside-started Run finish (an agent's own reports on its own task in Ask first) changed no contract: it is a host rule in the invoke pipeline.
+
+Holds from an Automation's outside-started Run (no capability contract changed): the host holds, with Gate act `approve`, the capabilities in `lib/automation-content.ts` `HELD_FROM_AUTOMATION_CONTENT` (giving someone access: shares, grants, groups, roles, invites, join links, adding people or agents to a chat or channel, outside reviewers, portal, webhooks, publishing; keeping words for later: automations, starting another Automation's Run, agents and their instructions, Routines, watches, goals, hooks, skills, plugins, installs from a link) when an agent calls one at the top of a call in a thread whose chain carries an uncleared Automation-origin mark (`automation:<id>:<trigger>:<person>`, written on an outside-started Run's task thread and carried only to a thread its agent makes from there with a call in `CARRIES_MARK` (a task, helper, crew job, chat or channel), never to a thread a read names). A Run is from outside unless its trigger is schedule, manual or button (`INTERNAL_TRIGGERS`), and a manual or button Run an agent starts (`automations.run` by an agent: origin `agent:<id>`) is from outside too. A read never replaces an uncleared Automation mark. Ordinary chats, marked by a page the agent read or not, and every person's own call, behave as in rc.25; the holds apply only in a thread carrying an Automation-origin mark. test/automation-content.test.ts checks each listed name is a capability with its own hold words.
+
+Signed: lead, 12 Nov 2026
+
+## 12 Nov 2026: the computers.chrome.* snapshot after two signed changes met (lead, at the merge)
+
+The hashes of the twenty-two `computers.chrome.*@1` capabilities in `docs/frozen/snapshots/computers.json` were written again at the merge of lanes f-desktop and f-wire into int/rc25. Each lane's own change is described and signed in its paragraph above (the browser tools an agent may call without naming its computer, and the reopen refusal with the optional note on take_over); neither changed after review. The two changes touch the same capabilities, so the hash of the merged manifest is new and neither lane's snapshot matched it. No field, version or behaviour beyond those two signed changes is in this snapshot; it was regenerated on the build box with `node tools/gen/src/cli.ts --snapshots`.
+
+Signed: lead, 12 Nov 2026

@@ -35,7 +35,7 @@ export function surface(e: unknown, traceId: string): unknown {
 }
 
 export const hostCalls = {
-  "steps-core.run_step": async (ctx: Ctx, i: { node: StepNode; call: StepCall; run: { id: string; label?: string; automation?: string; defHash?: string; depth?: number; ai?: { keyId?: string; backupKeyId?: string } } }) => {
+  "steps-core.run_step": async (ctx: Ctx, i: { node: StepNode; call: StepCall; run: { id: string; label?: string; automation?: string; trigger?: string; defHash?: string; depth?: number; ai?: { keyId?: string; backupKeyId?: string } } }) => {
     try {
       return await runStep({
         ctx,

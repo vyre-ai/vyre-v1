@@ -78,8 +78,8 @@ const IMPORTING = "importing: ";
 export const INTERRUPTED = "Moving its sign-ins was interrupted. It will be tried again.";
 /** A refusal that comes before the Space browser touches the profile (busy, held): the import did not start. */
 const BEFORE_TOUCH = (e: unknown): boolean => { const r = (e as { reason?: unknown } | null)?.reason; return r === "profile_held" || r === "profile_busy"; };
-function markImporting(ctx: CompCtx, c: ComputerRow, a: { workspaceId: string | null; profileId: string | null; attempts: number }): void {
-  record(ctx, c, "failed", { workspaceId: a.workspaceId, profileId: a.profileId, attempts: a.attempts, bytes: null, error: IMPORTING });
+function markImporting(ctx: CompCtx, c: ComputerRow, a: { workspaceId: string | null; profileId: string | null; attempts: number }, reason = ""): void {
+  record(ctx, c, "failed", { workspaceId: a.workspaceId, profileId: a.profileId, attempts: a.attempts, bytes: null, error: IMPORTING + reason });
 }
 function clearMark(ctx: CompCtx, c: ComputerRow, prior: Record<string, unknown> | undefined): void {
   if (prior) ctx.db.run("UPDATE computers_migration SET error = NULL WHERE computer_id = ?", c.computerId); else ctx.db.run("DELETE FROM computers_migration WHERE computer_id = ?", c.computerId);
@@ -177,7 +177,7 @@ function moveOne(ctx: CompCtx, p: MigrationPorts, c: ComputerRow): Promise<Step>
     } catch (e) {
       // not now: no attempt is used and the wait before the next try grows. If the import had not begun nothing is recorded; if it had, its mark stays unless the Space browser refused it before touching the profile.
       if (notNow(e)) {
-        if (importStarted && (ours || !BEFORE_TOUCH(e))) { markImporting(ctx, c, { workspaceId, profileId, attempts: attempts - 1 }); /* the mark stays: the folder may be half written */ } else if (importStarted) clearMark(ctx, c, prior);
+        if (importStarted && (ours || !BEFORE_TOUCH(e))) { markImporting(ctx, c, { workspaceId, profileId, attempts: attempts - 1 }, say(e)); /* the mark stays: the folder may be half written */ } else if (importStarted) clearMark(ctx, c, prior);
         waitMore(ctx, c, say(e));
         return "retry";
       }
@@ -206,7 +206,7 @@ export async function migrateComputers(ctx: CompCtx): Promise<MigrationResult> {
     if (c.state !== "asleep") { out.waiting++; continue; }
     if (ctx.now() < dueAt(ctx, c.computerId) || waitingNotNow(ctx, c.computerId)) continue;
     const r = await moveOne(ctx, p, c);
-    if (r === "done" || r === "partial" || r === "failed") out[r]++;
+    if (r === "done" || r === "partial" || r === "failed") out[r]++; else out.waiting++;   // a move that stopped for later is counted, never lost
   }
   return out;
 }

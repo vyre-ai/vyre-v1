@@ -27,7 +27,8 @@ export interface TitleBarProps {
 
 export function TitleBar(props: TitleBarProps): ReactElement {
   const { title, online, waiting, compact = false } = props;
-  const sync = syncLabel(online, waiting);
+  // the device itself has a network (the browser says so) but the Space is not answering: the app is reconnecting, not offline
+  const sync = syncLabel(online, waiting, typeof navigator !== "undefined" && navigator.onLine === true);
   const resume = useResume();
   const [over, setOver] = useState(false);
   // the connection is a notice like any other: raised while it is not plain "Connected", resolved when it is
