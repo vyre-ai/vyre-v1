@@ -5,6 +5,7 @@
 // Durable rows of the computers module (agent computers, recordings, tickets, timeline steps, signed-in sessions), the port to the machine that runs the containers, and the helpers
 // every computers handler shares. Every statement names a computers_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
+import { createScrubber, MIN_SECRET_LENGTH } from "../../lib/vault-use/index.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
 import type { ErrorCode, EventName } from "../../packages/contracts/src/types.ts";
@@ -92,7 +93,7 @@ export interface ComputerHost {
 
 /** The host's Vault fill channel (P-L2_21): a token per computer and the address agentd posts to. Unbound, a computer has no Vault channel and refuses a #Handle. */
 export interface FillBinding {
-  issue(h: { computerId: string; agentId: string; asker: string; nodeId?: string }): Promise<{ fillToken: string; revoke(): void }>;
+  issue(h: { computerId: string; agentId: string; asker: string; nodeId?: string; turn?: boolean }): Promise<{ fillToken: string; revoke(): void }>;
   url(): string;
   /** Is this server's link to the Space private? A server's computers get a Vault channel only if it is. Absent: no server's computer does. */
   nodeSecure?(nodeId: string): boolean;
@@ -331,23 +332,52 @@ export async function agentFolder(ctx: CompCtx, agentId: string): Promise<string
 
 // ---- secrets used on a computer -------------------------------------------------------------------------------------------------------------------------
 
-// The fill-and-scrub machinery is agent/src/vault-use (ARCH 6.11). Boundary B8 does not let this module import `agent`, so the host binds the scrubber here; the Chrome and Screen tools
-// register the values they filled, per computer, in memory only. With none bound there is nothing to scrub but the structural masking in record.ts.
+// The scrubber is lib/vault-use's (ARCH 6.11), the same one the engine and the terminal use, bound from the start: a daemon wires nothing for it, so a real Space scrubs (12 Nov: it was bound only
+// in the test harness, and every browser answer went out as it came). Every value handed to a computer or a browser profile is remembered here, per computer, in memory only: the ones a tool typed
+// (agentd and browserd report them as `used`) and the ones the Vault channel handed out for Vyre for Chrome to fill (handlers/fill.ts). A test may bind a stand-in; null puts the real one back.
 export interface Secret { handle: string; itemId: string; value: string }
 export interface ScrubberLike { scrub(text: string): string }
 export interface ScrubKit { createScrubber(secrets: readonly Secret[]): ScrubberLike }
-let scrubKit: ScrubKit | null = null;
-export function bindKit(k: ScrubKit | null): void { scrubKit = k; }
+const REAL_SCRUB: ScrubKit = { createScrubber };
+let scrubKit: ScrubKit = REAL_SCRUB;
+export function bindKit(k: ScrubKit | null): void { scrubKit = k ?? REAL_SCRUB; }
 const secretsByComputer = new Map<string, Secret[]>();
-export function rememberSecrets(computerId: string, secrets: readonly Secret[]): void {
-  if (secrets.length === 0) return;
+/** Every value the Vault channel handed to each computer or profile, in order: a call reads which were handed out while it ran (a value it typed itself, or one Vyre for Chrome filled on its own). */
+const handedOut = new Map<string, string[]>();
+/**
+ * The tabs of each computer or profile that a Vault value was filled into (review 12 Nov, finding 2). No picture of such a tab is kept or handed out while it is open: a text field shows what it holds,
+ * a picture cannot be scrubbed, and going back in the tab's history can bring the filled page back, so navigating away does not end it; closing the tab does. "*" is a fill whose tab could not be told:
+ * then no tab of it is pictured until the browser forgets it.
+ */
+const filledTabs = new Map<string, Set<string>>();
+/** `handedOut`: the Vault channel handed these out (the fill service). A tool's own report of what it typed (`used`) is the same values again and is not a hand-out. */
+export function rememberSecrets(computerId: string, secrets: readonly Secret[], o: { handedOut?: boolean } = {}): void {
+  const keep = secrets.filter((x) => x.value.length >= MIN_SECRET_LENGTH);
+  if (keep.length === 0) return;
   const cur = secretsByComputer.get(computerId) ?? [];
-  for (const x of secrets) if (!cur.some((c) => c.handle === x.handle && c.value === x.value)) cur.push(x);
+  for (const x of keep) if (!cur.some((c) => c.handle === x.handle && c.value === x.value)) cur.push(x);
   secretsByComputer.set(computerId, cur);
+  if (o.handedOut !== false) { const h = handedOut.get(computerId) ?? []; h.push(...keep.map((x) => x.value)); handedOut.set(computerId, h); }
 }
-export function forgetSecrets(computerId: string): void { secretsByComputer.delete(computerId); }
+export function forgetSecrets(computerId: string): void { secretsByComputer.delete(computerId); handedOut.delete(computerId); filledTabs.delete(computerId); }
+/** A mark of where the hand-outs of a computer stand now: what came after it is what a call was given while it ran. */
+export const givenCount = (computerId: string): number => handedOut.get(computerId)?.length ?? 0;
+export const handedSince = (computerId: string, mark: number): readonly string[] => (handedOut.get(computerId) ?? []).slice(mark);
+export function markFilledTab(computerId: string, tabId: string): void { const s = filledTabs.get(computerId) ?? new Set<string>(); s.add(tabId); filledTabs.set(computerId, s); }
+export const filledTabsOf = (computerId: string): ReadonlySet<string> => filledTabs.get(computerId) ?? new Set<string>();
+/**
+ * The tabs open now: a filled tab that is not among them was closed. A "*" (a fill whose tab could not be told) becomes a mark on every tab open now, which holds every tab that was open at the time
+ * of the fill and is still open (and perhaps a newer one too: that is the safe side), so it ends like any mark, when those tabs are closed (second look, a).
+ */
+export function tabsOpen(computerId: string, open: readonly string[]): void {
+  const s = filledTabs.get(computerId);
+  if (!s) return;
+  if (s.has("*") && open.length > 0) { s.delete("*"); for (const t of open) s.add(t); }
+  for (const t of [...s]) if (t !== "*" && !open.includes(t)) s.delete(t);
+  if (s.size === 0) filledTabs.delete(computerId);
+}
 /** Text with every value filled on this computer removed. */
 export function clean(computerId: string, text: string): string {
   const list = secretsByComputer.get(computerId);
-  return list && list.length > 0 && scrubKit ? scrubKit.createScrubber(list).scrub(text) : text;
+  return list && list.length > 0 ? scrubKit.createScrubber(list).scrub(text) : text;
 }

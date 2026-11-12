@@ -24,7 +24,7 @@ test("a machine alert is a line among what needs you, with a way to the machine,
   const out = draw(<Overview />, { "machines.alerts": { alerts: [{ alertId: "disk_low:srv_box", machineId: "srv_box", kind: "disk_low", severity: "warn", next: "Free disk space.", title: "Berlin box has 8% disk left", detail: "12 GB of 160 GB free" }, { alertId: "offline_pinned:srv_dev_omar", machineId: "srv_dev_omar", kind: "offline_pinned", severity: "bad", next: "Turn it on.", title: "Omar's iMac is offline and Scout is pinned to it", detail: "Last seen 125 minutes ago" }] } });
   assert.ok(out.includes("Berlin box has 8% disk left") && out.includes("Omar&#x27;s iMac is offline"));
   assert.ok(out.includes('data-testid="row-attn-machine-disk_low:srv_box"') && out.includes('data-testid="attn-machine-go-srv_box"'));
-  assert.ok(out.includes('data-testid="tile-Machine alerts"') && /Machine alerts: 2/.test(out));
+  assert.ok(out.includes('data-testid="tile-Computer alerts"') && /Computer alerts: 2/.test(out));
   const quiet = draw(<Overview />, { "machines.alerts": { alerts: [] } });
   assert.ok(quiet.includes("All clear") && !quiet.includes("attn-machine"));
   assert.ok(quiet.includes("Health"), "the section is Health now");

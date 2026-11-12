@@ -37,3 +37,11 @@ test("the AI for the Space preview names the key for everyone first, then the ow
   assert.deepEqual(p.items.map((i) => i.label), ["OpenCode Go for everyone", "Claude · subscription · in your Vault"]);
   assert.ok(!JSON.stringify(p).includes("spc_"));
 });
+
+test("a step with nothing of its own to preview shows no card, never a placeholder (owner walk, 12 Nov)", async () => {
+  for (const card of ["own_data", "apps", "meet_agents", "optional_personal", "chrome"] as const) {
+    const p = await previewFor(fake({}), card);
+    assert.equal(p.items.length, 0, card);
+    assert.equal(p.hint, "", `${card}: no "What this step sets up appears here." card`);
+  }
+});

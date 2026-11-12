@@ -11,7 +11,8 @@ import { bootFreshSpace, dismissOnboarding, edge } from "../apps/app/tests/real-
 import { Client, signIn } from "./support/outside-client.ts";
 
 const PASSWORD = "correct horse battery staple 9";
-const OUT = process.env["VYRE_TEST_CAPTURE_DIR"] ?? "shots-evidence/agent-credit";
+// its own folder inside a shared capture folder: this test clears OUT, and other walks write beside it at the same time
+const OUT = process.env["VYRE_TEST_CAPTURE_DIR"] ? path.join(process.env["VYRE_TEST_CAPTURE_DIR"], "agent-credit") : "shots-evidence/agent-credit";
 type Json = any;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
 test("Noah's channel view credits Simba's post to Ada Archer (Agent), never Simba; Ada sees Simba", async (t) => {

@@ -20241,6 +20241,11 @@ export type ImportGetOut = {
     failed: number;
     ranAutomations: boolean;
     errorsFileId?: string;
+    errors?: Array<{
+        row: number;
+        column?: string;
+        message: string;
+      }>;
   };
 };
 export type ImportListIn = {
@@ -20263,6 +20268,11 @@ export type ImportListOut = {
       failed: number;
       ranAutomations: boolean;
       errorsFileId?: string;
+      errors?: Array<{
+          row: number;
+          column?: string;
+          message: string;
+        }>;
     }>;
   next?: string;
   total?: number;
@@ -20391,6 +20401,7 @@ export type ImportPreviewOut = {
   creates: number;
   updates: number;
   skips: number;
+  refused?: number;
   errors: Array<{
       row: number;
       column?: string;
@@ -31586,12 +31597,25 @@ export type RecordsBulkUpsertIn = {
   rows: Array<Record<string, unknown>>;
   match: Array<string>;
   runAutomations?: boolean;
+  createOnly?: boolean;
+  skipExisting?: boolean;
   idempotencyKey: string;
 };
 export type RecordsBulkUpsertOut = {
   created: number;
   updated: number;
   skipped: number;
+  stopped?: {
+    reason: "unavailable" | "version_conflict";
+    row: number;
+    message: string;
+    notDone: Array<number>;
+  };
+  refused?: Array<{
+      row: number;
+      reason: string;
+      message: string;
+    }>;
 };
 export type RecordsChangesIn = {
   type: string;

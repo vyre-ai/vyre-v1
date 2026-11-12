@@ -8,7 +8,7 @@ import { launchChrome } from "../../agent-computer/agentd/chrome.ts";
 import type { Chrome, ChromeOptions, ChromeState } from "../../agent-computer/agentd/chrome.ts";
 import { badInput, notFound, paused, unavailable, within } from "../../agent-computer/agentd/errors.ts";
 import { createVault, scrubUsed } from "../../agent-computer/agentd/vault.ts";
-import type { Vault } from "../../agent-computer/agentd/vault.ts";
+import type { CallChannel, Vault } from "../../agent-computer/agentd/vault.ts";
 
 /** A profile id is an agent id (agt_...) or another short name made of letters, digits, `_` and `-`. It becomes a folder name, so nothing else is allowed in it. */
 export const PROFILE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{2,79}$/;
@@ -93,8 +93,8 @@ export interface ProfileManager {
   get(id: string): Profile;
   /** Start the profile's browser if it is not running, making room first. */
   ensure(id: string): Promise<Profile>;
-  /** One browser tool for one profile. `by: "person"` is the person at the controls, through the live view. */
-  tool(a: { profileId: string; tool: string; args: Record<string, unknown>; timeoutMs: number; by?: string }): Promise<Record<string, unknown>>;
+  /** One browser tool for one profile. `by: "person"` is the person at the controls, through the live view. `channel`: the Vault as the person whose call it is (main.ts), for the handles this call types. */
+  tool(a: { profileId: string; tool: string; args: Record<string, unknown>; timeoutMs: number; by?: string; channel?: CallChannel }): Promise<Record<string, unknown>>;
   takeover(id: string, personId: string): void;
   giveBack(id: string): void;
   /** Stop the browser, keep the folder. */
@@ -199,7 +199,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     return p;
   }
 
-  async function tool(a: { profileId: string; tool: string; args: Record<string, unknown>; timeoutMs: number; by?: string }): Promise<Record<string, unknown>> {
+  async function tool(a: { profileId: string; tool: string; args: Record<string, unknown>; timeoutMs: number; by?: string; channel?: CallChannel }): Promise<Record<string, unknown>> {
     const p = get(a.profileId);
     const name = a.tool;
     if (!name.startsWith("chrome_")) throw badInput(`${name} is not a tool of the Space browser.`);
@@ -216,7 +216,8 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     }
     const typing = name === "chrome_type" || name === "chrome_fill" || name === "chrome_act";
     // Handles are asked of the Vault before the browser starts: a refusal must not cost a Chromium.
-    const filled = typing ? await p.vault.fillArgs(a.args) : { args: a.args, used: [] };
+    // a handle the call types is asked of the Vault as the person whose call it is (the call's own channel), never through whichever call came last
+    const filled = typing ? await (a.channel ?? p.vault).fillArgs(a.args) : { args: a.args, used: [] };
     p.state.busy += 1;
     p.lastActiveAt = now();
     try {

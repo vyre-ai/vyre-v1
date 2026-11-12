@@ -90,7 +90,24 @@ test("activity comes newest first from the audit log, with resources written typ
     { at: NOW - 1000, actor: "agt_b", action: "role.assigned" },
     { at: NOW - 2000, actor: "usr_c", action: "policy.changed", resource: "space/spc_test" },
   ]);
-  assert.equal(w.calls.find((c) => c.cap === "audit.list")!.input["limit"], 2);
+  assert.ok(Number(w.calls.find((c) => c.cap === "audit.list")!.input["limit"]) >= 2, "asks for at least what it shows");
+});
+
+test("a join is one line said of the person who joined; the Space's own join steps (account, role, first team) are not lines of their own", async () => {
+  const join = "trace_join";
+  const rows = [
+    { id: "aud_5", at: NOW - 900, actor: { kind: "person", id: "usr_owner" }, action: "members.invites.create", resource: { type: "space", id: "spc_test" }, class: "sensitive", traceId: "t0", seq: 5 },
+    { id: "aud_6", at: NOW - 800, actor: { kind: "service", id: "svc_host" }, action: "invites.accept_create_account", class: "sensitive", traceId: join, seq: 6 },
+    { id: "aud_7", at: NOW - 700, actor: { kind: "service", id: "svc_host" }, action: "access.roles.assign", after: { targets: [{ kind: "role", id: "rol_member" }, { kind: "person", id: "usr_maya" }] }, class: "sensitive", traceId: join, seq: 7 },
+    { id: "aud_8", at: NOW - 600, actor: { kind: "service", id: "svc_host" }, action: "access.groups.add_member", after: { targets: [{ kind: "group", id: "grp_everyone" }, { kind: "person", id: "usr_maya" }] }, class: "sensitive", traceId: join, seq: 8 },
+    { id: "aud_9", at: NOW - 500, actor: { kind: "actor", id: "act_pending_1" }, action: "members.accept", after: { targets: [{ kind: "person", id: "usr_maya" }] }, class: "sensitive", traceId: join, seq: 9 },
+  ];
+  const w = world({ ...quiet, "audit.list": { rows } });
+  const out = await handlers["console.activity"](w.ctx, { limit: 5 });
+  assert.deepEqual(out.rows, [
+    { at: NOW - 500, actor: "usr_maya", action: "members.accept" },
+    { at: NOW - 900, actor: "usr_owner", action: "members.invites.create", resource: "space/spc_test" },
+  ]);
 });
 
 test("activity leaves out the log's own views: looking at the audit log is not something an admin did", async () => {

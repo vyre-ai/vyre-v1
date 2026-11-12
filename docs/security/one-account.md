@@ -13,6 +13,8 @@ A person has one Vyre account: one username, one password, one recovery code and
 
 In every case the device opens the bundle (`client/src/crypto/keys.ts`: `carryBundle`, `carryWithRecovery`) and sends the new Space the same wraps and key pair, plus a new Space key sealed to the same public key. After a recovery-code carry, the new Space gets a new password wrap. The recovery wrap and key pair do not change. The device stores the username on the new Space's session, and on the provider-only session when the password opened it, so the person meets this step once per device.
 
+Sessions do not end by age (lead decision, 12 Nov 2026, from the owner's rule that a Space stays signed in). A person disabled at their identity provider (Google, Microsoft, GitHub) keeps a working Vyre session, and the server keeps reopening their key for it (`provenSessions`, host/src/daemon/daemon.ts), until someone in Vyre signs them out, revokes the session or device, changes their password, suspends or removes them. Vyre does not ask the provider again. A stolen provider session is therefore good, and opens the key, until it is revoked in Vyre.
+
 Not built (option B, put to the owner): handing the person key, which the server keeps behind a provider sign-in (`host/src/seams/key-wraps.ts`), to an authenticated session. It would let whoever controls a member's Google identity take the key off the server, and with one account that reaches every Space. With option A, a Google sign-in alone opens the person's Vault on that server only. Bringing the account to another Space still takes the password or the recovery code.
 
 ### From another Space's web page: the carry door (lead ruling, 3 Nov)

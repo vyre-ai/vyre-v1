@@ -628,7 +628,7 @@ export async function setOwner(ctx: AutoCtx, input: In & { ownerId?: string }): 
   a.ownerId = to;
   touch(ctx, a);
   // the previous owner keeps Manage, so handing it over never locks them out
-  await ctx.call?.("access.share", { resource: { type: "automation", id: a.id }, subject: { kind: "person", id: from }, level: "manage", idempotencyKey: `owner:${a.id}:${to}` }).catch(() => undefined);
+  await ctx.call?.("access.share", { resource: { type: "automation", id: a.id }, subject: { kind: "person", id: from }, level: "manage", source: `automation-owner:${a.id}`, idempotencyKey: `owner:${a.id}:${to}:${globalThis.crypto.randomUUID()}` }).catch(() => undefined);
   emitAuto(ctx, "automation.updated", a.id, { version: a.version, fields: ["ownerId"] });
   return { automation: out(a) };
 }

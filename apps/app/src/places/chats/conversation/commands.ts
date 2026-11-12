@@ -165,8 +165,8 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
     case "search": env.openSearch(arg); return;
     case "model": env.openModel(); return;
     case "stop": {
+      // each stopped reply says so under itself
       await act.stopAll(data);
-      say("Stopped. The steps so far are kept.");
       return;
     }
     default: {
