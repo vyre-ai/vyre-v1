@@ -146,3 +146,8 @@ export function olderDesktopNote(m: { state: "done" | "partial" | "failed"; at: 
   if (m.error?.startsWith("Moving its sign-ins was interrupted")) return m.error;
   return `Moving its sign-ins did not work yet${m.error ? `: ${m.error.replace(/\.+$/, "")}` : ""}. It will be tried again.`;
 }
+
+/** The row's menu: Remove is an owner's or admin's and lives in Console > Computers, so only they, and only where the pane can open the Console, are offered it. */
+export function olderDesktopMenu(a: { canRemove: boolean; open?: (() => void) | undefined }): Array<{ label: string; danger: true; onSelect: () => void }> {
+  return a.canRemove && a.open ? [{ label: "Remove in Console > Computers", danger: true, onSelect: a.open }] : [];
+}

@@ -33,7 +33,7 @@ import type { HelperChatData } from "../helper/data.tsx";
 import type { NeedsYouData } from "../needsyou/data.tsx";
 import type { PaneAgent } from "../rightpane/data.tsx";
 import type { TerminalData } from "../terminal/data.ts";
-import { machinesTarget } from "../../../console/shell/route.ts";   // the one way into Console > Computers with a machine selected (l-consolidate)
+import { computersTarget, machinesTarget } from "../../../console/shell/route.ts";   // the one way into Console > Computers with a machine selected (l-consolidate)
 
 type RecentOut = CapMap["chat.recent"]["out"];
 type ThreadOut = CapMap["threads.get"]["out"];
@@ -357,6 +357,7 @@ export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: Pane
       ...base.nav, openThread: (id: string) => go.thread(id), openHelper: (id: string) => go.thread(id), openComputer: (id: string) => go.computer(id),
       openTerminal: (id: string) => go.terminalOfComputer(id), openAgentPage: (id: string) => go.agent(id),
       openMachines: (nodeId?: string) => rt.open(machinesTarget(nodeId)),
+      openComputerInConsole: (computerId: string) => rt.open(computersTarget(computerId)),
     },
   };
 }

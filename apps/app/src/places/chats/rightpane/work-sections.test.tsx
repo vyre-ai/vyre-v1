@@ -9,7 +9,7 @@ import { ChatRightPane } from "./ChatRightPane.tsx";
 import { RightPaneDataProvider } from "./data.tsx";
 import type { ChatRightPaneData } from "./data.tsx";
 import { BrowserCard, TerminalCard, WorkSections, usesWorkModel } from "./WorkSections.tsx";
-import { olderDesktopNote, attachedNote, browserAction, browserWords, orderSessions, ownerLabel, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
+import { olderDesktopMenu, olderDesktopNote, attachedNote, browserAction, browserWords, orderSessions, ownerLabel, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
 import type { BrowserData, BrowserView, WorkspaceData, WorkspaceView } from "./work-model.ts";
 import { createSample } from "./sample.ts";
 import type { PaneDeps } from "./actions.ts";
@@ -315,4 +315,19 @@ test("the older desktop's row says what will happen, what happened or why, in pl
   assert.match(olderDesktopNote({ state: "partial", at: 1, error: "Dex already uses its browser on the Space, so the sign-ins were not copied." }, day), /not copied\. The old desktop is kept/);
   assert.equal(olderDesktopNote({ state: "failed", at: 1, error: "Moving its sign-ins was interrupted. It will be tried again." }, day), "Moving its sign-ins was interrupted. It will be tried again.");
   assert.match(olderDesktopNote({ state: "failed", at: 1, error: "The workspace is not ready." }, day), /did not work yet: The workspace is not ready\. It will be tried again\.$/);
+});
+
+test("the older desktop's Remove entry: an owner or admin gets it and it opens the Console at that computer; a member gets none; where the pane cannot open the Console it is absent", async () => {
+  const { allows, GATE } = await import("../../../shell/providers/runtime.tsx");
+  const team = (perms: string[]) => ({ permissions: new Set(perms), space: { kind: "team" } });
+  const opened: string[] = [];
+  const open = (): void => { opened.push("cmp_old"); };
+  for (const [who, perms] of [["owner", ["access.manage", "chats.private"]], ["admin", ["access.manage"]]] as const) {
+    const menu = olderDesktopMenu({ canRemove: allows(team([...perms]), GATE.provisionComputer), open });
+    assert.deepEqual(menu.map((m) => m.label), ["Remove in Console > Computers"], who);
+    menu[0]!.onSelect();
+  }
+  assert.deepEqual(opened, ["cmp_old", "cmp_old"], "it opens the Console at that computer");
+  assert.deepEqual(olderDesktopMenu({ canRemove: allows(team(["chats.private"]), GATE.provisionComputer), open }), [], "a member is shown nothing to press");
+  assert.deepEqual(olderDesktopMenu({ canRemove: true, open: undefined }), [], "no way to open the Console, no entry");
 });

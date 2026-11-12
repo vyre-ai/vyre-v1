@@ -15,7 +15,7 @@ import { stepEntries } from "./ComputerTab.tsx";
 import { Icon, LeadIcon, PaneList, TextButton } from "./parts.tsx";
 import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { Entry } from "./parts.tsx";
-import { olderDesktopNote, attachedNote, browserAction, browserWords, orderSessions, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
+import { olderDesktopMenu, olderDesktopNote, attachedNote, browserAction, browserWords, orderSessions, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
 import type { BrowserData, BrowserView, Tone, WorkspaceData, WorkspaceView } from "./work-model.ts";
 
 /** Is the new layout wanted: the browser half is bound, or the workspace is and the agent has no legacy desktop computer. An agent that still has one keeps today's Computer tab until the browser half is bound. */
@@ -215,8 +215,10 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
   if (older !== "") {
     entries.push({ key: "l-older", type: "label", text: "Older desktop" });
     // Remove is an owner's or admin's, and it lives in Console > Computers: the row offers it only to them
-    const menu: MenuEntry[] = allows(rt, GATE.provisionComputer) && data.nav.openMachines ? [{ label: "Remove in Console > Computers", danger: true, onSelect: () => data.nav.openMachines?.() }] : [];
-    entries.push({ key: "older-desktop", type: "row", title: "Open its desktop", note: olderDesktopNote(moved, (ms) => dayMonth(ms, clock)), leading: <LeadIcon name="watch" />, testID: "older-desktop", onPress: () => data.nav.openComputer(older), ...(menu.length > 0 ? { menu } : {}) });
+    const menu: MenuEntry[] = olderDesktopMenu({ canRemove: allows(rt, GATE.provisionComputer), open: data.nav.openComputerInConsole ? () => data.nav.openComputerInConsole?.(older) : undefined });
+    entries.push({ key: "older-desktop", type: "row", title: "Open its desktop", note: "The computer it had before", leading: <LeadIcon name="watch" />, testID: "older-desktop", onPress: () => data.nav.openComputer(older), ...(menu.length > 0 ? { menu } : {}) });
+    // the line about the move can be long: its own block, wrapped, never cut off in a row
+    entries.push({ key: "older-note", type: "block", node: <View style={{ marginHorizontal: 24, marginBottom: 8 }}><Text testID="older-note" style={st.note}>{olderDesktopNote(moved, (ms) => dayMonth(ms, clock))}</Text></View> });
   }
   return <View style={st.fill}><PaneList entries={entries} {...(window ? { window } : {})} testID="work-list" /></View>;
 }

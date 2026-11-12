@@ -68,17 +68,26 @@ function bind(ws: WorkspaceView | null, br: BrowserView | null): { workspace?: W
   };
 }
 
-function Pane({ part, old }: { part: string; old: boolean }): ReactNode {
+const MOVED: Record<string, unknown> = {
+  none: undefined,
+  done: { state: "done", at: Date.UTC(2026, 10, 12, 12) },
+  partial: { state: "partial", at: Date.UTC(2026, 10, 12, 12), error: "Intake already uses its browser on the Space, so the sign-ins from its older desktop were not copied. Open the older desktop to see them, or sign in again." },
+  interrupted: { state: "failed", at: Date.UTC(2026, 10, 12, 12), error: "Moving its sign-ins was interrupted. It will be tried again." },
+};
+
+function Pane({ part, old, moved }: { part: string; old: boolean; moved: string }): ReactNode {
   const s = useMemo(() => createSample("northwind"), []);
   const v = VIEWS[part] ?? VIEWS["running"]!;
-  const data: ChatRightPaneData = useMemo(() => ({ ...s.data, agent: old ? s.data.agent : { agentId: s.data.agent.agentId, name: s.data.agent.name }, ...bind(v.ws, v.br) }), [s, v, old]);
+  const data: ChatRightPaneData = useMemo(() => ({ ...s.data, agent: old ? s.data.agent : { agentId: s.data.agent.agentId, name: s.data.agent.name }, ...bind(v.ws, v.br),
+    call: ((cap: string, input: unknown) => cap === "computers.get" && old ? Promise.resolve({ computer: { computerId: s.data.agent.computerId, agentId: s.data.agent.agentId, state: "asleep", tabs: 0, tabLimit: 8, host: "server", recording: false, ...(MOVED[moved] ? { moved: MOVED[moved] } : {}) } }) : s.data.call(cap as never, input as never)) as ChatRightPaneData["call"] }), [s, v, old, moved]);
   return <View style={{ flex: 1, alignItems: "flex-end", backgroundColor: "var(--win)" as string }}><ChatRightPane data={data} open onToggle={() => undefined} initialTab="computer" window={{ start: 0, end: 500 }} /></View>;
 }
 
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   const [old, setOld] = useState(false);
-  useEffect(() => { const q = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""); setPart(q.get("part") ?? "running"); setOld(q.get("old") === "1"); }, []);
+  const [moved, setMoved] = useState("none");
+  useEffect(() => { const q = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""); setPart(q.get("part") ?? "running"); setOld(q.get("old") === "1"); setMoved(q.get("moved") ?? "none"); }, []);
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  return <Pane part={part} old={old} />;
+  return <Pane part={part} old={old} moved={moved} />;
 }
