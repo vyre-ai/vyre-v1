@@ -2102,6 +2102,25 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               ownsAgent: (agentId: string) => { try { return db!.all("SELECT 1 FROM agents_agent WHERE id = ?", agentId).length > 0; } catch { return false; } },
               // a turn of this agent running now (started in the last 12 hours, so a row a crash left does not hold a workspace awake forever): making room passes its workspace over (lead, 12 Nov)
               inTurn: (agentId: string) => { try { return db!.all("SELECT 1 FROM engine_turns WHERE agent_id = ? AND state = 'running' AND started_at > ? LIMIT 1", agentId, Date.now() - 12 * 3_600_000).length > 0; } catch { return undefined; } },
+              // where the Files mirrors are rooted, read from the tables (one indexed read each): a Files change brings forward only the workspaces whose folder it is in (lead, 12 Nov)
+              folders: {
+                agentRoot: (agentId: string) => { try { return (db!.all("SELECT folderId FROM agents_agent WHERE id = ?", agentId)[0] as { folderId?: string | null } | undefined)?.folderId ?? null; } catch { return null; } },
+                projectRoot: (projectId: string) => { try { return (db!.all("SELECT folderId FROM projects_project WHERE projectId = ?", projectId)[0] as { folderId?: string | null } | undefined)?.folderId ?? null; } catch { return null; } },
+                ancestors: (folderId: string) => {
+                  try {
+                    const out: string[] = [];
+                    let at: string | null = folderId;
+                    while (at !== null && out.length < 64 && !out.includes(at)) {
+                      const row = db!.all("SELECT parent_id FROM files_folder WHERE id = ?", at)[0] as { parent_id?: string | null } | undefined;
+                      if (row === undefined) return out.length === 0 ? null : out;
+                      out.push(at);
+                      at = row.parent_id ?? null;
+                    }
+                    return out;
+                  } catch { return null; }
+                },
+                ofFile: (fileId: string) => { try { return (db!.all("SELECT folder_id FROM files_file WHERE id = ?", fileId)[0] as { folder_id?: string | null } | undefined)?.folder_id ?? null; } catch { return null; } },
+              },
               // in Trash now: a row with deletedAt, or no row (purged from Trash); undefined when the table cannot be read (third look T2)
               inTrash: (agentId: string) => {
                 try { const row = db!.all("SELECT deletedAt FROM agents_agent WHERE id = ?", agentId)[0] as { deletedAt?: unknown } | undefined; return row === undefined || (row.deletedAt !== null && row.deletedAt !== undefined); } catch { return undefined; }

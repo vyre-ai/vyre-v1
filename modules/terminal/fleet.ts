@@ -106,7 +106,7 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
     hold(agentId) { return homes.get(agentId)?.hold(agentId) ?? (() => undefined); },
     worked(agentId) { homes.get(agentId)?.worked(agentId); },
     async freshen(agentId, ms) { const k = homes.get(agentId); return k ? k.freshen(agentId, ms) : true; },
-    filesChanged() { for (const m of all()) m.filesChanged(); },
+    filesChanged(change) { for (const m of all()) m.filesChanged(change); },
     viewed(agentId) { const k = homes.get(agentId); for (const m of k ? [k] : all()) m.viewed(agentId); },
     async cut(agentId, projectId) { for (const m of await where(agentId)) await m.cut(agentId, projectId); },
     async revoke(agentId) { for (const m of await where(agentId)) await m.revoke(agentId); },

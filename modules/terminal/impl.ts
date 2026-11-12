@@ -579,7 +579,7 @@ export interface TerminalHostSeam {
 }
 
 /** What the daemon hands over for agent workspaces (host/src/seams/terminal-host.ts): configuration only. The module builds the Docker managers from it, as agent computers are built. */
-export interface WorkspaceConfig extends Pick<WorkspaceOptions, "image" | "limits" | "idleMs" | "home" | "projectsOf" | "admit" | "capacity" | "log" | "owner" | "ownsAgent" | "inTurn"> {
+export interface WorkspaceConfig extends Pick<WorkspaceOptions, "image" | "limits" | "idleMs" | "home" | "projectsOf" | "admit" | "capacity" | "log" | "owner" | "ownsAgent" | "inTurn" | "folders"> {
   /** Is this agent in Trash now (agents_agent.deletedAt)? Read before Trash volumes go and when agent.deleted is consumed, so a restored agent never loses them (third look T2). */
   inTrash?: (agentId: string) => boolean | undefined;
   /** The Docker Engine socket of this machine. With no socket and no runner the Space has no runtime of its own, and its workspaces go on servers that joined. */
@@ -767,7 +767,12 @@ export const consumers = {
   /** Something changed in Files: awake workspaces whose Files mirror slowed down while quiet make their next pass within seconds, so a file a person drops appears without a command (fourth look U2). */
   "terminal.files_changed": {
     on: ["file.created", "file.version_added", "file.moved", "file.renamed", "file.deleted", "file.restored", "folder.created", "folder.moved", "folder.renamed", "folder.deleted"],
-    run: (): string[] => { workspaceManager?.filesChanged(); return []; },
+    run: (_ctx: TermCtx, event: { payload: Record<string, unknown> }): string[] => {
+      const p = event.payload ?? {};
+      const folderIds = ["folderId", "fromFolderId", "toFolderId", "parentId"].map((k) => p[k]).filter((v): v is string => typeof v === "string");
+      workspaceManager?.filesChanged({ folderIds, ...(typeof p["fileId"] === "string" ? { fileId: p["fileId"] } : {}) });
+      return [];
+    },
   },
   /** An agent came back from Trash: its workspace may be made again, over the volumes it kept. */
   "terminal.agent_restored": {

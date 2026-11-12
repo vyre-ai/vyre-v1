@@ -80,6 +80,11 @@ export interface WorkspaceOptions {
   http: DockerHttp;
   image?: string;
   limits?: Partial<{ cpus: number; memoryMb: number; pids: number; reserveMb: number }>;
+  /**
+   * Where mirrors are rooted in Files, for a Files change to bring forward only the mirrors it touches (lead, 12 Nov): the agent's folder, the project's folder, a folder's ancestors (itself first),
+   * a file's folder. Null where it cannot be told. Omitted: every slowed mirror is brought forward on any change.
+   */
+  folders?: { agentRoot(agentId: string): string | null; projectRoot(projectId: string): string | null; ancestors(folderId: string): string[] | null; ofFile(fileId: string): string | null };
   /** Does this agent have a turn running now (the engine's turns)? undefined when that cannot be read. A workspace is never put to sleep to make room while it does (lead, 12 Nov). */
   inTurn?: (agentId: string) => boolean | undefined;
   /** The longest a mirror waits between passes when nothing happens in the workspace. Default 60 s. */
@@ -187,8 +192,8 @@ export interface WorkspaceManager {
   awake(agentId: string): Promise<boolean>;
   /** Before a command: one pass of the workspace's mirrors when they slowed down, at most `ms`; false when that did not finish in time. */
   freshen(agentId: string, ms?: number): Promise<boolean>;
-  /** Something changed in Files: slowed mirrors make their next pass soon. */
-  filesChanged(): void;
+  /** Something changed in Files (the folders and file the event names): the slowed mirrors it touches make their next pass soon. */
+  filesChanged(change?: { folderIds?: readonly string[]; fileId?: string }): void;
   /** A person's open tab read the workspace's screen: it counts as attached for a short while (making room passes it over). */
   viewed(agentId: string): void;
   /** The line a workspace put to sleep at the 12-hour ceiling owes its next command, once (then null). */
@@ -677,10 +682,33 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     const late = new Promise<false>((r) => { timer = setTimeout(() => r(false), ms); timer.unref?.(); });
     try { return await Promise.race([Promise.all(work).then(() => true), late]); } finally { clearTimeout(timer); }
   }
-  /** Something changed in Files: every mirror that slowed down makes its next pass soon (once, at the quick pace), so a dropped file arrives within seconds with no command. */
-  function filesChanged(): void {
-    for (const h of homes.values()) poke(h, mirrorBase());
-    for (const p of projects.values()) poke(p, mirrorBase());
+  /**
+   * Something changed in Files: the slowed mirrors whose root is the changed folder or one of its ancestors make their next pass soon (once, at the quick pace), so a dropped file arrives within
+   * seconds with no command, and a busy Files area elsewhere costs the quiet workspaces nothing. When the change cannot be placed (no resolver, a folder or file not found), every slowed mirror is
+   * brought forward, so a drop is never missed.
+   */
+  const rootOf = new Map<string, string | null>();
+  function filesChanged(change: { folderIds?: readonly string[]; fileId?: string } = {}): void {
+    const f = o.folders;
+    const slowedHomes = [...homes].filter(([, h]) => h.delay > mirrorBase() && !h.poked);
+    const slowedProjects = [...projects].filter(([, p]) => p.delay > mirrorBase() && !p.poked);
+    if (slowedHomes.length === 0 && slowedProjects.length === 0) return;
+    let touched: Set<string> | null = null;
+    if (f) {
+      const folders = [...(change.folderIds ?? [])];
+      if (change.fileId) { const at = f.ofFile(change.fileId); if (at) folders.push(at); }
+      const chains = folders.map((id) => f.ancestors(id));
+      if (folders.length > 0 && chains.every((c) => c !== null)) touched = new Set(chains.flat() as string[]);
+    }
+    const root = (key: string, look: () => string | null): string | null => { if (!rootOf.has(key)) rootOf.set(key, look()); return rootOf.get(key) ?? null; };
+    for (const [agentId, h] of slowedHomes) {
+      const r = f ? root(`h:${agentId}`, () => f.agentRoot(agentId)) : null;
+      if (touched === null || r === null || touched.has(r)) poke(h, mirrorBase());
+    }
+    for (const [projectId, p] of slowedProjects) {
+      const r = f ? root(`p:${projectId}`, () => f.projectRoot(projectId)) : null;
+      if (touched === null || r === null || touched.has(r)) poke(p, mirrorBase());
+    }
   }
   /** Before a workspace stops: the project folders it mounts, mirrored once more, when it is the last running workspace on them (while another runs, that one keeps mirroring). */
   async function finalProjectPasses(agentId: string): Promise<boolean> {

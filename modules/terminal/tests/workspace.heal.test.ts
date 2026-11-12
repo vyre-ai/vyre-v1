@@ -1214,3 +1214,39 @@ test("two agents on a host with room for one never put each other to sleep twice
   assert.equal((await m.exec("agt_a", ["tmux", "-V"])).code, 0, "then a may take it");
   m.close();
 });
+
+test("a Files change brings forward only the slowed mirrors whose folder it is in (or under); one it cannot place brings them all", async () => {
+  const passes = new Map<string, number>();
+  const home: NonNullable<WorkspaceOptions["home"]> = {
+    sync: (x) => ({ async pass() { passes.set(x.agentId, (passes.get(x.agentId) ?? 0) + 1); return { failed: 0 }; } }),
+    readTar: () => ({ files: new Map(), dirs: new Set(), refused: [], complete: true }),
+    manifest: (id) => `/m/${id}.json`,
+    intervalMs: 20,
+  };
+  // Agents/<a>/<sub>: each agent's folder under Agents
+  const parent: Record<string, string | null> = { fld_agents: null, fld_a: "fld_agents", fld_b: "fld_agents", fld_b_sub: "fld_b", fld_elsewhere: null };
+  const folders = {
+    agentRoot: (id: string) => (id === "agt_a" ? "fld_a" : id === "agt_b" ? "fld_b" : null),
+    projectRoot: () => null,
+    ancestors: (f: string) => { if (!(f in parent)) return null; const out: string[] = []; let at: string | null = f; while (at !== null) { out.push(at); at = parent[at] ?? null; } return out; },
+    ofFile: (id: string) => (id === "fil_in_b" ? "fld_b_sub" : null),
+  };
+  const clock = { t: Date.now() };
+  const m = manager(engine(), { home, folders, mirrorMaxMs: 60_000, now: () => clock.t });
+  await m.ensure("agt_a"); await m.ensure("agt_b");
+  clock.t += 10 * 60_000;
+  await new Promise((r) => setTimeout(r, 400));   // both slowed to their most
+  const count = (): Record<string, number> => ({ a: passes.get("agt_a") ?? 0, b: passes.get("agt_b") ?? 0 });
+  const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 80));
+  let before = count();
+  m.filesChanged({ folderIds: ["fld_elsewhere"] }); await settle();
+  assert.deepEqual(count(), before, "a change in another part of Files brings no mirror forward");
+  before = count();
+  m.filesChanged({ fileId: "fil_in_b" }); await settle();
+  assert.equal(count().a, before.a, "not a's");
+  assert.ok(count().b > before.b, "b's, for a file in a folder under its folder");
+  before = count();
+  m.filesChanged({ folderIds: ["fld_unknown"] }); await settle();
+  assert.ok(count().a > before.a && count().b > before.b, "a folder it cannot place brings every slowed mirror forward, so a drop is never missed");
+  m.close();
+});

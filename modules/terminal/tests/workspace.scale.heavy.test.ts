@@ -48,7 +48,13 @@ test("100 workspaces on one host: all made, 40 woken at once and the rest in wav
   const managers: WorkspaceManager[] = [];
   // the managers' clock, which the test moves on to make workspaces quiet for longer than making room waits (90 s) without waiting that long
   let skew = 0;
-  const make = (o: Partial<WorkspaceOptions> = {}): WorkspaceManager => { const m = buildWorkspaceManager({ http, image: IMAGE, idleMs: 3_600_000, owner: OWNER, capacity, home: home(), now: () => Date.now() + skew, ...o }); managers.push(m); return m; };
+  // the Files tree as the daemon reads it: each of the 100 has a folder under Agents; the busy one is another agent's, with a folder of its own under it
+  const parentOf: Record<string, string | null> = { fld_agents: null, fld_busy: "fld_agents", fld_busy_sub: "fld_busy", ...Object.fromEntries(ids.map((id) => [`fld_${id}`, "fld_agents"])) };
+  const folders: NonNullable<WorkspaceOptions["folders"]> = {
+    agentRoot: (id) => `fld_${id}`, projectRoot: () => null, ofFile: () => null,
+    ancestors: (f) => { if (!(f in parentOf)) return null; const out: string[] = []; let at: string | null = f; while (at !== null) { out.push(at); at = parentOf[at] ?? null; } return out; },
+  };
+  const make = (o: Partial<WorkspaceOptions> = {}): WorkspaceManager => { const m = buildWorkspaceManager({ http, image: IMAGE, idleMs: 3_600_000, owner: OWNER, capacity, home: home(), folders, now: () => Date.now() + skew, ...o }); managers.push(m); return m; };
   t.after(async () => {
     for (const m of managers) m.close();
     for (let i = 0; i < N; i += 20) await Promise.all(ids.slice(i, i + 20).map(async (id) => { await docker(["rm", "-f", workspaceName(id)]); await docker(["volume", "rm", "-f", `${workspaceName(id)}-home`, `${workspaceName(id)}-files`]); }));
@@ -97,6 +103,10 @@ test("100 workspaces on one host: all made, 40 woken at once and the rest in wav
   await Promise.all(ids.slice(0, FIRST).map((id) => run(m, id)));
   await new Promise((r) => setTimeout(r, 70_000));   // past the minute after the last command, when pacing starts
   numbers["40 idle awake, paced mirror (after)"] = await idle();
+  // the same 40, idle, while another agent's Files is busy (two Files changes a second in a folder of its own): no mirror of the 40 is brought forward (lead, 12 Nov)
+  const busyFiles = setInterval(() => { m.filesChanged({ folderIds: ["fld_busy_sub"] }); }, 500);
+  numbers["40 idle awake while another agent's Files is busy"] = await idle();
+  clearInterval(busyFiles);
 
   // ---- the other 60 in waves of 20: the host has room for 60 awake, so later waves put the longest-quiet to sleep to start at once. The first 40 stay mid-task the whole time (a command
   // every wave, as an agent between two commands of one task): none of them is ever put to sleep for room (lead, 12 Nov)
