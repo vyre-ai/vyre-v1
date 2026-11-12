@@ -10,7 +10,7 @@ import type { ProfileAccess, ProfileAgent } from "./policy.ts";
 import { spaceBrowser } from "./port.ts";
 import type { ProfileRow, SpaceBrowser } from "./port.ts";
 import { currentHold, dropHold, heldBy, setHold, touchHold } from "./hold.ts";
-import { needRoom } from "./room.ts";
+import { needRoom, roomWaitLine, waitingForRoom, waitingProfiles } from "./room.ts";
 
 const TICKET_MS = 5 * 60_000;
 
@@ -80,17 +80,19 @@ export async function profiles(ctx: CompCtx, _input: Record<string, never>) {
     const access = profileAccess(agent, person, admin);
     const by = heldBy(ctx, row.profileId) ?? undefined;
     const { takeoverBy: _was, ...rest } = row;
-    if (access !== "none") out.push(rowOut({ ...rest, takeover: by !== undefined, ...(by ? { takeoverBy: by } : {}) }, access, waitingNote(ctx.db, row.profileId)));
+    if (access !== "none") out.push(rowOut({ ...rest, takeover: by !== undefined, ...(by ? { takeoverBy: by } : {}) }, access, waitingNote(ctx.db, row.profileId) ?? roomWaitLine(row.profileId)));
   }
   // a browser waiting for room has not reached the service yet: it is listed with the line
-  for (const r of rowsOf(ctx.db, "SELECT claim_key FROM computers_claim WHERE kind = 'browser' AND state = 'waiting'")) {
-    const id = String(r["claim_key"]);
+  const waiting = new Set([...rowsOf(ctx.db, "SELECT claim_key FROM computers_claim WHERE kind = 'browser' AND state = 'waiting'").map((r) => String(r["claim_key"])), ...waitingProfiles().filter((id) => roomWaitLine(id) !== null)]);
+  for (const id of waiting) {
     if (out.some((x) => x.agentId === id)) continue;
     const agent = await agentOf(ctx, id);
     const access = agent ? profileAccess(agent, person, admin) : "none";
-    if (access !== "none") out.push(rowOut({ profileId: id, running: false, tabs: 0, busy: false, takeover: false, viewers: 0, lastActiveAt: 0, held: 0, paused: false }, access, waitingNote(ctx.db, id)));
+    if (access !== "none") out.push(rowOut({ profileId: id, running: false, tabs: 0, busy: false, takeover: false, viewers: 0, lastActiveAt: 0, held: 0, paused: false }, access, waitingNote(ctx.db, id) ?? roomWaitLine(id)));
   }
-  return { profiles: out, maxRunning: all.maxRunning };
+  // the browser slots of this server, for one quiet line in Console > Computers: how many run now (every Space's on this server), how many it holds at once, how many calls wait for one
+  const slots = { running: all.profiles.filter((p) => p.running).length, limit: all.maxRunning, waiting: waitingForRoom() };
+  return { profiles: out, maxRunning: all.maxRunning, slots };
 }
 
 export async function stream(ctx: CompCtx, input: { agentId: string }) {
@@ -137,6 +139,8 @@ export async function browserStreamInput(ctx: CompCtx, input: { agentId: string;
   return held;
 }
 
+export const TAKEOVER_REOPENED = "This browser was reopened since you last saw it, so its page was reloaded.";
+
 export async function takeOver(ctx: CompCtx, input: { agentId: string }) {
   const sb = browserOrRaise(ctx);
   const { person, access } = await mayWatch(ctx, input.agentId, true);
@@ -145,8 +149,10 @@ export async function takeOver(ctx: CompCtx, input: { agentId: string }) {
   if (other !== null && other !== person && (await currentHold(ctx, sb, input.agentId)) !== null) raise(ctx, "validation.precondition_failed", "Someone else has the controls.");
   // the table first, then browserd: an agent's call that reads the table after this line waits, and one that read it before cannot undo it (browserd never releases on a call)
   setHold(ctx, input.agentId, person);
-  try { await sb.takeover({ profileId: input.agentId, personId: person, space: ctx.space }); } catch (e) { if (other === null) dropHold(ctx, input.agentId); refuse(ctx, e); }
-  return { profile: await rowOf(ctx, sb, input.agentId, access) };
+  let got: { reopened?: boolean } | void = undefined;
+  try { got = await sb.takeover({ profileId: input.agentId, personId: person, space: ctx.space }); } catch (e) { if (other === null) dropHold(ctx, input.agentId); refuse(ctx, e); }
+  // the browser was reopened since a person last saw it (closed to make room, or stopped when idle): its page was reloaded, and the pane says so in one line
+  return { profile: await rowOf(ctx, sb, input.agentId, access), ...(got && got.reopened ? { note: TAKEOVER_REOPENED } : {}) };
 }
 
 export async function giveBack(ctx: CompCtx, input: { agentId: string }) {

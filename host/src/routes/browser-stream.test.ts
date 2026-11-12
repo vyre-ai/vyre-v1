@@ -128,3 +128,57 @@ test("a WebSocket view that answers no ping is closed, and so is its view in the
   assert.equal(good.readyState, 1, "the live one stays open");
   good.close();
 });
+
+// Fourth look (12 Nov): on a page that is not changing no frame comes, so the dead MJPEG check that ran only on frames never ran, and a closed laptop's view stayed open for good.
+test("an MJPEG view of a still page whose viewer stopped taking anything is closed by the timer, and so is its view in the browser service", async (t) => {
+  let upstreamClosed = 0;
+  const frame = Buffer.alloc(512 * 1024, 0x41);
+  const upstream = http.createServer((req, res) => {
+    res.writeHead(200, { "content-type": "multipart/x-mixed-replace; boundary=vyreframe" });
+    // one frame, then a still page: nothing more, ever
+    res.write(Buffer.concat([Buffer.from(`--vyreframe\r\ncontent-type: image/jpeg\r\ncontent-length: ${frame.length}\r\n\r\n`), frame, Buffer.from("\r\n--vyreframe\r\n")]));
+    res.once("close", () => { upstreamClosed += 1; });
+  });
+  await new Promise<void>((r) => upstream.listen(0, "127.0.0.1", r));
+  const up = (upstream.address() as AddressInfo).port;
+  const relay = createBrowserStream({ open: async () => ({ url: `http://127.0.0.1:${up}/stream`, ws: `ws://127.0.0.1:${up}/ws`, personId: "usr_dana", input: true }), mayInput: async () => true, pingMs: 30, deadMs: 500 });
+  const front = http.createServer((req, res) => { if (!relay.handle(req, res)) res.writeHead(404).end(); });
+  await new Promise<void>((r) => front.listen(0, "127.0.0.1", r));
+  const port = (front.address() as AddressInfo).port;
+  t.after(() => { front.closeAllConnections(); upstream.closeAllConnections(); front.close(); upstream.close(); });
+  const net = await import("node:net");
+  const viewer = net.connect(port, "127.0.0.1");
+  await new Promise<void>((r) => viewer.once("connect", () => r()));
+  viewer.write("GET /browsers/agt_dex/stream?ticket=x HTTP/1.1\r\nhost: x\r\n\r\n");
+  // it reads the first bytes, then takes nothing more (a laptop whose lid closed)
+  await new Promise<void>((r) => viewer.once("data", () => r()));
+  viewer.pause();
+  let closed = false;
+  viewer.on("close", () => { closed = true; });
+  for (let i = 0; i < 200 && (relay.views() > 0 || upstreamClosed === 0); i++) await sleep(50);
+  assert.equal(relay.views(), 0, "the view was ended by the timer, though no frame came after the first");
+  assert.equal(upstreamClosed, 1, "and its view in the browser service was closed");
+  viewer.destroy();
+  void closed;
+});
+
+test("a person who can no longer watch (signed out, suspended, removed): their open views end at once, the socket and the MJPEG stream", async (t) => {
+  const w = await world();
+  t.after(w.close);
+  w.issue("sock", false);
+  const v = await open(w.port, "/browsers/agt_dex/ws?ticket=sock");
+  for (let i = 0; i < 40 && v.frames === 0; i++) await sleep(25);
+  assert.ok(v.frames > 0, "the view is live");
+  w.issue("mjpeg", false);
+  const res = await fetch(`http://127.0.0.1:${w.port}/browsers/agt_dex/stream?ticket=mjpeg`);
+  assert.equal(res.status, 200);
+  const reader = res.body!.getReader();
+  await reader.read();
+  const closed = new Promise<number>((r) => v.ws.addEventListener("close", (e) => r(e.code)));
+  assert.equal(w.relay.endPerson("usr_other"), 0, "someone else's end touches nothing");
+  assert.equal(w.relay.endPerson("usr_dana"), 2, "both of Dana's views end");
+  assert.equal(await closed, 1008);
+  let ended = false;
+  for (let i = 0; i < 40 && !ended; i++) ended = (await reader.read()).done;
+  assert.equal(ended, true, "the MJPEG stream ends");
+});

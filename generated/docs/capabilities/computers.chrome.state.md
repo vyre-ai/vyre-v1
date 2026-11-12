@@ -35,6 +35,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   url: string;
   title: string;
   loading: boolean;
@@ -78,6 +80,8 @@ type Out = {
       }
     ],
     "loading": true,
+    "note": "example",
+    "reopened": true,
     "title": "example",
     "url": "example"
   }

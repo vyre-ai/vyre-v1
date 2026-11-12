@@ -192,9 +192,9 @@ test("the container's limits grow with how many browsers it holds, within what t
   assert.ok(!small.Env.some((x) => x.startsWith("VYRE_BROWSER_MAX_RUNNING=")));
   assert.equal(small.HostConfig.PidsLimit, 2048, "a small host: the usual cap");
   assert.equal(browserContainerConfig({ api: {} as DockerApi, host: { memoryMb: 16384, cpus: 8 } }).HostConfig.PidsLimit, 100 + 120 * Math.floor((16384 - 1536 - 512) / 256), "the process cap follows the browsers memory holds (about 120 tasks each)");
-  assert.equal(browserContainerConfig({ api: {} as DockerApi, host: { memoryMb: 32768, cpus: 16 }, runner: {} }).HostConfig.PidsLimit, 2048, "behind the runner: its policy's cap");
+  assert.equal(browserContainerConfig({ api: {} as DockerApi, host: { memoryMb: 32768, cpus: 16 }, runner: {} }).HostConfig.PidsLimit, 100 + 120 * Math.floor((32768 - 1536 - 512) / 256), "behind the runner: the task cap its policy allows for that host");
   const big = browserContainerConfig({ api: {} as DockerApi, host: { memoryMb: 32768, cpus: 16 }, runner: {} });
-  assert.equal(big.HostConfig.Memory, 8192 * 1024 * 1024, "behind the runner: never above its 8 GB");
+  assert.equal(big.HostConfig.Memory, (32768 - 1536) * 1024 * 1024, "behind the runner the same: its policy allows the host's budget (computers-policy.ts sbrowserBounds)");
   assert.equal(browserContainerConfig({ api: {} as DockerApi, host: { memoryMb: 32768, cpus: 16 } }).HostConfig.Memory, (32768 - 1536) * 1024 * 1024, "without it: the host's whole budget");
   assert.equal(big.HostConfig.NanoCpus, 4e9);
   assert.deepEqual(reviewComputerConfig(big), []);

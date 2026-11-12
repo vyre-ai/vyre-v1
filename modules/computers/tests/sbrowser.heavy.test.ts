@@ -796,6 +796,60 @@ test("@heavy space browser: profileUsed says whether a profile ever held Chrome 
   await tool("agt_used", "chrome_state");   // the service comes back for the next test
 });
 
+// Lead, 12 Nov (from f-desktop's finding on the old desktop): Chrome writes its cookie store about every 30 s, so a sign-in made seconds before a stop is lost unless the browser is closed cleanly
+// (Browser.close, then a bounded wait) before it is killed. Every way a profile's browser stops is tried within 2 s of the sign-in; it starts again and the page reads both back.
+test("@heavy space browser: a sign-in made a moment before a stop is still there after it, by every way a browser stops", { skip, timeout: 600_000 }, async () => {
+  const paths: Array<[string, (p: string) => Promise<void>]> = [
+    // the module's stop: closing a quiet browser to make room, an agent moved to Trash
+    ["stop (make room, Trash)", async (p) => { await sb.stop(p); }],
+    // the idle stop, on a service whose idle time is under a second
+    ["idle stop", async (p) => { for (let i = 0; i < 50; i++) { const r = (await sb.profiles()).profiles.find((x) => x.profileId === p); if (r && !r.running) return; await sleep(200); } throw new Error("did not stop after idle"); }],
+    // the container stopping: the service's own shutdown, and an old container replaced after an update
+    ["container stop (replacement, shutdown)", async () => { await api.containerStop(NAME, 10); }],
+  ];
+  const seen: Record<string, string> = {};
+  for (const [how, stopIt] of paths) {
+    const p = `agt_flush${Object.keys(seen).length}`;
+    // this file's service stops a quiet browser after 3 s (looked at every 2 s), well inside the 30 s Chrome waits before it writes its cookie store by itself
+    const t = (name: string, args: Record<string, unknown>) => sb.tool({ profileId: p, tool: name, args, timeoutMs: 30_000 });
+    await t("chrome_open", { url: siteUrl(`/set?name=${p}&keep=1`) });
+    await t("chrome_eval", { expression: `localStorage.setItem("vyre_flush", ${JSON.stringify(p)}); "ok"` });
+    const t0 = Date.now();
+    await stopIt(p);
+    const tookMs = Date.now() - t0;
+    await t("chrome_open", { url: siteUrl("/whoami") });
+    const cookie = String((await t("chrome_eval", { expression: "document.body.innerText" }))["result"]);
+    const stored = String((await t("chrome_eval", { expression: "localStorage.getItem('vyre_flush')" }))["result"]);
+    seen[how] = `${cookie} ${stored} (stopped in ${tookMs} ms)`;
+    assert.equal(cookie, `cookie:[sid=${p}]`, `${how}: the cookie came back`);
+    assert.equal(stored, p, `${how}: the local storage came back`);
+  }
+  console.log(`clean close: ${JSON.stringify(seen)}`);
+});
+
+// Lead, 12 Nov (f-wire's real-image pass found the container up after its daemon stopped): the container outlives a daemon restart on purpose, but one whose daemon has not asked it anything for a set
+// time closes its browsers cleanly and stops itself. Here the time is a few seconds; in the product it is 10 minutes, and the daemon's periodic pass asks every half minute while a browser runs.
+test("@heavy space browser: a container nobody asks anything for its set time closes its browsers cleanly and stops itself, and comes back signed in on the next call", { skip, timeout: 300_000 }, async () => {
+  const ORPH = `${NAME}o`;
+  const lone = createDockerSpaceBrowser({ api, name: ORPH, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000, orphanMinutes: 0.1 });
+  try {
+    await lone.tool({ profileId: "agt_lone", tool: "chrome_open", args: { url: siteUrl("/set?name=lone&keep=1") }, timeoutMs: 30_000 });
+    assert.equal(await api.containerRunning(ORPH), true);
+    let stopped = false;
+    for (let i = 0; i < 60 && !stopped; i++) { await sleep(1000); stopped = !(await api.containerRunning(ORPH)); }
+    assert.ok(stopped, "it stopped itself when nothing asked it anything");
+    const info = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/containers/${ORPH}/json` })).body)) as { State: { ExitCode: number }; HostConfig: { RestartPolicy?: { Name?: string } } };
+    assert.equal(info.State.ExitCode, 0, "a clean stop");
+    assert.ok(!info.HostConfig.RestartPolicy?.Name || info.HostConfig.RestartPolicy.Name === "no", "and nothing restarts it by itself");
+    await lone.tool({ profileId: "agt_lone", tool: "chrome_open", args: { url: siteUrl("/whoami") }, timeoutMs: 30_000 });
+    assert.equal(String((await lone.tool({ profileId: "agt_lone", tool: "chrome_eval", args: { expression: "document.body.innerText" }, timeoutMs: 30_000 }))["result"]), "cookie:[sid=lone]", "the next call starts it again, signed in");
+  } finally {
+    await api.containerStop(ORPH, 5).catch(() => undefined);
+    await api.containerRemove(ORPH).catch(() => undefined);
+    await http({ method: "DELETE", path: `/volumes/${ORPH}-data`, query: { force: "true" } }).catch(() => undefined);
+  }
+});
+
 test("@heavy space browser: a profile's tabs come back after its browser stops after idle", { skip, timeout: 300_000 }, async () => {
   await tool("agt_tabby", "chrome_open", { url: siteUrl("/whoami?tab=one") });
   await tool("agt_tabby", "chrome_tabs", { action: "new", url: siteUrl("/whoami?tab=two") });

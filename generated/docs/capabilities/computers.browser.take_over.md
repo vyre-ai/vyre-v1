@@ -46,6 +46,7 @@ type Out = {
     paired: boolean;
     access: "owner" | "admin" | "viewer";
   };
+  note?: string;
 };
 ```
 
@@ -68,6 +69,7 @@ type Out = {
     "agentId": "agt_a1b2c3"
   },
   "output": {
+    "note": "example",
     "profile": {
       "access": "owner",
       "agentId": "agt_a1b2c3",

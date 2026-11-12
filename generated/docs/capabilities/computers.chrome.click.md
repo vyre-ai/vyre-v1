@@ -39,6 +39,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
   heldId?: string;
   downloads?: Array<{
@@ -85,7 +87,9 @@ type Out = {
       }
     ],
     "heldId": "example",
-    "ok": true
+    "note": "example",
+    "ok": true,
+    "reopened": true
   }
 }
 ```

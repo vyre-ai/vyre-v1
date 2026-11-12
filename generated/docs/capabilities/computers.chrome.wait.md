@@ -38,6 +38,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
   waitedMs: number;
   downloads?: Array<{
@@ -82,7 +84,9 @@ type Out = {
         "path": "Downloads/report.pdf"
       }
     ],
+    "note": "example",
     "ok": true,
+    "reopened": true,
     "waitedMs": 1
   }
 }

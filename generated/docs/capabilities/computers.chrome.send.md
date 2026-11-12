@@ -36,6 +36,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   sent: boolean;
   taskId?: string;
   downloads?: Array<{
@@ -79,6 +81,8 @@ type Out = {
         "path": "Downloads/report.pdf"
       }
     ],
+    "note": "example",
+    "reopened": true,
     "sent": true,
     "taskId": "tsk_a1b2c3"
   }

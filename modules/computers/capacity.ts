@@ -31,6 +31,23 @@ export function hostConfigLimits(kind: Workload): { NanoCpus: number; Memory: nu
 }
 /** Memory kept for the OS and the Space itself. */
 export const HEADROOM_MB = 1536;
+
+/**
+ * The Space browser's one memory budget (fourth look, 12 Nov): the host's budget above is the container's memory, browserd keeps BROWSER_BASE_MB of it for itself, and every browser holds back the same
+ * LIMITS.browser.reserveMb the Space's book counts. The container's limit, its task cap and the number of browsers browserd runs all follow from these numbers; the runner's bound
+ * (host/src/sites-runner/computers-policy.ts sbrowserBounds) and browserd (images/space-browser/browserd/profiles.ts slotsFor) keep the same numbers, and a test holds the three together.
+ */
+export const BROWSER_BASE_MB = 512;
+export const BROWSER_TASKS = 120;
+export const BROWSER_BASE_TASKS = 100;
+export function browserService(hostMb: number): { memoryMb: number; slots: number; pids: number } {
+  const memoryMb = Math.max(1024, Math.round(hostMb) - HEADROOM_MB);
+  return { memoryMb, slots: browserSlots(memoryMb), pids: browserTasks(memoryMb) };
+}
+/** The task cap of a container of this much memory: browserd's own and about BROWSER_TASKS a browser. */
+export const browserTasks = (memoryMb: number): number => Math.max(2048, BROWSER_BASE_TASKS + BROWSER_TASKS * browserSlots(memoryMb));
+/** How many browsers a container of this much memory runs at once. */
+export const browserSlots = (memoryMb: number): number => Math.max(1, Math.floor((memoryMb - BROWSER_BASE_MB) / LIMITS.browser.reserveMb));
 /** Disk a host must have free before it starts or makes another container (images, profiles and Files grow on it). */
 export const MIN_DISK_MB = 2048;
 /** The kinds the machine's `maxAgentComputers` counts: full desktops. */

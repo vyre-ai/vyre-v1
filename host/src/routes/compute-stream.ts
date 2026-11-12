@@ -60,7 +60,7 @@ export interface ComputeStreamDeps {
   /** Who holds this credential, if still admitted (the network module's node_poll). */
   poll(credential: string): Promise<{ serverId: string; owner?: string } | null>;
   /** A person's signed-in session, for their own computer's link: the person and the device, if the session is live and the device is a computer (not a phone or a browser). Absent: no device links. */
-  device?(token: string): Promise<{ person: string; device: string; name?: string } | null>;
+  device?(token: string): Promise<{ person: string; device: string; name?: string; sessionId?: string } | null>;
   /** Spend a viewer's ticket for this computer: the node it lives on, who the ticket was issued to, and whether that person holds the controls. Null when the ticket is not good. */
   open(ticket: string, computerId: string): Promise<{ nodeId: string; personId: string; input: boolean } | null>;
   /** Does this person still hold the controls of this computer? */
@@ -126,6 +126,11 @@ export interface ComputeStream {
   handle(req: http.IncomingMessage, res: http.ServerResponse): boolean;
   /** The node left the Space: close its socket and end its views. Returns how many sockets were closed. */
   closeNode(nodeId: string): number;
+  /**
+   * A session ended or a person can no longer act: their own computer's link made with that session (or, for `person`, every link of theirs) closes now, not at the next recheck, and the live
+   * views `viewer` opened by ticket end. Returns how many links and views were closed.
+   */
+  endSessions(m: { sessionId?: string; person?: string }, viewer?: string): number;
   connected(nodeId: string): boolean;
   /** Turns running on this node now: the engine processes the Space started there (all nodes' when none is named). Zero for a node that is not connected. */
   running(nodeId?: string): number;
@@ -144,7 +149,7 @@ export interface ComputeStream {
   close(): void;
 }
 
-interface NodeConn { nodeId: string; credential: string; peer: Peer; views: Set<string>; procs: Set<string>; lastSeen: number; secure: boolean; address: string; device?: DeviceLink; pingAt?: number; rtt?: number; pinger?: ReturnType<typeof setInterval> }
+interface NodeConn { nodeId: string; credential: string; /** a person's own computer: the device session its token belongs to */ sessionId?: string; peer: Peer; views: Set<string>; procs: Set<string>; lastSeen: number; secure: boolean; address: string; device?: DeviceLink; pingAt?: number; rtt?: number; pinger?: ReturnType<typeof setInterval> }
 interface ProcState {
   id: string; nodeId: string; started(pid: number | undefined): void; failed(e: RelayError): void; out(bytes: Buffer, err: boolean): void; exit(x: RelayExit): void;
 }
@@ -236,7 +241,7 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       if (!peer) return;
       const nodeId = who ? who.serverId : deviceNode(mine!.device);
       const device: DeviceLink | undefined = mine ? { nodeId, deviceId: mine.device, person: mine.person, ...(mine.name ? { name: mine.name } : {}), engines: [], since: now() } : undefined;
-      const conn: NodeConn = { nodeId, credential, peer, views: new Set(), procs: new Set(), lastSeen: now(), secure: (deps.secure ?? linkIsSecure)(req), address: sourceFor(req), ...(device ? { device } : {}) };
+      const conn: NodeConn = { nodeId, credential, ...(mine?.sessionId ? { sessionId: mine.sessionId } : {}), peer, views: new Set(), procs: new Set(), lastSeen: now(), secure: (deps.secure ?? linkIsSecure)(req), address: sourceFor(req), ...(device ? { device } : {}) };
       const old = nodes.get(conn.nodeId);
       if (old) dropNode(old, 4000);
       nodes.set(conn.nodeId, conn);
@@ -544,6 +549,16 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       if (req.method !== "GET") { plain(res, 405, "validation.bad_input", "Use GET."); return true; }
       handleMjpeg(req, res, m[1]!);
       return true;
+    },
+    endSessions(m, viewer) {
+      let n = 0;
+      for (const c of [...nodes.values()]) {
+        if (!c.device) continue;
+        if ((m.sessionId !== undefined && c.sessionId === m.sessionId) || (m.person !== undefined && c.device.person === m.person)) { dropNode(c, 4003); n++; }
+      }
+      const who = viewer ?? m.person;
+      if (who !== undefined) for (const v of [...views.values()]) if (v.personId === who) { dropView(v.id, true); n++; }
+      return n;
     },
     closeNode(nodeId) {
       const n = nodes.get(nodeId);

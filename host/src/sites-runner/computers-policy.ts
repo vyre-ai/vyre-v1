@@ -4,6 +4,8 @@
 // reach another's (Docker keeps two user networks apart) and nothing reaches vyred but the one route agentd posts to. It runs with every capability dropped, no new privileges, a seccomp
 // profile, a CPU, memory and process cap, rotated logs, and no host folder, device, port or namespace. Exec, archive and logs are allowed only on containers that carry vyre.computer, and
 // archive only inside the computer's own home. Mirrors modules/computers reviewComputerConfig, which a computer's config must pass before it is even sent.
+import { totalmem } from "node:os";
+
 const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 
 /** cmt_<uuid with dashes>, as modules/computers mints it. */
@@ -164,8 +166,24 @@ export const isSbrowserImage = (name: string): boolean => sbrowserImages().test(
 /** Is this container the Space browser's (by its labels)? */
 export const sbrowserOf = (labels: Record<string, string> | null | undefined): boolean => labels?.["vyre.sbrowser"] === "1";
 
-/** The Space browser's container create body, or why it is refused. */
-export function sbrowserBody(name: string, body: unknown): { body: Record<string, unknown> } | { why: string } {
+/**
+ * How large the runner lets the Space browser's container be (owner, 12 Nov: many agents' browsers at once on a big server). The bound follows the HOST, read by the runner itself, never what the daemon
+ * asks for: memory at most the host's memory less the 1536 MB the OS and Vyre keep (modules/computers/capacity.ts HEADROOM_MB), and a task cap that matches the browsers that memory holds (512 MB and 100 tasks
+ * for browserd, 256 MB and about 120 tasks a browser, plus a margin). A body above either is refused with a plain reason. Memory never above the host less 1536 MB (at least 1 GB); tasks never under the 2048 allowed before.
+ */
+export interface SbrowserHost { memoryBytes: number }
+export const sbrowserHost = (): SbrowserHost => ({ memoryBytes: totalmem() });
+export function sbrowserBounds(host: SbrowserHost): { memory: number; pids: number; nanoCpus: number } {
+  const MB = 1024 * 1024;
+  // the floor is the smaller of the old 8 GB and the host less its headroom, so a small host is never given more than it has (fifth look); never under 1 GB
+  const hostLess = Math.floor(host.memoryBytes / MB) - 1536;
+  const memMb = Math.max(1024, Math.min(8192, hostLess), hostLess);
+  const browsers = Math.max(1, Math.floor((memMb - 512) / 256));
+  return { memory: memMb * MB, pids: Math.max(MAX.pids, 100 + 120 * browsers + 256), nanoCpus: MAX.nanoCpus };
+}
+
+/** The Space browser's container create body, or why it is refused. `host` is this computer as the runner reads it (tests pass one). */
+export function sbrowserBody(name: string, body: unknown, host: SbrowserHost = sbrowserHost()): { body: Record<string, unknown> } | { why: string } {
   if (!isObj(body)) return { why: "the container config is not an object" };
   for (const k of Object.keys(body)) if (!TOP_KEYS.has(k) && !emptyish(body[k])) return { why: `the Space browser container may not set ${k}` };
   if (name !== SBROWSER_NAME) return { why: "the Space browser container is named vyre-sbrowser" };
@@ -175,7 +193,7 @@ export function sbrowserBody(name: string, body: unknown): { body: Record<string
   if (!isSbrowserImage(String(body["Image"] ?? ""))) return { why: "the Space browser runs the Space browser image" };
   if (body["Hostname"] !== undefined && body["Hostname"] !== name) return { why: "the Space browser's hostname is its container name" };
   const env = Array.isArray(body["Env"]) ? (body["Env"] as unknown[]) : [];
-  for (const e of env) if (typeof e !== "string" || !/^VYRE_BROWSER_(MAX_RUNNING|IDLE_MINUTES|SWEEP_SECONDS)=[0-9.]{1,8}$/.test(e)) return { why: "the Space browser's environment is its limits and idle time" };
+  for (const e of env) if (typeof e !== "string" || !/^VYRE_BROWSER_(MAX_RUNNING|IDLE_MINUTES|SWEEP_SECONDS|ORPHAN_MINUTES)=[0-9.]{1,8}$/.test(e)) return { why: "the Space browser's environment is its limits and idle time" };
   const h = isObj(body["HostConfig"]) ? body["HostConfig"] : null;
   if (!h) return { why: "the Space browser container needs its limits" };
   if (h["Privileged"] === true) return { why: "privileged containers are refused" };
@@ -205,9 +223,10 @@ export function sbrowserBody(name: string, body: unknown): { body: Record<string
   const tmpfs = isObj(h["Tmpfs"]) ? h["Tmpfs"] : {};
   if (Object.keys(tmpfs).some((k) => k !== "/tmp" && k !== "/dev/shm")) return { why: "only /tmp and /dev/shm may be a tmpfs" };
   const nano = Number(h["NanoCpus"]), mem = Number(h["Memory"]), pids = Number(h["PidsLimit"]);
-  if (!(nano > 0 && nano <= MAX.nanoCpus)) return { why: "the Space browser needs a CPU cap of at most 4 CPUs" };
-  if (!(mem > 0 && mem <= MAX.memory) || Number(h["MemorySwap"]) !== mem) return { why: "the Space browser needs a memory cap of at most 8 GB and no swap" };
-  if (!(pids > 0 && pids <= MAX.pids)) return { why: "the Space browser needs a process cap of at most 2048" };
+  const bound = sbrowserBounds(host);
+  if (!(nano > 0 && nano <= bound.nanoCpus)) return { why: "the Space browser needs a CPU cap of at most 4 CPUs" };
+  if (!(mem > 0 && mem <= bound.memory) || Number(h["MemorySwap"]) !== mem) return { why: `the Space browser needs a memory cap of at most ${Math.round(bound.memory / 1024 ** 2)} MB on this server (its memory less what the system keeps) and no swap` };
+  if (!(pids > 0 && pids <= bound.pids)) return { why: `the Space browser needs a process cap of at most ${bound.pids} on this server (what its memory's browsers need)` };
   const ul = Array.isArray(h["Ulimits"]) ? (h["Ulimits"] as unknown[]) : [];
   if (ul.some((u) => !isObj(u) || (u["Name"] !== "nofile" && u["Name"] !== "core"))) return { why: "the Space browser takes no ulimit but nofile and core" };
   if (h["AutoRemove"] === true) return { why: "the Space browser is removed by Vyre, not by Docker" };

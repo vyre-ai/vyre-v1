@@ -16,7 +16,17 @@ import { askedThisTurn } from "./my-chrome-ask.ts";
 import { spaceBrowser } from "../../sbrowser/port.ts";
 import { profileIdOf } from "../../sbrowser/policy.ts";
 import { takeDownloads } from "../../sbrowser/downloads.ts";
-import { callEnded, callStarted, needRoom } from "../../sbrowser/room.ts";
+import { answerFrom, callEnded, callStarted, lastSeenStart, needRoom, refsStart, refusedAt, REOPENED_LINE, snapshotFrom } from "../../sbrowser/room.ts";
+
+/** The steps that act on the page (anything but a look): each carries the start of the browser the agent last saw, and is refused after a reopen until the agent has seen the new page. */
+const ACTS: ReadonlySet<string> = new Set(["chrome_click", "chrome_act", "chrome_type", "chrome_fill", "chrome_send", "chrome_api", "chrome_eval"]);
+
+/** Does a step name an element by a ref from a snapshot (a key "ref" anywhere in its arguments)? Such a step carries the start its refs were taken under, and browserd refuses it after a reopen. */
+function namesRef(v: unknown, depth = 0): boolean {
+  if (depth > 4 || v === null || typeof v !== "object") return false;
+  if (Array.isArray(v)) return v.some((x) => namesRef(x, depth + 1));
+  return Object.entries(v as Record<string, unknown>).some(([k, x]) => (k === "ref" && typeof x === "string" && x !== "") || namesRef(x, depth + 1));
+}
 import { currentHold, DURING_HOLD, HELD_LINE, heldBy } from "../../sbrowser/hold.ts";
 import { agentInfo } from "../../sbrowser/agentinfo.ts";
 import { faceSvg } from "../../sbrowser/face.ts";
@@ -30,11 +40,13 @@ export type ToolAnswer = Record<string, unknown>;
 export type ToolCode = "timeout" | "paused" | "not_found" | "bad_input" | "held" | "unavailable";
 
 /** A reason that travels with a refusal and never changes with its wording: `profile_held` (a person has the controls), `profile_busy` (a step is running). Lane f-desktop's move matches on it. */
-export type ToolReason = "profile_held" | "profile_busy";
+export type ToolReason = "profile_held" | "profile_busy" | "browser_full" | "browser_reopened";
 
 export class ToolError extends Error {
   readonly code: ToolCode;
   readonly reason: ToolReason | undefined;
+  /** browser_reopened: the start of the agent's browser now (null: not running), from browserd. */
+  start: string | null | undefined;
   constructor(code: ToolCode, message: string, reason?: ToolReason) { super(message); this.name = "ToolError"; this.code = code; this.reason = reason; }
 }
 
@@ -474,10 +486,12 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
 
 async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof spaceBrowser>>, profileId: string, spec: ToolSpec, args: ToolArgs, fill: { url: string; token: string } | undefined, h: { hold: string | null; readAt: number }): Promise<ToolAnswer> {
   // a browser that would start needs room on the host first (a claim on a running one is the same ask); from here to its answer the call is in flight, so making room never closes this browser
-  callStarted(profileId);
+  // an agent's own call refreshes its turn's protection (sbrowser/room.ts)
+  if (ctx.principal.kind === "agent") callStarted(profileId, ctx.space, ctx.now()); else callStarted(profileId);
   let raw!: ToolAnswer;
   let list!: TabLister;
   let given!: ReturnType<typeof givenCount>;
+  let reopened = false;
   try {
   if (spec.name !== "chrome_status" && spec.name !== "chrome_stop" && spec.name !== "chrome_resume" && spec.name !== "chrome_plan") await needRoom(ctx, sb, profileId);
   // the agent's name rides every call (the service keeps it in memory); its face is drawn once and kept with the profile
@@ -490,10 +504,19 @@ async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof space
   list = async () => tabsIn(await sb.tool({ profileId, tool: "chrome_tabs", args: { action: "list" }, timeoutMs: DEFAULT_TOOL_MS, space: ctx.space }));
   if (spec.name === "chrome_screenshot" && !(await pictureAllowed(profileId, list, args["tabId"]))) raise(ctx, "validation.bad_input", HOLDS_VALUE, { reason: "vault_value_on_page" });
   given = givenCount(profileId);
-  const send = (): Promise<ToolAnswer> => sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, hold: h.hold, ...(fill ? { fill } : {}) });
+  // a step on refs says which start of the browser they came from: browserd refuses it, with the line, when the browser has started again since (its pages reloaded, the refs gone or moved)
+  const from = spec.name !== "chrome_snapshot" && namesRef(args) ? refsStart(profileId) : undefined;
+  const send = (): Promise<ToolAnswer> => sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, hold: h.hold, ...(fill ? { fill } : {}), ...(from ? { refsFrom: from } : {}), ...(ACTS.has(spec.name) ? { seenFrom: lastSeenStart(profileId) } : {}) });
   try {
-    raw = await send();
+    try { raw = await send(); } catch (e) {
+      // the browser service is full though this profile holds room (another Space filled it): wait for room like any start, then send once more (it was refused before it ran)
+      if (!(e instanceof ToolError && e.reason === "browser_full")) throw e;
+      await needRoom(ctx, sb, profileId, { force: true });
+      raw = await send();
+    }
   } catch (e) {
+    // an act on a page the agent has not seen: refused with the line; the refusal is its notice (sbrowser/room.ts refusedAt)
+    if (e instanceof ToolError && e.reason === "browser_reopened") { refusedAt(profileId, e.start); return refuse(ctx, e, profileId); }
     // browserd still holds a takeover the table no longer has (a give back that did not reach it): released only if it began before this call read the table, so a takeover made since stays; the
     // call was refused before it ran, so it is sent once more
     if (!(e instanceof ToolError && e.code === "paused" && /has the controls/i.test(e.message)) || heldBy(ctx, profileId) !== null) return refuse(ctx, e, profileId);
@@ -504,17 +527,24 @@ async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof space
   }
   } finally { callEnded(profileId); }
   if (!isRecord(raw)) raise(ctx, "provider.unavailable", "The browser answered with something that is not an object.");
-  const { used, frame: _frame, caption: _caption, ...rest } = raw;
+  const { used, frame: _frame, caption: _caption, browserStart, ...rest } = raw;
+  // which start of the browser answered: a different one than last time means it was reopened (closed to make room, or stopped when idle) and its pages reloaded. The agent's answer says so once
+  const start = typeof browserStart === "string" ? browserStart : "";
+  reopened = answerFrom(profileId, start);
+  if (spec.name === "chrome_snapshot") snapshotFrom(profileId, start);
   rememberSecrets(profileId, secretsOf(used), { handedOut: false });
   // the tab a value went into, by a tool or by Vyre for Chrome while this call ran, is never pictured while it is open
   await markAfter(profileId, list, given, args["tabId"] ?? (spec.name === "chrome_open" ? rest["tabId"] : undefined), secretsOf(used).map((x) => x.value));
   if (spec.name === "chrome_tabs" && tabsIn(rest).length > 0) tabsOpen(profileId, tabsIn(rest).map((t) => t.tabId));
   const out = scrubDeep(profileId, rest) as ToolAnswer;
+  if (reopened) { out["reopened"] = true; out["note"] = REOPENED_LINE; }
   // what the browser finished downloading goes into the agent's Files (Downloads) and the agent is told where; only the steps that say so carry it
   // a step with a caption is one line of the agent's browser timeline, with a picture of the page, and the chat shows the browser live once per burst of work
   if (spec.caption) {
     const at = ctx.now();
     let words = clean(profileId, spec.caption(args, out).trim()).slice(0, 200);
+    // the person watching reads the same as the agent: the browser was reopened and its pages reloaded
+    if (reopened) words = `${words} · Browser reopened, pages reloaded`;
     let frame: string | undefined;
     // no picture of a page that holds a value filled from the Vault (it is kept in Files, and a text field shows its value); the step says so in one line, and so whether the chat's live card,
     // which needs that picture, was due and not posted
@@ -628,6 +658,8 @@ export function shape(ctx: CompCtx, tool: string, out: ToolAnswer, want: Shape):
     if (!check(v)) raise(ctx, "provider.unavailable", `The computer's ${tool} answer has the wrong kind of ${key}.`);
     res[key] = v;
   }
+  // the first answer after the browser was reopened says so, whatever the tool (browserStep)
+  if (out["reopened"] === true) { res["reopened"] = true; if (typeof out["note"] === "string") res["note"] = out["note"]; }
   return res;
 }
 

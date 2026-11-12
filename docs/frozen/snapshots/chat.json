@@ -107,7 +107,7 @@
     "threads.outside_agent.add@1": "b9a57481477c20317f00268ba301f991bc73dd7441cc21f4b14be71c4ec4a2b0",
     "threads.outside_agent.remove@1": "ca554729a7010b8515ba32d6427896fc6b2499bf4e7501b66ffb3c101d8b4f26",
     "threads.poke@1": "63b0a6a0a56ea851d5df980e533a7a55762268c71e72bf779cf902e23e2c85b3",
-    "threads.remove_agent@1": "5e515a92e0d6c4f4b3dd69a96195b1d3a36f1064d980b71eff7c4fdfe3fd7cec",
+    "threads.remove_agent@1": "6be42753035aa0dc7e027b84c3d1ea29376c9ebec77ada4f8aa1406c9e59f8be",
     "threads.reopen@1": "bcf2ea8289c25f7fba76c903cd6056f450dc1202c5ae1d2afeaa490b9dd1c2d1",
     "threads.restore@1": "16932ac9d99f00ffcfe9d0477a3ca9cf006bcdb3bb3ef2133829dc593ccb9f19",
     "threads.set_agent_replies@1": "add509ec7da0ce6d5e0fb7284252323f6e80c0040d600a9b554c3f63e5a7a0e7",

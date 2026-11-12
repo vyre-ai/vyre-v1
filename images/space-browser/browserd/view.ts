@@ -203,6 +203,8 @@ export interface ViewDeps {
   address(): string;
   /** The view of a profile, or null when there is none. */
   viewOf(profileId: string): ViewOf | null;
+  /** A person's view of a profile opened or closed: what they saw (a takeover later says whether the page was reloaded since). */
+  seen?(profileId: string, personId: string): void;
 }
 
 export function startViewServer(d: ViewDeps): ViewServer {
@@ -229,13 +231,14 @@ export function startViewServer(d: ViewDeps): ViewServer {
       // an MJPEG view cannot show it is alive (it sends nothing, and a still page sends it no frame that would fill a dead socket), so it never counts as the holder's open view: only a WebSocket
       // view, which the Space's relay pings and closes when it stops answering, keeps a takeover going (second and third looks, 12 Nov)
       viewers += 1;
+      if (got.personId) d.seen?.(got.profileId, got.personId);
       const stop = got.view.hub.watch((jpeg) => {
         if (res.writableLength > 2 * 1024 * 1024) return;
         res.write(`--${BOUNDARY}\r\ncontent-type: image/jpeg\r\ncontent-length: ${jpeg.length}\r\n\r\n`);
         res.write(jpeg);
         res.write("\r\n");
       });
-      res.once("close", () => { stop(); viewers -= 1; });
+      res.once("close", () => { stop(); viewers -= 1; if (got.personId) d.seen?.(got.profileId, got.personId); });
       return;
     }
     if (url.pathname === "/health") { res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true })); return; }
@@ -251,8 +254,9 @@ export function startViewServer(d: ViewDeps): ViewServer {
     if (!ws) return;
     viewers += 1;
     count(keyOf(got), 1);
+    if (got.personId) d.seen?.(got.profileId, got.personId);
     const stop = view.hub.watch((jpeg) => { ws.send(jpeg); });
-    ws.onClose(() => { stop(); viewers -= 1; count(keyOf(got), -1); });
+    ws.onClose(() => { stop(); viewers -= 1; count(keyOf(got), -1); if (got.personId) d.seen?.(got.profileId, got.personId); });
     ws.onMessage((data, binary) => {
       if (binary || typeof data !== "string") return;
       const t0 = performance.now();

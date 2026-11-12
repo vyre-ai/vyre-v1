@@ -1,2 +1,20 @@
 - Removing someone from a project, or giving them a lower project role, now takes effect at once, even while the project is still being set up; before, the setup could quietly give the old access back.
 - Signing out, ending a session from the devices list, revoking a device, suspending or removing a person now also closes that person's open live connection, so the app on that device can do nothing more as them.
+- Leaving a chat or channel, or being taken out of one, now also takes away your view of the agents that chat made, at once; an agent taken out of a channel loses what the channel gave it.
+- A join step that failed and is tried again later no longer gives back a role, group, project role or channel an admin changed in the meantime, and gives nothing to someone who was removed or is suspended.
+- Taking a share off a record, or lowering it, now also takes it off the record's Files folder at once.
+- A form link revoked while someone was still sending the form now refuses that submission.
+- A device whose session ended (signed out, revoked, suspended, removed) can no longer send or receive anything on its live connection, even for an instant; signing out from the app still gets its answer before the connection closes.
+- Your own computer's link to the Space, and any live view of a computer or browser you opened, close the moment you sign out, are suspended or removed.
+- Signing out now works on a session older than 30 days.
+- Removing someone from a project, or lowering their role, now also takes them out of the project's channel whoever does it, and says so plainly if that cannot be done; a remove pressed right after an add is no longer lost.
+- A join step that has to wait for an admin is now shown to admins as needing them, with the reason, instead of being dropped quietly; a failed Everyone or group step is no longer lost because another group step worked.
+- Someone removed from a chat, a project, a skill, a review or a shared file and later added back now gets their access again; before, the second add could quietly do nothing.
+- No session is ended by its age any more anywhere in Vyre: a sign-in older than 30 days keeps working for previews and single sign-on keys as it already did for everything else, and still ends at once when you sign out or revoke it.
+- A failed join step for a role or a group is now held back only when someone changed that one role or group of the person after the step failed, and a step Vyre could not check says so plainly.
+- An artifact or site page you opened stops working the moment you sign out, are suspended or removed, including on pages you own.
+- Taken out of a channel, you keep of its threads only what you can still read: in an invite-only channel you are out of its threads too, and its agents are no longer yours to see or chat with.
+- Lowering a file share now lowers it, even over a share made before or from the Console.
+- The files of an agent made in a private chat or in a thread of an invite-only channel are now only for the people who can read that chat, the agent's owner, and the Space's owners and admins. Other members no longer open, list or find them, and the agent cannot read them for someone who is not in that chat.
+- Leaving or being taken out of that chat takes its agent's files away at once. Making the channel public opens them to the Space, and making it invite-only again closes them. Someone added to the channel gets them.
+- Agents made in private chats before this update have their files closed the same way when the server starts.

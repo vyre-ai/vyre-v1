@@ -53,8 +53,9 @@ test("a view guest is given View, and a step that fails is tried again without r
   h.world.failing.clear();
   h.calls.length = 0;
   assert.deepEqual(await drainJoins(h.anon), { applied: 1, pending: 0 });
-  assert.deepEqual(h.calls.map((c) => c.cap), ["access.join_share"]);
-  assert.equal((h.calls[0]!.input as { level: string }).level, "view");
+  // the retry first reads what the Space holds for the step (a later change by an admin wins), then writes: of the writes, only the failed step ran again
+  assert.deepEqual(h.calls.map((c) => c.cap).filter((c) => !["access.principals.get", "channels.get", "projects.members.list", "access.shares_of"].includes(c)), ["access.join_share"]);
+  assert.equal((h.calls.find((c) => c.cap === "access.join_share")!.input as { level: string }).level, "view");
 });
 
 test("an ordinary invite is unchanged: Everyone, the home channel and the company step still run", async () => {

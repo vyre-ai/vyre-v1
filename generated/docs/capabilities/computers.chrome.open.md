@@ -36,6 +36,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   tabId: string;
   url: string;
   title: string;
@@ -79,6 +81,8 @@ type Out = {
         "path": "Downloads/report.pdf"
       }
     ],
+    "note": "example",
+    "reopened": true,
     "tabId": "example",
     "title": "example",
     "url": "example"

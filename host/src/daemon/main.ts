@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { loadConfig } from "./config.ts";
 import type { DaemonConfig } from "./config.ts";
 import { startDaemon } from "./daemon.ts";
+import { DAMAGED_EXIT, damagedDatabase, damagedLine, hold, isCorruption, markDamaged, stillDamaged } from "./damaged-db.ts";
 import type { Daemon } from "./daemon.ts";
 
 const version = process.env["VYRE_VERSION"] ?? "0.0.0-dev";
@@ -91,13 +92,26 @@ async function main(): Promise<number> {
   try { config = loadConfig(process.argv.slice(2), process.env, version); }
   catch (e) { process.stderr.write(`vyred: ${e instanceof Error ? e.message : String(e)}\n`); return 2; }
   if (config.roles.includes("compute")) return runCompute(config);
+  // a database an earlier start found damaged, and still damaged: hold (damaged-db.ts) instead of starting, so nothing re-opens it in a restart loop
+  const held = stillDamaged(config.dataDir);
+  if (held) {
+    process.stderr.write(`${held}\n`);
+    return hold(held, config.host, config.port);
+  }
   let resolveStopped:()=>void=()=>{};
   const stopped=new Promise<void>(resolve=>{resolveStopped=resolve;});
   let d: Daemon;
   try { d = await startDaemon({ config, onStopped:resolveStopped, engineInstall: true }); }
   catch (e) {
     // A daemon that could not start ends here, at once and non-zero, with the reason on stderr: the services it had begun (the scheduler, the stores) would otherwise keep the process alive and the
-    // shell that started it would wait out its timeout instead of showing this line.
+    // shell that started it would wait out its timeout instead of showing this line. A damaged database is named, with the way back (damaged-db.ts), and exits 3.
+    if (isCorruption(e)) {
+      const why = e instanceof Error ? e.message : String(e);
+      const name = damagedDatabase(config.dataDir);
+      markDamaged(config.dataDir, name, why);
+      process.stderr.write(`${damagedLine(name, why)}\n`, () => process.exit(DAMAGED_EXIT));
+      return DAMAGED_EXIT;
+    }
     process.stderr.write(`vyred: ${e instanceof Error ? e.message : String(e)}\n`, () => process.exit(1));
     return 1;
   }

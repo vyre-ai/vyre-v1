@@ -36,6 +36,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   element: Record<string, unknown>;
 };
 ```
@@ -63,7 +65,9 @@ type Out = {
     "tabId": "example"
   },
   "output": {
-    "element": {}
+    "element": {},
+    "note": "example",
+    "reopened": true
   }
 }
 ```

@@ -1,10 +1,16 @@
 // The Docker adapter of the Space browser: one container `vyre-sbrowser` per Space host from images/space-browser, a named volume for the profiles at /data, and browserd inside, which this adapter talks
 // to by running its control program (`docker exec <container> /opt/browserd/ctl <action> '<json>'`, one JSON object on stdout, a refusal is {"code","message"} on stderr with a non-zero exit), the same way
 // the agent computer's host talks to agentd (modules/computers/impl.ts). The container is started on the first browser tool and stays up: it holds nothing while no profile runs a browser.
+//
+// TRUST MODEL (sixth look, 12 Nov). Two Spaces whose daemons run on one Docker engine share this one container and its volume; their profiles are kept apart by agent id and by the Space each profile's
+// folder records. browserd asks no proof of Space for any control action (tool, status, takeover, give_back, sessions, sign_out, screenshot, download_read, forget, purge_space, mark_space, close_other):
+// whoever can run `ctl` in the container is trusted, and that is the daemons on this engine (through Docker or the runner) and root on the host. A daemon could therefore read or remove another
+// Space's profile by id; the Space's module filters what its people see and which profiles it acts on, never browserd. That is the line: a shared container trusts the daemons on its engine equally.
+// Behind the runner this matters only if two Spaces share one runner engine, which is not the Team server layout. Proof of Space in browserd is a later step, not this release's.
 import { NOT_FETCHED_REASON, fetchableImage } from "../../../sandbox/src/docker.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../../sandbox/src/docker.ts";
 import { computerSeccomp, reviewComputerConfig, toolErrorOf } from "../impl.ts";
-import { HEADROOM_MB, LIMITS } from "../capacity.ts";
+import { browserService, browserSlots, browserTasks, LIMITS } from "../capacity.ts";
 import { cpus, totalmem } from "node:os";
 import { ToolError } from "../handlers/tools/common.ts";
 import type { BrowserAnswer, BrowserToolCall, ProfileRow, SpaceBrowser } from "./port.ts";
@@ -36,6 +42,8 @@ export interface DockerSpaceBrowserOptions {
   idleMinutes?: number;
   /** How often browserd looks for quiet profiles, in seconds. Default 30. */
   sweepSeconds?: number;
+  /** Minutes with nothing asking browserd before it closes every browser and the container stops (its daemon is gone). Default 10, set in the image. */
+  orphanMinutes?: number;
   /**
    * Raw Engine access: for the image pull and the service's own network. With it the container is on a network of its own (with or without the runner), so the daemon knows a request from it by its
    * subnet and lets it reach only the Vault channel (computerSubnets). Without it the image must already be on the machine and the container uses the default bridge.
@@ -60,14 +68,14 @@ export interface DockerSpaceBrowserOptions {
 export function browserContainerConfig(o: DockerSpaceBrowserOptions, net?: { gateway?: string }): ContainerConfig {
   const name = o.name ?? "vyre-sbrowser";
   // with an admin's bound: up to that many browsers, each half its cap of the service's memory (a browser bursts to its cap when the host has room, capacity.ts LIMITS.browser) on top of a base for browserd.
-  // Without one: the host's memory budget (less what the OS and Vyre keep, capacity.ts HEADROOM_MB), never above the runner's 8 GB, and half the host's cores up to 4; browserd fits browsers into it.
+  // Without one: the host's memory budget (less what the OS and Vyre keep, capacity.ts HEADROOM_MB), and half the host's cores up to 4; browserd fits browsers into it.
   const host = o.host ?? { memoryMb: Math.round(totalmem() / 1048576), cpus: cpus().length };
   const many = o.maxRunning;
   const limits = many !== undefined
     ? { cpus: Math.min(4, Math.max(1, Math.round((many * LIMITS.browser.cpus) / 2))), memoryMb: Math.min(8192, 512 + Math.round((many * LIMITS.browser.memoryMb) / 2)), pids: 2048, ...o.limits }
-    // a browser counts about 120 tasks: the cap follows the memory (30 browsers in 8 GB need about 3700); behind the runner its policy caps it at 2048 (about 16 browsers, said in the lane report)
-    : { cpus: Math.min(4, Math.max(1, Math.floor(host.cpus / 2))), memoryMb: Math.min(o.runner ? 8192 : Number.MAX_SAFE_INTEGER, Math.max(1024, host.memoryMb - HEADROOM_MB)), pids: 2048, ...o.limits };
-  if (many === undefined && !o.runner && o.limits?.pids === undefined) limits.pids = Math.max(2048, 100 + 120 * Math.floor((limits.memoryMb - 512) / 256));
+    : { cpus: Math.min(4, Math.max(1, Math.floor(host.cpus / 2))), memoryMb: browserService(host.memoryMb).memoryMb, pids: 2048, ...o.limits };
+  // the task cap follows the memory (capacity.ts browserService, the one budget). Behind the runner these are the numbers its policy allows for this host (host/src/sites-runner/computers-policy.ts sbrowserBounds)
+  if (many === undefined && o.limits?.pids === undefined) limits.pids = browserTasks(limits.memoryMb);
   const memory = Math.round(limits.memoryMb * 1024 * 1024);
   const uid = o.user?.uid ?? 10001;
   const gid = o.user?.gid ?? 10001;
@@ -77,7 +85,7 @@ export function browserContainerConfig(o: DockerSpaceBrowserOptions, net?: { gat
     User: "",
     WorkingDir: "/home/browser",
     Cmd: [...(o.cmd ?? [])],
-    Env: [...(o.maxRunning !== undefined ? [`VYRE_BROWSER_MAX_RUNNING=${o.maxRunning}`] : []), `VYRE_BROWSER_IDLE_MINUTES=${o.idleMinutes ?? 10}`, ...(o.sweepSeconds !== undefined ? [`VYRE_BROWSER_SWEEP_SECONDS=${o.sweepSeconds}`] : [])],
+    Env: [...(o.maxRunning !== undefined ? [`VYRE_BROWSER_MAX_RUNNING=${o.maxRunning}`] : []), `VYRE_BROWSER_IDLE_MINUTES=${o.idleMinutes ?? 10}`, ...(o.sweepSeconds !== undefined ? [`VYRE_BROWSER_SWEEP_SECONDS=${o.sweepSeconds}`] : []), ...(o.orphanMinutes !== undefined ? [`VYRE_BROWSER_ORPHAN_MINUTES=${o.orphanMinutes}`] : [])],
     Labels: { "vyre.sbrowser": "1" },
     StopTimeout: 10,
     HostConfig: {
@@ -290,7 +298,18 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
   return {
     available: () => o.api.ping().catch(() => false),
     async tool(a: BrowserToolCall) {
-      return call("tool", { profileId: a.profileId, tool: a.tool, args: a.args, timeoutMs: a.timeoutMs, ...(a.by ? { by: a.by } : {}), ...(a.fill ? { fillUrl: a.fill.url, fillToken: a.fill.token } : {}), ...(a.space ? { spaceId: a.space } : {}), ...(a.hold !== undefined ? { hold: a.hold } : {}), ...(a.agent ? { agentName: a.agent.name, ...(a.agent.faceSvg ? { faceSvg: a.agent.faceSvg } : {}) } : {}) });
+      return call("tool", { profileId: a.profileId, tool: a.tool, args: a.args, timeoutMs: a.timeoutMs, ...(a.by ? { by: a.by } : {}), ...(a.fill ? { fillUrl: a.fill.url, fillToken: a.fill.token } : {}), ...(a.space ? { spaceId: a.space } : {}), ...(a.hold !== undefined ? { hold: a.hold } : {}), ...(a.refsFrom ? { refsFrom: a.refsFrom } : {}), ...(a.seenFrom !== undefined ? { seenFrom: a.seenFrom } : {}), ...(a.agent ? { agentName: a.agent.name, ...(a.agent.faceSvg ? { faceSvg: a.agent.faceSvg } : {}) } : {}) });
+    },
+    async markSpace(space, profileIds) {
+      // not up: -1, asked again at the next pass
+      if (!(await o.api.containerRunning(name))) return -1;
+      const r = (await call("mark_space", { spaceId: space, profileIds: [...profileIds] })) as { marked?: unknown };
+      return typeof r.marked === "number" ? r.marked : 0;
+    },
+    async closeOther(space, quietMs) {
+      if (!(await o.api.containerRunning(name))) return null;
+      const r = (await call("close_other", { spaceId: space, quietMs })) as { closed?: unknown };
+      return typeof r.closed === "string" ? r.closed : null;
     },
     async downloads(profileId) {
       if (!(await o.api.containerRunning(name))) return [];
@@ -304,7 +323,7 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     },
     async downloadAck(profileId, file) { await call("download_ack", { profileId, name: file }); },
     async downloadKeep(profileId, file) { await call("download_keep", { profileId, name: file }); },
-    async takeover(a) { await call("takeover", { profileId: a.profileId, personId: a.personId, ...(a.space ? { spaceId: a.space } : {}) }); },
+    async takeover(a) { const r = (await call("takeover", { profileId: a.profileId, personId: a.personId, ...(a.space ? { spaceId: a.space } : {}) })) as { reopened?: unknown }; return { reopened: r?.reopened === true }; },
     async giveBack(profileId, g) { await call("give_back", { profileId, ...(g?.before !== undefined ? { before: g.before } : {}) }); },
     async screenshot(profileId) {
       const s = await call("screenshot", { profileId }) as { png: string; width: number; height: number };
@@ -359,7 +378,7 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       throw new ToolError("unavailable", "Whether this agent's Space browser profile holds sign-ins cannot be told now; try again later.");
     },
     async profiles() {
-      if (!(await o.api.containerRunning(name))) return { profiles: [], maxRunning: o.maxRunning ?? Math.max(1, Math.floor((browserContainerConfig(o).HostConfig.Memory / 1048576 - 512) / 256)) };
+      if (!(await o.api.containerRunning(name))) return { profiles: [], maxRunning: o.maxRunning ?? browserSlots(browserContainerConfig(o).HostConfig.Memory / 1048576) };
       const s = await call("status", {}) as { profiles?: ProfileRow[]; maxRunning?: number };
       return { profiles: Array.isArray(s.profiles) ? s.profiles : [], maxRunning: Number(s.maxRunning ?? o.maxRunning ?? 0) };
     },

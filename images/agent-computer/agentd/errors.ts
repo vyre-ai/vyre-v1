@@ -3,11 +3,13 @@
 export type ToolCode = "timeout" | "paused" | "not_found" | "bad_input" | "held" | "unavailable";
 
 /** A reason a caller may act on, which never changes with the wording: `profile_held` (a person has the controls of that profile), `profile_busy` (a step is running in it). */
-export type ToolReason = "profile_held" | "profile_busy";
+export type ToolReason = "profile_held" | "profile_busy" | "browser_full" | "browser_reopened";
 
 export class AgentError extends Error {
   readonly code: ToolCode;
   readonly reason: ToolReason | undefined;
+  /** browser_reopened: the start of the browser now (null: it is not running), so the caller knows what it has not seen yet. */
+  start: string | null | undefined;
   constructor(code: ToolCode, message: string, reason?: ToolReason) { super(message); this.name = "AgentError"; this.code = code; this.reason = reason; }
 }
 

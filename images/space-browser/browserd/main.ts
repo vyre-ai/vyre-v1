@@ -85,7 +85,7 @@ const hubOf = (id: string): Hub => {
     h = createScreencastHub({
       chrome: () => (p.chrome?.alive() ? p.chrome : null),
       wake: async () => { await manager.ensure(id); },
-      activity: () => { p.viewers = hubs.get(id)?.viewers() ?? 0; manager.touch(id); },
+      activity: () => { p.viewers = hubs.get(id)?.viewers() ?? 0; manager.touch(id); manager.personSaw(id); },
       log,
     });
     hubs.set(id, h);
@@ -101,9 +101,10 @@ async function pageOf(id: string): Promise<Cdp> {
 const views = startViewServer({
   port: PORT,
   address,
+  seen: (id, personId) => manager.personSaw(id, personId),
   viewOf: (id): ViewOf | null => {
     const p = manager.get(id);
-    return { hub: hubOf(id), input: createCdpInput(() => pageOf(id)), takenOver: () => p.state.takeover !== null, onInput: (event) => { audit.push({ profileId: id, at: Date.now(), event }); if (audit.length > 1000) audit.shift(); manager.touch(id); p.personActiveAt = Date.now(); } };
+    return { hub: hubOf(id), input: createCdpInput(() => pageOf(id)), takenOver: () => p.state.takeover !== null, onInput: (event) => { audit.push({ profileId: id, at: Date.now(), event }); if (audit.length > 1000) audit.shift(); manager.touch(id); p.personActiveAt = Date.now(); manager.personSaw(id, p.state.takeover?.personId); } };
   },
 });
 
@@ -148,7 +149,7 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       const n = a["tabLimit"];
       if (typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 200) p.state.tabLimit = n;
       if (typeof a["agentId"] === "string") p.agentId = a["agentId"];
-      if (typeof a["spaceId"] === "string") p.spaceId = a["spaceId"];
+      if (typeof a["spaceId"] === "string") manager.setSpace(p.id, a["spaceId"]);
       // The Vault channel for this profile only: held in memory, set again on every start. A profile fills only as its own agent.
       if (typeof a["fillUrl"] === "string" && typeof a["fillToken"] === "string") p.vault.setFiller(a["fillUrl"], a["fillToken"], p.id);
       return {};
@@ -159,7 +160,7 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       if (typeof a["agentName"] === "string") manager.get(pid).agentName = a["agentName"].slice(0, 80);
       // the face is drawn once by the host and kept with the profile, so the start page fetches nothing
       if (typeof a["faceSvg"] === "string" && a["faceSvg"].startsWith("<svg") && a["faceSvg"].length < 60_000) { mkdirSync(manager.get(pid).dir, { recursive: true }); writeFileSync(`${manager.get(pid).dir}/face.svg`, a["faceSvg"]); }
-      if (typeof a["spaceId"] === "string" && /^[A-Za-z0-9_-]{3,80}$/.test(a["spaceId"])) manager.get(pid).spaceId = a["spaceId"];
+      if (typeof a["spaceId"] === "string") manager.setSpace(pid, a["spaceId"]);
       // the channel is this call's, as the person whose turn it is: in while the call runs, gone when it ends, so no fill outlives the turn and two people's calls never share one (sbrowser audit bug 5)
       const channel = typeof a["fillUrl"] === "string" && typeof a["fillToken"] === "string" ? manager.get(pid).vault.enter(a["fillUrl"], a["fillToken"], pid) : null;
       try {
@@ -169,9 +170,15 @@ async function dispatch(action: string, a: Args): Promise<Args> {
         // Vyre for Chrome in the profile is paired with the Space as this agent as soon as the Space and the Vault channel are known
         if (manager.get(pid).spaceId && manager.get(pid).vault.hasChannel()) bridges?.pair(pid);
         const args = (typeof a["args"] === "object" && a["args"] !== null ? a["args"] : {}) as Args;
-        return await manager.tool({ profileId: checkProfileId(a["profileId"]), tool: text(a, "tool"), args, timeoutMs: typeof a["timeoutMs"] === "number" ? a["timeoutMs"] : 30_000, ...(a["by"] === "person" ? { by: "person" } : {}), ...(channel ? { channel } : {}) });
+        // every answer says which start of the browser it came from: the module knows a reopen (its pages reloaded) from it, and which refs are stale
+        const out = await manager.tool({ profileId: checkProfileId(a["profileId"]), tool: text(a, "tool"), args, ...(typeof a["refsFrom"] === "string" ? { refsFrom: a["refsFrom"] } : {}), ...(typeof a["seenFrom"] === "string" ? { seenFrom: a["seenFrom"] } : {}), timeoutMs: typeof a["timeoutMs"] === "number" ? a["timeoutMs"] : 30_000, ...(a["by"] === "person" ? { by: "person" } : {}), ...(channel ? { channel } : {}) });
+        return { ...out, browserStart: manager.get(pid).startId };
       } finally { channel?.leave(); }
     }
+    // a purge of one install on an engine that other Spaces share: only this Space's profiles go (closed cleanly first); what else is on the volume is counted, so the installer knows whether the volume is shared
+    case "purge_space": return await manager.purgeSpace(text(a, "spaceId"));
+    case "mark_space": return { marked: manager.markSpace(text(a, "spaceId"), Array.isArray(a["profileIds"]) ? (a["profileIds"] as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 5000) : []) };
+    case "close_other": return { closed: await manager.closeOther(text(a, "spaceId"), typeof a["quietMs"] === "number" ? Math.max(10_000, a["quietMs"]) : 90_000) };
     case "downloads": return { downloads: manager.downloads(checkProfileId(a["profileId"])) };
     case "profile_used": return { used: manager.used(checkProfileId(a["profileId"])) };
     case "download_read": return { base64: manager.downloadRead(checkProfileId(a["profileId"]), text(a, "name")).toString("base64") };
@@ -179,9 +186,8 @@ async function dispatch(action: string, a: Args): Promise<Args> {
     case "download_keep": manager.downloadKeep(checkProfileId(a["profileId"]), text(a, "name")); return {};
     case "takeover": {
       const pid = checkProfileId(a["profileId"]);
-      if (typeof a["spaceId"] === "string" && /^[A-Za-z0-9_-]{3,80}$/.test(a["spaceId"])) manager.get(pid).spaceId = a["spaceId"];
-      manager.takeover(pid, text(a, "personId"));
-      return {};
+      if (typeof a["spaceId"] === "string") manager.setSpace(pid, a["spaceId"]);
+      return manager.takeover(pid, text(a, "personId"));
     }
     case "give_back": manager.giveBack(checkProfileId(a["profileId"]), typeof a["before"] === "number" ? a["before"] : undefined); return {};
     case "screenshot": {
@@ -213,7 +219,14 @@ async function dispatch(action: string, a: Args): Promise<Args> {
 
 // ---- the control socket ----------------------------------------------------------------------------------------------------------------------------
 
+// The container outlives a restart of the daemon on purpose (an update must not sign agents out or drop their tabs), but not a daemon that is gone: when nothing has asked browserd anything for
+// VYRE_BROWSER_ORPHAN_MINUTES (default 10; the daemon's periodic pass asks every half minute while a browser runs), it closes every browser cleanly and exits, and the container stops (it has no restart
+// policy). The next browser call of a daemon starts it again from the same volume, sign-ins and tabs included.
+const ORPHAN_MS = (Number(env["VYRE_BROWSER_ORPHAN_MINUTES"] ?? 10) || 10) * 60_000;
+let lastAsked = Date.now();
+
 function serve(c: Socket): void {
+  lastAsked = Date.now();
   let buf = "";
   c.setEncoding("utf8");
   c.on("error", () => undefined);
@@ -231,7 +244,7 @@ function serve(c: Socket): void {
       (result) => c.end(JSON.stringify({ ok: true, result }) + "\n"),
       (e: unknown) => {
         const err = e instanceof AgentError ? e : unavailable(e instanceof Error ? e.message : "the browser failed");
-        c.end(JSON.stringify({ ok: false, code: err.code, message: err.message, ...(err.reason ? { reason: err.reason } : {}) }) + "\n");
+        c.end(JSON.stringify({ ok: false, code: err.code, message: err.message, ...(err.reason ? { reason: err.reason } : {}), ...(err.start !== undefined ? { start: err.start } : {}) }) + "\n");
       },
     );
   });
@@ -249,17 +262,21 @@ async function main(): Promise<void> {
   await new Promise<void>((resolve, reject) => { control.once("error", reject); control.listen(SOCKET, () => resolve()); });
   chmodSync(SOCKET, 0o600);
   log(`control socket ${SOCKET}, live view on ${PORT}`);
+  const orphan = setInterval(() => { if (Date.now() - lastAsked >= ORPHAN_MS) { log(`nothing has asked for ${Math.round(ORPHAN_MS / 60_000)} minutes: closing every browser and stopping`); bye(); } }, Math.min(30_000, Math.max(1000, Math.floor(ORPHAN_MS / 6))));
+  orphan.unref();
   const sweeper = setInterval(() => { manager.sweep().then((s) => { for (const id of s) { hubs.delete(id); log(`profile ${id} stopped after idle`); } }, () => undefined); }, (Number(env["VYRE_BROWSER_SWEEP_SECONDS"] ?? 30) || 30) * 1000);
   sweeper.unref();
   const bye = (): void => {
     clearInterval(sweeper);
+    clearInterval(orphan);
     views.close();
     bridges?.close();
     starts?.close();
     control.close();
     // every browser is closed properly (cookies and logins reach the volume) before the process ends; Docker waits 10 s
-    void manager.stopAll().finally(() => process.exit(0));
-    setTimeout(() => process.exit(0), 8000).unref();
+    const began = Date.now();
+    void manager.stopAll().finally(() => { console.error(`browserd: every browser closed in ${Date.now() - began} ms`); process.exit(0); });
+    setTimeout(() => { console.error(`browserd: browsers still closing after ${Date.now() - began} ms; exiting anyway`); process.exit(0); }, 8000).unref();
   };
   process.on("SIGTERM", bye);
   process.on("SIGINT", bye);

@@ -8,12 +8,12 @@
 //   threads.invite_guest         a guest of this chat only, by email.
 //
 // Mode keeps its two values for everything that reads a thread (lead, listen). Listening is `listen` with quiet true: the row says it, the engine never routes to a quiet agent but for a poke.
-import { addAgent, agentsOf, askerOf, channelBy, encOf, insertMessage, lastMessages, membersOf, messageOut, mintId, raise } from "../projections.ts";
+import { addAgent, agentsOf, askerOf, channelBy, encOf, insertMessage, isMember, lastMessages, membersOf, messageOut, mintId, raise } from "../projections.ts";
 import type { ChatCtx, ThreadRec } from "../projections.ts";
 import { agentMayChange, load, out } from "./g24a.ts";
 import { readFloor } from "./floor.ts";
 import { deliver, mayGovernChannel, rootOf } from "./post.ts";
-import { grantsOf, revokeGrants, shareOwnedWithReaders, sourceOf, trashOwned } from "./owned.ts";
+import { followHome, grantsOf, revokeGrants, shareOwnedWithReaders, sourceOf, trashOwned } from "./owned.ts";
 import type { Granted } from "./owned.ts";
 
 type Row = Record<string, unknown>;
@@ -124,6 +124,8 @@ export async function agentCreate(ctx: ChatCtx, input: { threadId: string; name:
   try {
     if (mode === "lead") demoteLead(ctx, t.id, agentId);
     addAgent(ctx, t.id, { agentId, mode: mode === "lead" ? "lead" : "listen", addedBy: askerOf(ctx), owned: true, quiet: mode === "quiet" });
+    // its files folder follows this chat: closed to the Space when the chat is (owned.ts followHome); an agent whose folder would stay open is not made
+    await followHome(ctx, t.id, agentId);
   } catch (e) {
     await trashOwned(ctx, [agentId]);
     throw e;
@@ -134,7 +136,7 @@ export async function agentCreate(ctx: ChatCtx, input: { threadId: string; name:
   const readers = channel && channel.visibility !== "invite"
     ? [{ kind: "group" as const, id: "space" }]
     : [...new Set([...(root.starter?.startsWith("usr_") ? [root.starter] : []), ...membersOf(ctx.db, root.id).filter((p) => p.startsWith("usr_"))])].map((id) => ({ kind: "person" as const, id }));
-  await shareOwnedWithReaders(ctx, t.id, agentId, readers);
+  await shareOwnedWithReaders(ctx, t.id, agentId, readers, (person) => person === root.starter || isMember(ctx.db, root.id, person));
   ctx.emit("agent.engaged", t.id, { threadId: t.id, agentId, mode: mode === "lead" ? "lead" : "listen", by: askerOf(ctx) });
   ctx.emit("thread.updated", t.id, { threadId: t.id, fields: ["agents"] });
   if (mode === "lead") await tellEngine(ctx, t.id, agentId, "lead");
@@ -283,7 +285,7 @@ export async function outsideAgentAdd(ctx: ChatCtx, input: { threadId: string; a
   try {
     for (const g of wanted) {
       // access.share refuses what the person does not hold themselves (permission.not_contained): the agent never gets more than its person can give
-      await ctx.call("access.share", { resource: { type: g.type, id: g.id }, subject: { kind: "agent", id: input.agentId }, level: g.level, source, idempotencyKey: `outside:${t.id}:${input.agentId}:${g.type}:${g.id}` });
+      await ctx.call("access.share", { resource: { type: g.type, id: g.id }, subject: { kind: "agent", id: input.agentId }, level: g.level, source, idempotencyKey: `outside:${t.id}:${input.agentId}:${g.type}:${g.id}:${globalThis.crypto.randomUUID()}` });
       done.push(g);
     }
     if (!agentsOf(ctx.db, t.id).some((a) => a.agentId === input.agentId)) {
