@@ -60,6 +60,9 @@ export async function reviewsStart(ctx: ReviewCtx, input: { scope?: string[]; id
   const live = [...store.grants.values()]
     .filter((g) => (g.conditions.expiresAt === undefined || g.conditions.expiresAt > now) && g.conditions.exception === undefined)
     .filter((g) => !input.scope || input.scope.length === 0 || input.scope.includes(g.resource.type))
+    // the grants the host keeps for an agent (its hold on its own folder, its owner's Manage there, its Space role grants) are not shares anyone gave: a review that removed one would leave
+    // an agent without its folder or a person without their Assistant's home, and the host does not write a removed one again
+    .filter((g) => !agentKept(store, g))
     .sort((a, b) => (a.id < b.id ? -1 : 1));
   const id = nid("rvw");
   const byReviewer = new Map<string, GrantRec[]>();
@@ -130,6 +133,12 @@ async function finishCard(ctx: ReviewCtx, taskId: string, note: string): Promise
   } catch (e) {
     ctx.log.warn("access review card did not close", { taskId, error: e instanceof Error ? e.message : String(e) });
   }
+}
+
+/** A grant the host writes and keeps for an agent: id gnt_<agent id without agt_><purpose> (host/src/gateway/principals.ts agentGrantId), for an agent this Space has. */
+function agentKept(store: AccessStore, g: GrantRec): boolean {
+  const m = /^gnt_([0-9a-z]+?)(space|home|owner|grown|own)$/.exec(g.id);
+  return !!m && store.principals.get(`agt_${m[1]}`)?.kind === "agent";
 }
 
 export async function reviewsDecide(ctx: ReviewCtx, input: { reviewId: string; grantId: string; decision: "keep" | "remove" }) {

@@ -162,3 +162,20 @@ test("the list filters by state, newest first, and counts decisions", async () =
   const first = await handlers["access.reviews.list"](h.as("usr_admin"), { limit: 1 });
   assert.deepEqual([first.total, first.next], [2, "1"]);
 });
+
+test("a review leaves out the grants the host keeps for an agent (its own folder, its owner's Manage there): they are not shares anyone gave", async () => {
+  const { h, store } = world();
+  const AGENT = "agt_0123456789abcdef0123456789abcdef";
+  store.principals.set(AGENT, { id: AGENT, kind: "agent", name: "Gus's Assistant", status: "active", createdAt: 1 });
+  store.grants.set(`gnt_${AGENT.slice(4)}home`, { id: `gnt_${AGENT.slice(4)}home`, subject: { kind: "agent", id: AGENT }, resource: { type: "folder", id: "fld_1" }, level: "edit", conditions: {}, by: "usr_admin", createdAt: NOW - 1000 });
+  store.grants.set(`gnt_${AGENT.slice(4)}owner`, grant(`gnt_${AGENT.slice(4)}owner`, "usr_maya", { type: "folder", id: "fld_1" }, "manage"));
+  // a grant whose id merely ends like one, for no agent of this Space, is reviewed as any share is
+  store.grants.set("gnt_feedbeefowner", grant("gnt_feedbeefowner", "usr_maya", { type: "folder", id: "fld_2" }, "view"));
+  store.bump();
+  const { review } = await start(h, { scope: ["folder"] });
+  void review;
+  const ids = (itemRows(h) as Array<{ grant_id: string }>).map((r) => r.grant_id);
+  assert.equal(ids.includes(`gnt_${AGENT.slice(4)}home`), false, "the agent's hold on its own folder is not reviewed");
+  assert.equal(ids.includes(`gnt_${AGENT.slice(4)}owner`), false, "nor its owner's Manage there");
+  assert.equal(ids.includes("gnt_feedbeefowner"), true, "a person's share is");
+});
