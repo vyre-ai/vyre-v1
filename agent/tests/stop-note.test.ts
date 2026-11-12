@@ -187,3 +187,41 @@ test("the note survives a restart after the stopped turn ended: it is read from 
   await second.idle("T");
   assert.deepEqual(m2.answered, ["ANSWER What is 2 plus 2?"]);
 });
+
+test("no note for a turn put back because the host was closing: it is redelivered and goes on", async () => {
+  const queue = createMemoryQueue(), messages = createMemoryMessages();
+  let n = 0;
+  const newId = (p: string): string => `${p}_${++n}`;
+  const first = createTurnEngine({ holder: "host:a", queue, messages, newId, leases: createMemoryLeases(), resolveAccount: async () => account(),
+    openSession: async () => { throw Object.assign(new Error("the pool is closed"), { code: "engine.closing" }); } });
+  first.openThread(thread());
+  first.receive({ threadId: "T", author: person, body: LONG });
+  await first.idle("T");
+  assert.equal(queue.list("T")[0]?.state, "queued", "put back for the next start");
+  const m = model({ at: "start" });
+  const second = createTurnEngine({ holder: "host:b", queue, messages, newId, leases: createMemoryLeases(), openSession: m.p.openSession, resolveAccount: async () => account() });
+  second.openThread(thread());
+  second.receive({ threadId: "T", author: person, body: "And then the summary" });
+  await second.idle("T");
+  const inputs = m.p.sessions.flatMap((x) => x.inputs);
+  assert.equal(inputs[0]?.trigger?.body, LONG, "the long ask runs again, as it should");
+  assert.ok(inputs.every((i) => !(i.notice ?? "").includes("That turn is closed") && !i.history.some((h) => h.body === STOPPED_MARK)), "and nothing calls it stopped");
+});
+
+test("no note for a row whose lease was lost (another host goes on with it)", async () => {
+  const queue = createMemoryQueue(), messages = createMemoryMessages();
+  let n = 0;
+  const newId = (p: string): string => `${p}_${++n}`;
+  const p0 = scriptedProvider({ script: () => [{ type: "text", text: "ok" }, { type: "done" }] });
+  const engine = createTurnEngine({ holder: "host:a", queue, messages, newId, leases: createMemoryLeases(), openSession: p0.openSession, resolveAccount: async () => account() });
+  engine.openThread(thread());
+  engine.receive({ threadId: "T", author: person, body: LONG });
+  await engine.idle("T");
+  const row = queue.list("T")[0]!;
+  queue.setState("T", row.qseq, "cancelled", "lease");   // as a row left by a host that lost the thread
+  engine.receive({ threadId: "T", author: person, body: "What is 2 plus 2?" });
+  await engine.idle("T");
+  const last = p0.sessions.at(-1)!.inputs.at(-1)!;
+  assert.equal(last.notice, undefined);
+  assert.ok(!last.history.some((h) => h.body === STOPPED_MARK));
+});

@@ -391,7 +391,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     let last: QueueItem | undefined;
     for (const row of queue.list(st.thread.id)) {
       if (row.agentId !== item.agentId || row.qseq >= item.qseq) continue;
-      if (row.state === "done" || ((row.state === "cancelled" || row.state === "stopping") && row.stopReason !== undefined)) last = row;
+      // a turn put back for a host that was closing, or one whose lease was lost, is redelivered and goes on: it was never stopped by anyone
+      const stopped = (row.state === "cancelled" || row.state === "stopping") && row.stopReason !== undefined && row.stopReason !== "closing" && row.stopReason !== "lease";
+      if (row.state === "done" || stopped) last = row;
     }
     if (!last || last.state === "done") return null;
     return { why: last.stopReason ?? "stop", ask: last.messageId ? findMessage(st, last.messageId)?.body ?? "" : "", askId: last.messageId ?? null };
