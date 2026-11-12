@@ -89,6 +89,8 @@ test("walk: a chat's hook stops a helper the lead started, the stop reaches the 
     });
     const provider = await call(d, token, "providers.add", { idempotencyKey: "hh-provider", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "mine" });
     assert.equal((await call(d, token, "providers.set_space_use", { idempotencyKey: "hh-use", providerId: provider.data.provider.id, allow: true })).status, 200);
+    // an API key needs a model: the assistant names one, as a person sets it up on such a key (the stand-in vendor serves any)
+    assert.equal((await call(d, token, "agents.update", { idempotencyKey: "hh-use-model", agentId: assistant.agentId, patch: { model: "openai/gpt-4o-mini" } })).status, 200);
     const chat = async (title: string, key: string): Promise<string> => (await call(d, token, "chat.start", { kind: "chat", agentIds: [assistant.agentId], title, idempotencyKey: key })).data.thread.threadId as string;
     const run = async (threadId: string, key: string, tag: string) => {
       v.queues.lead.push({ call: { name: "tool_search", args: { query: "start a helper sub task" } } }, { call: { name: "sub_task_model", args: { threadId, title: `Look around ${tag}`, instruction: `HELPERBRIEF-${tag}: read the file tree and report` } } }, { text: `Helper started ${tag}.` });
