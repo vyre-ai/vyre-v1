@@ -4,12 +4,12 @@
 // the vectors of what changed. Seams the host fills: the embedding model (`setEmbedder`), a source for an entity the module cannot read itself (`setSource`), and a lister for a rebuild (`setLister`).
 import type { Handler } from "../../host/src/invoke.ts";
 import { embedRun, handlers as table, indexApply, setLister, DEFAULT_SOURCES } from "./handlers/index.ts";
-import { forgetVectors, setEmbedder, setSource } from "./projections.ts";
+import { forgetVectors, reembedStep, setEmbedder, setModel, setSource } from "./projections.ts";
 import type { Embedder, Source, SearchCtx } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 export { mergeHits } from "./handlers/query.ts";
-export { setEmbedder, setLister, setSource, forgetVectors, DEFAULT_SOURCES };
+export { setEmbedder, setLister, setModel, setSource, forgetVectors, DEFAULT_SOURCES };
 export type { Embedder, Source };
 export { ensure } from "./projections.ts";
 
@@ -87,4 +87,10 @@ export const consumers = {
       if (targetsOf(indexEventOf(event)).length > 0) await embedRun(ctx, { limit: 50 });
     },
   },
+};
+
+/** The one-time re-embed when the host binds a real model (f-wire, 12 Nov): a small batch every few seconds, skipped while a turn runs, resumed after a restart; the index switches to the model only when every document has its new vector. */
+export const REEMBED_BATCH = 16;
+export const periodic = {
+  "search.reembed": { everyMs: 3_000, run: async (ctx: SearchCtx): Promise<unknown> => reembedStep(ctx.db, ctx.space, REEMBED_BATCH) },
 };

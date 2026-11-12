@@ -1037,6 +1037,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const portDeps = {
         team: cfg.spaceKind !== "personal",
         stopSandbox: async (person: string) => { const p = pool(); if (!p?.closeIdle) return false; await p.closeIdle(person); return true; },
+        busy: () => engineTurns > 0,
       };
       boundPorts = bindSpacePorts(loaded.moduleExports, portDeps);
       closers.push(() => unbindSpacePorts(loaded.moduleExports, portDeps));

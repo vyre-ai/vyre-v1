@@ -358,7 +358,7 @@ export function vectorsOf(db: Db, space: string): VectorIndex {
   const gen = genOf(db);
   if (!c || c.gen !== gen) {
     const index = new VectorIndex();
-    for (const r of rowsOf(db, "SELECT n, vec FROM search_vectors")) index.set(num(r["n"]), decodeVector(r["vec"] as Uint8Array));
+    for (const r of rowsOf(db, `SELECT n, vec FROM ${activeOf(db).table}`)) index.set(num(r["n"]), decodeVector(r["vec"] as Uint8Array));
     c = { index, gen };
     caches.set(space, c);
   }
@@ -368,21 +368,94 @@ export function vectorsOf(db: Db, space: string): VectorIndex {
 /** Store the vector of a document (unit length) and put it in the scan. */
 export function writeVector(db: Db, space: string, n: number, v: Float32Array): void {
   const index = vectorsOf(db, space);
-  db.run("INSERT INTO search_vectors (n, dim, vec) VALUES (?, ?, ?) ON CONFLICT (n) DO UPDATE SET dim = excluded.dim, vec = excluded.vec", n, DIM, encodeVector(v));
+  db.run(`INSERT INTO ${activeOf(db).table} (n, dim, vec) VALUES (?, ?, ?) ON CONFLICT (n) DO UPDATE SET dim = excluded.dim, vec = excluded.vec`, n, DIM, encodeVector(v));
   index.set(n, v);
   const c = caches.get(space);
   if (c) c.gen = bump(db);
 }
 
 export function dropVector(db: Db, space: string, n: number): void {
-  const had = rowsOf(db, "SELECT n FROM search_vectors WHERE n = ?", n).length > 0;
+  const { table, other } = activeOf(db);
+  // a document that goes is taken out of the generation being made too, so it does not come back at the switch
+  db.run(`DELETE FROM ${other} WHERE n = ?`, n);
+  const had = rowsOf(db, `SELECT n FROM ${table} WHERE n = ?`, n).length > 0;
   if (!had) return;
   const index = vectorsOf(db, space);
-  db.run("DELETE FROM search_vectors WHERE n = ?", n);
+  db.run(`DELETE FROM ${table} WHERE n = ?`, n);
   index.remove(n);
   const c = caches.get(space);
   if (c) c.gen = bump(db);
 }
+
+// ---- the model's generation (f-wire, 12 Nov): the stored vectors are all of one model, named in search_meta 'vec_model' ('hash', the stand-in, until a real model has re-embedded
+// everything). A new model fills search_vectors_next in the background; queries keep using the stored generation with the stand-in until the next one is complete, then the two swap in one
+// transaction. A query never compares a new-model vector with a stand-in one.
+
+export const STAND_IN = "hash";
+/** The real model, as the host binds it: memory's local model (no AI account pays). Null keeps the stand-in. */
+export interface Model { name: string; status(): { state: "ready" | "loading" | "not_set_up" | "failed"; detail?: string }; embed(texts: string[]): Promise<Float32Array[]>; /** a turn is running: the re-embed waits */ busy?: () => boolean }
+let model: Model | null = null;
+export function setModel(m: Model | null): void { model = m; }
+export const boundModel = (): Model | null => model;
+
+export function ensureNext(db: Db): void {
+  if (nextReady.has(db)) return;
+  db.run("CREATE TABLE IF NOT EXISTS search_vectors_next (n INTEGER PRIMARY KEY, dim INTEGER NOT NULL, vec BLOB NOT NULL)");
+  nextReady.add(db);
+}
+const nextReady = new WeakSet<object>();
+const meta = (db: Db, k: string): string | null => { const r = rowsOf(db, "SELECT v FROM search_meta WHERE k = ?", k)[0]; return r ? str(r["v"]) : null; };
+const setMeta = (db: Db, k: string, v: string): void => { db.run("INSERT INTO search_meta (k, v) VALUES (?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v", k, v); };
+type VecTable = "search_vectors" | "search_vectors_next";
+/** The stored generation: its table and its model, in one row of search_meta, so the switch is one write a reader sees whole. The other table is where the next generation is made. */
+export function activeOf(db: Db): { table: VecTable; other: VecTable; model: string } {
+  ensureNext(db);
+  let a: { table?: unknown; model?: unknown } = {};
+  try { a = JSON.parse(meta(db, "vec_active") ?? "{}") as typeof a; } catch { /* the default */ }
+  const table: VecTable = a.table === "search_vectors_next" ? "search_vectors_next" : "search_vectors";
+  return { table, other: table === "search_vectors" ? "search_vectors_next" : "search_vectors", model: typeof a.model === "string" && a.model !== "" ? a.model : STAND_IN };
+}
+/** The model the stored vectors were made with. */
+export const activeModel = (db: Db): string => activeOf(db).model;
+
+/** Vectors in the stored generation's space: the stand-in, or the real model when it is the stored one and ready. Throws when the stored one is a model that is not here now. */
+export async function embedActive(db: Db, texts: readonly string[]): Promise<Float32Array[]> {
+  const active = activeModel(db);
+  if (active === STAND_IN) return embed(texts);   // the stand-in (a test may put its own in with setEmbedder)
+  if (!model || model.name !== active || model.status().state !== "ready") throw new Error(`the model the index was made with (${active}) is not ready`);
+  return checked(await model.embed([...texts]));
+}
+const checked = (vs: Float32Array[]): Float32Array[] => vs.map((v) => { if (v.length !== DIM) throw new Error(`the model returned ${v.length} dimensions, the index holds ${DIM}`); return normalise(Float32Array.from(v)); });
+
+/**
+ * One background step of the re-embed: up to `limit` documents get their vector from the bound model into the other table; when none is left, one write makes it the stored generation.
+ * Nothing happens while no model is ready, while a turn runs, or when the stored generation is already the model's. Survives a restart: the other table is on disk.
+ */
+export async function reembedStep(db: Db, space: string, limit: number): Promise<{ state: "idle" | "waiting" | "running" | "switched"; done: number; left: number }> {
+  ensure(db);
+  const m = model;
+  const { table, other, model: active } = activeOf(db);
+  if (!m || m.status().state !== "ready" || active === m.name) return { state: "idle", done: 0, left: 0 };
+  if (meta(db, "vec_next_model") !== m.name) { db.run(`DELETE FROM ${other}`); setMeta(db, "vec_next_model", m.name); }
+  if (m.busy?.()) return { state: "waiting", done: 0, left: -1 };
+  const batch = rowsOf(db, `SELECT n, title, body FROM search_docs WHERE n NOT IN (SELECT n FROM ${other}) ORDER BY n LIMIT ?`, limit);
+  if (batch.length > 0) {
+    const vecs = checked(await m.embed(batch.map((r) => `${str(r["title"])}\n${str(r["body"]).slice(0, EMBED_TEXT)}`)));
+    for (let i = 0; i < batch.length; i++) db.run(`INSERT OR REPLACE INTO ${other} (n, dim, vec) VALUES (?, ?, ?)`, num(batch[i]!["n"]), DIM, encodeVector(vecs[i]!));
+  }
+  const left = num(rowsOf(db, `SELECT count(*) AS c FROM search_docs WHERE n NOT IN (SELECT n FROM ${other})`)[0]?.["c"]);
+  if (left > 0) return { state: "running", done: batch.length, left };
+  // complete: one write switches the stored generation, so a reader sees the old one or the new one, never a mix; the old table is emptied after
+  setMeta(db, "vec_active", JSON.stringify({ table: other, model: m.name }));
+  db.run("DELETE FROM search_meta WHERE k = 'vec_next_model'");
+  db.run(`DELETE FROM ${table}`);
+  db.run("UPDATE search_docs SET embedded = 1 WHERE embedded = 0");
+  forgetVectors(space);
+  bump(db);
+  return { state: "switched", done: batch.length, left: 0 };
+}
+/** The text of a document a vector is made from (the same cut the embeddings consumer uses). */
+export const EMBED_TEXT = 2000;
 
 /** A test or a reset forgets the in-memory copies. */
 export function forgetVectors(space?: string): void { if (space === undefined) caches.clear(); else caches.delete(space); }

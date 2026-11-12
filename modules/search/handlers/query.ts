@@ -2,7 +2,7 @@
 // `authorize` as the asker, so a row the asker cannot read never appears (and a private row is not here to find). 1-2 characters are type-ahead, newest first; from three
 // characters BM25 ranks every match (title over body); semantic and hybrid fuse the vector ranks with the full text ranks and recency. Also here: Recent, Related, the > actions
 // and `mergeHits`, which the client uses to put the server's answer after the local one.
-import { DIM, LABELS, askerOf, docOf, embed, ensure, matchText, rowsOf, str, vectorsOf, wordsOf } from "../projections.ts";
+import { DIM, LABELS, askerOf, docOf, ensure, matchText, rowsOf, str, vectorsOf, wordsOf, embedActive } from "../projections.ts";
 import type { DocRow, Kind, SearchCtx } from "../projections.ts";
 import { agentBound } from "../../../lib/redact.ts";
 
@@ -244,7 +244,8 @@ export async function query(ctx: SearchCtx, input: QueryInput): Promise<{ hits: 
   if (mode !== "keyword" && words.length > 0 && !(mode === "hybrid" && short)) {
     const index = vectorsOf(ctx.db, ctx.space);
     if (index.size > 0) {
-      const [qv] = await embed([input.q]);
+      // the query is embedded in the stored generation's space; a model that is not here right now means words only, never a failed query
+      const [qv] = await embedActive(ctx.db, [input.q]).catch(() => [] as Float32Array[]);
       if (qv && qv.length === DIM) vec = index.top(qv, cap).filter((v) => v.score > MIN_COSINE);
     }
   }
