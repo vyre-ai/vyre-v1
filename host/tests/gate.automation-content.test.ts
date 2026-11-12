@@ -54,3 +54,9 @@ test("a read that names threads never marks them, and a creating call marks only
   await h.seen!(cap("tasks.plan"), {}, { tasks: [{ threadId: "thr_old" }, { threadId: "thr_made" }] }, agent("thr_run") as never, 5);
   assert.deepEqual(calls.filter(([c]) => c === "gate.taint.mark").map(([, i]) => i), [{ threads: ["thr_made"], source: AUTO }], "only the thread this call made");
 });
+
+test("a crew started in a marked Run is marked: engine.crew.start returns the crew's new thread (job.threadId, made by its nested helper start during the call) beside the lead's existing one, and only the new one is marked (pass 4c)", async () => {
+  const { h, calls } = hook({ thr_run: AUTO }, { thr_crew: 10, thr_lead: 1 });
+  await h.seen!(cap("engine.crew.start"), {}, { job: { jobId: "crw_1", threadId: "thr_crew", leadThreadId: "thr_lead", agentId: "agt_mate" } }, agent("thr_run") as never, 5);
+  assert.deepEqual(calls.filter(([c]) => c === "gate.taint.mark").map(([, i]) => i), [{ threads: ["thr_crew"], source: AUTO }]);
+});

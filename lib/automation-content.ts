@@ -42,7 +42,7 @@ export const HELD_FROM_AUTOMATION_CONTENT: readonly string[] = [
   // keeping the stranger's words for later turns
   "automations.create", "automations.update", "automations.set_enabled", "automations.restore_version", "automations.templates.use", "automations.packages.import",
   "automations.make_personal_copy", "agents.create", "agents.update", "agents.instruction.append", "agents.routine.save", "agents.routine.delegate", "channels.agent_watch.set",
-  "goals.create", "hooks.set", "install.from_link", "skills.save", "skills.mine.add", "skills.mine.remove", "skills.mine.set", "skills.mine.update", "skills.add", "skills.space.install",
+  "goals.create", "goals.update", "goals.plan", "threads.agent.create", "threads.outside_agent.add", "hooks.set", "install.from_link", "skills.save", "skills.mine.add", "skills.mine.remove", "skills.mine.set", "skills.mine.update", "skills.add", "skills.space.install",
   "plugins.agent_template.use", "plugins.allow.set", "plugins.config.set", "plugins.connection.add", "plugins.connection.add_mine", "plugins.connection.checked", "plugins.connection.forget",
   "plugins.connection.remove", "plugins.connection.update", "plugins.connections.policy_set", "plugins.install", "plugins.marketplace.add", "plugins.marketplace.refresh",
   "plugins.marketplace.remove", "plugins.set_enabled", "plugins.uninstall",
