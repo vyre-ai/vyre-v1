@@ -236,6 +236,13 @@ export function createClient(transport: Transport) {
       },
       http_read: call("automations.http_read", 1),
       http_send: call("automations.http_send", 1),
+      key_hosts: {
+        allow: call("automations.key_hosts.allow", 1),
+        list: call("automations.key_hosts.list", 1),
+        pending: call("automations.key_hosts.pending", 1),
+        pending_bind: call("automations.key_hosts.pending_bind", 1),
+        remove: call("automations.key_hosts.remove", 1),
+      },
       list: call("automations.list", 1),
       make_personal_copy: call("automations.make_personal_copy", 1),
       migrate_runs: call("automations.migrate_runs", 1),

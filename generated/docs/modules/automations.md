@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (68)
+## Capabilities (73)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
@@ -32,6 +32,11 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automations.groups.rename](../capabilities/automations.groups.rename.md): Rename a Group
 - [automations.http_read](../capabilities/automations.http_read.md): Make a GET or HEAD request to a public https address for an HTTP request step. A private address is refused. The key comes from a Vault handle and is never returned.
 - [automations.http_send](../capabilities/automations.http_send.md): Make a POST, PUT, PATCH or DELETE request to a public https address for an HTTP request step. Held by the Gate like any send. The key comes from a Vault handle and is never returned.
+- [automations.key_hosts.allow](../capabilities/automations.key_hosts.allow.md): A person who may use a Vault key approves one host it may be sent to. A person only.
+- [automations.key_hosts.list](../capabilities/automations.key_hosts.list.md): The hosts a person approved for one Vault key: a key is sent only to these, or to the host of the item's own saved address. Names only, never a value.
+- [automations.key_hosts.pending](../capabilities/automations.key_hosts.pending.md): What a held test read would send: the Vault item (as the server reads the reference, for the person looking) and the host. The card names the key from this. Names only, never a value.
+- [automations.key_hosts.pending_bind](../capabilities/automations.key_hosts.pending_bind.md): What a held key binding would do: the Vault keys (as the server reads them, for the person looking) and every domain of the connector. Names only, never a value.
+- [automations.key_hosts.remove](../capabilities/automations.key_hosts.remove.md): A person who may use a Vault key removes a host it was approved for. The next use of the key there waits for a person again.
 - [automations.list](../capabilities/automations.list.md): List Automations by section (Personal, Shared with me, Space), folder and Group
 - [automations.make_personal_copy](../capabilities/automations.make_personal_copy.md): Make a Personal copy of a Space Automation; it runs with only your access
 - [automations.migrate_runs](../capabilities/automations.migrate_runs.md): Move selected active runs onto a definition version without replaying finished steps

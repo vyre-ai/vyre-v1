@@ -107,3 +107,9 @@ All four changes are additive and optional; nothing existing changes shape.
 Why: the owner's line "Maya is not in this chat." with Add under the sender's message (owner, 12 Nov 2026), its review (M2 to M4), and the lead's rule of one name for a person's Assistant.
 
 Signed: lead, 12 Nov 2026
+
+## 12 Nov 2026: the automations snapshot after two signed changes met (lead, at the merge)
+
+The hashes in `docs/frozen/snapshots/automations.json` were written again at the merge of lane f-auto into int/rc25, which already held lane f-vaultuse. Each lane's own contract change is described and signed in its paragraph in this file (f-vaultuse: the runs-as field, `automations.runs_as.get@1`, `automation.runs_as_changed`; f-auto: the key-host capabilities `automations.key_hosts.*` and the held test read). Both touch `manifests/automations.ts`, so the merged manifest's hashes are new and neither lane's snapshot matched. Nothing beyond those two reviewed changes is in this snapshot; it was regenerated on the build box with `node tools/gen/src/cli.ts --snapshots`.
+
+Signed: lead, 12 Nov 2026
