@@ -9,7 +9,7 @@ import { forgetProvider } from "./model-health.ts";
 import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { EngineOptions, TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { bindEngine, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
+import { bindEngine, keepForRestart, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
 import type { Db } from "./projections.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { bridgeConsumers } from "./handlers/bridge.ts";
@@ -40,6 +40,8 @@ export { nodeCliLauncher, nodeCliReport } from "./node-cli.ts";
 export const hostSeams = { setEngineHost };
 /** The warm pool the Machines page can empty (host/src/daemon/machine-fix.ts). */
 export { openerOf } from "./projections.ts";
+// the host binds how a person's sessions on this server stop when they turn subscription sharing off (host/src/daemon/module-ports.ts)
+export { bindSandboxStopper } from "./handlers/extra/config.ts";
 
 /** The runtime is built at boot, not at the first message, and recovers threads a dead host left mid-turn. */
 export const periodic = {
@@ -76,8 +78,18 @@ export const periodic = {
 const withRuntime = <C extends Record<string, { run: (ctx: EngineCtx, event: never) => Promise<unknown> }>>(consumers: C): C => Object.fromEntries(
   Object.entries(consumers).map(([name, c]) => [name, { ...c, run: async (ctx: EngineCtx, event: never): Promise<unknown> => { await ensureRuntime(ctx); return c.run(ctx, event); } }]),
 ) as C;
+/**
+ * Every engine consumer, while the server is stopping its engine: the event is kept for the next start before the consumer does anything (keepForRestart throws the host's kept error, which the hook
+ * runner does not count as a try). The host moves a consumer's cursor past any event it answers, so a consumer that answered "no engine" here lost the event for good: a goal's wake-up that arrived
+ * while the server shut down was never run (its wake stayed "sent" until the goal's 45-minute retry), a baton, a routine run, an approved hold.
+ * The engine stops only after the hook runner has closed (daemon stop): a consumer still running then is past the stop's bound, and the runner drops its answer, so its event is delivered again
+ * whatever it returns. The only checks inside a consumer are the ones that guard a write made before it finds no engine (runtime.ts wakeAfterUnblock, departures.ts resumeAgent).
+ */
+const keptWhileStopping = <C extends Record<string, { run: (ctx: EngineCtx, event: never) => unknown }>>(consumers: C): C => Object.fromEntries(
+  Object.entries(consumers).map(([name, c]) => [name, { ...c, run: async (ctx: EngineCtx, event: never): Promise<unknown> => { keepForRestart(ctx); return c.run(ctx, event); } }]),
+) as C;
 
-export const consumers = {
+export const consumers = keptWhileStopping({
   ...withRuntime(bridgeConsumers),
   ...withRuntime(gateResumeConsumers),
   ...captureConsumers,
@@ -280,7 +292,7 @@ export const consumers = {
     on: ["task.completed"],
     run: async (ctx: EngineCtx, event: { payload: { taskId: string } }): Promise<string[]> => ((await wakeAfterUnblock(ctx, event.payload.taskId)) ? [event.payload.taskId] : []),
   },
-};
+});
 
 export interface RuntimeOptions extends Omit<EngineOptions, "queue" | "leases" | "messages" | "waits" | "newId"> {
   db: Db;

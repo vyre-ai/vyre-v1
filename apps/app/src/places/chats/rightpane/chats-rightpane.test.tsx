@@ -144,6 +144,14 @@ test("Files: the tree order and the counts", () => {
   assert.deepEqual([count("fld_memory"), count("fld_skills"), count("fld_routines"), count("fld_knowledge")], ["5", "2", "3", "2"]);
 });
 
+test("Files: Vyre's own dot folders and files (.index, .vyre) are not listed in the agent's folder", () => {
+  const folders = [{ folderId: "f1", parentId: "root", name: "memory" }, { folderId: "f2", parentId: "root", name: ".index" }, { folderId: "f3", parentId: "root", name: ".vyre" }];
+  const files = [{ fileId: "a", folderId: "root", name: "AGENT.md" }, { fileId: "b", folderId: "root", name: ".lock" }];
+  const out = folderEntries(folders as never, files as never, "root");
+  assert.deepEqual(out.folders.map((f) => f.name), ["memory"]);
+  assert.deepEqual(out.files.map((f) => f.name), ["AGENT.md"]);
+});
+
 test("Files: an empty folder says so", () => {
   const s = createSample();
   const { d } = deps(s);

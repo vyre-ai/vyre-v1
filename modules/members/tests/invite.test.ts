@@ -129,7 +129,8 @@ test("a join step that fails is kept and retried later; a step that worked is ne
   h.world.failing.clear();
   h.calls.length = 0;
   assert.deepEqual(await drainJoins(h.anon), { applied: 1, pending: 0 });
-  assert.deepEqual(h.calls.map((c) => c.cap), ["channels.members.add"], "only the failed step ran again");
+  // the retry first reads what the Space holds for the step (a later change by an admin wins), then writes: of the writes, only the failed step ran again
+  assert.deepEqual(h.calls.map((c) => c.cap).filter((c) => !["access.principals.get", "channels.get", "projects.members.list", "access.shares_of"].includes(c)), ["channels.members.add"], "only the failed step ran again");
   join = h.raw.rows("members_joins")[0]!;
   assert.equal(join["state"], "applied");
   assert.deepEqual(await drainJoins(h.anon), { applied: 0, pending: 0 });

@@ -602,7 +602,10 @@ async function filesShare(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
   const s = subject as Record<string, unknown>;
   const level = reqStr(ctx, o, "level");
   await treeHandlers["files.get"](ctx, { fileId }); // a file that is not there is refused before any grant is made
-  await ctx.call("access.share", { idempotencyKey: `files.share:${fileId}:${String(s["kind"])}:${String(s["id"])}:${level}`, resource: { type: "file", id: fileId }, subject, level }, { idempotencyKey: `files.share:${fileId}:${String(s["kind"])}:${String(s["id"])}:${level}` });
+  // a fresh part per real add: a key names this one request, so the same pair shared again after a removal is written again (a key of ids alone replayed the first answer)
+  const add = globalThis.crypto.randomUUID();
+  // no source: this is a person's own direct share, so sharing again at another level (lowering included) updates that one grant, as a share made from the Console or before does
+  await ctx.call("access.share", { idempotencyKey: `files.share:${fileId}:${String(s["kind"])}:${String(s["id"])}:${level}:${add}`, resource: { type: "file", id: fileId }, subject, level }, { idempotencyKey: `files.share:${fileId}:${String(s["kind"])}:${String(s["id"])}:${level}:${add}` });
   return { ok: true };
 }
 

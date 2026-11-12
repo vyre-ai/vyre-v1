@@ -1352,6 +1352,8 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
   /** `gen`: the container start the session was last made or seen in (-1: not yet looked at since a restart); `seen`: the start it was known in, to tell a session the person ended from one a restart lost. */
   const where = new Map<string, { agentId: string; cols: number; rows: number; cwd?: string; gen: number; seen?: number; told?: number }>();
   const tmuxHosts = new Map<string, TmuxHost>();
+  /** The first sweep of each workspace's leftover values buffers in this process: awaited before any use. */
+  const firstSweep = new Map<string, Promise<void>>();
 
   // ---- live frames: tmux pipe-pane into a file in /tmp, read back from an offset, one reader per session however many tabs watch ----
   const streams = new Map<string, { listeners: Set<(line: string) => void>; stop(): void }>();
@@ -1399,8 +1401,8 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       // a tab's live read is quiet: it neither wakes the workspace nor counts as use, so a tab left open does not keep the workspace awake, and a person watching is not taken for the agent at work
       h = createTmuxHost({ exec, quietExec: (argv) => m.exec(agentId, argv, { quiet: true }), control: control(agentId), prefix });
       tmuxHosts.set(agentId, h);
-      // the first use of this workspace in this process: what a run left before a restart is removed before anyone reads (review 12 Nov, 3b)
-      void h.sweep().catch(() => undefined);
+      // the first use of this workspace in this process: what a run left before a restart is removed before anyone reads (review 12 Nov, 3b); every use waits for it (third look)
+      firstSweep.set(agentId, h.sweep().catch(() => undefined));
     }
     return h;
   }
@@ -1426,7 +1428,9 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       }
       w0.gen = gen;
     }
-    return { agentId: w0.agentId, host: tmuxFor(w0.agentId) };
+    const host = tmuxFor(w0.agentId);
+    await firstSweep.get(w0.agentId);
+    return { agentId: w0.agentId, host };
   }
   /** Do `f` in the session's workspace; a session tmux lost under a running workspace (its server was killed from inside) is made again once and `f` tried again. */
   async function inSession<T>(terminalId: string, f: (h: TerminalHost) => Promise<T>): Promise<T> {
@@ -1449,7 +1453,9 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       const agentId = a.target.agentId;
       if (agentId === undefined) throw wsError("Say which agent's workspace to open the terminal in.", "bad_input");
       await m.ensure(agentId);
-      const r = await tmuxFor(agentId).open(a);
+      const t = tmuxFor(agentId);
+      await firstSweep.get(agentId);
+      const r = await t.open(a);
       where.set(a.terminalId, { agentId, cols: a.cols, rows: a.rows, cwd: r.cwd, gen: m.generation(agentId) });
       return { ...r, title: "Workspace" };
     },

@@ -54,7 +54,8 @@ export interface Ctx {
   db: ScopedDb;
   emit<T>(name: EventName, subject: string, payload: T, opts?: EmitOpts): EventEnvelope<T>;
   call<C extends CapName>(cap: C, input: unknown, opts?: CallOpts): Promise<unknown>;
-  authorize(action: { perm: string | null; level: Level }, resource: ResourceRef): Decision;
+  /** `cap` names the capability the check stands in for, so the Space's Gate rules for that capability apply (a handler that changes a record on behalf of records.update asks as records.update). `fields` names the fields the check is about, so a field the caller may not read counts against them. When the call itself was approved by a person (a parked call that was released), a check made inside it that meets only the Gate rules the call met (the same act and approver) is cleared; a check that meets any other Gate rule still answers hold, and its reason names who approves. */
+  authorize(action: { perm: string | null; level: Level; cap?: string; fields?: readonly string[] }, resource: ResourceRef): Decision;
   /**
    * May every one of these people do this on this resource? Their own grants, checked one by one, never the caller's. What goes into a chat other people read is held to what every one of them may
    * open (lib/audience.ts). Answers yes or no only. Present on a booted daemon; a hand-built test ctx may omit it.

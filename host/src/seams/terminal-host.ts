@@ -34,7 +34,7 @@ export interface TerminalHostSeamShape {
   workspaces?: WorkspacesConfig;
 }
 
-export type ValuesShape = { lookup(handle: string, who: { agentId: string; asker: string; where: "host" | "device" | "computer" }): Promise<{ kind: "value"; itemId: string; value: string; spaceOnly: boolean; injectIntoDeployments: boolean } | { kind: "unknown" } | { kind: "denied"; reason: "no_access" | "provider_label" | "other" }> };
+export type ValuesShape = { lookup(handle: string, who: { agentId: string; asker: string; where: "host" | "device" | "computer" }): Promise<{ kind: "value"; itemId: string; value: string; spaceOnly: boolean; injectIntoDeployments: boolean } | { kind: "unknown" } | { kind: "denied"; reason: "no_access" | "provider_label" | "other" | "team_agent" | "team_shared" | "team_unknown_agent" | "needs_approval" }> };
 
 /** Where Docker is and which image is the agent workspace; the module builds the manager from it (agent workspaces, 6 Nov). */
 export interface WorkspacesConfig {

@@ -88,7 +88,10 @@ async function up(dir: string, open: OpenSession): Promise<{ d: Daemon; stop: ()
   return { d, stop: async () => { clearInterval(pumping); await d.stop(); } };
 }
 /** The wake-ups the goal sent and what became of each: a wake with no turn to report it holds the next one back, so a stuck run shows it here. */
-const wakesOf = (d: Daemon): string => { try { return JSON.stringify(new DatabaseSync(d.paths.modules, { readOnly: true }).prepare("SELECT reason, state, attempt FROM goals_wake ORDER BY created_at").all()); } catch (e) { return `no wake table: ${String(e)}`; } };
+const wakesOf = (d: Daemon): string => { try { return JSON.stringify(new DatabaseSync(d.paths.modules, { readOnly: true }).prepare("SELECT id, reason, state, attempt, due_at, sent_at, created_at FROM goals_wake ORDER BY created_at").all()); } catch (e) { return `no wake table: ${String(e)}`; } };
+/** The engine's queue and turns, for a failure message: a wake the engine took and never ran shows here. */
+const queueOf = (d: Daemon): string => { try { const db = new DatabaseSync(d.paths.modules, { readOnly: true }); return JSON.stringify({ queue: db.prepare("SELECT thread_id, qseq, kind, message_id, agent_id, state FROM engine_thread_queue ORDER BY enqueued_at").all(), turns: db.prepare("SELECT thread_id, agent_id, state, qseq, error FROM engine_turns ORDER BY started_at").all() }); } catch (e) { return `no queue: ${String(e)}`; } };
+const activityOf = async (d: Daemon, goalId: string): Promise<string> => JSON.stringify(((await ok(d, "goals.activity", { goalId, limit: 80 })).activity as Array<{ kind: string; text: string }>).filter((x) => ["wake", "status", "ended", "error", "report", "task"].includes(x.kind)).map((x) => `${x.kind}: ${x.text}`));
 const goalOf = async (d: Daemon, goalId: string): Promise<any> => (await ok(d, "goals.get", { goalId }));   // eslint-disable-line @typescript-eslint/no-explicit-any
 async function contacts(d: Daemon, n: number, tag: string): Promise<void> { for (let i = 0; i < n; i++) await ok(d, "records.create", { type: "contact", fields: { name: `Lab 8 guest ${tag}${i}` } }); }
 
@@ -142,7 +145,7 @@ test("goals live: research, plan as tasks, the baton does them, one ask, a resta
       clock.t = g.nextCheckinAt + 1_000;
       await w.d.hooks!.runPeriodic("goals.clock");
       await waitFor(async () => ((await goalOf(w.d, goalId)).goal.checkins === i + 1 ? true : null), 20_000, () => hostLog(w.d));
-      await waitFor(async () => (m.turns.filter((t) => t.reason.includes("check-in")).length >= i + 1 ? true : null), 30_000, () => `${hostLog(w.d)} ${JSON.stringify(m.turns.slice(before).map((t) => [t.kind, t.reason, t.tools]))}`);
+      await waitFor(async () => (m.turns.filter((t) => t.reason.includes("check-in")).length >= i + 1 ? true : null), 30_000, () => `wakes ${wakesOf(w.d)} queue ${queueOf(w.d)} ${hostLog(w.d)} ${JSON.stringify(m.turns.slice(before).map((t) => [t.kind, t.reason, t.tools]))}`).catch(async (e: Error) => { throw new Error(`${e.message} ACTIVITY ${await activityOf(w.d, goalId)}`); });
     }
     const flat = (await goalOf(w.d, goalId)).goal;
     assert.equal(flat.status, "stuck");

@@ -169,6 +169,7 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
         // a user option in a format: its value, or nothing when unset
         const opt = /^(.*)#\{(@[A-Za-z0-9_]+)\}$/.exec(fmt ?? "");
         if (opt) return ok(`${opt[1]}${s.opts.get(opt[2] as string) ?? ""}\n`);
+        if (fmt === "#{pane_pid} #{pane_dead} #{pane_in_mode} #{cursor_y} #{pane_current_command}") return ok(`${pidOf(s.name)} 0 0 0 ${s.hung ? "sleep" : "bash"}\n`);
         return ok(`${fmt === "#{pane_current_path}" ? s.cwd : fmt === "#{pane_current_command}" ? (s.hung ? "sleep" : "bash") : ""}\n`);
       }
       case "send-keys": {
@@ -180,6 +181,8 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
         return ok();
       }
       case "capture-pane": {
+        // the cursor's line (shellAtPrompt): the prompt, never a continuation line in this stand-in
+        if (argv.includes("-E")) return ok("$ \n");
         // as tmux: up to n lines of history above the screen, then every row of the screen (empty ones too)
         const n = Math.abs(Number(flag(argv, "-S")));
         const g = grid(s);

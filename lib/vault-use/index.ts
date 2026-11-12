@@ -1,4 +1,4 @@
-export { runWithVault } from "./run.ts";
+export { deniedLine, runWithVault } from "./run.ts";
 export type { Executor, Lookup, Used, ValueSource, VaultCall, VaultRun, VaultRunDeps, Where } from "./run.ts";
 export { createScrubber, variantsOf, MIN_SECRET_LENGTH, WITHHELD, FRAGMENT_TAIL } from "./scrub.ts";
 export type { MissReport, Scrubber, Secret } from "./scrub.ts";

@@ -1,16 +1,18 @@
 // Right pane > Computer in the workspace model: a Terminal section (the agent's workspace: its state, the tmux sessions, Attach for people who may) and a Browser section (the agent's profile in
 // the Space browser: its live view, Take over, and the logins it keeps). Nothing to set up and no "give it a computer" step. The logic and the two interfaces the workspace and Space browser
 // lanes fill are in work-model.ts; a half that is not bound says so in one line.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
-import { reasonOf } from "./actions.ts";
+import { copyText, reasonOf } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import { usePaneData, useOnline } from "./data.tsx";
 import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
-import { dayMonth } from "./model.ts";
+import { dayMonth, stepRows, stepsLine } from "./model.ts";
+import type { Step } from "./model.ts";
+import { stepEntries } from "./ComputerTab.tsx";
 import { Icon, LeadIcon, PaneList, TextButton } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
 import { attachedNote, browserAction, browserWords, orderSessions, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
@@ -111,6 +113,35 @@ export function NotYet({ what, testID }: { what: string; testID: string }): Reac
   return <Text testID={testID} style={[st.note, { paddingHorizontal: 24 }]}>{`${what} is not available on this server yet.`}</Text>;
 }
 
+/** The agent's steps in its Space browser profile, read again when the browser's state or caption changes (a new step moves the caption). */
+function useBrowserSteps(call: (cap: string, input: unknown) => Promise<unknown>, agentId: string, tick: string): Step[] {
+  const [steps, setSteps] = useState<Step[]>([]);
+  // the pane data (and its call) is rebuilt with the page: the read follows the agent and the browser, not the function's identity
+  const ref = useRef(call);
+  ref.current = call;
+  useEffect(() => {
+    let live = true;
+    void ref.current("computers.browser.timeline", { agentId, limit: 100 }).then((o) => { if (live) setSteps(stepRows((o as { steps?: Step[] }).steps ?? [])); }, () => undefined);
+    return () => { live = false; };
+  }, [agentId, tick]);
+  return steps;
+}
+
+/** The picture of a step, from Files. */
+function useStepPicture(call: (cap: string, input: unknown) => Promise<unknown>, fileId: string | undefined): string | null {
+  const [uri, setUri] = useState<string | null>(null);
+  const ref = useRef(call);
+  ref.current = call;
+  useEffect(() => {
+    setUri(null);
+    if (!fileId) return undefined;
+    let live = true;
+    void ref.current("files.read", { fileId, as: "base64" }).then((r) => { const b = (r as { base64?: string }).base64; if (live && typeof b === "string" && b !== "") setUri(`data:image/png;base64,${b}`); }, () => undefined);
+    return () => { live = false; };
+  }, [fileId]);
+  return uri;
+}
+
 /** The pane: Terminal, then Browser. */
 export function WorkSections({ deps, window }: { deps: PaneDeps; window?: VirtualWindow }): ReactElement {
   const data = usePaneData();
@@ -123,6 +154,9 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
   const [busy, setBusy] = useState<"attach" | "take" | "give" | "open" | null>(null);
   // Console > Computers is for the people who may add a computer (owners and admins), as on the Computer tab's other screens
   const canManageComputers = allows(useOptionalShellRuntime(), GATE.provisionComputer);
+  const steps = useBrowserSteps(data.call, agentId, br.status === "ready" ? `${br.view.state}:${br.view.caption ?? ""}` : br.status);
+  const [sel, setSel] = useState<number | null>(null);
+  const picture = useStepPicture(data.call, sel !== null ? steps[sel]?.frameFileId : undefined);
   const run = (what: NonNullable<typeof busy>, f: () => Promise<void>): void => {
     setBusy(what);
     void f().catch((e: unknown) => deps.note(reasonOf(e) || "That did not work. Try again.")).finally(() => setBusy(null));
@@ -152,9 +186,14 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
     const v = br.view;
     entries.push({
       key: "browser-card", type: "block",
-      node: <BrowserCard view={v} name={name} quietWait={wait !== null} busy={!online || busy !== null} live={data.browser?.renderLive?.(agentId, { state: v.state, control: v.state === "takeover" && v.mine === true })}
+      // a step picked in the list below shows its picture where the live view is; Live goes back
+      node: <BrowserCard view={v} name={name} quietWait={wait !== null} busy={!online || busy !== null} live={picture !== null ? <Pressable accessibilityRole="button" accessibilityLabel="Back to live" testID="browser-step-picture" onPress={() => setSel(null)} style={st.fill}><Image source={{ uri: picture }} resizeMode="contain" style={st.fill} /></Pressable> : data.browser?.renderLive?.(agentId, { state: v.state, control: v.state === "takeover" && v.mine === true })}
         onOpen={() => run("open", () => data.browser!.open(agentId))} onTake={() => run("take", () => data.browser!.takeOver(agentId))} onGive={() => run("give", () => data.browser!.giveBack(agentId))} />,
     });
+    // what the agent did in its browser, step by step: the same list a computer's session has (computers.browser.timeline, f-wire 12 Nov)
+    entries.push({ key: "l-browser-steps", type: "label", text: "Steps", right: stepsLine(steps.length) });
+    if (steps.length === 0) entries.push({ key: "no-browser-steps", type: "empty", text: "Nothing yet. Steps appear as it works." });
+    entries.push(...stepEntries({ steps, live: v.state === "open" && v.caption !== undefined, asleep: v.state === "closed", clock, sel, onSelect: setSel, onCopy: (text) => void copyText(deps, text), key: "browser-step" }));
     // the logins its profile keeps are for the people who may see and take over the browser
     if (v.canTakeOver) entries.push({ key: "l-sites", type: "label", text: "Signed in on its browser" });
     if (v.canTakeOver && v.sites.length === 0) entries.push({ key: "no-sites", type: "empty", text: "Not signed in anywhere yet." });

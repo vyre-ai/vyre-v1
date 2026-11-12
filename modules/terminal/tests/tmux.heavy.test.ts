@@ -506,3 +506,24 @@ test("real tmux (12 Nov): a run ends at once with its exit code after it moved t
   assert.equal((await runTmux(["show-options", "-t", "vyre-trm_heavy_draw"])).stdout.includes("@vyre_rc_"), false, "no stored code is left on the session");
   await host.close("trm_heavy_draw");
 });
+
+test("tmux (third look F2): shellAtPrompt says no for a program a shell exec'd into, and for a construct a person left open at the prompt", { skip }, async () => {
+  const atPrompt = (s: string): Promise<boolean> => shellAtPrompt(exec, s);
+  const settle = (): Promise<void> => sleep(400);
+  // exec replaces the shell under the same pid and process group: the terminal's owner is still that pid
+  await open("trm_hv9");
+  await host.input("trm_hv9", "exec python3 -q\r"); await settle();
+  assert.equal(await atPrompt("vyre-trm_hv9"), false, "exec python3");
+  await host.close("trm_hv9");
+  // a person typed the start of something and left it: the shell waits for the rest on a continuation line
+  const left: Array<[string, string]> = [["an open (", "(echo a\r"], ["an open quote", "echo 'abc\r"], ["a here-document", "cat <<EOF\r"]];
+  for (const [i, [what, line]] of left.entries()) {
+    const id = `trm_hva${i}`;
+    await open(id);
+    await settle();
+    assert.equal(await atPrompt(`vyre-${id}`), true, `${what}: at the prompt before`);
+    await host.input(id, line); await settle();
+    assert.equal(await atPrompt(`vyre-${id}`), false, what);
+    await host.close(id);
+  }
+});

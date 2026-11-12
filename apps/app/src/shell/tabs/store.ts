@@ -36,6 +36,9 @@ export const EMPTY_TABS: TabsState = { tabs: [], active: "" };
  * A tab is unique by what it shows: a place is one tab, an item (thread, record, file...) is one tab by its subject, a Records type is one tab by its type.
  * Other hash parts (the screen inside a place, view settings) move within the tab and never make another one. A hash that is not `k=v` text is an opaque id and stays as given.
  */
+/** Your profile is a page of Settings: the address names the page, so it opens in the Settings tab the strip already has and never as a second one (owner walk, 12 Nov). */
+export const PROFILE_HASH = "page=profile";
+
 export function tabKey(place: PlaceId, hash?: string): string {
   if (hash === undefined || hash === "") return place;
   if (!hash.includes("=")) return `${place}:${hash}`;
