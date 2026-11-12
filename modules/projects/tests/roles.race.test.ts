@@ -78,3 +78,16 @@ test("removing someone from a project fails plainly when they cannot be taken ou
   await assert.rejects(run(h, "projects.members.remove", { projectId: made.projectId, principal: LEO }), (e: { error?: { code?: string } }) => e.error?.code === "permission.no_grant");
   assert.equal(h.rows("SELECT * FROM projects_member WHERE projectId = ? AND principal = ?", made.projectId, LEO).length, 1, "the role stays, so a retry finishes the job");
 });
+
+test("a remove decides its channel is gone only when the channel itself cannot be found, never from a refusal dressed as not-found", async () => {
+  const h = harness();
+  const made = await run(h, "projects.create", { type: "project", title: "Hidden channel", idempotencyKey: key() });
+  await run(h, "projects.members.set", { projectId: made.projectId, principal: LEO, role: "member" });
+  // an invite-only channel answers not_found to someone who is not in it; the channel is still there
+  h.world.handlers["channels.members.remove"] = () => { throw Object.assign(new Error("hidden"), { error: { code: "validation.not_found", message: "That channel does not exist." } }); };
+  await assert.rejects(run(h, "projects.members.remove", { projectId: made.projectId, principal: LEO }));
+  assert.equal(h.rows("SELECT * FROM projects_member WHERE projectId = ? AND principal = ?", made.projectId, LEO).length, 1, "nothing is reported removed while the person may still be in the channel");
+  // the channel really is gone: the remove goes through
+  h.world.handlers["channels.get"] = () => { throw Object.assign(new Error("gone"), { error: { code: "validation.not_found", message: "That channel does not exist." } }); };
+  assert.deepEqual(await run(h, "projects.members.remove", { projectId: made.projectId, principal: LEO }), { removed: true });
+});

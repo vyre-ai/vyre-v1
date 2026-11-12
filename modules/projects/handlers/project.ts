@@ -159,8 +159,17 @@ async function removeMemberNow(ctx: ProjectsCtx, p: Project, asked: Member): Pro
   emitP(ctx, "project.member_removed", p.projectId, { principal: m.principal });
 }
 
-async function outOfChannel(ctx: ProjectsCtx, cap: string, input: Record<string, unknown>): Promise<void> {
-  try { await call(ctx, cap, input); } catch (e) { if (codeOf(e) !== "validation.not_found") throw e; }
+/**
+ * Out of the project's own channel. A not-found is believed only when the channel itself reads as gone: an invite-only channel also answers not_found to someone outside it, so the channel is read
+ * again (in the daemon this read, like the removal, runs as the host on the project's own channel, host/src/daemon/daemon.ts CHANNEL_FOLLOWS) and a channel that is still there fails the remove.
+ */
+async function outOfChannel(ctx: ProjectsCtx, cap: string, input: Record<string, unknown> & { channelId: string }): Promise<void> {
+  try { await call(ctx, cap, input); } catch (e) {
+    if (codeOf(e) !== "validation.not_found") throw e;
+    let gone = false;
+    try { await call(ctx, "channels.get", { channelId: input.channelId }); } catch (g) { gone = codeOf(g) === "validation.not_found"; }
+    if (!gone) throw e;
+  }
 }
 
 /** Take this principal off the project if they are on it, reading the row in the project's queue: a role still waiting there (behind the consumer) lands first, and this remove then takes it. */

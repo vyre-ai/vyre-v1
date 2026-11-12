@@ -59,8 +59,8 @@ import { LogSink, invokeLogs, jobRanLog } from "../logsink/index.ts";
 import { nodePlatform } from "../platform/index.ts";
 
 /** The chat capabilities that end a membership: their access.unshare of a chat: grant runs as the host (see the handler wrapper). */
-/** The channel calls a project's role changes make on its own channel; they run as the host (see the projects wrapper). */
-const CHANNEL_FOLLOWS = new Set(["channels.members.add", "channels.members.remove", "channels.agents.add", "channels.agents.remove"]);
+/** The channel calls a project's role changes make on its own channel, and the read that tells whether it is gone; they run as the host (see the projects wrapper). */
+const CHANNEL_FOLLOWS = new Set(["channels.members.add", "channels.members.remove", "channels.agents.add", "channels.agents.remove", "channels.get"]);
 const CHAT_LEAVES = new Set(["threads.members.remove", "channels.members.remove", "channels.leave", "channels.agents.remove", "threads.remove_agent", "threads.outside_agent.remove"]);
 /** Files an agent made on its computer, said in the chat the work was for: one message with a file card each (four at most, the rest counted), posted as the agent for the person it works for. */
 
