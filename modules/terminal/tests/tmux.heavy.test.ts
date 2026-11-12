@@ -507,6 +507,24 @@ test("real tmux (12 Nov): a run ends at once with its exit code after it moved t
   await host.close("trm_heavy_draw");
 });
 
+test("real tmux (lead, 12 Nov): a run with a value that moves the cursor up, clears the screen or draws a progress bar ends at once with its code, and its values buffer is gone at its true end", { skip }, async () => {
+  await open("trm_heavy_vals", { rows: 12 });
+  const cases: Array<[string, string, number]> = [
+    ["tput cuu over longer rows", "for i in $(seq 1 30); do echo \"row $i $(printf 'x%.0s' $(seq 1 70))\"; done; tput cuu 8 2>/dev/null || printf '\\033[8A'; test -n \"$K\" && exit_with() { return $1; } && exit_with 3", 3],
+    ["clear", "seq 1 30; clear; test -n \"$K\"", 0],
+    ["a progress bar", "for i in 10 50 100; do printf '\\r%3d%% %s' $i 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; sleep 0.05; done; printf '\\r'; test -n \"$K\"", 0],
+  ];
+  for (const [what, command, code] of cases) {
+    const t0 = Date.now();
+    const r = await host.run("trm_heavy_vals", { command, env: { K: "the-value" }, timeoutMs: 20_000 });
+    assert.equal(r.exitCode, code, what);
+    assert.ok(Date.now() - t0 < 6000, `${what}: ended in ${Date.now() - t0} ms, not at the 20 s limit`);
+    const buffers = (await runTmux(["list-buffers", "-F", "#{buffer_name}"])).stdout.split("\n").filter((b) => b.startsWith("vyre-"));
+    assert.deepEqual(buffers, [], `${what}: the values buffer is gone when the run returns`);
+  }
+  await host.close("trm_heavy_vals");
+});
+
 test("tmux (third look F2): shellAtPrompt says no for a program a shell exec'd into, and for a construct a person left open at the prompt", { skip }, async () => {
   const atPrompt = (s: string): Promise<boolean> => shellAtPrompt(exec, s);
   const settle = (): Promise<void> => sleep(400);

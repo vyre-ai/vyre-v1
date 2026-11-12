@@ -386,9 +386,17 @@ jobs:
           VYRE_AGENT_COMPUTER_IMAGE: vyre/agent-computer:ci-${{ github.run_id }}
         run: |
           set -o pipefail
-          for f in test/memory.recall.live.test.ts test/chat-ecosystem.live.test.ts test/cli-skills-connections.live.test.ts test/terminal.workspace.live.test.ts modules/terminal/tests/workspace.live.test.ts host/tests/workspace.node.live.test.ts host/tests/onboarding.assistant.live.test.ts host/tests/computers.runner.live.test.ts; do
+          for f in test/memory.recall.live.test.ts test/chat-ecosystem.live.test.ts test/cli-skills-connections.live.test.ts test/terminal.workspace.live.test.ts modules/terminal/tests/workspace.live.test.ts modules/terminal/tests/workspace.heal.live.test.ts host/tests/workspace.node.live.test.ts host/tests/onboarding.assistant.live.test.ts host/tests/computers.runner.live.test.ts; do
             node scripts/test-run.ts --slow --no-cache --no-skip --jobs 1 --files "$f"
           done
+      - name: Agent workspaces and sites at scale on real Docker (100 workspaces, isolation, Trash volumes, 60 sites), none skipped
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+          VYRE_WORKSPACE_TEST_IMAGE: vyre/agent-workspace:ci-${{ github.run_id }}
+        run: |
+          set -o pipefail
+          node --test --test-force-exit --test-timeout=1800000 --test-reporter=spec modules/terminal/tests/workspace.isolation.heavy.test.ts modules/terminal/tests/workspace.trash.heavy.test.ts modules/sites/tests/site-networks.heavy.test.ts modules/terminal/tests/workspace.scale.heavy.test.ts 2>&1 | tee workspace-scale.log
+          grep -a -E "SCALE-NUMBERS|SITES-NUMBERS" workspace-scale.log || true
       - name: Images and containers left behind
         if: always()
         run: |

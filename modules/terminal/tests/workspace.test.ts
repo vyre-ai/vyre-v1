@@ -606,6 +606,7 @@ test("third look: after a restart, the first use of a workspace removes what a r
   box.exec = async (argv, x) => { if (argv[1] === "capture-pane") seen.push(`read with ${box.buffers.size} buffer(s)`); return exec0(argv, x); };
   try {
     await termHost(r).read("trm_1", { lines: 10 });
-    assert.deepEqual(seen, ["read with 0 buffer(s)"], "the leftover was gone before the screen was read");
+    // every read of the screen (a read may take more than one capture: f-term's line cursor) came after the leftover was gone
+    assert.ok(seen.length > 0 && seen.every((x) => x === "read with 0 buffer(s)"), `the leftover was gone before the screen was read: ${JSON.stringify(seen)}`);
   } finally { box.exec = exec0; }
 });
