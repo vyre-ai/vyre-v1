@@ -6,21 +6,21 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { edge, dismissOnboarding } from "./real-app-harness.test.ts";
-import { GATE_MODEL, REAL_KEY, bootGate, claimInBrowser, gateSkip, tokenOf } from "./gate-kit.test.ts";
+import { GATE_MODEL, REAL_KEY, SPACE_KIND, addAi, bootGate, claimInBrowser, gateSkip, tokenOf } from "./gate-kit.test.ts";
 
 const dk = (...a: string[]): string => { try { return execFileSync("docker", a, { encoding: "utf8", timeout: 30_000 }); } catch (e) { return String((e as { stdout?: string }).stdout ?? ""); } };
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 async function setup(name: string) {
   const { chromium } = await import("playwright-core");
-  const d = await bootGate("personal", name);
+  const d = await bootGate(SPACE_KIND, name);
   const web = await edge(process.env["VYRE_APP_DIST"]!, d.address);
   const browser = await chromium.launch({ executablePath: process.env["CHROME_BIN"] || chromium.executablePath(), args: ["--no-sandbox"] });
   const context = await browser.newContext(); const page = await context.newPage();
   await claimInBrowser(page, d.claim!.replace(d.address, web.origin), { name: "Keep Owner", username: "keep", password: "keep walk password 1" }); await dismissOnboarding(page);
   const token = await tokenOf(page);
   const call = async (cap: string, data: unknown = {}): Promise<{ status: number; data: any }> => { const r = await context.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token}` }, data: { idempotencyKey: `k-${Math.random()}`, ...(data as object) } }); const j = (await r.json().catch(() => ({}))) as any; return { status: r.status(), data: j.data ?? j }; };   // eslint-disable-line @typescript-eslint/no-explicit-any
-  await call("providers.add", { providerKey: "opencode-go", connection: "api_key", apiKey: REAL_KEY, scope: "mine" });
+  await addAi(call);
   const agentId = (await call("agents.list")).data.agents[0].agentId as string; await call("agents.update", { agentId, patch: { model: GATE_MODEL } });
   const thread = (await call("chat.start", { kind: "chat", agentIds: [agentId], title: "keep probe" })).data.thread.threadId as string;
   const post = (b: string): Promise<unknown> => call("chat.post", { threadId: thread, body: b, mentions: [{ kind: "agent", id: agentId }] });

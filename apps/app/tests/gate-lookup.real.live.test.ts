@@ -9,14 +9,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { edge, dismissOnboarding } from "./real-app-harness.test.ts";
-import { GATE_MODEL, REAL_KEY, bootGate, claimInBrowser, gateSkip, tokenOf } from "./gate-kit.test.ts";
+import { GATE_MODEL, REAL_KEY, SPACE_KIND, addAi, bootGate, claimInBrowser, gateSkip, tokenOf } from "./gate-kit.test.ts";
 
 const body = async (p: import("playwright-core").Page): Promise<string> => ((await p.evaluate("document.body.innerText").catch(() => "")) as string).replace(/\n+/g, " | ");
 
 test("GATE lookup (Personal Space): three lookups, then an Ask first approval with timings", { skip: gateSkip(), timeout: 900_000 }, async () => {
   const { chromium } = await import("playwright-core");
   const shots = path.join(process.env["VYRE_GATE_SHOTS"] ?? "/tmp/vyre-gate-shots", "lookup"); fs.mkdirSync(shots, { recursive: true });
-  const d = await bootGate("personal", "Lookup Space");
+  const d = await bootGate(SPACE_KIND, "Lookup Space");
   const web = await edge(process.env["VYRE_APP_DIST"]!, d.address);
   const browser = await chromium.launch({ executablePath: process.env["CHROME_BIN"] || chromium.executablePath(), args: ["--no-sandbox"] });
   let agentId = "";
@@ -25,7 +25,7 @@ test("GATE lookup (Personal Space): three lookups, then an Ask first approval wi
     await claimInBrowser(page, d.claim!.replace(d.address, web.origin), { name: "Look Owner", username: "look", password: "look walk password 1" }); await dismissOnboarding(page);
     const token = await tokenOf(page);
     const call = async (cap: string, data: unknown = {}): Promise<any> => { const r = await ctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token}` }, data: { idempotencyKey: `l-${Math.random()}`, ...(data as object) } }); const j = (await r.json().catch(() => ({}))) as any; if (r.status() !== 200) throw new Error(`${cap}: ${r.status()} ${JSON.stringify(j).replaceAll(REAL_KEY, "***").slice(0, 200)}`); return j.data; };   // eslint-disable-line @typescript-eslint/no-explicit-any
-    await call("providers.add", { providerKey: "opencode-go", connection: "api_key", apiKey: REAL_KEY, scope: "mine" });
+    await addAi(call);
     agentId = (await call("agents.list")).agents[0].agentId as string; await call("agents.update", { agentId, patch: { model: GATE_MODEL } });
     const thread = (await call("chat.start", { kind: "chat", agentIds: [agentId], title: "lookup" })).thread.threadId as string;
     await page.goto(`${web.origin}/chats`, { waitUntil: "load" }); await page.getByTestId("shell").waitFor({ timeout: 30_000 }); await page.getByText("lookup", { exact: true }).first().click().catch(() => undefined); await page.waitForTimeout(1500);

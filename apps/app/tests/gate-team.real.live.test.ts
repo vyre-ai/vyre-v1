@@ -119,7 +119,8 @@ test("GATE (Team Space): owner and member, a channel with an agent, the same str
       const r = await watchBoth(n0);
       const sO = await shot(owner, "t07-owner-after"); const sM = await shot(member, "t08-member-after");
       assert.ok(r.owner >= 0 && r.member >= 0, `both views showed the reply (owner ${r.owner}, member ${r.member})`);
-      return { ms: Date.now() - t0, shot: `${sO}, ${sM}`, note: `reply on the owner's screen after ${r.owner} ms, on the member's (no reload) after ${r.member} ms, turn over ${r.done} ms; reply: ${r.reply.slice(0, 120)}` };
+      const mb = await body(member); const label = /Olivia.s Assistant\s*\|?\s*\d/.test(mb) ? "Olivia's Assistant" : /Olivia Owner \(Agent\)/.test(mb) ? "Olivia Owner (Agent)" : "other";
+      return { ms: Date.now() - t0, shot: `${sO}, ${sM}`, note: `member's label for the reply author: ${label}; reply on the owner's screen after ${r.owner} ms, on the member's (no reload) after ${r.member} ms, turn over ${r.done} ms; reply: ${r.reply.slice(0, 120)}` };
     });
     await step("the member mentions an agent from their own screen", async () => {
       const n0 = await agentCount();

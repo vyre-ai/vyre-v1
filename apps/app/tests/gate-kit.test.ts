@@ -108,3 +108,10 @@ export function unreachablePreload(dir: string): string {
   fs.writeFileSync(f, 'const real = globalThis.fetch;\nglobalThis.fetch = (input, init) => { const u = String(input?.url ?? input); if (u.includes("opencode.ai")) { const e = new TypeError("fetch failed"); e.cause = Object.assign(new Error("getaddrinfo ENOTFOUND opencode.ai"), { code: "ENOTFOUND" }); return Promise.reject(e); } return real(input, init); };\n');
   return `--import ${f}`;
 }
+
+/** GATE_SPACE=team runs a walk on a Team Space whose only AI source is the Space key (providers.space_key.set); otherwise a Personal Space with the person's own key. */
+export const SPACE_KIND: "personal" | "team" = process.env["GATE_SPACE"] === "team" ? "team" : "personal";
+export async function addAi(call: (cap: string, data?: unknown) => Promise<any>): Promise<void> {   // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (SPACE_KIND === "team") { await call("providers.space_key.set", { providerKey: "opencode-go", apiKey: REAL_KEY }); await call("engine.models.list", { refresh: true, wait: true }); }
+  else await call("providers.add", { providerKey: "opencode-go", connection: "api_key", apiKey: REAL_KEY, scope: "mine" });
+}

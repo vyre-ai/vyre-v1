@@ -6,14 +6,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { edge, dismissOnboarding } from "./real-app-harness.test.ts";
-import { GATE_MODEL, REAL_KEY, bootGate, claimInBrowser, gateSkip, tokenOf } from "./gate-kit.test.ts";
+import { GATE_MODEL, REAL_KEY, SPACE_KIND, addAi, bootGate, claimInBrowser, gateSkip, tokenOf } from "./gate-kit.test.ts";
 
 const dk = (...a: string[]): string => { try { return execFileSync("docker", a, { encoding: "utf8", timeout: 30_000 }); } catch (e) { return String((e as { stdout?: string }).stdout ?? ""); } };
 
 for (const variant of ["plain", "background-server", "unrelated-ask"] as const) {
   test(`GATE stop then next ask: ${variant}`, { skip: gateSkip() || (process.env["GATE_VARIANT"] && process.env["GATE_VARIANT"] !== variant ? "another variant is selected" : false), timeout: 900_000 }, async () => {
     const { chromium } = await import("playwright-core");
-    const d = await bootGate("personal", "Stop Probe");
+    const d = await bootGate(SPACE_KIND, "Stop Probe");
     const web = await edge(process.env["VYRE_APP_DIST"]!, d.address);
     const browser = await chromium.launch({ executablePath: process.env["CHROME_BIN"] || chromium.executablePath(), args: ["--no-sandbox"] });
     let agentId = "";
@@ -22,7 +22,7 @@ for (const variant of ["plain", "background-server", "unrelated-ask"] as const) 
       await claimInBrowser(page, d.claim!.replace(d.address, web.origin), { name: "Stop Owner", username: "stop", password: "stop walk password 1" }); await dismissOnboarding(page);
       const token = await tokenOf(page);
       const call = async (cap: string, data: unknown = {}): Promise<{ status: number; data: any }> => { const r = await context.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token}` }, data: { idempotencyKey: `s-${Math.random()}`, ...(data as object) } }); const j = (await r.json().catch(() => ({}))) as any; return { status: r.status(), data: j.data ?? j }; };   // eslint-disable-line @typescript-eslint/no-explicit-any
-      await call("providers.add", { providerKey: "opencode-go", connection: "api_key", apiKey: REAL_KEY, scope: "mine" });
+      await addAi(call);
       agentId = (await call("agents.list")).data.agents[0].agentId; await call("agents.update", { agentId, patch: { model: GATE_MODEL } });
       const thread = (await call("chat.start", { kind: "chat", agentIds: [agentId], title: "stop probe" })).data.thread.threadId as string;
       type T = { state: string; startedAt?: number };
@@ -55,11 +55,21 @@ for (const variant of ["plain", "background-server", "unrelated-ask"] as const) 
       const tNext = Date.now();
       await post(variant === "unrelated-ask" ? "What is 2 plus 2? Answer in one word." : "Run `echo next-ok` and tell me what it printed.");
       for (let k = 0; k < 40 && !(await turns()).some((x) => (x.startedAt ?? 0) >= tNext - 1000); k++) await new Promise((r) => setTimeout(r, 300));
-      await idle(300_000);
+      let reran = false; let t2 = 0;
+      const watch = (async () => { while (t2 === 0) { if (snap().includes("sleep 120")) reran = true; await new Promise((r) => setTimeout(r, 1500)); } })();
+      await idle(300_000); t2 = 1; await watch;
       const answeredAfterStop = Date.now() - tStop; const answeredAfterAsk = Date.now() - tNext;
       const all = await replyAfter(tStop);
       console.log(`GATE STOP ${variant}: next-ok answered ${answeredAfterAsk} ms after the ask, ${answeredAfterStop} ms after Stop; finished-long in any reply: ${/finished-long/.test(all.split("next-ok")[0] ?? "") || /printed finished-long|finished-long\b/.test(all)}; ps now: ${snap()}; pane: ${pane()}`);
       if (variant === "background-server") console.log(`GATE STOP background-server: server still answers: ${dk("exec", c, "sh", "-c", "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/ || echo none").trim()}`);
+      console.log(`GATE STOP ${variant}: the stopped command was run again after Stop (a sleep 120 process seen during the next ask): ${reran}`);
+      if (variant === "plain") {
+        const tQ = Date.now(); const n0 = (await call("chat.messages.list", { threadId: thread })).data.messages.length; await post("What is 2 plus 2? Answer in one word."); 
+        for (let k = 0; k < 40 && !(await turns()).some((x) => (x.startedAt ?? 0) >= tQ - 1000); k++) await new Promise((r) => setTimeout(r, 300));
+        await idle(300_000);
+        const msgs = (await call("chat.messages.list", { threadId: thread })).data.messages as Array<{ author: { kind: string }; body: string }>;
+        console.log(`GATE STOP plain: "2 plus 2" answered ${Date.now() - tQ} ms after the ask; messages added ${msgs.length - n0}; last reply: ${msgs.filter((m) => m.author.kind === "agent").at(-1)?.body.slice(0, 80)}`);
+      }
       assert.ok(answeredAfterAsk < 60_000, `the next ask is answered quickly (${answeredAfterAsk} ms)`);
     } finally {
       await browser.close(); web.close(); await d.stop();

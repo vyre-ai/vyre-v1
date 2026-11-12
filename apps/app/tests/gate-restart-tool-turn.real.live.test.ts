@@ -7,7 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { edge, dismissOnboarding } from "./real-app-harness.test.ts";
-import { GATE_MODEL, REAL_KEY, bootGate, claimInBrowser, gateSkip, tokenOf } from "./gate-kit.test.ts";
+import { GATE_MODEL, REAL_KEY, SPACE_KIND, addAi, bootGate, claimInBrowser, gateSkip, tokenOf } from "./gate-kit.test.ts";
 
 const ROWS: Array<{ name: string; signal: "SIGKILL" | "SIGTERM"; during: "idle" | "command" | "text" }> = [
   { name: "SIGKILL idle", signal: "SIGKILL", during: "idle" },
@@ -18,7 +18,7 @@ const ROWS: Array<{ name: string; signal: "SIGKILL" | "SIGTERM"; during: "idle" 
 for (const row of ROWS) {
   test(`GATE restart row: ${row.name}, then three messages are answered on a model`, { skip: gateSkip(), timeout: 900_000 }, async () => {
     const { chromium } = await import("playwright-core");
-    const d = await bootGate("personal", "Restart Probe");
+    const d = await bootGate(SPACE_KIND, "Restart Probe");
     const web = await edge(process.env["VYRE_APP_DIST"]!, d.address);
     const browser = await chromium.launch({ executablePath: process.env["CHROME_BIN"] || chromium.executablePath(), args: ["--no-sandbox"] });
     let agentId = "";
@@ -34,7 +34,7 @@ for (const row of ROWS) {
         assert.equal(r.status(), 200, `${cap}: ${JSON.stringify(j).replaceAll(REAL_KEY, "***").slice(0, 300)}`);
         return j.data;
       };
-      await api("providers.add", { providerKey: "opencode-go", connection: "api_key", apiKey: REAL_KEY, scope: "mine" });
+      await addAi(api);
       const agent = (await api("agents.list")).agents[0] as { agentId: string }; agentId = agent.agentId;
       await api("agents.update", { agentId, patch: { model: GATE_MODEL } });
       const thread = (await api("chat.start", { kind: "chat", agentIds: [agentId], title: "restart probe" })).thread.threadId as string;

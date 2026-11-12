@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { edge, dismissOnboarding } from "./real-app-harness.test.ts";
 import { guardCrashes } from "./crash-guard.ts";
-import { GATE_MODEL, REAL_KEY, bootGate, claimInBrowser, gateSkip, recorder, tokenOf } from "./gate-kit.test.ts";
+import { GATE_MODEL, REAL_KEY, SPACE_KIND, addAi, bootGate, claimInBrowser, gateSkip, recorder, tokenOf } from "./gate-kit.test.ts";
 
 const PASSWORD = "gate walk password 4417";
 type Msg = { author: { kind: string; id: string }; body: string; blocks?: Array<{ type: string; state?: string; data?: Record<string, unknown> }> };
@@ -24,7 +24,7 @@ test("GATE C (Personal Space): the agent works in its tmux workspace", { skip: g
   const shots = path.join(process.env["VYRE_GATE_SHOTS"] ?? "/tmp/vyre-gate-shots", "c-personal"); fs.mkdirSync(shots, { recursive: true });
   const rec = recorder(shots, "rows.json");
   let agentId = "";
-  const d = await bootGate("personal", "Gate Personal");
+  const d = await bootGate(SPACE_KIND, "Gate Personal");
   const web = await edge(process.env["VYRE_APP_DIST"]!, d.address);
   const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
   const failures: string[] = [];
@@ -45,7 +45,7 @@ test("GATE C (Personal Space): the agent works in its tmux workspace", { skip: g
       if (expect && r.status() !== expect) throw new Error(`${cap}: ${r.status()} ${JSON.stringify(j).replaceAll(REAL_KEY, "***").slice(0, 300)}`);
       return j.data;
     };
-    await api("providers.add", { providerKey: "opencode-go", connection: "api_key", apiKey: REAL_KEY, scope: "mine" });
+    await addAi(api);
     const assistant = (await api("agents.list")).agents[0] as { agentId: string }; agentId = assistant.agentId;
     await api("agents.update", { agentId: assistant.agentId, patch: { model: GATE_MODEL } });
     await page.reload({ waitUntil: "load" }); await page.getByTestId("shell").waitFor({ timeout: 30_000 });
