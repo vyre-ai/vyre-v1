@@ -409,6 +409,10 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       catch (e) {
         // a Vault name or handle that names nothing the caller may use reads the same as one that does not exist, in words a person or an agent can act on
         // the line names the handle the caller wrote (their own input, never a value), so a failed Run says which key to bring back
+        // a Vault item that names nothing: not found (404), the same answer as one the caller cannot see (below), so nobody can tell the two apart and a refusal reads as a refusal
+        if (e instanceof BindingError && e.message === "no such item" && c.resource?.type === "vault_item") {
+          throw fail("permission.not_found", traceId, { message: missingItemLine(input, e.pointer), details: { reason: "no_such_item", errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
+        }
         if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...((c.resource as { self?: string }).self === "agent" && e.message === "the id is missing" ? { message: seed.forAgent !== undefined ? OUTSIDE_AGENT_LINE : SELF_BINDING_LINE } : {}), ...(e.message === "no such item" ? { message: missingItemLine(input, e.pointer) } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
         throw e;
       }
@@ -443,7 +447,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       const hidden = named && vaultPerson !== undefined ? deps.vaultHidden?.(resource!.id as string, vaultPerson) : undefined;
       if (hidden === "mine" || (hidden === "other" && d.effect === "deny")) {
         await deps.audit?.(audit("deny", "vault_item_hidden"));
-        throw fail("validation.bad_input", traceId, { message: NO_SUCH_ITEM, details: { errors: [`${(c.resource as { id: string }).id}: no such item`], cap: c.name } });
+        const pointer = (c.resource as { id: string }).id;
+        throw fail("permission.not_found", traceId, { message: missingItemLine(input, pointer), details: { reason: "no_such_item", errors: [`${pointer}: no such item`], cap: c.name } });
       }
       // Ask the person: an outside agent stopped at what only a person does, or at a role its person holds, asks that person instead of hitting a wall. The person's own access decides, alone,
       // as it will again when the call runs on their yes; nothing here lets the agent itself past anything.
