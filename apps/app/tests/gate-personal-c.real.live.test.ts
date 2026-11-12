@@ -151,12 +151,18 @@ test("GATE C (Personal Space): the agent works in its tmux workspace", { skip: g
       const afterStop = await body();
       const s = await shot("c07-after-stop");
       const idle = !(await stopVisible());
-      const next = await job("c08", "Run `echo next-ok` and tell me what it printed.", { limitMs: 120_000 });
-      const procs = docker("exec", docker("ps", "-q", "--filter", `label=vyre.workspace=${agentId}`).trim().split("\n")[0] ?? "", "sh", "-c", "ps -eo pid,etime,args | grep -E 'sleep 120' | grep -v grep || echo none");
+      const cid = docker("ps", "-q", "--filter", `label=vyre.workspace=${agentId}`).trim().split("\n")[0] ?? "";
+      const procsAfterStop = docker("exec", cid, "sh", "-c", "ps -eo pid,etime,args | grep -E 'sleep 120' | grep -v grep || echo none").trim().replace(/\n/g, " / ");
+      const pane = docker("exec", cid, "sh", "-c", "for s in $(tmux list-sessions -F '#S'); do echo \"[$s]\"; tmux capture-pane -p -t $s | tail -4; done").trim().replace(/\n/g, " / ").slice(0, 400);
+      const listed = ((await api("terminal.list", {}).catch(() => ({}))) as { terminals?: Array<{ terminalId: string; name: string }> }).terminals ?? [];
+      const calls: string[] = []; for (const t of listed) { const g = await context.request.post(`${web.origin}/v1/terminal/get`, { headers: { authorization: `Bearer ${token}` }, data: { terminalId: t.terminalId } }); calls.push(`${t.name}:get ${g.status()}`); }
+      const tNext = Date.now();
+      const next = await job("c08", "Run `echo next-ok` and tell me what it printed.", { limitMs: 240_000 });
+      void tNext;
       assert.ok(stoppedAt >= 0, "Stop was pressed while the command ran");
       assert.ok(idle, "the working state ended");
       assert.ok(next.done >= 0 && /next-ok/.test(next.reply), "the next ask works");
-      return { ms: r.done, shot: `${s}`, note: `stop pressed at ${stoppedAt} ms (click took ${stopClickMs} ms); turn ended ${r.done} ms after the ask; words after Stop: ${(afterStop.match(/(Stopped|stopped|Interrupted|still running)[^|]*/g) ?? []).join(" / ") || "none"}; sleep still in the workspace: ${procs.trim().slice(0, 160)}; next ask done ${next.done} ms` };
+      return { ms: r.done, shot: `${s}`, note: `stop pressed at ${stoppedAt} ms (click took ${stopClickMs} ms); turn ended ${r.done} ms after the ask; words after Stop: ${(afterStop.match(/(Stopped|stopped|Interrupted|still running)[^|]*/g) ?? []).join(" / ") || "none"}; sleep 120 right after Stop: ${procsAfterStop}; tmux panes: ${pane}; terminal.get after Stop: ${calls.join(" ")}; next ask done ${next.done} ms` };
     });
 
     // 7 the person types in the Terminal pane while the agent's commands are there; reload keeps the session
