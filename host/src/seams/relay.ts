@@ -361,28 +361,28 @@ export const doorPath = (p: string): boolean => DOOR.test(p) && p.length <= 4096
  */
 const HOOK = /^\/hooks\/automation\/aut_[a-z0-9]{1,64}\/[A-Za-z0-9_-]{8,200}$/;
 export const hookPath = (p: string): boolean => HOOK.test(p);
-export const RELAY_HOOKS = Object.freeze({ maxBody: 1024 * 1024, perMinute: 120, perHookPerMinute: 30, perVisitorPerMinute: 20, refusedPerVisitor: 10 });
+export const RELAY_HOOKS = Object.freeze({ maxBody: 1024 * 1024, perMinute: 120, perHookPerMinute: 30, perVisitorPerMinute: 20, refusedPerVisitor: 20 });
 /**
- * Two counts a minute, as on the relay: ACCEPTED (the daemon answered 200) for the Space, one hook, and one visitor on one hook; REFUSED (anything else) for one visitor across the Space, 10,
- * below the daemon's own 20 failures a minute per source, so a stranger's spray stops here and the same address can still reach a hook accepted this minute. Every map is cleared each minute;
- * accepted maps grow only on a 200 (at most 120 entries), refusal maps only on a request let through.
+ * Two counts a minute, the same numbers as on the relay: ACCEPTED (the daemon answered 200) for the Space, one hook, and one visitor on one hook; REFUSED (anything else) for one visitor across
+ * the Space, after which that visitor gets 429 for every id until the minute ends (no answer tells a real id from a made-up one). Every map is cleared each minute; accepted maps grow only on a
+ * 200 (at most 120 entries), the refusal map only on a request let through.
  */
-const hookWindow = { at: 0, n: 0, per: new Map<string, number>(), pair: new Map<string, number>(), known: new Set<string>(), refused: new Map<string, number>(), refusedPair: new Map<string, number>() };
+const hookWindow = { at: 0, n: 0, per: new Map<string, number>(), pair: new Map<string, number>(), refused: new Map<string, number>() };
 const fresh = (now: number): typeof hookWindow => {
-  if (now - hookWindow.at >= 60_000) { hookWindow.at = now; hookWindow.n = 0; hookWindow.per.clear(); hookWindow.pair.clear(); hookWindow.known.clear(); hookWindow.refused.clear(); hookWindow.refusedPair.clear(); }
+  if (now - hookWindow.at >= 60_000) { hookWindow.at = now; hookWindow.n = 0; hookWindow.per.clear(); hookWindow.pair.clear(); hookWindow.refused.clear(); }
   return hookWindow;
 };
 /** May this visitor post to this hook now. */
 export function relayHookOpen(id: string, ip: string, now = Date.now()): boolean {
   const w = fresh(now), pk = `${ip}|${id}`;
   if (w.n >= RELAY_HOOKS.perMinute || (w.per.get(id) ?? 0) >= RELAY_HOOKS.perHookPerMinute || (w.pair.get(pk) ?? 0) >= RELAY_HOOKS.perVisitorPerMinute) return false;
-  return w.known.has(id) ? (w.refusedPair.get(pk) ?? 0) < RELAY_HOOKS.refusedPerVisitor : (w.refused.get(ip) ?? 0) < RELAY_HOOKS.refusedPerVisitor;
+  return (w.refused.get(ip) ?? 0) < RELAY_HOOKS.refusedPerVisitor;
 }
 /** Count one answered request: accepted (200) or refused (anything but a rate limit). */
 export function relayHookAnswered(id: string, ip: string, status: number, now = Date.now()): void {
   const w = fresh(now), pk = `${ip}|${id}`;
-  if (status === 200) { w.n += 1; w.per.set(id, (w.per.get(id) ?? 0) + 1); w.pair.set(pk, (w.pair.get(pk) ?? 0) + 1); w.known.add(id); }
-  else if (status !== 429) { w.refused.set(ip, (w.refused.get(ip) ?? 0) + 1); w.refusedPair.set(pk, (w.refusedPair.get(pk) ?? 0) + 1); }
+  if (status === 200) { w.n += 1; w.per.set(id, (w.per.get(id) ?? 0) + 1); w.pair.set(pk, (w.pair.get(pk) ?? 0) + 1); }
+  else if (status !== 429) w.refused.set(ip, (w.refused.get(ip) ?? 0) + 1);
 }
 /** For tests: a fresh minute. */
 export function resetRelayHooks(): void { hookWindow.at = 0; fresh(Date.now()); hookWindow.at = 0; }

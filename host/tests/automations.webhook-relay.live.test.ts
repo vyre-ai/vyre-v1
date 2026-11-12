@@ -116,17 +116,18 @@ test("an outside POST through the relay starts exactly one Run; everything else 
     assert.equal(await countOf(d, "From relay"), 1, "one outside POST (sent twice with one key) is one Run");
     assert.equal(((await ok(d, "/v1/runs/list", { scope: "subject", subject: { type: "automation", id }, limit: 20 }))["runs"] as unknown[]).length, 1);
 
-    // B1 and the two counts: a stranger's guessed ids (refused) stop at 10 a minute here and are counted by the address the relay saw, so another visitor's good POST starts its Run, and so
-    // does the stranger's own address on a hook that was accepted this minute
+    // B1 and the two counts: a stranger's guessed ids (refused) stop at 20 a minute and are counted by the address the relay saw, so another visitor's good POST starts its Run; the guesser's
+    // own address gets 429 for every id, real or made up, until the minute ends
     resetRelayHooks();
     const guesses: number[] = [];
-    for (let i = 0; i < 20; i++) guesses.push((await viaRelay(d, "POST", `/hooks/automation/aut_guess${i}/wrongguessxxxx`, "{}", { "content-type": "application/json" }, "198.51.100.66")).status);
-    assert.deepEqual([guesses.filter((x) => x === 404).length, guesses.filter((x) => x === 429).length], [10, 10], `10 refusals, then 429: ${guesses.join(",")}`);
+    for (let i = 0; i < 21; i++) guesses.push((await viaRelay(d, "POST", `/hooks/automation/aut_guess${i}/wrongguessxxxx`, "{}", { "content-type": "application/json" }, "198.51.100.66")).status);
+    assert.deepEqual([guesses.filter((x) => x === 404).length, guesses.filter((x) => x === 429).length], [20, 1], `20 refusals, then 429: ${guesses.join(",")}`);
     const other = await viaRelay(d, "POST", p, JSON.stringify({ order: 2 }), { "content-type": "application/json", "idempotency-key": "relay-evt-b1" }, "192.0.2.10");
     assert.deepEqual([other.status, other.body], [200, '{"accepted":true}'], "another visitor's good POST still starts its Run");
-    const same = await viaRelay(d, "POST", p, JSON.stringify({ order: 3 }), { "content-type": "application/json", "idempotency-key": "relay-evt-b1-same" }, "198.51.100.66");
-    assert.deepEqual([same.status, same.body], [200, '{"accepted":true}'], "the guesser's own address still reaches a hook accepted this minute");
-    await until("the B1 notes", 10_000, async () => (await countOf(d, "From relay")) >= 3 ? true : undefined);
+    const same = await viaRelay(d, "POST", p, "{}", { "content-type": "application/json" }, "198.51.100.66");
+    const madeUp = await viaRelay(d, "POST", "/hooks/automation/aut_madeup00/wrongguessxxxx", "{}", { "content-type": "application/json" }, "198.51.100.66");
+    assert.deepEqual([same.status, madeUp.status], [429, 429], "over its count, the same answer for a real and a made-up id");
+    await until("the B1 note", 10_000, async () => (await countOf(d, "From relay")) >= 2 ? true : undefined);
     resetRelayHooks();
 
     // the shapes the relay never passes on, and the daemon's own refusals, are all the same bare 404
@@ -154,7 +155,7 @@ test("an outside POST through the relay starts exactly one Run; everything else 
     await ok(d, "/v1/automations/delete", { automationId: id, idempotencyKey: "relay-hook-del" });
     await bare("POST", fresh, "deleted");
     await new Promise((r) => setTimeout(r, 500));
-    assert.equal(await countOf(d, "From relay"), 4, "only the four accepted POSTs ran");
+    assert.equal(await countOf(d, "From relay"), 3, "only the three accepted POSTs ran");
 
     // a flood, against a stand-in daemon that accepts only /aut_real/: refused and accepted are counted apart
     const seen: string[] = [];
@@ -167,9 +168,10 @@ test("an outside POST through the relay starts exactly one Run; everything else 
     let limited = 0;
     for (let i = 0; i < 200; i++) if ((await send(i, `/hooks/automation/aut_r${i}/abcdefghijk`, "203.0.113.77")) === 429) limited++;
     assert.deepEqual([seen.length, limited], [RELAY_HOOKS.refusedPerVisitor, 200 - RELAY_HOOKS.refusedPerVisitor]);
-    // a good POST from another address, then from the same address to that real hook: both go through
+    // a good POST from another address goes through; the sprayer's address gets 429 for a real and a made-up id alike, and neither reaches the daemon
     assert.equal(await send(1000, "/hooks/automation/aut_real/abcdefghijk", "203.0.113.88"), 200);
-    assert.equal(await send(1001, "/hooks/automation/aut_real/abcdefghijk", "203.0.113.77"), 200, "the sprayer's address on a hook accepted this minute");
+    assert.deepEqual([await send(1001, "/hooks/automation/aut_real/abcdefghijk", "203.0.113.77"), await send(1002, "/hooks/automation/aut_madeup/abcdefghijk", "203.0.113.77")], [429, 429]);
+    assert.equal(seen.length, RELAY_HOOKS.refusedPerVisitor + 1);
     // accepted: one address on one hook 20, one hook 30, the Space 120
     resetRelayHooks();
     seen.length = 0;
