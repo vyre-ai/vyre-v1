@@ -33,16 +33,18 @@ import { createContainerHomeFs } from "./handlers/home-fs.ts";
 import type { HomeDeps, HomeSync, MadeFile } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
-import { bindFill, bindHost, boundHost } from "./projections.ts";
+import { bindFill, bindHost, boundHost, ensure as ensureSchema } from "./projections.ts";
+import { markOwnProfiles, reconcileClaims, turnActive, turnEnded, turnStarted } from "./sbrowser/room.ts";
+import { browserOfDeleted, browserOfRestored, forgetExpired } from "./sbrowser/forget.ts";
 import { nodeHomeCheck, nodeJobs, nodeRecordingCheck, nodeResult, nodeStreamInput, nodeStreamOpen } from "./handlers/node.ts";
 import { nodeRun } from "./remote.ts";
 import { ToolError } from "./handlers/tools/common.ts";
 import type { ToolAnswer, ToolCode, ToolHost } from "./handlers/tools/common.ts";
-import type { ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from "./projections.ts";
+import type { CompCtx, ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from "./projections.ts";
 import "./sbrowser/migrate.ts";
 import { browserStreamInput, browserStreamOpen } from "./sbrowser/handlers.ts";
 import "./sbrowser/room.ts";
-import { bindSpaceBrowser } from "./sbrowser/port.ts";
+import { bindSpaceBrowser, spaceBrowser } from "./sbrowser/port.ts";
 import type { SpaceBrowser } from "./sbrowser/port.ts";
 import { createDockerSpaceBrowser, DEFAULT_BROWSER_IMAGE } from "./sbrowser/docker.ts";
 
@@ -191,8 +193,12 @@ const TOOL_CODES: readonly string[] = ["timeout", "paused", "not_found", "bad_in
 export function toolErrorOf(stderr: string, exitCode: number | null): ToolError {
   const last = stderr.trim().split("\n").pop() ?? "";
   try {
-    const j = JSON.parse(last) as { code?: unknown; message?: unknown };
-    if (typeof j.code === "string" && TOOL_CODES.includes(j.code)) return new ToolError(j.code as ToolCode, typeof j.message === "string" ? j.message : "The tool failed.");
+    const j = JSON.parse(last) as { code?: unknown; message?: unknown; reason?: unknown; start?: unknown };
+    if (typeof j.code === "string" && TOOL_CODES.includes(j.code)) {
+      const e = new ToolError(j.code as ToolCode, typeof j.message === "string" ? j.message : "The tool failed.", j.reason === "profile_held" || j.reason === "profile_busy" || j.reason === "browser_full" || j.reason === "browser_reopened" ? j.reason : undefined);
+      if (typeof j.start === "string" || j.start === null) e.start = j.start;
+      return e;
+    }
   } catch { /* not JSON */ }
   return new ToolError("unavailable", `agentd tool failed (${exitCode ?? "no exit code"}): ${stderr.trim().slice(0, 200)}`);
 }
@@ -562,7 +568,9 @@ export function buildComputerHost(c: ComputersHostConfig): ComputerHost & ToolHo
 /** The address of a computer on this machine, for a site served from it; null when there is none or it is not running. */
 export async function localComputerAddress(computerId: string): Promise<string | null> { return (await boundHost()?.address?.(computerId)) ?? null; }
 /** The subnets of the computers' own networks, for the daemon: a connection that arrives on one may reach only the Vault channel. */
-export function computerSubnets(): string[] { return (boundHost() as { subnets?: () => string[] } | null)?.subnets?.() ?? []; }
+/** This module's part of the daemon's registry of agent networks (host/src/routes/site-host.ts agentSubnetsOf). */
+export const agentSubnets = (): string[] => computerSubnets();
+export function computerSubnets(): string[] { return [...((boundHost() as { subnets?: () => string[] } | null)?.subnets?.() ?? []), ...(spaceBrowser()?.subnets?.() ?? [])]; }
 export async function learnComputerSubnets(ids: readonly string[]): Promise<string[]> { return (await (boundHost() as { knownNetworks?: (i: readonly string[]) => Promise<string[]> } | null)?.knownNetworks?.(ids)) ?? []; }
 export async function localSiteLogs(a: { computerId: string; slug: string; lines: number }): Promise<string[]> { return (await boundHost()?.siteLogs?.(a)) ?? []; }
 
@@ -587,6 +595,34 @@ export function setComputerHost(c: ComputersHostConfig | null): void {
 // Only the setters the daemon wires are host seams (the loader reports any other function here as a driver left unwired); what a computer that joined needs is exported beside them.
 export const hostSeams = { setComputersFill, setComputerHost };
 export { nodeRun };
+
+/** An agent moved to Trash (also a person's Assistant when the person leaves): its Space browser stops and its profile is kept while it can be restored, then removed (sbrowser/forget.ts). */
+export const consumers = {
+  // an agent mid-turn keeps its Space browser: make room never closes it (sbrowser/room.ts). turn.block says a running turn is alive; turn.waiting (parked on a person, a task or a time) ends the
+  // protection, and the turn's continuation starts again with turn.started
+  "computers.browser_turns": {
+    on: ["turn.started", "turn.block", "turn.waiting", "turn.completed", "turn.failed", "turn.cancelled"],
+    run: async (ctx: CompCtx, event: { name: string; payload: { agentId?: unknown; turnId?: unknown } }): Promise<void> => {
+      const a = event.payload.agentId, t = event.payload.turnId;
+      if (typeof t !== "string") return;
+      if (event.name === "turn.block") { turnActive(t, ctx.now()); return; }
+      if (event.name === "turn.started") { if (typeof a === "string") turnStarted(ctx.space, a, t, ctx.now()); return; }
+      turnEnded(ctx.space, typeof a === "string" ? a : "", t);
+    },
+  },
+  "computers.browser_forget": {
+    on: ["agent.deleted", "agent.restored"],
+    run: async (ctx: CompCtx, event: { name: string; payload: { agentId?: unknown } }): Promise<boolean> => (event.name === "agent.restored" ? browserOfRestored(ctx, event.payload.agentId) : browserOfDeleted(ctx, event.payload.agentId)),
+  },
+};
+
+/** Every half minute: Space browser claims of browsers that stopped are released (also ones left from before a restart), and a profile waiting for room starts when there is room (sbrowser/room.ts). */
+export const periodic = {
+  "computers.browser_room": {
+    everyMs: 30_000,
+    run: async (ctx: CompCtx): Promise<void> => { const sb = spaceBrowser(); if (!sb) return; ensureSchema(ctx.db); await reconcileClaims(ctx, sb, { force: true }); await markOwnProfiles(ctx, sb); await forgetExpired(ctx); },
+  },
+};
 
 /** What the host asks of this module on behalf of a computer that joined (host/src/routes/compute.ts): never a capability, never reachable from a session. */
 export const hostCalls = { "computers.browser_stream_open": browserStreamOpen, "computers.browser_stream_input": browserStreamInput, "computers.workspace_claim": workspaceClaim, "computers.workspace_release": workspaceRelease, "computers.workspace_waiting": workspaceWaiting, "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck, "computers.stream_open": nodeStreamOpen, "computers.stream_input": nodeStreamInput, "computers.node_recording_check": nodeRecordingCheck };

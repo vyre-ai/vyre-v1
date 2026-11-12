@@ -797,6 +797,68 @@ finish() {
   say ""
 }
 
+# The Space browser's container, its profiles volume (every agent's sign-ins) and its network are made by the daemon, not by compose, so compose's down and its project label never name them. One
+# container and one volume serve every Space on this Docker engine (profiles kept apart by agent and by Space), so a purge of THIS install removes only THIS Space's profiles: browserd closes their
+# browsers cleanly and deletes their folders (purge_space, by the Space id each profile's folder records). The container, the volume and the network go only when nothing else is on the volume and
+# no other install's server is on this engine; otherwise they stay and the purge says so. A purge that left this Space's sign-ins on disk would not be a purge; one that took another Space's would be
+# worse. (Fifth look, 12 Nov.)
+SBROWSER=vyre-sbrowser
+[ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_SBROWSER:-}" ] || SBROWSER=$VYRE_TEST_SBROWSER
+# space_id_of: this install's Space id, from its own event log (through space_db, the one way to open a database), or nothing
+space_id_of() {
+  _sid=$(DATA_DIR=$(cat "$DIR/data-dir" 2>/dev/null || printf '%s' "$DATA_DIR"); export DATA_DIR; space_db query "$DATA_DIR/space/events.db" "SELECT value AS n FROM log_meta WHERE key = 'space'" 2>/dev/null) || _sid=""
+  case "$_sid" in *[!A-Za-z0-9_-]*|"") return 1 ;; esac
+  printf '%s' "$_sid"
+}
+# other_installs: 0 when another install's server is on this engine (its compose service vyred; this install's was removed by compose down before this runs)
+other_installs() {
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_OTHER_INSTALLS:-}" ]; then [ "$VYRE_TEST_OTHER_INSTALLS" = 1 ]; return; fi
+  [ -n "$(docker ps -aq --filter "label=com.docker.compose.service=vyred" 2>/dev/null)" ]
+}
+# browser_remove_all: the container, every volume it mounts, the usual volume and the Space browser's networks
+browser_remove_all() {
+  vols=$(docker inspect -f '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}' "$SBROWSER" 2>/dev/null || true)
+  docker rm -f "$SBROWSER" >/dev/null 2>&1 || true
+  for v in $vols "$SBROWSER-data"; do docker volume rm -f "$v" >/dev/null 2>&1 || true; done
+  [ "$SBROWSER" != vyre-sbrowser ] || for n in $(docker network ls -q --filter "label=vyre.sbrowser=1" 2>/dev/null); do docker network rm "$n" >/dev/null 2>&1 || true; done
+  [ "$SBROWSER" = vyre-sbrowser ] || docker network rm "${SBROWSER}net" >/dev/null 2>&1 || true
+}
+# purge_browser [SPACE_ID]: as above. The Space id is read from this install's data when not given.
+purge_browser() {
+  command -v docker >/dev/null 2>&1 || return 0
+  sid=${1:-}; [ -n "$sid" ] || sid=$(space_id_of) || sid=""
+  if ! docker inspect "$SBROWSER" >/dev/null 2>&1; then
+    # no container: its volume holds profiles nobody can sort by Space now; it goes only when no other install is here
+    if other_installs; then say "  The Space browser's volume stays: another Space's server is on this Docker engine and may keep its agents' sign-ins there."
+    else docker volume rm -f "$SBROWSER-data" >/dev/null 2>&1 || true; fi
+    return 0
+  fi
+  was=$(docker inspect -f '{{.State.Running}}' "$SBROWSER" 2>/dev/null || printf false)
+  [ "$was" = true ] || docker start "$SBROWSER" >/dev/null 2>&1 || true
+  res=""
+  if [ -n "$sid" ]; then
+    _pt=0
+    while [ "$_pt" -lt 30 ]; do
+      res=$(docker exec "$SBROWSER" /opt/browserd/ctl purge_space "{\"spaceId\":\"$sid\"}" 2>/dev/null) && break
+      res=""; _pt=$((_pt + 1)); sleep 1
+    done
+  fi
+  others=$(printf '%s' "$res" | sed -n 's/.*"others":\([0-9]*\).*/\1/p'); unmarked=$(printf '%s' "$res" | sed -n 's/.*"unmarked":\([0-9]*\).*/\1/p'); removed=$(printf '%s' "$res" | sed -n 's/.*"removed":\([0-9]*\).*/\1/p')
+  if [ -z "$res" ]; then
+    # browserd could not be asked (or this Space's id is not known): everything goes only when this install is the engine's only one
+    if other_installs; then
+      say "  The Space browser was left as it is: this Space's browser profiles could not be told apart from another Space's on this Docker engine. Remove them from that Space's Console, or run this again."
+      [ "$was" = true ] || docker stop -t 10 "$SBROWSER" >/dev/null 2>&1 || true
+    else browser_remove_all; fi
+    return 0
+  fi
+  # everything goes only when the volume holds nothing but this Space's (removed now): no other Space's profile, no profile that names no Space (it may be another Space's from before Spaces were
+  # written down), and no other install on this engine
+  if [ "${others:-0}" = 0 ] && [ "${unmarked:-0}" = 0 ] && ! other_installs; then browser_remove_all; return 0; fi
+  say "  Removed this Space's ${removed:-0} agent browser profiles. The Space browser stays: it also holds $((${others:-0} + ${unmarked:-0})) other profiles (another Space's on this Docker engine, or older ones that name no Space)."
+  [ "$was" = true ] || docker stop -t 10 "$SBROWSER" >/dev/null 2>&1 || true
+}
+
 uninstall() {
   [ -d "$DIR" ] || die "nothing is installed at $DIR."
   if [ "$PURGE" = 1 ] && ! ask "Delete the Space's data and every backup under $DIR? This cannot be undone."; then
@@ -818,6 +880,7 @@ uninstall() {
     for c in $(docker ps -aq --filter "label=com.docker.compose.project=$proj" 2>/dev/null); do docker rm -f "$c" >/dev/null 2>&1 || true; done
     for v in $(docker volume ls -q --filter "label=com.docker.compose.project=$proj" 2>/dev/null); do docker volume rm -f "$v" >/dev/null 2>&1 || true; done
   fi
+  if [ "$PURGE" = 1 ] && [ "$DRY" != 1 ]; then purge_browser; fi
   for l in "$LABEL_SERVER" "$LABEL_UPDATE"; do
     if [ -f "$AGENT_DIR/$l.plist" ] && grep -q "$MARK" "$AGENT_DIR/$l.plist"; then run rm -f "$AGENT_DIR/$l.plist"; fi
   done
