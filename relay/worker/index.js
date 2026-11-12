@@ -696,14 +696,14 @@ export class RouteRelay {
     if (w.n >= PUBLIC.perMinute || seen >= PUBLIC.ipPerMinute) return new Response(null, { status: 429, headers: { "retry-after": "60" } });
     // a web request trigger has its own minute, in two counts. ACCEPTED requests (the box answered 200): 120 for the Space, 30 for one hook, 20 for one address on one hook, so a busy
     // sender on a shared address is limited only on its own hook. REFUSED requests (any other answer): 20 for one address across the Space, so a stranger spraying ids or secrets stops after
-    // 20 and never spends the accepted budget. A hook that was accepted this minute is known: an address over its refusal count may still post to it (20 refusals on that pair at most).
+    // 20 (a 429 for that Space until the minute ends, the same answer for every id) and never spends the accepted budget.
     // Memory: every map is cleared each minute; the accepted maps gain an entry only on a 200 (at most 120), the refusal maps only on a request let through (at most PUBLIC.perMinute, 600).
     const hook = typeof head.hook === "string" ? head.hook : null;
     if (hook) {
-      if (!w.hooks) w.hooks = { n: 0, per: new Map(), pair: new Map(), known: new Set(), refused: new Map(), refusedPair: new Map() };
+      if (!w.hooks) w.hooks = { n: 0, per: new Map(), pair: new Map(), refused: new Map() };
       const h = w.hooks, pk = `${ip}|${hook}`;
       const over = h.n >= HOOKS.perMinute || (h.per.get(hook) || 0) >= HOOKS.perHookPerMinute || (h.pair.get(pk) || 0) >= HOOKS.perVisitorPerMinute
-        || (h.known.has(hook) ? (h.refusedPair.get(pk) || 0) >= HOOKS.refusedPerVisitor : (h.refused.get(ip) || 0) >= HOOKS.refusedPerVisitor);
+        || (h.refused.get(ip) || 0) >= HOOKS.refusedPerVisitor;
       if (over) return new Response(null, { status: 429, headers: { "retry-after": "60" } });
     }
     w.n++;
@@ -726,8 +726,8 @@ export class RouteRelay {
     if (!hook) return answered;
     const res = /** @type {Response} */ (await answered);
     const h = w.hooks, pk = `${ip}|${hook}`;
-    if (res.status === 200) { h.n++; h.per.set(hook, (h.per.get(hook) || 0) + 1); h.pair.set(pk, (h.pair.get(pk) || 0) + 1); h.known.add(hook); }
-    else if (res.status !== 429) { h.refused.set(ip, (h.refused.get(ip) || 0) + 1); h.refusedPair.set(pk, (h.refusedPair.get(pk) || 0) + 1); }
+    if (res.status === 200) { h.n++; h.per.set(hook, (h.per.get(hook) || 0) + 1); h.pair.set(pk, (h.pair.get(pk) || 0) + 1); }
+    else if (res.status !== 429) h.refused.set(ip, (h.refused.get(ip) || 0) + 1);
     return res;
   }
 

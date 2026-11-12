@@ -530,7 +530,7 @@ test("/hooks/: one visitor takes 20 a minute on one hook, with a 429 and Retry-A
   assert.equal(asked.length, 22);
 });
 
-test("/hooks/: a stranger spraying ids stops after 20 refusals and never spends the accepted budget; another address and the same address on a real hook still get through", async t => {
+test("/hooks/: a stranger spraying ids stops after 20 refusals, with the same 429 for real and made-up ids, and never spends the accepted budget; another address still gets through", async t => {
   const rt = world(t);
   const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, m.path.includes("/aut_real/") ? 200 : 404, {}, m.path.includes("/aut_real/") ? "{}" : ""));
   const post = (ip, id, i) => call(rt, `https://harbor.vyre.run/hooks/automation/${id}/secretvalue${i}xx`, { method: "POST", body: "{}", headers: { "cf-connecting-ip": ip } });
@@ -539,11 +539,14 @@ test("/hooks/: a stranger spraying ids stops after 20 refusals and never spends 
   assert.deepEqual([got.filter((x) => x === 404).length, got.filter((x) => x === 429).length], [20, 180], "20 refusals reach the box, then 429");
   assert.equal(asked.length, 20);
   assert.equal((await post("203.0.113.88", "aut_real", 900)).status, 200, "another address on a real hook");
-  assert.equal((await post("203.0.113.77", "aut_real", 901)).status, 200, "the sprayer's own address on a hook accepted this minute");
-  // the refusals spent none of the Space's 120 accepted: 118 more accepted requests still go through
+  // over its count, the address gets one answer whatever the id: a real hook and a made-up one are both 429 until the minute ends
+  const real = await post("203.0.113.77", "aut_real", 901), madeUp = await post("203.0.113.77", "aut_madeup", 902);
+  assert.deepEqual([real.status, real.headers.get("retry-after"), madeUp.status, madeUp.headers.get("retry-after")], [429, "60", 429, "60"]);
+  assert.equal(asked.length, 21, "neither reached the box");
+  // the refusals spent none of the accepted budget: the real hook still takes 29 more
   let ok = 0;
   for (let i = 0; i < 130; i++) if ((await post(`198.51.100.${i % 250}`, "aut_real", 1000 + i)).status === 200) ok++;
-  assert.equal(ok, 28, "one hook takes 30 accepted a minute, so 28 more after the two above");
+  assert.equal(ok, 29, "one hook takes 30 accepted a minute, one already used");
 });
 
 test("info.json says the relay carries web request triggers, so the box can tell its card the truth", async t => {
