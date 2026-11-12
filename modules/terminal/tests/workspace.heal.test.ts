@@ -1236,7 +1236,7 @@ test("a Files change brings forward only the slowed mirrors whose folder it is i
   await m.ensure("agt_a"); await m.ensure("agt_b");
   clock.t += 10 * 60_000;
   await new Promise((r) => setTimeout(r, 400));   // both slowed to their most
-  const count = (): Record<string, number> => ({ a: passes.get("agt_a") ?? 0, b: passes.get("agt_b") ?? 0 });
+  const count = (): { a: number; b: number } => ({ a: passes.get("agt_a") ?? 0, b: passes.get("agt_b") ?? 0 });
   const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 80));
   let before = count();
   m.filesChanged({ folderIds: ["fld_elsewhere"] }); await settle();
