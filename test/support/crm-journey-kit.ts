@@ -27,7 +27,7 @@ const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, heade
 export const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 export const KEY_TEXT = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
 
-export interface ModelState { know: Know | null; plan: { spec: Record<string, unknown>; summary: string } | null; asked: string[]; tools: string[] }
+export interface ModelState { know: Know | null; plan: { spec: Record<string, unknown>; summary: string } | null; asked: string[]; tools: string[]; /** the person asked to bring an app in and nothing is proposed yet: a turn woken after the key card goes on with it, as a model reading the chat would */ wanted?: boolean }
 export interface Space { kind: "personal" | "team"; model: ModelState; /** What the Vault hands out for a handle: a test changes it to revoke a key. */ keys: Record<string, string>; d: Daemon; dir: string; web: Edge | null; crm: FakeCrm; stop(): Promise<void> }
 
 export async function startSpace(o: { kind: "personal" | "team"; name: string; address?: string }): Promise<Space> {
@@ -152,12 +152,14 @@ export function crmModel(state: ModelState) {
       yield { type: "text", text: types.length ? `Done. ${types.map((t) => t.type).join(", ")} are in Records and filling in. Live by ${out.data?.live}.` : `That failed: ${JSON.stringify(out).slice(0, 300)}` };
       return;
     }
-    if (!state.know || !/records/i.test(said)) { yield { type: "text", text: "Tell me which app to bring into Records." }; return; }
+    if (/records/i.test(said)) state.wanted = true;
+    if (!state.know || !state.wanted) { yield { type: "text", text: "Tell me which app to bring into Records." }; return; }
     const know = state.know;
     const spec = yield* driven((sample) => fillSpec({ "sync_specs.sample": (_c: unknown, i: unknown) => sample(i) } as never, {} as never, know), async function* (i: unknown) { return (yield* use("sync_specs_sample", i)).data; });
     const v = yield* use("sync_specs_preview", { spec });
     if (v.data?.ok !== true) { yield { type: "text", text: `The spec has problems: ${JSON.stringify(v.data?.problems ?? v).slice(0, 300)}` }; return; }
     state.plan = { spec, summary: String(v.data.summary) };
+    state.wanted = false;
     state.asked.push(state.plan.summary);
     yield* use("ask_question", {
       threadId: (input as { threadId?: string }).threadId, prompt: `${v.data.summary} Go?`, mode: "single",
@@ -206,7 +208,14 @@ export async function bringInByChat(s: Space, agentId: string, know: Know, item:
   await ok(s, "threads.set_mode", { threadId, mode: "auto" });
   await ok(s, "chat.post", { threadId, body: `Bring my CRM into Records. Its key is in the Vault as ${item.handle}.`, mentions: [{ kind: "agent", id: agentId }] });
   type Block = { type?: string; id?: string; blockId?: string; state?: string; data?: { answer?: unknown; options?: { key: string; label: string }[] } };
+  // the first time the agent wants to send the key to the CRM's host, the person gets one card and taps Allow (once): the key goes only to a host a person approved
+  const keyCards: string[] = [];
   const find = async (): Promise<{ id: string; go: string } | null> => {
+    const holds = ((await ok(s, "gate.holds.list", { states: ["held"] })).holds ?? []) as { capName?: string; taskId?: string }[];
+    for (const h of holds) if ((h.capName === "sync_specs.sample" || h.capName === "sync_specs.survey") && h.taskId && !keyCards.includes(h.taskId)) {
+      keyCards.push(h.taskId);
+      await ok(s, "tasks.act", { taskId: h.taskId, action: "approve" });
+    }
     const msgs = (await ok(s, "chat.messages.list", { threadId })).messages as { blocks?: Block[] }[];
     for (const m of msgs) for (const b of m.blocks ?? []) if (b.type === "question" && (b.blockId ?? b.id) && b.state !== "done" && b.data?.answer === undefined) { const go = b.data?.options?.find((o) => /looks good/i.test(o.label)); if (go) return { id: (b.blockId ?? b.id)!, go: go.key }; }
     return null;
@@ -217,8 +226,12 @@ export async function bringInByChat(s: Space, agentId: string, know: Know, item:
   });
   // the tap: through the question card in the browser when there is one, else the capability the card calls
   if (tap) await tap(threadId); else await ok(s, "chat.answer_block", { threadId, blockId: q.id, answer: { keys: [q.go] } });
+  lastKeyCards = keyCards.length;
   return threadId;
 }
+
+/** How many key cards the person tapped in the last bring-in (one: the first send of the key to the CRM's host). */
+export let lastKeyCards = 0;
 
 export async function untilValue<T>(what: string, check: () => Promise<T | null>, ms = 20_000): Promise<T> {
   const end = Date.now() + ms;

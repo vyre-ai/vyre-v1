@@ -7,7 +7,7 @@ export const HOLD_PHRASES: Readonly<Record<string, string>> = {
   "spaces.timezone.set": "change the Space time zone", "access.make_owner": "hand something to someone else as its owner", "automations.set_owner": "hand an automation to someone else", "github.me.approve": "use your GitHub for this repository", "install.apply": "install what it found at a link", "notes.set_owner": "hand a note to someone else", "talk.space.configure": "turn Voice on or off for everyone", "talk.space.disconnect": "remove the Space's Voice key",
   "automations.code_reach": "run a code step that reaches outside sites", "automations.delete": "delete an automation",
   "automations.http_send": "send a request to an outside address", "automations.read_docs": "read an outside documentation page",
-  "automations.read_link": "open a web page", "automations.try_read": "send a key to an app to test it",
+  "automations.read_link": "open a web page", "automations.try_read": "send a key to an app to test it", "sync_specs.sample": "send a key to an app to read a sample", "sync_specs.survey": "send a key to an app to see what it holds",
   "connections.create": "use a key with an outside app", "connections.set_secret": "use a key with an outside app", "backup.delete": "delete a backup", "backup.restore": "restore from a backup", "backup.run": "back up the Space now",
   "calendar.create_event": "add a calendar event", "calendar.delete_calendar": "delete a calendar", "calendar.delete_event": "delete a calendar event", "calendar.respond": "answer a calendar invitation", "calendar.update_event": "change a calendar event",
   "changesets.approve": "approve and merge a set of changes", "chat.message_person": "send a message to a teammate",

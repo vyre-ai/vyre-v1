@@ -9,9 +9,9 @@ Read up to 12 paths of an app at once, read-only, and say for each what lists it
 | Effects | read |
 | Permission | connectors.manage |
 | Grant level | view |
-| Risk | low |
+| Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when automations.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
@@ -62,6 +62,7 @@ type Out = {
 - internal.unavailable
 - internal.unexpected
 - permission.above_clearance
+- permission.needs_approval
 - permission.no_grant
 - permission.role_lacks_permission
 - validation.bad_input

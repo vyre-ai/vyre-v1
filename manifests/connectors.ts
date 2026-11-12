@@ -295,12 +295,14 @@ export default defineManifest({
         })),
         estimate: t.opt(t.obj({ count: t.int(), source: t.str() })),
       },
-      perm: 'connectors.manage', tool: 'records', cli: 'vyre sync-spec sample', errors: ['validation.bad_input', 'permission.no_grant', 'internal.unavailable'],
+      // a key goes only to a host a person approved for it: an agent's read to any other host waits for a person who may use the item (Allow, Always allow, Deny), as automations.try_read
+      risk: 'medium', gate: { act: 'send', when: 'automations.key_host_unapproved(input)' }, perm: 'connectors.manage', tool: 'records', cli: 'vyre sync-spec sample', errors: ['validation.bad_input', 'permission.no_grant', 'internal.unavailable', 'permission.needs_approval'],
     }),
     read('sync_specs.survey', 'Read up to 12 paths of an app at once, read-only, and say for each what lists it holds, how many items, a total if given. Use it to see which objects an app has', {
       in: { auth: discoverAuth, domain: t.str(), paths: t.arr(t.str(), { minItems: 1, maxItems: 12 }) },
       out: { results: t.arr(t.obj({ path: t.str(), status: t.int(), reason: t.opt(t.str()), lists: t.arr(t.obj({ itemsAt: t.str(), count: t.int(), idAt: t.opt(t.str()), fields: t.int() })), total: t.opt(t.int()), nextLink: t.opt(t.bool()) })) },
-      perm: 'connectors.manage', tool: 'records', errors: ['validation.bad_input', 'permission.no_grant', 'internal.unavailable'],
+      // a key goes only to a host a person approved for it: an agent's read to any other host waits for a person who may use the item (Allow, Always allow, Deny), as automations.try_read
+      risk: 'medium', gate: { act: 'send', when: 'automations.key_host_unapproved(input)' }, perm: 'connectors.manage', tool: 'records', errors: ['validation.bad_input', 'permission.no_grant', 'internal.unavailable', 'permission.needs_approval'],
     }),
     write('sync_specs.apply', 'Apply a validated SyncSpec: a live connector (with its own tests), a connection holding the Vault handle, the record types with fields, choices, relations and stages, the synced-type bindings, and the first pull', {
       in: { spec: syncSpec },

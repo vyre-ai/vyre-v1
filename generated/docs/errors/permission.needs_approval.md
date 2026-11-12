@@ -17,6 +17,8 @@ HTTP 403. Retryable: no.
 - git.push
 - git.sync
 - mail.send
+- sync_specs.sample
+- sync_specs.survey
 - telephony.dial
 - telephony.send_sms
 - terminal.run

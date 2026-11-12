@@ -63,6 +63,11 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
     const host = keyReadHost(input);
     return host ? `send a key to ${host}` : "send a key to an app";
   }
+  // a sync spec's sample or survey reads the app with a Vault key: the host is its domain
+  if (cap === "sync_specs.sample" || cap === "sync_specs.survey") {
+    const d = str(obj(input)["domain"]);
+    return d ? `send a key to ${d}` : "send a key to an app";
+  }
   if (cap === "automations.read_link") {
     const url = str(obj(input)["url"]);
     return url ? `open ${hostOfLink(url)}` : "open a link";

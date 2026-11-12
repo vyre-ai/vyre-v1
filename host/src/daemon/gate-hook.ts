@@ -10,7 +10,7 @@ import { CARRIES_MARK, HELD_FROM_AUTOMATION_SET } from "../../../lib/automation-
 import { canonical, sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { OUTWARD_ACTS, bringsOutside, linksIn, targetsOf } from "../../../lib/grants.ts";
-import { hostOfUrl, keyReadHost } from "../../../lib/key-target.ts";
+import { approvableHost, hostOfUrl, keyReadHost } from "../../../lib/key-target.ts";
 import { resolveKeyRef } from "../seams/key-ref.ts";
 import { fail } from "../routes/errors.ts";
 import type { CtxSeed, GateHook } from "../invoke.ts";
@@ -135,6 +135,14 @@ export function createGateHook(d: GateHookDeps): GateHook {
     async seen(cap, input, output, seed, startedAt) {
       // a person bound a Vault key to a connector and it succeeded: the connector's hosts are approved for that key, by them (the condition checks they may use it)
       if ((cap.name === "connections.create" || cap.name === "connections.set_secret") && seed.principal.kind === "person" && !seed.step) await d.evaluators?.["automations.after_person_bind"]?.(input, seed);
+      // a person brought an app in (sync_specs.apply, the proposal's tap): the host that connection will call is approved for its key, by them, as turning an Automation on records step hosts
+      // An agent's apply after the person said yes in the chat records it as that person only when the same person approved a held sample or survey in this thread for the same key and
+      // the same host: their Allow on the key card and their tap on the proposal. A host that changed since is not recorded (the sync then waits for a person).
+      if (cap.name === "sync_specs.apply" && !seed.step) {
+        const spec = (input as { spec?: { app?: { domain?: unknown }; auth?: { vaultHandle?: unknown } } } | null)?.spec;
+        const domain = spec?.app?.domain;
+        if (typeof domain === "string" && typeof spec?.auth?.vaultHandle === "string") await d.evaluators?.["automations.after_apply"]?.({ handle: spec.auth.vaultHandle, host: domain }, seed);
+      }
       // a person finished an OAuth sign-in: the tokens the app's own token address gave are bound to that connector, so its hosts are approved for them, by that person
       const done = (output as { connectionId?: unknown } | null)?.connectionId;
       if (cap.name === "connections.complete_auth" && seed.principal.kind === "person" && !seed.step && typeof done === "string") await d.evaluators?.["automations.after_person_bind"]?.({ connectionId: done, bound: true }, seed);
@@ -254,6 +262,29 @@ export async function ownAddress(callAs: (cap: string, input: unknown, person: s
   return parent === "" || !parent.includes(".") || !(await hits(parent));
 }
 
+/** A sync spec's sample or survey: the Vault handle it fills and the host it reads (the domain; a full next link must stay on it). Null for any other input. */
+export function sampleKey(input: unknown): { ref: string; host: string | null } | null {
+  const i = (input ?? {}) as { auth?: { vaultHandle?: unknown }; domain?: unknown; url?: unknown };
+  if (!i.auth || typeof i.auth !== "object" || typeof i.auth.vaultHandle !== "string" || typeof i.domain !== "string") return null;
+  const host = approvableHost(i.domain);
+  if (host === null || host.startsWith("*.")) return { ref: i.auth.vaultHandle, host: null };
+  if (typeof i.url === "string" && hostOfUrl(i.url) !== host) return { ref: i.auth.vaultHandle, host: null };
+  return { ref: i.auth.vaultHandle, host };
+}
+
+/** A hold the person said yes to: decided by them, or approved and being sent right now (the replay runs before the decision is written). */
+const YES = "state NOT IN ('denied', 'expired') AND (decided_by = ? OR (state = 'held' AND sending_at IS NOT NULL))";
+/** Did this person approve a held sample or survey of this item to this host: in this thread, or (thread null: the connector port, which has no thread) within the last hour. */
+export function approvedHere(h: { all(sql: string, ...a: unknown[]): unknown[] }, person: string, thread: string | null, itemId: string, host: string, now = Date.now()): boolean {
+  let rows: { input: string }[] = [];
+  try {
+    rows = (thread
+      ? h.all(`SELECT input FROM gate_holds WHERE cap_name IN ('sync_specs.sample', 'sync_specs.survey') AND acting_for = ? AND ${YES} AND thread_id = ?`, person, person, thread)
+      : h.all(`SELECT input FROM gate_holds WHERE cap_name IN ('sync_specs.sample', 'sync_specs.survey') AND acting_for = ? AND ${YES} AND COALESCE(decided_at, sending_at) >= ?`, person, person, now - 3_600_000)) as { input: string }[];
+  } catch { return false; }
+  return rows.some((r) => { try { const k = sampleKey(JSON.parse(r.input)); return k !== null && k.host === host && resolveKeyRef(h, k.ref, person)?.id === itemId; } catch { return false; } });
+}
+
 export function moduleWhens(
   exports: ReadonlyMap<string, Record<string, unknown>>, db: () => ScopedDb | null, call: (cap: string, input: unknown) => Promise<unknown>,
   /** A read as one person (what they may see), for a condition that depends on it. */
@@ -275,16 +306,20 @@ export function moduleWhens(
   const approved = exports.get("automations")?.["keyHostApproved"];
   out["automations.key_host_unapproved"] = async (input, seed) => {
     if (seed.principal.kind === "person") return false;
-    const host = keyReadHost(input);
+    // a test read (vaultItemId + a planned address) or a sync spec's sample or survey (auth.vaultHandle + domain): the same rule for both
+    const sample = sampleKey(input);
+    const host = sample ? sample.host : keyReadHost(input);
     const h = db();
     if (host === null || !h || typeof approved !== "function") return true;
     const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
-    const ref = resolveKeyRef(h, (input as { vaultItemId?: unknown } | null)?.vaultItemId, asker);
+    const ref = resolveKeyRef(h, sample ? sample.ref : (input as { vaultItemId?: unknown } | null)?.vaultItemId, asker);
     if (ref === null) return true;
     if ((approved as (d: unknown, id: string, host: string) => boolean)(h, ref.id, host)) return false;
+    // the person already said yes in this chat to this key going to this host (Allow on a sample's card): the agent's further reads there do not ask again; another host does
+    if (sample && asker && seed.thread && approvedHere(h, asker, seed.thread, ref.id, host)) return false;
     const hold = !asker || !callAs ? true : !(await ownAddress(callAs, asker, ref.id, host));
     // the held row keeps the item this hold resolved, not the handle: the send after a yes uses that item, or refuses if the handle now leads elsewhere (a newer Mine item)
-    if (hold && input && typeof input === "object") (input as { vaultItemId?: unknown }).vaultItemId = `${ref.id}${ref.field ? `.${ref.field}` : ""}`;
+    if (hold && !sample && input && typeof input === "object") (input as { vaultItemId?: unknown }).vaultItemId = `${ref.id}${ref.field ? `.${ref.field}` : ""}`;
     return hold;
   };
   // Binding a Vault key to a connector (connections.create, connections.set_secret) sends that key to the connector's domains from then on. An agent's binding waits for a person unless every one of
@@ -292,12 +327,17 @@ export function moduleWhens(
   // a person binding a key themselves approves the connector's domains for it, through the same capability their press on the key's page uses (it checks they may use the key)
   const personBinds = async (input: unknown, person: string): Promise<void> => {
     if (!callAs) return;
-    const i = (input ?? {}) as { connector?: unknown; secrets?: unknown; connectionId?: unknown; handle?: unknown; bound?: unknown };
+    const i = (input ?? {}) as { connector?: unknown; secrets?: unknown; connectionId?: unknown; handle?: unknown; bound?: unknown; hosts?: unknown };
     const bound = i.bound === true && typeof i.connectionId === "string" ? handlesOf?.(i.connectionId) ?? null : null;
     const refs: string[] = i.bound === true ? (bound?.handles ?? [])
       : i.secrets && typeof i.secrets === "object" ? Object.values(i.secrets as Record<string, unknown>).filter((v): v is string => typeof v === "string") : typeof i.handle === "string" ? [i.handle] : [];
     if (refs.length === 0) return;
     try {
+      // hosts named by the caller (an applied sync spec's domain): no connector to read them from
+      if (Array.isArray(i.hosts)) {
+        for (const ref of refs) for (const host of i.hosts) if (typeof host === "string") await callAs("automations.key_hosts.allow", { vaultItemId: ref, host }, person).catch(() => undefined);
+        return;
+      }
       let connector = typeof i.connector === "string" ? i.connector : bound?.connector ?? "";
       if (connector === "" && typeof i.connectionId === "string") connector = String(((await call("connections.get", { connectionId: i.connectionId })) as { connection?: { connector?: unknown } } | null)?.connection?.connector ?? "");
       const got = (await call("connectors.get", { key: connector })) as { connector?: { domains?: unknown } } | null;
@@ -307,6 +347,19 @@ export function moduleWhens(
   };
   // called by the Gate after a person's binding succeeded, never before: only a binding that exists approves its hosts
   out["automations.after_person_bind"] = async (input, seed) => { if (seed.principal.kind === "person") await personBinds(input, seed.principal.id); return false; };
+  out["automations.after_apply"] = async (input, seed) => {
+    const i = (input ?? {}) as { handle?: unknown; host?: unknown };
+    if (typeof i.handle !== "string" || typeof i.host !== "string") return false;
+    const host = approvableHost(i.host);
+    if (!host) return false;
+    if (seed.principal.kind === "person") { await personBinds({ handle: i.handle, hosts: [host] }, seed.principal.id); return false; }
+    const person = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
+    const h = db();
+    if (!person || !h || !seed.thread) return false;
+    const ref = resolveKeyRef(h, i.handle, person);
+    if (ref && approvedHere(h, person, seed.thread, ref.id, host)) await personBinds({ handle: i.handle, hosts: [host] }, person);
+    return false;
+  };
   out["automations.bind_hosts_unapproved"] = async (input, seed) => {
     if (seed.principal.kind === "person") return false;   // a person's own binding: its hosts are recorded after it succeeds (seen, below)
     const h = db();

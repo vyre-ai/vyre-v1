@@ -35406,10 +35406,10 @@ const routes6: Route[] = [
       "type": "space"
     },
     "idempotency": "natural",
-    "risk": "low",
+    "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",
@@ -35424,10 +35424,10 @@ const routes6: Route[] = [
       "type": "space"
     },
     "idempotency": "natural",
-    "risk": "low",
+    "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",

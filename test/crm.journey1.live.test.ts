@@ -1,7 +1,7 @@
 // CRM to Records journeys, group 1 of 3 (shared parts in test/support/crm-journey-helpers.ts); each file finishes well inside the 120 s a test file may take.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { agentSaid, chatSetup, joinMember, ok, shots, startSpace, until, vaultItemOf, withHandle } from "./support/crm-journey-kit.ts";
+import { agentSaid, chatSetup, joinMember, lastKeyCards, ok, shots, startSpace, until, vaultItemOf, withHandle } from "./support/crm-journey-kit.ts";
 import { OUT, afterPass, ledgerKnow, nameOf, openSync, rows, session, tapIn } from "./support/crm-journey-helpers.ts";
 import { orbitSpec } from "../modules/connectors/fixtures/crm.ts";
 
@@ -13,6 +13,7 @@ test("journey 1, Personal: the first hour. In chat the person asks for their CRM
     await session(s, "personal", async (page) => {
       const pics = page ? shots(OUT, "1-personal-first-hour") : null;
       await chatSetup(s, (h) => ledgerKnow(h), "Ledger", tapIn(page, s, pics));
+      assert.equal(lastKeyCards, 1, "the first send of the key to the CRM's host asks once (Allow), and the agent's further reads there do not ask again");
       await until("the agent applied it and the people arrived", async () => (await rows(s, "person").catch(() => [])).length === 4, 60_000);
       assert.equal(s.model.plan, null, "the proposal was applied");
       assert.ok(s.crm.methods().every((m) => m === "GET"), "reading the app is all that happened before the first edit");

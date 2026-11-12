@@ -114,7 +114,7 @@ import { endOfDeadJob } from "./dead-jobs.ts";
 import { loopLag } from "../scheduler/looplag.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
-import { createGateHook, moduleFetches, moduleOutward, moduleWhens, ownAddress, payloadHash } from "./gate-hook.ts";
+import { approvedHere, createGateHook, moduleFetches, moduleOutward, moduleWhens, ownAddress, payloadHash } from "./gate-hook.ts";
 import { bindPayloadHash } from "../../../lib/payload-hasher.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { FILL_PATH, createComputersFillHost, createFillRoute } from "../seams/computers.ts";
@@ -824,6 +824,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     for (const k of keys) {
       const id = k.itemId;
       if (keyHostListed(h, id, host)) continue;
+      // a sample or survey the person allowed on its card (once): the replay, the agent's next reads and the person's own bring-in to that host for that key go, for an hour; Always allow
+      // or bringing the app in records it
+      if (person && approvedHere(h as never, person, null, id, host)) continue;
       if (person && keyHostCallAs && await ownAddress(keyHostCallAs, person, id, host)) continue;
       return `${handleOfItem(h, id)} is not allowed to go to ${host}. Allow it on the key's page, or change this step.`;
     }

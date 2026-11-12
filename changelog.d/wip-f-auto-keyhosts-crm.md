@@ -1,0 +1,1 @@
+- The first time an agent wants to send a Vault key to a new app's host while bringing a CRM in, the person gets one card (Allow, Always allow, Deny); bringing the app in then keeps that host for the key.

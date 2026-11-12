@@ -69,6 +69,8 @@ test("journey 0: the second app, a custom object with Link-header paging, arrive
   const s = await startSpace({ kind: "personal", name: "Me" });
   try {
     const item = await vaultItemOf(s, "Orbit");
+    // the key goes only to a host a person approved for it: the person allows the app's host on the key's page first (no agent asked here, so there was no card)
+    await ok(s, "automations.key_hosts.allow", { vaultItemId: item.handle, host: String((orbitSpec().app as { domain: string }).domain) });
     await ok(s, "sync_specs.apply", { spec: withHandle(orbitSpec(), item.handle), idempotencyKey: "j0-apply" });
     await until("jobs arrive", async () => (await rows(s, "job")).length === 3);
   } finally { await s.stop(); }

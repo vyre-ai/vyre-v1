@@ -9,9 +9,9 @@ Read one page of an app, read-only (GET only), with a Vault handle as the key: w
 | Effects | read |
 | Permission | connectors.manage |
 | Grant level | view |
-| Risk | low |
+| Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when automations.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
@@ -86,6 +86,7 @@ type Out = {
 - internal.unavailable
 - internal.unexpected
 - permission.above_clearance
+- permission.needs_approval
 - permission.no_grant
 - permission.role_lacks_permission
 - validation.bad_input

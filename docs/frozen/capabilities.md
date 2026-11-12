@@ -144,3 +144,9 @@ Signed: lead, 12 Nov 2026
 The description of the optional `blocked` line on `automations.vault_usage` steps now reads "a host not allowed for it" instead of "a host no longer allowed for it". The line itself (key-run.ts) is now one neutral sentence for a host that was removed and one never approved: "#Key is not allowed to go to <host>. Allow it on the key's page, or change this step." Description only: no field, type or error changes.
 
 Signed: lead, 12 Nov 2026
+
+## 12 Nov 2026: sync_specs.sample and sync_specs.survey wait for a person before sending a key to a host nobody approved (lane f-auto)
+
+`sync_specs.sample@1` and `sync_specs.survey@1` gain `gate: { act: 'send', when: 'automations.key_host_unapproved(input)' }`, risk `medium`, and the error `permission.needs_approval`, as `automations.try_read` has. An agent's read that would send a Vault key (auth.vaultHandle) to a host (domain) not approved for that key waits for one card: "<Agent> wants to send #Key (Name) to host", with Allow, Always allow and Deny. Never held: a person's own call, a host already approved for the key, and the exact host of the key's saved address. After Allow in a chat, the agent's further reads of that key to that host in the same chat do not ask again. When the agent or the person then brings the app in (sync_specs.apply), the spec's host is recorded for the key as that person. Additive: no input or output changes.
+
+Signed: lead, 12 Nov 2026
