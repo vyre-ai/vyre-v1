@@ -15,7 +15,7 @@ export { buildPush } from "./handlers/push.ts";
 export type { PushMessage, PushPort } from "./handlers/push.ts";
 
 type Assignee = { kind: string; id: string } | null | undefined;
-interface Ev { name: string; subject?: string; payload: Record<string, unknown>; actor?: string }
+interface Ev { name: string; subject?: string; payload: Record<string, unknown>; actor?: string; /** the event's id (the host's HookEvent has one): the fanout remembers who it reached for it */ id?: string }
 type SendIn = Parameters<typeof send>[1];
 
 /** The name a person reads for whoever acted: the server's one resolver, so someone's private agent reads "Irfad Imtiaz (Agent)", never a raw id. */
@@ -179,6 +179,9 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
   return undefined;
 }
 
+/** How long the fanout remembers who it reached for an event (a redelivery after a stop or a crash comes at the next start). */
+const FANOUT_KEEP_MS = 30 * 86_400_000;
+
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {
   "notifications.fanout": {
@@ -186,8 +189,23 @@ export const consumers = {
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
       const planned = await plan(ctx, event);
       const out: string[] = [];
+      if (event.id) ctx.db.run("DELETE FROM notifications_fanout_sent WHERE at < ?", ctx.now() - FANOUT_KEEP_MS);   // a redelivery comes within minutes; a month is far past any
       for (const input of planned === undefined ? [] : Array.isArray(planned) ? planned : [planned]) {
-        const r = await send(ctx, input);
+        // The host hands a consumer the same event again after a crash, or after a stop let it go mid-run (it is at least once). Each recipient is written down before it is sent to, so a second
+        // delivery skips whoever the first one reached: no second row, push or email. A send that fails takes its mark back, so the next try sends it. An event with no id is not remembered.
+        const target = `${input.to}|${input.kind}|${input.subject ? `${input.subject.type}:${input.subject.id}` : ""}|${input.collapseKey ?? ""}`;
+        if (event.id) {
+          const fresh = ctx.db.run("INSERT OR IGNORE INTO notifications_fanout_sent (event_id, target, notification_id, at) VALUES (?, ?, NULL, ?)", event.id, target, ctx.now()).changes > 0;
+          if (!fresh) {
+            const had = (ctx.db.all("SELECT notification_id FROM notifications_fanout_sent WHERE event_id = ? AND target = ?", event.id, target)[0] as { notification_id?: string | null } | undefined)?.notification_id;
+            if (had) out.push(had);
+            continue;
+          }
+        }
+        let r: Awaited<ReturnType<typeof send>>;
+        try { r = await send(ctx, input); }
+        catch (e) { if (event.id) ctx.db.run("DELETE FROM notifications_fanout_sent WHERE event_id = ? AND target = ?", event.id, target); throw e; }
+        if (event.id && r.notificationId) ctx.db.run("UPDATE notifications_fanout_sent SET notification_id = ? WHERE event_id = ? AND target = ?", r.notificationId, event.id, target);
         if (r.notificationId) out.push(r.notificationId);
       }
       return out;

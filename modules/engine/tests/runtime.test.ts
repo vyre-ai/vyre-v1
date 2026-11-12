@@ -33,6 +33,7 @@ function hostFor(p: ReturnType<typeof scriptedProvider>, f: Fake): EngineHostSea
       if (cap === "engine.accounts.list") return { accounts: [{ ref: "#Dana_Anthropic", driver: "claude_code", kind: "subscription", status: "ok" }] };
       if (cap === "tasks.create") return { task: { id: "tsk_unblock1" } };
       if (cap === "engine.turn.record_usage") return {};
+      if (cap === "agents.status") return { status: "awake" };   // the host answers whether the agent may take a turn (admission fails closed when it cannot)
       throw new Error(`unexpected ${cap}`);
     },
   };

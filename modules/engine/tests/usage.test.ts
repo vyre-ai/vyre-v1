@@ -187,6 +187,7 @@ test("a limit window an engine reports during a real turn is stored for the payi
       if (cap === "engine.account.resolve") return { accountRef: "#Dana_Claude", payer: "usr_dana", reason: "starter", allowed: true, itemId: "vit_aaaaaaaaaaaa" };
       if (cap === "engine.accounts.list") return { accounts: [CLAUDE] };
       if (cap === "engine.turn.record_usage" || cap === "engine.turn.record") return {};
+      if (cap === "agents.status") return { status: "awake" };   // the host answers whether the agent may take a turn (admission fails closed when it cannot)
       throw new Error(`unexpected ${cap}`);
     },
   });

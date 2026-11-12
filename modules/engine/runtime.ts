@@ -679,12 +679,25 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
  * alive and recover() answers false, so the sweep runs again from the periodic job until the lease has run out. A turn this host is running keeps its own lease, so it is never touched.
  */
 export async function recoverStale(ctx: Pick<EngineCtx, "db">, engine: TurnEngine, states: readonly string[] = ["running"]): Promise<void> {
-  const stale = ctx.db.all(`SELECT thread_id, MIN(from_principal) AS person FROM engine_thread_queue WHERE state IN (${states.map(() => "?").join(", ")}) GROUP BY thread_id`, ...states) as Array<{ thread_id: string; person: string }>;
+  const marks = states.map(() => "?").join(", ");
+  const stale = ctx.db.all(`SELECT thread_id, MIN(from_principal) AS person FROM engine_thread_queue WHERE state IN (${marks}) GROUP BY thread_id`, ...states) as Array<{ thread_id: string; person: string }>;
   for (const r of stale) {
-    try {
-      await open(ctx as EngineCtx, r.thread_id, asPerson(ctx.db, r.thread_id, r.person));
-      engine.recover(r.thread_id);
-    } catch { /* a thread that cannot be opened now is opened by its next message */ }
+    let person: string | undefined = r.person;
+    // A person who can no longer act here (removed or suspended while the server was stopping: their departure reached the engine only after the restart) has their queued work dropped, with the
+    // reason in the log; the work of the others in the chat is picked up as one of them. Before, the thread was never opened for them and their rows waited for ever, silently.
+    for (let i = 0; i < 8 && person; i++) {
+      try {
+        await open(ctx as EngineCtx, r.thread_id, asPerson(ctx.db, r.thread_id, person));
+        engine.recover(r.thread_id);
+        break;
+      } catch (e) {
+        const code = String((e as { error?: { code?: unknown }; code?: unknown } | null)?.error?.code ?? (e as { code?: unknown } | null)?.code ?? "");
+        if (!person.startsWith("usr_") || !(code === "permission.suspended" || code.startsWith("auth."))) break;   // not active: removed or suspended (kernel "suspended")   // a thread that cannot be opened now for another reason is opened by its next message
+        const dropped = ctx.db.run(`UPDATE engine_thread_queue SET state = 'cancelled' WHERE thread_id = ? AND from_principal = ? AND state IN (${marks})`, r.thread_id, person, ...states).changes;
+        host?.log?.("a queued turn was not run: the person who asked for it can no longer use this Space", { threadId: r.thread_id, person, code, dropped });
+        person = (ctx.db.all(`SELECT MIN(from_principal) AS person FROM engine_thread_queue WHERE thread_id = ? AND state IN (${marks})`, r.thread_id, ...states)[0] as { person?: string | null } | undefined)?.person ?? undefined;
+      }
+    }
   }
 }
 
@@ -713,13 +726,21 @@ export function lostTurnId(db: Db, row: { threadId: string; qseq: number }, mint
   return r?.turn_id ?? mint();
 }
 
-/** A paused agent takes no turn and a deleted one is gone. What the agents module answers decides; if it cannot answer, the turn goes on. */
+/**
+ * A paused agent takes no turn, a deleted one is gone, and nothing runs for a person who may no longer ask (removed or suspended: every call made as them is refused "suspended"). The agents module
+ * answers as the person the turn is for; when it cannot answer at all, the turn does not run (it fails closed: a turn the server cannot check is not one it runs on someone's word).
+ */
 async function admission(h: EngineHostSeam, q: { threadId: string; agentId: string; asker: string }): Promise<{ code: string; message: string } | null> {
   let status: { status?: string; reason?: string };
   try { status = (await h.call("agents.status", { agentId: q.agentId }, q.asker)) as { status?: string; reason?: string }; }
   catch (e) {
-    const code = (e as { error?: { code?: string } } | null)?.error?.code;
-    return code === "validation.not_found" ? { code: "agent_gone", message: "That agent is not here any more." } : null;
+    const code = String((e as { error?: { code?: string } } | null)?.error?.code ?? "");
+    if (code === "validation.not_found") return { code: "agent_gone", message: "That agent is not here any more." };
+    // the kernel refuses every call of a principal who is not active (removed or suspended) with "suspended"; one it does not know at all is not a member
+    if (code === "permission.suspended" || code.startsWith("auth.")) return { code: "asker_gone", message: "The person who asked for this can no longer use this Space, so it did not run." };
+    // a refusal about the agent itself (the person may not see it: a chat with someone's own agent in it) is an answer, and the turn goes on as it always did; no answer at all fails closed
+    if (code.startsWith("permission.")) return null;
+    return { code: "agent_unchecked", message: "Vyre could not check this agent just now, so the turn did not run. Send the message again in a moment." };
   }
   return status.status === "paused" ? { code: "agent_paused", message: status.reason ?? "This agent is paused." } : null;
 }

@@ -3,3 +3,6 @@
 - The same holds for everything else an agent is woken for while the server stops: a task handed to it, a routine run, an approved or declined request, a reviewed file, a key or access you answered, an unblocked turn.
 - An update never hangs on one slow background job: the server waits at most 5 seconds for it, then stops, and the job gets the same work again when the server is back.
 - Updates and stops give the server up to a minute to finish cleanly before it is forced to stop, so it always closes its data itself.
+- A notification is never sent to you twice because the server restarted while it was going out: "your Space will be deleted" arrives once.
+- A CI job that was starting while the server restarted goes on on the machine already made for it, and that machine is deleted when the job ends.
+- Nothing runs after a restart for a person who was removed or suspended while the server stopped; the log says why it was dropped.

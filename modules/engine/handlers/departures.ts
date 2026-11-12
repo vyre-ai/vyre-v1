@@ -61,6 +61,8 @@ export async function resumeAgent(ctx: EngineCtx, engine: TurnEngine | null, age
 export async function stopPerson(ctx: EngineCtx, engine: TurnEngine | null, person: string): Promise<string[]> {
   const hit = [...workOf(ctx, "from_principal = ?", person), ...parkedOf(ctx, "asker = ?", person)];
   for (const h of hit) await stopAgentIn(ctx, engine, h.threadId, h.agentId);
+  // said in the log, with who and where: the person is gone, so there is nobody in the chat to tell, and a dropped turn must never be silent
+  if (hit.length > 0) ctx.log.warn("a queued turn was not run: the person who asked for it can no longer use this Space", { person, threads: [...new Set(hit.map((h) => h.threadId))] });
   const now = ctx.now();
   ctx.db.run("UPDATE engine_crew_job SET state = 'stopped', ended_at = ? WHERE asker = ? AND state IN ('working', 'waiting', 'paused', 'lost')", now, person);
   ctx.db.run("UPDATE engine_crew_wait SET state = 'stopped', ended_at = ? WHERE asker = ? AND state = 'pending'", now, person);
