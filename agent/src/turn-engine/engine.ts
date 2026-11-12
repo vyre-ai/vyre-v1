@@ -158,7 +158,7 @@ interface ThreadState {
   thread: OpenThread; messages: StoredMessage[]; running: Running | null; worker: Promise<void> | null; active: boolean;
   /** A turn taken off the queue that is not running yet (admit and the account are being read). A Stop pressed now marks it (`stop`), answers at once, and the turn ends cancelled the moment it
    *  starts, instead of the Stop missing it. The mark belongs to this one turn: the next turn has a starting of its own. */
-  starting?: { agentId: string; stop?: string } | null;
+  starting?: { agentId: string; qseq: number; stop?: string } | null;
 }
 
 const defaultSchedule = (fn: () => void, ms: number): (() => void) => {
@@ -402,7 +402,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       }
       const item = queue.dequeue(id);
       if (!item) continue;
-      const starting = { agentId: item.agentId } as NonNullable<ThreadState["starting"]>;
+      const starting = { agentId: item.agentId, qseq: item.qseq } as NonNullable<ThreadState["starting"]>;
       st.starting = starting;
       try { await runTurn(st, item); } finally { if (st.starting === starting) st.starting = null; }
       if (!st.active) { leases.release(id, opts.holder); return; }   // the host is closing: what is queued waits for the next start
@@ -520,7 +520,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       emit({ type: "turn.block", threadId: st.thread.id, turnId: turn.id, idx: blockIdx++, kind });
       lastFlush = hr();
     };
+    // stopped before it ran (a Stop pressed while it was starting): nothing more happens, no session, no hook, no prompt, and no Unblock asking for an account (review F1, F2)
+    const stoppedEarly = (): never => { throw Object.assign(new Error("stopped before it started"), { code: "cancelled" }); };
     try {
+      if (run.cancelled) stoppedEarly();
       if (refused) throw Object.assign(new Error(refused.message), { code: refused.code });
       if (!agent) throw Object.assign(new Error("agent is not in this thread"), { code: "unknown_agent" });
       if (account === null && resolveFailed) throw Object.assign(new Error(resolveMessage ?? "the account could not be resolved just now"), { code: typeof resolveCode === "string" ? resolveCode : "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
@@ -537,7 +540,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       run.session = session;
       // what really runs is what the record keeps: a session that says its model (a swapped or limited one) wins over the one the chat asked for, and a swap to the account's own default is not the asked model
       { const ran = (session as { model?: unknown }).model; if (typeof ran === "string") turn.model = ran; else if (paying?.modelFallback) turn.model = paying.modelFallback.to ?? null; }
-      if (run.cancelled) await session.cancel();
+      // a Stop that came while the session was opening: the session is let go and nothing is sent (review F1)
+      if (run.cancelled) { await session.cancel(); stoppedEarly(); }
       // the hooks layer, for every driver alike: once per turn, however many accounts it tries
       const hookNotes: string[] = [];
       if (opts.hooks && !hooksAsked && !wait) {
@@ -849,7 +853,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       // pressed in the moment between the queue and the run (the account is being read): mark that turn, so it ends cancelled as it starts. The press answers at once (lead, 12 Nov: a Stop under load)
       const starting = st.starting;
       const early = !st.running && starting && (only === undefined || starting.agentId === only) ? starting : null;
-      if (early) early.stop = o?.reason ?? "stop";
+      if (early) {
+        early.stop = o?.reason ?? "stop";
+        // kept in the queue too, not only in memory: a restart before this turn starts must not hand it out again (recover requeues only rows still marked running; review F3)
+        queue.setState(threadId, early.qseq, "cancelled");
+      }
       const everything = o?.clearQueue === true;
       const run = st.running;
       const hit = run !== null && !run.cancelled && (only === undefined || run.agentId === only) ? run : null;
