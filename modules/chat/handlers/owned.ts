@@ -2,7 +2,8 @@
 //   owned     chat_thread_agent.owned = 1: the agent was made with threads.agent.create. It goes to Trash (agents.delete) when the chat is deleted or erased, or when it is removed from the chat, and comes
 //             back with threads.restore. A person who may not delete it cannot move it: the call is tolerated, never swallowed (a warning says so).
 //   grants    chat_thread_agent.grants: the resources threads.outside_agent.add shared with the agent, each with the source tag chat:<threadId>. Removing the agent takes them back at once.
-import { ensure, isMember } from "../projections.ts";
+import { ensure, isMember, threadBy } from "../projections.ts";
+import { canSpeak } from "./post.ts";
 import type { ChatCtx } from "../projections.ts";
 import { oneAtATime } from "../../../lib/one-at-a-time.ts";
 
@@ -88,11 +89,6 @@ export async function shareOwnedWith(ctx: ChatCtx, threadId: string, person: str
   }, limits(ctx));
 }
 
-/** What leaving `left` takes back for `person`: that thread and the threads under it, except a thread under it where the person is still a direct member (that membership keeps what it gives). */
-export function leftFamily(ctx: ChatCtx, left: string, person: string): string[] {
-  return familyOf(ctx, left).filter((id) => id === left || !isMember(ctx.db, id, person));
-}
-
 /** A thread and the threads under it (a channel's main thread and its threads), to the depth threads nest. */
 export function familyOf(ctx: ChatCtx, root: string): string[] {
   ensure(ctx.db);
@@ -105,6 +101,34 @@ export function familyOf(ctx: ChatCtx, root: string): string[] {
     level = next;
   }
   return [...new Set(out)];
+}
+
+/**
+ * A person leaves a chat or a channel, or is taken out (`drop` takes away their place in `left`). Their place goes first, so what follows sees them as they will be; then, for `left` and every
+ * thread under it, the read path's own check (canSpeak, as that person) says whether they can still read it. A thread they cannot read any more loses what being in it gave them (their view of
+ * the agents it made, each grant tagged with that thread) and their own place in it (a reply, a mention or Follow made them a member of an inline thread), so their membership and their access
+ * say the same thing. A thread they can still read (an open channel's, or a private chat they stay in) keeps both. All in the person's queue; a grant that cannot be taken back fails the call and
+ * gives them their place in `left` back, so access never stays behind in silence. Answers what `drop` answered.
+ */
+export async function leaveThreads(ctx: ChatCtx, left: string, person: string, drop: () => boolean): Promise<boolean> {
+  return oneAtATime(queueOf(ctx, person), async () => {
+    const row = (ctx.db.all(`SELECT "id" FROM chat_thread_member WHERE "thread" = ? AND "principal" = ? AND "deleted_at" IS NULL`, left, person) as Row[])[0]?.["id"];
+    const dropped = drop();
+    try {
+      const reader: ChatCtx = { ...ctx, principal: { kind: "person", id: person } };
+      delete (reader as { actingFor?: string }).actingFor;
+      const gone = familyOf(ctx, left).filter((id) => { const t = threadBy(ctx.db, id); return t === null || !canSpeak(reader, t); });
+      if (ctx.call) for (const threadId of gone) for (const agentId of ownedIn(ctx, [threadId])) {
+        try { await ctx.call("access.unshare", { resource: { type: "agent", id: agentId }, subject: { kind: "person", id: person }, source: sourceOf(threadId) }); }
+        catch (e) { warn(ctx, "a chat's own agent could not be taken out of a leaver's sight", e, { threadId, agentId, subject: person }); throw e; }
+      }
+      for (const threadId of gone) if (threadId !== left) ctx.db.run(`UPDATE chat_thread_member SET deleted_at = ?, version = version + 1, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL`, ctx.now(), ctx.now(), threadId, person);
+    } catch (e) {
+      if (dropped && row !== undefined) ctx.db.run(`UPDATE chat_thread_member SET deleted_at = NULL WHERE "id" = ?`, String(row));   // the place in `left` comes back: nothing was left half done in silence
+      throw e;
+    }
+    return dropped;
+  }, limits(ctx));
 }
 
 /**

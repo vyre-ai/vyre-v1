@@ -104,16 +104,31 @@ test("channels.agents.remove: the agent loses what the channel gave it", async (
   assert.deepEqual(grants.filter((g) => g.subject.id === OUTSIDE).map((g) => g.source), ["direct"], "what the channel gave is gone; the direct share stays");
 });
 
-test("leaving a channel keeps what a thread under it gives when the person is still a direct member of that thread", async () => {
+test("taken out of an invite-only channel: a thread under it they replied in no longer gives them its agent, and they are not listed in it", async () => {
   const { hn, grants } = world();
-  const ch = (await h["channels.create"]!(hn.ctx, { name: "deep", visibility: "invite", memberIds: [LEO], idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
-  const sub = insertThread(hn.ctx, { kind: "chat", title: "Side", starter: DANA, listed: true, channelId: ch.channelId, parentThreadId: ch.mainThreadId });
-  addMember(hn.ctx, sub.id, DANA, "owner");
-  addMember(hn.ctx, sub.id, LEO);
-  const a = (await h["threads.agent.create"]!(hn.ctx, { threadId: sub.id, name: "Side helper", idempotencyKey: key() })).agentId as string;
-  assert.equal(on(grants, LEO, a).length, 1, "Leo sees the side thread's agent");
+  const ch = (await h["channels.create"]!(hn.ctx, { name: "legal", visibility: "invite", memberIds: [LEO], idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
+  // Leo replied in thread T under the channel: a reply makes him a member of T
+  const t = insertThread(hn.ctx, { kind: "chat", title: "T", starter: DANA, listed: true, channelId: ch.channelId, parentThreadId: ch.mainThreadId });
+  addMember(hn.ctx, t.id, DANA, "owner");
+  addMember(hn.ctx, t.id, LEO);
+  const a = (await h["threads.agent.create"]!(hn.ctx, { threadId: t.id, name: "T helper", idempotencyKey: key() })).agentId as string;
+  assert.equal(on(grants, LEO, a).length, 1, "Leo, in the channel, sees T's agent");
+  await h["channels.members.remove"]!(hn.ctx, { channelId: ch.channelId, personId: LEO });
+  assert.deepEqual(on(grants, LEO, a), [], "he cannot read T any more, so he holds nothing on its agent");
+  assert.equal(hn.rows("SELECT * FROM chat_thread_member WHERE thread = ? AND principal = ? AND deleted_at IS NULL", t.id, LEO).length, 0, "and he is not listed in T");
+});
+
+test("leaving an open channel: a thread under it they were added to directly, and can still read, keeps what it gave them", async () => {
+  const { hn, grants } = world();
+  const ch = (await h["channels.create"]!(hn.ctx, { name: "open", visibility: "public", memberIds: [LEO], idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
+  const t = insertThread(hn.ctx, { kind: "chat", title: "Side", starter: DANA, listed: true, channelId: ch.channelId, parentThreadId: ch.mainThreadId });
+  addMember(hn.ctx, t.id, DANA, "owner");
+  const a = (await h["threads.agent.create"]!(hn.ctx, { threadId: t.id, name: "Side helper", idempotencyKey: key() })).agentId as string;
+  await h["threads.members.add"]!(hn.ctx, { threadId: t.id, personId: LEO });   // added to the thread directly
+  assert.equal(on(grants, LEO, a).length, 1);
   await h["channels.leave"]!(hn.as({ kind: "person", id: LEO }), { channelId: ch.channelId });
-  assert.equal(on(grants, LEO, a).length, 1, "still a member of the side thread, he keeps it");
+  assert.equal(on(grants, LEO, a).length, 1, "an open channel's thread he can still read: he keeps it");
+  assert.equal(hn.rows("SELECT * FROM chat_thread_member WHERE thread = ? AND principal = ? AND deleted_at IS NULL", t.id, LEO).length, 1, "and his place in it");
 });
 
 test("an archived channel never keeps someone in: the host takes a person and an agent out of it; anyone else is still told to bring it back first", async () => {

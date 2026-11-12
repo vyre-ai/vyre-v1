@@ -13,3 +13,4 @@
 - No session is ended by its age any more anywhere in Vyre: a sign-in older than 30 days keeps working for previews and single sign-on keys as it already did for everything else, and still ends at once when you sign out or revoke it.
 - A failed join step for a role or a group is now held back only when someone changed that one role or group of the person after the step failed, and a step Vyre could not check says so plainly.
 - An artifact or site page you opened stops working the moment you sign out, are suspended or removed, including on pages you own.
+- Taken out of a channel, you keep of its threads only what you can still read: in an invite-only channel you are out of its threads too, and its agents are no longer yours to see or chat with.

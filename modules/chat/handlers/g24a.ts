@@ -9,7 +9,7 @@ import { canSpeak, mayGovernChannel, rootOf } from "./post.ts";
 import { applyMode } from "./modes.ts";
 import { followMode, placeOf } from "./follow.ts";
 import { markRenamed } from "./title-state.ts";
-import { leftFamily, grantsOf, revokeGrants, shareOwnedWith, unshareOwnedFrom, trashOwned } from "./owned.ts";
+import { grantsOf, leaveThreads, revokeGrants, shareOwnedWith, trashOwned } from "./owned.ts";
 
 type Row = Record<string, unknown>;
 const MAX_AGENTS = 20;
@@ -276,8 +276,8 @@ export async function membersRemove(ctx: ChatCtx, input: { threadId: string; per
     if (String(mine?.["role"]) !== "owner" && !governs) raise(ctx, "permission.no_grant", "Only the owner removes other people.");
   }
   if (membersOf(ctx.db, t.id).filter((p) => p.startsWith("usr_")).length <= 1) raise(ctx, "validation.bad_input", "A chat keeps at least one person.");
-  // what being in the chat gave goes first, then the membership, in the person's queue (owned.ts): a grant still being written for them cannot land afterwards
-  await unshareOwnedFrom(ctx, leftFamily(ctx, t.id, input.personId), input.personId, () => {
+  // out of the chat, and out of what it gave them in every thread under it they can no longer read, in the person's queue (owned.ts leaveThreads): a grant still being written cannot land afterwards
+  await leaveThreads(ctx, t.id, input.personId, () => {
     ctx.db.run("UPDATE chat_thread_member SET deleted_at = ?, version = version + 1, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL", ctx.now(), ctx.now(), t.id, input.personId);
     return true;
   });

@@ -10,7 +10,7 @@ import {
   mintId, patchBlockInMessage, planBy, raise, refuseUnseenAgents, threadBy, threadOut,
 } from "../projections.ts";
 import type { ChatCtx, Mode, PlanStep, ThreadRec } from "../projections.ts";
-import { canSpeak, deliver, isDirect } from "./post.ts";
+import { canSpeak, deliver, isDirect, refuseUnreadableAgents } from "./post.ts";
 import { privateFork } from "./g27.ts";
 import { ALREADY_DECIDED, tellAgent } from "./waiting.ts";
 
@@ -81,6 +81,7 @@ export async function start(ctx: ChatCtx, input: StartInput) {
   const asker = askerOf(ctx);
   const agentIds = uniqueIds(ctx, input.agentIds, "agt_", "an agent");
   await refuseUnseenAgents(ctx, agentIds);
+  refuseUnreadableAgents(ctx, agentIds);
   const personId = input.personId;
   if (personId !== undefined) {
     if (!personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.", { id: personId });
