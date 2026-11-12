@@ -1029,11 +1029,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       closeIdleSessions = async (person) => (await pool()?.closeIdle?.(person)) ?? 0;
       idleSessions = (person) => pool()?.idleCount?.(person) ?? 0;
       // the Space kind for terminal and computers (unbound they assume a Team Space) and how a person's sessions here stop when they turn subscription sharing off (modules/engine extra/config.ts)
-      boundPorts = bindSpacePorts(loaded.moduleExports, {
+      const portDeps = {
         team: cfg.spaceKind !== "personal",
-        stopSandbox: async (person) => { const p = pool(); if (!p?.closeIdle) return false; await p.closeIdle(person); return true; },
-      });
-      closers.push(() => unbindSpacePorts(loaded.moduleExports));
+        stopSandbox: async (person: string) => { const p = pool(); if (!p?.closeIdle) return false; await p.closeIdle(person); return true; },
+      };
+      boundPorts = bindSpacePorts(loaded.moduleExports, portDeps);
+      closers.push(() => unbindSpacePorts(loaded.moduleExports, portDeps));
       // Machines (lane l-machines): a machine's report goes to the module; the Space server reads itself every 30 s; the module asks the host how many turns a connected machine runs, for the Doctor and for the Fixes
       machinesSync = () => { void hookRunner.call("machines.sync", {}).catch(() => undefined); };
       machinesIngest = (from, r) => {
