@@ -10,6 +10,8 @@ export const CONNECTOR_TOOLS: readonly string[] = [
   "automations_draft_connector", "automations_read_docs", "automations_try_read", "automations_connector_card",
   "connectors_list", "connectors_get", "connectors_init", "connectors_define", "connectors_test", "connectors_publish",
   "connections_list", "connections_create", "agents_builtin_skill_get",
+  // the app's own events: an Automation with a web request trigger, and its address for the person to paste into the app
+  "automations_create", "automations_webhook_url_get", "automations_test",
 ];
 
 /** The titles of the chats Sync to Records (Vault), Bring in from your CRM (Records) and Edit mapping (the Sync page) start, the skill they run on, and the tools it uses beyond the defaults. */

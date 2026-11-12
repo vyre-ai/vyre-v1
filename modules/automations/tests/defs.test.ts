@@ -348,7 +348,8 @@ const promotable = (): Record<string, unknown> => create({
 
 test("Promote shows what the Space Automation will hold, and which subscription keys must be replaced", async () => {
   const h = harness({ authorize: (_who, a, r) => a.level === "edit" && r.id === "rec_abc" });
-  h.callee("vault.items.list", () => ({ items: [sub] }));
+  // the Vault as the creator sees it: the subscription promote must replace, and the key the send step uses
+  h.callee("vault.items.list", (i) => ({ items: (i as { kind?: string }).kind === "ai_subscription" ? [sub] : [sub, { id: "vit_resend", kind: "api_key", handle: "#Resend_Key", name: "Resend", yourLevel: "use" }] }));
   const id = (await h.call("automations.create", promotable(), alice)).automation.id as string;
   const p = await h.call("automations.preview_promote", { automationId: id }, alice);
   assert.equal(p.ready, false);
@@ -365,7 +366,8 @@ test("Promote shows what the Space Automation will hold, and which subscription 
 
 test("Promote refuses until the subscription keys are replaced, then makes a Space Automation owned by the named person", async () => {
   const h = harness({ authorize: () => false });
-  h.callee("vault.items.list", () => ({ items: [sub] }));
+  // the Vault as the creator sees it: the subscription promote must replace, and the key the send step uses
+  h.callee("vault.items.list", (i) => ({ items: (i as { kind?: string }).kind === "ai_subscription" ? [sub] : [sub, { id: "vit_resend", kind: "api_key", handle: "#Resend_Key", name: "Resend", yourLevel: "use" }] }));
   const id = (await h.call("automations.create", promotable(), alice)).automation.id as string;
   await refused(h.call("automations.promote", { automationId: id, confirm: true }, alice), "validation.precondition_failed", "keys_not_replaced");
   assert.equal((await h.call("automations.get", { automationId: id }, alice)).automation.kind, "personal");
@@ -451,4 +453,17 @@ test("a Space automation's AI account: Automatic needs a Space account kept for 
   // so is a backup that is gone
   const gone = liveHarness({ providers: [kept] });
   await assert.rejects(turnOn(gone, await spaceDraft(gone, { ai: { keyId: "#Team_Key", backupKeyId: "#Missing" } })), (e) => { assert.match(messageOf(e), /#Missing is not in the Vault/); return true; });
+});
+
+test("a step that names a Vault key the saver cannot use is refused, and other steps stay editable", async () => {
+  const { harness: mkHarness } = await import("../fixtures/db.ts");
+  const seed = await import("../fixtures/seed.ts");
+  const h = mkHarness({ calls: { "vault.items.list": () => ({ items: [{ id: "vit_other", handle: "#Other", yourLevel: "use" }] }) } });
+  const keyed = seed.goodDefinition({ nodes: [seed.node("n1", "http_request", { method: "GET", url: "https://api.acme.example/v1", auth: { kind: "bearer", handle: "#Acme_API.api_key" } })] });
+  await assert.rejects(h.call("automations.create", seed.create({ name: "Keyed", definition: keyed }), seed.alice), /Step 1 uses a key you cannot use/);
+  const computed = seed.goodDefinition({ nodes: [seed.node("n1", "http_request", { method: "GET", url: "https://{{trigger.host}}/v1", auth: { kind: "bearer", handle: "#Other" } })] });
+  await assert.rejects(h.call("automations.create", seed.create({ name: "Computed", definition: computed }), seed.alice), /sends a key to an address filled in when it runs/);
+  const fine = seed.goodDefinition({ nodes: [seed.node("n1", "http_request", { method: "GET", url: "https://api.acme.example/v1", auth: { kind: "bearer", handle: "#Other" } })] });
+  const made = await h.call("automations.create", seed.create({ name: "Fine", definition: fine }), seed.alice);
+  assert.ok(made.automation.id);
 });

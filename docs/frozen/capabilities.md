@@ -29,3 +29,7 @@ Nothing blocks the freeze. The sample read cleanly: summaries match the declared
 - 39 capabilities carry a gate while their effects are `write`, for example `mail.domain.remove` and `network.server_remove` (gate `delete`). This is intended: the gate applies to destructive inward writes too.
 
 
+
+## Changes after the freeze
+
+- 12 Nov 2026, lane f-auto: `automations.try_read` is now held (gate `send`, when `automations.key_host_unapproved(input)`, risk medium, error `permission.needs_approval`): an agent's test read that would send a Vault key to a host nobody approved for that item waits for a person (Allow, Always allow, Deny). New `automations.key_hosts.list`, `automations.key_hosts.allow` and `automations.key_hosts.remove`: the hosts approved per Vault item (table `automations_key_hosts`, migration 0013). Signed: lead, 12 Nov 2026.

@@ -5844,6 +5844,29 @@
     },
     {
       "blocks": [],
+      "cap": "automations.key_hosts.list",
+      "deferred": false,
+      "description": "The hosts a person approved for one Vault key: a key is sent only to these, or to the host of the item's own saved address. Names only, never a value.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "itemId": {
+            "description": "The item id (vit_...) or its handle",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_key_hosts_list",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.list",
       "deferred": false,
       "description": "List Automations by section (Personal, Shared with me, Space), folder and Group",

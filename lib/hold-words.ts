@@ -21,6 +21,15 @@ export function verbPhrase(words: string): string {
 }
 
 
+/** The host a connector's test read would send its key to: the path when it is a full address, else the first listed domain. Empty when neither names one. */
+export function keyReadHost(input: unknown): string {
+  const i = obj(input);
+  const path = str(i["path"]).trim();
+  if (/^https:\/\//i.test(path)) { try { return new URL(path).hostname.toLowerCase(); } catch { return ""; } }
+  const d = Array.isArray(i["domains"]) ? str(i["domains"][0]).trim().toLowerCase() : "";
+  return /^[a-z0-9.-]+$/.test(d) ? d : "";
+}
+
 /** The address a link points at, as a person says it: "example.com". */
 export function hostOfLink(raw: string): string {
   try { return new URL(raw).hostname.replace(/^www\./, ""); } catch { return raw; }
@@ -56,7 +65,14 @@ export function capPhrase(cap: string): string {
 
 /** Steps whose words depend on what they carry: opening a link names the site. */
 export function wantsFromInput(cap: string, input: Obj | undefined): string | null {
-  if (cap === "automations.read_link" || cap === "automations.try_read") {
+  // a test read sends a Vault key: the card names the key and the one host it would go to
+  if (cap === "automations.try_read") {
+    const host = keyReadHost(input);
+    const item = str(obj(input)["vaultItemId"]).replace(/\.[A-Za-z][A-Za-z0-9_]*$/, "");
+    const key = /^#[A-Za-z0-9_]{1,80}$/.test(item) ? item : "a key";
+    return host ? `send ${key} to ${host}` : `send ${key} to an app`;
+  }
+  if (cap === "automations.read_link") {
     const url = str(obj(input)["url"]);
     return url ? `open ${hostOfLink(url)}` : "open a link";
   }

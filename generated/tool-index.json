@@ -752,6 +752,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_key_hosts_list",
+      "summary": "The hosts a person approved for one Vault key: a key is sent only to these, or to the host of the item's own saved address. Names only, never a value.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_list",
       "summary": "List Automations by section (Personal, Shared with me, Space), folder and Group",
       "toolset": "automations"

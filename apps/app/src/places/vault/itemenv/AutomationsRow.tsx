@@ -7,7 +7,7 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useOnline, useVaultData } from "../layout/data.tsx";
 import type { ItemKind } from "../layout/model.ts";
 import { Btn, Glyph } from "../layout/parts.tsx";
-import { GATE_TEXT, gateFor, offersAutomations, stepsLine, usedByOf } from "./automations.ts";
+import { GATE_TEXT, gateFor, hiddenOf, offersAutomations, stepsLine, usedByOf } from "./automations.ts";
 import type { AiAccount, BuilderStatus, UsedBy } from "./automations.ts";
 import { PendingSecrets, pendingSlots } from "./PendingSecrets.tsx";
 import type { PendingSlot } from "./PendingSecrets.tsx";
@@ -19,6 +19,7 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
   const online = useOnline();
   const [accounts, setAccounts] = useState<readonly AiAccount[] | null>(null);
   const [uses, setUses] = useState<UsedBy[] | null>(null);
+  const [hidden, setHidden] = useState(0);
   const [tick, setTick] = useState(0);
   const [builder, setBuilder] = useState<BuilderStatus | null>(null);
   const [asked, setAsked] = useState(false);
@@ -76,13 +77,13 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
   useEffect(() => {
     let live = true;
     void (async () => {
-      try { const out = await data.call("automations.vault_usage", { handle: item.handle }); if (live) setUses(usedByOf(out)); } catch { if (live) setUses([]); }
+      try { const out = await data.call("automations.vault_usage", { handle: item.handle }); if (live) { setUses(usedByOf(out)); setHidden(hiddenOf(out)); } } catch { if (live) setUses([]); }
     })();
     return () => { live = false; };
   }, [data, item.handle, tick]);
 
   const used = uses ?? [];
-  if (!offers && used.length === 0) return null;
+  if (!offers && used.length === 0 && hidden === 0) return null;
   const gate = gateFor({ online, yourLevel: item.yourLevel, accounts, builder, asked });
   const start = (): void => { if (gate.state === "ready") data.nav.addToAutomations?.({ id: item.id, name: item.name, handle: item.handle }); };
   const toRecords = (): void => { if (gate.state === "ready") data.nav.syncToRecords?.({ id: item.id, name: item.name, handle: item.handle }); };
@@ -111,7 +112,7 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
         </View>
       ) : null}
       <PendingSecrets slots={pending} folderId={item.folderId} onSaved={() => setTick((n) => n + 1)} />
-      {used.length === 0 ? (
+      {used.length === 0 && hidden > 0 ? null : used.length === 0 ? (
         <Text style={s.note} testID="item-used-none">{offers ? "No Automation uses this key yet. Add it to build a connector from it." : "No Automation uses this item."}</Text>
       ) : (
         <View testID="item-used-by">
@@ -124,6 +125,7 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
           ))}
         </View>
       )}
+      {hidden > 0 ? <Text style={s.note} testID="item-used-hidden">{used.length > 0 ? `and ${hidden} more you cannot open` : `${hidden === 1 ? "1 Automation" : `${hidden} Automations`} you cannot open ${hidden === 1 ? "uses" : "use"} this key`}</Text> : null}
     </View>
   );
 }

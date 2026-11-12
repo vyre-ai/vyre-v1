@@ -10,6 +10,9 @@ import type { ChoiceLimits, ScheduleChoiceKey } from "./schedule/schedule.ts";
 import { registry } from "../../generated/registry.ts";
 
 export { handlers };
+/** The Gate's condition for automations.try_read (host/src/daemon/gate-hook.ts): the host a test read would send a key to, and whether a person approved that host for the item. */
+export { keyHostApproved, plannedHost } from "./key-hosts.ts";
+
 export const hostSeams = { setDocumentNetwork, setConnectorReadSender, setHttpStepHost };
 export { accessDiff, canView, structuralIssues, validateDefinition, webhookSecretMatches } from "./handlers/defs.ts";
 import { acceptHook, adoptRun, consumeEvent, loadRunPlan, startRun } from "./handlers/triggers.ts";

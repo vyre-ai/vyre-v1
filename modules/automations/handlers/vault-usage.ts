@@ -6,6 +6,16 @@ import { canView } from "./defs.ts";
 
 type In = { handle?: unknown };
 interface Use { automationId: string; name: string; status: string; steps: { nodeId: string; title: string }[] }
+interface ItemUses { handle: string; automations: Use[]; hidden?: number }
+
+/** Does the caller see this item in the Vault: only then is the count of Automations they cannot open given (a count for an unseen handle would tell them it exists). */
+async function seesItem(ctx: AutoCtx, handle: string): Promise<boolean> {
+  if (!ctx.call) return false;
+  try {
+    const out = (await ctx.call("vault.items.list", { limit: 500 })) as { items?: { handle?: unknown }[] } | null;
+    return (out?.items ?? []).some((i) => typeof i.handle === "string" && i.handle.toLowerCase() === handle.toLowerCase());
+  } catch { return false; }
+}
 
 const HANDLE = /#[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)?/g;
 
@@ -51,18 +61,24 @@ function usesOf(a: Automation, conns: ReadonlyMap<string, string[]>): Map<string
   return out;
 }
 
-export async function vaultUsage(ctx: AutoCtx, input: In): Promise<{ uses: { handle: string; automations: Use[] }[] }> {
+export async function vaultUsage(ctx: AutoCtx, input: In): Promise<{ uses: ItemUses[] }> {
   const conns = await handlesByConnection(ctx);
   const only = typeof input.handle === "string" && input.handle !== "" ? itemOf(input.handle) : null;
   const byItem = new Map<string, Use[]>();
+  let hidden = 0;
   for (const a of allAutomations(ctx.db)) {
-    if (!canView(ctx, a)) continue;
+    const seen = canView(ctx, a);
     for (const [item, use] of usesOf(a, conns)) {
-      if (only !== null && item !== only) continue;
+      if (only !== null && item.toLowerCase() !== only.toLowerCase()) continue;
+      if (!seen) { if (only !== null) hidden += 1; continue; }
       byItem.set(item, [...(byItem.get(item) ?? []), use]);
     }
   }
-  return {
-    uses: [...byItem.entries()].sort(([x], [y]) => (x < y ? -1 : 1)).map(([handle, automations]) => ({ handle, automations: automations.sort((p, q) => (p.name < q.name ? -1 : 1)) })),
-  };
+  const uses: ItemUses[] = [...byItem.entries()].sort(([x], [y]) => (x < y ? -1 : 1)).map(([handle, automations]) => ({ handle, automations: automations.sort((p, q) => (p.name < q.name ? -1 : 1)) }));
+  // one item asked for, and the caller can see it: the Automations they cannot open are counted, never named
+  if (only !== null && hidden > 0 && await seesItem(ctx, only)) {
+    if (uses.length === 0) uses.push({ handle: only, automations: [] });
+    uses[0]!.hidden = hidden;
+  }
+  return { uses };
 }

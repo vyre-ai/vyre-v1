@@ -77,6 +77,12 @@ async function vet(raw: string, lookup: Lookup): Promise<{ ok: true; url: URL; a
   return { ok: true, url: target.url, addresses: ips };
 }
 
+/** The address checks that need no lookup (https, no credentials, not a private literal or localhost), for a caller whose sender looks the name up and dials the checked answer itself. */
+export function vetShape(raw: string): { ok: true } | { ok: false; reason: string } {
+  const t = targetOf(raw);
+  return t.ok ? { ok: true } : { ok: false, reason: t.reason };
+}
+
 /** The same check every fetch here makes, for a caller that sends through its own door (a connector's safe read): https, no credentials, and a host that resolves only to public addresses. */
 export async function vetPublic(raw: string, lookup: Lookup): Promise<{ ok: true } | { ok: false; reason: string }> {
   const v = await vet(raw, lookup);
@@ -268,6 +274,10 @@ export interface PublicRequest {
   body?: string;
   timeoutMs?: number;
   capBytes?: number;
+  /** Header names that carry a key (the step's own auth header, whatever it is called): dropped when a redirect leaves the origin, like the fixed sensitive names. */
+  secretHeaders?: readonly string[];
+  /** Values that came from the Vault: any header holding one is dropped when a redirect leaves the origin, whatever its name. */
+  secretValues?: readonly string[];
 }
 export type RequestResult =
   | { ok: true; status: number; headers: Record<string, string>; text: string; finalUrl: string }
@@ -290,11 +300,13 @@ export async function requestPublic(req: PublicRequest, deps: FetchDeps): Promis
   const deadline = AbortSignal.timeout(req.timeoutMs ?? REQUEST_TIMEOUT_MS);
   let current = req.url;
   let headers: Record<string, string> = { ...(req.headers ?? {}) };
+  const named = new Set((req.secretHeaders ?? []).map((n) => n.toLowerCase()));
+  const values = (req.secretValues ?? []).filter((v) => v.length >= 4);
   let origin = "";
   for (let followed = 0; followed <= MAX_REDIRECTS; followed++) {
     const vetted = await vet(current, deps.lookup);
     if (!vetted.ok) return vetted;
-    if (origin !== "" && vetted.url.origin !== origin) headers = Object.fromEntries(Object.entries(headers).filter(([k]) => !SENSITIVE.test(k)));
+    if (origin !== "" && vetted.url.origin !== origin) headers = Object.fromEntries(Object.entries(headers).filter(([k, v]) => !SENSITIVE.test(k) && !named.has(k.toLowerCase()) && !values.some((x) => v.includes(x))));
     origin = vetted.url.origin;
     const body = req.body !== undefined && method !== "GET" && method !== "HEAD" ? req.body : undefined;
     let response: Response;

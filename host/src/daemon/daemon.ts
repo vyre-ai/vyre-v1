@@ -1218,7 +1218,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             return r.output;
           },
           unseal: (s) => seal.unseal(s), now,
-          evaluators: moduleWhens(loaded.moduleExports, () => db, (cap, input) => system(cap, input)),
+          evaluators: moduleWhens(loaded.moduleExports, () => db, (cap, input) => system(cap, input), async (cap, input, person) => {
+            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "gate" });
+            if (r.status !== "ok") throw new Error(`${cap} did not answer`);
+            return r.output;
+          }),
           outward: moduleOutward(loaded.moduleExports), fetches: moduleFetches(loaded.moduleExports),
           threads: threadChain,
           mode: (id) => {

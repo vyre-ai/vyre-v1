@@ -163,7 +163,9 @@ test("a try_read response from the app never enters an agent turn transcript", a
     const running = await post(daemon, AGENT, "/v1/engine/turn/start", { threadId, agentId: "agt_scout", qseq: enqueued.data["qseq"], placement: "host", engine: "anthropic", model: "claude" });
     const turnId = String((running.data["turn"] as { turnId?: string } | undefined)?.turnId ?? "");
     assert.match(turnId, /^trn_/);
-    // The agent asks for the same read and the whole reply goes into the turn, as an engine does with a tool result.
+    // The agent asks for the same read and the whole reply goes into the turn, as an engine does with a tool result. A key goes only to a host a person approved for it (Always allow on the held read).
+    const approved = await post(daemon, OWNER, "/v1/automations/key_hosts/allow", { vaultItemId: handle, host: "api.stripe.com", idempotencyKey: "tr-read-host" });
+    assert.equal(approved.status, 200, approved.text);
     const asAgent = await post(daemon, AGENT, "/v1/automations/try_read", {
       method: "GET", path: "/v1/customers", domains: ["api.stripe.com"], vaultItemId: `${handle}.api_key`, actionKey: "list_customers",
     });

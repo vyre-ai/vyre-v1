@@ -15,7 +15,7 @@ import { Btn, Glyph, IconBtn, LogoTile, Mono } from "../layout/parts.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { MASK, formatEnv, keysOf } from "./env.ts";
 import { AutomationsRow } from "./AutomationsRow.tsx";
-import { usedByOf } from "./automations.ts";
+import { hiddenOf, trashLine, usedByOf } from "./automations.ts";
 import { WhoCanUse } from "./WhoCanUse.tsx";
 import { createRevealStore } from "./reveal.ts";
 import type { RevealStore } from "./reveal.ts";
@@ -93,11 +93,12 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
   useEffect(() => { if (askDelete) setConfirmDelete(true); }, [askDelete]);
   // the confirm names the Automations that use this item, so the person knows what stops working
   const [usedBy, setUsedBy] = useState<string[]>([]);
+  const [usedHidden, setUsedHidden] = useState(0);
   const usedHandle = got.status === "ready" ? got.data.item.handle : "";
   useEffect(() => {
-    if (!confirmDelete || !usedHandle) { setUsedBy([]); return undefined; }
+    if (!confirmDelete || !usedHandle) { setUsedBy([]); setUsedHidden(0); return undefined; }
     let live = true;
-    void data.call("automations.vault_usage", { handle: usedHandle }).then((out) => { if (live) setUsedBy(usedByOf(out).map((u) => u.name)); }, () => undefined);
+    void data.call("automations.vault_usage", { handle: usedHandle }).then((out) => { if (live) { setUsedBy(usedByOf(out).map((u) => u.name)); setUsedHidden(hiddenOf(out)); } }, () => undefined);
     return () => { live = false; };
   }, [confirmDelete, data, usedHandle]);
   const fieldKeys = got.status === "ready" ? got.data.fields.map((f) => f.key) : [];
@@ -268,7 +269,7 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
 
           {confirmDelete ? (
             <View style={s.confirm} testID="item-confirm-delete" accessibilityRole="alert">
-              <Text style={s.confirmText}>{`Move ${item.name} to Trash? ${usedBy.length > 0 ? `${usedBy.length > 2 ? `${usedBy.slice(0, 2).join(", ")} and ${usedBy.length - 2} more` : usedBy.join(" and ")} ${usedBy.length === 1 ? "uses" : "use"} it and will fail` : `Agents and Automations that ask for ${item.handle} lose it`} until you bring it back.`}</Text>
+              <Text style={s.confirmText}>{trashLine(item, usedBy, usedHidden)}</Text>
               <Btn label="Move to Trash" danger onPress={() => { void trash(); }} testID="item-delete-yes" />
               <Btn label="Cancel" onPress={() => setConfirmDelete(false)} testID="item-delete-no" />
             </View>

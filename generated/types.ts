@@ -3203,6 +3203,34 @@ export type AutomationsHttpSendOut = {
   headers: Record<string, string>;
   body: unknown;
 };
+export type AutomationsKeyHostsAllowIn = {
+  vaultItemId: string;
+  host: string;
+};
+export type AutomationsKeyHostsAllowOut = {
+  hosts: Array<{
+      host: string;
+      by: string;
+      at: number;
+    }>;
+};
+export type AutomationsKeyHostsListIn = {
+  itemId: string;
+};
+export type AutomationsKeyHostsListOut = {
+  hosts: Array<{
+      host: string;
+      by: string;
+      at: number;
+    }>;
+};
+export type AutomationsKeyHostsRemoveIn = {
+  itemId: string;
+  host: string;
+};
+export type AutomationsKeyHostsRemoveOut = {
+  removed: boolean;
+};
 export type AutomationsListIn = {
   section?: "personal" | "shared" | "space";
   folder?: string;
@@ -4696,6 +4724,7 @@ export type AutomationsVaultUsageOut = {
               title: string;
             }>;
         }>;
+      hidden?: number;
     }>;
 };
 export type AutomationsVersionsIn = {
@@ -44912,6 +44941,9 @@ export interface CapMap {
   "automations.groups.rename": { in: AutomationsGroupsRenameIn; out: AutomationsGroupsRenameOut };
   "automations.http_read": { in: AutomationsHttpReadIn; out: AutomationsHttpReadOut };
   "automations.http_send": { in: AutomationsHttpSendIn; out: AutomationsHttpSendOut };
+  "automations.key_hosts.allow": { in: AutomationsKeyHostsAllowIn; out: AutomationsKeyHostsAllowOut };
+  "automations.key_hosts.list": { in: AutomationsKeyHostsListIn; out: AutomationsKeyHostsListOut };
+  "automations.key_hosts.remove": { in: AutomationsKeyHostsRemoveIn; out: AutomationsKeyHostsRemoveOut };
   "automations.list": { in: AutomationsListIn; out: AutomationsListOut };
   "automations.make_personal_copy": { in: AutomationsMakePersonalCopyIn; out: AutomationsMakePersonalCopyOut };
   "automations.migrate_runs": { in: AutomationsMigrateRunsIn; out: AutomationsMigrateRunsOut };

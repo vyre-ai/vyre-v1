@@ -425,7 +425,7 @@ export default defineManifest({
     }),
     read('automations.vault_usage', 'Which Automation steps use which Vault item, by handle. Optionally one item. Only Automations the caller can see. A Vault value is never included.', {
       in: { handle: t.opt(id.handle) },
-      out: { uses: t.arr(t.obj({ handle: id.handle, automations: t.arr(t.obj({ automationId: id.automation, name: t.str(), status: t.str(), steps: t.arr(t.obj({ nodeId: t.str(), title: t.str() })) })) })) },
+      out: { uses: t.arr(t.obj({ handle: id.handle, automations: t.arr(t.obj({ automationId: id.automation, name: t.str(), status: t.str(), steps: t.arr(t.obj({ nodeId: t.str(), title: t.str() })) })), hidden: t.opt(t.int({ description: 'Asked about one item the caller can see: how many Automations they cannot open also use it (a count, never names)' })) })) },
       tool: 'automations',
     }),
     read('automations.connector_offers', 'Open connector setup offers. Each one names an app. A Vault value is not included.', {
@@ -468,7 +468,27 @@ export default defineManifest({
         prefix: t.opt(t.str({ description: 'Text before the key in that header. Default Bearer for Authorization, none otherwise.' })),
       },
       out: { level: t.enm('tested', 'draft'), reason: t.opt(t.str()), status: t.opt(t.int()) },
+      // a key goes only to a host a person approved for it: an agent's read to any other host waits for a person who may use the item (Allow, Always allow, Deny)
+      risk: 'medium', gate: { act: 'send', when: 'automations.key_host_unapproved(input)' }, errors: ['permission.needs_approval'],
       tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    read('automations.key_hosts.list', 'The hosts a person approved for one Vault key: a key is sent only to these, or to the host of the item\'s own saved address. Names only, never a value.', {
+      in: { itemId: t.str({ description: 'The item id (vit_...) or its handle' }) },
+      out: { hosts: t.arr(t.obj({ host: t.str(), by: t.str(), at: t.int() })) },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    write('automations.key_hosts.allow', 'A person who may use a Vault key approves one host it may be sent to. A person only.', {
+      in: { vaultItemId: t.str({ description: 'The item id (vit_...) or its handle (#Name or #Name.field)' }), host: t.str() },
+      out: { hosts: t.arr(t.obj({ host: t.str(), by: t.str(), at: t.int() })) },
+      errors: ['permission.no_grant', 'validation.bad_input'],
+      agent: { planMode: 'blocked' },
+    }),
+    write('automations.key_hosts.remove', 'A person who may use a Vault key removes a host it was approved for. The next use of the key there waits for a person again.', {
+      in: { itemId: t.str({ description: 'The item id (vit_...) or its handle' }), host: t.str() },
+      out: { removed: t.bool() },
+      errors: ['permission.no_grant', 'validation.bad_input'],
       agent: { planMode: 'blocked' },
     }),
     write('automations.connector_share', 'Offer tested connector actions to another Space as a draft. The reply is the app name and the action names. A key is not stored.', {

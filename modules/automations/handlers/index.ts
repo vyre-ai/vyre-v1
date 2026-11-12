@@ -11,6 +11,7 @@ import { openDocument } from "./open-document.ts";
 import { openMcp } from "./open-mcp.ts";
 import { readDocs } from "./read-docs.ts";
 import { connectorCard } from "./connector-card.ts";
+import { keyHostsAllow, keyHostsList, keyHostsRemove } from "./key-hosts.ts";
 import { vaultUsage } from "./vault-usage.ts";
 import { allLevels } from "../connector-level.ts";
 import type { LevelDb } from "../connector-level.ts";
@@ -52,6 +53,9 @@ export const handlers = {
   "automations.connector_offer.accept": acceptConnectorOffer,
   "automations.open_mcp": openMcp,
   "automations.try_read": tryConnectorRead,
+  "automations.key_hosts.list": keyHostsList,
+  "automations.key_hosts.allow": keyHostsAllow,
+  "automations.key_hosts.remove": keyHostsRemove,
   "automations.connector_share": shareConnector,
   "automations.connector_shares": connectorShares,
   "automations.fire": fire,

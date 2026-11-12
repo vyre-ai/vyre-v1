@@ -6,3 +6,8 @@
 - Vault: the open item stays open when another item is used and the list re-sorts; before, the detail jumped to whichever item moved to the top.
 - Automations: a web request trigger shows its address on the trigger card, with Copy, so you can paste it into the app that calls it without going to the Settings tab.
 - Vault on a phone: the Automations buttons on an item (Sync to Records, Add to Automations) wrap under the heading instead of running past the edge.
+- A Vault key goes only to a host a person approved for it. When an agent's test read would send a key anywhere else, it waits for you: Allow sends it once, Always allow keeps that host on the key, Deny tells the agent. The host of the key's own saved address needs no approval. Automations, `automations.key_hosts.*` lists, allows and removes approved hosts.
+- The test read looks a host up once and connects to exactly the address it checked, so a name that changes its answer cannot move a key to a private address.
+- An HTTP request step's key no longer follows a redirect to another site, whatever the key's header is called.
+- A step that uses a Vault key can be added or changed only by someone who may use that key ("Step 2 uses a key you cannot use"); other steps stay editable. A key cannot go to an address whose host is filled in when the step runs.
+- Used in, and the Move to Trash confirm, count the Automations you cannot open that use the key ("and 2 more you cannot open"), and the confirm says agents lose the key too.

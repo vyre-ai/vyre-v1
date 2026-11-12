@@ -9,9 +9,9 @@ Try one read on a documented host. The Vault fills the key when the host sends i
 | Effects | read |
 | Permission | grant only |
 | Grant level | view |
-| Risk | low |
+| Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when automations.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
@@ -50,6 +50,7 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
+- permission.needs_approval
 - permission.no_grant
 - validation.bad_input
 

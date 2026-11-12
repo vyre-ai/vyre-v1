@@ -44,6 +44,7 @@ type Out = {
               title: string;
             }>;
         }>;
+      hidden?: number;
     }>;
 };
 ```
@@ -79,7 +80,8 @@ type Out = {
             ]
           }
         ],
-        "handle": "#Dana_Lawmatics"
+        "handle": "#Dana_Lawmatics",
+        "hidden": 1
       }
     ]
   }

@@ -11,6 +11,7 @@ import type { ConversationData } from "./data.tsx";
 import { Glyph } from "./parts.tsx";
 import { collect } from "./model.ts";
 import { askLine, askRows, denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, plainRows, sentLine, wantsLine } from "./approval-model.ts";
+import { keyReadHost } from "../../../../../../lib/hold-words.ts";
 import type { DiffLine } from "./approval-model.ts";
 import { Face } from "../needsyou/parts.tsx";
 import { HeldCard } from "./held-card.tsx";
@@ -127,7 +128,9 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
     );
   }
   // a change held only because the chat is in Ask first is a person's to always allow; any other act needs an admin, so the card does not offer it
-  const allowable = held.act === "approve";
+  // a connector's test read that would send a Vault key to a host nobody approved: Always allow saves that host on the key (the Vault item page lists it and takes it back), then sends this one
+  const keyHost = held.cap === "automations.try_read" ? keyReadHost(held.input) : "";
+  const allowable = held.act === "approve" || keyHost !== "";
   const ended = outcome ?? outcomeOf(task.state);
   if (ended) {
     return (
@@ -144,7 +147,10 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
   /** Allow this and every call like it from this agent in this chat, for 30 days. The rule is the Gate's; /permissions lists it and takes it back. */
   const always = (): void => {
     setBusy(true); setLine(null);
-    void Promise.resolve(data.call("gate.allow.set", { act: "approve", target: held.cap, agentId, threadId: data.threadId })).then(
+    const keep = keyHost !== ""
+      ? data.call("automations.key_hosts.allow", { vaultItemId: String((held.input as { vaultItemId?: unknown } | null)?.vaultItemId ?? ""), host: keyHost })
+      : data.call("gate.allow.set", { act: "approve", target: held.cap, agentId, threadId: data.threadId });
+    void Promise.resolve(keep).then(
       () => act("approve"),
       () => { setBusy(false); setLine("Could not keep that rule. Try Allow."); },
     );

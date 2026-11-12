@@ -236,6 +236,11 @@ export function stubs(ctx: CallCtx) {
       },
       http_read: call("automations.http_read"),
       http_send: call("automations.http_send"),
+      key_hosts: {
+        allow: call("automations.key_hosts.allow"),
+        list: call("automations.key_hosts.list"),
+        remove: call("automations.key_hosts.remove"),
+      },
       list: call("automations.list"),
       make_personal_copy: call("automations.make_personal_copy"),
       migrate_runs: call("automations.migrate_runs"),

@@ -13,6 +13,7 @@ import {
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
 import { regrant, sendersOf, shareSenders } from "../grants.ts";
+import { guardKeySteps } from "../key-steps.ts";
 import { publishAllowed } from "../connector-breadth.ts";
 import { storedLevel } from "../connector-level.ts";
 import { admit, contractOf } from "../val.ts";
@@ -531,6 +532,7 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
   const def: Definition = input.definition ?? EMPTY;
   checkStructure(ctx, def);
   refuseSecret(ctx, def);
+  await guardKeySteps(ctx, undefined, def);
   if (input.groupId && !findGroup(ctx.db, input.groupId)) raise(ctx, "validation.not_found", "That Group does not exist.", { reason: "no_group" });
   const now = ctx.now();
   const owner = me(ctx);
@@ -562,6 +564,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   if (input.definition !== undefined && !same(input.definition, a.definition)) {
     checkStructure(ctx, input.definition);
     refuseSecret(ctx, input.definition);
+    await guardKeySteps(ctx, a.definition, input.definition);
     const policy = readPolicy(ctx.db);
     const blocking = a.status === "on" ? await blocksGoingLive(ctx, a.kind, input.definition, policy) : validateDefinition(input.definition, policy);
     if (a.status === "on" && hasErrors(blocking)) {
@@ -656,6 +659,7 @@ export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> 
   const v = versionById(ctx.db, a.id, input.versionId);
   if (!v) raise(ctx, "validation.not_found", "That version does not exist.", { reason: "no_version" });
   refuseSecret(ctx, v.definition);
+  await guardKeySteps(ctx, a.definition, v.definition);
   const restored = a.status === "on" ? await blocksGoingLive(ctx, a.kind, v.definition, readPolicy(ctx.db)) : validateDefinition(v.definition, readPolicy(ctx.db));
   if (a.status === "on" && hasErrors(restored)) {
     raise(ctx, "validation.precondition_failed", "Turn the automation off before restoring a version with errors.", { reason: "invalid_definition" });

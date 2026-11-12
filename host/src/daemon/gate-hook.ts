@@ -9,6 +9,7 @@
 import { canonical, sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { OUTWARD_ACTS, bringsOutside, linksIn, targetsOf } from "../../../lib/grants.ts";
+import { resolveVaultItem } from "../seams/vault.ts";
 import { fail } from "../routes/errors.ts";
 import type { CtxSeed, GateHook } from "../invoke.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
@@ -24,7 +25,7 @@ export interface GateHookDeps {
    * Conditions a module answers itself, by the function name in a capability's `when` (for example `git.is_protected(input.branch)`, which needs the folder's git settings). The
    * expression language has no such functions, so the Gate asks the module; an evaluator that throws counts as holding, like an unreadable expression.
    */
-  evaluators?: Record<string, (input: unknown, seed: Pick<CtxSeed, "principal" | "thread">) => boolean | Promise<boolean>>;
+  evaluators?: Record<string, (input: unknown, seed: Pick<CtxSeed, "principal" | "thread"> & { actingFor?: string | undefined }) => boolean | Promise<boolean>>;
   /** The held row an approval names (the host owns modules.db): who asked, whom for, run and thread, the stored payload hash and its state. Null when there is none. */
   /** What a capability that can go out without saying so does on this call: the act and where it goes. Null when this call stays here. */
   outward?(cap: string, input: unknown): { act: string; targets: string[] } | null;
@@ -59,7 +60,7 @@ export function whenHolds(when: string | undefined, input: unknown, seed: Pick<C
 /** `fn.name(input.field)`: a condition the module behind `fn.name` evaluates. */
 const MODULE_WHEN = /^\s*([a-z_]+\.[a-z_]+)\(\s*input(?:\.[A-Za-z_]+)*\s*\)\s*$/;
 
-async function appliesWhen(d: Pick<GateHookDeps, "evaluators">, when: string | undefined, input: unknown, seed: Pick<CtxSeed, "principal" | "thread">): Promise<boolean> {
+async function appliesWhen(d: Pick<GateHookDeps, "evaluators">, when: string | undefined, input: unknown, seed: Pick<CtxSeed, "principal" | "thread"> & { actingFor?: string | undefined }): Promise<boolean> {
   const fn = when === undefined ? undefined : MODULE_WHEN.exec(when)?.[1];
   const evaluate = fn === undefined ? undefined : d.evaluators?.[fn];
   if (!evaluate) return whenHolds(when, input, seed);
@@ -197,6 +198,8 @@ export function moduleFetches(exports: ReadonlyMap<string, Record<string, unknow
 
 export function moduleWhens(
   exports: ReadonlyMap<string, Record<string, unknown>>, db: () => ScopedDb | null, call: (cap: string, input: unknown) => Promise<unknown>,
+  /** A read as one person (what they may see), for a condition that depends on it. */
+  callAs?: (cap: string, input: unknown, person: string) => Promise<unknown>,
 ): NonNullable<GateHookDeps["evaluators"]> {
   const out: NonNullable<GateHookDeps["evaluators"]> = {};
   // an agent's delete inside work/ on its own computer is its own change; anywhere else asks
@@ -205,6 +208,30 @@ export function moduleWhens(
   if (typeof fn === "function") {
     const isProtected = fn as (ctx: { db: ScopedDb; call: typeof call }, input: unknown) => Promise<boolean>;
     out["git.is_protected"] = (input) => { const h = db(); return h ? isProtected({ db: h, call }, input) : true; };
+  }
+  // A test read sends a Vault key: it goes, without a person, only to a host approved for that item (one a person allowed, or the host of the item's own saved address). Anything else waits for
+  // a person who may use the item. A person's own read is theirs: the Vault releases the key only if they may use it.
+  const planned = exports.get("automations")?.["plannedHost"];
+  const approved = exports.get("automations")?.["keyHostApproved"];
+  if (typeof planned === "function" && typeof approved === "function") {
+    out["automations.key_host_unapproved"] = async (input, seed) => {
+      if (seed.principal.kind === "person") return false;
+      const host = (planned as (i: unknown) => string | null)(input);
+      if (host === null) return false;   // the read plans no request (bad method, host outside its own list, not https): the handler refuses it and sends nothing
+      const h = db();
+      if (!h) return true;
+      const itemId = resolveVaultItem(h, "vault_item", "handle", String((input as { vaultItemId?: unknown }).vaultItemId ?? ""));
+      if (itemId === null) return false;   // no such item: the Vault gives no key, nothing is sent
+      if ((approved as (d: unknown, id: string, host: string) => boolean)(h, itemId, host)) return false;
+      try {
+        // the item's own saved address (url, website, site, uri): its host and that domain's subdomains, as the Vault's matcher reads it, for the person the key would be released to
+        const person = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
+        if (!person || !callAs) return true;
+        const m = (await callAs("vault.items.match", { url: `https://${host}/` }, person)) as { items?: { item?: { id?: unknown } }[] } | null;
+        if ((m?.items ?? []).some((x) => x.item?.id === itemId)) return false;
+      } catch { /* the matcher could not answer: ask the person */ }
+      return true;
+    };
   }
   const danger = exports.get("terminal")?.["isDangerCall"];
   // a destructive or elevated command is held for a yes whatever the mode; an unreadable call counts as destructive

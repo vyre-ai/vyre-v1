@@ -87,3 +87,20 @@ export function usedByOf(out: unknown): UsedBy[] {
 }
 
 export const stepsLine = (n: number): string => (n === 1 ? "1 step" : `${n} steps`);
+
+/** How many Automations the person cannot open also use the item (vault_usage gives a count for one item they can see, never names). */
+export function hiddenOf(out: unknown): number {
+  const uses = (out as { uses?: unknown } | null)?.uses;
+  if (!Array.isArray(uses)) return 0;
+  return uses.reduce((n: number, u) => { const h = (u as { hidden?: unknown } | null)?.hidden; return n + (typeof h === "number" && h > 0 ? h : 0); }, 0);
+}
+
+/** The Trash confirm: who stops working, named where the person can open them and counted where they cannot. */
+export function trashLine(item: { name: string; handle: string }, names: readonly string[], hidden: number): string {
+  const n = names.length + hidden;
+  if (n === 0) return `Move ${item.name} to Trash? Agents and Automations that ask for ${item.handle} lose it until you bring it back.`;
+  const shown = names.slice(0, 3);
+  const parts = [...shown, ...(names.length > shown.length ? [`${names.length - shown.length} more`] : []), ...(hidden > 0 ? [`${hidden} you cannot open`] : [])];
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0]!;
+  return `Move ${item.name} to Trash? ${n === 1 ? "1 automation uses" : `${n} automations use`} this key: ${list}. ${n === 1 ? "It" : "They"} will fail until it is restored or replaced. Agents that ask for ${item.handle} lose it too.`;
+}

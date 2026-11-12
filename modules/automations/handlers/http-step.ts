@@ -122,7 +122,8 @@ async function request(ctx: AutoCtx, input: Row, allowed: ReadonlySet<string>, k
   const auth = await authHeader(ctx, input["auth"]);
   if (auth) { headers[auth.name] = auth.value; secrets.push(auth.secret, auth.value); }
   const deps: FetchDeps = documentNetwork() ?? { fetch: globalThis.fetch, lookup: lookupHost };
-  const result = await requestPublic({ method, url, headers, ...(body !== undefined ? { body } : {}) }, deps);
+  // the key's own header, whatever it is called, and any header that holds a Vault value stay on the origin the person wrote: a redirect elsewhere goes without them
+  const result = await requestPublic({ method, url, headers, ...(body !== undefined ? { body } : {}), ...(auth ? { secretHeaders: [auth.name], secretValues: secrets } : {}) }, deps);
   if (!result.ok) {
     const code = result.reason === "The document is too large." ? "validation.too_large" : /not a public host|Only an https|cannot be opened|username or password/.test(result.reason) ? "validation.bad_input" : "provider.network";
     raise(ctx, code, scrub(result.reason, secrets));

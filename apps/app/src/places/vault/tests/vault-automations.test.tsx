@@ -178,3 +178,17 @@ test("Move to Trash names the Automations that use the item", async () => {
   assert.ok(confirm, "the confirm shows");
   assert.match(textOf(confirm), /New lead to GoHighLevel/, `the confirm names the Automation: ${textOf(confirm)}`);
 });
+
+test("Automations the person cannot open are counted, never linked, in Used in and in the Trash confirm", async () => {
+  const v = createSampleVault();
+  const base = v.data.call.bind(v.data);
+  v.data = { ...v.data, call: async (cap, input) => (cap === "automations.vault_usage"
+    ? { uses: [{ handle: "#Northwind_GHL", automations: [{ automationId: "aut_nightly", name: "New lead to GoHighLevel", status: "on", steps: [{ nodeId: "n1", title: "Create contact" }] }], hidden: 2 }] }
+    : base(cap, input)) };
+  const root = await mount(createRoot, <Wrap data={v.data}><ItemEnv itemId="vit_ghl" askDelete={1} onEdit={() => undefined} onGone={() => undefined} onNote={() => undefined} /></Wrap>);
+  await settle();
+  assert.match(textOf(find(root, "item-used-hidden")), /2 more you cannot open/);
+  const confirm = textOf(find(root, "item-confirm-delete"));
+  assert.match(confirm, /3 automations use this key: New lead to GoHighLevel and 2 you cannot open/, confirm);
+  assert.match(confirm, /Agents that ask for #Northwind_GHL lose it too/, confirm);
+});
