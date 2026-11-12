@@ -79,3 +79,30 @@ test("on a computer that joined the Space the same person's next call reuses the
     assert.equal(revoked, 1, "the first person's lingering channel ended when the second person came");
   } finally { setFillLinger(null); bindFill(null); bindRemote(null); }
 });
+
+test("on a joined server nothing fills between calls: the channel is paused (401) during the linger, and the same person's next call resumes it with no new configure", async () => {
+  const { leaseFill, setFillLinger } = await import("../handlers/tools/common.ts");
+  const p = harness({ respond: { "agents.get": (b) => ({ agent: { agentId: b["agentId"], folderId: "fld_intake", ownerId: "usr_dana" } }) } });
+  const svc = createFillService({ source: { lookup: async () => ({ kind: "value", itemId: "vit_x", value: "sk-test-VALUE-0123456789abcdef" } satisfies FillLookup) }, log: () => undefined });
+  const grants: Array<{ fillToken: string }> = [];
+  bindFill({ issue: async (x) => { const g = await svc.issue(x as never); grants.push(g); return g; }, url: () => "http://host.docker.internal:8420/computers/fill", nodeSecure: () => true });
+  bindRemote(() => p.fake.host as never);
+  setFillLinger(5_000);
+  try {
+    const made = await (await import("../handlers/lifecycle.ts")).provision(p.ctx, { agentId: INTAKE, idempotencyKey: "k-pause" });
+    p.ctx.db.run("UPDATE computers_computers SET node_id = ? WHERE computer_id = ?", "srv_home", made.computer.computerId);
+    const id = made.computer.computerId;
+    const row = computerBy(p.ctx.db, id)!;
+    const dana = asPerson(p, { kind: "agent", id: INTAKE }, { actingFor: "usr_dana" });
+    const askAs = (token: string) => svc.serve({ authorization: `Bearer ${token}`, body: { handle: "Stripe", field: "api_key", computerId: id }, secure: true });
+    const l1 = (await leaseFill(dana.ctx, row, p.fake.host as never))!;
+    const token = String((p.fake.named("configure")[0]!.args as { fillToken?: string }).fillToken);
+    assert.equal((await askAs(token)).status, 200, "while a call runs the page can fill");
+    l1.done();
+    assert.equal((await askAs(token)).status, 401, "between calls, during the linger, a page loading fills nothing");
+    const l2 = (await leaseFill(dana.ctx, row, p.fake.host as never))!;
+    assert.equal(p.fake.named("configure").length, 1, "the next call made no new node job");
+    assert.equal((await askAs(token)).status, 200, "the same person's next call resumes it");
+    l2.done();
+  } finally { setFillLinger(null); bindFill(null); bindRemote(null); }
+});

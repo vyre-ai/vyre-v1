@@ -315,22 +315,64 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
 // The Vault channel of an older desktop acts for the person whose turn is using it, for as long as that turn's calls run, as the Space browser's does (a token per turn): never for the agent's owner for the
 // computer's whole life. With no person behind the call there is no channel at all. agentd holds one filler, so one person's calls hold the desktop's channel at a time; another person's call waits briefly,
 // then says so. A token that ended leaves agentd holding a dead one, which the host refuses.
-interface Desk { asker: string; calls: number; revoke(): void; extend?(): void; ready: Promise<boolean>; timer?: ReturnType<typeof setTimeout> }
-const deskGrants = new Map<string, Desk>();
+// ---- the Vault channel of one person's turn, for the Space browser and for an older desktop: one slot-first lease
+interface Slot { token: string; calls: number; revoke(): void; extend?(): void; pause?(): void; resume?(): void; ready: Promise<boolean>; err?: unknown; timer?: ReturnType<typeof setTimeout> }
+interface Made { token: string; revoke(): void; extend?(): void; pause?(): void; resume?(): void }
+/** A token for a turn's calls cannot outlive the call's own time limit by more than this: a revoke that is missed is never for ever. */
+const TOKEN_TTL_MS = MAX_TOOL_MS + 30_000;
+function dropSlot(slots: Map<string, Slot>, key: string, s: Slot): void {
+  if (s.timer) clearTimeout(s.timer);
+  if (slots.get(key) === s) slots.delete(key);
+  s.revoke();
+}
+/**
+ * One token per key, for as long as calls use it. The slot is taken before anything is awaited, so calls that start together share one token; a call that joins a slot another call dropped meanwhile takes a
+ * fresh one; the token is extended each time a call joins (its ttl starts again) and revoked once, when the last call has ended. With `lingerMs` the token is only paused for that long after the last call
+ * (it answers nothing, 401), so the next call of the same person resumes it without making another; then it is revoked. `make` issues the token and does what has to be done with it; a failure is returned as null,
+ * or thrown when `throwErrors`.
+ */
+async function turnLease(slots: Map<string, Slot>, key: string, make: () => Promise<Made>, o: { lingerMs?: number; throwErrors?: boolean } = {}): Promise<{ token: string; done(): void } | null> {
+  const lease = (s: Slot): { token: string; done(): void } => ({
+    token: s.token,
+    done() {
+      s.calls -= 1;
+      if (s.calls > 0 || slots.get(key) !== s) return;
+      if (o.lingerMs !== undefined && o.lingerMs > 0) { s.pause?.(); s.timer = setTimeout(() => dropSlot(slots, key, s), o.lingerMs); s.timer.unref?.(); return; }
+      dropSlot(slots, key, s);
+    },
+  });
+  for (;;) {
+    const held = slots.get(key);
+    if (held) {
+      held.calls += 1;   // counted at once, so the slot cannot be dropped under this call while it waits
+      if (!(await held.ready)) { held.calls -= 1; if (o.throwErrors && held.err !== undefined) throw held.err; return null; }
+      if (slots.get(key) !== held) { held.calls -= 1; continue; }   // dropped in the meantime: a fresh slot
+      if (held.timer) { clearTimeout(held.timer); delete held.timer; }
+      held.resume?.(); held.extend?.();
+      return lease(held);
+    }
+    const s: Slot = { token: "", calls: 1, revoke: () => undefined, ready: Promise.resolve(false) };
+    s.ready = (async () => {
+      try { const m = await make(); s.token = m.token; s.revoke = m.revoke; if (m.extend) s.extend = m.extend; if (m.pause) s.pause = m.pause; if (m.resume) s.resume = m.resume; return true; }
+      catch (e) { s.err = e; if (slots.get(key) === s) slots.delete(key); s.revoke(); return false; }
+    })();
+    slots.set(key, s);
+    if (!(await s.ready)) { if (o.throwErrors && s.err !== undefined) throw s.err; return null; }
+    return lease(s);
+  }
+}
+
+// An older desktop: its Vault channel acts for the person whose turn is using it, for as long as that turn's calls run, as the Space browser's does: never for the agent's owner for the computer's whole life.
+// With no person behind the call there is no channel at all. agentd holds one filler, so one person's calls hold the desktop's channel at a time; another person's call waits briefly, then says so. A token that
+// ended leaves agentd holding a dead one, which the host refuses.
+const deskSlots = new Map<string, Slot>();
 let fillWaitMs = 5_000;
 /** For tests: how long a person's call waits for another person's calls on the same desktop. */
 export function setFillWait(ms: number | null): void { fillWaitMs = ms ?? 5_000; }
-/** A token for a desktop call cannot outlive the call's own time limit by more than this: a revoke that is missed is never for ever. */
-const TOKEN_TTL_MS = MAX_TOOL_MS + 30_000;
-/** On a computer that joined the Space, configuring agentd is a node job (up to one poll away), so the same person's next call within this time reuses the channel instead of making another. */
+/** On a computer that joined the Space, configuring agentd is a node job (up to one poll away), so the same person's next call within this time reuses the channel (paused between calls) instead of making another. */
 let lingerMs = 15_000;
 /** For tests. */
 export function setFillLinger(ms: number | null): void { lingerMs = ms ?? 15_000; }
-function drop(computerId: string, g: Desk): void {
-  if (g.timer) clearTimeout(g.timer);
-  if (deskGrants.get(computerId) === g) deskGrants.delete(computerId);
-  g.revoke();
-}
 export async function leaseFill(ctx: CompCtx, c: ComputerRow, host: ComputerHost): Promise<{ done(): void } | null> {
   const binding = boundFill();
   if (!binding) return null;
@@ -339,41 +381,21 @@ export async function leaseFill(ctx: CompCtx, c: ComputerRow, host: ComputerHost
   const node = nodeOf(ctx.db, c.computerId);
   // a computer on a server of the person's reaches the Space over a network link: it gets a channel only when that link is private
   if (node !== null && binding.nodeSecure?.(node) !== true) return null;
+  const mine = `${c.computerId}|${asker}`;
   const until = Date.now() + fillWaitMs;
   for (;;) {
-    const cur = deskGrants.get(c.computerId);
-    if (!cur || cur.asker === asker) break;
-    if (cur.calls <= 0) { drop(c.computerId, cur); break; }   // another person's channel that only lingers: ended at once
+    const other = [...deskSlots].find(([k]) => k.startsWith(`${c.computerId}|`) && k !== mine);
+    if (!other) break;
+    if (other[1].calls <= 0) { dropSlot(deskSlots, other[0], other[1]); continue; }   // another person's channel that only lingers: ended at once
     if (Date.now() >= until) raise(ctx, "provider.unavailable", "Someone else's request is using this desktop's Vault channel right now. Try again in a moment.");
     await new Promise((res) => setTimeout(res, 50));
   }
-  const join = (g: Desk): { done(): void } => { g.calls += 1; if (g.timer) { clearTimeout(g.timer); delete g.timer; } g.extend?.(); return { done: () => release(c.computerId, g, node !== null) }; };
-  const held = deskGrants.get(c.computerId);
-  if (held) return (await held.ready) ? join(held) : null;
-  // the slot is taken before anything is awaited, so two calls that start together cannot both issue a token
-  const g: Desk = { asker, calls: 0, revoke: () => undefined, ready: Promise.resolve(false) };
-  g.ready = (async () => {
-    try {
-      const issued = await binding.issue({ computerId: c.computerId, agentId: c.agentId, asker, turn: true, ttlMs: TOKEN_TTL_MS, ...(node !== null ? { nodeId: node } : {}) });
-      g.revoke = issued.revoke; if (issued.extend) g.extend = issued.extend;
-      await host.configure({ computerId: c.computerId, tabLimit: c.tabLimit, fillUrl: binding.url(), fillToken: issued.fillToken });
-      return true;
-    } catch {
-      if (deskGrants.get(c.computerId) === g) deskGrants.delete(c.computerId);
-      g.revoke();
-      return false;
-    }
-  })();
-  deskGrants.set(c.computerId, g);
-  g.calls = 1;
-  if (!(await g.ready)) return null;
-  return { done: () => release(c.computerId, g, node !== null) };
-}
-function release(computerId: string, g: Desk, linger: boolean): void {
-  g.calls -= 1;
-  if (g.calls > 0 || deskGrants.get(computerId) !== g) return;
-  if (linger && lingerMs > 0) { g.timer = setTimeout(() => drop(computerId, g), lingerMs); g.timer.unref?.(); return; }
-  drop(computerId, g);
+  const l = await turnLease(deskSlots, mine, async () => {
+    const issued = await binding.issue({ computerId: c.computerId, agentId: c.agentId, asker, turn: true, ttlMs: TOKEN_TTL_MS, ...(node !== null ? { nodeId: node } : {}) });
+    try { await host.configure({ computerId: c.computerId, tabLimit: c.tabLimit, fillUrl: binding.url(), fillToken: issued.fillToken }); } catch (e) { issued.revoke(); throw e; }
+    return { token: issued.fillToken, revoke: issued.revoke, ...(issued.extend ? { extend: issued.extend } : {}), ...(issued.pause ? { pause: issued.pause } : {}), ...(issued.resume ? { resume: issued.resume } : {}) };
+  }, { lingerMs: node !== null ? lingerMs : 0 });
+  return l ? { done: l.done } : null;
 }
 
 export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
@@ -421,19 +443,13 @@ const NO_PICTURE_OR_CARD = "No picture here or in the chat: a Vault value is on 
 const faceSent = new Set<string>();
 // the steps that can set off a download report it (browserd waits for it to finish within a short bound), and the looks report what arrived after
 const REPORTS_DOWNLOADS = new Set(["chrome_open", "chrome_click", "chrome_act", "chrome_type", "chrome_send", "chrome_wait", "chrome_state"]);
-const fillGrants = new Map<string, { token: string; revoke(): void; calls: number }>();
-async function grantFor(binding: NonNullable<ReturnType<typeof boundFill>>, profileId: string, agentId: string, asker: string): Promise<{ token: string; done(): void }> {
-  const key = `${profileId}|${asker}`;
-  let g = fillGrants.get(key);
-  if (!g) {
-    const issued = await binding.issue({ computerId: profileId, agentId, asker, turn: true });
-    g = fillGrants.get(key) ?? { token: issued.fillToken, revoke: issued.revoke, calls: 0 };
-    if (g.token !== issued.fillToken) issued.revoke();   // another call of the same person got there first
-    fillGrants.set(key, g);
-  }
-  g.calls += 1;
-  const held = g;
-  return { token: held.token, done() { held.calls -= 1; if (held.calls <= 0 && fillGrants.get(key) === held) { fillGrants.delete(key); held.revoke(); } } };
+const fillGrants = new Map<string, Slot>();
+export async function grantFor(binding: NonNullable<ReturnType<typeof boundFill>>, profileId: string, agentId: string, asker: string): Promise<{ token: string; done(): void }> {
+  const l = await turnLease(fillGrants, `${profileId}|${asker}`, async () => {
+    const issued = await binding.issue({ computerId: profileId, agentId, asker, turn: true, ttlMs: TOKEN_TTL_MS });
+    return { token: issued.fillToken, revoke: issued.revoke, ...(issued.extend ? { extend: issued.extend } : {}) };
+  }, { throwErrors: true });
+  return l!;
 }
 
 /** One tool in the agent's profile of the Space browser. What comes back is scrubbed of the Vault values filled for this profile; no desktop frame exists, so there is no timeline step (the live view shows the page). */

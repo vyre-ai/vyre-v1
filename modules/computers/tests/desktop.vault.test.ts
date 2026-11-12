@@ -161,3 +161,30 @@ test("a turn token cannot outlive the call's own time limit: it expires, and a c
   t += 11_000;
   assert.equal((await ask(svc, g.fillToken, "cmt_1")).status, 401, "a missed revoke is never for ever");
 });
+
+test("the Space browser's turn tokens expire and extend exactly as the desktop's do: one shared lease", async () => {
+  const { grantFor } = await import("../handlers/tools/common.ts");
+  const issued: Array<{ ttlMs?: number; turn?: boolean }> = [];
+  let extended = 0, revoked = 0;
+  const binding = { issue: async (h: { ttlMs?: number; turn?: boolean }) => { issued.push(h); return { fillToken: "t".repeat(48), revoke() { revoked++; }, extend() { extended++; } }; }, url: () => "http://vault.test/fill" };
+  const [a, b] = await Promise.all([grantFor(binding as never, "agt_x", "agt_x", DANA), grantFor(binding as never, "agt_x", "agt_x", DANA)]);
+  assert.equal(issued.length, 1, "two calls of one person starting together share one token");
+  assert.ok(issued[0]!.ttlMs && issued[0]!.ttlMs > 130_000, "the token has an expiry past the tool limit");
+  assert.equal(extended, 1, "a call joining extends it");
+  a.done(); assert.equal(revoked, 0, "still in use by the other call");
+  b.done(); assert.equal(revoked, 1, "revoked once, when both ended");
+});
+
+test("a call that joins while the lease is being made is counted, so the first call's end cannot drop the token under it", async () => {
+  const { grantFor } = await import("../handlers/tools/common.ts");
+  let revoked = 0;
+  const binding = { issue: async () => { await new Promise((r) => setTimeout(r, 30)); return { fillToken: "t".repeat(48), revoke() { revoked++; } }; }, url: () => "http://vault.test/fill" };
+  const first = grantFor(binding as never, "agt_y", "agt_y", OMAR);
+  const joiner = grantFor(binding as never, "agt_y", "agt_y", OMAR);
+  (await first).done();
+  assert.equal(revoked, 0, "the joiner still holds it");
+  const j = await joiner;
+  assert.equal(j.token.length, 48);
+  j.done();
+  assert.equal(revoked, 1);
+});

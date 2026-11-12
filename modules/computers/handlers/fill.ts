@@ -40,14 +40,14 @@ export interface FillServiceDeps {
   now?: () => number;
 }
 
-export interface FillGrant { fillToken: string; revoke(): void; /** Start the token's life again (its ttl), while calls keep it in use. */ extend?(): void }
+export interface FillGrant { fillToken: string; revoke(): void; /** Start the token's life again (its ttl), while calls keep it in use. */ extend?(): void; /** No call is running: the token answers nothing (401) until resume, so nothing fills for this person between calls. */ pause?(): void; resume?(): void }
 export interface FillResponse { status: 200 | 400 | 401 | 403 | 404 | 503; body: Record<string, unknown> }
 
 /**
  * `nodeId` is set for a computer that lives on a computer that joined the Space: its fill crosses a network link, which must be private. `turn`: a token for one person's tool calls in a Space browser
  * profile, ended when they finish; several live side by side (one team agent working for two people at once), so a fill is always looked up as the person whose call it rides.
  */
-interface Holder { computerId: string; agentId: string; asker: string; nodeId?: string; turn?: boolean; /** The token ends this long after it was issued (or last extended): a missed revoke is never for ever. */ ttlMs?: number; until?: number }
+interface Holder { computerId: string; agentId: string; asker: string; nodeId?: string; turn?: boolean; /** No fill or invoke is answered while this is set: the person has no call running. */ paused?: boolean; /** The token ends this long after it was issued (or last extended): a missed revoke is never for ever. */ ttlMs?: number; until?: number }
 
 const HANDLE = /^[A-Za-z][A-Za-z0-9_]*$/;
 const FIELD = /^[A-Za-z0-9_]+$/;
@@ -86,6 +86,8 @@ export function createFillService(d: FillServiceDeps): FillService {
       return {
         fillToken: token,
         extend() { if (holder.ttlMs !== undefined) holder.until = now() + holder.ttlMs; },
+        pause() { holder.paused = true; },
+        resume() { holder.paused = false; },
         revoke() {
           if (hashOf.get(h.computerId) === hash) hashOf.delete(h.computerId);
           byHash.delete(hash);
@@ -98,6 +100,7 @@ export function createFillService(d: FillServiceDeps): FillService {
       const hashed = m ? await sha256(m[1]!) : undefined;
       const holder = hashed ? byHash.get(hashed) : undefined;
       if (!holder) return { status: 401, body: { code: "unauthorized" } };
+      if (holder.paused === true) return { status: 401, body: { code: "unauthorized" } };
       if (holder.until !== undefined && now() > holder.until) { byHash.delete(hashed!); return { status: 401, body: { code: "unauthorized" } }; }
       const b = req.body as { handle?: unknown; field?: unknown; computerId?: unknown; op?: unknown; capability?: unknown; input?: unknown } | null;
       if (b && b.op === "invoke") {
