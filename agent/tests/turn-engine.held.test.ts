@@ -76,3 +76,40 @@ test("stop with an agent drops that agent's queued turns and releases its parked
   assert.equal(engine.waiting("T").length, 0);
   assert.equal(engine.turns("T")[0]?.state, "cancelled");
 });
+
+test("stopTurn on a parked turn releases its wait and closes the turn, and says which turn it was", async () => {
+  const p = scriptedProvider({ script: (input) => (input.resumed ? [{ type: "text", text: "Sent." }, { type: "done" }] : [sendCall, { type: "done" }]) });
+  const runner = toolRunnerFrom(async () => ({ kind: "held", result: { ok: false, content: {} }, taskId: "tsk_p" }));
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, callTool: runner });
+  engine.openThread(thread());
+  engine.receive({ threadId: "T", author: person, body: "send it" });
+  await engine.idle("T");
+  const turn = engine.turns("T")[0]!;
+  assert.equal(turn.state, "waiting");
+  const r = await engine.stopTurn("T", turn.qseq, "stop");
+  assert.deepEqual(r, { state: "parked", turnId: turn.id, agentId: "intake" });
+  assert.equal(engine.turns("T")[0]?.state, "cancelled");
+  assert.deepEqual(engine.waiting("T"), []);
+  assert.equal(engine.resume("tsk_p", { approved: true }), null, "a later Allow wakes nothing");
+});
+
+test("a wake stopped while it starts leaves no wait behind, so nothing can run the answered call later", async () => {
+  const p = scriptedProvider({ script: (input) => (input.resumed ? [{ type: "text", text: "Sent." }, { type: "done" }] : [sendCall, { type: "done" }]) });
+  const runner = toolRunnerFrom(async () => ({ kind: "held", result: { ok: false, content: {} }, taskId: "tsk_w" }));
+  let hold = false;
+  let release = (): void => undefined;
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, callTool: runner, resolveAccount: async () => { if (hold) await new Promise<void>((r) => { release = r; }); return { ref: "#Dana_Claude", driver: "claude_code", provider: "anthropic", kind: "subscription", payer: "dana", reason: "starter" } as never; } });
+  engine.openThread(thread());
+  engine.receive({ threadId: "T", author: person, body: "send it" });
+  await engine.idle("T");
+  hold = true;
+  assert.notEqual(engine.resume("tsk_w", { approved: true }), null);
+  for (let i = 0; i < 50 && engine.queue("T").at(-1)?.state !== "running"; i++) await new Promise((r) => setTimeout(r, 5));
+  const r = await engine.stop("T");
+  assert.equal(r.starting, 1, "the Stop found the wake starting");
+  release();
+  await engine.idle("T");
+  assert.equal(p.sessions.length, 1, "the answered call never ran");
+  assert.deepEqual(engine.waiting("T"), []);
+  assert.equal(engine.resume("tsk_w", { approved: true }), null);
+});

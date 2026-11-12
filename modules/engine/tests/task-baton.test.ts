@@ -12,9 +12,9 @@ const DOER = "agt_doer", CHECK = "agt_check", BOSS = "usr_boss", OWNER = "usr_ow
 const agent = (id: string) => ({ kind: "agent", id });
 const person = (id: string) => ({ kind: "person", id });
 
-function scene(tasks: Record<string, BatonTask>, extra: Record<string, (input: any) => unknown> = {}, provider = scriptedProvider({ script: [{ type: "text", text: "ok" }, { type: "done" }] })) {   // eslint-disable-line @typescript-eslint/no-explicit-any
+function scene(tasks: Record<string, BatonTask>, extra: Record<string, (input: any) => unknown> = {}, provider = scriptedProvider({ script: [{ type: "text", text: "ok" }, { type: "done" }] }), engineOpts: Record<string, unknown> = {}) {   // eslint-disable-line @typescript-eslint/no-explicit-any
   const h = harness({ threads: [{ threadId: "thr_t1", kind: "thread", starter: "svc_host", agents: [{ agentId: DOER, mode: "listen" }, { agentId: CHECK, mode: "listen" }] }] });
-  const engine = h.runtime({ openSession: provider.openSession });
+  const engine = h.runtime({ openSession: provider.openSession, ...engineOpts });
   const base = h.ctx.call;
   h.ctx.call = async (cap, input) => {
     const i = input as Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -219,4 +219,40 @@ test("a task the person cancels stops the turn its agent is working on it, throu
   release();
   await s.engine.idle("thr_t1");
   assert.equal(s.engine.events("thr_t1").filter((e) => e.type === "turn.cancelled").length, 1, "the doer's turn was stopped, once");
+});
+
+test("cancelling a task stops only the turns its baton woke: a message queued in the same thread for the same agent still runs", async () => {
+  const t = task();
+  let release = (): void => undefined;
+  const held = new Promise<void>((r) => { release = r; });
+  const slow = scriptedProvider({ script: [{ type: "text", text: "ok" }, { type: "done" }], beforeEvent: async (i) => { if (i === 0) await held; } });
+  const s = scene({ tsk_t1: t }, {}, slow);
+  assert.deepEqual(await s.run("task.created", "tsk_t1"), [DOER]);
+  for (let i = 0; i < 100 && slow.sessions.length === 0; i++) await new Promise((r) => setTimeout(r, 5));
+  // a person's own message for the doer waits behind the baton's turn in the same thread
+  s.engine.receive({ threadId: "thr_t1", author: { kind: "person", id: OWNER }, body: "also, the other thing", mentions: [{ kind: "agent", id: DOER }] } as never);
+  const mine = s.engine.queue("thr_t1").find((q) => q.kind === "message" && q.state === "queued");
+  assert.ok(mine, "queued behind the baton's turn");
+  t.state = "canceled";
+  await s.run("task.transitioned", "tsk_t1");
+  assert.equal(s.engine.queue("thr_t1").find((q) => q.qseq === mine!.qseq)?.state, "queued", "the person's own message is not dropped");
+  release();
+  await s.engine.idle("thr_t1");
+  assert.equal(s.engine.queue("thr_t1").find((q) => q.qseq === mine!.qseq)?.state, "done", "and it runs");
+});
+
+test("cancelling a task closes a turn its baton woke that is parked on a held call: the wait goes and the log hears turn.cancelled", async () => {
+  const t = task();
+  const { toolRunnerFrom } = await import("../../../agent/src/turn-engine/index.ts");
+  const parks = scriptedProvider({ script: [{ type: "tool_call", id: "c1", name: "mail_send", input: {} }, { type: "done" }] });
+  const s = scene({ tsk_t1: t }, {}, parks, { callTool: toolRunnerFrom(async () => ({ kind: "held", result: { ok: false, content: {} }, taskId: "tsk_hold" })) });
+  assert.deepEqual(await s.run("task.created", "tsk_t1"), [DOER]);
+  await s.engine.idle("thr_t1");
+  const parked = s.engine.turns("thr_t1").at(-1)!;
+  assert.equal(parked.state, "waiting");
+  t.state = "canceled";
+  await s.run("task.transitioned", "tsk_t1");
+  assert.deepEqual(s.engine.waiting("thr_t1"), [], "the wait is gone");
+  assert.deepEqual(s.h.named("turn.cancelled").map((e) => e.payload["turnId"]), [parked.id], "the log hears it, once");
+  assert.equal(s.engine.resume("tsk_hold", { approved: true }), null, "a later Allow wakes nothing");
 });

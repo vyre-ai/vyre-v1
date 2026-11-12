@@ -284,9 +284,16 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   const before = batonRow(ctx.db, task.id);
   if (!holder) {
     // the person cancelled the task: the agents it woke stop, through the same durable Stop as a press (their rows say stopping before this answers, so a restart does not bring them back)
+    // Only the turns this baton woke: its wake rows for the agents it woke, from when it woke them. A thread the task was linked to can be an ordinary chat, whose other queued messages stay.
     if (task.state === "canceled" && before?.threadId) {
-      for (const was of before.woken) {
-        try { await engine.stop(before.threadId, { agentId: was, reason: "stop" }); } catch (e) { host.log?.("the agent of a cancelled task could not be stopped", { taskId: task.id, agentId: was, error: e instanceof Error ? e.message : String(e) }); }
+      const threadId = before.threadId;
+      const ours = engine.queue(threadId).filter((q) => q.kind === "wake" && before.woken.includes(q.agentId) && q.enqueuedAt >= before.wokeAt);
+      for (const q of ours) {
+        try {
+          const r = await engine.stopTurn(threadId, q.qseq, "stop");
+          // a parked turn ends here, so the log hears it now; a running one is said when it winds down (as control.ts says for parked turns it releases)
+          if (r?.state === "parked" && r.turnId) (ctx as Partial<EngineCtx>).emit?.("turn.cancelled", threadId, { turnId: r.turnId, threadId, agentId: r.agentId, by: (ctx as Partial<EngineCtx>).principal?.id ?? "svc_engine" });
+        } catch (e) { host.log?.("the agent of a cancelled task could not be stopped", { taskId: task.id, agentId: q.agentId, error: e instanceof Error ? e.message : String(e) }); }
       }
     }
     if (before) dropBaton(ctx.db, task.id);

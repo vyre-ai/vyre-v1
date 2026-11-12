@@ -606,11 +606,11 @@ test("stopTurn stops one turn by its queue row: a queued row is cancelled on the
   e.receive({ threadId: "T", author: person("dana") });
   await until(() => p.sessions.length === 1);
   const second = e.wake("T", "intake", { routine: true, from: "dana" });
-  assert.equal(await e.stopTurn("T", second, "stop"), "queued");
+  assert.equal((await e.stopTurn("T", second, "stop"))?.state, "queued");
   assert.equal(queue.list("T").find((r) => r.qseq === second)?.state, "cancelled");
   assert.equal(await e.stopTurn("T", 999, "stop"), null);
   const t0 = Date.now();
-  assert.equal(await e.stopTurn("T", 1, "stop"), "running");
+  assert.equal((await e.stopTurn("T", 1, "stop"))?.state, "running");
   assert.ok(Date.now() - t0 < 200, "answers at once");
   assert.equal(queue.list("T")[0]?.state, "stopping");
   hold.open();

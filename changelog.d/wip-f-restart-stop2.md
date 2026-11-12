@@ -1,0 +1,2 @@
+- Cancelling a task stops only the agent work that task started; other messages waiting for the same agent in that chat still get their answers. A turn of that task waiting on an approval is closed, and a later Allow does nothing.
+- An approved step stopped just as it resumed can no longer run later.

@@ -104,3 +104,18 @@ test("a routine's Run stopped by its owner stops the turn it woke (queued or run
   assert.deepEqual(await onRoutineRunStopped(h.ctx, w.engine, w.open, "run_w1"), [], "once");
   assert.deepEqual(await onRoutineRunStopped(h.ctx, w.engine, w.open, "run_unknown"), []);
 });
+
+test("a stopped Run whose thread could not be opened just now is tried again by the next delivery, not marked done and forgotten", async () => {
+  const { onRoutineRunStopped } = await import("../handlers/routine-run.ts");
+  const h = harness();
+  const w = world(base);
+  const stopped: number[] = [];
+  (w.engine as unknown as { stopTurn: (t: string, q: number) => Promise<unknown> }).stopTurn = async (_t, q) => { stopped.push(q); return { state: "running", agentId: ROUTINE.agentId }; };
+  await onRoutineRun(h.ctx, w.host, w.engine, w.open, { payload: { agentId: ROUTINE.agentId, routineId: ROUTINE.routineId, runId: "run_w9", ownerId: OWNER, requestedBy: "watch:msg_lead1" } });
+  let fail = true;
+  const open = async (threadId: string, person: string): Promise<void> => { if (fail) throw new Error("the thread could not be read just now"); await w.open(threadId, person); };
+  await assert.rejects(() => onRoutineRunStopped(h.ctx, w.engine, open, "run_w9"));
+  fail = false;
+  assert.deepEqual(await onRoutineRunStopped(h.ctx, w.engine, open, "run_w9"), ["run_w9"], "the redelivery stops it");
+  assert.deepEqual(stopped, [1]);
+});

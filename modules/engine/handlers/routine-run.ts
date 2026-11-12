@@ -126,9 +126,10 @@ export async function onRoutineRunStopped(ctx: Pick<EngineCtx, "db">, engine: Tu
   ctx.db.run(TURNS);
   const row = ctx.db.all("SELECT thread_id, qseq, owner FROM engine_routine_turns WHERE run_id = ? AND state = 'queued'", runId)[0] as Obj | undefined;
   if (!row) return [];
-  ctx.db.run("UPDATE engine_routine_turns SET state = 'done' WHERE run_id = ?", runId);
   const threadId = str(row["thread_id"]);
   await open(threadId, str(row["owner"]));
   await engine.stopTurn(threadId, Number(row["qseq"]), "stop");
+  // done only once the Stop is on the turn: a thread that could not be opened just now throws, and the next delivery of run.stopped tries again
+  ctx.db.run("UPDATE engine_routine_turns SET state = 'done' WHERE run_id = ?", runId);
   return [runId];
 }

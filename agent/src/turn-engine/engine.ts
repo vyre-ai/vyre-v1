@@ -189,7 +189,7 @@ export interface TurnEngine {
    * Stop one turn by its queue row (a routine's Run stopped by its owner): queued, the row is cancelled; starting or running, it is stopped and its row marked stopping before this answers.
    * Answers what it found, or null when that row is not waiting or running here.
    */
-  stopTurn(threadId: string, qseq: number, reason?: string): Promise<"queued" | "starting" | "running" | null>;
+  stopTurn(threadId: string, qseq: number, reason?: string): Promise<{ state: "queued" | "starting" | "running" | "parked"; turnId?: string; agentId: string } | null>;
   /** "Stop and send" for a message that is already stored: cancel the running turn and queue the responders first. Without a message it only cancels. */
   interrupt(threadId: string, messageId?: string): Promise<InterruptResult>;
   /** A held tool call was answered (approved or denied): queue the wake that continues the parked turn. Null when the task is unknown or already answered. */
@@ -541,7 +541,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     // stopped before it ran (a Stop pressed while it was starting): nothing more happens, no session, no hook, no prompt, and no Unblock asking for an account (review F1, F2)
     const stoppedEarly = (): never => { throw Object.assign(new Error("stopped before it started"), { code: "cancelled" }); };
     try {
-      if (run.cancelled) stoppedEarly();
+      // a wake stopped while it started: its wait goes with it, so nothing can run the answered call later (r-wire P1)
+      if (run.cancelled) { if (wait) waits.remove(wait.taskId); stoppedEarly(); }
       if (refused) throw Object.assign(new Error(refused.message), { code: refused.code });
       if (!agent) throw Object.assign(new Error("agent is not in this thread"), { code: "unknown_agent" });
       if (account === null && resolveFailed) throw Object.assign(new Error(resolveMessage ?? "the account could not be resolved just now"), { code: typeof resolveCode === "string" ? resolveCode : "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
@@ -559,7 +560,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       // what really runs is what the record keeps: a session that says its model (a swapped or limited one) wins over the one the chat asked for, and a swap to the account's own default is not the asked model
       { const ran = (session as { model?: unknown }).model; if (typeof ran === "string") turn.model = ran; else if (paying?.modelFallback) turn.model = paying.modelFallback.to ?? null; }
       // a Stop that came while the session was opening: the session is let go and nothing is sent (review F1)
-      if (run.cancelled) { await session.cancel(); stoppedEarly(); }
+      if (run.cancelled) { await session.cancel(); if (wait) waits.remove(wait.taskId); stoppedEarly(); }
       // the hooks layer, for every driver alike: once per turn, however many accounts it tries
       const hookNotes: string[] = [];
       if (opts.hooks && !hooksAsked && !wait) {
@@ -898,10 +899,19 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     dropQueued(threadId, messageId) { need(threadId); return dropRows(threadId, messageId); },
     async stopTurn(threadId, qseq, reason = "stop") {
       const st = need(threadId);
-      if (st.running && st.running.qseq === qseq) { if (st.running.cancelled) return "running"; await cancelRunning(st, reason); return "running"; }
-      if (!st.running && st.starting && st.starting.qseq === qseq) { st.starting.stop = reason; markStopping(threadId, qseq, reason); return "starting"; }
+      const run = st.running;
+      if (run && run.qseq === qseq) { if (!run.cancelled) await cancelRunning(st, reason); return { state: "running", turnId: run.turnId, agentId: run.agentId }; }
+      if (!st.running && st.starting && st.starting.qseq === qseq) { st.starting.stop = reason; markStopping(threadId, qseq, reason); return { state: "starting", agentId: st.starting.agentId }; }
       const row = queue.list(threadId).find((r) => r.qseq === qseq);
-      if (row?.state === "queued") { queue.setState(threadId, qseq, "cancelled"); return "queued"; }
+      if (row?.state === "queued") { queue.setState(threadId, qseq, "cancelled"); return { state: "queued", agentId: row.agentId }; }
+      // a turn of this row parked on a held call: its wait goes, the turn is closed, and a later answer wakes nothing (as stop() releases parked turns)
+      const parked = turnRows.find((t) => t.threadId === threadId && t.qseq === qseq && t.state === "waiting");
+      const w = parked ? waits.open(threadId).find((x) => x.turnId === parked.id) : undefined;
+      if (parked && w) {
+        waits.remove(w.taskId);
+        parked.state = "cancelled"; parked.endedAt = now();
+        return { state: "parked", turnId: parked.id, agentId: parked.agentId };
+      }
       return null;
     },
     async interrupt(threadId, messageId) {
