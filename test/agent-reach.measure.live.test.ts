@@ -134,6 +134,16 @@ test("an agent made in an invite-only channel's thread: what a never-member can 
       out.set("search.query", JSON.stringify(found.data).includes(agentId) ? "reaches" : "as if it did not exist");
       return out;
     };
+    // access.audience_set on the agent, asking for what it already is: for an outsider the same answer as a deleted agent and as a made-up id (review of fbfb021cd)
+    const aud = async (who: { token: string }, id: string) => { const r = await api(d, who.token, "access.audience_set", { resource: { type: "agent", id }, audience: "added" }); return `${r.status} ${codeOf(r)} ${String((r.data as { error?: { message?: string } }).error?.message ?? "")}`; };
+    // a deleted agent of the same kind: one a private chat of the owner's made, then deleted
+    const ownChat = (await ok(d, d.token, "chat.start", { kind: "chat", agentIds: [], personId: ana.personId })).thread.threadId as string;
+    const goneOwn = (await ok(d, d.token, "threads.agent.create", { threadId: ownChat, name: "Gone private helper" })).agentId as string;
+    await ok(d, d.token, "agents.delete", { agentId: goneOwn });
+    const audHidden = await aud(carol, agentId), audDeleted = await aud(carol, goneOwn), audDeletedOpen = await aud(carol, ghostAgent), audMadeUp = await aud(carol, `agt_${"0".repeat(32)}`);
+    note("reach: access.audience_set on the agent", `Carol: hidden ${audHidden}; a deleted private-chat agent ${audDeleted}; a deleted Space agent ${audDeletedOpen}; a made-up id ${audMadeUp}`);
+    assert.equal(audHidden, audDeleted, "a hidden agent answers audience_set exactly as a deleted one of its kind does");
+    assert.match(audHidden, /^404 /, "and it is a not found");
     const admin = await join(d, "adele", undefined, "Admin");
     const [carolReach, anaReach, adminReach] = [await reach(carol), await reach(ana), await reach(admin)];
     for (const [door] of carolReach) note(`reach: ${door}`, `Carol ${carolReach.get(door)}; Ana ${anaReach.get(door)}; an admin outside #legal ${adminReach.get(door)}`);

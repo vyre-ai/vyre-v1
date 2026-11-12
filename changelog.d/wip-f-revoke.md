@@ -28,3 +28,4 @@
 - Someone who leaves or is taken out of that chat loses the agent at once. A grant that was still being written when they left no longer comes back.
 - Starting a chat with, or giving a task to, an agent that does not exist is now refused.
 - Mentioning someone in an invite-only channel, or a thread under one, no longer notifies them or puts them in the thread if they cannot open the channel. The sender's message still offers Add.
+- Asking Vyre to change who can open an agent, folder or record that you cannot see now answers as if it did not exist, even when nothing would change.
