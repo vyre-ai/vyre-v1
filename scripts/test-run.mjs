@@ -6,10 +6,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { TEST, imports, cacheKey, noCache } from "./lib/graph.mjs";
 import { splitPerf } from "./lib/perf-skip.mjs";
+import { endGroupsOnExit, killGroup, spawnGroup } from "./lib/proc-group.mjs";
 import { withPatternSlow } from "./lib/slow-list.mjs";
 import { ensureDeps } from "./shots/ensure-deps.mjs";
 
@@ -74,12 +75,15 @@ const run = (f) => new Promise((resolve) => {
   const key = useCache && !nocache(f) ? cacheKey(f, fwd, read, env) : null;
   const marker = key && path.join(cacheDir, key);
   if (marker && fs.existsSync(marker)) return resolve({ f, ok: true, cached: true, ms: 0 });
-  const p = spawn(process.execPath, [...(needsTsx(f) ? tsxArgs : []), "--test", `--test-timeout=${cap}`, f], { cwd: REPO, env: needsTsx(f) ? { ...process.env, TSX_TSCONFIG_PATH: path.join(REPO, "tsconfig.base.json") } : process.env, stdio: ["ignore", "pipe", "pipe"] });
+  endGroupsOnExit();
+  const p = spawnGroup(process.execPath, [...(needsTsx(f) ? tsxArgs : []), "--test", `--test-timeout=${cap}`, f], { cwd: REPO, env: needsTsx(f) ? { ...process.env, TSX_TSCONFIG_PATH: path.join(REPO, "tsconfig.base.json") } : process.env, stdio: ["ignore", "pipe", "pipe"] });
   let out = "";
   p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
-  const dog = setTimeout(() => { out += `\nwatchdog: ${f} exceeded ${cap / 1000} s\n`; p.kill("SIGKILL"); }, cap + 2000);
-  p.on("close", (code) => {
+  // the watchdog ends the file's whole process group (scripts/lib/proc-group.mjs), and so does the file's end: nothing it started outlives it
+  const dog = setTimeout(() => { out += `\nwatchdog: ${f} exceeded ${cap / 1000} s\n`; void killGroup(p); }, cap + 2000);
+  p.on("close", async (code) => {
     clearTimeout(dog);
+    if (!(await killGroup(p))) out += `\n${f}: some of its processes were still there 5 s after the file ended\n`;
     const ms = Date.now() - t0, ok = code === 0;
     const skip = ok ? allSkipped(out) : null;
     if (ok && !skip && marker) { try { fs.writeFileSync(marker, JSON.stringify({ key, durationMs: ms, file: f })); } catch { /* cache is best effort */ } }
