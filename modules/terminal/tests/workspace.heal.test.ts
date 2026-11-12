@@ -1379,3 +1379,67 @@ test("Stop: only a pressed Stop interrupts (never the host's turn.cancelled on a
   assert.equal(ended.get("sleep 99") ?? 0, 0);
   void theirs;
 });
+
+// ---- seventh look X1, X3, and a clean daemon stop --------------------------------------------------------------------------------------------------------------
+
+function stoppableHost(seen: string[]) {
+  const fh = fakeHost();
+  return {
+    ...fh.host,
+    async run(_id: string, r: { command: string; signal?: AbortSignal }) {
+      seen.push(r.command);
+      return await new Promise<{ exitCode: number; output: string; truncated: boolean; durationMs: number }>((resolve) => {
+        const done = (): void => resolve({ exitCode: 130, output: "stopped", truncated: false, durationMs: 1 });
+        if (r.signal?.aborted) done(); else r.signal?.addEventListener("abort", done, { once: true });
+        if (r.command.startsWith("quick")) resolve({ exitCode: 0, output: "ok", truncated: false, durationMs: 1 });
+      });
+    },
+  };
+}
+
+test("X1: a cancel committed before a command was asked for (a late second event, a backlog, a recovered row) never interrupts that later turn's command", async () => {
+  const { consumers } = await import("../impl.ts");
+  const { agent, hn } = setup();
+  const seen: string[] = [];
+  bindHost(stoppableHost(seen) as never);
+  const cancelAt = hn.ctx.now();
+  hn.advance(1000);   // the person asks again; the next turn's command starts after the cancel was committed
+  const next = h["terminal.run"]!(agent, { command: "sleep 60", idempotencyKey: idem() });
+  await until(() => seen.includes("sleep 60"), "the next turn's command runs");
+  const stop = consumers["terminal.turn_stopped"]!;
+  assert.deepEqual(stop.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_old", by: "usr_dana" }, at: cancelAt }), [], "the earlier turn's cancel, delivered late, interrupts nothing");
+  assert.deepEqual(stop.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_new", by: "usr_dana" }, at: hn.ctx.now() }), ["1"], "its own turn's cancel does");
+  assert.equal((await next).exitCode, 130);
+});
+
+test("X3: a stopped turn's command waiting in its tab's queue leaves the queue and is never typed", async () => {
+  const { consumers } = await import("../impl.ts");
+  const { agent, hn } = setup();
+  const seen: string[] = [];
+  bindHost(stoppableHost(seen) as never);
+  const first = h["terminal.run"]!(agent, { command: "sleep 60", idempotencyKey: idem() });
+  await until(() => seen.includes("sleep 60"), "the first runs");
+  const queued = h["terminal.run"]!(agent, { command: "rm -rf build", idempotencyKey: idem() });
+  await new Promise((x) => setTimeout(x, 30));
+  assert.deepEqual(consumers["terminal.turn_stopped"]!.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by: "usr_dana" }, at: hn.ctx.now() }), ["2"], "both: the running one and the queued one");
+  await first;
+  await queued.catch(() => undefined);
+  await new Promise((x) => setTimeout(x, 30));
+  assert.deepEqual(seen, ["sleep 60"], "the queued command was never typed");
+});
+
+test("a clean daemon stop or an update (turn.cancelled with reason closing) interrupts nothing, whoever the event names", async () => {
+  const { consumers } = await import("../impl.ts");
+  const { agent, hn } = setup();
+  const seen: string[] = [];
+  bindHost(stoppableHost(seen) as never);
+  const build = h["terminal.run"]!(agent, { command: "make build", idempotencyKey: idem() });
+  await until(() => seen.includes("make build"), "running");
+  for (const by of ["svc_host", "usr_dana", "agt_dex"]) assert.deepEqual(consumers["terminal.turn_stopped"]!.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by, reason: "closing" }, at: hn.ctx.now() }), [], by);
+  let done = false;
+  void build.then(() => { done = true; });
+  await new Promise((x) => setTimeout(x, 30));
+  assert.equal(done, false, "the build keeps running");
+  consumers["terminal.turn_stopped"]!.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by: "usr_dana" }, at: hn.ctx.now() });
+  await build;
+});

@@ -24,8 +24,8 @@ export function filesChangeOf(p: Record<string, unknown>): { folderIds: string[]
   return { folderIds: [...new Set(folderIds)], ...(typeof p["fileId"] === "string" ? { fileId: p["fileId"] } : {}) };
 }
 
-/** What a command whose turn was stopped answers, and what its tab shows (release gate, 12 Nov). */
-export const STOPPED_LINE = "^C Interrupted: the turn that started this command was stopped.";
+import { STOPPED_LINE } from "./stop-line.ts";
+export { STOPPED_LINE };
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 export { fetchesOutside, isDangerCall, outwardOf } from "./handlers/index.ts";
@@ -811,14 +811,17 @@ export const consumers = {
   /** A turn was stopped: the commands it started in a terminal are interrupted at once (release gate, 12 Nov). */
   "terminal.turn_stopped": {
     on: ["turn.cancelled", "run.stopped"],
-    run: (_ctx: TermCtx, event: { payload: Record<string, unknown> }): string[] => {
+    run: (_ctx: TermCtx, event: { payload: Record<string, unknown>; at?: number }): string[] => {
       const p = event.payload ?? {};
       const str = (k: string): string | undefined => (typeof p[k] === "string" ? (p[k] as string) : undefined);
+      // a clean daemon stop or an update puts its turns back in the queue and says so with reason "closing" (agent/src/turn-engine/engine.ts:805): what they were running outlives the daemon
+      if (str("reason") === "closing") return [];
       // only a Stop someone pressed (a person, or an agent stopping its helpers). The same event is written by the host when a daemon stops or updates, when a turn's end is recorded, and when
       // recovery closes a "stopping" turn after a restart: a workspace outlives the daemon, so those never interrupt what runs in it (lead, 12 Nov). A run with no mark here (it ended, or this
       // process started after it) is left alone; a second event for the same run finds it already stopped.
       if (!/^(usr|agt)_/.test(str("by") ?? "")) return [];
-      const n = stopRuns({ ...(str("agentId") ? { agentId: str("agentId") as string } : {}), ...(str("threadId") ? { threadId: str("threadId") as string } : {}), ...(str("runId") ? { runId: str("runId") as string } : {}) });
+      // the cancel's commit time: a command asked for after it belongs to a later turn (seventh look X1)
+      const n = stopRuns({ ...(str("agentId") ? { agentId: str("agentId") as string } : {}), ...(str("threadId") ? { threadId: str("threadId") as string } : {}), ...(str("runId") ? { runId: str("runId") as string } : {}), ...(typeof event.at === "number" ? { at: event.at } : {}) });
       return n > 0 ? [String(n)] : [];
     },
   },

@@ -4,6 +4,7 @@
 //   run                                                            the terminal_run tool: one command, run in a session, output scrubbed of every Vault value filled into it
 //   rules.get / rules.set / health
 // The machine does the work through the TerminalHost port (projections.ts); this module keeps what Vyre knows about a session and enforces who may do what in it.
+import { STOPPED_LINE } from "../stop-line.ts";
 import {
   MAX_RULES, MAX_RULE_CHARS, TICKET_MS, actorOf, boundHost, boundKit, boundPlace, boundValues, clean, commandsOf, ensure, forgetAgentSecrets, forgetSecrets, hostOf, insertSession, isTeam, judge, mintId, raise, rememberSecrets,
   rulesOf, sessionBy, sessionOf, sha256, ticketSecret, touch, workspacesFor, boundWorkspaceStatus, SESSION_SELECT, insertTab, scopeOf,
@@ -172,7 +173,7 @@ const queues = new Map<string, Promise<unknown>>();
 export const CLOSED_LINE = "That tab was closed before this command's turn came, so it did not run.";
 export const VALUES_BUSY_LINE = "This tab is still running something, so no Vault value is handed to it. Wait for it to finish, or run the command in another tab.";
 export const BUSY_LINE = "That terminal was busy with another command the whole time, so this one did not run. Name a session of your own (session) to run beside it.";
-async function oneAtATime<T>(terminalId: string, timeoutMs: number, f: (leftMs: number) => Promise<T>): Promise<T> {
+async function oneAtATime<T>(terminalId: string, timeoutMs: number, f: (leftMs: number) => Promise<T>, signal?: AbortSignal): Promise<T> {
   const ahead = queues.get(terminalId);
   const before = ahead ?? Promise.resolve();
   let free!: () => void;
@@ -184,8 +185,14 @@ async function oneAtATime<T>(terminalId: string, timeoutMs: number, f: (leftMs: 
   try {
     // nothing ahead: the command has its whole time
     if (ahead === undefined) return await f(timeoutMs);
-    const turn = await Promise.race([before.then(() => true, () => true), new Promise<false>((r) => { timer = setTimeout(() => r(false), timeoutMs); })]);
+    // a command waiting its turn whose own turn is stopped meanwhile leaves the queue and is never typed (seventh look X3)
+    let onStop: (() => void) | undefined;
+    const stopped = new Promise<"stopped">((r) => { onStop = () => r("stopped"); if (signal?.aborted) r("stopped"); else signal?.addEventListener("abort", onStop, { once: true }); });
+    const turn = await Promise.race([before.then(() => true, () => true), new Promise<false>((r) => { timer = setTimeout(() => r(false), timeoutMs); }), stopped]);
+    if (onStop) signal?.removeEventListener("abort", onStop);
+    if (turn === "stopped") throw Object.assign(new Error(STOPPED_LINE), { code: "stopped" });
     if (!turn) throw Object.assign(new Error(BUSY_LINE), { code: "queue_busy" });
+    if (signal?.aborted) throw Object.assign(new Error(STOPPED_LINE), { code: "stopped" });
     return await f(Math.max(1000, timeoutMs - (Date.now() - t0)));
   } finally {
     if (timer !== undefined) clearTimeout(timer);
@@ -593,10 +600,16 @@ export async function run(ctx: TermCtx, a: RunInput) {
   let result: { exitCode: number | null; truncated: boolean; durationMs: number } | null = null;
   let timedOut = false;
   let waitedOut = false;
-  const exec = (filled: unknown): Promise<string> => oneAtATime(s.terminalId, timeoutMs, (leftMs) => execNow(filled, leftMs)).catch((e: unknown) => {
-    if (e && typeof e === "object" && (e as { code?: unknown }).code === "queue_busy") waitedOut = true;
-    throw e;
-  });
+  // only an agent's command, from its turn, is marked: a command a person runs or types is never interrupted by an agent's Stop. The mark is made before the command waits for its tab, so a
+  // Stop reaches it in the queue too (seventh look X3), and it keeps when the command was asked for, so a cancel committed before then is not this command's (X1)
+  const mark: Mark | null = ctx.principal.kind === "agent" ? { ac: new AbortController(), startedAt: ctx.now(), agentId: ctx.principal.id, ...(ctx.thread !== undefined ? { threadId: ctx.thread } : {}), ...(ctx.run !== undefined ? { runId: ctx.run } : {}) } : null;
+  const exec = (filled: unknown): Promise<string> => {
+    if (mark) inflight.add(mark);
+    return oneAtATime(s.terminalId, timeoutMs, (leftMs) => execNow(filled, leftMs), mark?.ac.signal).catch((e: unknown) => {
+      if (e && typeof e === "object" && (e as { code?: unknown }).code === "queue_busy") waitedOut = true;
+      throw e;
+    }).finally(() => { if (mark) inflight.delete(mark); });
+  };
   const execNow = async (filled: unknown, leftMs: number): Promise<string> => {
     const f = filled as { env?: Record<string, string> };
     // A command that carries values is not typed into a tab Vyre knows is still running one (review 12 Nov, 3a): the host checks the shell owns its terminal, and this catches what that check
@@ -611,19 +624,14 @@ export async function run(ctx: TermCtx, a: RunInput) {
     started = { at, rowId: Number((ctx.db.all("SELECT MAX(seq) AS m FROM terminal_commands WHERE terminal_id = ?", s.terminalId) as Row[])[0]?.["m"]) };
     ctx.db.run("UPDATE terminal_sessions SET state = 'running', last_active_at = ? WHERE terminal_id = ?", at, s.terminalId);
     // the turn that started it can be stopped while it runs: its command is interrupted then (stopRuns, the consumer on turn.cancelled and run.stopped)
-    // only an agent's command, from its turn, is marked: a command a person runs or types is never interrupted by an agent's Stop
-    const ac = new AbortController();
-    const mark = ctx.principal.kind === "agent" ? { ac, agentId: ctx.principal.id, ...(ctx.thread !== undefined ? { threadId: ctx.thread } : {}), ...(ctx.run !== undefined ? { runId: ctx.run } : {}) } : null;
-    if (mark) inflight.set(s.terminalId, mark);
     try {
-      const r = await host.run(s.terminalId, { command: line, ...(a.cwd === undefined ? {} : { cwd: a.cwd }), env: f.env ?? {}, timeoutMs: leftMs, signal: ac.signal });
+      const r = await host.run(s.terminalId, { command: line, ...(a.cwd === undefined ? {} : { cwd: a.cwd }), env: f.env ?? {}, timeoutMs: leftMs, ...(mark ? { signal: mark.ac.signal } : {}) });
       result = { exitCode: r.exitCode, truncated: r.truncated, durationMs: r.durationMs };
       return r.output;
     } catch (e) {
       if (e && typeof e === "object" && (e as { code?: unknown }).code === "timeout") timedOut = true;
       throw e;
     } finally {
-      if (mark && inflight.get(s.terminalId) === mark) inflight.delete(s.terminalId);
       // the tab is free again before the queue lets the next command in, so a command right behind this one does not read it as running (review S3)
       ctx.db.run("UPDATE terminal_sessions SET state = 'idle', exit_code = ? WHERE terminal_id = ?", result?.exitCode ?? null, s.terminalId);
     }
@@ -804,16 +812,19 @@ export async function onAgentGone(ctx: TermCtx, event: { payload: { agentId?: un
   return open;
 }
 
-/** Commands running now, by tab, with the turn that started them. */
-const inflight = new Map<string, { ac: AbortController; agentId?: string; threadId?: string; runId?: string }>();
+/** An agent's command, waiting for its tab or running, with the turn that asked for it and when. */
+interface Mark { ac: AbortController; startedAt: number; agentId?: string; threadId?: string; runId?: string }
+const inflight = new Set<Mark>();
 
 /**
  * A turn was stopped (turn.cancelled: its agent and thread; run.stopped: its run): the commands it started are interrupted now, so the next command finds a shell at its prompt instead of
  * waiting behind them (release gate, 12 Nov). Returns how many were interrupted.
  */
-export function stopRuns(match: { agentId?: string; threadId?: string; runId?: string }): number {
+export function stopRuns(match: { agentId?: string; threadId?: string; runId?: string; at?: number }): number {
   let n = 0;
-  for (const [, x] of inflight) {
+  for (const x of inflight) {
+    // asked for after the cancel was committed: a later turn's command (each chat's queue is serial, so a turn's cancel commits before a later turn's command starts), never stopped by it (X1)
+    if (match.at !== undefined && x.startedAt > match.at) continue;
     const byRun = match.runId !== undefined && x.runId === match.runId;
     const byTurn = match.threadId !== undefined && x.threadId === match.threadId && (match.agentId === undefined || x.agentId === match.agentId);
     if ((byRun || byTurn) && !x.ac.signal.aborted) { x.ac.abort(); n++; }
