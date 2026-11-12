@@ -22,3 +22,14 @@ test("agents and the people and groups a reviewer can be", () => {
   );
   assert.deepEqual(who, [{ assignee: { kind: "person", id: "usr_1" }, name: "Dana" }, { assignee: { kind: "group", id: "grp_1" }, name: "Partners (group)" }]);
 });
+
+test("a task's agent picker: a Space Automation offers nobody's Assistant; a Personal one offers only its owner's own", async () => {
+  const { taskAgents } = await import("./picks.ts");
+  const list = agentPicks({ agents: [
+    { agentId: "agt_intake", name: "Intake", kind: "teammate", ownerId: "usr_a" },
+    { agentId: "agt_olivia_asst", name: "Assistant", kind: "assistant", ownerId: "usr_olivia" },
+    { agentId: "agt_noah_asst", name: "Noah's assistant", kind: "assistant", ownerId: "usr_noah" },
+  ] });
+  assert.deepEqual(taskAgents(list, "space", "usr_olivia").map((a) => a.id), ["agt_intake"]);
+  assert.deepEqual(taskAgents(list, "personal", "usr_olivia").map((a) => a.id), ["agt_intake", "agt_olivia_asst"]);
+});

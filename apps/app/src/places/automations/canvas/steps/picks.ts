@@ -3,7 +3,7 @@
 import type { Assignee } from "./edits.ts";
 
 export interface VaultPick { id: string; name: string; handle: string; fieldKeys: string[]; kind: string }
-export interface AgentPick { id: string; name: string }
+export interface AgentPick { id: string; name: string; kind?: string; ownerId?: string }
 export interface WhoPick { assignee: Assignee; name: string }
 
 const rec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -24,8 +24,13 @@ export function vaultPicks(out: unknown): VaultPick[] {
 export function agentPicks(out: unknown): AgentPick[] {
   const rows = rec(out) && Array.isArray(out["agents"]) ? out["agents"] : [];
   const picks: AgentPick[] = [];
-  for (const raw of rows) if (rec(raw) && text(raw["agentId"]) !== "") picks.push({ id: text(raw["agentId"]), name: text(raw["name"]) || text(raw["agentId"]) });
+  for (const raw of rows) if (rec(raw) && text(raw["agentId"]) !== "") picks.push({ id: text(raw["agentId"]), name: text(raw["name"]) || text(raw["agentId"]), ...(text(raw["kind"]) ? { kind: text(raw["kind"]) } : {}), ...(text(raw["ownerId"]) ? { ownerId: text(raw["ownerId"]) } : {}) });
   return picks;
+}
+
+/** The agents a task step may hand work to (the server refuses the rest with reason agent_not_yours): a Space Automation names nobody's Assistant; a Personal one names only its owner's own. */
+export function taskAgents(list: readonly AgentPick[], automationKind: "space" | "personal", ownerId: string): AgentPick[] {
+  return list.filter((a) => a.kind !== "assistant" || (automationKind === "personal" && a.ownerId === ownerId));
 }
 
 export function whoPicks(people: unknown, groups: unknown): WhoPick[] {

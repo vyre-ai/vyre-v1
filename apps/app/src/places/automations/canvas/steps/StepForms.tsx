@@ -17,6 +17,7 @@ import {
 import type { Assignee, AuthKind, BodyKind, Input } from "./edits.ts";
 import type { Load } from "./useLists.ts";
 import type { AgentPick, VaultPick, WhoPick } from "./picks.ts";
+import { taskAgents } from "./picks.ts";
 
 export type OpenMenu = (entries: MenuEntry[], x: number, y: number, kind: "other") => void;
 interface Props { def: Definition; node: DefNode; onChange(next: Definition): void; openMenu: OpenMenu }
@@ -182,7 +183,8 @@ export function AiForm({ def, node, onChange, openMenu, kind, keys, agents, who,
     openMenu(entries, x, y, "other");
   };
   const whoLine = (a: Assignee | undefined): string => (!a ? "Nobody" : a.id === me.id ? `${me.name} (you)` : who.state === "ready" ? nameOf(a.id, who.items, me) : who.state === "loading" ? "Loading..." : a.id);
-  const agentList = agents.state === "ready" ? agents.items : [];
+  // a task's seats name only agents the Automation may hand work to: nobody's Assistant in a Space Automation, only the owner's own in a Personal one
+  const agentList = agents.state === "ready" ? taskAgents(agents.items, kind, me.id) : [];
   const taskMode = modeOf(ai) === "task";
   const [nudgeProblem, setNudgeProblem] = useState<string | null>(null);
   /** A seat's name: the loaded lists first, then the place's own lookup; never a raw id (a word for the kind when nobody knows it). */
