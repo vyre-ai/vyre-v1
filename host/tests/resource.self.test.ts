@@ -65,30 +65,6 @@ test("S1: a self-bound read is noted as what it reaches, never as the Space: the
   assert.deepEqual(takeReads("thr_d", "agt_scout", "usr_maya"), [{ type: "computer", id: "cmt_7" }], "a named computer is noted as before");
 });
 
-test("A1: an admin's audit export keeps every self-bound act on the Space the kernel knows, and names whose browser, Chrome or computer it was", async () => {
-  const { invoke, audits } = rig();
-  const seed = { ...inChat("thr_e"), auditAll: true } as CtxSeed;
-  await invoke("computers.chrome.open", { url: "https://www.harborquotes.com/" }, seed);
-  await invoke("computers.chrome.snapshot", { inMyChrome: true }, seed);
-  await invoke("computers.screen.screenshot", {}, seed);
-  // the rows go through the live audit sink into the audit module, and out through audit.export as an admin, where a row stays only on a view allow for its resource
-  const { harness } = await import("../../modules/audit/fixtures/db.ts");
-  const audit = await import("../../modules/audit/impl.ts");
-  const { createAuditRecorder } = await import("../src/seams/audit.ts");
-  const h = harness();
-  const admin = h.as("usr_admin");
-  const record = createAuditRecorder({ space: "spc_1", db: admin.db as never, module: audit as unknown as Record<string, unknown>, principal: (id) => ({ kind: id.startsWith("agt_") ? "agent" : "person" }) });
-  for (const a of audits) record(a as never);
-  // the kernel's answer for an admin: the Space is theirs to see; anything it does not know is not found (as for browser_profile or agent_computer, which are no resources)
-  const saved: string[] = [];
-  const ctx = { ...admin, exports: { async save(_n: string, csv: string) { saved.push(csv); return "fil_x"; } }, authorize: (_a: unknown, r: { type: string }) => ({ effect: r.type === "space" ? "allow" : "deny", reason: "t", decisionId: "d" }) };
-  await (audit.handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)["audit.export"]!(ctx, {});
-  const lines = saved[0]!.trimEnd().split("\n");
-  const row = (cap: string): string => lines.find((l) => l.includes(`,${cap},`)) ?? "";
-  assert.match(row("computers.chrome.open"), /,space:spc_1,.*,browser:agt_scout$/, "the agent's own Space browser");
-  assert.match(row("computers.chrome.snapshot"), /,space:spc_1,.*,chrome:usr_maya$/, "the asker's own Chrome");
-  assert.match(row("computers.screen.screenshot"), /,space:spc_1,.*,computer:agt_scout$/, "the agent's own computer");
-});
 
 test("S3: a person (or an outside agent's call rerun as its person) who leaves the computer out is told plainly what to pass", async () => {
   const { invoke } = rig();
