@@ -11,8 +11,9 @@ export async function assertKeyMayGo(ctx: AutoCtx, handle: string, url: string):
   const host = hostOfUrl(url);
   if (host === null) raise(ctx, "validation.bad_input", "That address cannot carry a key.");
   const resolve = keyRefResolver();
-  const asker = ctx.actingFor ?? (ctx.principal.kind === "person" ? ctx.principal.id : undefined);
-  const ref = resolve ? resolve(handle, asker) : null;
+  if (!resolve) return;   // a host without the Vault's reading (a module test): the fill below refuses or fills as before
+  const asker = ctx.actingFor ?? (ctx.principal?.kind === "person" ? ctx.principal.id : undefined);
+  const ref = resolve(handle, asker);
   if (!ref) return;   // nothing resolves: the Vault's own fill refuses it, with its own line
   if (keyHostApproved(ctx.db as unknown as KeyHostDb, ref.id, host)) return;
   const hits = async (h: string): Promise<boolean> => {

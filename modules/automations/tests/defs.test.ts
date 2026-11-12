@@ -289,7 +289,7 @@ test("an AI step needs a prompt; a Personal Space cannot use a webhook trigger",
   h.policy("space.personal", true);
   const r = await validate(h, hook);
   assert.equal(r.ok, false);
-  assert.equal(r.issues[0]!.message, "A webhook is received needs a Team Space.");
+  assert.equal(r.issues[0]!.message, "A web request arrives needs a Team Space.");
 });
 
 // ---- version pinning ----
