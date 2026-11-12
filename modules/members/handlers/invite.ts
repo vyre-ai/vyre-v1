@@ -71,7 +71,9 @@ export async function invitesCreate(ctx: MembersCtx, input: {
   if (again) {
     // a retry after a lost answer: the code is stored only as a hash, so an open invite gets a fresh code and the same id
     if (again.state !== "open") raise(tid, "validation.precondition_failed", "that invite is no longer open");
+    // the code already handed out stays valid beside the fresh one (a slow answer and a retry must never kill the link the owner just sent): same entropy, only hashes kept
     const code = newCode();
+    ctx.db.run(`INSERT OR REPLACE INTO members_invite_codes (code_hash, invite) VALUES (?, ?)`, again.code_hash, again.id);
     ctx.db.run(`UPDATE members_invites SET code_hash = ? WHERE id = ?`, hashCode(code), again.id);
     return { invite: inviteView({ ...again }, now), link: await linkFor(ctx, host, info, code) };
   }

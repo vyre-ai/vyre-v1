@@ -68,7 +68,7 @@ export async function bootWalk(t: { test: (name: string, fn: () => Promise<void>
     p.on("response", (r) => { const u = new URL(r.url()); if (u.pathname.startsWith("/v1/") && r.status() >= 400) void r.text().then((b) => notes.push(`${who} ${r.status()} ${u.pathname} ${b.slice(0, 160)}`)).catch(() => undefined); });
   };
   watch(page, "owner");
-  let n = 0;
+  let n = 0, joins = 0;
   const w: Walk = {
     web, daemon, browser, context, page, dir, token: "", failures, notes,
     async api(cap, data = {}, as) {
@@ -114,7 +114,8 @@ export async function bootWalk(t: { test: (name: string, fn: () => Promise<void>
     },
     async join(first, last, username, role = "Member") {
       const roles = (await w.api("access.roles.list")).data.roles as { id: string; name: string }[];
-      const inv = (await w.api("members.invites.create", { role: roles.find((r) => r.name === role)!.id, idempotencyKey: `inv-${username}` })).data;
+      // a key of its own for every join: one key used twice in a walk is a replay, and a replay of a used invite answers the first link, whose code is spent ("This invite did not open")
+      const inv = (await w.api("members.invites.create", { role: roles.find((r) => r.name === role)!.id, idempotencyKey: `inv-${username}-${++joins}` })).data;
       const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
       const jp = await ctx.newPage(); watch(jp, username);
       const link = new URL(inv.link as string);

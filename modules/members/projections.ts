@@ -142,7 +142,12 @@ export function mustInvite(ctx: MembersCtx, id: string): InviteRow {
   return r;
 }
 export function inviteByCode(ctx: MembersCtx, code: string): InviteRow | undefined {
-  return ctx.db.all(`SELECT * FROM members_invites WHERE code_hash = ?`, hashCode(code))[0] as InviteRow | undefined;
+  const h = hashCode(code);
+  const r = ctx.db.all(`SELECT * FROM members_invites WHERE code_hash = ?`, h)[0] as InviteRow | undefined;
+  if (r) return r;
+  // a code handed out before a replayed create gave the invite a fresh one: it still opens the same invite until that invite is used, revoked or expires (12 Nov 2026)
+  const was = ctx.db.all(`SELECT invite FROM members_invite_codes WHERE code_hash = ?`, h)[0] as { invite?: string } | undefined;
+  return was?.invite ? (ctx.db.all(`SELECT * FROM members_invites WHERE id = ?`, was.invite)[0] as InviteRow | undefined) : undefined;
 }
 /** open past its expiry reads as expired; accepted and revoked stay as they are. */
 export function stateOf(r: InviteRow, now: number): InviteView["state"] {

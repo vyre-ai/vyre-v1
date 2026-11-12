@@ -26,3 +26,5 @@
 - "Maya is not in this chat." with Add is now one component in two places: the strip on top of the composer while the message is written, and the line under the sent message. An agent named in a message who is not in the chat gets the same line and Add, and the "No agent will reply" line steps aside so a message has one line, not two.
 - Console > Computers says how the Space browser's slots stand on this server, in one quiet line: "Agent browsers: 7 of 24 in use.", with ", 3 waiting" while this Space's calls wait for one. Nothing is said without a Space browser.
 - A finished helper's row in the crew strip no longer loses its test counts when its one read of the helper's chat fails on a busy server: the read is tried again.
+- An invite link already sent keeps working when the create is sent again with the same key (a slow answer and a retry): the earlier code is kept beside the fresh one, as a hash, until the invite is used, revoked or expires.
+- A Stop pressed while a reply is starting stops that reply: the press answers at once and the turn ends cancelled as it starts.
