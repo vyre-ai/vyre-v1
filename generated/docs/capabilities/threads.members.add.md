@@ -19,7 +19,7 @@ Add a person to a thread. A private chat becomes a group chat: the newcomer read
 | HTTP | POST /v1/threads/members/add |
 | MCP tool | threads_members_add (chats) |
 | CLI | none |
-| Emits | channel.member_added |
+| Emits | channel.member_added, message.mentioned |
 
 ## Input
 
@@ -28,6 +28,7 @@ type In = {
   threadId: string;
   personId: string;
   fromStart?: boolean;
+  mentionedIn?: string;
 };
 ```
 
@@ -109,6 +110,7 @@ type Out = {
   "name": "example",
   "input": {
     "fromStart": true,
+    "mentionedIn": "msg_a1b2c3",
     "personId": "usr_a1b2c3",
     "threadId": "thr_a1b2c3"
   },

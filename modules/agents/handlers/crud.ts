@@ -591,7 +591,9 @@ export function changedFields(a: AgentConfig, b: AgentConfig): string[] {
 // ---- what the engine and Files tell this module --------------------------------------------------------------------------------------------------------
 
 /** "Irfad" becomes "Irfad’s", "James" becomes "James’": the typographic apostrophe, and a name that ends in s takes no second s. */
-export const possessive = (name: string): string => (/s$/i.test(name) ? `${name}’` : `${name}’s`);
+// the one possessive every Assistant name uses (lib/words/agent-name, 12 Nov)
+import { possessive } from "../../../lib/words/agent-name.ts";
+export { possessive };
 
 const cleanName = (raw: string | undefined): string => (raw ?? "").trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").replace(/^\.+/, "").slice(0, MAX_NAME - 12);
 

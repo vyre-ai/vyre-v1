@@ -148,7 +148,8 @@ export function ComputerNone({ name, onOpenConsole }: { name: string; onOpenCons
   return (
     <View testID="computer-none" style={st.padded}>
       <Text accessibilityRole="header" style={st.headline}>{`${name}'s terminal and browser`}</Text>
-      <Text style={st.none}>{`They appear here once this Space can run them. That needs Docker on the computer this Space runs on, or a server with Docker added in Console > Computers.`}</Text>
+      {/* a member has no Console: who can add the server is named instead of a place they cannot open (review F4) */}
+      <Text style={st.none}>{onOpenConsole ? "They appear here once this Space can run them. That needs Docker on the computer this Space runs on, or a server with Docker added in Console > Computers." : "They appear here once this Space can run them. That needs Docker on the computer this Space runs on, or a server with Docker, which an owner or admin adds."}</Text>
       {onOpenConsole ? <View style={[st.row2, { marginTop: 10 }]}><TextButton label="Open Console > Computers" primary onPress={onOpenConsole} testID="computer-none-console" /></View> : null}
     </View>
   );

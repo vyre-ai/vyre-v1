@@ -53,6 +53,8 @@ const messageRow = t.obj({
   kind: t.enm('text', 'agent', 'system', 'quiet'), body: t.str(), blocks: t.arr(blockSchema), replyTo: t.opt(id.message),
   via: t.opt(t.obj({ routineOwner: id.user })), paidBy: t.opt(id.user), depth: t.int({ minimum: 0 }), attachments: t.arr(id.file), reactions: t.arr(reaction),
   pinned: t.bool(), editedAt: t.opt(t.ts()), createdAt: t.ts(), enc: t.opt(t.int({ minimum: 0, maximum: 2 })),
+  // the composer's chips, as chat.post kept them (a name typed as plain words is not one): the "Maya is not in this chat." line reads these, never names in the body (12 Nov)
+  mentions: t.opt(t.arr(t.obj({ kind: t.enm('person', 'agent'), id: t.str({ examples: ['usr_a1b2c3'] }) }))),
 });
 const channelRow = t.obj({
   channelId: id.channel, mainThreadId: id.thread, name: t.str({ examples: ['intake'] }), topic: t.opt(t.str()), visibility: t.enm('public', 'invite'),
@@ -259,8 +261,9 @@ export default defineManifest({
       errors: ['validation.not_found', 'validation.bad_input', 'validation.precondition_failed', 'validation.duplicate', 'permission.not_contained'],
     }),
     write('threads.members.add', 'Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker\'s private profile there. A chat\'s own agents become visible to the newcomer.', {
-      in: { ...threadT, personId: id.user, fromStart: t.opt(t.bool({ description: 'The newcomer reads the messages from before they were added. Default: false in a private chat, true in a goal chat and a channel.' })) },
-      out: { thread: threadRow }, on: ['thread', '/threadId'], emits: ['channel.member_added'], tool: 'chats',
+      in: { ...threadT, personId: id.user, fromStart: t.opt(t.bool({ description: 'The newcomer reads the messages from before they were added. Default: false in a private chat, true in a goal chat and a channel.' })),
+        mentionedIn: t.opt(id.message) },
+      out: { thread: threadRow }, on: ['thread', '/threadId'], emits: ['channel.member_added', 'message.mentioned'], tool: 'chats',
     }),
     write('threads.members.remove', 'Remove a person from a thread', {
       in: { ...threadT, personId: id.user }, out: { thread: threadRow }, on: ['thread', '/threadId'], emits: ['channel.member_removed'], tool: 'chats',
@@ -589,8 +592,8 @@ export default defineManifest({
     write('channels.leave', 'Leave a channel', {
       in: channelT, out: { ok: t.bool() }, on: ['channel', '/channelId'], level: 'view', emits: ['channel.member_removed'], tool: 'chats', idem: 'natural',
     }),
-    write('channels.members.add', 'Add people to a channel', {
-      in: { ...channelT, personIds: t.arr(id.user, { minItems: 1 }), level: t.opt(level) }, out: { channel: channelRow }, on: ['channel', '/channelId'], level: 'manage',
+    write('channels.members.add', 'Add people to a channel. With mentionedIn (the line under a message that mentioned them), the message must be in the channel and mention each of them', {
+      in: { ...channelT, personIds: t.arr(id.user, { minItems: 1 }), level: t.opt(level), mentionedIn: t.opt(id.message) }, out: { channel: channelRow }, on: ['channel', '/channelId'], level: 'manage',
       emits: ['channel.member_added'], tool: 'chats',
     }),
     write('channels.members.remove', 'Remove a person from a channel', {

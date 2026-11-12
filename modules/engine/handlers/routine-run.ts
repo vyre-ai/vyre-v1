@@ -117,3 +117,18 @@ export async function finishRoutineRun(ctx: Pick<EngineCtx, "db">, host: Routine
   } catch (e) { host.log?.("a routine run was not finished", { runId, error: e instanceof Error ? e.message : String(e) }); return null; }
   return runId;
 }
+
+/**
+ * A routine's Run was stopped by its owner or a Manage holder (run.stopped): the turn it woke stops too, on this host, through the same durable Stop as a person's (the queue row says
+ * stopping or cancelled before this answers, so a restart does not bring it back). Once per run; a run whose turn already ended is left alone.
+ */
+export async function onRoutineRunStopped(ctx: Pick<EngineCtx, "db">, engine: TurnEngine, open: (threadId: string, person: string) => Promise<unknown>, runId: string): Promise<string[]> {
+  ctx.db.run(TURNS);
+  const row = ctx.db.all("SELECT thread_id, qseq, owner FROM engine_routine_turns WHERE run_id = ? AND state = 'queued'", runId)[0] as Obj | undefined;
+  if (!row) return [];
+  ctx.db.run("UPDATE engine_routine_turns SET state = 'done' WHERE run_id = ?", runId);
+  const threadId = str(row["thread_id"]);
+  await open(threadId, str(row["owner"]));
+  await engine.stopTurn(threadId, Number(row["qseq"]), "stop");
+  return [runId];
+}

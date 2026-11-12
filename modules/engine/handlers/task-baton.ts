@@ -282,7 +282,16 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   if (task.workingNotes["plan.parent"] === "1" && answeredChild === undefined) return [];
   const holder = holderOf(task);
   const before = batonRow(ctx.db, task.id);
-  if (!holder) { if (before) dropBaton(ctx.db, task.id); return []; }
+  if (!holder) {
+    // the person cancelled the task: the agents it woke stop, through the same durable Stop as a press (their rows say stopping before this answers, so a restart does not bring them back)
+    if (task.state === "canceled" && before?.threadId) {
+      for (const was of before.woken) {
+        try { await engine.stop(before.threadId, { agentId: was, reason: "stop" }); } catch (e) { host.log?.("the agent of a cancelled task could not be stopped", { taskId: task.id, agentId: was, error: e instanceof Error ? e.message : String(e) }); }
+      }
+    }
+    if (before) dropBaton(ctx.db, task.id);
+    return [];
+  }
   const sig = signatureOf(task, holder);
   const fresh = before?.sig !== sig;
   if (!fresh && !(answeredChild && !before?.answered.includes(answeredChild))) return [];

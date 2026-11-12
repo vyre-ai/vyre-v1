@@ -23,6 +23,7 @@ import type { Due, Presence, PublicTime, Timing } from "../../../lib/presence.ts
 import { addAgent, addMember, askerOf, ensure, insertMessage, insertThread, messageBy, mintId, raise, threadBy } from "../projections.ts";
 import type { ChatCtx, Db, MessageRec, ThreadRec } from "../projections.ts";
 import { deliver, isDirect } from "./post.ts";
+import { agentOfName } from "../../../lib/words/agent-name.ts";
 
 // ---- schema -----------------------------------------------------------------------------------------------------------------------------------------
 
@@ -116,10 +117,15 @@ const first = (name: string): string => name.split(" ")[0] || name;
  * shares, writes as itself in its own chat with the teammate (owner ruling 4 Nov 2026). An agent that cannot be read is not taken for the person's.
  */
 async function writesForPerson(call: Call, agentId: string): Promise<boolean> {
+  const k = await agentKind(call, agentId);
+  return k === "assistant" || k === "outside";
+}
+/** An agent as agent-dm needs it: a person's Assistant, an outside agent they connected, or a Space agent ("other"). */
+async function agentKind(call: Call, agentId: string): Promise<"assistant" | "outside" | "other"> {
   try {
     const a = ((await call("agents.get", { agentId })) as { agent?: { kind?: string; runtime?: string } } | null)?.agent;
-    return a?.kind === "assistant" || a?.runtime === "outside";
-  } catch { return false; }
+    return a?.kind === "assistant" ? "assistant" : a?.runtime === "outside" ? "outside" : "other";
+  } catch { return "other"; }
 }
 
 export { handleOf };
@@ -303,9 +309,11 @@ export async function peopleStatus(ctx: ChatCtx, input: { personIds?: string[]; 
     });
   }
   // which way a message goes, so the agent never claims the other: the model reads names and handles, never ids
+  // the name the teammate reads on the message (lib/words/agent-name): the person's Assistant as "Maya’s Assistant", an outside agent as "Maya Lin (Agent)"
+  const signedAs = self ? "" : agentOfName(mine, agent !== undefined && (await agentKind(call, agent)) === "assistant" ? "assistant" : "outside");
   const how = self
     ? "You message people as yourself, with your own name, in your own chat with each of them. They reply there and you answer there. The person you work for cannot read that chat unless the teammate adds them, and what the teammate writes to you is theirs: do not relay it. The person is told once, with no words of the teammate's, that you are connected."
-    : `You message people for ${mine}, in their own chat with the teammate, signed as ${mine} (Agent). The reply comes back to the chat you were asked in.`;
+    : `You message people for ${mine}, in their own chat with the teammate, signed as ${signedAs}. The reply comes back to the chat you were asked in.`;
   return { people: out, how };
 }
 

@@ -12,9 +12,8 @@ const DOER = "agt_doer", CHECK = "agt_check", BOSS = "usr_boss", OWNER = "usr_ow
 const agent = (id: string) => ({ kind: "agent", id });
 const person = (id: string) => ({ kind: "person", id });
 
-function scene(tasks: Record<string, BatonTask>, extra: Record<string, (input: any) => unknown> = {}) {   // eslint-disable-line @typescript-eslint/no-explicit-any
+function scene(tasks: Record<string, BatonTask>, extra: Record<string, (input: any) => unknown> = {}, provider = scriptedProvider({ script: [{ type: "text", text: "ok" }, { type: "done" }] })) {   // eslint-disable-line @typescript-eslint/no-explicit-any
   const h = harness({ threads: [{ threadId: "thr_t1", kind: "thread", starter: "svc_host", agents: [{ agentId: DOER, mode: "listen" }, { agentId: CHECK, mode: "listen" }] }] });
-  const provider = scriptedProvider({ script: [{ type: "text", text: "ok" }, { type: "done" }] });
   const engine = h.runtime({ openSession: provider.openSession });
   const base = h.ctx.call;
   h.ctx.call = async (cap, input) => {
@@ -204,4 +203,20 @@ test("a task a record change started is marked as holding outside content; one a
   const timed = scene({ tsk_t1: mk("schedule") }, stubs);
   assert.deepEqual(await timed.run("task.created", "tsk_t1"), [DOER]);
   assert.equal(timed.h.called.some((c) => c.cap === "gate.taint.mark"), false);
+});
+
+test("a task the person cancels stops the turn its agent is working on it, through the durable Stop (the row says stopping before the Stop answers)", async () => {
+  const t = task();
+  let release = (): void => undefined;
+  const held = new Promise<void>((r) => { release = r; });
+  const slow = scriptedProvider({ script: [{ type: "text", text: "ok" }, { type: "done" }], beforeEvent: async (i) => { if (i === 0) await held; } });
+  const s = scene({ tsk_t1: t }, {}, slow);
+  assert.deepEqual(await s.run("task.created", "tsk_t1"), [DOER]);
+  for (let i = 0; i < 100 && slow.sessions.length === 0; i++) await new Promise((r) => setTimeout(r, 5));
+  t.state = "canceled";
+  await s.run("task.transitioned", "tsk_t1");
+  assert.equal(s.engine.queue("thr_t1").at(-1)?.state, "stopping", "on the row before anything else");
+  release();
+  await s.engine.idle("thr_t1");
+  assert.equal(s.engine.events("thr_t1").filter((e) => e.type === "turn.cancelled").length, 1, "the doer's turn was stopped, once");
 });

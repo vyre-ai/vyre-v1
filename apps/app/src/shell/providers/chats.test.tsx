@@ -120,6 +120,13 @@ test("chats: the pane's Ask About This and the agent page's Change by Asking bot
   assert.equal(chatsActions(GO).fillComposer("x"), undefined, "without a store the ask is dropped, never thrown");
 });
 
+test("chats: the agent page offers Add a server only to who may add one (review F4): an owner or admin of a Team Space, never a member", () => {
+  const { rt } = runtime();
+  const page = (perms: string[]) => agentPageData({ ...rt, space: { ...rt.space, kind: "team" }, permissions: new Set(perms) } as typeof rt, GO, { agent: { agentId: "agt_docs", name: "Docs" }, canEdit: true, nameOf: (id) => id });
+  assert.equal(typeof page(["access.manage"]).nav.openAddServer, "function", "an admin is offered it");
+  assert.equal(page([]).nav.openAddServer, undefined, "a member is not");
+});
+
 test("chats: the sidebar's dot says another Space needs you, from the Spaces the shell knows", () => {
   const { rt } = runtime();
   const space = (spaceId: string, needsYou: boolean) => ({ spaceId, name: spaceId, kind: "team", address: "", role: "Owner", tint: ["#000", "#111"], kit: "x", skinDefault: "system", starred: false, needsYou, console: false, terminal: false, counts: {}, dots: {} }) as never;

@@ -88,4 +88,16 @@ Signed: lead, 12 Nov 2026
 
 The hashes of the twenty-two `computers.chrome.*@1` capabilities in `docs/frozen/snapshots/computers.json` were written again at the merge of lanes f-desktop and f-wire into int/rc25. Each lane's own change is described and signed in its paragraph above (the browser tools an agent may call without naming its computer, and the reopen refusal with the optional note on take_over); neither changed after review. The two changes touch the same capabilities, so the hash of the merged manifest is new and neither lane's snapshot matched it. No field, version or behaviour beyond those two signed changes is in this snapshot; it was regenerated on the build box with `node tools/gen/src/cli.ts --snapshots`.
 
+## 12 Nov 2026: the "Maya is not in this chat." line and one name for an Assistant (lane f-ownerwalk)
+
+What changed:
+- `threads.members.add@1` gains an optional `mentionedIn` (a message id) and may emit `message.mentioned`. Nothing else in it changes. With `mentionedIn`, the message must be in that thread and must mention the person with a chip (`chat_mention`); the person reads from that message on and is told about it like any mention.
+- `channels.members.add@1` gains the same optional `mentionedIn` (review M3). The message must be in the channel or a reply thread under it and must mention each person added. It emits nothing new: a channel is not private, so `chat.post` already told the people its chips name, member or not, and Add does not tell them twice.
+- The chat message row gains an optional `mentions` (review M4): the message's own chips as `chat.post` kept them, each `{ kind, id }` of a person or agent named in it. It holds ids only, no names or other display data, and only on a message the caller may already read; `chat.messages.list` fills it. Every capability that answers that row changes its hash for this field alone.
+- The access principal row gains an optional `assistant`: a flag (`true`), never a person. It is set only on someone else's private agent that is their Assistant, a row whose `owner` the caller already gets, so it names nobody the caller cannot see. With it the agent is named "Maya’s Assistant" everywhere, never "Maya Lin (Agent)" (lead, 12 Nov). Every capability that answers that row changes its hash for this field alone.
+
+All four changes are additive and optional; nothing existing changes shape.
+
+Why: the owner's line "Maya is not in this chat." with Add under the sender's message (owner, 12 Nov 2026), its review (M2 to M4), and the lead's rule of one name for a person's Assistant.
+
 Signed: lead, 12 Nov 2026

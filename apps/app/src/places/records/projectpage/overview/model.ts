@@ -2,6 +2,7 @@
 // The page itself is the shared Markdown editor with live blocks (ui/src/RichEditor); the server keeps it as blocks and revisions (projects.overview_doc.*).
 import type { CapMap } from "../../../../../../../generated/types.ts";
 import { partsIn } from "../../../../../../../lib/zones.ts";
+import { markedAgent } from "../../../../../../../lib/words/agent-name.ts";
 
 export type OverviewDoc = CapMap["projects.overview_doc.get"]["out"];
 export type LiveOut = CapMap["projects.live_block.query"]["out"];
@@ -176,7 +177,7 @@ export const when = (at: number, now: number): string => {
 /** The line of one version: what changed, by whom, when. `who` says the author's name (or "you"). */
 export function revisionLine(r: Revision, who: string, now: number): { title: string; note: string } {
   const title = r.undoOf !== undefined ? `Undid version ${r.undoOf}` : capital(r.summary);
-  return { title, note: `Edited by ${who}${r.authorKind === "agent" ? " (Agent)" : ""} · ${when(r.at, now)}` };
+  return { title, note: `Edited by ${r.authorKind === "agent" ? markedAgent(who) : who} · ${when(r.at, now)}` };
 }
 const capital = (s: string): string => (s === "" ? "Edited the page" : s.charAt(0).toUpperCase() + s.slice(1));
 

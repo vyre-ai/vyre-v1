@@ -44,3 +44,12 @@ test("its person, and the server's own reads, see it as it is", () => {
   assert.equal(principalView(store, store.principals.get("agt_simba")!, { id: "usr_olivia", admin: true }).name, "Simba (Claude Code)");
   assert.equal(principalView(store, store.principals.get("agt_simba")!).name, "Simba (Claude Code)");
 });
+
+test("someone else's Assistant goes by one name, \"Olivia’s Assistant\", never \"Olivia Reyes (Agent)\" (lead, 12 Nov); an outside agent keeps its person's credit", () => {
+  const store = space();
+  applyEvent(store, { seq: 8, type: "principal.created", payload: { id: "agt_olas", kind: "agent", name: "Olivia’s Assistant", owner: "usr_olivia", status: "active" } }, 1);
+  applyEvent(store, { seq: 9, type: "agent.privacy_set", payload: { agentId: "agt_olas", ownerId: "usr_olivia", private: true, assistant: true } }, 1);
+  const v = principalView(store, store.principals.get("agt_olas")!, { id: "usr_noah", admin: false });
+  assert.deepEqual([v.name, v.private, v.assistant, v.owner, v.agentName], ["Olivia’s Assistant", true, true, "usr_olivia", undefined]);
+  assert.equal(principalView(store, store.principals.get("agt_simba")!, { id: "usr_noah", admin: false }).assistant, undefined, "an outside agent is not an Assistant");
+});
