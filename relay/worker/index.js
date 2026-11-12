@@ -694,18 +694,17 @@ export class RouteRelay {
     const ip = String(head.ip || "");
     const seen = w.ips.get(ip) || 0;
     if (w.n >= PUBLIC.perMinute || seen >= PUBLIC.ipPerMinute) return new Response(null, { status: 429, headers: { "retry-after": "60" } });
-    // a web request trigger has its own minute too: for the Space, and for one hook
-    if (typeof head.hook === "string") {
-      // counted per Space, per hook, and per visitor address on that hook (a shared sender address posting for many customers cannot spend another customer's share without the hook's id).
-      // Memory is bounded: a key is added only when a request is let through, and at most HOOKS.perMinute are let through a minute, so each map holds at most that many entries.
-      if (!w.hooks) w.hooks = { n: 0, per: new Map(), visitors: new Map() };
-      const vk = `${ip}|${head.hook}`;
-      const one = w.hooks.per.get(head.hook) || 0;
-      const mine = w.hooks.visitors.get(vk) || 0;
-      if (w.hooks.n >= HOOKS.perMinute || one >= HOOKS.perHookPerMinute || mine >= HOOKS.perVisitorPerMinute) return new Response(null, { status: 429, headers: { "retry-after": "60" } });
-      w.hooks.n++;
-      w.hooks.per.set(head.hook, one + 1);
-      w.hooks.visitors.set(vk, mine + 1);
+    // a web request trigger has its own minute, in two counts. ACCEPTED requests (the box answered 200): 120 for the Space, 30 for one hook, 20 for one address on one hook, so a busy
+    // sender on a shared address is limited only on its own hook. REFUSED requests (any other answer): 20 for one address across the Space, so a stranger spraying ids or secrets stops after
+    // 20 and never spends the accepted budget. A hook that was accepted this minute is known: an address over its refusal count may still post to it (20 refusals on that pair at most).
+    // Memory: every map is cleared each minute; the accepted maps gain an entry only on a 200 (at most 120), the refusal maps only on a request let through (at most PUBLIC.perMinute, 600).
+    const hook = typeof head.hook === "string" ? head.hook : null;
+    if (hook) {
+      if (!w.hooks) w.hooks = { n: 0, per: new Map(), pair: new Map(), known: new Set(), refused: new Map(), refusedPair: new Map() };
+      const h = w.hooks, pk = `${ip}|${hook}`;
+      const over = h.n >= HOOKS.perMinute || (h.per.get(hook) || 0) >= HOOKS.perHookPerMinute || (h.pair.get(pk) || 0) >= HOOKS.perVisitorPerMinute
+        || (h.known.has(hook) ? (h.refusedPair.get(pk) || 0) >= HOOKS.refusedPerVisitor : (h.refused.get(ip) || 0) >= HOOKS.refusedPerVisitor);
+      if (over) return new Response(null, { status: 429, headers: { "retry-after": "60" } });
     }
     w.n++;
     w.ips.set(ip, seen + 1);
@@ -713,7 +712,7 @@ export class RouteRelay {
     if (this.publicOpen.size >= PUBLIC.concurrent) return new Response(null, { status: 503, headers: { "retry-after": "5" } });
     const body = new Uint8Array(await request.arrayBuffer());
     const id = b64url(random(9));
-    return new Promise(resolve => {
+    const answered = new Promise(resolve => {
       const flow = new TransformStream();
       const writer = flow.writable.getWriter();
       const entry = { resolve, writer, readable: flow.readable, answered: false, size: 0, timer: /** @type {any} */ (null) };
@@ -724,6 +723,12 @@ export class RouteRelay {
         this.json(control, { t: "p.body", id, b: bytesToB64(body.subarray(at, at + PUBLIC.chunk)), end: at + PUBLIC.chunk >= body.length });
       }
     });
+    if (!hook) return answered;
+    const res = /** @type {Response} */ (await answered);
+    const h = w.hooks, pk = `${ip}|${hook}`;
+    if (res.status === 200) { h.n++; h.per.set(hook, (h.per.get(hook) || 0) + 1); h.pair.set(pk, (h.pair.get(pk) || 0) + 1); h.known.add(hook); }
+    else if (res.status !== 429) { h.refused.set(ip, (h.refused.get(ip) || 0) + 1); h.refusedPair.set(pk, (h.refusedPair.get(pk) || 0) + 1); }
+    return res;
   }
 
   /** Close one open visitor request: an answer not yet started becomes `status`, one already streaming is cut. @param {string} id @param {number} status */
