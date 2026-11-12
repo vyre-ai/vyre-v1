@@ -19,7 +19,7 @@ Promote a Personal Automation to the Space: keeps history and versions, runs on 
 | HTTP | POST /v1/automations/promote |
 | MCP tool | automations_promote (automations) |
 | CLI | none |
-| Emits | automation.promoted |
+| Emits | automation.promoted, automation.runs_as_changed |
 
 ## Input
 
@@ -132,6 +132,7 @@ type Out = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
   diff: {
     grants: Array<{
@@ -287,6 +288,7 @@ type Out = {
       "name": "example",
       "ownerId": "example",
       "pausedReason": "example",
+      "runsAs": "usr_a1b2c3",
       "status": "on",
       "updatedAt": 1760000000000,
       "version": 1

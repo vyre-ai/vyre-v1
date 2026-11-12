@@ -151,7 +151,8 @@ test("fire: makes the call with the schedule's input and a key per time, records
   h.setNow(t + 5_000);
   const out = await h.call("scheduler.fire", { scheduleId, scheduledFor: t }, host);
   assert.deepEqual(out, { runId: started[0] });
-  assert.deepEqual(h.calls.at(-1), { cap: "automations.fire", input: { automationId: "aut_a1b2c3", note: "daily", idempotencyKey: `sch:${scheduleId}:${t}` }, opts: { idempotencyKey: `sch:${scheduleId}:${t}` } });
+  // a schedule a person made runs with that person's own standing (asCaller): the capability it calls does not take it for module code
+  assert.deepEqual(h.calls.at(-1), { cap: "automations.fire", input: { automationId: "aut_a1b2c3", note: "daily", idempotencyKey: `sch:${scheduleId}:${t}` }, opts: { idempotencyKey: `sch:${scheduleId}:${t}`, asCaller: true } });
   const fired = h.allEvents.at(-1)!;
   assert.equal(fired.name, "schedule.fired");
   assert.deepEqual(fired.payload, { scheduleId, owner, runId: started[0], scheduledFor: t, late: false });
@@ -371,4 +372,32 @@ test("status: healthy when nothing is late, degraded then down as the tick falls
   const d = await h.call("scheduler.status", {}, host);
   assert.equal(d.state, "down");
   assert.match(d.detail, /1 schedule is due/);
+});
+
+test("fire: a schedule a person made calls its capability with that person's standing (asCaller); one Vyre itself made does not", async () => {
+  const h = harness();
+  runner(h);
+  const t = utc(2025, 10, 10, 9);
+  const mine = (await h.call("scheduler.schedule", every({ input: { automationId: "aut_a1b2c3" }, idempotencyKey: "k-mine" }), alice)).scheduleId;
+  const vyre = (await h.call("scheduler.schedule", every({ input: { automationId: "aut_a1b2c3" }, principal: alice.id, idempotencyKey: "k-vyre" }), host)).scheduleId;
+  h.setNow(t + 1_000);
+  await h.call("scheduler.fire", { scheduleId: mine, scheduledFor: t }, host);
+  assert.equal(h.calls.at(-1)!.opts?.asCaller, true);
+  await h.call("scheduler.fire", { scheduleId: vyre, scheduledFor: t }, host);
+  assert.equal(h.calls.at(-1)!.opts?.asCaller, undefined);
+});
+
+test("fire: only a schedule the host or a system service made counts as Vyre's own; an automation's own service id is a tenant and is forwarded as its caller", async () => {
+  const h = harness();
+  runner(h);
+  const t = utc(2025, 10, 10, 9);
+  const tenant = { id: `svc_${"a1".repeat(16)}`, kind: "service" as const };
+  const system = { id: "svc_engine", kind: "service" as const };
+  const fromTenant = (await h.call("scheduler.schedule", every({ idempotencyKey: "k-tenant" }), tenant)).scheduleId;
+  const fromSystem = (await h.call("scheduler.schedule", every({ idempotencyKey: "k-system" }), system)).scheduleId;
+  h.setNow(t + 1_000);
+  await h.call("scheduler.fire", { scheduleId: fromTenant, scheduledFor: t }, host);
+  assert.equal(h.calls.at(-1)!.opts?.asCaller, true, "a tenant service's schedule runs with its own standing");
+  await h.call("scheduler.fire", { scheduleId: fromSystem, scheduledFor: t }, host);
+  assert.equal(h.calls.at(-1)!.opts?.asCaller, undefined, "a system service's schedule is Vyre's own");
 });

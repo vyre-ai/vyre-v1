@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (67)
+## Capabilities (68)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
@@ -50,6 +50,7 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automations.restore_version](../capabilities/automations.restore_version.md): Restore an Automation to an earlier version (saved as a new version)
 - [automations.retry](../capabilities/automations.retry.md): Retry a failed run of this Automation from the start or from a step
 - [automations.run](../capabilities/automations.run.md): Run an Automation now with a payload (the manual trigger or a button)
+- [automations.runs_as.get](../capabilities/automations.runs_as.get.md): Whose yes a Space automation's agent work runs on, and whether that person may still give it to this agent; for one Run, its trigger
 - [automations.schedule_choose](../capabilities/automations.schedule_choose.md): Apply one recovery choice to a schedule whose backlog is over its cap
 - [automations.senders](../capabilities/automations.senders.md): What this Automation sends from: the mailboxes and numbers its steps name, and whether each can send now
 - [automations.set_enabled](../capabilities/automations.set_enabled.md): Turn an Automation on or off
@@ -74,7 +75,7 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automations.webhook_url.get](../capabilities/automations.webhook_url.get.md): The inbound webhook URL of an Automation that has a webhook trigger
 - [automations.webhook_url.rotate](../capabilities/automations.webhook_url.rotate.md): Rotate the secret in the webhook URL; the old URL stops working
 
-## Events (21)
+## Events (22)
 
 - [automation.alerts_changed](../events/automation.alerts_changed.md): Error alerts and the escalation chain changed
 - [automation.copied](../events/automation.copied.md): A Space Automation was copied to a Personal Automation
@@ -91,6 +92,7 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automation.promoted](../events/automation.promoted.md): A Personal Automation became a Space Automation with access granted to the automation itself
 - [automation.restored](../events/automation.restored.md): An Automation came back from Trash
 - [automation.run_started](../events/automation.run_started.md): An Automation run started from a trigger, by hand or in test mode
+- [automation.runs_as_changed](../events/automation.runs_as_changed.md): The person a Space Automation runs as changed: someone turned it on, published a change, restored a version or put it on the Space; or nobody, after a change no person pressed
 - [automation.runs_migrated](../events/automation.runs_migrated.md): Active runs moved to a later definition version without replaying finished steps
 - [automation.trigger_dropped](../events/automation.trigger_dropped.md): A trigger event was ignored: self-trigger, chain depth 8 or paused
 - [automation.updated](../events/automation.updated.md): An Automation definition or settings changed; a definition change saves a version

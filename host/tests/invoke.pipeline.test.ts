@@ -307,3 +307,21 @@ test("only the trusted host's pre-authorized internal record read retains system
 test('restricted collection reads take their rate limit before scanning and charge indexed fallbacks once',async()=>{
  for(const restricted of [true,false]){let scans=0;const c=cap({name:'records.query',effects:'read',permission:'records.read',level:'view',rate:{n:1,perSeconds:10,scope:'person'}});const r=rig([c],{'records.query':()=>({rows:[]})},{recordAccess:{facts:async(_c,_i,req)=>req,project:async(_c,_i,_s,out)=>()=>out,collection:async()=>{scans++;return restricted?{finish:()=>({rows:[]})}:null;}}});assert.equal((await r.invoke('records.query',{id:'rec_1'},seed())).status,'ok');await expectErr(r.invoke('records.query',{id:'rec_1'},seed()),'rate_limit.exceeded');assert.equal(scans,1);}
 });
+
+test("a Vault name or handle for an item the person cannot see answers exactly as one that names nothing, even where authorize would say yes (an admin on another's Mine item)", async () => {
+  const use = cap({ name: "vault.use", resource: { type: "vault_item", id: "/item", resolve: "name" } as never, permission: null as never, level: "use", effects: "read" });
+  const answer = async (o: Partial<InvokeDeps>, item: string): Promise<string> => {
+    const r = rig([use], { "vault.use": () => ({ ok: true }) }, o);
+    r.snap.putResource({ id: "vit_hidden", type: "vault_item", parent_id: "root", label: 0, owner_id: null, holds: 0 });
+    r.snap.putGrant({ id: "g_all", subject_kind: "actor", subject_id: "usr_dana", resource_type: "vault_item", resource_id: "vit_hidden", level: "use" });
+    try { await r.invoke("vault.use", { item }, seed()); return "ran"; } catch (e) { const x = (e as HostError).error; return JSON.stringify({ code: x.code, message: x.message, details: x.details }); }
+  };
+  const deps: Partial<InvokeDeps> = { resolveItem: (_t, _k, v) => (v === "Hidden" ? "vit_hidden" : null), vaultHidden: (id) => (id === "vit_hidden" ? "mine" : false) };
+  const hidden = await answer(deps, "Hidden");
+  const missing = await answer(deps, "Nothing_Here");
+  assert.equal(hidden, missing, "the same code, words and details");
+  assert.match(missing, /There is no Vault item by that name that you can use/);
+  assert.equal(await answer({ ...deps, vaultHidden: () => false }, "Hidden"), "ran", "an item the person may see runs as before");
+  // review 1: an item the person alone may not use, but the real decision allows (a key approved for an agent through a key request), runs
+  assert.equal(await answer({ ...deps, vaultHidden: () => "other" }, "Hidden"), "ran", "the real decision allowed it: not hidden");
+});

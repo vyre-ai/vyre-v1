@@ -1,14 +1,14 @@
 // One entry of the conversation. Yours is a bubble on the right; anyone else's has a header (face, name, time) when the author changes; an agent's work folds into one line; native
 // cards (question, plan, terminal, changeset, file) sit under the text; an error is one inline row (what, why, next). Hover shows Copy and Edit and the rest; right-click opens the same
 // list; the keyboard reaches both. Every row is memoised on its item, so a streaming message re-renders alone.
-import { HelperRow } from "./helper-row.tsx";
+import { helperRowOf, HelperRow } from "./helper-row.tsx";
 import { CrewBlock } from "../session/CrewBlock.tsx";
 import { QuestionCard } from "./question-card.tsx";
 import { StatusCard, isStatusCard } from "./status-cards.tsx";
 import { AwayRow, HourMark, JumpRow } from "../session/rows.tsx";
 import type { SessionItem } from "../session/model.ts";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
-import { holdsOf, mergeStateOf, withTeammates } from "../crew/model.ts";
+import { mergeStateOf, withTeammates } from "../crew/model.ts";
 import { FROM_THREAD_LINE } from "../crew/also.tsx";
 import { barShows, citable, citeBody, citeRender } from "../crew/cite.tsx";
 import type { CrewMember, CrewStatusOut } from "../crew/model.ts";
@@ -92,6 +92,8 @@ export function namedIds(body: string, nameOf?: (id: string) => string): string 
 }
 
 export interface MessageActions {
+  /** A quiet line under the sender's own message (a person mentioned who is not in the chat, with Add). */
+  belowMine?: (m: Message) => ReactElement | null;
   copy(text: string): void;
   edit(messageId: string, body: string): void;
   setPinned(messageId: string, pinned: boolean): void;
@@ -186,6 +188,8 @@ export interface MessageViewProps {
   mark?: "match" | "active" | "selected" | undefined;
   /** The thread under this message, when anyone has replied in it: the line that opens it. */
   replies?: { s: ReplySummary; clock: Clock } | undefined;
+  /** What the quiet line under your own message says now (actions.belowMine draws it): the row draws again when it changes, so Add, a dismiss or someone else adding the person shows at once. */
+  below?: string | undefined;
 }
 
 /** Where a forked chat came from: the first line of a fork carries the chat, the message and the chat's title. */
@@ -221,7 +225,7 @@ export function sameData(a: unknown, b: unknown, depth: number): boolean {
 
 /** Draw a row again only when something it shows changed. */
 export function sameRow(a: MessageViewProps, b: MessageViewProps): boolean {
-  return a.meId === b.meId && a.stream === b.stream && a.sending === b.sending && a.openWork === b.openWork && a.mark === b.mark
+  return a.meId === b.meId && a.stream === b.stream && a.sending === b.sending && a.openWork === b.openWork && a.mark === b.mark && a.below === b.below
     && sameData(a.item, b.item, 6) && sameData(a.actions, b.actions, 5) && sameData(a.replies, b.replies, 3);
 }
 
@@ -457,6 +461,7 @@ function Mine({ item, actions, sending, mark, replies, meId }: MessageViewProps 
       {m.editedAt !== undefined ? <Text style={st.edited}>edited</Text> : null}
       {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}
       {sending === "sending" ? <Text testID={`sending-${m.messageId}`} style={st.edited}>Sending</Text> : null}
+      {!editing && sending === undefined && actions.belowMine ? actions.belowMine(m) : null}
       {sending === "failed" ? (
         <View testID={`failed-${m.messageId}`} accessibilityRole="alert" style={st.failed}>
           <Text style={st.failedText}>Not sent.</Text>
@@ -606,12 +611,10 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           const totals = live && members.every((x) => memberOf(live, x.id) !== undefined) && live.members.filter((x) => x.kind === "helper").length === rows ? live.totals
             : { members: rows, working: members.filter((x) => x.state === "working").length, done: members.filter((x) => x.state === "done").length, needsYou: members.filter((x) => x.state === "needs_you").length, failed: members.filter((x) => x.state === "failed").length, stopped: members.filter((x) => x.state === "stopped").length, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: Math.max(0, ...members.map((x) => x.elapsedMs)) };
           const c = actions.crew;
-          // a helper that waits for a person's yes shows its held request here, in the chat the person reads: the same approval card as anywhere (Allow, Always allow, Deny)
           // the coders on this strip: Review all and Merge sit in its header, and nothing is posted per coder
           const coders = members.filter((x) => (x as { kind?: string }).kind === "teammate") as Array<CrewMember & { jobId?: string }>;
           const mergeState = mergeStateOf(members);
           const coderMerge = mergeState !== "none" && c?.merge ? { state: mergeState, onReview: () => c.openPane(), onMerge: () => c.merge(coders.flatMap((x) => (x.jobId ? [x.jobId] : []))) } : null;
-          const holds = holdsOf(members);
           return (
             <View key={b.id}>
               <CrewBlock members={members} totals={totals} {...(actions.files ? { call: actions.files.call as unknown as (cap: string, input: unknown) => Promise<unknown> } : {})} {...(coderMerge ? { merge: coderMerge } : {})} selectedId={c?.selected ?? null} onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))} {...(c ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) } : {})} />
@@ -620,12 +623,15 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
                   <MarkdownBlocks blocks={bodyBlocks(`${m.messageId}#answer`, citeBody(namedIds((b.data as { after: string }).after, actions.nameOf), crewRows.length))} {...(citeLink ? { renderLink: ((href: string, kids: ReactNode, key: number) => citeLink(href, kids, key) ?? null) as never } : {})} />
                 </View>
               ) : null}
-              {/* ui-rows-lint: not a list (the approval cards of helpers that wait for a yes, each the same card as anywhere else in the chat) */}
-              {actions.files ? holds.map((x) => <ApprovalCard key={`hold-${x.id}`} taskId={x.holdTaskId} agent={x.name ?? x.title} agentId={x.agentId} faceSeed={x.id} data={actions.files!} />) : null}
+              {/* a helper that waits for a yes: its approval card is the helper's own message in this chat, raised there when it parked (engine bridge), the same card as anywhere; its row here says what it waits for */}
             </View>
           );
         }
-        if (b.type === "helper" && !isCrewStart(b)) return <HelperRow key={b.id} block={b} onOpen={(id) => actions.openMessage?.(id, "")} />;
+        if (b.type === "helper" && !isCrewStart(b)) {
+          const tid = helperRowOf(b).threadId;
+          const w = actions.crew?.status?.members.find((x) => x.id === tid && x.state === "needs_you");
+          return <HelperRow key={b.id} block={b} onOpen={(id) => actions.openMessage?.(id, "")} {...(w ? { waiting: (w as { step?: string }).step ?? "Needs your OK" } : {})} />;
+        }
         if (isStatusCard(b.type)) return <StatusCard key={b.id} id={b.id} type={b.type} data={b.data} host={cardHost(actions)} />;
         if (b.type === "question" && b.state === "waiting") {
           const d = (b.data ?? {}) as Record<string, unknown>;
@@ -643,7 +649,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={item.who.name} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files} /> : null))}
       {item.who.forPerson && actions.agentMute && actions.agentMute.offerFor === m.messageId && onBehalfOf(m)?.teammate === actions.agentMute.me ? (
         <Pressable accessibilityRole="button" testID={`agent-mute-${m.messageId}`} onPress={() => actions.agentMute!.mute(item.who.forPerson!)}>
-          <Text style={[st.via, st.muteLine]}>{`Mute agent messages from ${firstName(item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
+          <Text style={[st.via, st.muteLine]}>{`Mute agent messages from ${firstName(item.who.forPerson && actions.nameOf ? actions.nameOf(item.who.forPerson) : item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
         </Pressable>
       ) : null}
       <Reactions m={m} a={actions} mine={false} meId={meId} />

@@ -495,7 +495,7 @@ function assertEveryone(ctx: ShareCtx, store: AccessStore, res: ResourceRec, lev
  */
 export async function joinShare(ctx: ShareCtx, input: { resource: ResourceRef; person: string; level: Level; inviter: string; source: string }) {
   const trace = ctx.trace.traceId;
-  if (((ctx as { depth?: number }).depth ?? 0) === 0 && !isHostService(ctx.principal)) raise(trace, "permission.role_lacks_permission", "This is the join step of an invite, not a direct call.");
+  if ((((ctx as { depth?: number }).depth ?? 0) === 0 || (ctx as { forwarded?: boolean }).forwarded === true) && !isHostService(ctx.principal)) raise(trace, "permission.role_lacks_permission", "This is the join step of an invite, not a direct call.");
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const res = resourceOf(ctx, store, input.resource);
@@ -612,7 +612,7 @@ export async function share(ctx: ShareCtx, input: {
  */
 export async function automationSenders(ctx: ShareCtx, input: { automationId: string; give: ResourceRef[]; keep: ResourceRef[] }) {
   const trace = ctx.trace.traceId;
-  if (((ctx as { depth?: number }).depth ?? 0) === 0 || ctx.principal.kind !== "person") raise(trace, "permission.role_lacks_permission", "A person gives an Automation its senders by turning it on.");
+  if (((ctx as { depth?: number }).depth ?? 0) === 0 || (ctx as { forwarded?: boolean }).forwarded === true || ctx.principal.kind !== "person") raise(trace, "permission.role_lacks_permission", "A person gives an Automation its senders by turning it on.");
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const source = `automation:${input.automationId}`;

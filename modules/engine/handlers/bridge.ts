@@ -174,6 +174,7 @@ export function createBridge(o: BridgeOptions): Bridge {
   const dirty = new Set<string>();                        // threads whose agents changed in the chat since the engine last read them
   const withSettings = new Set<string>();                 // threads where some agent has Listening, topics, hours or a style set: read the line-up before every message
   const homeOf = new Map<string, string>();                // thread id -> the chat it answers for, where agents reply in a thread under the asking message
+  const helperOf = new Map<string, string>();              // a helper's own thread id -> the chat that started it, where the person is (gate blocker, 12 Nov)
   const pokedBy = new Map<string, string>();              // `${thread}:${agent}` -> the person who poked it: the reply says so
 
   const askerMention = (threadId: string, agentId: string): AgentPost["mentions"] => {
@@ -282,7 +283,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         }
         if (e.type === "turn.waiting" && e.reason !== "approval") return;
         // a turn a dead host left has no turn.started here: who it ran for comes with the event, so the agent can still say so in the chat
-        if (e.type === "turn.failed" && e.asker) askerOf.set(e.threadId, e.asker);
+        if ((e.type === "turn.failed" || e.type === "turn.cancelled") && e.asker) askerOf.set(e.threadId, e.asker);
         if (e.type === "turn.failed") warn("a turn failed", { threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, code: e.code, ...(e.message ? { why: scrub(e.message) } : {}) });
         const parked = e.type === "turn.waiting";
         if (!parked) pokedBy.delete(`${e.threadId}:${e.agentId}`);   // a poke that failed or was stopped does not mark a later reply
@@ -295,6 +296,10 @@ export function createBridge(o: BridgeOptions): Bridge {
         enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: seg?.text ?? "", blocks, mentions: askerMention(e.threadId, e.agentId), clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) }, e.turnId);
         // an approval asked inside a thread rises to the chat the thread answers for: one quiet line there that opens the thread (the Island shows the approval itself)
         const up = parked ? homeOf.get(e.threadId) : undefined;
+        // a helper's approval never waits in its own thread, where nobody looks (gate blocker, 12 Nov): the same approval card goes to the chat the person asked in, from the helper, with
+        // Allow, Always allow and Deny; the task is the same one Needs you holds, so answering either answers both and the helper goes on (or reports back that it could not)
+        const lead = parked && !up ? helperOf.get(e.threadId) : undefined;
+        if (lead && e.type === "turn.waiting") enqueuePost(lead, e.agentId, { threadId: lead, body: "", blocks: [status(e), { type: "from_thread", v: 1, data: { threadId: e.threadId, messageId: "" } }], mentions: askerMention(e.threadId, e.agentId), clientId: brgId() }, undefined);
         if (up) enqueuePost(up, e.agentId, { threadId: up, body: "", blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: "needs your OK" } }, { type: "from_thread", v: 1, data: { threadId: e.threadId, messageId: "" } }], mentions: [], clientId: brgId() }, undefined);
         return;
       }
@@ -390,7 +395,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     });
   }
 
-  type ThreadGet = OpenGet & { thread: { scopeId?: string } };
+  type ThreadGet = OpenGet & { thread: { scopeId?: string; parentThreadId?: string } };
   type Row = { messageId: string; threadSeq?: number; author: { kind: string; id: string }; body: string; depth?: number; replyTo?: string; attachments?: string[]; blocks?: Array<{ type: string; data?: unknown }> };
 
   /**
@@ -439,6 +444,8 @@ export function createBridge(o: BridgeOptions): Bridge {
       ctx.log.warn("the bridge could not read the thread, so no turn runs for its message", { traceId: ctx.trace.traceId, threadId, code: (e as { error?: { code?: string } })?.error?.code ?? "unknown", error: e instanceof Error ? e.message : String(e) });
       return false;
     }
+    // a helper works in a thread of its own that no person has open: what it waits on is shown in the chat that started it
+    if (got.thread.kind === "helper" && typeof got.thread.parentThreadId === "string" && got.thread.parentThreadId !== "") helperOf.set(threadId, got.thread.parentThreadId);
     if (got.thread.agents.length === 0) return false;   // nobody to run; the thread opens on the first message after an agent joins
     // the same thread recovery and control calls build (thread-open.ts): the agent's own model when the chat pins none, its name, settings, outside flag, the task lead, personal
     const built = await engineThreadOf({

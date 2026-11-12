@@ -1,6 +1,6 @@
 # channels.members.add
 
-Add people to a channel
+Add people to a channel. With mentionedIn (the line under a message that mentioned them), the message must be in the channel and mention each of them
 
 | | |
 |---|---|
@@ -28,6 +28,7 @@ type In = {
   channelId: string;
   personIds: Array<string>;
   level?: "view" | "use" | "edit" | "manage";
+  mentionedIn?: string;
 };
 ```
 
@@ -87,6 +88,7 @@ type Out = {
   "input": {
     "channelId": "chn_a1b2c3",
     "level": "view",
+    "mentionedIn": "msg_a1b2c3",
     "personIds": [
       "usr_a1b2c3"
     ]

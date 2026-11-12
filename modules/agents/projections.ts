@@ -27,6 +27,8 @@ export interface AgentsCtx {
   /** Where the call came from and how deep it sits: a read for the server's own use stays whole (seesSetup). */
   origin?: string | undefined;
   depth?: number | undefined;
+  /** forwarded for its caller by another module (a stored schedule, a template or Kit step): the caller's own call, never module code (lib/trust.ts isForwarded) */
+  forwarded?: boolean | undefined;
   trace: { traceId: string };
   now(): number;
   db: Db;
@@ -1164,7 +1166,7 @@ const SERVER_ORIGINS: ReadonlySet<string> = new Set(["engine", "hook", "schedule
  * Whole for the server's own reads, a module's nested call, the agent itself, its owner, an editor, and an admin who has turned on All in the Space. Everyone else sees the agent without them.
  */
 export function seesSetup(ctx: AgentsCtx, a: AgentRec): boolean {
-  if ((ctx.depth ?? 0) >= 1 || (ctx.origin !== undefined && SERVER_ORIGINS.has(ctx.origin))) return true;
+  if (ctx.forwarded !== true && ((ctx.depth ?? 0) >= 1 || (ctx.origin !== undefined && SERVER_ORIGINS.has(ctx.origin)))) return true;   // a forwarded call is its caller's own read
   return ctx.principal.id === a.id || a.ownerId === askerOf(ctx) || allows(ctx, null, "edit", "agent", a.id) || seesAll(ctx);
 }
 /**

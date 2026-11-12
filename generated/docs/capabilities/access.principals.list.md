@@ -43,6 +43,7 @@ type Out = {
       name: string;
       owner?: string;
       private?: boolean;
+      assistant?: boolean;
       agentName?: string;
       status: "invited" | "active" | "suspended" | "removed";
       roles: Array<string>;
@@ -79,6 +80,7 @@ type Out = {
     "principals": [
       {
         "agentName": "example",
+        "assistant": true,
         "createdAt": 1760000000000,
         "groups": [
           "grp_a1b2c3"

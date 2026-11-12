@@ -155,6 +155,8 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
       const coderId = ((await api("engine.crew.status", { threadId: chat })).members as Array<{ id: string }>)[0]!.id;
       if ((await page.getByTestId(`crew-chip-${coderId}-steps`).count()) === 0) await page.getByTestId(`row-crew-chip-${coderId}-toggle`).click({ timeout: 15_000 });   // the light pass opened it while the coder worked
       await page.getByTestId(`crew-chip-${coderId}-steps`).waitFor({ timeout: 15_000 });
+      // the row opens on its last line at once and its steps arrive with the helper chat's read (CrewBlock useLastSteps), a moment later on a busy box: wait for them, with a bound
+      await page.getByTestId(`crew-chip-${coderId}-steps`).getByText(/1 passing, 1 failing/).first().waitFor({ timeout: 20_000 }).catch(() => undefined);
       assert.match(await page.getByTestId(`crew-chip-${coderId}-steps`).innerText(), /1 passing, 1 failing/);
       if (mode === "light") {
         await page.getByTestId(`crew-chip-${coderId}-open`).click({ timeout: 15_000 });

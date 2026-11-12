@@ -46,7 +46,8 @@ export function spaceMenuEntries(input: SpaceMenuInput): MenuEntry[] {
   if (open !== undefined && open.kind !== "personal" && open.invite === true) out.push({ label: "Invite People", icon: iconMarkup("userPlus"), onSelect: () => input.onAction("invite") });
   // the Space's own settings: in a Team Space they are the Console's (Console > Space), so only someone who may open the Console is offered them; a Personal Space keeps them in Settings
   if (open === undefined || open.kind === "personal" || open.console === true) out.push({ label: "Space Settings", icon: iconMarkup("settings"), onSelect: () => input.onAction("settings") });
-  out.push({ label: "Add a Server", icon: iconMarkup("server"), onSelect: () => input.onAction("add-server") });
+  // a server runs work for the whole Team Space, so it is added by whoever runs the Space (an owner or admin, who has the Console); in a Personal Space it is the owner's own
+  if (open === undefined || open.kind === "personal" || open.console === true) out.push({ label: "Add a Server", icon: iconMarkup("server"), onSelect: () => input.onAction("add-server") });
   if (open !== undefined && open.terminal) out.push({ label: "Open Terminal", icon: iconMarkup("terminal"), onSelect: () => input.onAction("terminal") });
   if (input.runsOn !== undefined && open?.kind === "team") {
     const on = input.runsOn;

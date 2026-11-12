@@ -113,3 +113,9 @@ test("unfinished setup is a pill in the title bar, not a floating chip over the 
   assert.ok(!/position:\s*absolute/.test(withSetup.slice(withSetup.indexOf('data-testid="title-setup"'), withSetup.indexOf('data-testid="title-search"'))), "nothing in it is positioned over the page");
   assert.ok(!html(props()).includes("title-setup"), "no unfinished setup, no entry");
 });
+
+test("the sync chip says Reconnecting when the device has a network but the Space does not answer, with the count appended", () => {
+  assert.deepEqual(syncLabel(false, 0, true), { text: "Reconnecting…", tone: "offline", opens: false });
+  assert.deepEqual(syncLabel(false, 2, true), { text: "Reconnecting…, 2 changes waiting", tone: "offline", opens: true });
+  assert.deepEqual(syncLabel(false, 0), { text: "Offline", tone: "offline", opens: false }, "no network on the device keeps the old word");
+});

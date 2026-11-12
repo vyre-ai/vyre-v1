@@ -541,6 +541,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),
+      ...(h.log ? { log: (msg: string, attrs?: Record<string, unknown>) => h.log!(msg, attrs) } : {}),
       resolveAccount: (q) => limitSwitch.resolve(q),
       nextAccount: (q) => limitSwitch.next(q),
       nextModel: async (q) => { try { return await modelSwitch(q); } catch (e) { if (typeof (e as { code?: unknown } | null)?.code !== "string") h.log?.("the model swap failed", { threadId: q.threadId, error: e instanceof Error ? e.message : String(e) }); throw e; } },
@@ -630,11 +631,17 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         return;
       }
       if (ev.type === "turn.started") { awake.up(); clearReads(ev.threadId, ev.agentId, ev.asker); h.turns?.(awake.running()); }
-      else if (ev.type === "turn.completed" || ev.type === "turn.cancelled" || (ev.type === "turn.failed" && ev.code !== "host_lost") || (ev.type === "turn.waiting" && ev.reason === "approval")) { awake.down(); h.turns?.(awake.running()); }
+      // a turn a dead host left (host_lost, or a stopped one recover closes: only recover sets asker on turn.cancelled) never counted up here, so it does not count down
+      else if (ev.type === "turn.completed" || (ev.type === "turn.cancelled" && ev.asker === undefined) || (ev.type === "turn.failed" && ev.code !== "host_lost") || (ev.type === "turn.waiting" && ev.reason === "approval")) { awake.down(); h.turns?.(awake.running()); }
       // a turn a dead host left is not in this engine's rows: its record is closed from what recover() knows, so the turn list, Try again and the agent's Working status are right
       if (ev.type === "turn.failed" && ev.code === "host_lost") {
         void h.call("engine.turn.record", { threadId: ev.threadId, turnId: ev.turnId, agentId: ev.agentId, phase: "failed", qseq: ev.qseq ?? 0, ...(ev.asker ? { asker: ev.asker } : {}), code: ev.code }, ev.asker)
           .catch((err: unknown) => h.log?.("a lost turn could not be recorded", { turnId: ev.turnId, error: err instanceof Error ? err.message : String(err) }));
+      }
+      else if (ev.type === "turn.cancelled" && ev.asker !== undefined) {
+        // a stopped turn a dead host left: its record is closed as cancelled from what recover() knows, as host_lost is above
+        void h.call("engine.turn.record", { threadId: ev.threadId, turnId: ev.turnId, agentId: ev.agentId, phase: "cancelled", qseq: ev.qseq ?? 0, asker: ev.asker }, ev.asker)
+          .catch((err: unknown) => h.log?.("a stopped turn could not be recorded", { turnId: ev.turnId, error: err instanceof Error ? err.message : String(err) }));
       }
       else if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled" || ev.type === "turn.resumed" || (ev.type === "turn.waiting" && ev.reason === "approval")) report(ev.turnId, ev);
       // a sign-in the turn found missing or refused: the account reads "Sign in again" in Settings (the person's own subscription account only; the Vault decides)
@@ -665,7 +672,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     bindStepOpen(openSession);
     bindBridge(bridge);
     // threads with work a dead host left: queued or running rows with no live lease
-    await recoverStale(ctx, engine, ["queued", "running"]);
+    await recoverStale(ctx, engine, ["queued", "running", "stopping"]);
     void closeNoAccountTasks(ctx.db).catch((e) => h.log?.("the no-account sweep failed", { error: e instanceof Error ? e.message : String(e) }));
     // the tasks agents hold pick up from their own state after a restart
     void resumeTasks(ctx, { call: h.call, ...(h.log ? { log: h.log } : {}) }, engine).catch((e) => h.log?.("tasks could not be picked up after a restart", { error: e instanceof Error ? e.message : String(e) }));
@@ -678,7 +685,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
  * Threads with work a dead host left: rows still marked running (or queued) whose lease nobody beats any more. At boot this runs once, but a restart inside the lease's 20 seconds finds the dead host's lease still
  * alive and recover() answers false, so the sweep runs again from the periodic job until the lease has run out. A turn this host is running keeps its own lease, so it is never touched.
  */
-export async function recoverStale(ctx: Pick<EngineCtx, "db">, engine: TurnEngine, states: readonly string[] = ["running"]): Promise<void> {
+export async function recoverStale(ctx: Pick<EngineCtx, "db">, engine: TurnEngine, states: readonly string[] = ["running", "stopping"]): Promise<void> {
   const marks = states.map(() => "?").join(", ");
   const stale = ctx.db.all(`SELECT thread_id, MIN(from_principal) AS person FROM engine_thread_queue WHERE state IN (${marks}) GROUP BY thread_id`, ...states) as Array<{ thread_id: string; person: string }>;
   for (const r of stale) {

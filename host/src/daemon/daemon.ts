@@ -92,6 +92,9 @@ export function createMadeFilesAnnouncer(a: { db: { all(sql: string, ...args: un
   };
 }
 
+/** An agent's own reports on its own task: what an outside-started Automation Run may do in Ask first without a card (ownTaskReport). */
+const OWN_TASK_REPORTS: ReadonlySet<string> = new Set(["tasks.submit", "tasks.ask", "tasks.block", "tasks.working_notes.set", "chat.post"]);
+
 export function createAgentHomeCaller(a: { db: { all(sql: string, ...args: unknown[]): unknown[] }; spaceId: string; invoke: Invoke }) {
   return async (agentId: string, cap: string, input: unknown): Promise<unknown> => {
     const owner = a.db.all("SELECT ownerId FROM agents_agent WHERE id = ? AND deletedAt IS NULL", agentId)[0] as { ownerId?: string } | undefined;
@@ -120,6 +123,7 @@ import { releaseImage } from "../seams/release-images.ts";
 import { createTerminalHostSeam } from "../seams/terminal-host.ts";
 import { createEngineSessionHost } from "../seams/engine-session.ts";
 import { gateTeamAgents } from "../seams/team-vault.ts";
+import { isOutsideTrigger } from "../../../lib/automation-content.ts";
 import type { LookupSource, TeamItem } from "../seams/team-vault.ts";
 import { findDockerSocket } from "../seams/docker-socket.ts";
 import { READER_LOSS, createEngineHost } from "../seams/engine.ts";
@@ -235,6 +239,7 @@ import type { ChromeBridge } from "../bridge/chrome.ts";
 import { coerceQuery } from "./query.ts";
 import type { PropSchema } from "./query.ts";
 import { openDb, readLogMeta } from "./sqlite.ts";
+import { openInviteHashes } from "./invite-hashes.ts";
 import { bindSpacePorts, unbindSpacePorts } from "./module-ports.ts";
 import type { HostDb } from "./sqlite.ts";
 
@@ -585,7 +590,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const unsubscribeRoute = createUnsubscribeRoute({ unsubscribe: (token) => leaveMailing(token) });
   // the invites open now, newest first: a device hello under one of their keys opens an invite channel (seams/relay.ts)
   const openInvites = (): string[] => {
-    try { return (db?.all("SELECT code_hash FROM members_invites WHERE state = 'open' AND expires_at > ? ORDER BY created_at DESC LIMIT ?", now(), INVITE_TRIES) as { code_hash: string }[] ?? []).map((r) => r.code_hash); } catch { return []; }
+    // the earlier code of a replayed invite too, so the first link opens on a phone address as it does on a computer (daemon/invite-hashes.ts)
+    return openInviteHashes(db, now(), INVITE_TRIES);
   };
   const phoneClaimed = (): boolean => {
     try { return (db?.all("SELECT state FROM network_phone WHERE id = 1")[0] as { state?: string } | undefined)?.state === "claimed"; } catch { return false; }
@@ -1045,6 +1051,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       let previews: ReturnType<typeof createViewAs> | null = null;
       let invokeRef: Invoke = () => Promise.reject(new Error("the invoke pipeline is not ready"));
       const firstCapOf = new Map<string, (typeof registryCaps)[number] | undefined>();
+      /** The task a thread is about, when an Automation's Run made it: its automation, the trigger kind, and whether a stranger could have started it (email, form, webhook). */
+      const automationTaskOfThread = async (threadId: string): Promise<{ taskId: string; automationId: string; trigger: string; outside: boolean } | null> => {
+        try {
+          // read as the server itself (capabilities, not host calls)
+          const read = async (cap: string, input: Record<string, unknown>): Promise<unknown> => {
+            const r = await invokeRef(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "seam" });
+            return r.status === "ok" ? r.output : null;
+          };
+          const th = ((await read("threads.get", { threadId })) as { thread?: { scopeType?: string; scopeId?: string } } | null)?.thread;
+          if (th?.scopeType !== "task" || typeof th.scopeId !== "string") return null;
+          const t = ((await read("tasks.get", { taskId: th.scopeId })) as { task?: { createdBy?: string; workingNotes?: Record<string, string> } } | null)?.task;
+          const automationId = t?.workingNotes?.["automation.id"], trigger = t?.workingNotes?.["automation.trigger"] ?? "";
+          if (typeof automationId !== "string" || !/^aut_[a-z0-9]+$/.test(automationId) || t?.createdBy !== `svc_${automationId.slice(4)}`) return null;
+          return { taskId: th.scopeId, automationId, trigger, outside: isOutsideTrigger(trigger) };
+        } catch { return null; }
+      };
       const hookRunner = createHookRunner({
         space, now, db,
         // a hooks override stands in for the module hooks, except the access module's: authorize reads its snapshot (ruling 70), so its host calls are never replaced
@@ -1284,6 +1306,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           evaluators: moduleWhens(loaded.moduleExports, () => db, (cap, input) => system(cap, input)),
           outward: moduleOutward(loaded.moduleExports), fetches: moduleFetches(loaded.moduleExports),
           threads: threadChain,
+          // an uncleared Automation mark on the thread or one above it; when the table cannot be read, held only for a thread that belongs to an Automation's outside-started Run
+          madeSince: (threadId, at) => {
+            try { const r = db!.all(`SELECT "createdAt" AS c FROM chat_thread WHERE id = ?`, threadId)[0] as { c?: number } | undefined; return typeof r?.c === "number" && r.c >= at; } catch { return false; }
+          },
+          automationMarked: async (ids) => {
+            if (ids.length === 0) return null;
+            try { return (db!.all(`SELECT source FROM gate_taint WHERE thread_id IN (${ids.map(() => "?").join(", ")}) AND cleared_at IS NULL AND source LIKE 'automation:%' LIMIT 1`, ...ids)[0] as { source?: string } | undefined)?.source ?? null; }
+            catch { for (const id of ids) { const at = await automationTaskOfThread(id); if (at?.outside) return `automation:${at.automationId}:${at.trigger}:`; } return null; }
+          },
           mode: (id) => {
             // 1 plan, 2 auto, anything else ask (modules/chat/projections.ts): a Job is never looser than the chat above it
             try {
@@ -1321,7 +1352,25 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (!previews) throw fail("permission.no_grant", trace);
           return previews.read(token, cap, input, trace);
         } },
-        resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
+        resolveItem: (type, kind, value, person) => resolveVaultItem(db!, type, kind, value, person),
+        // a Vault item this person cannot see: another person's Mine item (hidden even from an admin, as the Vault hides it), or one they may not use
+        // an agent's own report on the task it holds, in a task thread an Automation's outside-started Run made (submit, ask, block, its notes, a post in that thread): it acts on nothing
+        // outside the task, so Ask first does not stop it there (lead 12 Nov, pass 2: an outside-started Run must be able to finish); every other write in that thread still asks
+        ownTaskReport: async (cap, input, seed) => {
+          if (seed.principal.kind !== "agent" || !seed.thread || !OWN_TASK_REPORTS.has(cap.name)) return false;
+          const at = await automationTaskOfThread(seed.thread);
+          if (at === null || !at.outside) return false;
+          const i = (input ?? {}) as { taskId?: unknown; threadId?: unknown };
+          return cap.name === "chat.post" ? i.threadId === seed.thread : i.taskId === at.taskId;
+        },
+        vaultHidden: (itemId, person) => {
+          try {
+            const r = db!.all(`SELECT "scope", "owner" FROM vault_meta WHERE "id" = ? AND "deleted_at" IS NULL`, itemId)[0] as { scope?: string; owner?: string } | undefined;
+            if (!r) return "other";
+            if (r.scope === "mine") return r.owner !== person ? "mine" : false;
+            return authorize(access.snap, { principal: person, action: { perm: null, level: "use" }, resource: { type: "vault_item", id: itemId }, now: now() }).effect !== "allow" ? "other" : false;
+          } catch { return "other"; }
+        },
         ensureResource: async (r) => {
           if ((r.type === "conversation" || r.type === "mail_message") && r.id !== null) { await ensureRow(r.type, r.id); return; }
           const key = r.type === "connector" ? r.id : r.id === null && r.type === "connection" ? r.parent ?? null : null;

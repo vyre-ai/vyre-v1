@@ -105,3 +105,34 @@ test("after a restart a turn cut off mid-way is woken again, and a turn that fin
   await onTurnEnded(s.h.ctx, s.host, s.engine, { type: "turn.failed", threadId: "thr_t1", turnId: "trn_1", agentId: DOER, code: "provider.overloaded" });
   assert.deepEqual(await resumeTasks(s.h.ctx, s.host, s.engine), []);
 });
+
+test("after a restart an automation's task is woken again only if its runs-as person still holds: a republish or a suspension in between leaves it waiting with the line (review 12 Nov, 2)", async () => {
+  const auto = "aut_0123456789abcdef0123456789abcdef";
+  const t = task({ createdBy: `svc_${auto.slice(4)}`, source: { kind: "run", id: "run_1" }, workingNotes: { "automation.id": auto } });
+  const s = scene(t);
+  let runsAs: { runsAs?: string; ok: boolean; line?: string } = { runsAs: "usr_olivia", ok: true };
+  const notes: string[] = [];
+  const inner = s.host.call;
+  s.host.call = async (cap: string, input: unknown, as?: string) => {
+    if (cap === "automations.runs_as.get") return { kind: "space", name: "Olivia Park", trigger: "schedule", ...runsAs };
+    if (cap === "agents.outside.usable" || cap === "audit.append" || cap === "automations.get" || cap === "gate.taint.mark" || cap === "threads.set_mode") return { usable: true };
+    if (cap === "tasks.working_notes.set") { notes.push(String((input as { value?: unknown }).value)); return {}; }
+    return inner(cap, input, as);
+  };
+  assert.deepEqual(await s.event("task.created"), [DOER]);
+  await s.settle();
+  assert.equal(batonRow(s.h.ctx.db, t.id)!.asker, "usr_olivia");
+  const before = s.provider.specs.length;
+  // Adam republished while the server was down: the cut-off turn is not woken again for Olivia
+  runsAs = { runsAs: "usr_adam", ok: true };
+  await resumeTasks(s.h.ctx, s.host, s.engine);
+  await s.settle();
+  assert.equal(s.provider.specs.length, before, "not woken for the person it no longer runs as");
+  assert.match(notes.at(-1) ?? "", /now runs as someone else/);
+  // suspended: the reason it waits is the one runs_as.get gives
+  runsAs = { runsAs: "usr_olivia", ok: false, line: "Olivia Park turned this automation on and is no longer an active member. Open it to run it as yourself." };
+  await resumeTasks(s.h.ctx, s.host, s.engine);
+  assert.equal(notes.at(-1), runsAs.line);
+  // and the nudge after a silent stop asks again too
+  assert.equal(await onTurnEnded(s.h.ctx, s.host, s.engine, { type: "turn.completed", threadId: "thr_t1", turnId: "trn_1", agentId: DOER }), "waiting");
+});

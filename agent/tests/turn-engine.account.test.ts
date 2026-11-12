@@ -162,3 +162,18 @@ test("overloaded is not a limit (owner ruling, 3 Nov): the same account is tried
   await e3.idle("T");
   assert.deepEqual(limited.specs.map((s) => s.account?.ref), ["#A", "#B"]);
 });
+
+test("a Routine's wake runs for the person who set the Routine, never for the starter of the chat it posts in (lead 12 Nov sweep)", async () => {
+  const p = scriptedProvider({ script: () => say });
+  const asked: Array<{ askerId?: string }> = [];
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, resolveAccount: async (q) => { asked.push(q as { askerId?: string }); return account({ payer: (q as { askerId: string }).askerId, reason: "steerer" }); } });
+  engine.openThread(thread());   // a channel dana started
+  engine.wake("T", "intake", { routine: true, from: "usr_sam" });
+  await engine.idle("T");
+  assert.equal(asked[0]?.askerId, "usr_sam", "the account is the Routine owner's");
+  assert.equal(engine.turns("T")[0]?.asker, "usr_sam", "the turn acts for the Routine owner, not for dana");
+  // a wake with nobody named still runs for the starter, as before (the host wakes a parked turn, a held answer)
+  engine.wake("T", "intake");
+  await engine.idle("T");
+  assert.equal(engine.turns("T")[1]?.asker, "dana");
+});

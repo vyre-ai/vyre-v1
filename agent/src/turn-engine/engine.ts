@@ -40,6 +40,8 @@ import { reportWindow } from "../transcript/windows.ts";
 const CLI_DRIVERS: ReadonlySet<string> = new Set(["claude_code", "codex", "grok"]);
 
 export interface StopResult {
+  /** A turn that was starting (off the queue, not running yet): marked, it ends cancelled as it starts. Its turn id is not known yet; the engine says turn.cancelled when it ends. */
+  starting?: number;
   /** Turns that were running and were cancelled. */
   stopped: Array<{ turnId: string; agentId: string }>;
   /** Turns parked on a held tool call that were released. */
@@ -80,6 +82,8 @@ export interface EngineOptions {
   admit?: (q: { threadId: string; agentId: string; asker: string }) => Promise<{ code: string; message: string } | null>;
   /** The turn id a queue row left running by a dead host goes by (the one its row was recorded under), so what is said about it can be acted on. */
   lostTurn?: (row: QueueItem) => string;
+  /** Where the engine says something went wrong that is not a turn's own event (a Stop it could not write down). */
+  log?: (msg: string, attrs?: Record<string, unknown>) => void;
   /** A turn ended (completed, failed or cancelled): meter its usage. Not called for a turn parked on a held call until it ends. */
   onTurnEnd?: (turn: Readonly<TurnRow>, account: ResolvedAccount | null) => Promise<void> | void;
   /** A turn ended without waiting while a question it asked is still open: withdraw it, so no card or task is left behind for nobody. */
@@ -152,7 +156,12 @@ interface Running { turnId: string; agentId: string; asker: string; qseq: number
 /** Agent-to-agent hand-offs that may follow one person's message, and how many times one pair may pass it between them. */
 const MENTION_HOPS = 3;
 const MAX_PAIR_PASSES = 2;
-interface ThreadState { thread: OpenThread; messages: StoredMessage[]; running: Running | null; worker: Promise<void> | null; active: boolean }
+interface ThreadState {
+  thread: OpenThread; messages: StoredMessage[]; running: Running | null; worker: Promise<void> | null; active: boolean;
+  /** A turn taken off the queue that is not running yet (admit and the account are being read). A Stop pressed now marks it (`stop`), answers at once, and the turn ends cancelled the moment it
+   *  starts, instead of the Stop missing it. The mark belongs to this one turn: the next turn has a starting of its own. */
+  starting?: { agentId: string; qseq: number; stop?: string } | null;
+}
 
 const defaultSchedule = (fn: () => void, ms: number): (() => void) => {
   const h = setInterval(fn, ms);
@@ -176,6 +185,11 @@ export interface TurnEngine {
   stop(threadId: string, opts?: { agentId?: string; clearQueue?: boolean; /** why, in a word the chat turns into a sentence: stop (a person pressed Stop), limit, left, moved */ reason?: string }): Promise<StopResult>;
   /** Take a message that is waiting in the queue out of it (it stays in the chat; the agent will not answer it). Returns how many queued rows were cancelled: 0 when it is not waiting, as when its turn has started. */
   dropQueued(threadId: string, messageId: string): number;
+  /**
+   * Stop one turn by its queue row (a routine's Run stopped by its owner): queued, the row is cancelled; starting or running, it is stopped and its row marked stopping before this answers.
+   * Answers what it found, or null when that row is not waiting or running here.
+   */
+  stopTurn(threadId: string, qseq: number, reason?: string): Promise<"queued" | "starting" | "running" | null>;
   /** "Stop and send" for a message that is already stored: cancel the running turn and queue the responders first. Without a message it only cancels. */
   interrupt(threadId: string, messageId?: string): Promise<InterruptResult>;
   /** A held tool call was answered (approved or denied): queue the wake that continues the parked turn. Null when the task is unknown or already answered. */
@@ -348,11 +362,20 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     return n;
   }
 
+  /** The Stop on the queue row, only while the row is still this host's running one (another host that took the thread over owns it from then on). */
+  function markStopping(threadId: string, qseq: number, why: string): void {
+    // a Stop always answers: a store that cannot be written now leaves the turn stopped in memory, as before, and says so in the log
+    try { if (queue.list(threadId).find((r) => r.qseq === qseq)?.state === "running") queue.setState(threadId, qseq, "stopping", why); }
+    catch (e) { opts.log?.("a Stop could not be written on its queue row; it holds until this host stops", { threadId, qseq, error: e instanceof Error ? e.message : String(e) }); }
+  }
+
   async function cancelRunning(st: ThreadState, why: string): Promise<void> {
     const run = st.running;
     if (!run || run.cancelled) return;
     run.cancelled = true;
     run.why = why;
+    // durable before anything answers: a restart before this turn has wound down finds its row stopping and closes it, rather than running it again (recover). A lost lease is not ours to write.
+    if (why !== "lease") markStopping(st.thread.id, run.qseq, why);
     try { await run.session?.cancel(); } catch { /* the turn is ending either way */ }
   }
 
@@ -395,7 +418,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       }
       const item = queue.dequeue(id);
       if (!item) continue;
-      await runTurn(st, item);
+      const starting = { agentId: item.agentId, qseq: item.qseq } as NonNullable<ThreadState["starting"]>;
+      st.starting = starting;
+      try { await runTurn(st, item); } finally { if (st.starting === starting) st.starting = null; }
       if (!st.active) { leases.release(id, opts.holder); return; }   // the host is closing: what is queued waits for the next start
     }
   }
@@ -407,6 +432,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     // an agent's message with no person behind it never borrows the starter's access, account or Vault: the turn is refused (no_asker)
     if (said && said.author.kind === "agent" && item.from === said.author.id) return { asker: st.thread.starter, reason: "starter", personless: true };
     if (personFrom && item.from !== st.thread.starter) return { asker: item.from, reason: "steerer" };
+    // a Routine's wake names the person who set it: it runs for them, never for whoever started the chat it posts in (lead 12 Nov sweep). Only a Routine's wake names one.
+    if (item.kind === "wake" && item.routine && item.from.startsWith("usr_") && item.from !== st.thread.starter) return { asker: item.from, reason: "steerer" };
     return { asker: st.thread.starter, reason: "starter" };
   }
 
@@ -482,6 +509,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     if (turnRows.length > KEEP_TURNS) turnRows.splice(0, turnRows.length - KEEP_TURNS);
     const run: Running = { turnId: turn.id, agentId: item.agentId, asker, qseq: item.qseq, session: null, cancelled: false, lostLease: false };
     st.running = run;
+    // a Stop that came while this turn was starting: it ends cancelled before anything runs (the session opens and is cancelled at once; the reply loop breaks on its first event)
+    { const s0 = st.starting; st.starting = null; if (s0?.stop !== undefined) { run.cancelled = true; run.why = s0.stop; } }
     leases.setTurn(st.thread.id, opts.holder, turn.id);
     emit({ type: "turn.started", threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, qseq: item.qseq, asker });
     // The same beat watches for a session that went quiet: no event for idleMs and no tool running ends the turn as turn_timeout.
@@ -515,7 +544,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       emit({ type: "turn.block", threadId: st.thread.id, turnId: turn.id, idx: blockIdx++, kind });
       lastFlush = hr();
     };
+    // stopped before it ran (a Stop pressed while it was starting): nothing more happens, no session, no hook, no prompt, and no Unblock asking for an account (review F1, F2)
+    const stoppedEarly = (): never => { throw Object.assign(new Error("stopped before it started"), { code: "cancelled" }); };
     try {
+      if (run.cancelled) stoppedEarly();
       if (refused) throw Object.assign(new Error(refused.message), { code: refused.code });
       if (!agent) throw Object.assign(new Error("agent is not in this thread"), { code: "unknown_agent" });
       if (account === null && resolveFailed) throw Object.assign(new Error(resolveMessage ?? "the account could not be resolved just now"), { code: typeof resolveCode === "string" ? resolveCode : "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
@@ -532,7 +564,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       run.session = session;
       // what really runs is what the record keeps: a session that says its model (a swapped or limited one) wins over the one the chat asked for, and a swap to the account's own default is not the asked model
       { const ran = (session as { model?: unknown }).model; if (typeof ran === "string") turn.model = ran; else if (paying?.modelFallback) turn.model = paying.modelFallback.to ?? null; }
-      if (run.cancelled) await session.cancel();
+      // a Stop that came while the session was opening: the session is let go and nothing is sent (review F1)
+      if (run.cancelled) { await session.cancel(); stoppedEarly(); }
       // the hooks layer, for every driver alike: once per turn, however many accounts it tries
       const hookNotes: string[] = [];
       if (opts.hooks && !hooksAsked && !wait) {
@@ -841,6 +874,15 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     async stop(threadId, o) {
       const st = need(threadId);
       const only = o?.agentId;
+      // pressed in the moment between the queue and the run (the account is being read): mark that turn, so it ends cancelled as it starts. The press answers at once (lead, 12 Nov: a Stop under load)
+      const starting = st.starting;
+      const early = !st.running && starting && (only === undefined || starting.agentId === only) ? starting : null;
+      if (early) {
+        early.stop = o?.reason ?? "stop";
+        // kept in the queue too, not only in memory, before the press answers: a restart before this turn starts must not hand it out again (recover requeues rows still marked running;
+        // review F3). Stopping, not cancelled: the next host closes it as cancelled and says so in the chat once (recover).
+        markStopping(threadId, early.qseq, early.stop ?? "stop");
+      }
       const everything = o?.clearQueue === true;
       const run = st.running;
       const hit = run !== null && !run.cancelled && (only === undefined || run.agentId === only) ? run : null;
@@ -857,9 +899,17 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         }
       }
       if (hit) await cancelRunning(st, o?.reason ?? "stop");
-      return { stopped, released, dropped };
+      return { stopped, released, dropped, ...(early ? { starting: 1 } : {}) };
     },
     dropQueued(threadId, messageId) { need(threadId); return dropRows(threadId, messageId); },
+    async stopTurn(threadId, qseq, reason = "stop") {
+      const st = need(threadId);
+      if (st.running && st.running.qseq === qseq) { if (st.running.cancelled) return "running"; await cancelRunning(st, reason); return "running"; }
+      if (!st.running && st.starting && st.starting.qseq === qseq) { st.starting.stop = reason; markStopping(threadId, qseq, reason); return "starting"; }
+      const row = queue.list(threadId).find((r) => r.qseq === qseq);
+      if (row?.state === "queued") { queue.setState(threadId, qseq, "cancelled"); return "queued"; }
+      return null;
+    },
     async interrupt(threadId, messageId) {
       const st = need(threadId);
       const run = st.running !== null && !st.running.cancelled ? st.running : null;
@@ -926,6 +976,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     recover(threadId) {
       const st = need(threadId);
       if (leases.get(threadId, now())) return false;   // someone still holds it and is beating
+      // A turn the person stopped whose host died before it ended: closed as cancelled, and the chat says so once. It never runs again.
+      for (const row of queue.list(threadId).filter((r) => r.state === "stopping")) {
+        queue.setState(threadId, row.qseq, "cancelled");
+        emit({ type: "turn.cancelled", threadId, turnId: opts.lostTurn?.(row) ?? `lost:${threadId}:${row.qseq}`, agentId: row.agentId, reason: row.stopReason ?? "stop",
+          asker: row.from.startsWith("usr_") ? row.from : st.thread.starter, qseq: row.qseq });
+      }
       const dead = queue.running(threadId);
       // A turn that posted its reply and died before the row was closed is finished: running it again would answer the same message twice.
       const seen = messages.recent(threadId, historyWindow);

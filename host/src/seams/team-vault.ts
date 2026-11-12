@@ -57,9 +57,39 @@ export function decide(d: TeamVaultDeps, at: string, asker: string, item: TeamIt
   return "team_shared";
 }
 
+/** A computer's own capability calls into the Vault (an agent computer's extension asks which items fit a page, and for a handle): the two the fill channel allows. */
+type InvokeFn = (capability: string, input: Record<string, unknown>, who: { agentId: string; asker: string }) => Promise<unknown>;
+
 export function gateTeamAgents<S extends LookupSource>(source: S, d: TeamVaultDeps): S {
+  const inner = (source as { invoke?: InvokeFn }).invoke;
+  // the computer's own calls (vault.items.match, vault.use) are held to the same rule as a handle in a command line: a team agent's computer never lists or takes a person's Mine item, and a
+  // Shared one only as decide() allows (lead 12 Nov: the old desktop's invoke path went straight to the Vault)
+  const invoke: InvokeFn | undefined = inner && (async (capability, input, who) => {
+    if (!d.team || NO_COMPUTER_AGENTS.has(who.agentId)) return inner(capability, input, who);
+    const judge = (itemId: string, field?: string): TeamReason | null => { const item = d.itemById(itemId); return item === null ? "team_shared" : decide(d, who.agentId, who.asker, item, field); };
+    if (capability === "vault.use") {
+      const ref = typeof input["item"] === "string" ? input["item"] : "";
+      const fields = Array.isArray(input["fields"]) ? (input["fields"] as unknown[]).filter((f): f is string => typeof f === "string") : [];
+      const refuse = (itemId: string | null, why: TeamReason): never => { d.refused({ agentId: who.agentId, asker: who.asker, handle: ref, itemId, reason: why }); throw { error: { code: "permission.no_grant" } }; };
+      const check = (itemId: string): void => { for (const f of fields.length > 0 ? fields : [undefined]) { const why = judge(itemId, f); if (why !== null) refuse(itemId, why); } };
+      // decided before the Vault is asked when the item can be told (an id, or a handle the asker may see), so a refusal is never recorded as a use
+      const known = /^vit_[a-z0-9]+$/.test(ref) ? ref : (d.resolve(ref.startsWith("#") ? ref : `#${ref}`, who.asker)?.itemId ?? null);
+      if (known !== null) check(known);
+      const out = (await inner(capability, input, who)) as { itemId?: string } | null;
+      // a name or alias only the Vault resolves: decided on what it resolved to (the use is in the Vault's audit; nothing goes back)
+      if (out && typeof out.itemId === "string" && out.itemId !== known) check(out.itemId);
+      return out;
+    }
+    if (capability === "vault.items.match") {
+      const out = (await inner(capability, input, who)) as { items?: Array<{ item?: { id?: string; itemId?: string } }> } | null;
+      if (!out || !Array.isArray(out.items)) return out;
+      return { ...out, items: out.items.filter((x) => { const id = x.item?.id ?? x.item?.itemId; return typeof id === "string" && judge(id) === null; }) };
+    }
+    return inner(capability, input, who);
+  });
   return {
     ...source,
+    ...(invoke ? { invoke } : {}),
     async lookup(handle: string, who: Who): Promise<VaultLookup> {
       // the turn's own account key goes to the engine process on the host, never into an agent's computer
       if (!d.team || who.account === true) return source.lookup(handle, who);

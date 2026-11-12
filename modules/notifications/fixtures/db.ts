@@ -77,7 +77,7 @@ export function harness(o: HarnessOptions = {}) {
     const allowed = cap ? emitsOf(cap) : null;
     return {
       space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}), trace: { traceId: TRACE },
-      ...(who.device ? { device: who.device } : {}), ...(who.run ? { run: who.run } : {}), depth: who.depth ?? 0, ...(who.origin ? { origin: who.origin } : {}),
+      ...(who.device ? { device: who.device } : {}), ...(who.run ? { run: who.run } : {}), depth: who.depth ?? 0, ...(who.origin ? { origin: who.origin } : {}), ...(who.forwarded ? { forwarded: true } : {}),
       now: () => clock,
       db: scopedDb("notifications", raw, TRACE),
       emit(name, subject, payload) {

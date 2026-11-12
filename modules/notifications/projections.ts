@@ -97,6 +97,8 @@ export interface NotifCtx {
   run?: string;
   /** how deep in a call chain (0: called by a person, an agent or the host itself; more: by another module's code) */
   depth?: number;
+  /** forwarded for its caller by another module (a stored schedule, a template's step): the caller's own standing, never module code */
+  forwarded?: boolean;
   /** where the call came from (user, mcp, agent, schedule, gate, hook, ...) */
   origin?: string;
   now(): number;

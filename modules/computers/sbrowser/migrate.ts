@@ -17,7 +17,12 @@ bindMigrationPort("importChromeData", async (ctx, a) => {
   const sb = spaceBrowser();
   if (!sb) raise(ctx, "provider.unavailable", "The Space browser is not running on this host.");
   if (a.profileId !== profileIdOf(a.agentId)) raise(ctx, "validation.bad_input", "That is not this agent's profile.");
-  return sb.importChrome(a.profileId, a.data.tar);
+  try { return await sb.importChrome(a.profileId, a.data.tar); } catch (e) {
+    // a Space browser that cannot start (its image missing or broken) says so in plain words in the move's row and the log; the code and reason stay, so the move is still tried again later
+    const x = e as { code?: unknown; reason?: unknown; message?: unknown };
+    if (x?.code !== "unavailable") throw e;
+    throw Object.assign(new Error(`The Space browser could not start, so the sign-ins from the older desktop have not moved yet (${String(x.message ?? "").slice(0, 160)}). It will be tried again.`), { code: "unavailable", ...(x.reason ? { reason: x.reason } : {}) });
+  }
 });
 
 // The move never writes over a profile that holds sign-ins. `profileUsed` starts nothing; a throw reaches the move as "not now" (no Space browser) or a bad input, never as "not used".

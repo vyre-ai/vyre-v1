@@ -18,7 +18,14 @@ export interface MachineRow {
 }
 export interface MachineAlert { alertId: string; serverId: string; kind: "disk" | "memory" | "offline" | "backup" | "update"; title: string; detail: string }
 export interface Waiting { serverId: string; name: string; owner?: string; fingerprint?: string; requestedAt?: number; facts?: { os: string; arch: string; docker: boolean; version: string } }
-export interface MachinesOut { machines: MachineRow[]; waiting: Waiting[]; alerts: MachineAlert[]; admin: boolean; now: number }
+export interface MachinesOut { machines: MachineRow[]; waiting: Waiting[]; alerts: MachineAlert[]; admin: boolean; now: number; /** The Space browser's slots on this server (computers.browser.profiles); absent with no Space browser. */ browserSlots?: BrowserSlots }
+export interface BrowserSlots { running: number; limit: number; waiting: number }
+
+/** One quiet line under the computers (lane f-sbrowser, 12 Nov): "Agent browsers: 7 of 24 in use.", and ", 3 waiting." while this Space's calls wait for one. Nothing without a Space browser. */
+export function browserSlotsLine(s: BrowserSlots | undefined): string | null {
+  if (!s || s.limit <= 0) return null;
+  return `Agent browsers: ${s.running} of ${s.limit} in use${s.waiting > 0 ? `, ${s.waiting} waiting` : ""}.`;
+}
 export interface Point { t: number; cpu: number | null; mem: number | null; disk: number | null; netIn: number | null; netOut: number | null }
 export interface Series { range: Range; step: number; points: Point[] }
 export interface Finding { key: string; state: "healthy" | "degraded" | "down"; detail: string; next: string; fix: "clear_caches" | "stop_idle" | "update" | null }
