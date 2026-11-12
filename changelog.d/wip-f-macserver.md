@@ -1,2 +1,7 @@
 - A server on a Mac (or with Docker in any virtual machine) no longer damages its databases during an update or backup: they are read only from inside Docker's machine, through the running server, and a backup with no safe way to read them stops plainly and changes nothing.
 - An update is now finished by the new release's own updater, so a fix to the updater helps the update that delivers it; if that half stops early, the old version is started again.
+- When an update fails, it says why in one line (what the new version said last) and keeps its log; when the old version does not come back either, it names the damaged database and prints the exact restore command for the backup taken just before.
+- A restore works when the current data is damaged: that data is kept aside under a dated name instead of the restore refusing. On a Mac a restore no longer fails trying to change file owners.
+- A server that cannot start because events.db or modules.db is damaged says which file and how to put back a backup, instead of only "database disk image is malformed".
+- vyre-server doctor on a Mac speaks Mac: FileVault, not LUKS or systemctl, and a server installed with the plain-disk choice is a warning with its date, not DOWN.
+- vyre-server works on macOS older than 12.3 (no readlink -f), and an update no longer replaces the Mac's vyre-server command with the Linux one.

@@ -18,10 +18,23 @@
 
 set -eu
 
+# real_path PATH: PATH with every link resolved. readlink -f where it works; macOS before 12.3 has no -f, so links are followed one by one there.
+real_path() {
+  readlink -f "$1" 2>/dev/null && return 0
+  _rp=$1; _rn=0
+  while [ -L "$_rp" ] && [ "$_rn" -lt 40 ]; do
+    _rl=$(readlink "$_rp") || break
+    case "$_rl" in /*) _rp=$_rl ;; *) _rp=$(dirname "$_rp")/$_rl ;; esac
+    _rn=$((_rn + 1))
+  done
+  _rd=$(cd -P "$(dirname "$_rp")" 2>/dev/null && pwd -P) || { printf '%s\n' "$1"; return 0; }
+  printf '%s/%s\n' "$_rd" "$(basename "$_rp")"
+}
+
 # Where the install lives: VYRE_DIR, else four levels above this file (DIR/releases/<version>/bin/vyre-server), else /srv/vyre.
 find_dir() {
   if [ -n "${VYRE_DIR:-}" ]; then printf '%s' "$VYRE_DIR"; return 0; fi
-  self=$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")
+  self=$(real_path "$0")
   cand=$(dirname "$(dirname "$(dirname "$(dirname "$self")")")")
   if [ -f "$cand/compose.env" ]; then printf '%s' "$cand"; else printf '/srv/vyre'; fi
 }
@@ -215,7 +228,7 @@ unpack_release() {
 # END release
 
 
-cur_dir() { readlink -f "$DIR/current" 2>/dev/null || printf '%s' "$DIR/current"; }
+cur_dir() { real_path "$DIR/current"; }
 cur_version() { cat "$DIR/current/VERSION" 2>/dev/null || printf unknown; }
 
 # dc ARGS...: docker compose for this install, project folder = the current release.
@@ -253,6 +266,8 @@ cmd_logs() {
 # vyred writes the owner's claim link to logs/claim-link.txt in its data directory (mode 0600) at each start while the Space is unclaimed, and deletes it once the claim
 # succeeds. The link is a credential: this prints it to the terminal that asked, and nowhere else.
 claim_file() { printf '%s/space/logs/claim-link.txt' "$DATA_DIR"; }
+# login_name: who to ssh in as: root on a Linux server, the person's own account on a Mac (the server runs under it there)
+login_name() { if [ "$(spacedb_os)" = Darwin ]; then id -un 2>/dev/null || printf you; else printf root; fi; }
 cmd_claim_link() {
   f=$(claim_file)
   if [ -r "$f" ]; then
@@ -265,12 +280,13 @@ cmd_claim_link() {
         { say ""
           say "This link opens only on this server: it has no web address yet, and 0.0.0.0 is not an address you can open from another computer."
           say "  - In the Vyre app: choose Create a Space, then Team Space, and paste the link."
-          say "  - In a browser on your own computer: run  ssh -L ${p:-8420}:127.0.0.1:${p:-8420} root@$(hostname -f 2>/dev/null || hostname)  and, while that stays open, paste the link above with 0.0.0.0 changed to localhost."
+          say "  - In a browser on your own computer: run  ssh -L ${p:-8420}:127.0.0.1:${p:-8420} $(login_name)@$(hostname -f 2>/dev/null || hostname)  and, while that stays open, paste the link above with 0.0.0.0 changed to localhost."
           say "  - For a web address your whole team can open, install with your own name: --domain vyre.example.com (docs/getting-started.md)."
         } >&2 ;;
     esac
     return 0
   fi
+  if [ -e "$f" ] && [ "$(spacedb_os)" = Darwin ]; then die "cannot read $f. Run it as the account that installed the server."; fi
   [ ! -e "$f" ] || die "cannot read $f. Run it as root: sudo vyre-server claim-link"
   die "there is no claim link: the Space is claimed already, or the server has not started yet (vyre-server status)."
 }
@@ -411,9 +427,10 @@ space_serves_domain() {
 refresh_disk_env() {
   [ -f "$DIR/compose.env" ] || return 0
   disk_encrypted "$DATA_DIR" && rc=0 || rc=$?
-  k=$(sed -n 's/^kind=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  enc_choice
+  k=$enc_kind
   if [ "$rc" = 0 ]; then if crypt_on_file; then k=detected_file; else k=detected; fi; else case "$k" in plain|provider) ;; *) k="" ;; esac; fi
-  since=$(sed -n 's/^since=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  since=$enc_since
   [ -n "$since" ] || since=$(date -u +%Y-%m-%d)
   # Docker's data root: agent browser sign-ins live in Docker volumes there. The server inside Docker cannot see it, so the host says what it sees: encrypted, plain, or unknown (cannot tell).
   rd=$(docker_root_dir); rstate=""
@@ -426,9 +443,8 @@ refresh_disk_env() {
 
 # docker_root_state DIR: encrypted, plain, or unknown. Unknown is not plain: on a Mac the root is inside Docker's virtual machine (no folder here to look at), and a root that cannot be resolved cannot be judged.
 docker_root_state() {
-  _os=$(uname -s); [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_OS:-}" ] || _os=$VYRE_TEST_OS
-  [ "$_os" != Darwin ] || { printf unknown; return 0; }
-  _r=$(readlink -f "$1" 2>/dev/null || printf '%s' "$1")
+  [ "$(spacedb_os)" != Darwin ] || { printf unknown; return 0; }
+  _r=$(real_path "$1")
   [ -d "$_r" ] || { printf unknown; return 0; }
   disk_encrypted "$_r" && _rc=0 || _rc=$?
   case "$_rc" in 0) printf encrypted ;; 1) printf plain ;; *) printf unknown ;; esac
@@ -449,11 +465,26 @@ crypt_on_file() {
   "$l" -s -n -o TYPE "$src" 2>/dev/null | grep -qx loop
 }
 
+# enc_choice: sets enc_kind and enc_since to what the person chose about a disk that is not visibly encrypted: state/encryption, else (an install made before that file, or one whose
+# file was lost) the plain or provider choice compose.env carries for the Console.
+enc_choice() {
+  enc_kind=$(sed -n 's/^kind=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  enc_since=$(sed -n 's/^since=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  if [ -z "$enc_kind" ]; then
+    case "$(sed -n 's/^VYRE_DISK_ENCRYPTION=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)" in
+      plain) enc_kind=plain ;;
+      provider) enc_kind=provider ;;
+    esac
+    [ -z "$enc_kind" ] || enc_since=$(sed -n 's/^VYRE_DISK_ENCRYPTION_SINCE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  fi
+  return 0
+}
+
 check_all() {
   # the volume the data lives on, checked now (never trusted from a record), and what the person said about it when it is not visibly encrypted
   disk_encrypted "$DATA_DIR" && rc=0 || rc=$?
-  enc_kind=$(sed -n 's/^kind=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
-  enc_since=$(sed -n 's/^since=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  enc_choice
+  host=$(spacedb_os)
   case "$rc" in
     0) if crypt_on_file; then finding host.disk_encrypted degraded "The data directory $DATA_DIR is on an encrypted volume that is a file on this disk. This server cannot tell where its key is kept: a key on this same disk protects nothing."
        else finding host.disk_encrypted healthy "The data directory $DATA_DIR is on an encrypted volume (verified here; where its key is kept is not visible)."; fi ;;
@@ -461,8 +492,10 @@ check_all() {
          plain) finding host.disk_encrypted degraded "The data is NOT encrypted at rest. You chose to install on a plain disk${enc_since:+ on $enc_since}: anyone who gets a copy of this disk, a snapshot or a backup can read it." ;;
          provider) finding host.disk_encrypted degraded "Not verified: your provider's encryption, as you stated${enc_since:+ on $enc_since}. This server cannot check it; confirm it with your provider." ;;
          *) case "$rc" in
-              1) finding host.disk_encrypted down "The data directory $DATA_DIR is not on an encrypted volume. Re-run the installer with --provider-encrypted (the provider's encrypted volume) or --allow-plain-disk (see its --help)." ;;
-              *) finding host.disk_encrypted down "Could not tell whether $DATA_DIR is on an encrypted volume (no /proc/mounts or lsblk answer)." ;;
+              1) if [ "$host" = Darwin ]; then finding host.disk_encrypted down "The data directory $DATA_DIR is not on an encrypted volume. Turn on FileVault (System Settings > Privacy & Security > FileVault), or run the Mac installer again with --allow-plain-disk."
+                 else finding host.disk_encrypted down "The data directory $DATA_DIR is not on an encrypted volume. Re-run the installer with --provider-encrypted (the provider's encrypted volume) or --allow-plain-disk (see its --help)."; fi ;;
+              *) if [ "$host" = Darwin ]; then finding host.disk_encrypted down "Could not tell whether $DATA_DIR is on an encrypted volume (diskutil gave no FileVault answer for it)."
+                 else finding host.disk_encrypted down "Could not tell whether $DATA_DIR is on an encrypted volume (no /proc/mounts or lsblk answer)."; fi ;;
             esac ;;
        esac ;;
   esac
@@ -496,7 +529,7 @@ check_all() {
   if ! command -v docker >/dev/null 2>&1; then
     finding host.docker down "Docker is not installed."
   elif ! docker info >/dev/null 2>&1; then
-    if [ "$(uname -s)" = Darwin ]; then finding host.docker down "Docker is not running. Open Docker Desktop (or OrbStack) and wait for it to start."
+    if [ "$host" = Darwin ]; then finding host.docker down "Docker is not running. Open Docker Desktop or OrbStack (or run: colima start) and wait for it to start."
     else finding host.docker down "Docker is not running. Start it: systemctl start docker."
     fi
   else
@@ -718,7 +751,7 @@ fs_device() {
 backup_note() {
   if [ "$(fs_device "$(dirname "$BACKUP_FILE")")" = "$(fs_device "$DATA_DIR")" ]; then
     say "  This backup is on the same disk as the Space's data. If this server or its disk is lost, the backup is lost with it. Copy it somewhere else, from your own computer:"
-    say "    scp root@$(hostname -f 2>/dev/null || hostname):$BACKUP_FILE ."
+    say "    scp $(login_name)@$(hostname -f 2>/dev/null || hostname):$BACKUP_FILE ."
   fi
 }
 
@@ -860,8 +893,8 @@ hand_off() {
   [ "${VYRE_HANDOFF:-0}" != 1 ] || return 0
   cur="$DIR/current/bin/vyre-server"
   [ -f "$cur" ] || return 0
-  me=$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")
-  there=$(readlink -f "$cur" 2>/dev/null || printf '%s' "$cur")
+  me=$(real_path "$0")
+  there=$(real_path "$cur")
   [ "$me" != "$there" ] || return 0
   VYRE_HANDOFF=1 VYRE_DIR="$DIR" exec sh "$cur" "$@"
 }
@@ -873,6 +906,8 @@ refresh_bin() {
   want=$(printf '#!/bin/sh\n# %s\nexec "%s/current/bin/vyre-server" "$@"\n' "$MARK" "$DIR")
   [ "$(cat "$BIN_FILE" 2>/dev/null)" != "$want" ] || return 0
   grep -q -e "$MARK" -e '^# vyre-server: run and look after Vyre Server' "$BIN_FILE" 2>/dev/null || return 0
+  # a wrapper of ours that already runs the current release (the Mac installer's names Docker's folders and the Docker it was installed on) is left as it is
+  if grep -q "$MARK" "$BIN_FILE" 2>/dev/null && grep -qx "exec \"$DIR/current/bin/vyre-server\" \"\$@\"" "$BIN_FILE" 2>/dev/null; then return 0; fi
   printf '%s\n' "$want" >"$BIN_FILE.new" 2>/dev/null || { rm -f "$BIN_FILE.new"; return 0; }
   chmod 0755 "$BIN_FILE.new" && mv -f "$BIN_FILE.new" "$BIN_FILE" || rm -f "$BIN_FILE.new"
 }
@@ -1201,7 +1236,7 @@ update_apply() {
   printf 'vyre-server: the update to %s failed (%s) and the server did not come back healthy on %s either.\n' "$REL_VERSION" "$reason" "$from" >&2
   [ -z "$said_old" ] || printf '  The server says: %s\n' "$said_old" >&2
   bad=$(damaged_db_in "$DIR/state/update-$REL_VERSION-rollback.log" "$DIR/state/update-$REL_VERSION-failed.log")
-  [ -z "$bad" ] || printf '  The database %s is damaged.\n' "$bad" >&2
+  [ -z "$bad" ] || printf '  The database %s is damaged (the server does not repair it).\n' "$DATA_DIR/space/$bad" >&2
   printf '  To put back the data from just before this update, run:\n    vyre-server restore %s --yes\n' "$BACKUP_FILE" >&2
   if [ "$STOPPED_BACKUP" = 1 ]; then printf '  That backup was taken with the server stopped, so nothing written before the update is lost. The data now in place is kept beside it.\n' >&2
   else printf '  It loses what the Space wrote after that backup, which was taken moments before the server stopped for the switch. The data now in place is kept beside it.\n' >&2; fi

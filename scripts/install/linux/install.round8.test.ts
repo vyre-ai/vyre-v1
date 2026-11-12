@@ -304,6 +304,8 @@ test("a second half that fails leaves the server on the old version and healthy,
     assert.equal(r.status, 4, r.stderr + r.stdout);
     assert.equal(fs.readlinkSync(path.join(dir, "current")), "releases/1.0.0", "back on the old version");
     assert.match(r.stderr, /the server is back on 1\.0\.0/);
+    assert.match(r.stdout, /^  The new version said: vyred: the gateway did not start on 0\.0\.0\.0:8420: listen EADDRINUSE$/m, "the reason, in one plain line, before going back");
+    assert.match(read(path.join(dir, "state/update-1.1.0-failed.log")), /listen EADDRINUSE/, "its last log lines are kept");
     // a second half that dies after stopping the server: the first half starts the old version again
     const dying = text.replace(/^  prev_link=\$\(readlink "\$DIR\/current"\)$/m, () => "  exit 9");
     assert.notEqual(dying, text);
@@ -364,4 +366,119 @@ test("@heavy on a VM host the backup snapshots through docker exec into a real c
     spawnSync("docker", ["run", "--rm", "-v", `${dir}:/w`, "node:24-bookworm-slim", "chmod", "-R", "a+rwX", "/w"]);
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// ---- item 3: a failed update never leaves a mystery
+
+test("when neither version comes back, the update names the damaged database and prints the restore command for the backup it took, and what that loses; it restores nothing itself", () => {
+  const dir = tmp();
+  try {
+    const text = read(SERVER);
+    const env = updateWorld(dir, world(dir, { running: true, kernel: `${HOST_KERNEL}|Ubuntu` }));
+    const neverHealthy = text.replace(/^check_quiet\(\) \{/m, () => "check_quiet() { return 1; }\ncheck_quiet_unused() {");
+    releases(dir, { old: withFetchStub(text), new: neverHealthy });
+    fs.writeFileSync(path.join(dir, "server.log"), "vyred-1  | vyred: modules.db is damaged (database disk image is malformed), so the Space cannot start. It is not repaired here. Put back the last good backup on the server: vyre-server restore <backup file> --yes\n");
+    const r = runUpdate(dir, env);
+    assert.equal(r.status, 5, r.stderr + r.stdout);
+    const backup = r.stdout.match(/Backed up to (\S+) while the server kept running/)![1]!;
+    assert.match(r.stderr, /the update to 1\.1\.0 failed \(the new version did not pass its health check\) and the server did not come back healthy on 1\.0\.0 either\./);
+    assert.match(r.stderr, /The server says: vyred: modules\.db is damaged/);
+    assert.match(r.stderr, new RegExp(`The database ${esc(path.join(dir, "data", "space", "modules.db"))} is damaged`));
+    assert.match(r.stderr, new RegExp(`To put back the data from just before this update, run:\\n    vyre-server restore ${esc(backup)} --yes\\n`));
+    assert.match(r.stderr, /It loses what the Space wrote after that backup, which was taken moments before the server stopped for the switch\./);
+    assert.equal(valueIn(path.join(dir, "data", "space", "events.db")), "U", "nothing was restored automatically");
+    assert.ok(fs.existsSync(backup), "the backup is there to restore");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("restore goes through when the current data is damaged: the damaged folder is kept aside under a dated name instead of refusing", () => {
+  const dir = tmp();
+  try {
+    mkSpace(dir, "GOOD");
+    const env = world(dir, { kernel: `${HOST_KERNEL}|Ubuntu` });
+    const mk = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data good live; echo "$BACKUP_FILE"`, env);
+    assert.equal(mk.status, 0, mk.stderr);
+    const file = mk.stdout.trim().split("\n").pop()!;
+    // the live modules.db is now damaged: it will not snapshot
+    db(path.join(dir, "data/space/events.db"), "INSERT INTO t VALUES ('AFTER')");
+    const m = path.join(dir, "data/space/modules.db");
+    const b = fs.readFileSync(m);
+    for (let i = 4096; i < b.length; i++) b[i] = (i * 37) & 0xff;
+    fs.writeFileSync(m, b);
+    const r = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ echo "dc $*" >>"${dir}/dc.log"; }; wait_healthy(){ return 0; }; sleep(){ :; }; trap cleanup EXIT; cmd_restore "${file}" --yes`, env);
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+    assert.match(r.stdout, /The current data would not back up \(a database in it is damaged or unreadable\)\. It is kept whole beside the restored data instead, under a dated name\./);
+    const aside = fs.readdirSync(path.join(dir, "data")).filter((n) => /^space\.damaged-\d{8}T\d{6}Z$/.test(n));
+    assert.equal(aside.length, 1, `kept aside: ${fs.readdirSync(path.join(dir, "data")).join(" ")}`);
+    assert.match(r.stdout, new RegExp(`The damaged data it replaced is kept in ${esc(path.join(dir, "data", aside[0]!))}`));
+    assert.equal(valueIn(path.join(dir, "data/space/events.db")), "GOOD", "the backup is in place");
+    assert.equal(spawnSync("grep", ["-c", "AFTER", path.join(dir, "data", aside[0]!, "events.db")], { encoding: "utf8" }).stdout.trim() !== "0", true, "the damaged folder is whole");
+    assert.deepEqual(read(path.join(dir, "dc.log")).trim().split("\n"), ["dc stop", "dc up -d --remove-orphans"], "stopped once, and started only on the restored data, never on the damaged data in between");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// ---- item 5: doctor on a Mac speaks Mac
+
+function macDoctor(dir: string, o: { filevault: "Yes" | "No"; state?: string; compose?: string }): Out {
+  const du = path.join(dir, "diskutil");
+  fs.writeFileSync(du, `#!/bin/sh\nprintf '   FileVault:                 ${o.filevault}\\n'\n`, { mode: 0o755 });
+  fs.mkdirSync(path.join(dir, "state"), { recursive: true });
+  if (o.state !== undefined) fs.writeFileSync(path.join(dir, "state/encryption"), o.state); else fs.rmSync(path.join(dir, "state/encryption"), { force: true });
+  fs.writeFileSync(path.join(dir, "compose.env"), `VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:${"b".repeat(64)}\n${o.compose ?? ""}`);
+  fs.writeFileSync(path.join(dir, "healthy"), "ok");
+  return sh(SERVER, `DATA_DIR="${dir}/data"; cmd_doctor`, { ...world(dir, { running: true, kernel: "6.8.0-50-generic|Ubuntu 24.04 (colima)" }), ...MAC_ENV, VYRE_TEST_DISKUTIL: du, VYRE_TEST_HEALTH_URL: `file://${dir}/healthy`, VYRE_TEST_DOCKER_ROOT: "", VYRE_TEST_USERNS_PROC: path.join(dir, "no-userns") });
+}
+
+test("doctor on a Mac: a plain-disk install (recorded in compose.env or in state) is a warning with its date, not DOWN, and the advice names FileVault, never LUKS or systemd", () => {
+  const dir = tmp();
+  try {
+    mkSpace(dir, "D");
+    releases(dir);
+    // the choice recorded only where the Console reads it (compose.env), as an install made before state/encryption existed has it
+    const a = macDoctor(dir, { filevault: "No", compose: "VYRE_DISK_ENCRYPTION=plain\nVYRE_DISK_ENCRYPTION_SINCE=2026-11-02\n" });
+    assert.match(a.stdout, /^warn host\.disk_encrypted +The data is NOT encrypted at rest\. You chose to install on a plain disk on 2026-11-02/m, a.stdout);
+    assert.equal(a.status, 0, `doctor can be green: ${a.stdout}`);
+    const b = macDoctor(dir, { filevault: "No", state: `kind=plain\nsince=2026-11-03\ndata_dir=${dir}/data\n` });
+    assert.match(b.stdout, /^warn host\.disk_encrypted .*plain disk on 2026-11-03/m);
+    // no choice made: DOWN, and the way out is the Mac's
+    const c = macDoctor(dir, { filevault: "No" });
+    assert.equal(c.status, 1);
+    assert.match(c.stdout, /^DOWN host\.disk_encrypted +The data directory .* is not on an encrypted volume\. Turn on FileVault \(System Settings > Privacy & Security > FileVault\), or run the Mac installer again with --allow-plain-disk\./m);
+    for (const out of [a.stdout, b.stdout, c.stdout]) assert.doesNotMatch(out, /LUKS|systemctl|systemd|\/etc\/|apt|lsblk|\/proc\/mounts|--provider-encrypted/, out);
+    const d = macDoctor(dir, { filevault: "Yes" });
+    assert.match(d.stdout, /^ok   host\.disk_encrypted/m);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// ---- item 6: macOS tools
+
+test("on a macOS without readlink -f (before 12.3) the script still finds its install and does not hand off to itself", () => {
+  const dir = tmp();
+  try {
+    releases(dir, { old: read(SERVER), new: read(SERVER) });
+    fs.rmSync(path.join(dir, "current")); fs.symlinkSync("releases/1.1.0", path.join(dir, "current"));
+    fs.writeFileSync(path.join(dir, "compose.env"), "");
+    const bin = path.join(dir, "oldmac");
+    fs.mkdirSync(bin);
+    const real = spawnSync("sh", ["-c", "command -v readlink"], { encoding: "utf8" }).stdout.trim();
+    fs.writeFileSync(path.join(bin, "readlink"), `#!/bin/sh\ncase "$1" in -f) echo "readlink: illegal option -- f" >&2; exit 1 ;; esac\nexec "${real}" "$@"\n`, { mode: 0o755 });
+    const env = { PATH: `${bin}:${process.env.PATH ?? ""}`, HOME: os.tmpdir() };
+    const r = spawnSync("sh", [path.join(dir, "current/bin/vyre-server"), "version"], { encoding: "utf8", env });
+    assert.equal(r.stdout.trim(), "1.1.0", `found ${dir} from current/bin without VYRE_DIR: ${r.stderr}`);
+    const r2 = spawnSync("sh", [path.join(dir, "releases/1.0.0/bin/vyre-server"), "version"], { encoding: "utf8", env });
+    assert.equal(r2.stdout.trim(), "1.1.0", "an old release's copy hands off to current");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("an update never replaces the Mac installer's command (it names Docker's folders and context) with the plain Linux wrapper", () => {
+  const dir = tmp();
+  try {
+    const binDir = path.join(dir, "bin");
+    fs.mkdirSync(binDir);
+    const mac = `#!/bin/sh\n# Vyre Server, installed by install.sh\nVYRE_DIR="${dir}"\nexport VYRE_DIR\nPATH="$PATH:/usr/local/bin:/opt/homebrew/bin"\nexport PATH\nDOCKER_CONTEXT="colima"\nexport DOCKER_CONTEXT\nexec "${dir}/current/bin/vyre-server" "$@"\n`;
+    fs.writeFileSync(path.join(binDir, "vyre-server"), mac, { mode: 0o755 });
+    const r = sh(SERVER, `DIR="${dir}"; refresh_bin`, { VYRE_BIN_DIR: binDir });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(read(path.join(binDir, "vyre-server")), mac, "left as the Mac installer wrote it");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
