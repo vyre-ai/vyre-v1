@@ -33,6 +33,7 @@ import type { ScheduledCall } from "../ctx/schedule.ts";
 import { createBlobStore } from "../ctx/blobs.ts";
 import { createSpacePorts } from "../seams/space-ports.ts";
 import { createNotifyMailer } from "../seams/notify-mail.ts";
+import type { NoticeEmail } from "../seams/notify-mail.ts";
 import { rawDbOf, scopedDb } from "../ctx/db.ts";
 import { createBlobRoute } from "../routes/blobs.ts";
 import { createPortalLinkRoute } from "../routes/portal-link.ts";
@@ -1843,27 +1844,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       });
       // the notifications module's email through the Space's own mail (seams/notify-mail.ts); the members' addresses come from the space ports wired below
       const membersPortRef: { ports: ReturnType<typeof createSpacePorts> | null } = { ports: null };
-      const healthLine = (name: string, line: { detail: string; values?: Record<string, unknown> } | null): void => {
-        try {
-          if (line === null) db?.run("DELETE FROM health_probe WHERE name = ?", name);
-          else db?.run("INSERT INTO health_probe (name, state, detail, latency_ms, values_json, at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET state = excluded.state, detail = excluded.detail, values_json = excluded.values_json, at = excluded.at", name, "degraded", line.detail, null, JSON.stringify(line.values ?? {}), now());
-        } catch (e) { sink.log({ space: spaceId, level: 30, msg: "notify_email.health_failed", place: "notifications", attrs: { error: e instanceof Error ? e.message : String(e) } }); }
-      };
       const notifyMailer = createNotifyMailer({
         invoke: (cap, input, seed) => invoke(cap, input, seed),
         space: spaceId,
         owner: () => access.owner() ?? cfg.owner ?? null,
         emails: async () => (o.seams?.members ?? membersPortRef.ports?.members)?.emails(spaceId) ?? [],
-        health: healthLine,
-        nameOf: async (person) => access.snap.principal(person)?.name ?? undefined,
+        // the Space's own https address (the one portal links use); none on a Space only this computer reaches
+        address: () => publicOrigin()?.origin ?? null,
+        spaceName: async () => String((db?.all("SELECT name FROM identity_space WHERE id = ?", spaceId)[0] as { name?: string } | undefined)?.name ?? cfg.spaceName ?? ""),
         warn: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "notifications", ...(attrs ? { attrs } : {}) }),
       });
-      // whether email notices are on is said where server health is shown, soon after the start and every ten minutes (a mailbox made or a domain verified later clears it)
-      const notifyCheck = setInterval(() => { void notifyMailer.check().catch(() => undefined); }, 10 * 60_000);
-      notifyCheck.unref();
-      const notifyFirst = setTimeout(() => { void notifyMailer.check().catch(() => undefined); }, 5_000);
-      notifyFirst.unref();
-      closers.push(() => { clearInterval(notifyCheck); clearTimeout(notifyFirst); });
       const hostDrivers: Record<string, SeamDriver> = {
         // sealed fields in Records: values live in the Vault, in a Space owned folder; the folder belongs to the Space owner so the owner can reveal what is in it
         // (schema seals an existing field through the same Vault, so both setters get one driver)
@@ -1871,7 +1861,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setSchemaVault: () => sealedVault(),
         // the notifications module's email goes out through the Space's own mail (seams/notify-mail.ts): the service mailbox with a verified domain, or nothing and a health line; a test or a
         // host that passes its own email transport keeps it
-        setPushPort: () => createPushPort({ ...(o.seams?.push ?? {}), ...(o.seams?.push?.email ? {} : { email: (m: { to: string; subject: string; deepLink: string; key?: string }) => notifyMailer.email(m), gaveUp: (m: { to: string; kind: string }) => notifyMailer.gaveUp(m) }) }),
+        setPushPort: () => createPushPort({ ...(o.seams?.push ?? {}), ...(o.seams?.push?.email ? {} : { email: (m: NoticeEmail) => notifyMailer.email(m), gaveUp: (m: { to: string; kind: string }) => notifyMailer.gaveUp(m) }) }),
         // portal invitations and sign-in links go out through mail.send from the service mailbox (P-L8_17)
         configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: o.seams?.publicUrl ? d.publicUrl : async () => {
           // a portal link has to reach someone outside and keeps a sign-in, so it needs an address of the Space's own: not loopback, and not /p/, which carries no session

@@ -2,7 +2,7 @@
 // setPushPort is the host's door for the APNs/FCM transport and the computer's idle time (call it at boot); the fanout consumer turns events that name a notification kind into rows.
 import { handlers } from "./handlers/index.ts";
 import { pushPort, setPushPort } from "./handlers/push.ts";
-import { clearForSubject, resendKindEmail, send, sendOne } from "./handlers/rules.ts";
+import { clearForSubject, dayOf, resendKindEmail, send, sendOne, setTellAdmins, tellEmailGaveUp } from "./handlers/rules.ts";
 import { readSettings, syncSetting } from "./handlers/deliver.ts";
 import type { NotifCtx } from "./projections.ts";
 import { registry } from "../../generated/registry.ts";
@@ -100,9 +100,8 @@ async function planTask(ctx: NotifCtx, e: Ev): Promise<SendIn[]> {
   return [];
 }
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-/** A date in words, in UTC: 18 November 2026. */
-export const dayOf = (ms: number): string => { const d = new Date(ms); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+/** A date in words, in UTC: 18 November 2026 (rules.ts, where the email copy uses it too). */
+export { dayOf };
 
 /** One line for each admin. */
 function toAdmins(ctx: NotifCtx, line: Omit<SendIn, "to">): Promise<SendIn[]> {
@@ -134,12 +133,29 @@ async function adminsOf(ctx: NotifCtx): Promise<string[]> {
     // one role that cannot be read (an id the reader refuses) leaves the others: before, one refusal emptied the whole list and no admin heard anything
     for (const roleId of ids) {
       let holders: Array<{ kind?: string; id?: string }> = [];
-      try { holders = ((await ctx.call("access.roles.get", { roleId })) as { holders?: Array<{ kind?: string; id?: string }> }).holders ?? []; } catch { continue; }
+      try { holders = ((await ctx.call("access.roles.get", { roleId })) as { holders?: Array<{ kind?: string; id?: string }> }).holders ?? []; }
+      catch (e) { ctx.log?.warn("notifications: role not readable", { roleId, error: (e as Error).message }); continue; }
       for (const h of holders) if (h.kind === "person" && typeof h.id === "string") out.add(h.id);
     }
+    // the Space's owner always hears it, read straight from the Space: an Owner role that cannot be read must not drop them
+    await ownerOf(ctx).then((o) => { if (o) out.add(o); });
     return [...out].slice(0, 100);
-  } catch { return []; }
+  } catch (e) {
+    ctx.log?.warn("notifications: roles not readable", { error: (e as Error).message });
+    const o = await ownerOf(ctx);
+    return o ? [o] : [];
+  }
 }
+async function ownerOf(ctx: NotifCtx): Promise<string | null> {
+  try {
+    const o = ((await ctx.call?.("spaces.get", {})) as { space?: { owner?: unknown } } | undefined)?.space?.owner;
+    return typeof o === "string" && o !== "" ? o : null;
+  } catch (e) { ctx.log?.warn("notifications: the Space owner not readable", { error: (e as Error).message }); return null; }
+}
+// a notice email that could not go is said to every admin through the line they already read (health.degraded, Console)
+setTellAdmins(async (ctx, data, collapseKey) => {
+  for (const line of await toAdmins(ctx, { kind: "health.degraded", subject: { type: "space", id: ctx.space }, title: data.service, data, collapseKey })) await sendOne(ctx, line);
+});
 
 const TASK_EVENTS: ReadonlySet<string> = new Set(["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged"]);
 
@@ -268,7 +284,7 @@ export const consumers = {
             const had = (ctx.db.all("SELECT notification_id FROM notifications_fanout_sent WHERE event_id = ? AND target = ?", event.id, target)[0] as { notification_id?: string | null } | undefined)?.notification_id;
             if (had) {
               if (ctx.db.all("SELECT 1 AS x FROM notifications_fanout_email WHERE event_id = ? AND target = ?", event.id, target).length > 0) {
-                if (await resendKindEmail(ctx, input.to, had, mail)) ctx.db.run("DELETE FROM notifications_fanout_email WHERE event_id = ? AND target = ?", event.id, target);
+                if ((DELETION_KINDS.has(input.kind) && supersededFor(ctx, input.to, had)) || await resendKindEmail(ctx, input.to, had, mail)) ctx.db.run("DELETE FROM notifications_fanout_email WHERE event_id = ? AND target = ?", event.id, target);
                 else unsent++;
               }
               out.push(had);
@@ -306,17 +322,26 @@ export const consumers = {
   },
 };
 
-/** How many times the periodic pass tries a pending email before it gives up and the host tells admins. */
+const EMAIL_LOG_KEEP_MS = 90 * 86_400_000;
+const DELETION_KINDS: ReadonlySet<string> = new Set(["space.deletion_scheduled", "space.deletion_cancelled"]);
+/** A newer deletion notice of either kind for the person than this one: this one's email is old news. */
+function supersededFor(ctx: NotifCtx, person: string, notificationId: string): boolean {
+  return ctx.db.all(`SELECT 1 AS x FROM notifications_items n, notifications_items o WHERE o.id = ? AND n.person = ? AND n.id <> o.id
+    AND n.kind IN ('space.deletion_scheduled', 'space.deletion_cancelled') AND (n.at > o.at OR (n.at = o.at AND n.rowid > o.rowid))`, notificationId, person).length > 0;
+}
+/** How many times the periodic pass tries a pending email before it gives up and admins are told. */
 export const EMAIL_RETRY_TRIES = 5;
 
 /**
- * A Space deletion email that failed every try in its delivery (notifications_fanout_email) is tried again every ten minutes, up to EMAIL_RETRY_TRIES times; then it is given up and the host puts
- * one line where admins see server health ("A notice about deleting this Space could not be emailed to Bob."). A pass that finds the mail server down stops for this round.
+ * A Space deletion email that failed every try in its delivery (notifications_fanout_email) is tried again every ten minutes, up to EMAIL_RETRY_TRIES times; then it is given up and every admin's
+ * Console names the person once ("Notice email to Bob is failing: a notice about deleting this Space could not be emailed."). A pending deletion email that a newer deletion notice superseded is dropped. A pass that finds the mail server down stops for this round.
  */
 export async function retryPendingEmails(ctx: NotifCtx): Promise<{ sent: number; failed: number; gaveUp: number }> {
   const rows = ctx.db.all(`SELECT e.event_id AS eventId, e.target AS target, s.notification_id AS notificationId, COALESCE(t.tries, 0) AS tries
     FROM notifications_fanout_email e JOIN notifications_fanout_sent s ON s.event_id = e.event_id AND s.target = e.target
     LEFT JOIN notifications_email_tries t ON t.event_id = e.event_id AND t.target = e.target ORDER BY e.at LIMIT 50`) as Array<{ eventId: string; target: string; notificationId: string | null; tries: number }>;
+  // the record of what became of each email (sent, or why not) keeps ninety days
+  ctx.db.run("DELETE FROM notifications_email_log WHERE at < ?", ctx.now() - EMAIL_LOG_KEEP_MS);
   const mail = { down: false };
   const out = { sent: 0, failed: 0, gaveUp: 0 };
   const clear = (r: { eventId: string; target: string }): void => {
@@ -327,10 +352,12 @@ export async function retryPendingEmails(ctx: NotifCtx): Promise<{ sent: number;
     if (mail.down) break;
     const [person = "", kind = ""] = r.target.split("|");
     if (!r.notificationId || !person) { clear(r); continue; }
+    if (DELETION_KINDS.has(kind) && supersededFor(ctx, person, r.notificationId)) { clear(r); continue; }
     if (Number(r.tries) >= EMAIL_RETRY_TRIES) {
       clear(r);
       out.gaveUp++;
       await pushPort()?.gaveUp?.({ to: person, kind }).catch(() => undefined);
+      await tellEmailGaveUp(ctx, person, kind);
       continue;
     }
     if (await resendKindEmail(ctx, person, r.notificationId, mail)) { clear(r); out.sent++; continue; }

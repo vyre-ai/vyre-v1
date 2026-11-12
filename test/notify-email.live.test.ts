@@ -1,7 +1,7 @@
 // Email notices through the Space's own mail on a booted daemon (host/src/seams/notify-mail.ts bound to the notifications module's email port in daemon.ts). The mail module is real except
 // mail.send and mail.domain.list, which are stand-ins (a real send needs a DNS-verified domain and a provider key; no test reaches an outside service).
 //   with a mailbox    scheduling the Space's deletion emails each admin who has an address in this Space once, from the service mailbox, to their address
-//   without one       nothing is sent, the reason is recorded as no_mailbox, and the one health line for admins says email notices are off
+//   without one       nothing is sent, the reason is recorded as no_mailbox, and each admin's Console gets one line that email notices are off
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
@@ -50,15 +50,16 @@ test("with a service mailbox and a verified domain, scheduling the Space's delet
     assert.equal(mine.length, 1, "once");
     assert.equal(mine[0]!.mailboxId, box.mailbox.id);
     assert.equal(mine[0]!.route, "space_domain");
-    assert.match(mine[0]!.subject, /scheduled for deletion/);
+    assert.match(mine[0]!.subject, new RegExp(`^${space.space.name}: Scheduled for deletion on \\d{1,2} [A-Z][a-z]+ \\d{4}$`), "the Space's name and fixed copy with the date");
+    assert.match(mine[0]!.text, /^Everything in this Space is removed on .+\n\nOpen (it in the Vyre app: vyre:\/\/open\?address=[^&\s]+&kind=place&id=console\n|Vyre to see it\.$)/);
     assert.doesNotMatch(mine[0]!.text, /sk-|secret/i);
-    const health = new DatabaseSync(d.paths.modules, { readOnly: true }).prepare("SELECT detail FROM health_probe WHERE name = 'email_notices'").all();
-    assert.deepEqual(health, [], "no health line while email notices work");
+    const health = new DatabaseSync(d.paths.modules, { readOnly: true }).prepare("SELECT title FROM notifications_items WHERE kind = 'health.degraded'").all();
+    assert.deepEqual(health, [], "no Console line while email notices work");
     await ok(d, "spaces.delete_cancel", {});
   } finally { await d.stop(); }
 });
 
-test("with no sending mailbox nothing is sent, the reason is recorded as no_mailbox, and admins get the one health line", { timeout: 120_000 }, async () => {
+test("with no sending mailbox nothing is sent, the reason is recorded as no_mailbox, and each admin's Console says so once", { timeout: 120_000 }, async () => {
   const sent: Sent[] = [];
   const d = await boot(seededDir(), undefined, undefined, stubs(sent, true));
   try {
@@ -68,9 +69,9 @@ test("with no sending mailbox nothing is sent, the reason is recorded as no_mail
     const db = (): DatabaseSync => new DatabaseSync(d.paths.modules, { readOnly: true });
     await waitFor(async () => { await settle(d); return (db().prepare("SELECT 1 AS x FROM notifications_email_log WHERE person = 'usr_adam' AND outcome = 'no_mailbox'").all().length > 0) ? true : null; }, 20_000, why(d));
     assert.equal(sent.length, 0, "nothing sent");
-    const line = db().prepare("SELECT state, detail FROM health_probe WHERE name = 'email_notices'").get() as { state: string; detail: string } | undefined;
-    assert.equal(line?.state, "degraded");
-    assert.match(line!.detail, /^Email notices are off: this Space has no sending mailbox\. People see notices in the app only\./);
+    await waitFor(async () => { await settle(d); return db().prepare("SELECT 1 AS x FROM notifications_items WHERE person = 'usr_adam' AND kind = 'health.degraded'").all().length > 0 ? true : null; }, 20_000, why(d));
+    const lines = db().prepare("SELECT place, title FROM notifications_items WHERE person = 'usr_adam' AND kind = 'health.degraded'").all() as Array<{ place: string; title: string }>;
+    assert.deepEqual(lines.map((l) => ({ ...l })), [{ place: "console", title: "Notice email is off: this Space has no sending mailbox, so people see notices in the app only. Set one up in Console, Comms, Sending domains." }], "what the admin's Console shows, once");
     assert.equal(db().prepare("SELECT COUNT(*) AS n FROM notifications_email_log WHERE outcome = 'sent'").get()!["n"], 0, "never counted as sent");
     await ok(d, "spaces.delete_cancel", {});
   } finally { await d.stop(); }

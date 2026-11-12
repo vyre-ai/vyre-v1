@@ -22,7 +22,7 @@ export const TRACE = "0123456789abcdef0123456789abcdef";
 export interface Ev { name: string; subject: string; payload: Record<string, unknown>; id: string }
 export interface CallLog { cap: string; input: any }   // eslint-disable-line @typescript-eslint/no-explicit-any
 export interface ScheduleLog { id: string; at: number | string; cap: string; input: any }   // eslint-disable-line @typescript-eslint/no-explicit-any
-export interface Emailed { to: string; subject: string; deepLink: string }
+export interface Emailed { to: string; subject: string; line: string; open: { kind: string; id: string } }
 type Callee = (input: any, who: Caller) => unknown;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
 export interface HarnessOptions {
@@ -66,7 +66,7 @@ export function harness(o: HarnessOptions = {}) {
       if (state.emailHang?.(m)) return new Promise<void>(() => undefined);   // the send is cut off (a stop let the consumer go, or a crash): it never answers
       if (state.emailFail?.(m)) throw new Error("mail down");
       if (state.emailAnswer) return state.emailAnswer;   // the transport did not send it, and says why (a Space with no sending mailbox, a person with no address)
-      emails.push({ to: m.to, subject: m.subject, deepLink: m.deepLink });   // what the email says; the idempotency key it carries is the transport's
+      emails.push({ to: m.to, subject: m.subject, line: m.line, open: m.open });   // what the email says; the idempotency key it carries is the transport's
       return "sent";
     },
     async gaveUp(m) { gaveUp.push(m); },
@@ -77,7 +77,7 @@ export function harness(o: HarnessOptions = {}) {
     const allowed = cap ? emitsOf(cap) : null;
     return {
       space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}), trace: { traceId: TRACE },
-      ...(who.device ? { device: who.device } : {}), ...(who.run ? { run: who.run } : {}),
+      ...(who.device ? { device: who.device } : {}), ...(who.run ? { run: who.run } : {}), depth: who.depth ?? 0, ...(who.origin ? { origin: who.origin } : {}),
       now: () => clock,
       db: scopedDb("notifications", raw, TRACE),
       emit(name, subject, payload) {

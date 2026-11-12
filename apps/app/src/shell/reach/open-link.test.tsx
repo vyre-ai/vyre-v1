@@ -1,6 +1,7 @@
 // /open/<kind>/<id> (owner, 4 Nov): signs in if needed, then reach decides: the deepest place the person can open, else the safe peek with Ask for access, never a dead end.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { act } from "react";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../ui/src/testing/dom.ts";
 import { decideOpen, holdOpen, onOpenHeld, parseOpenPath, peekOpen, takeOpen, targetOfOpen } from "./open-link.ts";
@@ -117,7 +118,8 @@ test("the link acts once a Space is open: a person with access is taken there; a
       open: (t: unknown) => { log.opened.push(t); },
     };
     const hub = { go: (p: string) => { log.went.push(p); } } as never;
-    const root = await mount(createRoot, <OpenLink hub={hub} rt={rt as never} me="usr_maya" spaceId="spc_1" />);
+    let made: { unmount(): void } | null = null;
+    const root = await mount(() => (made = createRoot()), <OpenLink hub={hub} rt={rt as never} me="usr_maya" spaceId="spc_1" />);
     holdOpen({ kind: "file", id: "fil_1" });
     await flush(); await flush();
     assert.deepEqual(log.opened, [{ subject: { type: "file", id: "fil_1" } }]);
@@ -133,5 +135,26 @@ test("the link acts once a Space is open: a person with access is taken there; a
     await flush();
     assert.ok(find(root, "open-link-asked"));
     assert.equal(log.calls.at(-1)![0], "access.request");
+    // gone, so its link listener does not take a later test's link
+    await act(async () => { (made as { unmount(): void } | null)?.unmount(); });
+  } finally { restore(); }
+});
+
+test("a link to the Console place (a notice email, a banner, any outside page) opens Console only for someone Console lets in; anyone else lands in their Inbox", async () => {
+  const restore = installDom();
+  try {
+    for (const [nav, want] of [[{ groups: [{ pages: [{ key: "mail.domains" }] }] }, "console"], [null, "inbox"], [{ groups: [] }, "inbox"]] as const) {
+      const went: string[] = [];
+      const rt = { call: async (cap: string) => { if (cap === "console.nav") { if (nav === null) throw Object.assign(new Error("no"), { code: "permission.no_grant" }); return nav; } return {}; }, open: () => undefined };
+      let made: { unmount(): void } | null = null;
+      await mount(() => (made = createRoot()), <OpenLink hub={{ go: (p: string) => { went.push(p); } } as never} rt={rt as never} me="usr_maya" spaceId="spc_1" />);
+      // the exact link a notice email carries (host/src/seams/notify-mail.ts noticeLink), as the desktop hands it over
+      const route = routeDesktopLink({ action: "open", params: { address: "https://northwind.vyre.run", kind: "place", id: "console" } } as never);
+      assert.deepEqual(route, { kind: "signin", address: "https://northwind.vyre.run", item: { kind: "place", id: "console" } });
+      holdOpen(route!.kind === "signin" ? route!.item! : { kind: "", id: "" });
+      await flush(); await flush(); await flush();
+      assert.deepEqual(went, [want], JSON.stringify(nav));
+      await act(async () => { (made as { unmount(): void } | null)?.unmount(); });
+    }
   } finally { restore(); }
 });

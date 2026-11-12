@@ -17,6 +17,7 @@ export interface PushMessage {
   category?: "needs_you";
   actions?: { key: string; cap: string }[];
 }
+export interface NoticeEmail { to: string; subject: string; line: string; open: { kind: string; id: string }; key: string }
 export interface PushPort {
   /** "gone" means the platform said the token is dead; the module drops it. */
   send(msg: PushMessage): Promise<"ok" | "gone">;
@@ -26,8 +27,10 @@ export interface PushPort {
   idleMinutes?(): number;
   /** One email backstop (4 hours after an approval waits); the module calls it once per approval. */
   /** The email transport: answers what became of it ("sent" or why not); an older transport that answers nothing sent it. A throw is a failure to try again. */
-  email?(msg: { to: string; subject: string; deepLink: string; key: string }): Promise<void | "sent" | "no_mailbox" | "no_address" | "suppressed" | "held">;
-  /** An email given up on after its tries: the host says so to admins (one health line). */
+  // The message is fixed copy per kind (rules.ts emailCopy): a subject and one line, never words a caller wrote. `open` is the place or thing its one link opens; the host builds the link
+  // with the Space's own address and puts the Space's name in the subject.
+  email?(msg: NoticeEmail): Promise<void | "sent" | "no_mailbox" | "no_address" | "suppressed" | "held">;
+  /** An email given up on after its tries, for the host's log (admins are told in their Inbox by this module). */
   gaveUp?(msg: { to: string; kind: string }): Promise<void>;
 }
 let port: PushPort | null = null;

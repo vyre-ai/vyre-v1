@@ -9,7 +9,7 @@ import type { Notification } from "../notifications/model.ts";
 import { notices as shared } from "./model.ts";
 import { viewing } from "./viewing.ts";
 import { osBanners } from "../notifications/os-banner.ts";
-import type { BannerView, OsBanner } from "../notifications/os-banner.ts";
+import type { BannerMemory, BannerView, OsBanner } from "../notifications/os-banner.ts";
 import type { NoticeKind, NoticeStore } from "./model.ts";
 
 type ListOut = CapMap["notifications.list"]["out"];
@@ -63,8 +63,8 @@ export interface NotificationNoticesProps {
 /** Mounted once by the signed-in shell: the live read of what needs me, kept in the slot. */
 export function useNotificationNotices(p: NotificationNoticesProps | null, store: NoticeStore = shared): void {
   const raised = useRef<Set<string>>(new Set());
-  // what this window has already bannered (id to count); null until the first read, which only remembers
-  const bannered = useRef<Map<string, number> | null>(null);
+  // what this window has already seen and bannered, for its whole life; null until the first read, which only remembers
+  const bannered = useRef<BannerMemory | null>(null);
   useEffect(() => {
     if (p === null) return undefined;
     const q = p.query("notifications.list", BANNER_QUERY);
@@ -103,7 +103,7 @@ export function useNotificationNotices(p: NotificationNoticesProps | null, store
       raised.current = syncNotifications(store, raised.current, shown, act);
       if (p.os) {
         const r = osBanners(shown.filter((n) => n.level === "interrupt" && n.seenAt === undefined && !isGoalStuck(n)), bannered.current, p.os.view());
-        bannered.current = r.seen;
+        bannered.current = r.memory;
         for (const b of r.banners) p.os.show(b);
       }
     };

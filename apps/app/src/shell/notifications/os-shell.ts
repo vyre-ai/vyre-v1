@@ -19,13 +19,17 @@ export const bannersRefused = {
   subscribe(l: Listener): () => void { listeners.add(l); return () => { listeners.delete(l); }; },
 };
 
+/** How the notification plugin words a refusal by the system (permission denied, not allowed, disabled). */
+const REFUSED = /denied|not allowed|not permitted|disabled|permission/i;
+
 export function osShell(g: unknown = globalThis): OsShell | null {
   const invoke = (g as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke;
   if (typeof invoke !== "function") return null;
   let last = -1;
   return {
     notify(b) {
-      void Promise.resolve(invoke("notify", { title: b.title, body: b.body, link: b.link })).then(() => bannersRefused.set(false), () => bannersRefused.set(true));
+      // only the system refusing banners says they are off; any other error (a bad link, a plugin hiccup) is not a refusal
+      void Promise.resolve(invoke("notify", { title: b.title, body: b.body, link: b.link })).then(() => bannersRefused.set(false), (e: unknown) => { if (REFUSED.test(String((e as { message?: unknown })?.message ?? e))) bannersRefused.set(true); });
     },
     badge(count) {
       const n = Math.max(0, Math.floor(Number.isFinite(count) ? count : 0));

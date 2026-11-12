@@ -313,10 +313,9 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   // the Personal Space on this computer, so a Team Space can offer "use the same AI account" (never copied without a yes)
   const personalCall = useMemo(() => { const p = catalogue.find((item) => item.def.kind === "personal" && item.def.spaceId !== stored.def.spaceId && isLoopbackUrl(item.baseUrl)); return p ? createCapCaller({ baseUrl: p.baseUrl, token: () => p.token }) : null; }, [catalogueKey, stored.def.spaceId]);
   // what needs me (replies, mentions, held approvals, alerts) and an update that is ready are persisting notices in the top bar's slot; pressing one opens what it is about
-  // in the desktop app the same notices also reach the operating system's banner when the person is not looking at that place, and the dock or taskbar badge shows the Needs you count
+  // in the desktop app the same notices also reach the operating system's banner while the window is not in front ("<Space> needs you", no content), and the dock or taskbar badge shows the
+  // Needs you count
   const shellOs = useMemo(() => osShell(), []);
-  const placeNow = useRef(location.place);
-  placeNow.current = location.place;
   // the kinds the person keeps off the desktop ("Notify me on" without Desktop): no banner for them
   const offDesktop = useRef<ReadonlySet<string>>(new Set());
   useEffect(() => {
@@ -331,9 +330,11 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     query: (cap, input) => session.hooks.capQuery(cap, input),
     call: (cap, input) => session.call(cap, input),
     open: (t) => { if (t.subject) session.runtime.open({ subject: t.subject }); else if (t.place) hub.go(t.place as PlaceId); },
-    ...(shellOs ? { os: { view: () => ({ focused: windowFocused(), here: (n) => !n.subject && n.place === placeNow.current, address: stored.baseUrl, allows: (kind) => !offDesktop.current.has(kind) }), show: (b) => shellOs.notify(b) } } : {}),
-  } : null), [session, hub, shellOs, stored.baseUrl]);
+    ...(shellOs ? { os: { view: () => ({ focused: windowFocused(), address: stored.baseUrl, spaceName: stored.def.name, now: Date.now(), allows: (kind) => !offDesktop.current.has(kind) }), show: (b) => shellOs.notify(b) } } : {}),
+  } : null), [session, hub, shellOs, stored.baseUrl, stored.def.name]);
   useEffect(() => { shellOs?.badge(needsYou); }, [shellOs, needsYou]);
+  // signed out, or another Space or person (the shell is keyed by both, so it unmounts): the dock keeps no one's count
+  useEffect(() => () => { shellOs?.badge(0); }, [shellOs]);
   useNotificationNotices(banners);
   const updateSource = useMemo<UpdateSource | null>(() => {
     const u = desktopUpdates();

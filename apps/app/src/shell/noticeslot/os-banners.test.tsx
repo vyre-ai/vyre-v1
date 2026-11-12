@@ -1,6 +1,6 @@
-// The desktop banners through the live notices hook (bridge.ts useNotificationNotices with `os`): the same reads the top bar uses. A notice about the chat on screen is marked seen and gets no
-// banner; one about another chat gets one, once; a muted chat's message makes no notification row at all (the server drops it), so nothing reaches the banner; a row that is not Interrupt (a kind
-// set to a dot, away, quiet hours) gets none.
+// The desktop banners through the live notices hook (bridge.ts useNotificationNotices with `os`): the same reads the top bar uses. While the window is in front nothing is bannered, whichever
+// chat it shows; in the background a new notice gets one banner that says only who needs you, once; a muted chat's message makes no notification row at all (the server drops it), so nothing
+// reaches the banner; a row that is not Interrupt (a kind set to a dot, away, quiet hours) gets none.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
@@ -23,24 +23,33 @@ function setup(focused: boolean) {
     query: () => ({ subscribe: (l: () => void) => { listeners.add(l); return () => void listeners.delete(l); }, getSnapshot: () => ({ status: "ready", data: { notifications: items, hasMore: false } }) }),
     call: async (cap: string) => (cap === "threads.get" ? { thread: {} } : {}),
     open: () => undefined,
-    os: { view: () => ({ focused, here: () => false, address: "https://northwind.example" }), show: (b: OsBanner) => { shown.push(b); } },
+    os: { view: () => ({ focused, address: "https://northwind.example", spaceName: "Northwind", now: 1_000_000 }), show: (b: OsBanner) => { shown.push(b); } },
   } as unknown as NotificationNoticesProps;
   function Probe(): null { useNotificationNotices(p, store); return null; }
   const arrive = async (next: Notification[]): Promise<void> => { items = next; for (const l of [...listeners]) l(); await flush(); await flush(); };
   return { Probe, shown, arrive };
 }
 
-test("focused on the chat the notice is about: no banner; a notice about another chat: one banner, once", async () => {
+test("the window in front: no banner, whichever chat it shows", async () => {
   installDom();
   viewing.set(["thr_open"]);
   const s = setup(true);
   await mount(createRoot, <s.Probe />);
   await flush();
   await s.arrive([note("ntf_here", "thr_open"), note("ntf_other", "thr_other")]);
-  assert.deepEqual(s.shown.map((b) => b.title), ["Dana mentioned you (ntf_other)"]);
-  await s.arrive([note("ntf_here", "thr_open"), note("ntf_other", "thr_other")]);
-  assert.equal(s.shown.length, 1, "not again for the same notice");
+  assert.deepEqual(s.shown, []);
   viewing.set([]);
+});
+
+test("in the background: a new notice gets one banner with no content, once", async () => {
+  installDom();
+  const s = setup(false);
+  await mount(createRoot, <s.Probe />);
+  await flush();
+  await s.arrive([note("ntf_a", "thr_a")]);
+  assert.deepEqual(s.shown.map((b) => [b.title, b.body]), [["Northwind needs you", ""]]);
+  await s.arrive([note("ntf_a", "thr_a", { count: 2 })]);
+  assert.equal(s.shown.length, 1, "not again for the same notice, nor when its count rises");
 });
 
 test("a muted chat makes no row, so no banner; a row that is not Interrupt (set to a dot, away, quiet hours) makes none", async () => {

@@ -168,7 +168,7 @@ export interface PushTransportDeps {
   /** the Space's display name for the push title; omitted: the Space id */
   spaceName?: (space: string) => Promise<string | undefined> | string | undefined;
   /** the email transport (seams/notify-mail.ts in a daemon): answers what became of it; "sent" only when it went out */
-  email?: (msg: { to: string; subject: string; deepLink: string; key?: string }) => Promise<void | "sent" | "no_mailbox" | "no_address" | "suppressed" | "held">;
+  email?: (msg: { to: string; subject: string; line: string; open: { kind: string; id: string }; key?: string }) => Promise<void | "sent" | "no_mailbox" | "no_address" | "suppressed" | "held">;
   /** an email the module gave up on after its tries: the host says so to admins */
   gaveUp?: (msg: { to: string; kind: string }) => Promise<void>;
 }
