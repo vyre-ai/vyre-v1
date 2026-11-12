@@ -230,7 +230,7 @@ test("an automation's AI account pays only when the Space kept it for automation
 });
 
 test("an account that needs a model and gets none: the step fails in its own words, not as a provider error, and is not retried", async () => {
-  const { h } = scene({ script: [{ type: "error", status: 0, code: "engine.no_model", message: "No model is set for this chat." }] });
+  const { h } = scene({ script: [{ type: "error", code: "engine.no_model", message: "No model is set for this chat." }] });
   await assert.rejects(run(h), (e: unknown) => {
     const err = (e as { error?: { code?: string; message?: string; retryable?: boolean } }).error;
     assert.equal(err?.code, "validation.precondition_failed");
