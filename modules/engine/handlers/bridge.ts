@@ -278,7 +278,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         }
         if (e.type === "turn.waiting" && e.reason !== "approval") return;
         // a turn a dead host left has no turn.started here: who it ran for comes with the event, so the agent can still say so in the chat
-        if (e.type === "turn.failed" && e.asker) askerOf.set(e.threadId, e.asker);
+        if ((e.type === "turn.failed" || e.type === "turn.cancelled") && e.asker) askerOf.set(e.threadId, e.asker);
         if (e.type === "turn.failed") warn("a turn failed", { threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, code: e.code, ...(e.message ? { why: scrub(e.message) } : {}) });
         const parked = e.type === "turn.waiting";
         if (!parked) pokedBy.delete(`${e.threadId}:${e.agentId}`);   // a poke that failed or was stopped does not mark a later reply

@@ -10,7 +10,8 @@ export type AgentMode = "lead" | "listen";
 export type ChatMode = "ask" | "auto" | "plan";
 export type Effort = "low" | "medium" | "high" | "max";
 export type QueueKind = "message" | "interrupt" | "wake" | "handoff";
-export type QueueState = "queued" | "running" | "done" | "consumed" | "cancelled";
+/** stopping: the person (or an interrupt) stopped this running or starting turn; written before the Stop answers, so a restart before the turn has ended closes it as cancelled instead of running it again */
+export type QueueState = "queued" | "running" | "stopping" | "done" | "consumed" | "cancelled";
 export type TurnState = "running" | "waiting" | "completed" | "failed" | "cancelled";
 export type AccountReason = "starter" | "steerer";
 export type Placement = "host" | "device";
@@ -177,7 +178,8 @@ export type EngineEvent =
   | { type: "turn.resumed"; threadId: string; turnId: string; agentId: string }
   | { type: "turn.completed"; threadId: string; turnId: string; agentId: string }
   | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** the account the turn ran on (its reference and engine), so the chat can say which sign-in needs doing */ account?: { ref: string; driver: string }; /** a turn a dead host left (code host_lost): its queue row and whom it ran for */ qseq?: number; asker?: string; /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string; /** a usage-limit failure that said when the account is usable again (epoch ms) */ resetsAt?: number }
-  | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string; /** why it was stopped: interrupt, stop, limit, left, moved, lease */ reason?: string }
+  | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string; /** why it was stopped: interrupt, stop, limit, left, moved, lease */ reason?: string;
+      /** set on a stopped turn a dead host left (recover): who it ran for, so the agent can still say in the chat that it stopped */ asker?: string }
   | { type: "agent.handoff"; threadId: string; to: Placement }
   | { type: "queue.consumed"; threadId: string; qseq: number; messageId: string | null };
 

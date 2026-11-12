@@ -1,0 +1,1 @@
+- A turn you stop stays stopped when the server restarts. Before, if the server restarted after you pressed Stop and before the turn had wound down (or while it was still starting), the turn ran again after the restart and replied. Now the chat shows it stopped, once.

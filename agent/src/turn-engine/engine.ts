@@ -158,7 +158,7 @@ interface ThreadState {
   thread: OpenThread; messages: StoredMessage[]; running: Running | null; worker: Promise<void> | null; active: boolean;
   /** A turn taken off the queue that is not running yet (admit and the account are being read). A Stop pressed now marks it (`stop`), answers at once, and the turn ends cancelled the moment it
    *  starts, instead of the Stop missing it. The mark belongs to this one turn: the next turn has a starting of its own. */
-  starting?: { agentId: string; stop?: string } | null;
+  starting?: { agentId: string; qseq: number; stop?: string } | null;
 }
 
 const defaultSchedule = (fn: () => void, ms: number): (() => void) => {
@@ -355,11 +355,18 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     return n;
   }
 
+  /** The Stop on the queue row, only while the row is still this host's running one (another host that took the thread over owns it from then on). */
+  function markStopping(threadId: string, qseq: number): void {
+    if (queue.list(threadId).find((r) => r.qseq === qseq)?.state === "running") queue.setState(threadId, qseq, "stopping");
+  }
+
   async function cancelRunning(st: ThreadState, why: string): Promise<void> {
     const run = st.running;
     if (!run || run.cancelled) return;
     run.cancelled = true;
     run.why = why;
+    // durable before anything answers: a restart before this turn has wound down finds its row stopping and closes it, rather than running it again (recover). A lost lease is not ours to write.
+    if (why !== "lease") markStopping(st.thread.id, run.qseq);
     try { await run.session?.cancel(); } catch { /* the turn is ending either way */ }
   }
 
@@ -402,7 +409,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       }
       const item = queue.dequeue(id);
       if (!item) continue;
-      const starting = { agentId: item.agentId } as NonNullable<ThreadState["starting"]>;
+      const starting = { agentId: item.agentId, qseq: item.qseq } as NonNullable<ThreadState["starting"]>;
       st.starting = starting;
       try { await runTurn(st, item); } finally { if (st.starting === starting) st.starting = null; }
       if (!st.active) { leases.release(id, opts.holder); return; }   // the host is closing: what is queued waits for the next start
@@ -849,7 +856,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       // pressed in the moment between the queue and the run (the account is being read): mark that turn, so it ends cancelled as it starts. The press answers at once (lead, 12 Nov: a Stop under load)
       const starting = st.starting;
       const early = !st.running && starting && (only === undefined || starting.agentId === only) ? starting : null;
-      if (early) early.stop = o?.reason ?? "stop";
+      if (early) { early.stop = o?.reason ?? "stop"; markStopping(threadId, early.qseq); }   // on the row before the press answers: a restart now must not start it
       const everything = o?.clearQueue === true;
       const run = st.running;
       const hit = run !== null && !run.cancelled && (only === undefined || run.agentId === only) ? run : null;
@@ -935,6 +942,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     recover(threadId) {
       const st = need(threadId);
       if (leases.get(threadId, now())) return false;   // someone still holds it and is beating
+      // A turn the person stopped whose host died before it ended: closed as cancelled, and the chat says so once. It never runs again.
+      for (const row of queue.list(threadId).filter((r) => r.state === "stopping")) {
+        queue.setState(threadId, row.qseq, "cancelled");
+        emit({ type: "turn.cancelled", threadId, turnId: opts.lostTurn?.(row) ?? `lost:${threadId}:${row.qseq}`, agentId: row.agentId, reason: "stop",
+          asker: row.from.startsWith("usr_") ? row.from : st.thread.starter });
+      }
       const dead = queue.running(threadId);
       // A turn that posted its reply and died before the row was closed is finished: running it again would answer the same message twice.
       const seen = messages.recent(threadId, historyWindow);

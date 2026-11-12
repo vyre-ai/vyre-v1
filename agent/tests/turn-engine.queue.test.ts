@@ -524,3 +524,51 @@ test("interrupt for a message that is already waiting runs it once, first, not t
   const bodies = p.sessions.flatMap((s) => s.inputs.map((i) => i.trigger?.body));
   assert.equal(bodies.filter((b) => b === "send me now").length, 1, `answered once: ${JSON.stringify(bodies)}`);
 });
+
+test("crash after a Stop on a running turn: the row says stopping before the Stop answers, so the next host closes it as cancelled, says so once, and never runs it again", async () => {
+  const clock = manualClock();
+  const queue = createMemoryQueue();
+  const leases = createMemoryLeases();
+  const hold = gate();
+  const pa = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, now: clock.now });
+  const pb = scriptedProvider({ script: ok });
+  const b = createTurnEngine({ holder: "host:b", openSession: pb.openSession, queue, leases, now: clock.now, lostTurn: (row) => `trn_row${row.qseq}` });
+  a.openThread(thread("T"));
+  b.openThread(thread("T"));
+  a.receive({ threadId: "T", author: person("dana") });
+  await until(() => pa.sessions.length === 1);
+  await a.stop("T");
+  assert.equal(queue.list("T")[0]?.state, "stopping", "on the row before the Stop answered");
+  // host a dies here, before its turn wound down
+  clock.advance(21_000);
+  assert.equal(b.recover("T"), true);
+  await b.idle("T");
+  assert.equal(pb.sessions.length, 0, "it never runs again");
+  assert.equal(queue.list("T")[0]?.state, "cancelled");
+  assert.deepEqual(b.events("T").filter((e) => e.type === "turn.cancelled").map((e) => (e as { turnId: string; asker?: string }).turnId + ":" + (e as { asker?: string }).asker), ["trn_row1:dana"], "the chat hears it stopped once, for the person it ran for");
+  hold.open();
+});
+
+test("crash after a Stop on a starting turn: the row says stopping, and the next host does not start it", async () => {
+  const clock = manualClock();
+  const queue = createMemoryQueue();
+  const leases = createMemoryLeases();
+  const pa = scriptedProvider({ script: ok });
+  const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, now: clock.now, resolveAccount: () => new Promise(() => undefined) });
+  const pb = scriptedProvider({ script: ok });
+  const b = createTurnEngine({ holder: "host:b", openSession: pb.openSession, queue, leases, now: clock.now, lostTurn: (row) => `trn_row${row.qseq}` });
+  a.openThread(thread("T"));
+  b.openThread(thread("T"));
+  a.receive({ threadId: "T", author: person("dana") });
+  await until(() => queue.list("T")[0]?.state === "running");
+  const r = await a.stop("T");
+  assert.equal(r.starting, 1);
+  assert.equal(queue.list("T")[0]?.state, "stopping");
+  clock.advance(21_000);
+  assert.equal(b.recover("T"), true);
+  await b.idle("T");
+  assert.equal(pb.sessions.length, 0);
+  assert.equal(pa.sessions.length, 0);
+  assert.equal(b.events("T").filter((e) => e.type === "turn.cancelled").length, 1);
+});
