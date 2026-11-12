@@ -19,6 +19,10 @@ import { hasReads } from "../../../host/src/seams/answer-reads.ts";
 import { findProgram } from "../cli-programs.ts";
 import { engineIfBound, sqlMessages, withMessageId, mintId } from "../projections.ts";
 import { setUsing } from "../node-turns.ts";
+import { engineThreadOf } from "../thread-open.ts";
+import { peopleOf, settingsOf } from "../thread-open.ts";
+import type { ThreadGet as OpenGet } from "../thread-open.ts";
+import { stateOf } from "./control.ts";
 import type { EngineCtx } from "../projections.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { DriverEvent, EngineAgent, EngineEvent, EngineSession, OpenSession, ThreadKind, TurnInput } from "../../../agent/src/turn-engine/types.ts";
@@ -386,14 +390,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     });
   }
 
-  type RosterAgent = { agentId: string; name?: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown; quiet?: boolean; when?: "always" | "topics" | "hours"; topics?: string; hoursFrom?: string; hoursTo?: string; style?: "short" | "full" };
-  type ThreadGet = { thread: { kind?: string; scopeType?: string; scopeId?: string; starter?: string; members?: Array<{ kind?: string; id: string }>; agents: RosterAgent[] } };
-  const peopleOf = (g: ThreadGet): string[] | undefined => (g.thread.members ? g.thread.members.filter((x) => (x.kind ?? "person") === "person").map((x) => x.id) : undefined);
-  /** How and when an agent answers in this chat, as the chat holds it, for the engine's routing and for the turn. */
-  const settingsOf = (a: RosterAgent): Pick<EngineAgent, "quiet" | "when" | "topics" | "hoursFrom" | "hoursTo" | "style"> => ({
-    ...(a.quiet === true ? { quiet: true as const } : {}), ...(a.when && a.when !== "always" ? { when: a.when } : {}), ...(a.topics ? { topics: a.topics } : {}),
-    ...(a.hoursFrom ? { hoursFrom: a.hoursFrom } : {}), ...(a.hoursTo ? { hoursTo: a.hoursTo } : {}), ...(a.style ? { style: a.style } : {}),
-  });
+  type ThreadGet = OpenGet & { thread: { scopeId?: string } };
   type Row = { messageId: string; threadSeq?: number; author: { kind: string; id: string }; body: string; depth?: number; replyTo?: string; attachments?: string[]; blocks?: Array<{ type: string; data?: unknown }> };
 
   /**
@@ -443,29 +440,12 @@ export function createBridge(o: BridgeOptions): Bridge {
       return false;
     }
     if (got.thread.agents.length === 0) return false;   // nobody to run; the thread opens on the first message after an agent joins
-    // a chat pins no model unless the person picked one for the thread: the agent's own model is then the one the turn runs and is metered on
-    const own = new Map<string, string>();
-    const outside = new Set<string>();
-    for (const a of got.thread.agents) {
-      if (await runsOutside(ctx, a.agentId)) { outside.add(a.agentId); continue; }
-      if (a.model) continue;
-      try {
-        const m = ((await read("agents.get", { agentId: a.agentId })) as { agent?: { model?: string } } | null)?.agent?.model;
-        if (m) own.set(a.agentId, m);
-      } catch { /* an agent that cannot be read runs on the account's default */ }
-    }
-    // a task's thread with several agents: the one that works the task, else the one that made it, answers without an @ (the others need one)
-    let taskLead: string | undefined;
-    if (got.thread.scopeType === "task" && !got.thread.agents.some((a) => a.mode === "lead") && got.thread.agents.length > 1) {
-      try {
-        const t = ((await read("tasks.get", { taskId: (got.thread as { scopeId?: string }).scopeId })) as { task?: { assigned?: { kind?: string; id?: string }; createdBy?: string } } | null)?.task;
-        const ids = new Set(got.thread.agents.map((a) => a.agentId));
-        taskLead = [t?.assigned?.kind === "agent" ? t.assigned.id : undefined, t?.createdBy].find((x): x is string => typeof x === "string" && ids.has(x));
-      } catch { /* no task to read: the agents listen as before */ }
-    }
-    const agents: EngineAgent[] = got.thread.agents.map((a) => ({
-      id: a.agentId, ...(a.name ? { name: a.name } : {}), mode: a.mode, ...(taskLead === a.agentId ? { taskLead: true as const } : {}), ...(a.model || own.get(a.agentId) ? { model: a.model ?? own.get(a.agentId) as string } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}), ...(outside.has(a.agentId) ? { outside: true } : {}), ...settingsOf(a),
-    }));
+    // the same thread recovery and control calls build (thread-open.ts): the agent's own model when the chat pins none, its name, settings, outside flag, the task lead, personal
+    const built = await engineThreadOf({
+      threadId, got: got as unknown as OpenGet, read,
+      agentInfo: (agentId) => ctx.call("agents.get", { agentId }).then((r) => (r as { agent?: { model?: string; runtime?: string } } | null)?.agent ?? null),
+      saved: (agentId) => { try { return stateOf(ctx, threadId, agentId); } catch { return null; } },
+    });
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.recent(threadId, 1).length === 0) {
       // First time this host sees the thread: copy the window the agent will read as history, oldest first, under chat's own ids.
@@ -479,7 +459,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       }
     }
     try {
-      engine.openThread({ id: threadId, kind: (got.thread.kind ?? "chat") as ThreadKind, starter: got.thread.starter ?? "", agents, ...(["task", "note", "goal"].includes(got.thread.scopeType ?? "") ? { personal: true } : {}), ...(peopleOf(got) ? { people: peopleOf(got)! } : {}) });
+      engine.openThread(built);
     } catch (e) {
       if (!(e instanceof RangeError) || !/already open/.test(e.message)) throw e;
     }

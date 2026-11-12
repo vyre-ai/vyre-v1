@@ -8,6 +8,8 @@ import { probePick } from "./extra/models.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { EngineAgent, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
 import { noteHandoff } from "../context.ts";
+import { engineThreadOf } from "../thread-open.ts";
+import type { ThreadGet } from "../thread-open.ts";
 import { modelName } from "../model-fallback.ts";
 import { actorOf, boundEngine, ensure, mintId, raise } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -68,18 +70,16 @@ export async function open(ctx: EngineCtx, threadId: string, read?: (threadId: s
     raise(ctx, "validation.not_found", "There is no such conversation.", { threadId });
   }
   const t = out.thread;
-  const agents: EngineAgent[] = t.agents.map((a) => {
-    const saved = stateOf(ctx, threadId, a.agentId);
-    const mode = (saved?.mode ?? a.mode) === "lead" ? "lead" : "listen";
-    const model = saved?.model ?? a.model;
-    const accountRef = saved?.accountRef ?? a.accountRef;
-    return { id: a.agentId, mode, ...(model === undefined ? {} : { model }), ...(accountRef === undefined ? {} : { accountRef }), ...(a.watches === true ? { watching: true } : {}) };
-  });
   const kind: ThreadKind = t.kind !== undefined && KINDS.has(t.kind) ? (t.kind as ThreadKind) : "thread";
-  // Two leads in one thread would break the unique lead rule; the saved mode wins for the agent that was set last, so demote extras.
-  let leadSeen = false;
-  for (const a of agents) { if (a.mode === "lead") { if (leadSeen) a.mode = "listen"; leadSeen = true; } }
-  engine.openThread({ id: threadId, kind, starter: t.starter ?? actorOf(ctx), agents });
+  // the same thread the bridge builds for a new message (thread-open.ts): whichever opens it first, the agents carry their model, name, settings, outside flag and task lead
+  const reading = (cap: string, input: unknown): Promise<unknown> => (read && cap === "threads.get" ? read((input as { threadId: string }).threadId) : ctx.call(cap as never, input as never));
+  const built = await engineThreadOf({
+    threadId, got: out as unknown as ThreadGet, read: reading, kind, starter: actorOf(ctx),
+    agentInfo: (agentId) => ctx.call("agents.get", { agentId }).then((r) => (r as { agent?: { model?: string; runtime?: string } } | null)?.agent ?? null),
+    saved: (agentId) => stateOf(ctx, threadId, agentId),
+  });
+  try { engine.openThread(built); }
+  catch (e) { if (!(e instanceof RangeError) || !/already open/.test(e.message)) throw e; }   // opened meanwhile by the bridge: the same thread
   return engine;
 }
 

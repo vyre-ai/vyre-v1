@@ -439,7 +439,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   async function runTurn(st: ThreadState, item: QueueItem): Promise<void> {
-    const agent = st.thread.agents.find((a) => a.id === item.agentId);
+    let agent = st.thread.agents.find((a) => a.id === item.agentId);
     // A wake that continues a parked turn runs on the account that was paying, and answers the held call.
     const wait = item.kind === "wake" ? waits.forWake(st.thread.id, item.qseq) : null;
     const payer = payerOf(st, item);
@@ -460,6 +460,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     if (wait) {
       const was = turnRows.find((t) => t.id === wait.turnId);
       if (was && was.state === "waiting") { was.state = "completed"; was.endedAt = now(); emit({ type: "turn.resumed", threadId: st.thread.id, turnId: was.id, agentId: was.agentId }); }
+    }
+    // a thread opened with no model on this agent (boot recovery opens from the chat's record, which names none when the chat runs on the agent's own): the turn runs on the model the resolver
+    // chose for it, never on an empty one (release gate, 12 Nov 2026: every turn after a restart mid tool call went out with model "")
+    if (agent && !agent.model) {
+      const { model: _none, ...rest } = agent;
+      agent = account?.model ? { ...rest, model: account.model } : rest;
     }
     const turn: TurnRow = {
       id: nextId("t"), threadId: st.thread.id, agentId: item.agentId, asker, payerReason: reason, model: agent?.model ?? null, state: "running",
