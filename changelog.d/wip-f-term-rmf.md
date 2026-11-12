@@ -1,1 +1,1 @@
-- Agents in the terminal: deleting a single file with rm -f no longer waits for approval; deleting folders (rm -r, rm -rf) still does, as does rm of /, ~ or $HOME.
+- Agents in the terminal: deleting a file with rm -f in the agent's current folder (a relative path) no longer waits for approval; a delete that names ~, $HOME, an absolute path or .. still does, as does deleting folders (rm -r, rm -rf).
