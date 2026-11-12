@@ -118,8 +118,8 @@ The hashes in `docs/frozen/snapshots/automations.json` were written again at the
 
 Signed: lead, 12 Nov 2026
 
-## 13 Nov 2026: engine.step_turn may fail with validation.precondition_failed when the step has no model (lane f-auto)
+## 12 Nov 2026: engine.step_turn may fail with validation.precondition_failed when the step has no model (lane f-auto)
 
 `engine.step_turn@1` now lists `validation.precondition_failed` among its errors, with reason `no_model`. An AI step runs on its agent's model, or on the Space AI key's models. When it has neither, the step fails before any turn opens with "This AI step has no model. Give it an agent that has a model, or set a model on its agent." The same failure follows when a driver answers `engine.no_model`. It used to send an empty model, which a provider refuses, and then read "The AI provider could not answer this step." Automation validation refuses such a step at turn-on with the same words and the step named. Additive: one more declared error. No input or output field changes. A default model for a person's own key is rc.27.
 
-Signed: lead, 13 Nov 2026
+Signed: lead, 12 Nov 2026
