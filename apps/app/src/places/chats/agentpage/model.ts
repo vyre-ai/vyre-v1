@@ -38,12 +38,13 @@ export const isOutside = (a: Pick<AgentRow, "runtime">): boolean => a.runtime ==
 
 /* ---------- status ---------- */
 
-export const STATUS_WORDS: Record<AgentRow["status"], string> = { awake: "Awake", working: "Working", asleep: "Asleep", paused: "Paused" };
+// The agent's own state (a turn in the last two minutes, or not), worded apart from its workspace's sleep, which the Computer tab says as Asleep (owner walk, 12 Nov: "Awake" over "Asleep" on one screen)
+export const STATUS_WORDS: Record<AgentRow["status"], string> = { awake: "Active", working: "Working", asleep: "Idle", paused: "Paused" };
 
 /** An outside agent is not asleep: it is somewhere else, and may be off. */
 const OUTSIDE_WORDS: Record<AgentRow["status"], string> = { awake: "Online", working: "Working", asleep: "Offline", paused: "Paused" };
 
-/** "Working", "Asleep", or "Paused by Maya Chen: Waiting for the new retainer terms". */
+/** "Working", "Idle", or "Paused by Maya Chen: Waiting for the new retainer terms". */
 export function statusLine(a: AgentRow, nameOf: (id: string) => string): string {
   if (isOutside(a)) return OUTSIDE_WORDS[a.status];
   if (a.status !== "paused") return STATUS_WORDS[a.status];

@@ -52,3 +52,29 @@ test("when this is not a computer and they have only one other, it is used rathe
   assert.deepEqual(await openHere(r.d), { s: "opened", terminalId: "trm_new" });
   assert.equal(r.calls.find((c) => c.cap === "terminal.open")?.input["deviceId"], "dev_home");
 });
+
+test("an agent with a workspace and no old desktop: the pane starts on the agent's own tab in its workspace, not on this computer", () => {
+  const rows = [
+    row({ terminalId: "mac", host: "device", lastActiveAt: 9 }),
+    row({ terminalId: "own", host: "agent_computer", agentId: "agt_1", by: { kind: "agent" }, lastActiveAt: 3 }),
+    row({ terminalId: "helper", host: "agent_computer", agentId: "agt_1", by: { kind: "helper", name: "Scout" }, lastActiveAt: 8 }),
+    row({ terminalId: "other", host: "agent_computer", agentId: "agt_2", by: { kind: "agent" }, lastActiveAt: 10 }),
+  ];
+  assert.equal(startSession(rows, { agentId: "agt_1" })?.terminalId, "own", "the agent's own tab, where its commands go");
+  assert.equal(startSession(rows.filter((r) => (r as { terminalId: string }).terminalId !== "own"), { agentId: "agt_1" })?.terminalId, "helper", "else its newest tab there");
+  assert.equal(startSession([rows[0]!], { agentId: "agt_1" })?.terminalId, "mac", "no tab in the workspace yet: this computer's");
+});
+
+test("Open terminal in a chat whose agent has a workspace opens in that workspace (the sessions the agent uses), whether or not it ever had a desktop", async () => {
+  for (const agent of [{ agentId: "agt_1", name: "Desk" }, { agentId: "agt_1", name: "Desk", computerId: "cmt_old" }]) {
+    const r = rig([{ id: "dev_mac", name: "Mac", class: "desktop", current: true, lastSeenAt: 1 }], { agent, "terminal.workspace": { state: "asleep", canAttach: true } }, true);
+    assert.deepEqual(await openHere(r.d), { s: "opened", terminalId: "trm_new" });
+    assert.deepEqual(r.calls.find((c) => c.cap === "terminal.open")?.input, { host: "agent_computer", agentId: "agt_1", idempotencyKey: "k" }, JSON.stringify(agent));
+  }
+  // a workspace this person may not enter, or none on this Space: the pane keeps to this computer
+  for (const ws of [{ state: "none", canAttach: false }, { state: "unavailable", canAttach: false }]) {
+    const r = rig([{ id: "dev_mac", name: "Mac", class: "desktop", current: true, lastSeenAt: 1 }], { agent: { agentId: "agt_1", name: "Desk" }, "terminal.workspace": ws }, true);
+    await openHere(r.d);
+    assert.deepEqual(r.calls.find((c) => c.cap === "terminal.open")?.input, { host: "device", deviceId: "dev_mac", idempotencyKey: "k" }, JSON.stringify(ws));
+  }
+});

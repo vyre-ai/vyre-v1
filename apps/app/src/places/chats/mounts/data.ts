@@ -127,6 +127,8 @@ export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; c
       openAgentFile: (agentId, file) => rt.open({ subject: { type: "agent", id: agentId }, args: { file } }),
       // a server runs work for the whole Space: only those who may add one (owners and admins; anyone in a Personal Space) are offered it, the Space menu's rule (review F4)
       ...(allows(rt, GATE.provisionComputer) ? { openAddServer: () => { requestAddServer(); rt.open({ screen: "settings.page", args: { page: "computer" } }); } } : {}),
+      // the agent page's Computer tab sends an owner to Console > Computers the way the chat pane does (owner walk, 12 Nov)
+      openMachines: (nodeId?: string) => rt.open(machinesTarget(nodeId)),
       openAutomationRuns: (agentId) => rt.open({ screen: "runs.history", subject: { type: "agent", id: agentId } }),
       openTask: (taskId) => rt.open({ subject: { type: "task", id: taskId } }),
       closePage: () => go.chat(""),

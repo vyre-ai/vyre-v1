@@ -587,6 +587,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         ...(phase === "started" ? {} : { tokensIn: turn.tokensIn, tokensOut: turn.tokensOut }),
         // what the reply's Details show: the engine and account it ended on, and what the turn engine saw (reply-info.ts)
         ...(phase !== "started" && turn.info ? { info: turn.info, ...(turn.info.account ? { engine: turn.info.account.driver, accountRef: turn.info.account.ref } : {}) } : {}), ...(ev.type === "turn.failed" ? { code: ev.code, ...(ev.message ? { message: ev.message.slice(0, 500) } : {}) } : {}),
+        // why a cancelled turn was stopped travels to the kernel event, so its readers can tell a person's Stop from a daemon stopping (reason closing): the terminal interrupts only the first
+        ...(ev.type === "turn.cancelled" && typeof ev.reason === "string" ? { reason: ev.reason } : {}),
       };
       const done = (recording.get(turnId) ?? Promise.resolve()).then(() => h.call("engine.turn.record", input, turn.asker)).then(() => undefined, (err: unknown) => {
         h.log?.("a turn could not be recorded", { turnId, phase, error: err instanceof Error ? err.message : String(err) });

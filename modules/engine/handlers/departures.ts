@@ -12,7 +12,7 @@ const isOpen = (engine: TurnEngine, threadId: string): boolean => { try { engine
 async function stopAgentIn(ctx: EngineCtx, engine: TurnEngine | null, threadId: string, agentId: string): Promise<void> {
   if (engine && isOpen(engine, threadId)) {
     const r = await engine.stop(threadId, { agentId, reason: "left" });
-    for (const c of [...r.stopped, ...r.released]) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by: ctx.principal.id });
+    for (const c of [...r.stopped, ...r.released]) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by: ctx.principal.id, pressed: true });
     return;
   }
   sqlQueue(ctx.db).cancelQueued(threadId, agentId);

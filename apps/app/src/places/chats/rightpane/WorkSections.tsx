@@ -9,11 +9,11 @@ import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.t
 import { copyText, reasonOf } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import { usePaneData, useOnline } from "./data.tsx";
+import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { dayMonth, stepRows, stepsLine } from "./model.ts";
 import type { Step } from "./model.ts";
 import { stepEntries } from "./ComputerTab.tsx";
 import { Icon, LeadIcon, PaneList, TextButton } from "./parts.tsx";
-import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { Entry } from "./parts.tsx";
 import { olderDesktopMenu, olderDesktopNote, attachedNote, browserAction, browserWords, orderSessions, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
 import type { BrowserData, BrowserView, Tone, WorkspaceData, WorkspaceView } from "./work-model.ts";
@@ -47,7 +47,7 @@ export function Chip({ text, tone, testID }: { text: string; tone: Tone; testID?
 }
 
 /** The Terminal section's card: where the workspace runs and its state, and Attach for a person who may. */
-export function TerminalCard({ view, name, busy = false, onAttach, quietWait = false }: { view: WorkspaceView; name: string; busy?: boolean; onAttach(): void; /** the waiting line is said once above, not here */ quietWait?: boolean }): ReactElement {
+export function TerminalCard({ view, name, busy = false, onAttach, quietWait = false, onOpenConsole }: { view: WorkspaceView; name: string; busy?: boolean; onAttach(): void; /** the waiting line is said once above, not here */ quietWait?: boolean; /** where the person can make it work (owners and admins), when nothing can run it */ onOpenConsole?: (() => void) | undefined }): ReactElement {
   const w = workspaceWords(view);
   const action = terminalAction(view);
   return (
@@ -58,7 +58,8 @@ export function TerminalCard({ view, name, busy = false, onAttach, quietWait = f
         {action === "attach" ? <TextButton label="Attach" primary disabled={busy} onPress={onAttach} testID="terminal-attach" /> : null}
       </View>
       {w.note && !(quietWait && view.state === "waiting") ? <Text testID="terminal-note" style={[st.note, view.state === "waiting" && st.noteWarn, view.state === "error" && st.noteBad]}>{w.note}</Text> : null}
-      {!view.canAttach && view.cannotAttach ? <Text testID="terminal-cannot" style={st.note}>{view.cannotAttach}</Text> : null}
+      {!view.canAttach && view.cannotAttach && view.state !== "unavailable" ? <Text testID="terminal-cannot" style={st.note}>{view.cannotAttach}</Text> : null}
+      {view.state === "unavailable" && onOpenConsole ? <View style={{ marginTop: 10, flexDirection: "row" }}><TextButton label="Open Console > Computers" primary onPress={onOpenConsole} testID="terminal-open-console" /></View> : null}
       <Text style={st.sub}>{`${name}'s shell, git and the usual tools${view.host ? ` · on ${view.host}` : ""}`}</Text>
     </View>
   );
@@ -170,6 +171,8 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
     void Promise.resolve(data.call("computers.get", { computerId: olderId })).then((o) => { if (live) setMoved((o as { computer?: { moved?: typeof moved } }).computer?.moved); }, () => undefined);
     return () => { live = false; };
   }, [data, olderId]);
+  // Console > Computers is for the people who may add a computer (owners and admins), as on the Computer tab's other screens
+  const canManageComputers = allows(rt, GATE.provisionComputer);
   const steps = useBrowserSteps(data.call, agentId, br.status === "ready" ? `${br.view.state}:${br.view.caption ?? ""}` : br.status);
   const [sel, setSel] = useState<number | null>(null);
   const picture = useStepPicture(data.call, sel !== null ? steps[sel]?.frameFileId : undefined);
@@ -186,7 +189,7 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
   else if (ws.status === "loading") entries.push({ key: "terminal-loading", type: "block", node: <View testID="terminal-loading" accessibilityLabel="Loading" style={st.sk} /> });
   else {
     const v = ws.view;
-    entries.push({ key: "terminal-card", type: "block", node: <TerminalCard view={v} name={name} quietWait={wait !== null} busy={busy === "attach" || !online} onAttach={() => run("attach", () => data.workspace!.attach(agentId))} /> });
+    entries.push({ key: "terminal-card", type: "block", node: <TerminalCard view={v} name={name} quietWait={wait !== null} busy={busy === "attach" || !online} onAttach={() => run("attach", () => data.workspace!.attach(agentId))} {...(canManageComputers && data.nav.openMachines ? { onOpenConsole: () => data.nav.openMachines?.() } : {})} /> });
     // what is open in a terminal is for the people who may attach to it
     for (const s of v.canAttach ? orderSessions(v.sessions) : []) {
       entries.push({ key: `session-${s.name}`, type: "row", title: s.name, note: attachedNote(s, name), leading: <LeadIcon name="terminal" />, testID: `session-${s.name}` });

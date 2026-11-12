@@ -153,6 +153,8 @@ async function removeMemberNow(ctx: ProjectsCtx, p: Project, asked: Member): Pro
   if (m.kind === "person" && p.channelId) await outOfChannel(ctx, "channels.members.remove", { channelId: p.channelId, personId: m.principal });
   if (m.kind === "agent" && p.channelId) await outOfChannel(ctx, "channels.agents.remove", { channelId: p.channelId, agentId: m.principal });
   dropMember(ctx.db, p.projectId, m.principal);
+  // an agent's workspace stops mounting the project before this answers (12 Nov: in force when the call returns); a terminal that does not answer never fails the removal, its consumer finishes the job
+  if (m.kind === "agent") await tolerant(ctx, "host.hook.call.terminal.workspace_revoke", { input: { agentId: m.principal, projectId: p.projectId } }, null);
   if (m.role === "lead") {
     const fields = await readRecord(ctx, p);
     if (fields["lead"] === m.principal) await writeRecord(ctx, p, { lead: null });

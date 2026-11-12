@@ -60,7 +60,10 @@ const TAIL = 4000;
 
 /** What goes back to the agent: that it ran and what it printed (the end of it when long), or that the person did not finish it. */
 export function answerOf(w: Waited, command: string): { other: string } {
-  const tail = w.output.length > TAIL ? `…${w.output.slice(-TAIL)}` : w.output;
+  // the read starts on the line the command was typed on (the screen sends the line being typed on again until it ends): that line is the command, said once below
+  const lines = w.output.split("\n");
+  const body = lines.length > 1 && command.trim() !== "" && (lines[0] ?? "").trimEnd().endsWith(command.trim()) ? lines.slice(1).join("\n") : w.output;
+  const tail = body.length > TAIL ? `…${body.slice(-TAIL)}` : body;
   const lead = w.state === "done" ? "Ran in my terminal." : w.state === "exited" ? "The terminal closed before it finished." : "I typed it but it was still running when I stopped waiting.";
   return { other: `${lead}\n$ ${command}\n${tail}`.trim() };
 }

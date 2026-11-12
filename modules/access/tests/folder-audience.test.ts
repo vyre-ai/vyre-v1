@@ -15,7 +15,7 @@ const AGENT = "agt_helper", HOME = "fld_helper", OTHER = "fld_other", T = "chat:
 function rig() {
   const db = new MemoryDb();
   const base: ShareCtx = { space: "spc_test", principal: { kind: "person", id: "usr_ada" }, trace: { traceId: "0123456789abcdef0123456789abcdef" }, now: () => NOW, db, emit() {} };
-  const store = storeOf(base);
+  const store = storeOf(base as unknown as Parameters<typeof storeOf>[0]);   // a ShareCtx is the AccessCtx storeOf reads; exactOptionalPropertyTypes tells them apart (type only)
   for (const id of ["usr_ada", "usr_bea", "usr_cy"]) { putPrincipal(store, { id, kind: "person", name: id }); store.setRoles(id, [id === "usr_ada" ? "rol_owner" : "rol_member"]); }
   putPrincipal(store, { id: AGENT, kind: "agent", name: "Helper" });
   putPrincipal(store, { id: "svc_host", kind: "service", name: "Vyre" } as never);

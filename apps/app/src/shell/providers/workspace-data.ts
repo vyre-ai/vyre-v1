@@ -17,15 +17,16 @@ export interface WorkspaceRead {
 
 /**
  * The workspace as the pane draws it: its state from terminal.workspace, its sessions from the agent's live terminal rows. A workspace not made yet (none) is Asleep: it is made and woken by the first
- * Attach. One with no machine to run it (unavailable) is a line the person can act on.
+ * Attach. One with no computer to run it (unavailable) is a line the person can act on.
  */
 export function workspaceView(agentId: string, read: WorkspaceRead, rows: readonly TerminalRowLike[], projectNames: readonly string[] = []): WorkspaceView {
   const mine = rows.filter((r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited");
   const sessions: WorkspaceSession[] = mine.map((r) => ({ name: r.name, owner: r.by ?? { kind: "agent" }, ...(r.lastActiveAt !== undefined ? { lastActiveAt: r.lastActiveAt } : {}) }));
-  const state = read.state === "unavailable" ? "error" : read.state === "none" ? "asleep" : read.state;
+  const state = read.state === "none" ? "asleep" : read.state;
   return {
     state, sessions, canAttach: read.canAttach && read.state !== "unavailable",
-    ...(read.state === "waiting" || read.state === "unavailable" ? (read.line ? { line: read.line } : {}) : {}),
+    // waiting and unavailable say why; running says what keeps it awake past its idle time ("running: tail -f app.log")
+    ...(read.state === "waiting" || read.state === "unavailable" || read.state === "running" ? (read.line ? { line: read.line } : {}) : {}),
     ...(read.cannotAttach ? { cannotAttach: read.cannotAttach } : read.state === "unavailable" && read.line ? { cannotAttach: read.line } : {}),
     ...(projectNames.length > 0 ? { projects: projectNames } : {}),
   };

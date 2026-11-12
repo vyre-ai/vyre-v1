@@ -33,7 +33,8 @@ test("the Terminal words: running, asleep, starting, waiting for room (the plain
   assert.equal(workspaceWords(ws({ state: "asleep" })).note, "Wakes in about a second on the next command.");
   assert.equal(workspaceWords(ws({ state: "starting" })).chip, "Starting");
   assert.deepEqual(workspaceWords(ws({ state: "waiting", line: LINE })), { chip: "Waiting for room", tone: "warn", note: LINE });
-  assert.equal(workspaceWords(ws({ state: "waiting" })).note, LINE, "the same words when the host sends none");
+  // when the host sends none: the plain line, saying only what is true for a workspace (12 Nov, audit item 9: a compute server cannot take it)
+  assert.equal(workspaceWords(ws({ state: "waiting" })).note, "Waiting for room on the Space server. The workspace starts by itself when there is room.", "plain words when the host sends none");
   assert.deepEqual(workspaceWords(ws({ state: "error", line: "The image is missing." })), { chip: "Needs attention", tone: "bad", note: "The image is missing." });
 });
 

@@ -3,6 +3,7 @@
 import type { DockerHttp, DockerRequest, DockerResponse } from "../../../sandbox/src/docker.ts";
 import type { ExecResult } from "../impl.ts";
 import { fakeTmux } from "./fake-tmux.ts";
+import { BUSY_SCRIPT } from "../workspace.ts";
 import type { FakeTmux, FakeTmuxOptions } from "./fake-tmux.ts";
 
 interface Box { name: string; config: Record<string, any>; running: boolean; tmux: FakeTmux; starts: number }   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -17,6 +18,10 @@ export interface FakeDockerOptions {
   onExec?: (box: string, argv: readonly string[], env: readonly string[]) => ExecResult | undefined;
   /** What `tmux list-panes` prints in a box. */
   panes?: (box: string) => string;
+  /** A network create fails as when Docker's address pools are used up. */
+  networkFails?: () => boolean;
+  /** What the busy check (BUSY_SCRIPT) prints in a box: the ids of processes that are work. Default none. */
+  procs?: (box: string) => string;
 }
 
 const frame = (kind: 1 | 2, text: string): Uint8Array => {
@@ -35,6 +40,8 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
   const boxes = new Map<string, Box>();
   const volumes = new Map<string, Record<string, unknown>>();
   const networks = new Set<string>();
+  const netLabels = new Map<string, Record<string, string>>();
+  const netOptions = new Map<string, Record<string, string>>();
   const log: Array<{ op: string; name?: string; detail?: unknown }> = [];
   const execs = new Map<string, ExecResult>();
   let image = o.image !== false;
@@ -54,6 +61,7 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
     }
     if (argv[0] === "tmux" && argv[1] === "list-panes") return { code: 0, stdout: o.panes?.(b.name) ?? [...b.tmux.sessions.keys()].map(() => "bash").join("\n"), stderr: "" };
     if (argv[0] === "tmux" && argv[1] === "pipe-pane") return { code: 0, stdout: "", stderr: "" };
+    if (argv[0] === "sh" && argv[2] === BUSY_SCRIPT) return { code: 0, stdout: o.procs?.(b.name) ?? "", stderr: "" };
     return b.tmux.exec(argv);
   }
 
@@ -66,7 +74,7 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
     if (p === "/images/create" && m === "POST") { note("pull", undefined, req.query); if (o.pullWorks === true) { image = true; return empty(200); } return json(404, { message: "pull access denied" }); }
     if (p === "/containers/json" && m === "GET") {
       const all = req.query?.["all"] === "true";
-      const rows = [...boxes.values()].filter((b) => (all || b.running) && b.config["Labels"]?.["vyre.workspace"] !== undefined).map((b) => ({ Names: [`/${b.name}`], State: b.running ? "running" : "exited", Labels: b.config["Labels"] }));
+      const rows = [...boxes.values()].filter((b) => (all || b.running) && b.config["Labels"]?.["vyre.workspace"] !== undefined).map((b) => ({ Names: [`/${b.name}`], State: b.running ? "running" : "exited", Labels: b.config["Labels"], HostConfig: { NetworkMode: b.config["HostConfig"]?.["NetworkMode"] ?? "default" } }));   // as Docker lists them
       return json(200, rows);
     }
     if (p === "/containers/create" && m === "POST") {
@@ -82,7 +90,7 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
       const b = boxes.get(name);
       const act = r[2] ?? (m === "DELETE" ? "remove" : "");
       if (!b) return json(404, { message: "no such container" });
-      if (act === "json") return json(200, { State: { Running: b.running }, Config: { Labels: b.config["Labels"] ?? {} } });
+      if (act === "json") return json(200, { State: { Running: b.running }, Config: { Labels: b.config["Labels"] ?? {} }, HostConfig: { Binds: b.config["HostConfig"]?.["Binds"] ?? [], NetworkMode: b.config["HostConfig"]?.["NetworkMode"] ?? "default" } });
       if (act === "start") { if (!b.running) { b.running = true; b.starts += 1; b.tmux = fakeTmux(o.tmux); } note("start", name); return empty(204); }
       if (act === "stop") { b.running = false; note("stop", name); return empty(204); }
       if (act === "wait") { note("wait", name); return json(200, { StatusCode: helperExit }); }
@@ -112,7 +120,19 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
     if (r && m === "GET") return volumes.has(r[1] as string) ? json(200, { Name: r[1] }) : json(404, { message: "no such volume" });
     if (p === "/volumes/create" && m === "POST") { const v = req.json as { Name: string }; volumes.set(v.Name, v as Record<string, unknown>); note("volume", v.Name); return json(201, { Name: v.Name }); }
     if (r && m === "DELETE") { volumes.delete(r[1] as string); note("volume_remove", r[1]); return empty(204); }
-    if (p === "/networks/create" && m === "POST") { networks.add((req.json as { Name: string }).Name); note("network", (req.json as { Name: string }).Name); return json(201, { Id: "net" }); }
+    if (p === "/networks" && m === "GET") {
+      const want = (JSON.parse(String(req.query?.["filters"] ?? "{}")) as { label?: string[] }).label ?? [];
+      const rows = [...networks].map((n, i) => ({ Name: n, Labels: netLabels.get(n) ?? {}, IPAM: { Config: [{ Subnet: `172.31.${i}.0/24` }] } })).filter((x) => want.length === 0 || want.some((l) => l in x.Labels));
+      return json(200, rows);
+    }
+    if (/^\/networks\/[^/]+$/.test(p) && m === "GET") {
+      const n = p.slice("/networks/".length);
+      // Docker's default bridge is always there
+      if (n === "bridge") return json(200, { Name: "bridge", Labels: {}, Options: {}, IPAM: { Config: [{ Subnet: "172.17.0.0/16" }] } });
+      const i = [...networks].indexOf(n);
+      return i < 0 ? json(404, { message: "no such network" }) : json(200, { Name: n, Labels: netLabels.get(n) ?? {}, Options: netOptions.get(n) ?? {}, IPAM: { Config: [{ Subnet: `172.31.${i}.0/24` }] } });
+    }
+    if (p === "/networks/create" && m === "POST") { const n = (req.json as { Name: string }).Name; if (networks.has(n)) return json(409, { message: "network exists" }); if (o.networkFails?.()) return json(400, { message: "all predefined address pools have been fully subnetted" }); networks.add(n); netLabels.set(n, (req.json as { Labels?: Record<string, string> }).Labels ?? {}); netOptions.set(n, (req.json as { Options?: Record<string, string> }).Options ?? {}); note("network", n, req.json); return json(201, { Id: "net" }); }
     r = /^\/networks\/([^/]+)$/.exec(p);
     if (r && m === "DELETE") { networks.delete(r[1] as string); return empty(204); }
     return json(404, { message: `the stand-in does not know ${m} ${p}` });

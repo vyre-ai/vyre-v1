@@ -13,7 +13,8 @@ export interface HeaderAction { key: string; icon: IconName; label: string; onPr
 const PRESENCE: Record<Presence, { color: string; word: string }> = {
   on: { color: "var(--ok)", word: "Online" },
   away: { color: "var(--warn)", word: "Away" },
-  asleep: { color: "var(--ink-4)", word: "Asleep" },
+  // not "Asleep": that word belongs to an agent's workspace, shown under Computer on the same screen
+  asleep: { color: "var(--ink-4)", word: "Idle" },
 };
 
 /** "Agent · runs the nightly builds": the kind, then the role with its first letter lowered. A person's line is passed whole. */

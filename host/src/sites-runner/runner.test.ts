@@ -19,6 +19,8 @@ async function world() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-runner-test-"));
   const seen: Array<{ method: string; url: string; body: string }> = [];
   const labels: Record<string, Record<string, string>> = { site1: { "vyre.site": SITE, "vyre.kind": "postgres" }, site2: { "vyre.site": "sit_02zzz", "vyre.kind": "app" }, vyred: { "com.docker.compose.service": "vyred", "vyre.ingress": "1" }, other: { "com.docker.compose.service": "postgres" } };
+  // the containers on each network, as Docker's network inspect lists them
+  const onNet: Record<string, string[]> = {};
   const fake = http.createServer((q, s) => {
     let b = "";
     q.on("data", (c) => (b += c));
@@ -27,6 +29,8 @@ async function world() {
       const insp = /^\/containers\/([^/]+)\/json$/.exec(q.url ?? "");
       if (insp) { const l = labels[insp[1] as string]; s.writeHead(l ? 200 : 404); s.end(JSON.stringify({ Id: insp[1], Config: { Labels: l ?? {} } })); return; }
       if (/\/exec$/.test(q.url ?? "")) { s.writeHead(201); s.end(JSON.stringify({ Id: "e".repeat(64) })); return; }
+      const net = /^(?:\/v[\d.]+)?\/networks\/([^/]+)$/.exec(q.url ?? "");
+      if (net && q.method === "GET") { s.writeHead(200); s.end(JSON.stringify({ Name: net[1], Containers: Object.fromEntries((onNet[net[1] as string] ?? []).map((c) => [c, { Name: c }])) })); return; }
       s.writeHead(q.url?.includes("/containers/create") ? 201 : 200); s.end(JSON.stringify({ Id: "c".repeat(64) }));
     });
   });
@@ -39,7 +43,7 @@ async function world() {
     r.on("error", reject); r.end(data);
   });
   const close = async (): Promise<void> => { await runner.close(); fake.close(); fs.rmSync(dir, { recursive: true, force: true }); };
-  return { call, seen, close };
+  return { call, seen, close, onNet };
 }
 
 test("refusals: privileged, host folders, host network, other labels, capabilities, other images, namespaces, ports", async (t) => {
@@ -99,10 +103,33 @@ test("refusals: containers that are not a site's, execs, networks, volumes, pull
   assert.equal((await w.call("POST", `/exec/${"e".repeat(64)}/start`, {})).status, 200);
   assert.equal((await w.call("PUT", "/containers/site1/archive?path=/etc")).status, 403, "a file anywhere but /tmp");
   // networks: a site's own, joined only by its containers and the ingress
-  assert.equal((await w.call("POST", "/networks/create", { Name: `vyre-site-${HEX}`, Driver: "bridge", Labels: { "vyre.site": SITE } })).status, 200);
-  assert.equal((await w.call("POST", "/networks/create", { Name: "vyre-site-zzz", Driver: "bridge", Labels: { "vyre.site": SITE } })).status, 403, "a network named for another site");
-  assert.equal((await w.call("POST", "/networks/create", { Name: `vyre-site-${HEX}`, Driver: "macvlan", Labels: { "vyre.site": SITE } })).status, 403, "not a bridge");
-  assert.equal((await w.call("POST", "/networks/create", { Name: `vyre-site-${HEX}`, Labels: { "vyre.site": SITE }, Options: { "com.docker.network.bridge.name": "eth0" } })).status, 403, "driver options");
+  // a site's network has one /28 of 10.213.0.0/16 (12 Nov: Docker's own pools hold about 31 networks for the whole host)
+  const SUB = { IPAM: { Config: [{ Subnet: "10.213.0.16/28" }] } };
+  assert.equal((await w.call("POST", "/networks/create", { Name: `vyre-site-${HEX}`, Driver: "bridge", Labels: { "vyre.site": SITE }, ...SUB })).status, 200);
+  assert.deepEqual(JSON.parse(w.seen.filter((x) => x.url.includes("/networks/create")).at(-1)!.body), { Name: `vyre-site-${HEX}`, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.site": SITE }, IPAM: { Config: [{ Subnet: "10.213.0.16/28" }] } }, "what reaches Docker");
+  assert.equal((await w.call("POST", "/networks/create", { Name: "vyre-site-zzz", Driver: "bridge", Labels: { "vyre.site": SITE }, ...SUB })).status, 403, "a network named for another site");
+  assert.equal((await w.call("POST", "/networks/create", { Name: `vyre-site-${HEX}`, Driver: "macvlan", Labels: { "vyre.site": SITE }, ...SUB })).status, 403, "not a bridge");
+  assert.equal((await w.call("POST", "/networks/create", { Name: `vyre-site-${HEX}`, Labels: { "vyre.site": SITE }, Options: { "com.docker.network.bridge.name": "eth0" }, ...SUB })).status, 403, "driver options");
+  for (const [why, ipam] of [
+    ["no subnet named", undefined],
+    ["outside the site range", { Config: [{ Subnet: "10.0.0.0/28" }] }],
+    ["the host's own range", { Config: [{ Subnet: "172.17.0.0/28" }] }],
+    ["bigger than a /28", { Config: [{ Subnet: "10.213.0.0/24" }] }],
+    ["smaller than a /28", { Config: [{ Subnet: "10.213.0.16/29" }] }],
+    ["off a /28 boundary", { Config: [{ Subnet: "10.213.0.8/28" }] }],
+    ["a gateway of its own", { Config: [{ Subnet: "10.213.0.16/28", Gateway: "10.213.0.17" }] }],
+    ["an address range", { Config: [{ Subnet: "10.213.0.16/28", IPRange: "10.213.0.16/29" }] }],
+    ["two subnets", { Config: [{ Subnet: "10.213.0.16/28" }, { Subnet: "10.213.0.32/28" }] }],
+    ["an IPAM driver", { Driver: "other", Config: [{ Subnet: "10.213.0.16/28" }] }],
+  ] as const) assert.equal((await w.call("POST", "/networks/create", { Name: `vyre-site-${HEX}`, Driver: "bridge", Labels: { "vyre.site": SITE }, ...(ipam ? { IPAM: ipam } : {}) })).status, 403, why);
+  // the ingress may leave a site's network (to make an old one again in the site range); nothing else may make anyone leave
+  assert.equal((await w.call("POST", `/networks/vyre-site-${HEX}/disconnect`, { Container: "vyred" })).status, 200, "the ingress leaves a network no site container is on");
+  // never while it serves: with a container of the site on it, the runner itself refuses (fifth look V4)
+  w.onNet[`vyre-site-${HEX}`] = ["vyred", "site1"];
+  assert.equal((await w.call("POST", `/networks/vyre-site-${HEX}/disconnect`, { Container: "vyred" })).status, 403, "the ingress does not leave while a site container is on it");
+  w.onNet[`vyre-site-${HEX}`] = [];
+  assert.equal((await w.call("POST", `/networks/vyre-site-${HEX}/disconnect`, { Container: "site1" })).status, 403, "a site's own container is not made to leave");
+  assert.equal((await w.call("POST", "/networks/vyre-workspaces/disconnect", { Container: "vyred" })).status, 403, "only a site's network");
   assert.equal((await w.call("POST", `/networks/vyre-site-${HEX}/connect`, { Container: "site1" })).status, 200, "the site's own container");
   assert.equal((await w.call("POST", `/networks/vyre-site-${HEX}/connect`, { Container: "vyred" })).status, 200, "the ingress");
   assert.equal((await w.call("POST", `/networks/vyre-site-${HEX}/connect`, { Container: "site2" })).status, 403, "another site's container");

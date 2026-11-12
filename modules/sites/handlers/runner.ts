@@ -7,6 +7,7 @@
 //   run     vyre-site-<site>-<deployment> on its site's network with PORT and the env given, every capability dropped, a CPU, memory, process and disk cap and rotated logs; the
 //           image stays after the container goes, so a rollback starts it again without a build
 //   addons  vyre-site-<site>-postgres / -redis, the official images run as their own user, a named volume each, reached as <kind>-<site> on the network
+import { SITE_RANGE, freeSiteSubnet, inSiteRange, takenBlocks } from "./site-subnets.ts";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
@@ -106,6 +107,9 @@ export function frames(body: Uint8Array): string[] {
   return out.map((l) => l.replace(/\r$/, ""));
 }
 
+/** What a site that cannot get a network of its own says: the server's address space for networks is used up. */
+export const NO_ROOM_FOR_SITE_NETWORK = "This server has no room for another site's network yet. Remove a site you no longer use, or ask for help to make room.";
+
 /** A site's own network (host/src/sites-runner/policy.ts names it the same). */
 export const networkName = (siteId: string): string => `vyre-site-${hex(siteId).slice(-16)}`;
 export const addonHost = (siteId: string, kind: AddonKind): string => `${kind}-${hex(siteId).slice(-12)}`;
@@ -115,6 +119,8 @@ export interface RunnerLink {
   socketPath: string;
   /** its token, read each time (the runner makes a new one when it restarts) */
   token(): string;
+  /** the container this process runs in (the ingress), when the caller knows it; read from /.dockerenv otherwise (tests name it) */
+  self?: string | null;
 }
 
 interface Req { method: string; path: string; query?: Record<string, string>; json?: unknown; body?: Uint8Array; contentType?: string; timeoutMs?: number }
@@ -131,21 +137,61 @@ function selfContainer(): string | null {
 
 export function dockerRunner(link: RunnerLink): Runner {
   let quota: boolean | null = null;
-  const self = selfContainer();
+  const self = link.self !== undefined ? link.self : selfContainer();
   const nets = new Map<string, { name: string; subnet: string | null }>();
+
+  type NetInfo = { IPAM?: { Config?: Array<{ Subnet?: string }> }; Containers?: Record<string, unknown> } | null;
+  const isSelf = (id: string): boolean => self !== null && (id.startsWith(self) || self.startsWith(id.slice(0, 12)));
+  /** Picks of a free /28 one at a time in this process, so two sites made at once do not pick the same one. */
+  let picking: Promise<unknown> = Promise.resolve();
+
+  /** Make the site's network in a free /28 of the site range (12 Nov). One taken since the list was read (another process, a race) is passed over and the next is tried. */
+  async function makeNetwork(siteId: string, name: string): Promise<void> {
+    const turn = picking.then(async () => {
+      const listed = await call({ method: "GET", path: "/networks" });
+      const subnets = listed.status === 200 ? ((parse(listed.body) as Array<{ IPAM?: { Config?: Array<{ Subnet?: string }> } }> | null) ?? []).flatMap((n) => (n.IPAM?.Config ?? []).map((c) => c.Subnet ?? "")) : [];
+      const skip = new Set<number>();
+      for (let tries = 0; tries < 16; tries++) {
+        const subnet = freeSiteSubnet(subnets, skip);
+        if (subnet === null) throw new Error(`${NO_ROOM_FOR_SITE_NETWORK}\nDetails: every /28 of ${SITE_RANGE} is in use.`);
+        const made = await call({ method: "POST", path: "/networks/create", json: { Name: name, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.site": siteId }, IPAM: { Config: [{ Subnet: subnet }] } } });
+        if (made.status === 201 || made.status === 409) return;
+        const why = message(made.body, made.status);
+        if (/overlap/i.test(why)) { for (const k of takenBlocks([subnet])) skip.add(k); continue; }
+        // Docker's address pools used up: a plain line, the raw answer after it for Copy details
+        if (/address pools|subnetted|no available network/i.test(why)) throw new Error(`${NO_ROOM_FOR_SITE_NETWORK}\nDetails: ${why}`);
+        throw new Error(`Could not make the site's network: ${why}`);
+      }
+      throw new Error(`${NO_ROOM_FOR_SITE_NETWORK}\nDetails: every /28 tried was taken.`);
+    });
+    picking = turn.catch(() => undefined);
+    await turn;
+  }
 
   async function ensureNetwork(siteId: string): Promise<{ name: string; subnet: string | null }> {
     const name = networkName(siteId);
     const had = nets.get(name);
     if (had) return had;
     let info = await call({ method: "GET", path: `/networks/${name}` });
+    if (info.status === 200) {
+      // a network made before 12 Nov from Docker's own pools: made again in the site range, but only while none of the site's containers is on it (never while it serves); else it stays as it is
+      const j = parse(info.body) as NetInfo;
+      const sub = j?.IPAM?.Config?.find((c) => c.Subnet)?.Subnet ?? null;
+      const others = Object.keys(j?.Containers ?? {}).filter((id) => !isSelf(id));
+      if (!inSiteRange(sub) && others.length === 0) {
+        if (self && Object.keys(j?.Containers ?? {}).some(isSelf)) await call({ method: "POST", path: `/networks/${name}/disconnect`, json: { Container: self } });
+        const gone = await call({ method: "DELETE", path: `/networks/${name}` });
+        if (gone.status === 204 || gone.status === 200 || gone.status === 404) info = { status: 404, body: new Uint8Array() };
+        // the delete was refused (a container of the site joined in between): read it again, so the ingress joins it once more below (fifth look V4)
+        else info = await call({ method: "GET", path: `/networks/${name}` });
+      }
+    }
     if (info.status === 404) {
-      const made = await call({ method: "POST", path: "/networks/create", json: { Name: name, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.site": siteId } } });
-      if (made.status !== 201 && made.status !== 409) throw new Error(`Could not make the site's network: ${message(made.body, made.status)}`);
+      await makeNetwork(siteId, name);
       info = await call({ method: "GET", path: `/networks/${name}` });
     }
-    const j = parse(info.body) as { IPAM?: { Config?: Array<{ Subnet?: string }> }; Containers?: Record<string, unknown> } | null;
-    if (self && !Object.keys(j?.Containers ?? {}).some((id) => id.startsWith(self) || self.startsWith(id.slice(0, 12)))) {
+    const j = parse(info.body) as NetInfo;
+    if (self && !Object.keys(j?.Containers ?? {}).some(isSelf)) {
       const joined = await call({ method: "POST", path: `/networks/${name}/connect`, json: { Container: self } });
       if (joined.status !== 200 && !/already exists|already attached|endpoint with name/i.test(dec.decode(joined.body))) throw new Error(`Vyre could not join the site's network: ${message(joined.body, joined.status)}`);
     }

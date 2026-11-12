@@ -110,6 +110,7 @@ test("terminal_open on a workspace names the agent; an agent opens only its own 
 
 function facts(table: Record<string, { ownerId: string; kind?: string; runtime?: string }>) {
   return (cap: string, input: unknown): Promise<unknown> => {
+    if (cap === "host.hook.call.terminal.open_tab") return undefined;   // no pipeline here: the handler opens the run's tab itself
     if (cap !== "agents.get") throw new Error(`unexpected ${cap}`);
     const a = table[(input as { agentId: string }).agentId];
     return Promise.resolve(a ? { agent: { agentId: (input as { agentId: string }).agentId, ...a } } : undefined);
@@ -138,7 +139,9 @@ test("who may enter: a person their own Assistant's workspace; an owner or admin
   assert.equal(await mayEnterWorkspace(member, "agt_dex"), false, "a member in a team agent's");
   assert.equal(await mayEnterWorkspace(asPerson("usr_lee", false), "agt_dex"), true, "its owner");
   assert.equal(await mayEnterWorkspace(member, "agt_unknown"), false, "an agent nobody can read");
-  assert.equal(await mayEnterWorkspace(admin, "agt_unknown"), true, "an agent the host cannot read: Manage decides");
+  // 12 Nov (audit item 16): agents.get answers not found to everyone but its person for an Assistant or an outside agent (modules/agents/projections.ts canSee), and to an admin for a person's own
+  // agent nobody shared; Manage over agents in general must not open those, so an agent the caller cannot read is not entered (it was: "Manage decides")
+  assert.equal(await mayEnterWorkspace(admin, "agt_unknown"), false, "an agent the caller cannot read is not entered, whatever its role");
   assert.equal(await mayEnterWorkspace({ ...admin, principal: AGENT }, "agt_dex"), true, "an agent in its own");
   assert.equal(await mayEnterWorkspace({ ...admin, principal: AGENT }, "agt_x"), false, "an agent in another's");
 });
@@ -208,9 +211,10 @@ test("terminal.workspace: the state, where it is and whether this person may att
   bindWorkspaces(async () => false);
   bindTeamFor(() => false);
   const personal = await wsOf(dana, { agentId: "agt_dana_assistant" });
-  assert.deepEqual([personal.state, personal.canAttach, personal.line], ["unavailable", false, "Your Assistant runs commands on this computer. Install Docker or add a server in Console > Computers to give it a workspace of its own."]);
+  // 12 Nov (lead, from lane f-desktop): "computer", not "machine", and what is true for each kind of Space, in the browser's voice
+  assert.deepEqual([personal.state, personal.canAttach, personal.line], ["unavailable", false, "Your Assistant runs commands on this computer for now. A workspace of its own needs Docker on this computer, or a server with Docker added in Console > Computers."]);
   bindTeamFor(() => true);
-  assert.match((await wsOf(admin, { agentId: "agt_dex" })).line, /^This Space has no machine to run agent workspaces on\. Add a server in Console > Computers\.$/);
+  assert.match((await wsOf(admin, { agentId: "agt_dex" })).line, /^This Space can't run agent workspaces yet\. That needs Docker on the Space's server, or another server with Docker added in Console > Computers\.$/);
   bindWorkspaceStatus(null);
   bindWorkspaces(false);
   bindTeamFor(null);
@@ -223,4 +227,16 @@ test("who may enter, for a service: the host's own services do; a service a tena
   assert.equal(await mayEnterWorkspace(as("svc_host"), "agt_dex"), true);
   assert.equal(await mayEnterWorkspace(as("svc_engine"), "agt_dex"), true);
   for (const id of ["svc_form_abc", "svc_site_0123", `svc_${"a1".repeat(16)}`]) assert.equal(await mayEnterWorkspace(as(id), "agt_dex"), false, id);
+});
+
+test("owner walk: a Space whose Docker does not answer shows its workspace as not set up, with the plain line and no Attach, never as asleep", async () => {
+  const { bindWorkspaceStatus } = await import("../projections.ts");
+  reset();
+  bindWorkspaces(true);
+  bindTeam(() => true);
+  bindWorkspaceStatus(async () => { throw Object.assign(new Error("No machine for workspaces answers."), { workspace: true }); });
+  const admin = asPerson("usr_admin", true);
+  const w = await h["terminal.workspace"]!(admin, { agentId: "agt_dex" });
+  assert.deepEqual([w.state, w.canAttach], ["unavailable", false]);
+  assert.match(w.line, /^This Space can't run agent workspaces yet\. That needs Docker on the Space's server/);
 });

@@ -53,6 +53,8 @@ export interface Ctx {
   depth: number;
   /** this call was forwarded for its caller by another module (CallOpts.asCaller): it carries the caller's standing, not that module's */
   forwarded?: boolean;
+  /** On a nested call: the capability whose handler made it (the pipeline sets it; a caller cannot). */
+  callerCap?: string;
   device?: string;
   now(): number;
   db: ScopedDb;

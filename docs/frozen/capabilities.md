@@ -124,3 +124,11 @@ Signed: lead, 12 Nov 2026
 - Why: the gate's rule changed for rc.26 (modules/gate/handlers/grants.ts linksKnown: a composed link is held only under an uncleared Automation mark). The old words, "a link you put together yourself waits for the person", told the model to avoid composing links or to ask first, the opposite of the owner's rule that agents may open any link.
 
 Signed: lead, 12 Nov 2026
+
+12 Nov 2026, lane f-term (eighth look Y1): `engine.turn.record@1` gains an optional input `reason`, why a cancelled turn was stopped, as the turn engine says it (stop, interrupt, limit, left, moved; closing when a daemon stops or updates and the turn is run again after the restart; lease when its host was lost); `modules/engine/runtime.ts` report() passes it. The event `turn.cancelled` gains two optional fields: `reason` (on the turn's end record, the same value) and `pressed` (true when written at the press: Stop, Interrupt, a released parked turn, an agent paused, removed or leaving). The terminal module interrupts a turn's running command only for `pressed`, or for a stop reason on the end record; never for closing or lease, and never for an event with neither. Optional additions only: older readers and writers are unchanged.
+
+Signed: lead, 12 Nov 2026 (the optional reason on engine.turn.record and on turn.cancelled, and pressed on turn.cancelled)
+
+12 Nov 2026, lane f-term (ninth look Z2): `engine.stop_all@1` gains an optional input `reason`, the one value `update`, which the desktop app passes when it stops its turns to update itself (host/src/daemon/daemon.ts engineSource.stopTurns). Its turns end with reason update and their `turn.cancelled` events carry `reason: "update"` instead of `pressed`, so the terminal leaves what they run in an agent's workspace running (the workspace outlives the app; the kept message runs again after). A person's Stop all is unchanged. Optional addition only.
+
+Signed: lead, 12 Nov 2026 (the optional reason update on engine.stop_all)

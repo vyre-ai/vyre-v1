@@ -300,7 +300,8 @@ test("an outside agent reads as what it is: Offline, not Asleep; what it did com
   assert.equal(statusLine(a, (x) => x), "Offline");
   assert.equal(statusLine({ ...a, status: "awake" }, (x) => x), "Online");
   assert.equal(statusLine({ ...a, status: "working" }, (x) => x), "Working");
-  assert.equal(statusLine({ ...a, runtime: undefined } as never, (x) => x), "Asleep");
+  // owner walk, 12 Nov: the agent's own state is Idle, never the workspace's word Asleep
+  assert.equal(statusLine({ ...a, runtime: undefined } as never, (x) => x), "Idle");
   assert.equal(OUTSIDE_TABS[0]?.key, "activity");
   assert.ok(!OUTSIDE_TABS.some((t) => t.key === "settings" || t.key === "computer"), "no computer and no settings of ours");
   assert.equal(isTabKey("activity"), true);

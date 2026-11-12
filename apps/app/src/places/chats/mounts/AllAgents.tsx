@@ -32,7 +32,7 @@ export interface AllAgentsProps {
   window?: VirtualWindow;
 }
 
-const STATUS: Readonly<Record<AgentRow["status"], string>> = { working: "Working", awake: "", asleep: "Asleep", paused: "Paused" };
+const STATUS: Readonly<Record<AgentRow["status"], string>> = { working: "Working", awake: "", asleep: "Idle", paused: "Paused" };
 
 /** Working agents first, then by name; a query keeps the agents whose name or role holds every word of it. */
 export function pickAgents(list: readonly AgentRow[], query: string): AgentRow[] {

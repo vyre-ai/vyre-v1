@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "lib": ["ES2024", "DOM"], "types": ["node"] },
+  "include": ["modules/**/*.ts", "host/**/*.ts", "packages/contracts/**/*.ts"],
+  "exclude": ["**/node_modules", "**/*.d.mts"]
+}

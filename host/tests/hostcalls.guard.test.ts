@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { GUARDED_CALL, GUARDED_CALL_PERMISSION, HOST_ONLY_CALL, createHookRunner } from "../src/daemon/consumers.ts";
+import { GUARDED_CALL, GUARDED_CALL_PERMISSION, HOST_ONLY_CALL, MODULE_PATH_CALL, createHookRunner } from "../src/daemon/consumers.ts";
 import type { ModuleHooks } from "../src/daemon/consumers.ts";
 import type { CtxSeed, Invoke } from "../src/invoke.ts";
 
@@ -20,6 +20,10 @@ const hooks: ModuleHooks[] = [{
   module: "vault", consumers: [], periodic: [], calls: [
     { name: "vault.signin_refreshed", module: "vault", run: () => { touched.push("signin_refreshed"); return { saved: false, reason: "gone" }; } },
   ],
+}, {
+  module: "terminal", consumers: [], periodic: [], calls: [
+    { name: "terminal.workspace_revoke", module: "terminal", run: () => { touched.push("workspace_revoke"); return { done: true }; } },
+  ],
 }];
 
 function rig() {
@@ -28,7 +32,7 @@ function rig() {
   // a pipeline that runs the runner's handler with a ctx built from the seed, the way the real one does
   const invoke: Invoke = (async (cap: string, input: unknown, seed: CtxSeed) => {
     const h = holder.runner!.handlers[cap]!;
-    const ctx = { origin: seed.origin ?? "user", depth: seed.depth ?? 0, trace: { traceId: TRACE }, principal: seed.principal };
+    const ctx = { origin: seed.origin ?? "user", depth: seed.depth ?? 0, trace: { traceId: TRACE }, principal: seed.principal, ...(seed.callerCap !== undefined ? { callerCap: seed.callerCap } : {}) };
     return { status: "ok", output: await h(ctx as never, input as never), traceId: TRACE };
   }) as unknown as Invoke;
   holder.runner = createHookRunner({
@@ -94,6 +98,31 @@ test("the save of a refreshed CLI sign-in is the host's own call: run as the hos
     ["a person under the hook origin", { principal: { kind: "person", id: "usr_pat" }, origin: "hook", depth: 0 }],
   ] as const) {
     await assert.rejects(invoke(cap as never, { input: {} }, { space: "spc_t", ...seed } as unknown as CtxSeed), (e) => code(e) === "permission.no_grant", why);
+  }
+  assert.deepEqual(touched, [], "none of them ran");
+});
+
+test("cutting an agent's workspace from a project (terminal.workspace_revoke) runs only as a nested call from projects.members.remove or projects.teammates.remove; any other caller is refused", async () => {
+  const { invoke } = rig();
+  const admin = { kind: "person" as const, id: "usr_admin" };
+  const cap = "host.hook.call.terminal.workspace_revoke";
+  const input = { input: { agentId: "agt_1", projectId: "prj_1" } };
+  assert.ok(MODULE_PATH_CALL["terminal.workspace_revoke"]);
+  for (const from of ["projects.members.remove", "projects.teammates.remove"]) {
+    touched.length = 0;
+    const r = await invoke(cap as never, input, { space: "spc_t", principal: admin, origin: "user", depth: 1, callerCap: from } as CtxSeed);
+    assert.deepEqual([(r as { output?: unknown }).output, touched], [{ done: true }, ["workspace_revoke"]], from);
+  }
+  touched.length = 0;
+  for (const [why, seed] of [
+    ["another module's ctx.call", { origin: "user", depth: 1, callerCap: "chat.post" }],
+    ["another projects capability", { origin: "user", depth: 1, callerCap: "projects.members.set" }],
+    ["a nested call that names no caller", { origin: "user", depth: 1 }],
+    ["the host's own hook call", { origin: "hook", depth: 0 }],
+    ["a gateway call", { origin: "user", depth: 0, callerCap: "projects.members.remove" }],
+    ["an MCP call", { origin: "mcp", depth: 0 }],
+  ] as const) {
+    await assert.rejects(invoke(cap as never, input, { space: "spc_t", principal: admin, ...seed } as unknown as CtxSeed), (e) => code(e) === "permission.no_grant", why);
   }
   assert.deepEqual(touched, [], "none of them ran");
 });

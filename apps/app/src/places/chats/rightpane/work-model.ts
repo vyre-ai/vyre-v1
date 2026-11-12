@@ -7,7 +7,8 @@ import type { ReactElement } from "react";
 
 // ---- Terminal: the agent's workspace
 
-export type WorkspaceState = "running" | "asleep" | "starting" | "waiting" | "error";
+/** unavailable: nothing in this Space can run a workspace now (no Docker, no server): a plain line on what would, never an Attach that cannot work. */
+export type WorkspaceState = "running" | "asleep" | "starting" | "waiting" | "error" | "unavailable";
 /** Who a terminal session belongs to: the agent itself, a helper it started (by name), or a person who attached. */
 export interface SessionOwner { kind: "agent" | "helper" | "person"; name?: string }
 export interface WorkspaceSession { name: string; owner?: SessionOwner; /** left out when the host does not say */ windows?: number; /** people attached right now; left out when not known */ attached?: number; lastActiveAt?: number }
@@ -15,7 +16,7 @@ export interface WorkspaceView {
   state: WorkspaceState;
   /** Where it runs: "the Space server", or a compute server's name. */
   host?: string;
-  /** Waiting: "Waiting for room on <host>. Add a compute server in Console > Computers to run more." Error: the reason, in words. */
+  /** Waiting: "Waiting for room on <host>. The workspace starts by itself when there is room." Error: the reason, in words. */
   line?: string;
   /** The tmux sessions the agent and attached people share. */
   sessions: readonly WorkspaceSession[];
@@ -74,11 +75,12 @@ export interface Words { chip: string; tone: Tone; /** the one line under the ch
 
 export function workspaceWords(v: WorkspaceView): Words {
   switch (v.state) {
-    case "running": return v.sessions.length === 0 ? { chip: "Running", tone: "ok", note: "No session open yet. A command starts one." } : { chip: "Running", tone: "ok" };
+    case "running": return v.line !== undefined ? { chip: "Running", tone: "ok", note: v.line } : v.sessions.length === 0 ? { chip: "Running", tone: "ok", note: "No session open yet. A command starts one." } : { chip: "Running", tone: "ok" };
     case "asleep": return { chip: "Asleep", tone: "quiet", note: "Wakes in about a second on the next command." };
     case "starting": return { chip: "Starting", tone: "quiet" };
-    case "waiting": return { chip: "Waiting for room", tone: "warn", note: v.line ?? "Waiting for room on the Space server. Add a compute server in Console > Computers to run more." };
+    case "waiting": return { chip: "Waiting for room", tone: "warn", note: v.line ?? "Waiting for room on the Space server. The workspace starts by itself when there is room." };
     case "error": return { chip: "Needs attention", tone: "bad", note: v.line ?? "The workspace could not start." };
+    case "unavailable": return { chip: "Not set up yet", tone: "quiet", note: v.line ?? "This Space can't run agent workspaces yet. That needs Docker on the computer this Space runs on, or a server with Docker added in Console > Computers." };
   }
 }
 

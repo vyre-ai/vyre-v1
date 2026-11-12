@@ -29,7 +29,7 @@ import { connectEntries } from "../src/places/chats/conversation/Conversation.ts
 import { TerminalList } from "../src/places/chats/terminal/TerminalList.tsx";
 import { TerminalRules } from "../src/places/chats/terminal/TerminalRules.tsx";
 import { sessionProps } from "../src/places/chats/terminal/TerminalTab.tsx";
-import { RULE_LISTS, ago, linesText, openCall, ordered, parseLines, pollSource, rulesProblem, sameRules, uiHost, uiState } from "../src/places/chats/terminal/model.ts";
+import { REDRAW_LINE, RULE_LISTS, ago, linesText, openCall, ordered, parseLines, pollSource, rulesProblem, sameRules, uiHost, uiState } from "../src/places/chats/terminal/model.ts";
 import type { Rules, TerminalRow } from "../src/places/chats/terminal/model.ts";
 import { askServerAccess, attach, createSender, openSession, saveRules, toggleStar } from "../src/places/chats/terminal/session.ts";
 import { errorCode, isRefusal } from "../src/places/chats/mounts/live.ts";
@@ -431,7 +431,7 @@ test("terminal: the polled source delivers each answer as the next frame and sur
   await settle(20);
   assert.equal(frames.length, seen, "no frames after the subscription ends");
   assert.deepEqual(frames.map((f) => f.seq), frames.map((_, i) => i + 1), "sequence numbers count up from one");
-  assert.ok(frames.length >= 1 && frames[0]?.data === "a");
+  assert.ok(frames.length >= 1 && frames[0]?.data === `${REDRAW_LINE}a`, "the answer redraws the line the screen ends on, then writes what follows");
 });
 
 /* ---------- links and the whole place ---------- */
@@ -505,4 +505,16 @@ test("a click on an agent opens its chat with the agent's pane beside it; the pa
   // the pane's menu opens the full page
   wirePane(s.rt, go, "c1", { agentId: "agt_docs", name: "Docs" }).nav.openAgentPage("agt_docs");
   assert.deepEqual(acts[acts.length - 1], { t: "agent", agentId: "agt_docs" });
+});
+
+test("terminal (release gate, 12 Nov): a refused attach locks only the Space server's shell; an agent's workspace shows its own words, and one that cannot be found says so", async () => {
+  const { attachRefusal } = await import("../src/places/chats/terminal/TerminalTab.tsx");
+  const refused = (code: string, message: string): unknown => Object.assign(new Error(message), { code });   // as the app's call() throws it
+  assert.deepEqual(attachRefusal(refused("permission.role_lacks_permission", "x"), "space_server"), { kind: "locked" });
+  const ws = attachRefusal(refused("permission.not_found", "We could not find that, or you cannot see it."), "agent_computer");
+  assert.equal(ws.kind, "error");
+  assert.doesNotMatch((ws as { message: string }).message, /server\.services|server shell/);
+  assert.match((ws as { message: string }).message, /no longer available/);
+  const priv = attachRefusal(refused("permission.role_lacks_permission", "That workspace is not yours to open."), "agent_computer");
+  assert.deepEqual(priv, { kind: "error", message: "That workspace is not yours to open." });
 });

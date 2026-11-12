@@ -21,7 +21,7 @@ test("the role line is the kind, then the role with its first letter lowered", (
 test("the header draws Message and only the actions it is given, a presence dot, and one menu", () => {
   const out = clean(renderToStaticMarkup(<ProfileHeader name="Dex" kind="agent" presence="asleep" line="Agent · runs the builds" actions={[{ key: "message", icon: "chat", label: "Message", onPress: () => undefined }]} onMore={() => undefined} />));
   assert.ok(has(out, 'data-testid="profile-message"') && !has(out, 'data-testid="profile-poke"') && !has(out, 'data-testid="profile-share"'), "no button for what cannot be done");
-  assert.ok(has(out, 'aria-label="Asleep"'), "the presence dot says its word");
+  assert.ok(has(out, 'aria-label="Idle"'), "the presence dot says its word (Idle: Asleep is the workspace's word, owner walk 12 Nov)");
   assert.equal(out.split('data-testid="pane-more"').length - 1, 1, "one menu");
   assert.ok(has(out, 'aria-expanded="false"'), "the role line is closed until pressed");
 });

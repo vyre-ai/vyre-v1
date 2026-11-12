@@ -1,3 +1,4 @@
+import { workspaceInTurn } from "./workspace-turns.ts";
 import { ownsSubject } from "./own-subject.ts";
 import { isExportItself, waitForQuiet } from "./export-quiet.ts";
 import { createChoiceSource } from "./forms-choices.ts";
@@ -961,6 +962,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // the event-loop lag guard: a block over 200 ms is warned with the jobs in flight, and the worst lag rides in the machines report
   loopLag({ running: () => scheduler.runningNames(), warn: (msg, attrs) => sink.log({ space: space ?? "-", level: 40, msg, place: "scheduler", attrs }) });
 
+  /** The terminal module's first read of the agent workspaces' subnets, awaited before the server listens (third look T5). */
+  let workspacesReady: (() => Promise<void>) | null = null;
   try {
     if (hasSpace) {
       // ---- the Space: modules.db, events.db, access, handlers, invoke, gateway
@@ -1057,6 +1060,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       let grantOwnPlaces: ((owner: string) => Promise<void>) | null = null;
       const reg = registry as unknown as RegistryLike;
       const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), seamImporter: fileSeamImporter(codeRoot), exportsImporter: fileExportsImporter(codeRoot), db, ...(o.http ? { fetch: o.http } : {}) });
+      workspacesReady = (): Promise<void> => (loaded.moduleExports.get("terminal") as { workspacesReady?: () => Promise<void> } | undefined)?.workspacesReady?.() ?? Promise.resolve();
       const telemetry = createTelemetryRecorder({ space, db, module: loaded.moduleExports.get("logs"), now, secrets: () => [token], capabilities: registry.capabilities.map(cap => cap.name) });
       if (telemetry) { sink.setObserver(telemetry.write, telemetry.position(sink.sourceId)); capTelemetry = () => telemetry.cap(); }
       closers.push(() => { try { sink.flush(); } catch { /* The committed native source replays on the next boot. */ } finally { sink.setObserver(undefined); } });
@@ -1143,7 +1147,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           turns: (id: string) => (id === "space" ? Math.max(0, engineTurns - computeStream.running()) : computeStream.connected(id) ? computeStream.running(id) : undefined),
           own: async () => ({ name: reporter.name(), report: (o.machineReport ?? ((r: Report) => r))(reporter.report()) }),
           idle: (_id: string, person?: string) => idleSessions(person),
-          findings: async () => (await runDoctor({ dataDir: paths.root, role: "space", ...(cfg.diskChoice ? { diskChoice: cfg.diskChoice } : {}), ...(cfg.dockerRoot ? { dockerRoot: cfg.dockerRoot } : {}) })).findings,
+          findings: async () => [
+            ...(await runDoctor({ dataDir: paths.root, role: "space", ...(cfg.diskChoice ? { diskChoice: cfg.diskChoice } : {}), ...(cfg.dockerRoot ? { dockerRoot: cfg.dockerRoot } : {}) })).findings,
+            // how many networks this server's Docker has left (each site takes one): the terminal module counts them, behind the runner too
+            ...(await ((loaded.moduleExports.get("terminal") as { networkRoomFindings?: (ok: string) => Promise<Array<{ key: string; state: "healthy" | "degraded"; detail: string; next: string }>> } | undefined)?.networkRoomFindings?.("No action needed.") ?? Promise.resolve([])).catch(() => [])),
+          ],
           fix: async (id: string, fix: string, service?: string, person?: string) => {
             if (!isFix(fix)) throw new Error(`unknown fix ${fix}`);
             // a member's own computer or server: its idle sessions are the owner's, held by the Space's pool, and only theirs stop; nothing of anyone else's
@@ -1782,7 +1790,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           try { await invoke("chat.post", { threadId: t.threadId, body: "", mentions: [], clientId: `msg_brg${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`, idempotencyKey: `brg-upd-${t.threadId}-${Date.now().toString(36)}`, blocks: [{ type: "turn_status", v: 1, data: { state: "stopped_for_update", text: "Stopped for an update. Your message is kept.", ...(t.turnId ? { turnId: t.turnId } : {}) } }] }, { space: spaceId, principal: { kind: "agent", id: t.agentId }, actingFor: t.asker, origin: "engine" }); } catch { /* the line is a courtesy: the stop goes on */ }
         }
         for (const id of new Set((out.turns ?? []).map((t) => t.threadId))) {
-          try { stopped += ((await system("engine.stop_all", { threadId: id })) as { stopped?: number }).stopped ?? 0; } catch { /* that chat ends by itself or at the stop */ }
+          // reason update: the terminal leaves what these turns run in the agents' workspaces running (they outlive the app; the kept message runs again after)
+          try { stopped += ((await system("engine.stop_all", { threadId: id, reason: "update" })) as { stopped?: number }).stopped ?? 0; } catch { /* that chat ends by itself or at the stop */ }
         }
         return stopped;
       };
@@ -2233,6 +2242,41 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               image: releaseImage("agent-workspace", cfg.version, process.env["VYRE_WORKSPACE_IMAGE"]),
               ...(o.workspaceIdleMs !== undefined ? { idleMs: o.workspaceIdleMs } : {}),
               projectsOf: (agentId: string) => (db!.all("SELECT projectId FROM projects_member WHERE principal = ? AND kind = 'agent'", agentId) as Array<{ projectId?: string }>).map((r) => String(r.projectId)),
+              // the Space these workspaces are this daemon's for: another daemon on the same Docker (a device daemon beside a Personal Space one) never sleeps, removes or releases them, nor this one its
+              owner: spaceId,
+              ownsAgent: (agentId: string) => { try { return db!.all("SELECT 1 FROM agents_agent WHERE id = ?", agentId).length > 0; } catch { return false; } },
+              // a turn of this agent running now (started in the last 12 hours, so a row a crash left does not hold a workspace awake forever): making room passes its workspace over (lead, 12 Nov)
+              inTurn: (agentId: string) => workspaceInTurn(db!, agentId, Date.now()),
+              // where the Files mirrors are rooted, read from the tables (one indexed read each): a Files change brings forward only the workspaces whose folder it is in (lead, 12 Nov)
+              folders: {
+                agentRoot: (agentId: string) => { try { return (db!.all("SELECT folderId FROM agents_agent WHERE id = ?", agentId)[0] as { folderId?: string | null } | undefined)?.folderId ?? null; } catch { return null; } },
+                projectRoot: (projectId: string) => { try { return (db!.all("SELECT folderId FROM projects_project WHERE projectId = ?", projectId)[0] as { folderId?: string | null } | undefined)?.folderId ?? null; } catch { return null; } },
+                ancestors: (folderId: string) => {
+                  try {
+                    const out: string[] = [];
+                    let at: string | null = folderId;
+                    while (at !== null && out.length < 64 && !out.includes(at)) {
+                      const row = db!.all("SELECT parent_id FROM files_folder WHERE id = ?", at)[0] as { parent_id?: string | null } | undefined;
+                      if (row === undefined) return out.length === 0 ? null : out;
+                      out.push(at);
+                      at = row.parent_id ?? null;
+                    }
+                    return out;
+                  } catch { return null; }
+                },
+                ofFile: (fileId: string) => { try { return (db!.all("SELECT folder_id FROM files_file WHERE id = ?", fileId)[0] as { folder_id?: string | null } | undefined)?.folder_id ?? null; } catch { return null; } },
+              },
+              // in Trash now: a row with deletedAt, or no row (purged from Trash); undefined when the table cannot be read (third look T2)
+              inTrash: (agentId: string) => {
+                try { const row = db!.all("SELECT deletedAt FROM agents_agent WHERE id = ?", agentId)[0] as { deletedAt?: unknown } | undefined; return row === undefined || (row.deletedAt !== null && row.deletedAt !== undefined); } catch { return undefined; }
+              },
+              // an agent in Trash has no workspace: nothing makes, wakes or claims room for one (review 12 Nov, 2). Asked before every make or wake.
+              admit: ({ agentId }: { agentId: string }) => {
+                let row: { deletedAt?: unknown } | undefined;
+                try { row = db!.all("SELECT deletedAt FROM agents_agent WHERE id = ?", agentId)[0] as { deletedAt?: unknown } | undefined; } catch { row = undefined; }
+                // the same words as the terminal module's AGENT_GONE_LINE (modules/terminal/workspace.ts), which a host file cannot import
+                if (row !== undefined && row.deletedAt !== null && row.deletedAt !== undefined) throw Object.assign(new Error("That agent is in Trash, so it has no workspace. Restore it to use its terminal again."), { code: "unavailable", workspace: true });
+              },
               // ~/Vyre in the workspace mirrors the agent's folder in Files: the computers module's home sync, run as the agent principal like any other writer (access, review rules and the scrubber apply)
               // room on the host: the computers module's capacity, over host calls (this module cannot import that one). A waiting workspace starts by itself when room opens, and a computer that is moved
               // to the new model gets its workspace made (stopped) by the idle pass.
@@ -2250,6 +2294,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 return { capacity: {
                   claim: async (agentId: string, nodeId?: string) => (await call("computers.workspace_claim", { agentId, ...(nodeId ? { nodeId } : {}) })) as { state: "running" | "waiting"; line?: string },
                   release: async (agentId: string, nodeId?: string) => { await call("computers.workspace_release", { agentId, ...(nodeId ? { nodeId } : {}) }); },
+                  waiting: async (agentId: string) => ((await call("computers.workspace_waiting", { agentId })) as { line?: string | null }).line ?? null,
                 } };
               })(),
               ...((): Record<string, unknown> => {
@@ -2927,6 +2972,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (liveTicketRoute.handle(req, res) || browserStream.handle(req, res) || publicPath.handle(req, res) || siteSigninPage.handle(req, res) || mcpRoute.handle(req, res) || (gitProxy?.handle(req, res) ?? false) || chromeBridge.handle(req, res) || chromeAgentsRoute.handle(req, res) || githubSignInRoute.handle(req, res) || githubConnectRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || localWorkRoute.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
       listener(req, res);
     });
+    // the agent workspaces' subnets are read before the first call, so the guard refuses one left running by the process before this one at once (third look T5); a Docker that does not answer
+    // within 5 s does not hold the start, and they are read again at the first sweep
+    await Promise.race([workspacesReady?.() ?? Promise.resolve(), new Promise<void>((r) => setTimeout(r, 5000).unref?.())]).catch(() => undefined);
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);

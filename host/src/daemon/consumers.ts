@@ -40,7 +40,21 @@ export const GUARDED_CALL_PERMISSION = "members.remove";
  * call is the host's own top-level hook call as the host service: not a person's or an agent's call, not another module's ctx.call, not a gateway, session or MCP call.
  */
 export const HOST_ONLY_CALL = /^(vault\.signin_refreshed|vault\.mine_(set|remove)|identity\.carry_(sign_in|use))$/;
-export function guardCall(name: string, ctx: Pick<Ctx, "origin" | "depth" | "trace"> & { principal?: { kind: string; id: string } }): void {
+/**
+ * Host calls only one module's own path may make: the capability whose handler calls it (ctx.callerCap, set by the pipeline on every nested call) must be one of these. `terminal.workspace_revoke` cuts
+ * an agent's workspace from a project at once, so only the projects module's removals may ask it (third look, 12 Nov): any other module's ctx.call could otherwise cut a member agent's workspace.
+ */
+export const MODULE_PATH_CALL: Readonly<Record<string, readonly string[]>> = {
+  "terminal.workspace_revoke": ["projects.members.remove", "projects.teammates.remove"],
+  // terminal_run's new tab, opened in a call of its own so it is committed (and its access resource registered) before the command runs
+  "terminal.open_tab": ["terminal.run"],
+};
+export function guardCall(name: string, ctx: Pick<Ctx, "origin" | "depth" | "trace"> & { principal?: { kind: string; id: string }; callerCap?: string }): void {
+  const only = MODULE_PATH_CALL[name];
+  if (only) {
+    if (ctx.depth < 1 || ctx.callerCap === undefined || !only.includes(ctx.callerCap)) throw fail("permission.no_grant", ctx.trace.traceId, { message: "This host call is made only by the call that needs it; it cannot be called from here.", details: { call: name } });
+    return;
+  }
   if (HOST_ONLY_CALL.test(name)) {
     const host = ctx.principal?.kind === SYSTEM_PRINCIPAL.kind && ctx.principal.id === SYSTEM_PRINCIPAL.id;
     if (ctx.origin !== "hook" || ctx.depth !== 0 || !host) throw fail("permission.no_grant", ctx.trace.traceId, { message: "This is the host's own call; it cannot be called from here.", details: { call: name } });
