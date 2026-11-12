@@ -31,3 +31,5 @@
 - An abandoned live view no longer keeps a takeover going when the page shows nothing new.
 - The Space browser runs as many agents' browsers at once as the server's memory holds, instead of a fixed six; when the server is full, the browser nobody has used longest (and nobody is using now) is closed to make room and opens again, signed in, at its next step.
 - Many agents starting their browsers at the same moment no longer stall or stop the Space browser: starts take turns, and a browser that cannot be started is a plain refusal.
+- On a Team server, the Space browser may now use as much of the server's memory as the server has to spare (it was held to 8 GB and about 16 browsers), within a bound the server computes for itself.
+- `vyre-server stop` and an uninstall also stop the Space browser; a Space browser whose Space has not used it for 10 minutes closes its browsers cleanly and stops by itself, and opens again, signed in, on the next use.

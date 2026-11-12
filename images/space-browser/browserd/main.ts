@@ -213,7 +213,14 @@ async function dispatch(action: string, a: Args): Promise<Args> {
 
 // ---- the control socket ----------------------------------------------------------------------------------------------------------------------------
 
+// The container outlives a restart of the daemon on purpose (an update must not sign agents out or drop their tabs), but not a daemon that is gone: when nothing has asked browserd anything for
+// VYRE_BROWSER_ORPHAN_MINUTES (default 10; the daemon's periodic pass asks every half minute while a browser runs), it closes every browser cleanly and exits, and the container stops (it has no restart
+// policy). The next browser call of a daemon starts it again from the same volume, sign-ins and tabs included.
+const ORPHAN_MS = (Number(env["VYRE_BROWSER_ORPHAN_MINUTES"] ?? 10) || 10) * 60_000;
+let lastAsked = Date.now();
+
 function serve(c: Socket): void {
+  lastAsked = Date.now();
   let buf = "";
   c.setEncoding("utf8");
   c.on("error", () => undefined);
@@ -249,10 +256,13 @@ async function main(): Promise<void> {
   await new Promise<void>((resolve, reject) => { control.once("error", reject); control.listen(SOCKET, () => resolve()); });
   chmodSync(SOCKET, 0o600);
   log(`control socket ${SOCKET}, live view on ${PORT}`);
+  const orphan = setInterval(() => { if (Date.now() - lastAsked >= ORPHAN_MS) { log(`nothing has asked for ${Math.round(ORPHAN_MS / 60_000)} minutes: closing every browser and stopping`); bye(); } }, Math.min(30_000, Math.max(1000, Math.floor(ORPHAN_MS / 6))));
+  orphan.unref();
   const sweeper = setInterval(() => { manager.sweep().then((s) => { for (const id of s) { hubs.delete(id); log(`profile ${id} stopped after idle`); } }, () => undefined); }, (Number(env["VYRE_BROWSER_SWEEP_SECONDS"] ?? 30) || 30) * 1000);
   sweeper.unref();
   const bye = (): void => {
     clearInterval(sweeper);
+    clearInterval(orphan);
     views.close();
     bridges?.close();
     starts?.close();

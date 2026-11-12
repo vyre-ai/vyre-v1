@@ -234,7 +234,9 @@ health_url() {
 
 # ---- start, stop, status, logs -----------------------------------------------------------------------------------------------------
 cmd_start() { [ ! -f "$(PENDING_FILE)" ] || lock_update_operation; refresh_disk_env || true; ensure_userns_vm || true; ensure_metadata_block; dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}"; }
-cmd_stop() { dc stop; }
+# The Space browser container (vyre-sbrowser) is not part of compose: the daemon makes it and it outlives a daemon restart on purpose (agents stay signed in through an update). Stopping the server stops it
+# too, so an uninstall (which runs stop) leaves no browser running; its volume, with the profiles, stays.
+cmd_stop() { dc stop; if command -v docker >/dev/null 2>&1; then docker stop -t 10 vyre-sbrowser >/dev/null 2>&1 || true; fi; }
 cmd_status() { dc ps; }
 cmd_logs() {
   follow=1; svc=""

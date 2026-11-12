@@ -166,11 +166,10 @@ test("@heavy space browser at scale: 30 profiles, 12 at once on a 12-browser bud
   const perBrowser = Math.max(1, Math.round(memMb / 12));
   for (const gb of [8, 16]) {
     const book = Math.floor((gb * 1024 - 1536) / 256);
-    for (const [how, container] of [["Docker on the server", gb * 1024 - 1536], ["behind the runner (8 GB cap)", Math.min(8192, gb * 1024 - 1536)]] as const) {
-      const slots = Math.floor((container - 512) / 256);
-      const real = Math.floor((container - 512) / perBrowser);
-      const pidsCap = how.startsWith("behind") ? Math.floor((2048 - 100) / 120) : Infinity;
-      console.log(`METRIC sbrowser-scale a ${gb} GB host, ${how}: the budget allows ${book}, the container (${container} MB) ${slots}${Number.isFinite(pidsCap) ? `, its 2048-task cap ${pidsCap}` : ""}; at the measured ${perBrowser} MB a browser about ${Math.min(book, slots, real, pidsCap)} run at once`);
-    }
+    // with Docker on the server or behind the runner: the runner's bound follows the host the same way (host/src/sites-runner/computers-policy.ts sbrowserBounds)
+    const container = gb * 1024 - 1536;
+    const slots = Math.floor((container - 512) / 256);
+    const real = Math.floor((container - 512) / perBrowser);
+    console.log(`METRIC sbrowser-scale a ${gb} GB host: the budget allows ${book}, the container (${container} MB, task cap ${100 + 120 * slots}) ${slots}; at the measured ${perBrowser} MB a browser about ${Math.min(book, slots, real)} run at once`);
   }
 });

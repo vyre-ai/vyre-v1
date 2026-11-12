@@ -1143,3 +1143,20 @@ test("a live-backup update that fails to start rolls back and starts the previou
     assert.equal(fs.existsSync(path.join(dir, "state", "update.pending")), false);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+// Lead, 12 Nov: the Space browser container survives a restart of the daemon on purpose, but `vyre-server stop` (and so an uninstall, which runs it) stops it; an update does not.
+test("vyre-server stop also stops the Space browser container; the update's own stop leaves it running", () => {
+  const dir = tmp();
+  try {
+    installFixture(dir);
+    const shim = path.join(dir, "shim"); fs.mkdirSync(shim);
+    fs.writeFileSync(path.join(shim, "docker"), `#!/bin/sh\necho "docker $*" >> "${dir}/docker.log"\n`, { mode: 0o755 });
+    const r = sh(SERVER, "dc() { echo \"dc $*\" >> \"$VYRE_DIR/docker.log\"; }; cmd_stop", { VYRE_DIR: dir, PATH: `${shim}:${process.env.PATH ?? ""}` });
+    assert.equal(r.status, 0, r.stderr);
+    const log = read(path.join(dir, "docker.log"));
+    assert.match(log, /^dc stop$/m);
+    assert.match(log, /^docker stop -t 10 vyre-sbrowser$/m, "the browser container stops with the server");
+    const text = read(SERVER);
+    assert.ok(!/cmd_update\(\) \{[\s\S]*?\n\}/.exec(text)![0].includes("cmd_stop"), "an update stops the server with dc stop, not cmd_stop, so agents' browsers stay up through it");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});

@@ -36,6 +36,8 @@ export interface DockerSpaceBrowserOptions {
   idleMinutes?: number;
   /** How often browserd looks for quiet profiles, in seconds. Default 30. */
   sweepSeconds?: number;
+  /** Minutes with nothing asking browserd before it closes every browser and the container stops (its daemon is gone). Default 10, set in the image. */
+  orphanMinutes?: number;
   /**
    * Raw Engine access: for the image pull and the service's own network. With it the container is on a network of its own (with or without the runner), so the daemon knows a request from it by its
    * subnet and lets it reach only the Vault channel (computerSubnets). Without it the image must already be on the machine and the container uses the default bridge.
@@ -60,14 +62,14 @@ export interface DockerSpaceBrowserOptions {
 export function browserContainerConfig(o: DockerSpaceBrowserOptions, net?: { gateway?: string }): ContainerConfig {
   const name = o.name ?? "vyre-sbrowser";
   // with an admin's bound: up to that many browsers, each half its cap of the service's memory (a browser bursts to its cap when the host has room, capacity.ts LIMITS.browser) on top of a base for browserd.
-  // Without one: the host's memory budget (less what the OS and Vyre keep, capacity.ts HEADROOM_MB), never above the runner's 8 GB, and half the host's cores up to 4; browserd fits browsers into it.
+  // Without one: the host's memory budget (less what the OS and Vyre keep, capacity.ts HEADROOM_MB), and half the host's cores up to 4; browserd fits browsers into it.
   const host = o.host ?? { memoryMb: Math.round(totalmem() / 1048576), cpus: cpus().length };
   const many = o.maxRunning;
   const limits = many !== undefined
     ? { cpus: Math.min(4, Math.max(1, Math.round((many * LIMITS.browser.cpus) / 2))), memoryMb: Math.min(8192, 512 + Math.round((many * LIMITS.browser.memoryMb) / 2)), pids: 2048, ...o.limits }
-    // a browser counts about 120 tasks: the cap follows the memory (30 browsers in 8 GB need about 3700); behind the runner its policy caps it at 2048 (about 16 browsers, said in the lane report)
-    : { cpus: Math.min(4, Math.max(1, Math.floor(host.cpus / 2))), memoryMb: Math.min(o.runner ? 8192 : Number.MAX_SAFE_INTEGER, Math.max(1024, host.memoryMb - HEADROOM_MB)), pids: 2048, ...o.limits };
-  if (many === undefined && !o.runner && o.limits?.pids === undefined) limits.pids = Math.max(2048, 100 + 120 * Math.floor((limits.memoryMb - 512) / 256));
+    : { cpus: Math.min(4, Math.max(1, Math.floor(host.cpus / 2))), memoryMb: Math.max(1024, host.memoryMb - HEADROOM_MB), pids: 2048, ...o.limits };
+  // a browser counts about 120 tasks: the cap follows the memory. Behind the runner these are the numbers its policy allows for this host (host/src/sites-runner/computers-policy.ts sbrowserBounds)
+  if (many === undefined && o.limits?.pids === undefined) limits.pids = Math.max(2048, 100 + 120 * Math.floor((limits.memoryMb - 512) / 256));
   const memory = Math.round(limits.memoryMb * 1024 * 1024);
   const uid = o.user?.uid ?? 10001;
   const gid = o.user?.gid ?? 10001;
@@ -77,7 +79,7 @@ export function browserContainerConfig(o: DockerSpaceBrowserOptions, net?: { gat
     User: "",
     WorkingDir: "/home/browser",
     Cmd: [...(o.cmd ?? [])],
-    Env: [...(o.maxRunning !== undefined ? [`VYRE_BROWSER_MAX_RUNNING=${o.maxRunning}`] : []), `VYRE_BROWSER_IDLE_MINUTES=${o.idleMinutes ?? 10}`, ...(o.sweepSeconds !== undefined ? [`VYRE_BROWSER_SWEEP_SECONDS=${o.sweepSeconds}`] : [])],
+    Env: [...(o.maxRunning !== undefined ? [`VYRE_BROWSER_MAX_RUNNING=${o.maxRunning}`] : []), `VYRE_BROWSER_IDLE_MINUTES=${o.idleMinutes ?? 10}`, ...(o.sweepSeconds !== undefined ? [`VYRE_BROWSER_SWEEP_SECONDS=${o.sweepSeconds}`] : []), ...(o.orphanMinutes !== undefined ? [`VYRE_BROWSER_ORPHAN_MINUTES=${o.orphanMinutes}`] : [])],
     Labels: { "vyre.sbrowser": "1" },
     StopTimeout: 10,
     HostConfig: {
