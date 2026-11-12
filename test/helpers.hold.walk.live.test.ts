@@ -84,7 +84,9 @@ test("a helper's held link: the lead chat shows its row as Needs you and the app
     if (await later.count()) await later.first().click().catch(() => undefined);
     // the lead chat: the approval card of the helper's held call, and its row says what it waits for
     const card = page.getByTestId(`approval-${held.holdTaskId}`).first();
-    await card.waitFor({ timeout: 40_000 });
+    // the row says it waits before the card is checked, so a missing card is pictured too
+    await page.waitForTimeout(3000);
+    await card.waitFor({ timeout: 40_000 }).catch(async (e) => { await page.screenshot({ path: path.join(shots, "helper-hold-FAILED-no-card.png") }); throw e; });
     assert.match(await card.innerText(), /harborquotes\.example/);
     assert.doesNotMatch(await card.innerText(), /automations|read link|read_link/);
     assert.ok(await page.getByText("Needs your OK to open harborquotes.example", { exact: false }).count() > 0, "the helper's row says what it waits for");
