@@ -1,6 +1,6 @@
 // projects: teammates (owner ruling 20 Oct 2026). A teammate is an agent with a role on one project: made by asking any agent, with one yes; its home is the project, so it is not on the Agents page;
 // the lead is the default participant in a new chat of the project. No new primitive: this reuses agents (made with projectId) and the project roles (projects.members).
-import { applyRole, removeMember } from "./project.ts";
+import { applyRole, removeIfMember } from "./project.ts";
 import { call, ensure, keyed, memberOf, membersOf, raise, remember, tolerant, visible } from "../projections.ts";
 import type { ProjectsCtx } from "../projections.ts";
 
@@ -48,7 +48,7 @@ export async function teammatesRemove(ctx: ProjectsCtx, input: In): Promise<unkn
   if (again) return again;
   const m = memberOf(ctx.db, p.projectId, input.agentId);
   if (!m || m.kind !== "agent") return { removed: false };
-  await removeMember(ctx, p, m);
+  if (!(await removeIfMember(ctx, p, input.agentId, (x) => x.kind === "agent"))) return { removed: false };
   const got = await tolerant<{ agent?: AgentView }>(ctx, "agents.get", { agentId: m.principal }, {});
   if (got.agent?.teammateOf === p.projectId) await call(ctx, "agents.delete", { agentId: m.principal });
   const res = { removed: true };

@@ -67,7 +67,9 @@ export async function refuseUnseenAgents(ctx: ChatCtx, ids: readonly string[]): 
       const code = x.code ?? x.error?.code;
       // someone else's private agent (their assistant, an outside agent they connected) is refused in the agents module's own plain words
       const priv = (x.details ?? x.error?.details)?.reason === "private";
-      if (code === "validation.not_found") raise(ctx, "validation.not_found", priv ? (x.error?.message ?? x.message ?? "That agent is private to the person it belongs to.") : "That agent does not exist.", { agentId, ...(priv ? { reason: "private" } : {}) });
+      // not found, or refused by access (the caller holds nothing on it: a chat's own agent of a chat they cannot read, someone's agent never shared with them): the same answer either way,
+      // so what exists is not leaked. Before, a refusal by access was let through here and the chat started with an agent the caller could not even see.
+      if (code === "validation.not_found" || (typeof code === "string" && code.startsWith("permission."))) raise(ctx, "validation.not_found", priv ? (x.error?.message ?? x.message ?? "That agent is private to the person it belongs to.") : "That agent does not exist.", { agentId, ...(priv ? { reason: "private" } : {}) });
     }
   }
 }

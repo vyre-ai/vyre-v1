@@ -159,6 +159,11 @@ export interface LiveOptions {
    * suspended or removed) is refused and its socket closed, so ending a session is in force on a socket that was already open the moment the ending call returns. Omitted: never asked.
    */
   live?(session: LiveSession): boolean;
+  /**
+   * The same question answered from memory, for what the Space sends on its own (every publish asks it once per open socket): the sessions this daemon has seen end, and the person's status in
+   * the access snapshot. Frames coming in and calls still ask `live`, which reads the database, as the backstop. Omitted: `live` is asked for both.
+   */
+  liveFast?(session: LiveSession): boolean;
   invoke?: Invoke;
   /**
    * Sync's live hub (ARCH 5.9). When given, a socket speaks the sync protocol: hello is answered by the hub (hello_ok { ok: { serverVersion, epoch, serverHlc, mode, head, entityVersions } }),
@@ -178,6 +183,8 @@ export interface LiveOptions {
 
 interface Conn {
   id: string; session: LiveSession; socket: Duplex; reader: FrameReader; lastSeen: number; acked: number; pending: EventEnvelope[]; closed: boolean;
+  /** calls on this socket still being answered, and whether its session ended meanwhile (it closes once those answers are out, and nothing else is sent to it) */
+  inflight: number; ending: boolean;
   /** set when the socket speaks through sync's hub */
   link?: { frame(f: unknown): void; gone(reason: string): void; session: { close(reason?: string): void } };
 }
@@ -233,15 +240,31 @@ export function createLiveHub(o: LiveOptions): LiveHub {
     return n;
   };
   const eventFrame = (e: EventEnvelope) => ({ t: "ev", seq: e.seq, items: [e], tr: e.traceId });
+  // The session behind every socket is asked again before anything goes in or out (o.live): no frame from a session that ended is handled, and nothing more reaches it. A socket whose call
+  // ended its own session (signing out over it) gets that call's answer first, then closes.
+  const stillLive = (c: Conn): boolean => !o.live || o.live(c.session);
+  const stillLiveFast = (c: Conn): boolean => (o.liveFast ? o.liveFast(c.session) : stillLive(c));
+  const ended = (c: Conn): void => {
+    if (c.closed) return;
+    if (c.inflight > 0) { c.ending = true; return; }
+    close(c, 1008, "auth.session_ended");
+  };
+  /** A frame the Space sends on its own (events, ticks, sync batches, turn text): only to a socket whose session is still live. */
+  const sendLive = (c: Conn, frame: Record<string, unknown>): void => {
+    if (c.closed || c.ending) return;
+    if (!stillLiveFast(c)) { ended(c); return; }
+    send(c, frame);
+  };
 
   async function onCall(c: Conn, f: { id?: unknown; cap?: unknown; input?: unknown; tr?: unknown; v?: unknown }): Promise<void> {
     const id = typeof f.id === "string" || typeof f.id === "number" ? f.id : null;
     if (!o.invoke || typeof f.cap !== "string") { send(c, { t: "res", id, ok: false, error: { code: "validation.bad_input", message: "a call names a capability" } }); return; }
-    if (o.live && !o.live(c.session)) {
+    if (c.ending || !stillLive(c)) {
       send(c, { t: "res", id, ok: false, error: { code: "auth.unauthenticated", message: "This session has ended. Sign in again." } });
-      close(c, 1008, "auth.session_ended");
+      ended(c);
       return;
     }
+    c.inflight++;
     const from = parseTr(f.tr);
     const tracer = createTracer(spans, { ...(from ? { from } : {}), now });
     const log = o.sink?.logger({ space: c.session.space, trace_id: tracer.traceId, actor: c.session.principal.id, device: c.session.device, cap: f.cap });
@@ -258,6 +281,9 @@ export function createLiveHub(o: LiveOptions): LiveHub {
       const err = e instanceof HostError ? e.error : { code: "internal.unexpected", message: "the call failed", traceId: tracer.traceId };
       log?.warn("ws.call.failed", { code: err.code });
       send(c, { t: "res", id, ok: false, error: err, tr: tracer.traceId });
+    } finally {
+      c.inflight--;
+      if (c.ending && c.inflight === 0) close(c, 1008, "auth.session_ended");
     }
   }
 
@@ -265,6 +291,8 @@ export function createLiveHub(o: LiveOptions): LiveHub {
     c.lastSeen = now();
     let f: Record<string, unknown>;
     try { const j: unknown = JSON.parse(text); if (!j || typeof j !== "object" || Array.isArray(j)) throw new Error("not an object"); f = j as Record<string, unknown>; } catch { close(c, 1003, "frames are JSON objects"); return; }
+    // a frame from a session that ended goes nowhere: not to sync's session (a push, a pull) and not to the legacy envelope; a call answers that it ended
+    if (f["t"] !== "call" && !stillLive(c)) { ended(c); return; }
     if (c.link && f["t"] !== "call") { c.link.frame(f); return; }
     switch (f["t"]) {
       case "hello": {
@@ -297,14 +325,14 @@ export function createLiveHub(o: LiveOptions): LiveHub {
       if (!session) { socket.end("HTTP/1.1 401 Unauthorized\r\n\r\n"); return; }
       const accept = crypto.createHash("sha1").update(wsKey + GUID).digest("base64");
       socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
-      const c: Conn = { id: crypto.randomUUID(), session, socket, reader: new FrameReader(), lastSeen: now(), acked: 0, pending: [], closed: false };
+      const c: Conn = { id: crypto.randomUUID(), session, socket, reader: new FrameReader(), lastSeen: now(), acked: 0, pending: [], closed: false, inflight: 0, ending: false };
       // a device holds one live socket: a newer connection replaces the older (the perf budget connection_count), before the hub is told about the new one
       const old = conns.get(key(session));
       if (old) close(old, 4000, "replaced by a newer connection from this device");
       if (o.sync) {
         const frameCbs: Array<(f: unknown) => void> = [], closeCbs: Array<(r: string) => void> = [];
         const sess = o.sync.accept({
-          send: (frame) => send(c, frame as Record<string, unknown>),
+          send: (frame) => sendLive(c, frame as Record<string, unknown>),
           close: (reason) => close(c, reason === "purged" || reason === "auth.device_revoked" ? 4003 : 1000, reason ?? "closed"),
           onFrame: (cb) => { frameCbs.push(cb); },
           onClose: (cb) => { closeCbs.push(cb); },
@@ -346,12 +374,13 @@ export function createLiveHub(o: LiveOptions): LiveHub {
       const last = events[events.length - 1];
       for (const c of conns.values()) {
         if (c.session.space !== space) continue;
-        if (c.link) { if (last) send(c, { t: "changed", seq: last.seq }); continue; }
+        if (c.link) { if (last) sendLive(c, { t: "changed", seq: last.seq }); continue; }
+        if (c.closed || c.ending || !stillLiveFast(c)) { ended(c); continue; }
         for (const e of events) { c.pending.push(e); send(c, eventFrame(e)); }
       }
     },
     poke(space) {
-      for (const c of conns.values()) if (c.session.space === space && c.link) send(c, { t: "changed", seq: o.head?.(space) ?? 0 });
+      for (const c of [...conns.values()]) if (c.session.space === space && c.link) sendLive(c, { t: "changed", seq: o.head?.(space) ?? 0 });
     },
     publishTurn(frame, allow) {
       turnChain = turnChain.then(async () => {
@@ -361,7 +390,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
           const who = c.session.principal.id;
           if (!verdict.has(who)) verdict.set(who, await Promise.resolve(allow(who)).catch(() => false));
         }
-        for (const c of targets) if (verdict.get(c.session.principal.id)) send(c, frame);
+        for (const c of targets) if (verdict.get(c.session.principal.id)) sendLive(c, frame);
       }).catch(() => undefined);
     },
     connections: (space) => [...conns.values()].filter((c) => !space || c.session.space === space).map((c) => ({ device: c.session.device, acked: c.acked, pending: c.pending.length })),
@@ -371,7 +400,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
       let n = 0;
       for (const c of [...conns.values()]) {
         if (c.closed) continue;
-        if ((m.sessionId !== undefined && c.session.sessionId === m.sessionId) || (m.person !== undefined && c.session.principal.id === m.person)) { close(c, 1008, "auth.session_ended"); n++; }
+        if ((m.sessionId !== undefined && c.session.sessionId === m.sessionId) || (m.person !== undefined && c.session.principal.id === m.person)) { ended(c); n++; }
       }
       return n;
     },

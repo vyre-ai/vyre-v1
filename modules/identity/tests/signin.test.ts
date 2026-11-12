@@ -192,7 +192,7 @@ test("pairing: a signed-in device makes a code, another device redeems it once w
   await assert.rejects(handlers["identity.pair_create"](h.anon, { purpose: "app" }), (e) => codeOf(e) === "auth.unauthenticated");
 });
 
-test("sessions: sign out ends one, expiry ends the rest, whoami reports the caller", async () => {
+test("sessions: sign out ends one, age ends none (a Space stays signed in), whoami reports the caller", async () => {
   const h = await world();
   const a = await handlers["identity.sign_in"](h.anon, { username: "maya", password: P.secret, ...DEVICE });
   const b = await handlers["identity.sign_in"](h.anon, { username: "maya", password: P.secret, deviceName: "Phone", deviceClass: "phone" });
@@ -205,8 +205,9 @@ test("sessions: sign out ends one, expiry ends the rest, whoami reports the call
   await handlers["identity.sign_out"](ctxA, {});
   assert.equal(sessionOfToken(h.anon, a.session!.token), undefined);
   assert.ok(sessionOfToken(h.anon, b.session!.token));
+  // lead decision, 12 Nov 2026: sessions end by sign-out, revoke, suspend, remove and password change, never by age; expires_at is read nowhere
   h.advance(31 * 24 * 3_600_000);
-  assert.equal(sessionOfToken(h.anon, b.session!.token), undefined);
+  assert.ok(sessionOfToken(h.anon, b.session!.token), "a session older than 30 days still resolves");
 });
 
 test("a pair code opens only the kind of device it was made for, and a refusal leaves it good for the right one", async () => {

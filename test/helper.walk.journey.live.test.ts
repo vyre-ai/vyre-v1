@@ -154,7 +154,8 @@ test("running helpers: a held request, Change model, a person messaging a helper
       await page.getByTestId("crew-strip").first().waitFor({ timeout: 40_000 }).catch(async (e) => { await guard.check("FAILED-strip"); await shoot(page, `FAILED-strip-${mode}`); throw e; });
       await page.waitForTimeout(4000);
       await shot(`crew-t14-running-${mode}-${size}`);
-      await page.locator('[data-testid^="approval-"]').first().waitFor({ timeout: 40_000 }).catch(() => undefined);
+      // the held request shows in the first (light) pass, which answers it with Allow below; by the dark pass it is answered, so there is no held card to wait for (a 40 s wait for it ran out there)
+      if (mode === "light") await page.locator('[data-testid^="approval-"]').first().waitFor({ timeout: 40_000 }).catch(() => undefined);
       console.log("HELD_CARD", mode, await page.locator('[data-testid^="approval-"]').count());
       await shot(`crew-t27-held-${mode}-${size}`);
       // the header chip and the Crew pane

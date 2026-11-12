@@ -29,3 +29,9 @@ Nothing blocks the freeze. The sample read cleanly: summaries match the declared
 - 39 capabilities carry a gate while their effects are `write`, for example `mail.domain.remove` and `network.server_remove` (gate `delete`). This is intended: the gate applies to destructive inward writes too.
 
 
+
+## 12 Nov 2026: threads.remove_agent is audited always (lane f-revoke)
+
+`threads.remove_agent@1` now has `audit: 'always'`, as `threads.outside_agent.remove` has. Nothing else in its contract changed: same input, output, level, permission, events and errors. Why: since the f-revoke round, taking an agent out of a chat also takes back, as the host, every grant that chat gave it, whoever gave it; the Console's audit log must show who took that access away, as it already does for an outside agent. Snapshot: docs/frozen/snapshots/chat.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+
+Signed: lead, 12 Nov 2026
