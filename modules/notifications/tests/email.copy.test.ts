@@ -48,7 +48,7 @@ test("no sending mailbox when an email was wanted: each admin's Console line say
   h.emailAnswer("no_mailbox");
   await fan(h, "evt_1", "space.deletion_scheduled", { by: alice.id, at: AT });
   await fan(h, "evt_2", "space.deletion_cancelled", { by: alice.id });
-  const said = "Notice email is off: this Space has no sending mailbox, so people see notices in the app only. Set one up in Console, Comms, Sending domains.";
+  const said = "Notice email is off: this Space has no sending mailbox, so people see notices in the app only. Set one up in Console, Messaging, Email, Sending domains.";
   assert.deepEqual(lines(h, alice.id, "health.degraded"), [said]);
   assert.deepEqual(lines(h, bob.id, "health.degraded"), [said]);
   const list = (await h.call("notifications.list", { place: "console" }, as(bob))) as { notifications: Array<{ kind: string; title: string; place: string }> };

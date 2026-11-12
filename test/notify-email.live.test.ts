@@ -71,7 +71,7 @@ test("with no sending mailbox nothing is sent, the reason is recorded as no_mail
     assert.equal(sent.length, 0, "nothing sent");
     await waitFor(async () => { await settle(d); return db().prepare("SELECT 1 AS x FROM notifications_items WHERE person = 'usr_adam' AND kind = 'health.degraded'").all().length > 0 ? true : null; }, 20_000, why(d));
     const lines = db().prepare("SELECT place, title FROM notifications_items WHERE person = 'usr_adam' AND kind = 'health.degraded'").all() as Array<{ place: string; title: string }>;
-    assert.deepEqual(lines.map((l) => ({ ...l })), [{ place: "console", title: "Notice email is off: this Space has no sending mailbox, so people see notices in the app only. Set one up in Console, Comms, Sending domains." }], "what the admin's Console shows, once");
+    assert.deepEqual(lines.map((l) => ({ ...l })), [{ place: "console", title: "Notice email is off: this Space has no sending mailbox, so people see notices in the app only. Set one up in Console, Messaging, Email, Sending domains." }], "what the admin's Console shows, once");
     assert.equal(db().prepare("SELECT COUNT(*) AS n FROM notifications_email_log WHERE outcome = 'sent'").get()!["n"], 0, "never counted as sent");
     await ok(d, "spaces.delete_cancel", {});
   } finally { await d.stop(); }

@@ -201,7 +201,7 @@ async function emailWithRetry(ctx: NotifCtx, msg: NoticeEmail, kind: string, mai
       const said = await Promise.race([p.email(msg), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`no answer in ${emailTiming.tryMs} ms`)), emailTiming.tryMs); })]);
       const outcome: EmailOutcome = said === undefined || said === "sent" ? "sent" : said;
       // the first email that could not go because the Space has no sending mailbox, since the last one that went: admins hear it once, in Console (no standing "degraded" state)
-      if (outcome === "no_mailbox" && lastMailboxOutcome(ctx) !== "no_mailbox") await tellAdmins(ctx, { service: "Notice email", state: "off: this Space has no sending mailbox, so people see notices in the app only. Set one up in Console, Comms, Sending domains." }, "health.degraded:email_notices");
+      if (outcome === "no_mailbox" && lastMailboxOutcome(ctx) !== "no_mailbox") await tellAdmins(ctx, { service: "Notice email", state: "off: this Space has no sending mailbox, so people see notices in the app only. Set one up in Console, Messaging, Email, Sending domains." }, "health.degraded:email_notices");
       record(ctx, msg.to, kind, msg.key, outcome);
       return true;
     } catch (e) {
