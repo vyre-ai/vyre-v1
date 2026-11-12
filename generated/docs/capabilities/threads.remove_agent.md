@@ -14,7 +14,7 @@ Remove an agent from a thread
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |
-| Audit | none |
+| Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/threads/remove_agent |
 | MCP tool | threads_remove_agent (chats) |

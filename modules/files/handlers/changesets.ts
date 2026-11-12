@@ -766,7 +766,7 @@ async function reviewExternally(ctx: Ctx, input: unknown): Promise<{ actorId: st
   // read and comment: Use on the folder, never Edit, so changing files stays behind Approve
   // a fresh part per real add: a key names this one request, so the same pair shared again after a removal is written again (a key of ids alone replayed the first answer)
   const add = globalThis.crypto.randomUUID();
-  await ctx.call("access.share", { idempotencyKey: `changesets.review:${String(cs.id)}:${actorId}:${add}`, resource: { type: "folder", id: String(cs.folder_id) }, subject: { kind: "actor", id: actorId }, level: "use" }, { idempotencyKey: `changesets.review:${String(cs.id)}:${actorId}:${add}` });
+  await ctx.call("access.share", { idempotencyKey: `changesets.review:${String(cs.id)}:${actorId}:${add}`, resource: { type: "folder", id: String(cs.folder_id) }, subject: { kind: "actor", id: actorId }, level: "use", source: `changeset:${String(cs.id)}` }, { idempotencyKey: `changesets.review:${String(cs.id)}:${actorId}:${add}` });
   ctx.db.run("DELETE FROM files_changeset_review WHERE changeset_id = ? AND actor_id = ?", String(cs.id), actorId);
   ctx.db.run("INSERT INTO files_changeset_review (changeset_id, actor_id, opened_at, expires_at) VALUES (?, ?, ?, ?)", String(cs.id), actorId, ctx.now(), expiresAt);
   ctx.emit("changeset.sent_for_review", `entity/${String(cs.id)}`, { changesetId: String(cs.id), actorId });

@@ -427,7 +427,7 @@ test("files.share: the grant is access.share, once, with the file as the resourc
   const { idempotencyKey: shareKey, ...shared } = (kit.calls[0] as { cap: string; input: { idempotencyKey: string } }).input;
   assert.equal(kit.calls[0]!.cap, "access.share");
   assert.match(shareKey, new RegExp(`^files\\.share:${fid}:person:per_sam:edit:[0-9a-f-]{36}$`));
-  assert.deepEqual(shared, { resource: { type: "file", id: fid }, subject: { kind: "person", id: "per_sam" }, level: "edit" });
+  assert.deepEqual(shared, { resource: { type: "file", id: fid }, subject: { kind: "person", id: "per_sam" }, level: "edit", source: "files.share" }, "with a source of its own, so it never changes another plain share");
   await expectCode("validation.not_found", () => handlers["files.share"](kit.ctx, { fileId: "fil_none", subject: { kind: "person", id: "per_sam" }, level: "view" }));
   await expectCode("validation.bad_input", () => handlers["files.share"](kit.ctx, { fileId: fid, level: "view" }));
 });
