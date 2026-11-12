@@ -6,6 +6,7 @@
 // @reads /modules/connectors/migrations/0004_sync_specs.sql
 import { readFileSync } from "node:fs";
 import { mintUuid } from "../../lib/ids.ts";
+import { secretForms } from "../../lib/redact.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import type { Tx } from "../../kernel/src/store/projection.ts";
 
@@ -221,9 +222,9 @@ export function secretsIn(t: unknown, out = new Set<string>()): Set<string> {
 
 // ---- scrubbing ----
 
-/** Replace every occurrence of a secret value (4 characters or more) with ***, in text and in anything JSON-shaped. */
+/** Replace every occurrence of a secret value (4 characters or more), and its base64 and URL-encoded forms, with ***, in text and in anything JSON-shaped. */
 export function scrubber(values: readonly string[]): { text(s: string): string; value<T>(v: T): T } {
-  const list = values.filter((v) => v.length >= 4).sort((a, b) => b.length - a.length);
+  const list = [...new Set(values.flatMap((v) => secretForms(v)))].sort((a, b) => b.length - a.length);
   const text = (s: string): string => list.reduce((acc, v) => acc.split(v).join("***"), s);
   return { text, value: <T>(v: T): T => (list.length ? (JSON.parse(text(JSON.stringify(v ?? null))) as T) : v) };
 }

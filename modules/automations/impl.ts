@@ -12,10 +12,10 @@ import { registry } from "../../generated/registry.ts";
 export { handlers };
 /** The Gate's condition for automations.try_read (host/src/daemon/gate-hook.ts): the host a test read would send a key to, and whether a person approved that host for the item. */
 export { keyHostApproved } from "./key-hosts.ts";
-import { setKeyRefResolver, setPublicBase } from "./key-ref-port.ts";
+import { setKeyRefResolver, setKeyUsableBy, setPublicBase } from "./key-ref-port.ts";
 import { backfillStepHosts } from "./key-steps.ts";
 
-export const hostSeams = { setDocumentNetwork, setConnectorReadSender, setHttpStepHost, setKeyRefResolver, setPublicBase };
+export const hostSeams = { setDocumentNetwork, setConnectorReadSender, setHttpStepHost, setKeyRefResolver, setKeyUsableBy, setPublicBase };
 export { accessDiff, canView, structuralIssues, validateDefinition, webhookSecretMatches } from "./handlers/defs.ts";
 import { acceptHook, adoptRun, consumeEvent, loadRunPlan, startRun } from "./handlers/triggers.ts";
 export { consumeEvent, dropReason, fireOne, loadRunPlan, matches, startRun, triggerPayload } from "./handlers/triggers.ts";

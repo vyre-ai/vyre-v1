@@ -106,6 +106,8 @@ export function createGateHook(d: GateHookDeps): GateHook {
       return g?.granted === true;
     },
     async seen(cap, input, output, seed) {
+      // a person bound a Vault key to a connector and it succeeded: the connector's hosts are approved for that key, by them (the condition checks they may use it)
+      if ((cap.name === "connections.create" || cap.name === "connections.set_secret") && seed.principal.kind === "person" && !seed.step) await d.evaluators?.["automations.after_person_bind"]?.(input, seed);
       if (!seed.thread || seed.principal.kind !== "agent") return;
       if (!bringsOutside(cap.name, cap.effects) && d.fetches?.(cap.name, input) !== true) return;
       const text = typeof (output as { text?: unknown } | null)?.text === "string" ? (output as { text: string }).text : "";
@@ -259,8 +261,10 @@ export function moduleWhens(
       for (const ref of refs) for (const host of domains) await callAs("automations.key_hosts.allow", { vaultItemId: ref, host }, person).catch(() => undefined);
     } catch { /* nothing recorded: the binding's requests then wait for a person at run time */ }
   };
+  // called by the Gate after a person's binding succeeded, never before: only a binding that exists approves its hosts
+  out["automations.after_person_bind"] = async (input, seed) => { if (seed.principal.kind === "person") await personBinds(input, seed.principal.id); return false; };
   out["automations.bind_hosts_unapproved"] = async (input, seed) => {
-    if (seed.principal.kind === "person") { await personBinds(input, seed.principal.id); return false; }
+    if (seed.principal.kind === "person") return false;   // a person's own binding: its hosts are recorded after it succeeds (seen, below)
     const h = db();
     if (!h || typeof approved !== "function") return true;
     const i = (input ?? {}) as { connector?: unknown; secrets?: unknown; connectionId?: unknown; handle?: unknown };

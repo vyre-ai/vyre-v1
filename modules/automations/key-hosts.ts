@@ -1,7 +1,7 @@
 // A Vault key goes only to a host a person approved for that key (owner rule, 12 Nov 2026). The approved hosts live per item: the host of the item's own saved address (its url or website field,
 // and that domain's subdomains, as the Vault's own matcher reads it), plus every host a person who may use the item allowed ("Always allow" on the held test read, or Allow on the item page).
 // Nothing here trusts what an agent wrote: not actionKey, not a connector's domains. The planned host is read from the request the test read would actually send.
-import { approvableHost, keyReadHost } from "../../lib/key-target.ts";
+import { approvableHost, hostCovers, keyReadHost } from "../../lib/key-target.ts";
 
 export interface KeyHostDb {
   all(sql: string, ...args: unknown[]): unknown[];
@@ -31,7 +31,7 @@ export function keyHostsOf(db: KeyHostDb, itemId: string): KeyHost[] {
 /** Approved for this item: listed exactly. A listed host does not cover other hosts; the item's own address covers its subdomains (the Vault's matcher decides that, not this table). */
 export function keyHostApproved(db: KeyHostDb, itemId: string, host: string): boolean {
   const h = normalHost(host);
-  return h !== null && h !== MANAGED && keyHostsOf(db, itemId).some((r) => r.host === h);
+  return h !== null && h !== MANAGED && keyHostsOf(db, itemId).some((r) => hostCovers(r.host, h));
 }
 
 export function allowKeyHost(db: KeyHostDb, itemId: string, host: string, by: string, now: number): void {

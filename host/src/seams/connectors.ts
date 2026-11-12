@@ -17,23 +17,30 @@ const allowed=(host:string,domains:readonly string[])=>domains.some(domain=>doma
 export interface FilledKey{itemId:string;connector:string;connectionId:string}
 export type KeyHostCheck=(keys:readonly FilledKey[],host:string,caller:ConnectorCaller,domains:readonly string[])=>Promise<string|null>;
 export function createConnectorsHost(o:{publicBase():string;own(caller:ConnectorCaller):boolean;network?:ConnectorNetwork;keyHost?:KeyHostCheck}){
- const pending=new Map<string,{caller:ConnectorCaller;binding:SecretBinding;used:boolean;value?:string}>();
- // the Vault items each call (by trace) has had filled: every request that call makes after a fill may reach only hosts approved for those items
- const filled=new Map<string,Map<string,FilledKey>>();
- const remember=(trace:string,key:FilledKey):void=>{const set=filled.get(trace)??new Map<string,FilledKey>();set.set(key.itemId,key);filled.delete(trace);filled.set(trace,set);while(filled.size>512){const oldest=filled.keys().next().value;if(oldest===undefined)break;filled.delete(oldest);}};
+ const pending=new Map<string,{caller:ConnectorCaller;binding:SecretBinding;used:boolean;value?:string;itemId?:string}>();
+ // the Vault items each call has had filled, kept for the life of that call: keyed by the call's own context (its rememberVaultItem, which every copy of the context shares, else the context
+ // object itself), so nothing is ever evicted while the call runs and nothing outlives it
+ const filled=new WeakMap<object,Map<string,FilledKey>>();
+ const callKey=(c:ConnectorCaller):object=>(c.rememberVaultItem as object|undefined)??c;
+ const remember=(c:ConnectorCaller,key:FilledKey):void=>{const k=callKey(c);const set=filled.get(k)??new Map<string,FilledKey>();set.set(key.itemId,key);filled.set(k,set);};
+ const fillItem=async(caller:ConnectorCaller,binding:SecretBinding):Promise<{value:string;itemId:string}>=>{
+   if(pending.size>=128)throw fail('provider.rate_limited',caller.trace.traceId);const ref=`connector:${globalThis.crypto.randomUUID()}`;const entry={caller,binding,used:false} as {caller:ConnectorCaller;binding:SecretBinding;used:boolean;value?:string;itemId?:string};pending.set(ref,entry);let timer:ReturnType<typeof setTimeout>|undefined;
+   try{await Promise.race([caller.call('vault.fill',{handle:binding.handle,target:{kind:'http_header',ref}}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Connector fill timed out.')),30000);timer.unref();})]);if(!entry.used||entry.value===undefined||!entry.itemId)throw new Error('The Vault did not fill this connector.');return {value:entry.value,itemId:entry.itemId};}finally{if(timer)clearTimeout(timer);pending.delete(ref);delete entry.value;}
+  };
  return{
   accepts:(ref:string)=>pending.has(ref),
   sink:(filled:Filled,execution?:FillExecution)=>{
    const entry=pending.get(filled.ref);if(!entry||entry.used||!execution)throw new Error('Connector fill reference is unavailable.');const c=entry.caller;
    const [base,field]=entry.binding.handle.split('.');
    if(execution.space!==c.space||execution.principal.kind!==c.principal.kind||execution.principal.id!==c.principal.id||execution.actingFor!==c.actingFor||execution.traceId!==c.trace.traceId||execution.parentSpanId!==c.trace.spanId||execution.depth!==c.depth+1||filled.handle.toLowerCase()!==base!.toLowerCase()||(field!==undefined&&filled.field!==field))throw new Error('Connector fill context does not match.');
-   entry.used=true;entry.value=filled.value;entry.caller.rememberVaultItem?.(filled.itemId);remember(c.trace.traceId,{itemId:filled.itemId,connector:entry.binding.connector,connectionId:entry.binding.connectionId});
+   entry.used=true;entry.value=filled.value;entry.itemId=filled.itemId;entry.caller.rememberVaultItem?.(filled.itemId);remember(c,{itemId:filled.itemId,connector:entry.binding.connector,connectionId:entry.binding.connectionId});
   },
   publicBase:()=>{const value=new URL(o.publicBase());if(!['http:','https:'].includes(value.protocol)||value.username||value.password)throw new Error('The configured Space address is invalid.');return value.origin;},
   async fill(caller:ConnectorCaller,binding:SecretBinding):Promise<string>{
-   if(pending.size>=128)throw fail('provider.rate_limited',caller.trace.traceId);const ref=`connector:${globalThis.crypto.randomUUID()}`;const entry={caller,binding,used:false} as {caller:ConnectorCaller;binding:SecretBinding;used:boolean;value?:string};pending.set(ref,entry);let timer:ReturnType<typeof setTimeout>|undefined;
-   try{await Promise.race([caller.call('vault.fill',{handle:binding.handle,target:{kind:'http_header',ref}}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Connector fill timed out.')),30000);timer.unref();})]);if(!entry.used||entry.value===undefined)throw new Error('The Vault did not fill this connector.');return entry.value;}finally{if(timer)clearTimeout(timer);pending.delete(ref);delete entry.value;}
+   return (await fillItem(caller,binding)).value;
   },
+  /** The fill, with the id of the item the Vault actually filled (the HTTP step checks where that item may go before it sends). */
+  fillItem:(caller:ConnectorCaller,binding:SecretBinding)=>fillItem(caller,binding),
   async http(caller:ConnectorCaller,domains:readonly string[],raw:string,init?:{method?:string;headers?:Record<string,string>;body?:string}){
    let url:URL;try{url=new URL(raw);}catch{throw fail('validation.bad_input',caller.trace.traceId);}const origin=url.origin;let method=init?.method??'GET',body=init?.body;const headers={...init?.headers};
    if(body&&Buffer.byteLength(body)>5*1024*1024)throw fail('validation.too_large',caller.trace.traceId);
@@ -42,7 +49,7 @@ export function createConnectorsHost(o:{publicBase():string;own(caller:Connector
     let ips:string[];try{ips=await(o.network?.resolve??(async(host:string)=>(await dns.lookup(host,{all:true})).map(row=>row.address)))(url.hostname);}catch{throw fail('provider.network',caller.trace.traceId,{message:'The connector address could not be resolved.'});}
     if(!ips.length||ips.some(ip=>blockedAddress(ip,o.own(caller))!==null))throw fail('permission.no_grant',caller.trace.traceId,{message:'This connector may not reach that network address.'});
     caller.assertAuthorized?.();
-    const keys=filled.get(caller.trace.traceId);
+    const keys=filled.get(callKey(caller));
     if(keys&&keys.size>0){if(!o.keyHost)throw fail('permission.no_grant',caller.trace.traceId,{message:'This server cannot check where a key may go, so the request was not sent.'});const refused=await o.keyHost([...keys.values()],url.hostname.toLowerCase().replace(/\.$/,''),caller,domains);if(refused!==null)throw fail('permission.no_grant',caller.trace.traceId,{message:refused});}
     let result;try{result=await(o.network?.request??request)(url,{ips,method,headers,...(body!==undefined?{body}:{})});}catch{throw fail('provider.network',caller.trace.traceId,{message:'The connector request failed.'});}
     if(Buffer.byteLength(result.text)>5*1024*1024)throw fail('provider.bad_response',caller.trace.traceId,{message:'The connector response is too large.'});

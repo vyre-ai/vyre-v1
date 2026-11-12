@@ -127,7 +127,7 @@ import { createModelFiles } from "../seams/memory-meaning.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { createTelemetryRecorder } from "../seams/telemetry.ts";
 import { connectorReadSender } from "../seams/connector-read.ts";
-import { adoptConnectorHosts, handleOfItem, keyHostListed, personWhoChose, resolveKeyRef } from "../seams/key-ref.ts";
+import { adoptPersonBindings, handleOfItem, keyHostListed, resolveKeyRef } from "../seams/key-ref.ts";
 import type { KeyHostCheck } from "../seams/connectors.ts";
 import { documentPin } from "../seams/document-pin.ts";
 import type { DocumentFetch } from "../seams/document-pin.ts";
@@ -803,16 +803,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const ownNode = (p: string): boolean => cfg.roles.includes("device") || p === ownerOfSpace();
   // a key goes only to a host a person approved for it: the connector port asks this before every request a call makes after a Vault fill (the read as a person is wired once invoke exists)
   let keyHostCallAs: ((cap: string, input: unknown, person: string) => Promise<unknown>) | null = null;
-  const keyHostCheck: KeyHostCheck = async (keys, host, caller, domains) => {
+  // the update's one-time adoption of connector hosts (set once the modules are loaded, run once after the scheduler starts)
+  let adoptBindingsOnce: (() => Promise<void>) | null = null;
+  const keyHostCheck: KeyHostCheck = async (keys, host, caller) => {
     const h = db;
     if (!h) return "The Vault is not open, so the request was not sent.";
     const person = caller.actingFor?.startsWith("usr_") ? caller.actingFor : caller.principal.kind === "person" ? caller.principal.id : undefined;
     for (const k of keys) {
       const id = k.itemId;
       if (keyHostListed(h, id, host)) continue;
-      // the update path adopts a connector's hosts only where the log shows a person chose them (bound the connection or published the connector)
-      const chooser = await personWhoChose(log, k.connectionId, k.connector);
-      if (chooser && adoptConnectorHosts(h as never, id, host, domains, Date.now(), chooser)) continue;
       if (person && keyHostCallAs && await ownAddress(keyHostCallAs, person, id, host)) continue;
       return `${handleOfItem(h, id)} is not allowed to go to ${host}. Allow it on the key's page, or change this step.`;
     }
@@ -1283,6 +1282,28 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         return chain;
       };
       // The Gate hook, only once the Gate module is live (a stub answers with examples, which must never decide a send). Its questions and parked calls run as the Space itself.
+      adoptBindingsOnce = async () => {
+        const h = db;
+        if (!h) return;
+        const flag = "automations.connector_hosts_adopted";
+        try { if (h.all("SELECT 1 AS x FROM automations_policy WHERE policy_key = ?", flag).length > 0) return; } catch { return; }
+        const asPerson = async (cap: string, input: unknown, person: string): Promise<unknown> => {
+          const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "gate" });
+          if (r.status !== "ok") throw new Error(`${cap} did not answer`);
+          return r.output;
+        };
+        try {
+          // every binding, read from the connectors module's own table in the Space store (its list does not carry the handles)
+          const conns = (spaceStore.open().tx.all("SELECT connection_id, connector, secrets FROM cn_connections") as { connection_id: string; connector: string; secrets: string }[]).map((r) => {
+            let handles: string[] = [];
+            try { handles = Object.values(JSON.parse(r.secrets) as Record<string, unknown>).filter((v): v is string => typeof v === "string"); } catch { handles = []; }
+            return { connectionId: r.connection_id, connector: r.connector, handles };
+          });
+          const adopted = await adoptPersonBindings({ db: h, log, connections: conns, domainsOf: async (key) => ((await system("connectors.get", { key })) as { connector?: { domains?: unknown } } | null)?.connector?.domains, usableBy: async (person) => ((await asPerson("vault.items.list", { limit: 500 }, person)) as { items?: { id?: unknown; handle?: unknown; yourLevel?: unknown }[] } | null)?.items ?? [], now: now() });
+          h.run("INSERT OR REPLACE INTO automations_policy (policy_key, policy_value) VALUES (?, ?)", flag, "true");
+          sink.log({ space: spaceId, level: 30, msg: "automations.connector_hosts_adopted", place: "boot", attrs: { adopted } });
+        } catch (e) { sink.log({ space: spaceId, level: 40, msg: "automations.connector_hosts_adopt_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }); }
+      };
       const gate = loaded.serving.get("gate") === "live"
         ? withGateNesting(createGateHook({
           call: async (cap, input, trace) => {
@@ -2236,12 +2257,19 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setConnectorReadSender: (d) => connectorReadSender(d, (ref, asker) => resolveKeyRef(db!, ref, asker)),
         // the same reading of a key reference for the module (the held test read's card names the item a person approves)
         setKeyRefResolver: () => (ref: unknown, asker?: string) => resolveKeyRef(db!, ref, asker),
+        setKeyUsableBy: () => async (person: string) => {
+          const ids = new Map<string, string>();
+          const r = await invoke("vault.items.list", { limit: 500 }, { space: spaceId, principal: { kind: "person", id: person }, origin: "gate" });
+          const items = r.status === "ok" ? ((r.output as { items?: { id?: unknown; handle?: unknown; yourLevel?: unknown }[] } | null)?.items ?? []) : [];
+          for (const i of items) if (typeof i.handle === "string" && typeof i.id === "string" && (i.yourLevel === "use" || i.yourLevel === "edit" || i.yourLevel === "manage")) ids.set(i.handle.toLowerCase(), i.id);
+          return ids;
+        },
         // the web request trigger's address: the Space's own public address. A relay (vyre.run) name is not given: the relay carries only /p/* (forms and sites), never /hooks/
         setPublicBase: () => () => { const p = publicOrigin(); return p && !p.relay ? p.origin : null; },
         // the HTTP request step's key: the Vault fills the handle for one call through the same per-execution port connectors use (access is checked by vault.fill as the Run's principal)
         // Run code runs in bubblewrap under the data directory; where bwrap is missing the step is refused, never run in the daemon
         setCodeHost: () => ({ dataDir: paths.root }),
-        setHttpStepHost: () => ({ fill: (ctx: unknown, handle: string) => connectorPort.fill(ctx as Parameters<typeof connectorPort.fill>[0], { connector: "http_request", connectionId: "step", slot: "auth", handle }) }),
+        setHttpStepHost: () => ({ fill: (ctx: unknown, handle: string) => connectorPort.fillItem(ctx as Parameters<typeof connectorPort.fill>[0], { connector: "http_request", connectionId: "step", slot: "auth", handle }) }),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open(), space: spaceStore.space }, now }),
         ...(o.seams?.drivers ?? {}),
@@ -2813,6 +2841,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   };
   const schedulerUnit = async (): Promise<RunningUnit> => {
     await scheduler.start();
+    // the update's one-time step: a connector a person published, bound to a key by a person who may use it, keeps its hosts; nothing else is adopted, now or at request time
+    void adoptBindingsOnce?.();
     return Promise.resolve({ exited: new Promise<UnitExit>(() => {}), stop: () => scheduler.stop() });
   };
 

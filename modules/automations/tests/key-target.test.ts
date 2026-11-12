@@ -35,3 +35,16 @@ test("an approved host is spelt the same way the request is read", () => {
   assert.equal(approvableHost("[2001:db8::1]"), "[2001:db8::1]");
   assert.equal(approvableHost("not a host"), null);
 });
+
+test("a connector's wildcard domain is kept and covers names under it, as the connector port reads it", async () => {
+  const { approvableHost, hostCovers } = await import("../../../lib/key-target.ts");
+  assert.equal(approvableHost("*.Acme.example"), "*.acme.example");
+  assert.equal(approvableHost("*.com"), null, "a wildcard over a bare top-level name is refused");
+  assert.equal(approvableHost("*."), null);
+  assert.equal(hostCovers("*.acme.example", "api.acme.example"), true);
+  assert.equal(hostCovers("*.acme.example", "a.b.acme.example"), true);
+  assert.equal(hostCovers("*.acme.example", "acme.example"), false, "the wildcard does not cover the name itself");
+  assert.equal(hostCovers("*.acme.example", "evilacme.example"), false);
+  assert.equal(hostCovers("api.acme.example", "api.acme.example"), true);
+  assert.equal(hostCovers("", "x.example"), false);
+});

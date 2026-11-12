@@ -3,8 +3,9 @@
 // The key is a Vault handle. The host fills it for this one call through vault.fill, so the Vault's own access check decides who may use it. The value is put in one request header, then dropped;
 // it is not in the input, the output or the error, and a response that echoes it is scrubbed before the step sees it.
 import { lookup } from "node:dns/promises";
+import { secretForms } from "../../../lib/redact.ts";
 import { documentNetwork } from "../document-network.ts";
-import { assertKeyMayGo } from "../key-run.ts";
+import { assertItemMayGo, assertKeyMayGo } from "../key-run.ts";
 import { requestPublic } from "../public-fetch.ts";
 import type { FetchDeps } from "../public-fetch.ts";
 import { raise } from "../projections.ts";
@@ -12,7 +13,8 @@ import type { AutoCtx } from "../projections.ts";
 
 /** What the host gives this module to fill a Vault handle for one call. The ctx is the capability's own (the host checks it is the same call that asked). */
 export interface HttpStepHost {
-  fill(ctx: AutoCtx, handle: string): Promise<string>;
+  /** The value, with the id of the item the Vault actually filled (the step checks that item's hosts before it sends). */
+  fill(ctx: AutoCtx, handle: string): Promise<{ value: string; itemId: string }>;
 }
 
 let host: HttpStepHost | null = null;
@@ -56,7 +58,7 @@ function buildUrl(ctx: AutoCtx, raw: unknown, query: unknown): string {
 }
 
 /** Fill the key, build the one header it goes in, and report the value so the response can be scrubbed. */
-async function authHeader(ctx: AutoCtx, auth: unknown): Promise<{ name: string; value: string; secret: string } | null> {
+async function authHeader(ctx: AutoCtx, auth: unknown, url: string): Promise<{ name: string; value: string; secret: string } | null> {
   if (auth === undefined || auth === null) return null;
   if (!isRec(auth)) raise(ctx, "validation.bad_input", "Auth must name a kind and a Vault handle.");
   const kind = auth["kind"];
@@ -65,10 +67,13 @@ async function authHeader(ctx: AutoCtx, auth: unknown): Promise<{ name: string; 
   if (typeof handle !== "string" || !/^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/.test(handle)) raise(ctx, "validation.bad_input", "Auth needs a Vault handle such as #Acme_API.");
   if (!host) raise(ctx, "validation.precondition_failed", "This server cannot fill a Vault key for a request yet.");
   let secret: string;
-  try { secret = await host.fill(ctx, handle); } catch (e) {
+  let itemId: string | undefined;
+  try { const f = await host.fill(ctx, handle); secret = f.value; itemId = f.itemId; } catch (e) {
     if ((e as { error?: unknown } | null)?.error) throw e;   // the Vault's own refusal (no access, no such item) goes through as it is
     raise(ctx, "permission.no_grant", "The Vault did not give this request its key.");
   }
+  // the item the Vault filled (not the one this step expected) must be allowed to go to this host; nothing that cannot be checked is sent
+  await assertItemMayGo(ctx, itemId, handle, url);
   if (secret === "") raise(ctx, "validation.precondition_failed", "The Vault item behind that handle is empty.");
   if (kind === "bearer") return { name: "authorization", value: `Bearer ${secret}`, secret };
   if (kind === "basic") {
@@ -83,7 +88,7 @@ async function authHeader(ctx: AutoCtx, auth: unknown): Promise<{ name: string; 
 
 function scrub(text: string, secrets: readonly string[]): string {
   let out = text;
-  for (const s of secrets) if (s.length >= 4) out = out.split(s).join("[hidden]");
+  for (const s of [...secrets].sort((a, b) => b.length - a.length)) if (s.length >= 4) out = out.split(s).join("[hidden]");
   return out;
 }
 
@@ -123,8 +128,9 @@ async function request(ctx: AutoCtx, input: Row, allowed: ReadonlySet<string>, k
   // the key goes only to a host approved for it, whoever saved the step (checked before the Vault is asked)
   const authIn = input["auth"] as { handle?: unknown } | undefined;
   if (authIn && typeof authIn === "object" && typeof authIn.handle === "string") await assertKeyMayGo(ctx, authIn.handle, url);
-  const auth = await authHeader(ctx, input["auth"]);
-  if (auth) { headers[auth.name] = auth.value; secrets.push(auth.secret, auth.value); }
+  const auth = await authHeader(ctx, input["auth"], url);
+  // the value, the header, and the forms an app may echo it in (base64, base64 of "user:key", URL-encoded)
+  if (auth) { headers[auth.name] = auth.value; secrets.push(auth.value, ...secretForms(auth.secret, typeof (input["auth"] as { username?: unknown }).username === "string" ? [String((input["auth"] as { username?: unknown }).username)] : [])); }
   const deps: FetchDeps = documentNetwork() ?? { fetch: globalThis.fetch, lookup: lookupHost };
   // the key's own header, whatever it is called, and any header that holds a Vault value stay on the origin the person wrote: a redirect elsewhere goes without them
   const result = await requestPublic({ method, url, headers, ...(body !== undefined ? { body } : {}), ...(auth ? { secretHeaders: [auth.name], secretValues: secrets } : {}) }, deps);

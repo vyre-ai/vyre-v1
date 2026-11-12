@@ -2,6 +2,7 @@
 // to a host a person approved for that key, so: the agent's binding to unapproved domains waits for a person; a request that carries the key to a host nobody approved is refused at run time
 // with a plain line, whoever saved the step; once a person approves the hosts (or binds the key themselves) the request goes.
 import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -11,7 +12,7 @@ import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
-import type { DaemonOptions } from "../src/daemon/daemon.ts";
+import type { Daemon, DaemonOptions } from "../src/daemon/daemon.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 const OWNER = "tok-usr_olivia";
@@ -25,7 +26,7 @@ test("a connector request carries a Vault key only to hosts a person approved fo
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
   core.close();
-  const d = await startDaemon({
+  const boot = (): Promise<Daemon> => startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({ os: "linux", hostname: "connector-hosts", free: 80e9, commands: {
       [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" }, "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
@@ -44,6 +45,7 @@ test("a connector request carries a Vault key only to hosts a person approved fo
     },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
   } as DaemonOptions);
+  let d = await boot();
   const post = async (who: string, cap: string, body: Record<string, unknown>) => {
     const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${who}` }, body: JSON.stringify({ idempotencyKey: `${cap}-${Math.random()}`, ...body }), signal: AbortSignal.timeout(8_000) });
     const text = await r.text();
@@ -90,17 +92,15 @@ test("a connector request carries a Vault key only to hosts a person approved fo
     assert.equal(again.status, 200, again.text.slice(0, 300));
     assert.deepEqual(sent.filter((s) => s.key).map((s) => s.host), ["collect.attacker.example"]);
 
-    // 4. the update path: a binding made before keys had approved hosts (no row at all for the key) keeps working; its connector's domains are adopted once and then govern
+    // 4. nothing is adopted at request time: a key with no list at all (as before the update) is refused, and the table gains no row
     d.db!.run("DELETE FROM automations_key_hosts");
     const legacy = await post(OWNER, "connectors.run", { key: "evilapp", action: "list", connectionId, input: {} });
-    assert.equal(legacy.status, 200, `a pre-update binding still runs: ${legacy.text.slice(0, 300)}`);
-    assert.deepEqual(((await post(OWNER, "automations.key_hosts.list", { itemId: handle })).data["hosts"] as { host: string }[]).map((h) => [h.host]), [["collect.attacker.example"]]);
-    assert.equal((await post(OWNER, "automations.key_hosts.remove", { itemId: handle, host: "collect.attacker.example" })).status, 200);
-    const after = await post(OWNER, "connectors.run", { key: "evilapp", action: "list", connectionId, input: {} });
-    assert.match(after.text, /is not allowed to go to collect\.attacker\.example/, "a removal is never undone by the update path");
+    assert.match(legacy.text, /is not allowed to go to collect\.attacker\.example/, `no adoption at request time: ${legacy.text.slice(0, 300)}`);
+    assert.equal((d.db!.all("SELECT 1 AS x FROM automations_key_hosts") as unknown[]).length, 0, "the request added no row");
 
-    // 5. the update path adopts only what a person chose: a connector an agent published and a binding an agent made (its hold approved the old way, saving no host) are never adopted
-    const key2 = await post(OWNER, "vault.item.put", { folderId: String((folder.data["folder"] as { id?: string }).id), name: "Otherkey", kind: "api_key", fields: [{ key: "api_key", value: SECRET }] });
+    // 5. the update's one-time step adopts only a binding a person made, on a connector a person published, for a key that person may use
+    const fid = String((folder.data["folder"] as { id?: string }).id);
+    const key2 = await post(OWNER, "vault.item.put", { folderId: fid, name: "Otherkey", kind: "api_key", fields: [{ key: "api_key", value: SECRET }] });
     const handle2 = String((key2.data["item"] as { handle?: string }).handle);
     assert.equal((await post(AGENT, "connectors.init", { key: "agentapp", title: "Agent app", mode: "api", source: false })).status, 200);
     assert.equal((await post(AGENT, "connectors.define", { key: "agentapp", title: "Agent app", domains: ["take.attacker.example"], auth: { type: "api_key", header: "X-Api-Key", prefix: "", secret: "api_key" }, secrets: [{ name: "api_key", description: "key" }], actions: [{ name: "list", method: "GET", url: "https://take.attacker.example/v1/items" }] })).status, 200);
@@ -115,11 +115,35 @@ test("a connector request carries a Vault key only to hosts a person approved fo
       if (agentConn === "") await new Promise((r) => setTimeout(r, 100));
     }
     assert.notEqual(agentConn, "", "the approved binding exists");
-    d.db!.run("DELETE FROM automations_key_hosts");
+    // a person's own connector, published and bound by them
+    const key3 = await post(OWNER, "vault.item.put", { folderId: fid, name: "Goodkey", kind: "api_key", fields: [{ key: "api_key", value: SECRET }] });
+    const handle3 = String((key3.data["item"] as { handle?: string }).handle);
+    assert.equal((await post(OWNER, "connectors.init", { key: "goodapp", title: "Good app", mode: "api", source: false })).status, 200);
+    assert.equal((await post(OWNER, "connectors.define", { key: "goodapp", title: "Good app", domains: ["api.good.example"], auth: { type: "api_key", header: "X-Api-Key", prefix: "", secret: "api_key" }, secrets: [{ name: "api_key", description: "key" }], actions: [{ name: "list", method: "GET", url: "https://api.good.example/v1/items" }] })).status, 200);
+    assert.equal((await post(OWNER, "connectors.publish", { key: "goodapp" })).data["published"], true);
+    const good = await post(OWNER, "connections.create", { connector: "goodapp", title: "Good", ownerKind: "space", secrets: { api_key: `${handle3}.api_key` } });
+    assert.equal(good.status, 200, good.text);
+    const goodConn = String((good.data["connection"] as { connectionId?: string }).connectionId);
+    await d.stop();
+    // the data the last release left: no approved hosts for any key, and the one-time step never ran
+    const modules = new DatabaseSync(path.join(dir, "modules.db"));
+    modules.exec("DELETE FROM automations_key_hosts");
+    modules.prepare("DELETE FROM automations_policy WHERE policy_key = ?").run("automations.connector_hosts_adopted");
+    modules.close();
+    d = await boot();
+    const hostsOf = async (h: string) => (((await post(OWNER, "automations.key_hosts.list", { itemId: h })).data["hosts"] as { host: string; by: string }[] | undefined) ?? []).map((x) => [x.host, x.by]);
+    let adopted: string[][] = [];
+    for (let i = 0; i < 60 && adopted.length === 0; i++) { adopted = await hostsOf(handle3); if (adopted.length === 0) await new Promise((r) => setTimeout(r, 150)); }
+    assert.deepEqual(adopted, [["api.good.example", "usr_olivia"]], "a person's binding on a person's connector keeps its host, recorded as that person");
+    assert.deepEqual(await hostsOf(handle2), [], "an agent's binding on an agent's connector is not adopted");
+    assert.deepEqual(await hostsOf(handle), [], "a person's binding on an agent's connector is not adopted");
     const before2 = sent.filter((s) => s.key).length;
+    assert.equal((await post(OWNER, "connectors.run", { key: "goodapp", action: "list", connectionId: goodConn, input: {} })).status, 200);
     const notAdopted = await post(OWNER, "connectors.run", { key: "agentapp", action: "list", connectionId: agentConn, input: {} });
-    assert.match(notAdopted.text, /is not allowed to go to take\.attacker\.example/, `an agent's choice is not adopted: ${notAdopted.text.slice(0, 300)}`);
-    assert.equal(sent.filter((s) => s.key).length, before2, "the key did not go");
+    assert.match(notAdopted.text, /is not allowed to go to take\.attacker\.example/, `an agent's choice is refused after the update: ${notAdopted.text.slice(0, 300)}`);
+    assert.match((await post(OWNER, "connectors.run", { key: "evilapp", action: "list", connectionId, input: {} })).text, /is not allowed to go to collect\.attacker\.example/);
+    assert.deepEqual(sent.filter((s) => s.key).slice(before2).map((s) => s.host), ["api.good.example"], "the key went only to the adopted host");
+    assert.deepEqual(await hostsOf(handle2), [], "the refused run added no row");
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });

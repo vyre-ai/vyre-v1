@@ -11,3 +11,8 @@ export function keyRefResolver(): Resolve | null { return current; }
 let publicBase: (() => string | null) | null = null;
 export function setPublicBase(next: (() => string | null) | null): void { publicBase = next; }
 export function hookBase(): string | null { try { return publicBase ? publicBase() : null; } catch { return null; } }
+
+/** The Vault items a person may use (handle, lower case, to item id), asked as that person: the update's backfill records a step's host only for a key its publisher may use. */
+let usableBy: ((person: string) => Promise<ReadonlyMap<string, string>>) | null = null;
+export function setKeyUsableBy(next: ((person: string) => Promise<ReadonlyMap<string, string>>) | null): void { usableBy = next; }
+export function keyUsableBy(): ((person: string) => Promise<ReadonlyMap<string, string>>) | null { return usableBy; }

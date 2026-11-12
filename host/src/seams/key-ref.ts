@@ -3,6 +3,7 @@
 // approved is the item whose key goes out. An item id is accepted only when its handle leads back to that same item for this asker. A name, an alias or anything unclear resolves to nothing, and a
 // caller must then refuse or hold.
 
+import { approvableHost, hostCovers } from "../../../lib/key-target.ts";
 export interface KeyRef { id: string; handle: string; name: string; field?: string }
 
 const HANDLE = /^#([A-Za-z0-9_]+)(?:\.([A-Za-z0-9_]+))?$/;
@@ -41,43 +42,54 @@ export function resolveKeyRef(db: { all(sql: string, ...a: unknown[]): unknown[]
 /** Has a person approved `host` for this item (automations_key_hosts)? A table that is not there yet approves nothing. */
 export function keyHostListed(db: { all(sql: string, ...a: unknown[]): unknown[] }, itemId: string, host: string): boolean {
   if (host === "") return false;
-  try { return db.all(`SELECT 1 AS x FROM automations_key_hosts WHERE item_id = ? AND host = ?`, itemId, host).length > 0; } catch { return false; }
+  try { return (db.all(`SELECT host FROM automations_key_hosts WHERE item_id = ? AND host != ''`, itemId) as { host: string }[]).some((r) => hostCovers(r.host, host)); } catch { return false; }
 }
+
+type Log = { read(q: { type?: string; entity?: string; entity_id?: string; limit?: number }): Promise<{ actor?: string }[]> } | null;
+const isPerson = (a: unknown): a is string => typeof a === "string" && a.startsWith("usr_");
 
 /**
- * The update path (lead, 12 Nov): a key whose list nobody has kept yet (no marker row, which an approval or a removal leaves) was in use before hosts were approved per key. Its
- * connector's declared domains are approved once, attributed to the person who made that choice (the caller passes them only when one did), so what a person set up before keeps working; from then on the
- * list governs. Returns whether `host` is now approved.
+ * The update's one-time step (review, third look): a connection made before keys had approved hosts keeps its connector's hosts only where people chose them all: a PERSON created the connection
+ * (connection.created, audited, carries the actor), a PERSON published the connector's live version (connector.published), and the person who bound it may use the key. Then each declared domain is
+ * recorded as approved for that key, by that person. Anything else is never adopted: its next request is refused with the plain line and waits for a person. Nothing is adopted at request time.
  */
-export function adoptConnectorHosts(db: { all(sql: string, ...a: unknown[]): unknown[]; run?(sql: string, ...a: unknown[]): unknown }, itemId: string, host: string, domains: readonly string[], now: number, by = "update"): boolean {
-  try {
-    // a key whose list people have kept (the marker row an approval or a removal leaves) is never filled again
-    if (!db.run || db.all(`SELECT 1 AS x FROM automations_key_hosts WHERE item_id = ? AND host = ''`, itemId).length > 0) return false;
-    const hosts = domains.map((d) => d.toLowerCase().replace(/\.$/, "")).filter((d) => d !== "");
-    if (!hosts.includes(host)) return false;
-    for (const h of [...hosts, ""]) db.run(`INSERT OR IGNORE INTO automations_key_hosts (item_id, host, by, at) VALUES (?, ?, ?, ?)`, itemId, h, by, now);
-    return true;
-  } catch { return false; }
+export async function adoptPersonBindings(o: {
+  db: { all(sql: string, ...a: unknown[]): unknown[]; run(sql: string, ...a: unknown[]): unknown };
+  log: Log;
+  connections: readonly { connectionId?: unknown; connector?: unknown; handles?: unknown }[];
+  domainsOf(connector: string): Promise<unknown>;
+  usableBy(person: string): Promise<readonly { id?: unknown; handle?: unknown; yourLevel?: unknown }[]>;
+  now: number;
+}): Promise<number> {
+  if (!o.log) return 0;
+  let adopted = 0;
+  for (const c of o.connections) {
+    if (typeof c.connectionId !== "string" || typeof c.connector !== "string" || !Array.isArray(c.handles)) continue;
+    const binder = (await o.log.read({ type: "connection.created", entity: "connection", entity_id: c.connectionId, limit: 10 })).map((e) => e.actor).find(isPerson);
+    if (!binder) continue;
+    const published = await o.log.read({ type: "connector.published", entity: "connector", entity_id: c.connector, limit: 500 });
+    if (!isPerson(published[published.length - 1]?.actor)) continue;
+    const domains = await o.domainsOf(c.connector);
+    if (!Array.isArray(domains)) continue;
+    const usable = await o.usableBy(binder);
+    for (const h of c.handles) {
+      if (typeof h !== "string") continue;
+      const base = h.replace(/\.[A-Za-z][A-Za-z0-9_]*$/, "").toLowerCase();
+      const item = usable.find((u) => typeof u.handle === "string" && u.handle.toLowerCase() === base && typeof u.yourLevel === "string" && ["use", "edit", "manage"].includes(u.yourLevel));
+      if (!item || typeof item.id !== "string") continue;
+      for (const d of domains) {
+        if (typeof d !== "string") continue;
+        const host = approvableHost(d);
+        if (host === null) continue;
+        o.db.run(`INSERT OR IGNORE INTO automations_key_hosts (item_id, host, by, at) VALUES (?, ?, ?, ?)`, item.id, host, binder, o.now);
+        adopted += 1;
+      }
+    }
+  }
+  return adopted;
 }
-
 /** The handle of an item, for a line a person reads; "this key" when it is not found. */
 export function handleOfItem(db: { all(sql: string, ...a: unknown[]): unknown[] }, itemId: string): string {
   try { const r = db.all(`SELECT "handle" FROM vault_meta WHERE "id" = ?`, itemId)[0] as { handle?: unknown } | undefined; return typeof r?.handle === "string" ? r.handle : "This key"; } catch { return "This key"; }
 }
 
-/**
- * Who made the choice that a key goes to this connector's hosts, from the event log: the person who bound the connection (connection.created), else the person who published the connector
- * (connector.published, the latest). Null when the log shows no person did either (an agent bound it and an agent published it): such hosts are never adopted, they wait for a person.
- */
-export async function personWhoChose(log: { read(q: { type?: string; entity?: string; entity_id?: string; limit?: number }): Promise<{ actor?: string }[]> } | null, connectionId: string, connector: string): Promise<string | null> {
-  if (!log) return null;
-  const person = (a: unknown): a is string => typeof a === "string" && a.startsWith("usr_");
-  try {
-    const bound = await log.read({ type: "connection.created", entity: "connection", entity_id: connectionId, limit: 10 });
-    const binder = bound.map((e) => e.actor).find(person);
-    if (binder) return binder;
-    const published = await log.read({ type: "connector.published", entity: "connector", entity_id: connector, limit: 200 });
-    const last = published[published.length - 1]?.actor;
-    return person(last) ? last : null;
-  } catch { return null; }
-}

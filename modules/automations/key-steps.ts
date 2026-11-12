@@ -5,7 +5,7 @@ import { isTrustedService } from "../../lib/trust.ts";
 import { hostOfUrl } from "../../lib/key-target.ts";
 import { allowKeyHost, keyHostApproved } from "./key-hosts.ts";
 import type { KeyHostDb } from "./key-hosts.ts";
-import { keyRefResolver } from "./key-ref-port.ts";
+import { keyRefResolver, keyUsableBy } from "./key-ref-port.ts";
 import { allAutomations, raise } from "./projections.ts";
 import type { AutoCtx, Definition } from "./projections.ts";
 
@@ -91,7 +91,8 @@ export async function guardKeySteps(ctx: AutoCtx, before: Definition | undefined
 }
 
 /** The literal host each key-bearing HTTP step sends to, recorded as approved for its key by the person saving (`ids`: their usable keys, handle to item id). */
-export function recordStepHosts(ctx: AutoCtx, nodes: readonly Node[], ids: ReadonlyMap<string, string>, by = ctx.principal.id, marker = true): void {
+export function recordStepHosts(ctx: AutoCtx, nodes: readonly Node[], ids: ReadonlyMap<string, string>, by = ctx.principal.id, marker = true): number {
+  let n0 = 0;
   for (const n of nodes) {
     const input = n.input as Record<string, unknown> | undefined;
     const auth = input?.["auth"] as { handle?: unknown } | undefined;
@@ -101,7 +102,9 @@ export function recordStepHosts(ctx: AutoCtx, nodes: readonly Node[], ids: Reado
     if (host === null || itemId === undefined) continue;
     if (marker) allowKeyHost(ctx.db as unknown as KeyHostDb, itemId, host, by, ctx.now());
     else (ctx.db as unknown as KeyHostDb).run(`INSERT OR IGNORE INTO automations_key_hosts (item_id, host, by, at) VALUES (?, ?, ?, ?)`, itemId, host, by, ctx.now());
+    n0 += 1;
   }
+  return n0;
 }
 
 /** The keys the caller may use, handle (lower case, #Name) to item id. */
@@ -149,24 +152,22 @@ const BACKFILLED = "automations.key_hosts_backfilled";
  */
 export async function backfillStepHosts(ctx: AutoCtx): Promise<number> {
   if (ctx.db.all("SELECT 1 AS x FROM automations_policy WHERE policy_key = ?", BACKFILLED).length > 0) return 0;
-  const resolve = keyRefResolver();
-  if (!resolve) return 0;   // the host's reading of keys is not wired yet: the next tick tries again
+  const usable = keyUsableBy();
+  if (!keyRefResolver() || !usable) return 0;   // the host's reading of keys is not wired yet: the next tick tries again
   let done = 0;
+  // only Automations that are on, from the version that runs (the one turned on, or saved while on), and only when a person saved that version and may use the key. Anything else is not
+  // recorded: its next Run refuses the step with the plain line and the key's page offers Allow to someone who may use it.
   for (const a of allAutomations(ctx.db)) {
-    const versions = (ctx.db.all("SELECT n, by_who, definition FROM automations_versions WHERE automation_id = ? ORDER BY n DESC", a.id) as { n: number; by_who: string; definition: string }[])
-      .map((v) => { let def: Definition | null = null; try { def = JSON.parse(v.definition) as Definition; } catch { def = null; } return { by: v.by_who, def }; });
-    for (const n of a.definition.nodes) {
-      const handle = ((n.input as Record<string, unknown> | undefined)?.["auth"] as { handle?: unknown } | undefined)?.handle;
-      if (n.key !== "http_request" || typeof handle !== "string") continue;
-      // the newest version holding this exact step decides who chose its host
-      const chose = versions.find((v) => v.def?.nodes?.some((p) => sameStep(p, n)));
-      const who = chose?.by;
-      if (typeof who !== "string" || !who.startsWith("usr_")) continue;
-      const ref = resolve(handle, who);
-      if (!ref) continue;
-      recordStepHosts(ctx, [n], new Map([[itemOf(handle), ref.id]]), who, false);
-      done += 1;
-    }
+    if (a.status !== "on") continue;
+    const v = (ctx.db.all("SELECT by_who, definition FROM automations_versions WHERE automation_id = ? AND n = ?", a.id, a.version) as { by_who: string; definition: string }[])[0];
+    if (!v || typeof v.by_who !== "string" || !v.by_who.startsWith("usr_")) continue;
+    let def: Definition | null = null;
+    try { def = JSON.parse(v.definition) as Definition; } catch { def = null; }
+    const steps = (def?.nodes ?? []).filter((n) => a.definition.nodes.some((cur) => sameStep(cur, n)));
+    if (steps.length === 0) continue;
+    let ids: ReadonlyMap<string, string>;
+    try { ids = await usable(v.by_who); } catch { continue; }
+    done += recordStepHosts(ctx, steps, ids, v.by_who, false);
   }
   ctx.db.run("INSERT OR REPLACE INTO automations_policy (policy_key, policy_value) VALUES (?, ?)", BACKFILLED, "true");
   return done;

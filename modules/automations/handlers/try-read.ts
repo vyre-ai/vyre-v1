@@ -108,7 +108,9 @@ export async function tryConnectorRead(ctx: AutoCtx, input: unknown): Promise<{ 
   let status: number | undefined;
   let failed: Failed | undefined;
   const sender = readSender;
-  const outcome = await runSafeTest(planned.plan, async (plan) => { const r = await sender({ ...plan, ...(fields.header ? { header: fields.header } : {}), ...(fields.prefix !== undefined ? { prefix: fields.prefix } : {}) }, ctx.actingFor ?? ctx.principal?.id, documentNetwork()); status = r.status; failed = r.failed; return r; });
+  // the same asker the Gate's hold used (key_host_unapproved): the person an agent acts for, or the person themselves; an agent acting for no one reads Shared only, at the hold and at the send
+  const asker = ctx.actingFor?.startsWith("usr_") ? ctx.actingFor : ctx.principal?.kind === "person" ? ctx.principal.id : undefined;
+  const outcome = await runSafeTest(planned.plan, async (plan) => { const r = await sender({ ...plan, ...(fields.header ? { header: fields.header } : {}), ...(fields.prefix !== undefined ? { prefix: fields.prefix } : {}) }, asker, documentNetwork()); status = r.status; failed = r.failed; return r; });
   // the status the app answered, so the person sees "401" and not only "did not succeed"; 0 means the request never got an answer
   const answered = status !== undefined && status > 0 ? { status } : {};
   if (outcome.level === "tested") {

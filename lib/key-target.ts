@@ -31,6 +31,15 @@ export function keyReadHost(input: unknown): string | null {
 
 /** A host as a person approves it: a DNS name or an IP literal, in the spelling hostOfUrl gives. Null otherwise. */
 export function approvableHost(raw: string): string | null {
-  const h = hostOfUrl(`https://${raw.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "")}/`);
-  return h;
+  const bare = raw.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+  // a connector's "*.x.com" (its declared format) stays a wildcard: it covers every name under x.com, not x.com itself, as the connector port reads it
+  if (bare.startsWith("*.")) { const rest = hostOfUrl(`https://${bare.slice(2)}/`); return rest !== null && rest.includes(".") && !rest.startsWith("[") ? `*.${rest}` : null; }
+  return hostOfUrl(`https://${bare}/`);
+}
+
+/** Does a listed host cover this host: the same name, or a "*.x.com" wildcard over a name under x.com (the connector port's rule). */
+export function hostCovers(listed: string, host: string): boolean {
+  if (listed === "" || host === "") return false;
+  if (listed.startsWith("*.")) return host.endsWith(listed.slice(1)) && host.length > listed.length - 1;
+  return listed === host;
 }
