@@ -8,7 +8,7 @@
 // plus the id minting and the period keys the handlers share. Every statement names an engine_* table, which is all ctx.db lets a module touch.
 // The migration file is the one source of the schema: ensure() runs it statement by statement (all IF NOT EXISTS), so a handler call on a fresh database works.
 import { readFileSync } from "node:fs";
-import { fail } from "../../host/src/routes/errors.ts";
+import { fail, keptForRestart } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
 import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import { LEASE_TTL_MS } from "../../agent/src/turn-engine/lease.ts";
@@ -57,11 +57,17 @@ export function bindEngine(engine: TurnEngine | null): void { bound = engine; }
  * delivered again after the restart.
  */
 let stopping = false;
-export const setEngineStopping = (v: boolean): void => { stopping = v; };
+/** Whose databases the stopping engine served (EngineHostSeam.ours): where two daemons share the process, the one that keeps running is not held up by the other's stop. */
+let stoppingOurs: ((db: unknown) => boolean) | null = null;
+export const setEngineStopping = (v: boolean, ours?: (db: unknown) => boolean): void => { stopping = v; stoppingOurs = v ? ours ?? null : null; };
 export const engineStopping = (): boolean => stopping;
-/** Called by an engine consumer that finds no engine: while the server is stopping the event must be kept for the next start, never skipped. */
-export function keepForRestart(): void {
-  if (stopping) throw new Error("The engine is stopping, so this event is kept and delivered again when the server is back.");
+/**
+ * Called by an engine consumer before it does anything, and again where it finds no engine: while the server is stopping the event must be kept for the next start, never skipped. It throws the
+ * host's kept error (internal.unavailable, reason kept_for_restart), which the hook runner does not count as a failed try, so no number of passes during one shutdown can turn it into a skip.
+ * Call it before the consumer's first side effect (a claim, a post, a deleted row): the event is delivered again in full.
+ */
+export function keepForRestart(ctx?: Pick<EngineCtx, "trace"> & Partial<Pick<EngineCtx, "db">>): void {
+  if (stopping && !(stoppingOurs && ctx?.db && !stoppingOurs(ctx.db))) throw keptForRestart(ctx?.trace.traceId ?? "0".repeat(32), "The engine is stopping, so this event is kept and delivered again when the server is back.");
 }
 /** The engine on this host, or null where none runs. */
 export const engineIfBound = (): TurnEngine | null => bound;

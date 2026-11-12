@@ -73,6 +73,8 @@ export function entryFor(place: PlaceId, hash: string): Entry {
   if (t.screen === "tasks.page" && t.args.taskId) return { tab: "chats", screen: `task:${t.args.taskId}` };
   // the replies I follow sit on the Chats tab's history, like Tasks (a link to the old Threads page arrives here too)
   if (t.screen === "inbox.replies") return { tab: "chats", screen: "replies:list", title: "Replies" };
+  // New project (the Projects + in Chats, Search) keeps its request on the phone too: Records opens on Projects with a new row (owner walk review O3)
+  if (place === "records" && t.screen === "records.projects") return { tab: "records", screen: `rscreen:${encodeURIComponent(hash)}`, title: "Projects" };
   if (t.subject) return { tab: tabOf(place), screen: `${t.subject.type}:${t.subject.id}` };
   if ((TAB_PLACES as readonly string[]).includes(place)) return { tab: place as TabId, screen: place };
   if (place === "settings") return { tab: "you", screen: "you:settings", title: "Settings" };
@@ -93,6 +95,9 @@ export function placeOf(e: Entry): { place: PlaceId; hash: string } | null {
   if (kind === "desktop") return null;
   if (kind === "apps" || kind === "vault") {
     try { return { place: kind, hash: decodeURIComponent(e.screen.slice(i + 1)) }; } catch { return null; }
+  }
+  if (kind === "rscreen") {
+    try { return { place: "records", hash: decodeURIComponent(e.screen.slice(i + 1)) }; } catch { return null; }
   }
   if (kind === "ask") {
     try { return { place: "chats", hash: decodeURIComponent(e.screen.slice(i + 1)) }; } catch { return null; }

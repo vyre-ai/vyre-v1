@@ -24,6 +24,9 @@ export interface BrowserStreamDeps {
   /** Does this person still hold the controls of this agent's browser? */
   mayInput(agentId: string, personId: string): Promise<boolean>;
   now?: () => number;
+  /** How often a view is pinged, and how long one that answers nothing (or a MJPEG view that takes no frames) is kept before it is closed. Default 10 s and 30 s. */
+  pingMs?: number;
+  deadMs?: number;
 }
 
 export interface BrowserStream {
@@ -40,8 +43,13 @@ function plain(res: http.ServerResponse, status: number, code: string, message: 
 }
 const refuseUpgrade = (socket: Duplex, status: string): void => { socket.end(`HTTP/1.1 ${status}\r\nconnection: close\r\n\r\n`); };
 
+// A view counts only while it is alive (second look D, 12 Nov): the holder's own open view keeps a takeover going (sbrowser/hold.ts), so a view whose other end went away (a closed laptop, a proxy that keeps
+// the connection) must close here, or it would hold the agent's browser for good. A WebSocket view is pinged and closed when nothing came back for deadMs; a MJPEG view that takes no frame for deadMs
+// (its socket is full) is closed too. Closing it closes the view in the browser service, which then counts one view fewer.
 export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
   const now = deps.now ?? Date.now;
+  const PING_MS = deps.pingMs ?? 10_000;
+  const DEAD_MS = deps.deadMs ?? 30_000;
   let views = 0;
 
   function mjpeg(req: http.IncomingMessage, res: http.ServerResponse, agentId: string): void {
@@ -60,12 +68,14 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
       if (!up.ok || !up.body) { finish(); return plain(res, 502, "provider.unavailable", "The browser did not open its view."); }
       res.writeHead(200, { "content-type": up.headers.get("content-type") ?? "multipart/x-mixed-replace", "cache-control": "no-store", connection: "close" });
       const reader = up.body.getReader();
+      let behindSince = 0;
       try {
         for (;;) {
           const { value, done: end } = await reader.read();
           if (end || done) break;
-          // a viewer that is behind sees fewer frames, never old ones
-          if (res.writableLength > 2 * 1024 * 1024) continue;
+          // a viewer that is behind sees fewer frames, never old ones; one that has taken nothing for DEAD_MS is gone
+          if (res.writableLength > 2 * 1024 * 1024) { if (behindSince === 0) behindSince = now(); else if (now() - behindSince >= DEAD_MS) break; continue; }
+          behindSince = 0;
           res.write(value);
         }
       } catch { /* the viewer left or the browser closed it */ }
@@ -90,9 +100,16 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
       const peer: Peer | null = accept(req, sock, head, MAX_VIEWER_MESSAGE);
       if (!peer) { release(); try { up.close(); } catch { /* gone */ } return; }
       let inputOk = { at: 0, ok: false };
+      // alive or closed: pinged every PING_MS, closed when nothing came back for DEAD_MS
+      const alive = setInterval(() => {
+        if (!peer.open) { clearInterval(alive); return; }
+        if (peer.heardAt && Date.now() - peer.heardAt() >= DEAD_MS) { clearInterval(alive); peer.close(1001); try { up.close(); } catch { /* gone */ } release(); return; }
+        peer.ping?.();
+      }, PING_MS);
+      (alive as { unref?: () => void }).unref?.();
       up.addEventListener("message", (ev: MessageEvent) => { if (typeof ev.data === "string") peer.send(ev.data); else peer.send(new Uint8Array(ev.data as ArrayBuffer)); });
       up.addEventListener("close", () => { peer.close(1000); release(); });
-      peer.onClose(() => { release(); try { up.close(); } catch { /* gone */ } });
+      peer.onClose(() => { clearInterval(alive); release(); try { up.close(); } catch { /* gone */ } });
       peer.onMessage((data, binary) => {
         if (binary) return;
         const text = data.toString("utf8");

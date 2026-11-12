@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Card } from "../../../../../../ui/src/Card/index.tsx";
 import { LiveScreen } from "../computer/LiveScreen.tsx";
+import { BrowserLive } from "../rightpane/BrowserLive.tsx";
 
 export interface LiveCardConfig {
   call(cap: string, input: unknown): Promise<unknown>;
@@ -20,7 +21,18 @@ export interface LiveCardConfig {
 const POLL_MS = 5000;
 const LIVE = new Set(["working", "takeover"]);
 
-export function LiveCard({ computerId, fileId, caption, id, cfg }: { computerId: string; fileId: string; caption: string; id: string; cfg: LiveCardConfig }): ReactElement {
+/** The state of an agent's profile in the Space browser, in the words the card uses for a computer: working while the agent uses it, takeover while a person has it, asleep otherwise. */
+export function browserState(row: { running?: boolean; busy?: boolean; takeoverBy?: string } | undefined): string {
+  if (!row) return "asleep";
+  if (row.takeoverBy) return "takeover";
+  return row.running && row.busy ? "working" : "asleep";
+}
+
+/**
+ * One card for both places an agent works: its computer (`computerId`, a `screenshot` block) and its profile in the Space browser (`agentId`, a `browser_screenshot` block, f-wire 12 Nov). The state
+ * is read from computers.get or computers.browser.profiles, the live view is the computer's screen or the browser's, and the picture once it is over is the block's own frame in Files.
+ */
+export function LiveCard({ computerId, agentId, fileId, caption, id, cfg }: { computerId?: string | undefined; agentId?: string | undefined; fileId: string; caption: string; id: string; cfg: LiveCardConfig }): ReactElement {
   const [state, setState] = useState<string | null>(null);
   const [still, setStill] = useState<string | null>(null);
   // the config is rebuilt with the page; the card reads it as it is and looks again only for another computer
@@ -30,16 +42,18 @@ export function LiveCard({ computerId, fileId, caption, id, cfg }: { computerId:
     let live = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const look = (): void => {
-      void now.current.call("computers.get", { computerId }).then((r) => {
+      const read = computerId
+        ? now.current.call("computers.get", { computerId }).then((r) => (r as { computer?: { state?: string } }).computer?.state ?? "asleep")
+        : now.current.call("computers.browser.profiles", {}).then((r) => browserState(((r as { profiles?: Array<{ agentId: string; running?: boolean; busy?: boolean; takeoverBy?: string }> }).profiles ?? []).find((x) => x.agentId === agentId)));
+      void read.then((s) => {
         if (!live) return;
-        const s = (r as { computer?: { state?: string } }).computer?.state ?? "asleep";
         setState(s);
         if (LIVE.has(s)) { timer = setTimeout(look, POLL_MS); (timer as unknown as { unref?: () => void }).unref?.(); }
       }, () => { if (live) setState("asleep"); });
     };
     look();
     return () => { live = false; if (timer) clearTimeout(timer); };
-  }, [computerId]);
+  }, [computerId, agentId]);
   const frozen = state !== null && !LIVE.has(state);
   useEffect(() => {
     if (!frozen || still !== null) return;
@@ -50,10 +64,14 @@ export function LiveCard({ computerId, fileId, caption, id, cfg }: { computerId:
     }, () => undefined);
     return () => { live = false; };
   }, [frozen, still, fileId]);
-  const open = (): void => cfg.openComputer(cfg.agentId);
+  const open = (): void => cfg.openComputer(agentId ?? cfg.agentId);
   return (
     <Card kind="progress" size="compact" flush testID={`live-card-${id}`} label={frozen ? caption : `Live: ${caption}`}>
-      {state !== null && !frozen ? (
+      {state !== null && !frozen && !computerId && agentId ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Open the browser" testID={`live-card-screen-${id}`} onPress={open} style={s.screen}>
+          <BrowserLive agentId={agentId} control={false} call={cfg.call} spaceUrl={cfg.spaceUrl} testID={`live-card-stream-${id}`} />
+        </Pressable>
+      ) : state !== null && !frozen && computerId ? (
         <LiveScreen computerId={computerId} state={state} call={cfg.call} spaceUrl={cfg.spaceUrl} now={cfg.now} control={false} onIdlePress={open} testID={`live-card-screen-${id}`} streamTestID={`live-card-stream-${id}`} label="Open the computer" style={s.screen}>
           <View style={s.fallback} />
         </LiveScreen>

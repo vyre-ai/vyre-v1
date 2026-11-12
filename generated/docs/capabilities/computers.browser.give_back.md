@@ -7,7 +7,7 @@ Give an agent's browser back to the agent; the person who has the controls or an
 | Module | computers |
 | Version | 1 (since 1.0.0) |
 | Effects | write |
-| Permission | computers.take_over |
+| Permission | computers.watch |
 | Grant level | use |
 | Risk | medium |
 | Resource | space |

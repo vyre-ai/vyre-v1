@@ -381,6 +381,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     let fallbackId: string | null = null;
     const did = (): string => (kd ? kd.decisionId : (fallbackId ??= mintId("dec", t)));   // minted only when an audit row or a parked task needs it
     let approved = false;
+    let approvedGates: readonly { act: string; approver: string }[] = [];
     if (!seed.preAuth) {
       try { resource = resolveResource(c, input, seed.space, deps.resolveItem); }
       catch (e) {
@@ -400,6 +401,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       // level 'member' (ruling 69): any role or grant in the Space is enough, so a person whose only grant is one folder can sync that folder; the handler filters rows per resource. A stranger is refused as before.
       const d = memberOnly && deps.membership ? (deps.membership(seed.principal.id, seed.actingFor) ? memberAllow(mintId("dec", t)) : deps.authorize(req)) : deps.authorize(req);
       kd = d;
+      // an approval covers the Gate rules this call itself met (the same act asked of the same approver), not every Gate rule of every check made inside it
+      if (approved) approvedGates = deps.authorize({ ...req, approved: false }).obligations.flatMap((o) => (o.type === "gate" ? [{ act: o.act, approver: o.approver }] : []));
       const audit = (cls: AuditRow["class"], reason: string): AuditRow => ({
         class: cls, cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: d.decisionId, reason,
         resource, traceId, spanId: trace.spanId, at: t, risk: c.risk,
@@ -483,7 +486,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     const h = deps.handler(c.name, c.v);
     if (!h) throw fail("internal.not_implemented", traceId, { details: { cap: c.name } });
     const events: EventEnvelope[] = [];
-    const ctx = makeCtx(c, seed, trace, depth, events);
+    const ctx = makeCtx(c, seed, trace, depth, events, approved ? approvedGates : undefined);
     let output: unknown;
     try {
       output = await h(ctx, input);   // a throw here is mapped by the outer catch: VyreErr and HostError keep their code, anything else is internal.unexpected
@@ -559,7 +562,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     };
   }
 
-  function makeCtx(c: CapabilityDef, seed: CtxSeed, trace: TraceContext, depth: number, buf: EventEnvelope[]): Ctx {
+  function makeCtx(c: CapabilityDef, seed: CtxSeed, trace: TraceContext, depth: number, buf: EventEnvelope[], approvedGates?: readonly { act: string; approver: string }[]): Ctx {
     const svc = deps.services?.(seed, c) ?? {};
     const unavailable = (what: string) => (): never => { throw fail("internal.not_implemented", trace.traceId, { details: { service: what, cap: c.name } }); };
     const ctx: Ctx = {
@@ -595,7 +598,13 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         return r.output;
       },
       authorize(action, resource): Decision {
-        const d = deps.authorize({ principal: seed.principal.id, actingFor: seed.actingFor, action, resource, provider: seed.provider, now: now() });
+        const d = deps.authorize({ principal: seed.principal.id, actingFor: seed.actingFor, action, resource, provider: seed.provider, now: now(), ...(action.cap !== undefined ? { cap: action.cap } : {}), ...(action.fields !== undefined ? { fields: action.fields } : {}) });
+        if (d.effect === "hold") {
+          const gates = d.obligations.flatMap((o) => (o.type === "gate" ? [o] : []));
+          // the call was approved: a check inside it that meets only Gate rules that approval covered (same act, same approver) is cleared; any other Gate rule still holds, naming who decides
+          if (approvedGates && gates.length > 0 && gates.every((g) => approvedGates.some((a) => a.act === g.act && a.approver === g.approver))) return { effect: "allow", reason: "ok", decisionId: d.decisionId };
+          return { effect: "hold", reason: `needs_approval: ${[...new Set(gates.map((g) => g.approver))].join(", ")}`, decisionId: d.decisionId };
+        }
         return { effect: d.effect, reason: d.reason, decisionId: d.decisionId };
       },
       // each person on their own grants, as no one's agent: what a chat's audience may open (lib/audience.ts). A check that cannot run says no.

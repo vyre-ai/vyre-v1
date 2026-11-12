@@ -8,7 +8,7 @@
 //   recording and every answer can be scrubbed; `frame` is the screen after the step (the timeline's picture); `caption` is its words.
 // Errors are only ones the capabilities declare: a person at the controls, a held item and a bad argument are validation.bad_input; Esc, a computer still starting and a silent agentd are provider.unavailable.
 // Handles are never resolved here: "agent computer logins stay on that computer" (ARCH 6.11), agentd substitutes them at the last moment and scrubs its own output. This module scrubs again.
-import { actorOf, addStep, agentFolder, boundFill, clean, hostFor, ensure, mintId, needComputer, needTeam, raise, rememberSecrets, rowsOf, setComputer } from "../../projections.ts";
+import { actorOf, addStep, agentFolder, boundFill, clean, hostFor, ensure, mintId, needComputer, needTeam, filledTabsOf, givenCount, handedSince, markFilledTab, raise, rememberSecrets, tabsOpen, rowsOf, setComputer } from "../../projections.ts";
 import { personalChrome } from "../../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from "../../projections.ts";
 import { awaken } from "../lifecycle.ts";
@@ -16,7 +16,8 @@ import { askedThisTurn } from "./my-chrome-ask.ts";
 import { spaceBrowser } from "../../sbrowser/port.ts";
 import { profileIdOf } from "../../sbrowser/policy.ts";
 import { takeDownloads } from "../../sbrowser/downloads.ts";
-import { needRoom } from "../../sbrowser/room.ts";
+import { callEnded, callStarted, needRoom } from "../../sbrowser/room.ts";
+import { currentHold, DURING_HOLD, HELD_LINE, heldBy } from "../../sbrowser/hold.ts";
 import { agentInfo } from "../../sbrowser/agentinfo.ts";
 import { faceSvg } from "../../sbrowser/face.ts";
 import { waitingNote } from "../../capacity.ts";
@@ -28,9 +29,13 @@ export type ToolAnswer = Record<string, unknown>;
 /** The code agentd gave for a refusal. */
 export type ToolCode = "timeout" | "paused" | "not_found" | "bad_input" | "held" | "unavailable";
 
+/** A reason that travels with a refusal and never changes with its wording: `profile_held` (a person has the controls), `profile_busy` (a step is running). Lane f-desktop's move matches on it. */
+export type ToolReason = "profile_held" | "profile_busy";
+
 export class ToolError extends Error {
   readonly code: ToolCode;
-  constructor(code: ToolCode, message: string) { super(message); this.name = "ToolError"; this.code = code; }
+  readonly reason: ToolReason | undefined;
+  constructor(code: ToolCode, message: string, reason?: ToolReason) { super(message); this.name = "ToolError"; this.code = code; this.reason = reason; }
 }
 
 /** What the host binds on top of ComputerHost for the tools; the Docker host (impl.ts) has it. */
@@ -106,16 +111,60 @@ const CODES = {
   timeout: "timeout.deadline", paused: "provider.unavailable", not_found: "validation.not_found", bad_input: "validation.bad_input", held: "validation.bad_input", unavailable: "provider.unavailable",
 } as const;
 
-function refuse(ctx: CompCtx, e: unknown): never {
+/**
+ * A refusal, in the words the computer gave, with every Vault value given to that computer or profile taken out first (review 12 Nov, finding 1: a page's own exception, or agentd's "the page
+ * raised: ...", can quote a filled field). Every error of every tool goes through here, as every answer goes through scrubDeep.
+ */
+function refuse(ctx: CompCtx, e: unknown, computerId: string, extra: Record<string, unknown> = {}): never {
   if (e instanceof ToolError) {
     // "paused" is two things: the person pressed Esc (the Chrome extension), or a person has taken over the browser and holds the controls (the Space browser says so in its own words, and those are the true reason)
-    const text = e.code === "paused" && !/has the controls/i.test(e.message) ? "Chrome is paused. The person pressed Esc; wait for their answer, then resume." : e.message.slice(0, 300);
-    raise(ctx, CODES[e.code], text, { agentd: e.code });
+    const text = e.code === "paused" && !/has the controls/i.test(e.message) ? "Chrome is paused. The person pressed Esc; wait for their answer, then resume." : clean(computerId, e.message).slice(0, 300);
+    // a refusal's stable reason (profile_held, profile_busy) travels with it, whatever its words
+    raise(ctx, CODES[e.code], text, { agentd: e.code, ...(e.reason ? { reason: e.reason } : {}), ...extra });
   }
-  raise(ctx, "provider.unavailable", "The computer did not answer the tool.", { reason: e instanceof Error ? e.message.slice(0, 200) : "unknown" });
+  raise(ctx, "provider.unavailable", "The computer did not answer the tool.", { reason: e instanceof Error ? clean(computerId, e.message).slice(0, 200) : "unknown" });
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** The tabs of a computer or profile as its browser lists them now. */
+type TabLister = () => Promise<Array<{ tabId: string; active: boolean }>>;
+const tabsIn = (out: unknown): Array<{ tabId: string; active: boolean }> =>
+  isRecord(out) && Array.isArray(out["tabs"]) ? (out["tabs"] as unknown[]).filter(isRecord).filter((t) => typeof t["tabId"] === "string").map((t) => ({ tabId: String(t["tabId"]), active: t["active"] === true })) : [];
+
+/** May the tab named (or the one in front) be pictured? Not while it holds a value filled from the Vault; when the browser cannot say which tab is in front, no. */
+async function pictureAllowed(id: string, list: TabLister, tabId: unknown): Promise<boolean> {
+  if (filledTabsOf(id).size === 0) return true;
+  let tabs: Array<{ tabId: string; active: boolean }>;
+  try { tabs = await list(); } catch { return false; }
+  // a browser always has a tab: an empty list says nothing about which were closed
+  if (tabs.length === 0) return false;
+  tabsOpen(id, tabs.map((t) => t.tabId));
+  const marks = filledTabsOf(id);
+  if (marks.size === 0) return true;
+  if (marks.has("*")) return false;
+  const target = typeof tabId === "string" ? tabId : tabs.find((t) => t.active)?.tabId;
+  return target !== undefined && !marks.has(target);
+}
+
+/**
+ * After a call during which a value was handed to this computer: mark the tab it went into. A value the call itself typed went into the tab it named, else the one in front. A value Vyre for Chrome
+ * filled on its own (an autofill while a page loaded) may be in any tab, including one in the background the call did not aim at, so every tab open now is marked (second look, b). When the
+ * tabs cannot be listed, "*" holds them all until they can.
+ */
+async function markAfter(id: string, list: TabLister, before: number, tabId: unknown, typed: readonly string[]): Promise<void> {
+  // a value the call typed is handed out by the channel and reported in `used`: one fill, not two (third look); a hand-out the call did not type is Vyre for Chrome's own
+  const handed = handedSince(id, before);
+  const mine = new Set(typed);
+  const byExtension = handed.some((v) => !mine.has(v));
+  if (typed.length === 0 && !byExtension) return;
+  let tabs: Array<{ tabId: string; active: boolean }> | null = null;
+  try { tabs = await list(); } catch { /* the tabs cannot be told */ }
+  if (tabs === null || tabs.length === 0) { markFilledTab(id, "*"); return; }
+  if (byExtension) { for (const t of tabs) markFilledTab(id, t.tabId); return; }
+  const target = typeof tabId === "string" ? tabId : tabs.find((t) => t.active)?.tabId;
+  markFilledTab(id, target ?? "*");
+}
 
 /** Every string anywhere in a value with the Vault values filled on this computer removed. */
 export function scrubDeep(computerId: string, v: unknown): unknown {
@@ -177,6 +226,13 @@ async function browserUsable(sb: NonNullable<ReturnType<typeof spaceBrowser>>, n
   const ok = await sb.available().catch(() => false);
   usable = { sb, at: now, ok };
   return ok;
+}
+
+/** Would this step post the chat's live card for the agent's Space browser (the first of a burst), had it a picture? */
+function cardDue(ctx: CompCtx, agentId: string, at: number): boolean {
+  if (!ctx.thread || ctx.principal.kind !== "agent") return false;
+  const prev = lastCard.get(`browser|${agentId}|${ctx.thread}`);
+  return prev === undefined || at - prev >= LIVE_GAP_MS;
 }
 
 /** The chat's live card for work in an agent's Space browser: one per burst of ten quiet minutes. Posting never fails the tool call. */
@@ -260,22 +316,28 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
   if (r.personal) return personalCall(ctx, spec, args);
   if (r.browser) return browserCall(ctx, r.browser.profileId, spec, args);
   const c = r.computer;
+  const list: TabLister = async () => tabsIn(await r.host.tool({ computerId: c.computerId, tool: "chrome_tabs", args: { action: "list" }, timeoutMs: DEFAULT_TOOL_MS }));
+  // a tab that holds a value filled from the Vault is not pictured: a text field (an API key, a one-time code) shows what it holds, and a picture cannot be scrubbed
+  if (spec.name === "chrome_screenshot" && !(await pictureAllowed(c.computerId, list, args["tabId"]))) raise(ctx, "validation.bad_input", HOLDS_VALUE, { reason: "vault_value_on_page" });
+  const given = givenCount(c.computerId);
   let raw: ToolAnswer;
   try {
     const byPerson = c.state === "takeover" && ctx.principal.kind === "person" && c.takeoverBy !== undefined && actorOf(ctx) === c.takeoverBy;
     raw = await r.host.tool({ computerId: c.computerId, tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), ...(byPerson ? { by: "person" as const } : {}) });
   } catch (e) {
-    return refuse(ctx, e);
+    return refuse(ctx, e, c.computerId);
   }
   if (!isRecord(raw)) raise(ctx, "provider.unavailable", "The computer answered with something that is not an object.");
   const { used, frame, caption, ...rest } = raw;
-  rememberSecrets(c.computerId, secretsOf(used));
+  rememberSecrets(c.computerId, secretsOf(used), { handedOut: false });
+  if (spec.name.startsWith("chrome_")) await markAfter(c.computerId, list, given, args["tabId"], secretsOf(used).map((x) => x.value));
+  if (spec.name === "chrome_tabs" && tabsIn(rest).length > 0) tabsOpen(c.computerId, tabsIn(rest).map((t) => t.tabId));
   const out = scrubDeep(c.computerId, rest) as ToolAnswer;
   const at = ctx.now();
   setComputer(ctx.db, c.computerId, { last_active_at: at });
   if (spec.caption) {
     const words = typeof caption === "string" && caption.trim() !== "" ? clean(c.computerId, caption.trim()).slice(0, 200) : spec.caption(args, out);
-    const frameFileId = await keepFrame(ctx, c, frame, at);
+    const frameFileId = filledTabsOf(c.computerId).size > 0 && !(await pictureAllowed(c.computerId, list, undefined)) ? undefined : await keepFrame(ctx, c, frame, at);
     addStep(ctx.db, c.computerId, at, {
       by: ctx.principal.kind === "agent" ? "agent" : "person", caption: words, tool: spec.name, ...(frameFileId ? { frameFileId } : {}), ...(ctx.run ? { runId: ctx.run } : {}), ...(ctx.thread ? { threadId: ctx.thread } : {}),
     });
@@ -284,31 +346,58 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
   return out;
 }
 
-// The Vault channel of an agent's profile: one token per profile and asker, so the Vault logs who asked and a use after the asker changes is checked as the new asker.
+export const HOLDS_VALUE = "This tab holds a value filled from the Vault, so no picture of it is taken while it is open. Close that tab to have pictures of it again, or picture another tab.";
+/** The line a step shows where its picture would be, when the tab in front held a Vault value (second look, c). */
+const NO_PICTURE = "No picture: a Vault value is on this page";
+const NO_PICTURE_OR_CARD = "No picture here or in the chat: a Vault value is on this page";
+
+// The Vault channel of an agent's profile rides each tool call, as the person whose turn the call is (sbrowser audit bug 5): a token per profile and asker, live only while that person's calls run, so
+// one team agent working for two people at once looks each fill up as the right one, and nobody's access outlives their turn (Vyre for Chrome in the profile fills nothing between turns).
 const faceSent = new Set<string>();
-const REPORTS_DOWNLOADS = new Set(["chrome_open", "chrome_click", "chrome_act", "chrome_wait", "chrome_state"]);
-const fillGrants = new Map<string, { token: string; revoke(): void }>();
+// the steps that can set off a download report it (browserd waits for it to finish within a short bound), and the looks report what arrived after
+const REPORTS_DOWNLOADS = new Set(["chrome_open", "chrome_click", "chrome_act", "chrome_type", "chrome_send", "chrome_wait", "chrome_state"]);
+const fillGrants = new Map<string, { token: string; revoke(): void; calls: number }>();
+async function grantFor(binding: NonNullable<ReturnType<typeof boundFill>>, profileId: string, agentId: string, asker: string): Promise<{ token: string; done(): void }> {
+  const key = `${profileId}|${asker}`;
+  let g = fillGrants.get(key);
+  if (!g) {
+    const issued = await binding.issue({ computerId: profileId, agentId, asker, turn: true });
+    g = fillGrants.get(key) ?? { token: issued.fillToken, revoke: issued.revoke, calls: 0 };
+    if (g.token !== issued.fillToken) issued.revoke();   // another call of the same person got there first
+    fillGrants.set(key, g);
+  }
+  g.calls += 1;
+  const held = g;
+  return { token: held.token, done() { held.calls -= 1; if (held.calls <= 0 && fillGrants.get(key) === held) { fillGrants.delete(key); held.revoke(); } } };
+}
 
 /** One tool in the agent's profile of the Space browser. What comes back is scrubbed of the Vault values filled for this profile; no desktop frame exists, so there is no timeline step (the live view shows the page). */
 async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
   const sb = spaceBrowser();
   if (!sb) raise(ctx, "provider.unavailable", "The Space browser is not running on this host.");
+  // a person at the controls: the agent's tools wait here, before the call reaches the browser service, however that service is reached and after it restarts (the hold is the module's own)
+  const readAt = Date.now();
+  const hold = await currentHold(ctx, sb, profileId);
+  if (hold && !DURING_HOLD.has(spec.name)) refuse(ctx, new ToolError("paused", HELD_LINE, "profile_held"), profileId, { takeoverBy: hold.personId });
   let fill: { url: string; token: string } | undefined;
   const binding = boundFill();
-  // every call carries the channel, not only the typing ones: Vyre for Chrome in the profile fills logins on its own when a page loads, and asks the Vault through it
+  // every call carries the channel, not only the typing ones: Vyre for Chrome in the profile fills logins on its own when a page loads, and asks the Vault through it, as this call's person, during this call
+  let grant: { token: string; done(): void } | null = null;
   if (binding) {
-    const asker = actorOf(ctx);
-    const key = `${profileId}|${asker}`;
-    let g = fillGrants.get(key);
-    if (!g) {
-      for (const [k, old] of fillGrants) if (k.startsWith(`${profileId}|`)) { old.revoke(); fillGrants.delete(k); }
-      const issued = await binding.issue({ computerId: profileId, agentId: ctx.principal.id, asker });
-      g = { token: issued.fillToken, revoke: issued.revoke };
-      fillGrants.set(key, g);
-    }
-    fill = { url: binding.url(), token: g.token };
+    grant = await grantFor(binding, profileId, ctx.principal.id, actorOf(ctx));
+    fill = { url: binding.url(), token: grant.token };
   }
-  // a browser that would start needs room on the host first (a claim on a running one is the same ask)
+  try { return await browserStep(ctx, sb, profileId, spec, args, fill, { hold: hold?.personId ?? null, readAt }); }
+  finally { grant?.done(); }
+}
+
+async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof spaceBrowser>>, profileId: string, spec: ToolSpec, args: ToolArgs, fill: { url: string; token: string } | undefined, h: { hold: string | null; readAt: number }): Promise<ToolAnswer> {
+  // a browser that would start needs room on the host first (a claim on a running one is the same ask); from here to its answer the call is in flight, so making room never closes this browser
+  callStarted(profileId);
+  let raw!: ToolAnswer;
+  let list!: TabLister;
+  let given!: ReturnType<typeof givenCount>;
+  try {
   if (spec.name !== "chrome_status" && spec.name !== "chrome_stop" && spec.name !== "chrome_resume" && spec.name !== "chrome_plan") await needRoom(ctx, sb, profileId);
   // the agent's name rides every call (the service keeps it in memory); its face is drawn once and kept with the profile
   let agent: { name: string; faceSvg?: string } | undefined;
@@ -317,23 +406,39 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
     agent = { name: who.name };
     if (!faceSent.has(profileId)) { const svg = await faceSvg(who.face); if (svg) agent.faceSvg = svg; faceSent.add(profileId); }
   }
-  let raw: ToolAnswer;
+  list = async () => tabsIn(await sb.tool({ profileId, tool: "chrome_tabs", args: { action: "list" }, timeoutMs: DEFAULT_TOOL_MS, space: ctx.space }));
+  if (spec.name === "chrome_screenshot" && !(await pictureAllowed(profileId, list, args["tabId"]))) raise(ctx, "validation.bad_input", HOLDS_VALUE, { reason: "vault_value_on_page" });
+  given = givenCount(profileId);
+  const send = (): Promise<ToolAnswer> => sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, hold: h.hold, ...(fill ? { fill } : {}) });
   try {
-    raw = await sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, ...(fill ? { fill } : {}) });
+    raw = await send();
   } catch (e) {
-    return refuse(ctx, e);
+    // browserd still holds a takeover the table no longer has (a give back that did not reach it): released only if it began before this call read the table, so a takeover made since stays; the
+    // call was refused before it ran, so it is sent once more
+    if (!(e instanceof ToolError && e.code === "paused" && /has the controls/i.test(e.message)) || heldBy(ctx, profileId) !== null) return refuse(ctx, e, profileId);
+    try { await sb.giveBack(profileId, { before: h.readAt }); raw = await send(); } catch (e2) {
+      if (e2 instanceof ToolError && e2.code === "paused" && /has the controls/i.test(e2.message)) return refuse(ctx, new ToolError("paused", HELD_LINE, "profile_held"), profileId);
+      return refuse(ctx, e2, profileId);
+    }
   }
+  } finally { callEnded(profileId); }
   if (!isRecord(raw)) raise(ctx, "provider.unavailable", "The browser answered with something that is not an object.");
   const { used, frame: _frame, caption: _caption, ...rest } = raw;
-  rememberSecrets(profileId, secretsOf(used));
+  rememberSecrets(profileId, secretsOf(used), { handedOut: false });
+  // the tab a value went into, by a tool or by Vyre for Chrome while this call ran, is never pictured while it is open
+  await markAfter(profileId, list, given, args["tabId"] ?? (spec.name === "chrome_open" ? rest["tabId"] : undefined), secretsOf(used).map((x) => x.value));
+  if (spec.name === "chrome_tabs" && tabsIn(rest).length > 0) tabsOpen(profileId, tabsIn(rest).map((t) => t.tabId));
   const out = scrubDeep(profileId, rest) as ToolAnswer;
   // what the browser finished downloading goes into the agent's Files (Downloads) and the agent is told where; only the steps that say so carry it
   // a step with a caption is one line of the agent's browser timeline, with a picture of the page, and the chat shows the browser live once per burst of work
   if (spec.caption) {
     const at = ctx.now();
-    const words = clean(profileId, spec.caption(args, out).trim()).slice(0, 200);
+    let words = clean(profileId, spec.caption(args, out).trim()).slice(0, 200);
     let frame: string | undefined;
-    try { const shot = await sb.screenshot(profileId); frame = Buffer.from(shot.bytes).toString("base64"); } catch { /* a step without a picture */ }
+    // no picture of a page that holds a value filled from the Vault (it is kept in Files, and a text field shows its value); the step says so in one line, and so whether the chat's live card,
+    // which needs that picture, was due and not posted
+    if (await pictureAllowed(profileId, list, undefined)) { try { const shot = await sb.screenshot(profileId); frame = Buffer.from(shot.bytes).toString("base64"); } catch { /* a step without a picture */ } }
+    else words = `${words} · ${cardDue(ctx, ctx.principal.id, at) ? NO_PICTURE_OR_CARD : NO_PICTURE}`;
     const c = { computerId: profileId, agentId: ctx.principal.id } as unknown as ComputerRow;
     const frameFileId = await keepFrame(ctx, c, frame, at);
     addStep(ctx.db, profileId, at, { by: "agent", caption: words, tool: spec.name, ...(frameFileId ? { frameFileId } : {}), ...(ctx.run ? { runId: ctx.run } : {}), ...(ctx.thread ? { threadId: ctx.thread } : {}) });

@@ -108,7 +108,7 @@ export async function type(ctx: CompCtx, input: Base & { ref?: string; text: str
   // The caption never carries the text: it may be a secret or a #Handle.field the computer is about to fill.
   const spec: ToolSpec = { name: "chrome_type", caption: (a, o) => held(o, `${a["submit"] === true ? "Typed and submitted" : "Typed"}${a["ref"] ? ` into element ${clip(a["ref"], 20)}` : ""}`) };
   const out = await run(ctx, input, spec, defined({ tabId: input.tabId, ref: input.ref, text: input.text, submit: input.submit }));
-  return shape(ctx, "chrome_type", out, { ok: "b", heldId: "s?" });
+  return shape(ctx, "chrome_type", out, { ok: "b", heldId: "s?", downloads: "a?" });
 }
 
 export async function fill(ctx: CompCtx, input: Base & { fields: Array<{ ref: string; value: string }> }) {
@@ -180,7 +180,7 @@ export async function resume(ctx: CompCtx, input: { computerId?: string | undefi
 export async function send(ctx: CompCtx, input: { computerId?: string | undefined; inMyChrome?: boolean | undefined; heldId: string }) {
   if (typeof input.heldId !== "string" || input.heldId === "") raise(ctx, "validation.bad_input", "Give the id of the held item.");
   const out = await run(ctx, input, { name: "chrome_send", caption: () => "Sent what was waiting for approval", timeoutMs: 60_000 }, { heldId: input.heldId });
-  return shape(ctx, "chrome_send", out, { sent: "b", taskId: "s?" });
+  return shape(ctx, "chrome_send", out, { sent: "b", taskId: "s?", downloads: "a?" });
 }
 
 // ---- api

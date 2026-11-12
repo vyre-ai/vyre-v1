@@ -142,6 +142,8 @@ const PREP: Readonly<Record<string, string>> = { assign: "to", grant: "to", add:
 export function auditPhrase(action: string, resource?: string): string {
   const kindOf = SAID_OF[action];
   if (kindOf !== undefined) return resource !== undefined && resource !== "" ? `${kindOf[0]} the ${kindOf[1]}${kindOf[2] ? ` ${kindOf[2]}` : ""} ${resource}` : `${kindOf[0]} ${/^[aeiou]/.test(kindOf[1]) ? "an" : "a"} ${kindOf[1]}`;
+  const plain = UNNAMED[action];
+  if (plain !== undefined && (resource === undefined || resource === "")) return plain;
   const said = SAID[action];
   if (said !== undefined) return resource !== undefined && resource !== "" && !said.includes(" a ") && !/Space|audit|held/.test(said) ? said : said;
   const p = actParts(action);
@@ -162,7 +164,13 @@ const SAID: Readonly<Record<string, string>> = {
   "gate.requested": "asked for approval",  "gate.expired": "let an approval request expire", "task.completed": "completed a task", "task.sent_back": "sent a task back", "run.undone": "undid a run", "subscription.canceled": "canceled the subscription",
   "access.requested": "asked for access", "access.granted": "gave access", "access.declined": "declined a request for access", "file.shared_external": "shared a file outside the Space", "views.share_external": "shared a view outside the Space",
   "files.share_external": "shared a file outside the Space", "vault.item.delete": "deleted a Vault item", "vault.item_restored": "restored a Vault item",
+  // joining (owner walk, 12 Nov: "Vyre accepted the create account of an invite", "An outside agent accepted a member", "created an invite of a member")
+  "members.invites.create": "made an invite to the Space", "members.accept": "joined the Space from an invite", "invites.accept_create_account": "set up a new member's account",
+  "access.groups.add_member": "added a member to a team",
 };
+
+/** Acts said by hand only when the line names nothing ("assigned a role"); with a name they are built from their parts ("assigned a role to Omar"). */
+const UNNAMED: Readonly<Record<string, string>> = { "access.roles.assign": "assigned a role", "access.share": "shared an item" };
 
 /** Acts where the thing has a name people use for its kind: with its name it reads "changed the approval rule Send". */
 const SAID_OF: Readonly<Record<string, readonly [string, string, string?]>> = {

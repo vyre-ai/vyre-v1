@@ -117,3 +117,30 @@ test("status: a manager says asleep, running, waiting (with the line) or none, w
   await onlyNode.ensure(B);
   assert.deepEqual(await onlyNode.status(B), { state: "running", host: "server", nodeId: "srv_a" });
 });
+
+test("review finding 4: a workspace on a joined server gets Vault values only over a private link (TLS, or this machine), as an agent computer's Vault channel does", async () => {
+  const { buildWorkspaceFleet } = await import("../impl.ts");
+  for (const secure of [false, true]) {
+    const dk = fakeDocker();
+    const asked: string[] = [];
+    // the node's socket: each Docker question is answered by the server's own Docker (here a stand-in)
+    const ask = async (_node: string, _kind: string, input: unknown): Promise<unknown> => {
+      const q = input as { method: string; path: string; query?: Record<string, string>; jsonText?: string; bodyB64?: string; timeoutMs?: number };
+      asked.push(JSON.stringify(q));
+      const r = await dk.http({ method: q.method as "GET", path: q.path, ...(q.query ? { query: q.query } : {}), ...(q.jsonText ? { json: JSON.parse(q.jsonText) } : {}), ...(q.bodyB64 ? { body: new Uint8Array(Buffer.from(q.bodyB64, "base64")) } : {}) });
+      return { status: r.status, bodyB64: Buffer.from(r.body).toString("base64") };
+    };
+    const fleet = buildWorkspaceFleet({ image: "vyre/agent-workspace:test", nodes: { ask, place: async () => "srv_plain", secure: () => secure } });
+    const host = createWorkspaceTerminalHost({ manager: fleet });
+    await host.open({ terminalId: "trm_n1", target: { host: "agent_computer", agentId: A }, name: "x", cols: 80, rows: 24, folders: [] });
+    const run = host.run("trm_n1", { command: "true", env: { K: "sk-live-over-the-link-0123" }, timeoutMs: 2000 });
+    if (!secure) {
+      await assert.rejects(run, /not private/);
+      assert.equal(asked.some((x) => x.includes("VYRE_STDIN") || x.includes("sk-live-over-the-link")), false, "nothing of the values crossed the plain link");
+    } else {
+      await run.catch(() => undefined);
+      assert.equal(asked.some((x) => x.includes("VYRE_STDIN")), true, "over a private link the values go");
+    }
+    fleet.close();
+  }
+});

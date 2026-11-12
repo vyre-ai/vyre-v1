@@ -35,7 +35,8 @@ export async function commit(ctx: ImportCtx, input: In): Promise<unknown> {
   const rows = buildRows(table, plan.mapping, fields, compileAll(ctx, plan.mapping));
   if (rows.length !== plan.actions.length) raise(ctx, "validation.precondition_failed", "The preview is out of date. Preview again.", { reason: "stale_preview" });
   const runAutomations = input.runAutomations ?? plan.runAutomations;
-  const todo = rows.filter((_b, i) => plan.actions[i] === "c" || plan.actions[i] === "u").map((b) => b.fields as Record<string, unknown>);
+  const todoAt = rows.map((_b, i) => i).filter((i) => plan.actions[i] === "c" || plan.actions[i] === "u" || plan.actions[i] === "r");   // the data row each written row came from, so a refusal names the row in the file
+  const todo = todoAt.map((i) => rows[i]!.fields as Record<string, unknown>);
   const errors: RowError[] = rows.flatMap((b) => b.errors);
   const skippedByPlan = [...plan.actions].filter((a) => a === "s").length;
 
@@ -59,13 +60,20 @@ export async function commit(ctx: ImportCtx, input: In): Promise<unknown> {
         s.state = "canceled";
         break;
       }
-      const out = await call<{ created?: number; updated?: number; skipped?: number }>(ctx, "records.bulk_upsert", {
-        type: plan.type, rows: todo.slice(at, at + BATCH), match: plan.onMatch === "create" ? [] : plan.match, runAutomations: runAutomations === true,
+      const out = await call<{ created?: number; updated?: number; skipped?: number; refused?: Array<{ row: number; message: string }>; stopped?: { reason: string; row: number; message: string; notDone: number[] } }>(ctx, "records.bulk_upsert", {
+        type: plan.type, rows: todo.slice(at, at + BATCH), match: plan.onMatch === "create" ? [] : plan.match, runAutomations: runAutomations === true, ...(plan.onMatch === "create" ? { createOnly: true } : {}), ...(plan.onMatch === "skip" ? { skipExisting: true } : {}),   // "create": every row is a new record
       }, { idempotencyKey: `imp:${s.importId}:${n}` });
       created += out.created ?? 0; updated += out.updated ?? 0; skipped += out.skipped ?? 0;
+      // a row the importer may not change (or the store refused: a locked field, a record on hold) is a failed row with its reason, on the row of the file it came from; the rest of the batch was written
+      for (const r of out.refused ?? []) errors.push({ row: (todoAt[at + r.row] ?? at + r.row) + 1, message: r.message });
+      // the call stopped part way (the store went away, or a record changed under it): what it wrote is kept and counted above, the rows it did not try are listed, and the import ends failed
+      if (out.stopped) {
+        for (const r of out.stopped.notDone) errors.push({ row: (todoAt[at + r] ?? at + r) + 1, message: "Not written: the import stopped before this row." });
+        throw new Error(`row ${(todoAt[at + out.stopped.row] ?? at + out.stopped.row) + 1}: ${out.stopped.message}`);
+      }
     }
   } catch (e) {
-    const message = e instanceof Error ? e.message : codeOf(e);
+    const message = e instanceof Error ? e.message : ((e as { error?: { message?: string } } | null)?.error?.message ?? codeOf(e));
     Object.assign(s, { state: "failed", created, updated, skipped, failed: errors.length, errors: errors.slice(0, KEPT_ERRORS) });
     saveSession(ctx.db, s);
     await finish(ctx, runId, "failed", `Stopped after ${created + updated} rows: ${message}`, message);

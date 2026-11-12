@@ -11,13 +11,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workflows = fs.readdirSync(path.join(root, ".github/workflows")).filter((f) => f.endsWith(".yml")).map((f) => fs.readFileSync(path.join(root, ".github/workflows", f), "utf8")).join("\n");
 
 /**
- * Walks found red on 12 Nov when they were first run (lane f-wire); each needs its owner to decide whether the app or the walk is wrong, then a line in shots.yml. Take a file off when it
- * is named in a workflow; the test fails while a listed file is already named, or is gone.
+ * Walks no per-push job can run, each with where it runs instead. Take a file off when it is named in a workflow; the test fails while a listed file is already named, or is gone.
  */
 export const PENDING: Readonly<Record<string, string>> = {
-  "apps/app/tests/onboarding.reopen.live.test.ts": "red: the Resume line (resume-open) never shows after going back to the AI step, wide and phone",
-  "apps/app/tests/overview.real.live.test.ts": "red: the project header's Status now reads with its menu chevron, so it differs from the Status property",
-  "test/crew.thread.journey.live.test.ts": "red: its one journey passes, then the file runs past its 120 s cap",
   "test/cut-proof.heavy.test.ts": "needs a running server from compose.server.yml, its claim link and VYRE_HEAVY_DOCKER; run by hand at the cut",
 };
 

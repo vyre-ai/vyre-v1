@@ -32,7 +32,7 @@ const browserRow = t.obj({
   state: t.enm('running', 'asleep', 'waiting', 'error'), line: t.opt(t.str({ description: 'Why it waits (no room on the host) or what went wrong, in a plain line' })),
   takeoverBy: t.opt(id.user), paired: t.bool({ description: 'Vyre for Chrome in the profile is connected to the Space as this agent, so Vault logins fill' }), access: t.enm('owner', 'admin', 'viewer'),
 });
-const downloadsOut = t.opt(t.arr(t.obj({ name: t.str(), path: t.str({ description: "Where it is in the agent's Files, under Downloads", examples: ['Downloads/report.pdf'] }), fileId: id.file }), { description: 'Files the browser finished downloading since the last step: they are in Files now, and this is where' }));
+const downloadsOut = t.opt(t.arr(t.obj({ name: t.str(), path: t.str({ description: "Where it is in the agent's Files, under Downloads", examples: ['Downloads/report.pdf'] }), fileId: t.opt(id.file), note: t.opt(t.str({ description: 'Why a download is not in Files (it is too large to move), in plain words: tell the person' })) }), { description: 'Files the browser finished downloading since the last step: they are in Files now, and this is where. One too large to move has no fileId and a note' }));
 const comp = { computerId: id.computer };
 const optComp = { computerId: t.opt(id.computer) };
 /** Chrome tools run on the agent's own computer. `inMyChrome` is the one way to ask for the asking person's own Chrome, and only when they asked for it in this turn. */
@@ -140,17 +140,19 @@ export default defineManifest({
     read('computers.browser.stream', "Live view of an agent's browser, relayed by the Space: MJPEG or a WebSocket with a ticket that opens once, for one minute; frames are live-only, never stored. Wakes the browser", {
       in: { agentId: id.agent }, out: { transport: t.enm('mjpeg'), url: t.str({ description: 'The Space\'s own relay path, /browsers/<agent>/stream?ticket=...' }), ws: t.opt(t.str({ description: 'The same view over a WebSocket, which also carries your input once you have taken over' })), width: t.opt(t.int({ description: "The page's real width in pixels: scale pointer positions from this, never from a constant" })), height: t.opt(t.int({ description: "The page's real height in pixels" })), expiresAt: t.ts() }, perm: 'computers.watch', label: 'check', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.not_found'],
     }),
+    // The Space browser's own rule decides who takes over, gives back and signs out (sbrowser/policy.ts): a personal agent's browser is its owner's, a team agent's its owner's and the admins'. The capability asks
+    // only for the right every member holds to watch, so a plain member can take over their own Assistant's browser; computers.take_over (an agent computer) is not theirs and is not asked for here.
     write('computers.browser.take_over', "Take over an agent's browser (\"You're in control\"): its tools wait, your clicks and keys reach the page. An Assistant's or personal agent's browser is its person's alone; a team agent's goes to its owner and admins; one shared with named people may be watched by them but not taken over", {
-      in: { agentId: id.agent }, out: { profile: browserRow }, perm: 'computers.take_over', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.precondition_failed'],
+      in: { agentId: id.agent }, out: { profile: browserRow }, perm: 'computers.watch', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.precondition_failed'],
     }),
     write('computers.browser.give_back', "Give an agent's browser back to the agent; the person who has the controls or an admin may", {
-      in: { agentId: id.agent }, out: { profile: browserRow }, perm: 'computers.take_over', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable'],
+      in: { agentId: id.agent }, out: { profile: browserRow }, perm: 'computers.watch', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable'],
     }),
     read('computers.browser.sessions', "The sites an agent's browser is signed in to (cookies the profile holds), by site, never a value. Wakes the browser when it is asleep. Only for a browser you may watch", {
       in: { agentId: id.agent }, out: { sessions: t.arr(sessionRow) }, perm: 'computers.watch', label: 'check', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.not_found'],
     }),
     write('computers.browser.sign_out', "Sign an agent's browser out of a site: its cookies and storage for that site are cleared. The owner and admins only", {
-      in: { agentId: id.agent, site: t.str() }, out: { ok: t.bool() }, perm: 'computers.take_over', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.bad_input'],
+      in: { agentId: id.agent, site: t.str() }, out: { ok: t.bool() }, perm: 'computers.watch', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.bad_input'],
     }),
     read('computers.browser.timeline', "What an agent did in its Space browser, step by step with a picture each: the same timeline as a computer's, for the agent's profile. Only for a browser you may watch", {
       in: { agentId: id.agent, runId: t.opt(id.run), threadId: t.opt(id.thread), ...pageIn }, out: { steps: t.arr(stepRow), ...pageOut }, perm: 'computers.watch', label: 'filter', errors: ['permission.no_grant', 'validation.not_found'],
@@ -173,7 +175,7 @@ export default defineManifest({
       out: { ok: t.bool(), heldId: t.opt(t.str()), downloads: downloadsOut }, ...local({ mcpName: 'chrome_click', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.type', 'Type text into the focused element or a ref; secrets only as #Handle.field references', {
-      in: { ...chromeWhere, tabId, ref: t.opt(ref), text: t.str(), submit: t.opt(t.bool()) }, out: { ok: t.bool(), heldId: t.opt(t.str()) },
+      in: { ...chromeWhere, tabId, ref: t.opt(ref), text: t.str(), submit: t.opt(t.bool()) }, out: { ok: t.bool(), heldId: t.opt(t.str()), downloads: downloadsOut },
       ...local({ mcpName: 'chrome_type', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.fill', 'Fill form fields; values may be #Handle.field references that the computer vault filler substitutes at the last moment', {
@@ -223,7 +225,7 @@ export default defineManifest({
       in: { ...chromeWhere }, out: { resumed: t.bool() }, ...local({ mcpName: 'chrome_resume', idem: 'natural', risk: 'low' }),
     }),
     outward('computers.chrome.send', 'Send a held send, post or payment: the person approves it first (Gate)', {
-      in: { ...chromeWhere, heldId: t.str() }, out: { sent: t.bool(), taskId: t.opt(id.task) }, gate: 'send',
+      in: { ...chromeWhere, heldId: t.str() }, out: { sent: t.bool(), taskId: t.opt(id.task), downloads: downloadsOut }, gate: 'send',
       ...local({ mcpName: 'chrome_send', agent: { planMode: 'blocked' } }),
     }),
     write('computers.chrome.batch', 'Run several Chrome steps in one call; stops at the first held item', {

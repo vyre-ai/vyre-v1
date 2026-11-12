@@ -17,7 +17,7 @@ import { createUnsubscribeRoute } from "../routes/unsubscribe.ts";
 import type http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { authorize } from "../../../kernel/src/authorize/index.ts";
+import { authorize, sharedThrough } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { LogClient } from "../../../kernel/src/log/index.ts";
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
@@ -41,7 +41,7 @@ import { createFormsPageRoute } from "../routes/forms-page.ts";
 import { createPublicPathRoute } from "../routes/public-path.ts";
 import type { PublicPathDeps, ServedSite } from "../routes/public-path.ts";
 import { createDomainEdge, createSitesHost, dnsPointsAt, mimeOf } from "../seams/sites-host.ts";
-import { clientOnNetwork, createSiteHostRoute, createSiteSigninPage } from "../routes/site-host.ts";
+import { agentCaller, agentSubnetsOf, clientOnNetwork, createSiteHostRoute, createSiteSigninPage } from "../routes/site-host.ts";
 import { createArtifactHostRoute } from "../routes/artifact-host.ts";
 import type { SiteHostDeps } from "../routes/site-host.ts";
 import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf } from "../caddy/index.ts";
@@ -98,6 +98,9 @@ import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
 import { createComputersHost } from "../seams/computers-host.ts";
 import { releaseImage } from "../seams/release-images.ts";
 import { createTerminalHostSeam } from "../seams/terminal-host.ts";
+import { createEngineSessionHost } from "../seams/engine-session.ts";
+import { gateTeamAgents } from "../seams/team-vault.ts";
+import type { LookupSource, TeamItem } from "../seams/team-vault.ts";
 import { findDockerSocket } from "../seams/docker-socket.ts";
 import { READER_LOSS, createEngineHost } from "../seams/engine.ts";
 import { createEmailAskDriver, createFormAskDriver } from "../seams/email-ask.ts";
@@ -212,6 +215,7 @@ import type { ChromeBridge } from "../bridge/chrome.ts";
 import { coerceQuery } from "./query.ts";
 import type { PropSchema } from "./query.ts";
 import { openDb, readLogMeta } from "./sqlite.ts";
+import { bindSpacePorts, unbindSpacePorts } from "./module-ports.ts";
 import type { HostDb } from "./sqlite.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -398,6 +402,8 @@ export interface Daemon {
   seams: WiredSeams | null;
   /** the module consumers and periodic jobs, space role only */
   hooks: HookRunner | null;
+  /** the module ports the daemon bound at boot (`<module>.<port>`, host/src/daemon/module-ports.ts), space role only */
+  boundPorts: readonly string[];
   /** the module projections (events.webhooks_out), space role only */
   projections: ProjectionRunner | null;
   sink: LogSink;
@@ -488,6 +494,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let queue: ScheduleQueue | null = null;
   let seams: WiredSeams | null = null;
   let hooks: HookRunner | null = null;
+  let boundPorts: string[] = [];
   /** False until the module seams are wired at boot. A consumer that hands work to a host half (the engine bridge) finds none before that and would skip the event, and the host moves past a skipped event. */
   let consumersReady = false;
   // large files go to the Files module in process: the slot's one-time token from files.upload_url is the only authority, and no session or bearer is involved
@@ -1002,6 +1009,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // the first capability of each module, looked up once (a search of every capability on every module call was a fifteenth of a write)
         capOf: (m) => { if (!firstCapOf.has(m)) firstCapOf.set(m, registryCaps.find((c) => (c as { module?: string }).module === m)); return firstCapOf.get(m); },
         warn: (msg, attrs) => sink.log({ space: space!, level: 30, msg, place: "hooks", ...(attrs ? { attrs } : {}) }),
+        info: (msg, attrs) => sink.log({ space: space!, level: 20, msg, place: "hooks", ...(attrs ? { attrs } : {}) }),
       });
       hooks = hookRunner;
       // each reopen of a person's key from the server's wrap is an audit row for them, as a fresh provider sign-in's is
@@ -1025,6 +1033,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const pool = (): { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number } | undefined => (loaded.moduleExports.get("engine") as { openerOf?: () => { pool: { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number } } | null } | undefined)?.openerOf?.()?.pool;
       closeIdleSessions = async (person) => (await pool()?.closeIdle?.(person)) ?? 0;
       idleSessions = (person) => pool()?.idleCount?.(person) ?? 0;
+      // the Space kind for terminal and computers (unbound they assume a Team Space) and how a person's sessions here stop when they turn subscription sharing off (modules/engine extra/config.ts)
+      boundPorts = bindSpacePorts(loaded.moduleExports, {
+        team: cfg.spaceKind !== "personal",
+        stopSandbox: async (person) => { const p = pool(); if (!p?.closeIdle) return false; await p.closeIdle(person); return true; },
+      });
+      closers.push(() => unbindSpacePorts(loaded.moduleExports));
       // Machines (lane l-machines): a machine's report goes to the module; the Space server reads itself every 30 s; the module asks the host how many turns a connected machine runs, for the Doctor and for the Fixes
       machinesSync = () => { void hookRunner.call("machines.sync", {}).catch(() => undefined); };
       machinesIngest = (from, r) => {
@@ -1342,6 +1356,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           recent.push(...events);
           if (recent.length > RING) recent.splice(0, recent.length - RING);
           hub?.publish(spaceId, events);
+          // a session that ended, or a person who can no longer act: their open sockets close now, so no more events or answers reach them (every call frame is also checked, ws.ts `live`)
+          for (const e of events) {
+            const p = (e.payload ?? {}) as { sessionId?: unknown; principalId?: unknown; personId?: unknown };
+            if (e.type === "session.revoked" && typeof p.sessionId === "string") hub?.endSessions?.({ sessionId: p.sessionId });
+            else if (e.type === "principal.suspended" && typeof p.principalId === "string") hub?.endSessions?.({ person: p.principalId });
+            else if (e.type === "member.removed" && typeof p.personId === "string") hub?.endSessions?.({ person: p.personId });
+          }
           // someone left a chat or lost a grant: whoever was watching a reply being written is asked about again before the next piece reaches them
           if (events.some((e) => READER_LOSS.test(e.type))) engineSeam?.forgetReaders?.();
           // a computer removed from the Space loses its live-view socket this instant
@@ -1717,6 +1738,49 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           await spaceLog.appendResult({ id: `evt_seal_${type}_${field}_${id}`.slice(0, 120), type: "record.updated", sv: 1, trace_id: "5e".repeat(16), actor: "svc_host", vis: "space", entity: "record", entity_id: id, payload: { recordId: id, type, fields: {}, prev: {}, version: 0 } });
         }
       };
+      // a team agent's shared computer (workspace, browser profile, old desktop) holds only Vault items shared for it (host/src/seams/team-vault.ts). Every decision is the kernel's own
+      // resolution at this moment (start and end, expiry, ceiling, hidden fields, filter), for the field the handle names; whatever cannot be read is a refusal.
+      const vaultRow = (where: string, ...args: unknown[]): TeamItem | null => {
+        try {
+          const r = db!.all(`SELECT "id", "scope", "fieldKeys" FROM vault_meta WHERE ${where} AND "deleted_at" IS NULL`, ...args)[0] as { id?: string; scope?: string; fieldKeys?: string } | undefined;
+          if (!r?.id) return null;
+          let keys: string[] = [];
+          try { const k = JSON.parse(String(r.fieldKeys ?? "[]")) as unknown; if (Array.isArray(k)) keys = k.map(String); } catch { /* none known: a handle with no field is then refused (team-vault.ts decide) */ }
+          return { itemId: r.id, scope: String(r.scope ?? ""), fieldKeys: keys };
+        } catch { return null; }
+      };
+      const teamVault = <S extends LookupSource>(src: S): S => gateTeamAgents(src, {
+        team: cfg.spaceKind !== "personal",
+        agentOf: (agentId) => { try { const r = db!.all(`SELECT "kind", "ownerId" FROM agents_agent WHERE "id" = ? AND "deletedAt" IS NULL`, agentId)[0] as { kind?: string; ownerId?: string } | undefined; return r ? { kind: String(r.kind ?? ""), ownerId: String(r.ownerId ?? "") } : null; } catch { return null; } },
+        // the item as the Vault resolves a handle for this asker (vault.use's itemBy): their own Mine item first, else a shared one
+        resolve: (handle, asker) => {
+          const name = (/^#([^.]+)/.exec(handle)?.[1] ?? "").toLowerCase();
+          if (name === "") return null;
+          const mine = vaultRow(`lower(ltrim("handle", '#')) = ? AND "scope" = 'mine' AND "owner" = ?`, name, asker);
+          if (mine) return mine;
+          // a shared item counts only when the asker may see it, as the Vault's own lookup sees it: one they cannot see is not judged (and so never named back to them)
+          try {
+            const ids = (db!.all(`SELECT "id" FROM vault_meta WHERE lower(ltrim("handle", '#')) = ? AND "scope" = 'shared' AND "deleted_at" IS NULL ORDER BY rowid`, name) as Array<{ id?: string }>).map((r) => String(r.id ?? ""));
+            const seen = ids.find((id) => { try { return authorize(access.snap, { principal: asker, action: { perm: null, level: "use" }, resource: { type: "vault_item", id }, now: now() }).effect === "allow"; } catch { return false; } });
+            return seen ? vaultRow(`"id" = ?`, seen) : null;
+          } catch { return null; }
+        },
+        itemById: (itemId) => vaultRow(`"id" = ?`, itemId),
+        sharedWithAgent: (agentId, itemId, fields) => { try { return sharedThrough(access.snap, { principal: agentId, action: { perm: null, level: "use" }, resource: { type: "vault_item", id: itemId }, fields, now: now() }, ["vault_item", "vault_folder"]); } catch { return false; } },
+        // who may ask an agent: every person who may see it, which is what lets a person address it (a share at "use", the "view" a chat gives its readers, the Space's own access to a Space agent,
+        // its owner); the same rule agents.get uses to show it. Read from the current snapshot each time.
+        askersOf: (agentId) => {
+          try {
+            const out: string[] = [];
+            for (const p of access.snap.allPrincipals()) if (p.kind === "person" && p.status === "active" && authorize(access.snap, { principal: p.id, action: { perm: null, level: "view" }, resource: { type: "agent", id: agentId }, now: now() }).effect === "allow") out.push(p.id);
+            return out;
+          } catch { return null; }
+        },
+        personMayUse: (personId, itemId, fields) => { try { return authorize(access.snap, { principal: personId, action: { perm: null, level: "use" }, resource: { type: "vault_item", id: itemId }, fields, now: now() }).effect === "allow"; } catch { return false; } },
+        // a device is a person's own computer only when this daemon is that computer (the desktop app's daemon): its row names the person
+        deviceOwner: (deviceId) => { if (!cfg.roles.includes("device")) return null; try { const r = db!.all(`SELECT "person" FROM devices_device WHERE "id" = ? AND "revokedAt" IS NULL AND "deleted_at" IS NULL`, deviceId)[0] as { person?: string } | undefined; return r?.person ?? null; } catch { return null; } },
+        refused: (r) => { void invoke("audit.append", { action: "vault.use_refused", class: "deny", onBehalfOf: { kind: "person", id: r.asker }, ...(r.itemId ? { resource: { type: "vault_item", id: r.itemId } } : {}), detail: { agentId: r.agentId, handle: r.handle, reason: r.reason } }, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "seam" }).catch(() => undefined); },
+      });
       const hostDrivers: Record<string, SeamDriver> = {
         // sealed fields in Records: values live in the Vault, in a Space owned folder; the folder belongs to the Space owner so the owner can reveal what is in it
         // (schema seals an existing field through the same Vault, so both setters get one driver)
@@ -1799,7 +1863,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // identity opens a device session at sign-in: the token is minted here for that devices session, and ending a session stops it at the gateway (P-SEC_05)
         setSessionTokens: () => ({
           mint: (sessionId: string) => issueSessionToken(db!, sessionId, now),
-          end: (sessionId: string) => { db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId); },
+          end: (sessionId: string) => { db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId); hub?.endSessions?.({ sessionId }); },
         }),
         // sites are routes: an address pointing at a port on a computer, or at a folder in Files. Site code never runs here; only its bytes pass
         configureRoutes: () => {
@@ -1845,7 +1909,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               if (up) await writeHost(x); else for (const h of x.hosts) { await sitesCaddy.removeRoute(h).catch(() => undefined); written.delete(h); }
             }
           };
-          computerSubnetsOf = () => (computers as { computerSubnets?: () => string[] } | undefined)?.computerSubnets?.() ?? [];
+          // every module that runs agents' containers adds its networks (agentSubnets), the computers module (the Space browser, agent computers) and the terminal module (workspaces) among them
+          computerSubnetsOf = agentSubnetsOf(loaded.moduleExports.values());
           // sites never reach this daemon: a connection that arrives on a site network's address is closed (the ingress sits on every site's network to proxy to it)
           let subnets: { at: number; list: string[] } = { at: 0, list: [] };
           siteGuard = (address, remote) => {
@@ -1935,8 +2000,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           ...(o.computersCapacity ? { capacity: async () => o.computersCapacity as NonNullable<typeof o.computersCapacity> } : {}),
         }),
         // terminals on this machine: the person's own computer when this daemon is it (the desktop app's daemon), and where a person's turn runs, read as that person
-        setTerminalHost: () => createTerminalHostSeam({
-          roles: cfg.roles, team: cfg.spaceKind !== "personal",
+        setTerminalHost: (d) => createTerminalHostSeam({
+          roles: cfg.roles, team: cfg.spaceKind !== "personal", dataDir: paths.root,
+          // a #Handle.field in a command is filled from the Vault: vault.use as the agent for the person (access, the label rule, the audit row), then the value, as the engine and the agent computers do
+          ...(d.vault ? { values: teamVault(createEngineSessionHost({ invoke, vault: d.vault, space: spaceId }).source) } : {}),
           readAs: async (person, cap, input) => { const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "terminal" }); return r.status === "ok" ? r.output : null; },
           computerOf: (person) => (db!.all("SELECT id FROM devices_device WHERE person = ? AND revokedAt IS NULL AND deleted_at IS NULL AND class IN ('desktop', 'daemon', 'web') ORDER BY CASE WHEN class = 'web' THEN 1 ELSE 0 END, lastSeenAt DESC, id DESC LIMIT 1", person)[0] as { id?: string } | undefined)?.id,
           // agent workspaces (6 Nov): a Team server that has a container runtime (the runner beside vyred, or a Docker socket) gives every agent a workspace, made on first use; the same engine as agent computers
@@ -1947,6 +2014,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               ...((workspaceRuntime() ?? {}) as object),
               nodes: {
                 ask: (nodeId: string, kind: string, input: unknown, timeoutMs?: number) => computeStream.ask(nodeId, kind, input, timeoutMs),
+                // a Vault value goes to a workspace on a server only over a private link: the same rule, and the same answer, as an agent computer's Vault channel (setComputersFill nodeSecure)
+                secure: (nodeId: string) => computeStream.secure(nodeId),
                 place: async (agentId: string): Promise<string | null> => {
                   const owner = ((await createAgentHomeCaller({ db: db!, spaceId, invoke })(agentId, "agents.get", { agentId })) as { agent?: { ownerId?: string } } | null)?.agent?.ownerId;
                   if (!owner) return null;
@@ -1997,7 +2066,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         // the Vault channel of agent computers (P-L2_21): agentd posts one #Handle.field at a time to /computers/fill with its own token; without a Vault the channel is not offered
         setComputersFill: (d) => d.vault ? createComputersFillHost({
-          space: spaceId, invoke, vault: d.vault, now,
+          space: spaceId, invoke, vault: d.vault, now, gate: teamVault,
           baseUrl: () => o.computersBaseUrl ?? (computersRunnerSocket() && ingressContainer() ? `http://vyre-host:${boundPort}` : `http://host.docker.internal:${boundPort}`),
           nodeSecure: (n) => computeStream.secure(n),
           mount: (h) => fillRoute.mount(h),
@@ -2357,6 +2426,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const ticket = url.searchParams.get("ticket");
           return identify(bearer(h["authorization"]) ?? (ticket === null ? null : liveTickets.spend(ticket)));
         },
+        // the same test identify makes for every HTTP request, made again for every call on an open socket: the session row and its device, and the person still active in the snapshot
+        live: (s) => s.principal.kind !== "person" || (s.sessionId === undefined ? s.device === ADMIN_DEVICE : sessionLive(db!, s.sessionId) && access.snap.principal(s.principal.id)?.status === "active"),
         invoke, sink,
         eventsSince: (_s, cursor) => (recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : []),
         head: () => headSeq,
@@ -2605,7 +2676,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const appFiles = createAppFilesRoute({ dir: () => o.appDir !== undefined ? o.appDir : defaultAppDir() });
     server.on("request", (req, res) => {
       // an agent computer reaches this daemon only on its own network, and there only the Vault channel agentd posts to: nothing else of the Space's API
-      const onComputerNet = clientOnNetwork(req.socket.localAddress, req.socket.remoteAddress, computerSubnetsOf());
+      // decided by where the request comes from (review 12 Nov): a page in an agent's browser may call any address of this host, so the address it arrived on proves nothing
+      const onComputerNet = agentCaller(req.socket.localAddress, req.socket.remoteAddress, computerSubnetsOf());
       if (onComputerNet && !(req.method === "POST" && (req.url ?? "").split("?")[0] === FILL_PATH)) { res.writeHead(403, { "content-type": "application/json" }); res.end(JSON.stringify({ code: "refused", message: "A computer reaches only the Vault channel." })); return; }
       if (carryDoor.handle(req, res)) return;
       if(desktopCors(req,res))return;
@@ -2730,6 +2802,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const stop = (): Promise<void> => {
     stopping ??= (async () => {
       sink.log({ space: space ?? "-", level: 20, msg: "daemon.stopping", place: "boot" });
+      // first the hooks: no consumer is handed another event while the services close under it (what commits from here on is delivered by the next start, from the stored cursor), and the
+      // pass in flight ends before the engine and the seams go. Bounded, so a consumer that will not end cannot hold the stop.
+      if (hooks) await Promise.race([hooks.close().catch(() => undefined), new Promise<void>((r) => { setTimeout(r, 5_000).unref(); })]);
       for (const c of closers.reverse()) await Promise.resolve().then(c).catch(() => {});
       clearInfo(paths);
       o.onStopped?.();
@@ -2739,7 +2814,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   requestStop = () => { void stop(); };
 
   return {
-    url: `http://${cfg.host}:${boundPort}`, gitPort, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, personalChrome: composedChrome, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p) }, teamLinks: () => teamLinks.ids(),
+    url: `http://${cfg.host}:${boundPort}`, gitPort, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, boundPorts, projections, sink, log, chromeBridge, personalChrome: composedChrome, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p) }, teamLinks: () => teamLinks.ids(),
     runProbes: (names) => runProbes(names), pollCommands: runCommands, ensureIngress: () => ensureIngress(false),
     peers: peerService,
     startupWork: () => startupWork(),

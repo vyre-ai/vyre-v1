@@ -1,4 +1,4 @@
-// The profiles inside the Space browser (images/space-browser/browserd/profiles.ts), with a stand-in for Chromium: one folder, one port and one Vault channel per profile, the idle stop, room for a new
+// The profiles inside the Space browser (images/space-browser/browserd/profiles.ts), with a stand-in for Chromium: one folder and one Vault channel per profile, a DevTools pipe and never a port, the idle stop, room for a new
 // browser when the service is full, a person at the controls, and a profile id that cannot name a path. The real Chromium is sbrowser.heavy.test.ts.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -13,12 +13,12 @@ import { AgentError } from "../../../images/agent-computer/agentd/errors.ts";
 function rig(o: { maxRunning?: number; idleMs?: number } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-sbrowser-"));
   const clock = { t: 1_000_000 };
-  const launched: Array<{ dir: string; port: number; chrome: Chrome; stopped: boolean; tools: string[]; held: string[] }> = [];
+  const launched: Array<{ dir: string; port: number | undefined; pipe: boolean; chrome: Chrome; stopped: boolean; tools: string[]; held: string[] }> = [];
   const launch: LaunchFn = (dir, _ext, _log, opts) => {
-    const rec = { dir, port: opts.port ?? 0, stopped: false, tools: [] as string[], held: [] as string[], chrome: null as unknown as Chrome };
+    const rec = { dir, port: opts.port, pipe: opts.pipe === true, stopped: false, tools: [] as string[], held: [] as string[], chrome: null as unknown as Chrome };
     rec.chrome = {
-      port: rec.port,
-      async ready() {}, alive: () => !rec.stopped, async tabs() { return []; }, async page() { throw new Error("no page"); },
+      port: null,
+      async ready() {}, alive: () => !rec.stopped, async tabs() { return []; }, async page() { throw new Error("no page"); }, async browser() { throw new Error("no browser"); }, async attach() { throw new Error("no page"); },
       async tool(name) { rec.tools.push(name); return name === "chrome_state" ? { url: `file://${dir}`, title: path.basename(path.dirname(dir)), loading: false } : { ok: true }; },
       heldIds: () => rec.held, async extension() { return { configured: false, workers: 0 }; }, stop() { rec.stopped = true; }, async shutdown() { rec.stopped = true; },
     } as Chrome;
@@ -31,14 +31,14 @@ function rig(o: { maxRunning?: number; idleMs?: number } = {}) {
 }
 const refusal = (code: string) => (e: unknown) => e instanceof AgentError && e.code === code;
 
-test("each profile has its own folder on the volume and its own port, so cookies and logins are separate", async () => {
+test("each profile has its own folder on the volume, and its browser talks over its own DevTools pipe and opens no port, so cookies and logins are separate", async () => {
   const r = rig();
   try {
     const a = await r.call("agt_dex");
     const b = await r.call("agt_scout");
     assert.equal(r.launched.length, 2);
     assert.notEqual(r.launched[0]!.dir, r.launched[1]!.dir);
-    assert.notEqual(r.launched[0]!.port, r.launched[1]!.port);
+    assert.deepEqual(r.launched.map((x) => [x.pipe, x.port]), [[true, undefined], [true, undefined]], "no browser is given a DevTools port: another profile's pages would reach it on the shared loopback");
     assert.equal(r.launched[0]!.dir, path.join(r.root, "profiles", "agt_dex", "chrome"));
     assert.equal(r.launched[1]!.dir, path.join(r.root, "profiles", "agt_scout", "chrome"));
     assert.ok(fs.statSync(r.launched[0]!.dir).isDirectory() && fs.statSync(r.launched[1]!.dir).isDirectory());
@@ -214,6 +214,7 @@ test("resetChrome stops the browser and empties its Chrome folder for an import,
     assert.equal(r.launched[0]!.stopped, true);
     assert.ok(!fs.existsSync(chrome));
     assert.ok(fs.existsSync(path.join(r.root, "profiles", "agt_dex", "downloads", "keep.pdf")));
+    r.m.importDone("agt_dex");   // the import is in (docker.ts importChrome says so after it put the data there)
     await r.call("agt_dex");
     assert.equal(r.launched.length, 2, "it starts again, from an empty folder, or from what an import put there");
   } finally { r.done(); }
@@ -224,7 +225,7 @@ test("what the browser holds is noted just before it closes, and a sleeping prof
   const closed: string[] = [];
   try {
     const r = rig();
-    const m = createProfileManager({ root, extensionDir: null, log: () => {}, launch: (dir, _e, _l, o) => ({ port: o.port ?? 0, async ready() {}, alive: () => true, async tabs() { return []; }, async page() { throw new Error("x"); }, async tool() { return { ok: true }; }, heldIds: () => [], async extension() { return { configured: false, workers: 0 }; }, stop() {}, async shutdown() { closed.push(dir); } } as unknown as Chrome),
+    const m = createProfileManager({ root, extensionDir: null, log: () => {}, launch: (dir) => ({ port: null, async ready() {}, alive: () => true, async tabs() { return []; }, async page() { throw new Error("x"); }, async tool() { return { ok: true }; }, heldIds: () => [], async extension() { return { configured: false, workers: 0 }; }, stop() {}, async shutdown() { closed.push(dir); } } as unknown as Chrome),
       onClosing: async (p) => { m.saveSessions(p.id, [{ site: "app.clio.com", since: 1, lastSeen: 2 }]); } });
     await m.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 5000 });
     assert.deepEqual(m.cachedSessions("agt_dex"), []);
@@ -234,4 +235,134 @@ test("what the browser holds is noted just before it closes, and a sleeping prof
     assert.deepEqual(m.cachedSessions("agt_other"), []);
     r.done();
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test("two browsers that start at the same moment cannot both take the last place in the service", async () => {
+  const r = rig({ maxRunning: 2 });
+  try {
+    await r.call("agt_aaa");
+    // aaa is busy: hold its tool open
+    const gate: Array<() => void> = [];
+    const orig = r.launched[0]!.chrome.tool.bind(r.launched[0]!.chrome);
+    r.launched[0]!.chrome.tool = async (n, a, s) => { await new Promise<void>((res) => gate.push(res)); return orig(n, a, s); };
+    const busy = r.call("agt_aaa");
+    await new Promise((res) => setTimeout(res, 10));
+    const both = await Promise.allSettled([r.call("agt_bbb"), r.call("agt_ccc")]);
+    const alive = r.launched.filter((x) => !x.stopped).length;
+    assert.ok(alive <= 2, `never more than the service holds (${alive} running)`);
+    assert.equal(both.filter((x) => x.status === "fulfilled").length, 1, "one starts");
+    assert.ok(both.some((x) => x.status === "rejected" && /Waiting for room/.test(String((x as PromiseRejectedResult).reason?.message))), "the other is told plainly to wait");
+    gate.forEach((g) => g());
+    await busy;
+  } finally { r.done(); }
+});
+
+// Audit bug 6, the part in the Space browser (12 Nov): resetChrome closed a busy browser, killing the step in flight; and a tool between the reset and the import started Chrome on the emptied folder.
+test("resetChrome never closes a browser under a step in flight or a person at the controls, and no browser starts while the old computer's data goes in", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-reset-"));
+  const gate: Array<() => void> = [];
+  const stopped = new Set<string>();
+  const starts: string[] = [];
+  const launch: LaunchFn = (dir) => {
+    starts.push(dir);
+    return { port: null, async ready() {}, alive: () => !stopped.has(dir), async tabs() { return []; }, async page() { throw new Error("x"); }, async browser() { throw new Error("x"); }, async attach() { throw new Error("x"); },
+      async tool() { await new Promise<void>((res) => gate.push(res)); return { ok: true }; }, heldIds: () => [], async extension() { return { configured: false, workers: 0 }; }, stop() { stopped.add(dir); }, async shutdown() { stopped.add(dir); } } as unknown as Chrome;
+  };
+  const m = createProfileManager({ root, extensionDir: null, log: () => {}, resetWaitMs: 50, launch });
+  try {
+    const step = m.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 5000 });
+    await new Promise((res) => setTimeout(res, 20));
+    await assert.rejects(() => m.resetChrome("agt_dex"), (e) => refusal("unavailable")(e) && (e as AgentError).reason === "profile_busy", "busy: refused, tried again later, with a reason that does not change with the words");
+    assert.equal(stopped.size, 0, "the step's browser was not closed under it");
+    gate.forEach((g) => g()); gate.length = 0;
+    await step;
+    m.takeover("agt_dex", "usr_dana");
+    await assert.rejects(() => m.resetChrome("agt_dex"), (e) => refusal("unavailable")(e) && (e as AgentError).reason === "profile_held", "a person at the controls: refused, with its reason");
+    m.giveBack("agt_dex");
+    await m.resetChrome("agt_dex");
+    assert.equal(stopped.size, 1, "quiet: closed and emptied");
+    await assert.rejects(() => m.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 5000 }), refusal("unavailable"), "no browser starts while the data goes in");
+    assert.equal(starts.length, 1);
+    m.importDone("agt_dex");
+    const next = m.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 5000 });
+    await new Promise((res) => setTimeout(res, 20));
+    gate.forEach((g) => g());
+    await next;
+    assert.equal(starts.length, 2, "and it starts again once the data is in");
+  } finally { gate.forEach((g) => g()); await m.stopAll(); fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+// Review (12 Nov): every click, act, open, type and send waited 300 ms for a download that might begin, even when none did.
+test("a step that sets off no download waits for nothing after it", async () => {
+  const r = rig();
+  try {
+    await r.call("agt_dex", "chrome_state");
+    for (const name of ["chrome_click", "chrome_act", "chrome_open", "chrome_type", "chrome_send"]) {
+      const t0 = performance.now();
+      await r.call("agt_dex", name);
+      const ms = performance.now() - t0;
+      assert.ok(ms < 100, `${name} took ${Math.round(ms)} ms with no download`);
+    }
+  } finally { r.done(); }
+});
+
+// Third look (12 Nov): a dead MJPEG view of a still page was never closed (no frame, so no full socket) and kept the holder's takeover going. Only a WebSocket view, which the relay pings, counts.
+test("only the holder's WebSocket views count as their open view; an MJPEG view never does", async () => {
+  const { startViewServer } = await import("../../../images/space-browser/browserd/view.ts");
+  const port = 21000 + Math.floor(Math.random() * 20000);
+  // one frame at once, then a still page: nothing more
+  const hub = { watch: (f: (j: Buffer) => void) => { f(Buffer.from([0xff, 0xd8, 0xff, 0xd9])); return () => undefined; }, viewers: () => 0, lastFrameAt: () => null, latest: () => null };
+  const views = startViewServer({ port, address: () => "127.0.0.1", viewOf: () => ({ hub, input: { call: async () => ({ x: 0, y: 0 }) }, takenOver: () => true, onInput: () => undefined }) });
+  try {
+    await new Promise((r) => setTimeout(r, 50));
+    const ac = new AbortController();
+    const res = await fetch(views.url(views.mint("agt_dex", "usr_dana"), "mjpeg"), { signal: ac.signal });
+    assert.equal(res.status, 200);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(views.viewersOf("agt_dex", "usr_dana"), 0, "an MJPEG view is not counted");
+    const ws = new WebSocket(views.url(views.mint("agt_dex", "usr_dana"), "ws"));
+    await new Promise<void>((r) => ws.addEventListener("open", () => r()));
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(views.viewersOf("agt_dex", "usr_dana"), 1, "a WebSocket view is");
+    ws.close(); ac.abort();
+    for (let i = 0; i < 40 && views.viewersOf("agt_dex", "usr_dana") > 0; i++) await new Promise((r) => setTimeout(r, 25));
+    assert.equal(views.viewersOf("agt_dex", "usr_dana"), 0, "and stops counting when it closes");
+  } finally { views.close(); }
+});
+
+// Third look (12 Nov): give back released with no time, so a takeover by another person that reached browserd first was cleared by it.
+test("a release carries the time it was decided: browserd never undoes a takeover that began after it", async () => {
+  const r = rig();
+  try {
+    await r.call("agt_dex");
+    const decided = r.clock.t;
+    r.clock.t += 1000;
+    r.m.takeover("agt_dex", "usr_omar");             // Omar takes over after Dana's give back was decided
+    r.m.giveBack("agt_dex", decided);                // Dana's release reaches browserd late
+    await assert.rejects(() => r.call("agt_dex"), refusal("paused"), "Omar still has the controls");
+    r.m.giveBack("agt_dex", r.clock.t + 1);
+    await r.call("agt_dex");
+  } finally { r.done(); }
+});
+
+// Owner, 12 Nov: how many browsers run at once comes from memory, not a fixed six; an admin's number is an upper bound only.
+test("browserd runs as many browsers as its memory holds (256 MB each after 512 MB for itself); an admin's number only caps it", async () => {
+  const { memoryLimitMb, slotsFor } = await import("../../../images/space-browser/browserd/profiles.ts");
+  assert.equal(slotsFor(8192, undefined), 30, "an 8 GB container: thirty");
+  assert.equal(slotsFor(2560, undefined), 8);
+  assert.equal(slotsFor(600, undefined), 1, "never none");
+  assert.equal(slotsFor(8192, 6), 6, "the admin's bound");
+  assert.equal(slotsFor(2560, 50), 8, "a bound above what memory holds changes nothing");
+  assert.equal(memoryLimitMb((f) => (f.endsWith("memory.max") ? "4294967296\n" : ""), () => 16000), 4096, "cgroup v2");
+  assert.equal(memoryLimitMb((f) => { if (f.endsWith("memory.max")) return "max\n"; throw new Error("no"); }, () => 16000), 16000, "no limit: the computer's memory");
+  assert.equal(memoryLimitMb((f) => { if (f.endsWith("memory.max")) throw new Error("v1"); return "2147483648"; }, () => 16000), 2048, "cgroup v1");
+});
+
+test("the container's process cap limits how many browsers run too (a Chromium is about 120 tasks), and a browser that cannot be made is a refusal, not a crash", async () => {
+  const { slotsFor, pidsLimit } = await import("../../../images/space-browser/browserd/profiles.ts");
+  assert.equal(slotsFor(8192, undefined, 2048), 16, "2048 tasks: sixteen, though memory holds thirty");
+  assert.equal(slotsFor(8192, undefined, 3700), 30);
+  assert.equal(slotsFor(8192, undefined, null), 30, "no cap: memory decides");
+  assert.equal(pidsLimit((f) => (f.endsWith("pids.max") && !f.includes("/pids/") ? "2048\n" : "")), 2048);
+  assert.equal(pidsLimit((f) => (f.includes("/pids/") ? "" : "max\n")), null);
 });

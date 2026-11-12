@@ -2,9 +2,13 @@
 // timeout, paused (a person has the controls, or Esc), not_found, bad_input, held, unavailable.
 export type ToolCode = "timeout" | "paused" | "not_found" | "bad_input" | "held" | "unavailable";
 
+/** A reason a caller may act on, which never changes with the wording: `profile_held` (a person has the controls of that profile), `profile_busy` (a step is running in it). */
+export type ToolReason = "profile_held" | "profile_busy";
+
 export class AgentError extends Error {
   readonly code: ToolCode;
-  constructor(code: ToolCode, message: string) { super(message); this.name = "AgentError"; this.code = code; }
+  readonly reason: ToolReason | undefined;
+  constructor(code: ToolCode, message: string, reason?: ToolReason) { super(message); this.name = "AgentError"; this.code = code; this.reason = reason; }
 }
 
 export const badInput = (m: string): AgentError => new AgentError("bad_input", m);

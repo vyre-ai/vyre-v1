@@ -317,11 +317,22 @@ export async function requestStop(ctx: Ctx, runId: string): Promise<boolean> {
   return true;
 }
 
+/** The agent a computer belongs to, or undefined when the caller cannot see that computer. */
+async function agentOfComputer(ctx: Ctx, computerId: string | undefined): Promise<string | undefined> {
+  if (computerId === undefined) return undefined;
+  const got = (await ctx.call("computers.list", {})) as { computers?: { computerId?: unknown; agentId?: unknown }[] };
+  const a = (got.computers ?? []).find((c) => c.computerId === computerId)?.agentId;
+  return typeof a === "string" ? a : undefined;
+}
+
 async function openSession(ctx: Ctx, target: Target, fileName: string, runId: string): Promise<string> {
   const name = `Runbook ${fileName}`.slice(0, 80);
+  // an agent's terminal is opened by naming its agent (the terminal module refuses a computer id alone): the computer's agent, from the same list Runs on is picked from
+  const agentId = target.kind === "server" ? undefined : await agentOfComputer(ctx, target.computerId);
+  if (target.kind !== "server" && agentId === undefined) return fail(ctx, "validation.precondition_failed", "That computer is not available. Pick another place to run it.");
   const opened = (target.kind === "server"
     ? await ctx.call("terminal.open_server", { idempotencyKey: `runbooks.run:${runId}:open`, name })
-    : await ctx.call("terminal.open", { idempotencyKey: `runbooks.run:${runId}:open`, host: "agent_computer", computerId: target.computerId, name })) as { terminal?: { terminalId?: unknown } };
+    : await ctx.call("terminal.open", { idempotencyKey: `runbooks.run:${runId}:open`, host: "agent_computer", agentId, computerId: target.computerId, name })) as { terminal?: { terminalId?: unknown } };
   const id = opened.terminal?.terminalId;
   if (typeof id !== "string") return fail(ctx, "provider.unavailable", "The terminal did not open.");
   return id;
