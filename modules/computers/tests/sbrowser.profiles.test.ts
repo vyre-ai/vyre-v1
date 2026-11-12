@@ -408,3 +408,55 @@ test("close_other closes another Space's longest quiet browser past the grace, n
     assert.equal(r.launched[2]!.stopped, false, "the asker's own Space is never closed this way");
   } finally { r.done(); }
 });
+
+// Sixth look 1, browserd's side: an act naming an older start (or any start while the browser is not running) is refused before the Vault is asked for a value and before a browser starts.
+test("an act on a start that is not the one running is refused before the Vault is asked and before a browser starts; with the start running it goes on", async () => {
+  const r = rig();
+  try {
+    await r.call("agt_dex");
+    const first = r.m.get("agt_dex").startId;
+    let asked = 0;
+    const channel = { fillArgs: async (a: Record<string, unknown>) => { asked += 1; return { args: a, used: [] }; } } as unknown as Parameters<typeof r.m.tool>[0]["channel"];
+    await r.m.tool({ profileId: "agt_dex", tool: "chrome_type", args: { text: "#Acme.password" }, timeoutMs: 5000, seenFrom: first, ...(channel ? { channel } : {}) });
+    assert.equal(asked, 1);
+    await r.m.stop("agt_dex");
+    const stale = (e: unknown) => e instanceof AgentError && e.reason === "browser_reopened" && e.start === null;
+    await assert.rejects(() => r.m.tool({ profileId: "agt_dex", tool: "chrome_type", args: { text: "#Acme.password" }, timeoutMs: 5000, seenFrom: first, ...(channel ? { channel } : {}) }), stale);
+    assert.equal(asked, 1, "the Vault was not asked");
+    assert.equal(r.launched.length, 1, "no browser started for it");
+    await r.call("agt_dex");   // a look starts it again
+    const e2 = await r.m.tool({ profileId: "agt_dex", tool: "chrome_click", args: {}, timeoutMs: 5000, seenFrom: first }).catch((e: unknown) => e);
+    assert.ok(e2 instanceof AgentError && e2.start === r.m.get("agt_dex").startId, "the refusal names the start now running");
+    await r.m.tool({ profileId: "agt_dex", tool: "chrome_click", args: {}, timeoutMs: 5000, seenFrom: r.m.get("agt_dex").startId });
+  } finally { r.done(); }
+});
+
+// Sixth look, should-fix B: a Space's daemon marks its own profiles at its start, a sleeping agent's included, so they are found as this Space's on disk.
+test("mark_space writes the Space into this Space's own profiles on disk that name none, never one another Space marked, and makes no folder", async () => {
+  const r = rig();
+  try {
+    fs.mkdirSync(path.join(r.root, "profiles", "agt_sleeps"), { recursive: true });
+    r.m.setSpace("agt_theirs", "spc_b"); await r.call("agt_theirs");
+    assert.equal(r.m.markSpace("spc_a", ["agt_sleeps", "agt_theirs", "agt_never"]), 1);
+    assert.equal(fs.readFileSync(path.join(r.root, "profiles", "agt_sleeps", "space"), "utf8"), "spc_a");
+    assert.equal(fs.readFileSync(path.join(r.root, "profiles", "agt_theirs", "space"), "utf8"), "spc_b", "another Space's mark stays");
+    assert.equal(fs.existsSync(path.join(r.root, "profiles", "agt_never")), false, "no folder is made for a profile that has none");
+    assert.deepEqual(await r.m.purgeSpace("spc_a"), { removed: 1, others: 1, unmarked: 0 });
+  } finally { r.done(); }
+});
+
+// Sixth look C, browserd's side: a person's view or takeover is remembered (when, and which start they saw); one who takes over a browser that was reopened since is told.
+test("a person's view and takeover are remembered; taking over a browser reopened since that person last saw it says so", async () => {
+  const r = rig();
+  try {
+    await r.call("agt_dex");
+    r.m.personSaw("agt_dex");
+    const row = (await r.m.list()).find((x) => x.profileId === "agt_dex")!;
+    assert.equal(row.personSeenAt, r.clock.t, "the row says when a person last had it in front of them");
+    assert.deepEqual(r.m.takeover("agt_dex", "usr_dana"), { reopened: false }, "the same start they saw");
+    r.m.giveBack("agt_dex");
+    await r.m.stop("agt_dex");
+    await r.call("agt_dex");   // reopened for the agent's next step
+    assert.deepEqual(r.m.takeover("agt_dex", "usr_dana"), { reopened: true }, "the page they saw was reloaded since");
+  } finally { r.done(); }
+});

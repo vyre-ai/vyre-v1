@@ -139,6 +139,8 @@ export async function browserStreamInput(ctx: CompCtx, input: { agentId: string;
   return held;
 }
 
+export const TAKEOVER_REOPENED = "This browser was reopened since you last saw it, so its page was reloaded.";
+
 export async function takeOver(ctx: CompCtx, input: { agentId: string }) {
   const sb = browserOrRaise(ctx);
   const { person, access } = await mayWatch(ctx, input.agentId, true);
@@ -147,8 +149,10 @@ export async function takeOver(ctx: CompCtx, input: { agentId: string }) {
   if (other !== null && other !== person && (await currentHold(ctx, sb, input.agentId)) !== null) raise(ctx, "validation.precondition_failed", "Someone else has the controls.");
   // the table first, then browserd: an agent's call that reads the table after this line waits, and one that read it before cannot undo it (browserd never releases on a call)
   setHold(ctx, input.agentId, person);
-  try { await sb.takeover({ profileId: input.agentId, personId: person, space: ctx.space }); } catch (e) { if (other === null) dropHold(ctx, input.agentId); refuse(ctx, e); }
-  return { profile: await rowOf(ctx, sb, input.agentId, access) };
+  let got: { reopened?: boolean } | void = undefined;
+  try { got = await sb.takeover({ profileId: input.agentId, personId: person, space: ctx.space }); } catch (e) { if (other === null) dropHold(ctx, input.agentId); refuse(ctx, e); }
+  // the browser was reopened since a person last saw it (closed to make room, or stopped when idle): its page was reloaded, and the pane says so in one line
+  return { profile: await rowOf(ctx, sb, input.agentId, access), ...(got && got.reopened ? { note: TAKEOVER_REOPENED } : {}) };
 }
 
 export async function giveBack(ctx: CompCtx, input: { agentId: string }) {

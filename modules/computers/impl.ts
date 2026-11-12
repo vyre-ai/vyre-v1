@@ -34,7 +34,7 @@ import type { HomeDeps, HomeSync, MadeFile } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost, boundHost, ensure as ensureSchema } from "./projections.ts";
-import { reconcileClaims, turnActive, turnEnded, turnStarted } from "./sbrowser/room.ts";
+import { markOwnProfiles, reconcileClaims, turnActive, turnEnded, turnStarted } from "./sbrowser/room.ts";
 import { browserOfDeleted, browserOfRestored, forgetExpired } from "./sbrowser/forget.ts";
 import { nodeHomeCheck, nodeJobs, nodeRecordingCheck, nodeResult, nodeStreamInput, nodeStreamOpen } from "./handlers/node.ts";
 import { nodeRun } from "./remote.ts";
@@ -193,8 +193,12 @@ const TOOL_CODES: readonly string[] = ["timeout", "paused", "not_found", "bad_in
 export function toolErrorOf(stderr: string, exitCode: number | null): ToolError {
   const last = stderr.trim().split("\n").pop() ?? "";
   try {
-    const j = JSON.parse(last) as { code?: unknown; message?: unknown; reason?: unknown };
-    if (typeof j.code === "string" && TOOL_CODES.includes(j.code)) return new ToolError(j.code as ToolCode, typeof j.message === "string" ? j.message : "The tool failed.", j.reason === "profile_held" || j.reason === "profile_busy" || j.reason === "browser_full" || j.reason === "browser_reopened" ? j.reason : undefined);
+    const j = JSON.parse(last) as { code?: unknown; message?: unknown; reason?: unknown; start?: unknown };
+    if (typeof j.code === "string" && TOOL_CODES.includes(j.code)) {
+      const e = new ToolError(j.code as ToolCode, typeof j.message === "string" ? j.message : "The tool failed.", j.reason === "profile_held" || j.reason === "profile_busy" || j.reason === "browser_full" || j.reason === "browser_reopened" ? j.reason : undefined);
+      if (typeof j.start === "string" || j.start === null) e.start = j.start;
+      return e;
+    }
   } catch { /* not JSON */ }
   return new ToolError("unavailable", `agentd tool failed (${exitCode ?? "no exit code"}): ${stderr.trim().slice(0, 200)}`);
 }
@@ -616,7 +620,7 @@ export const consumers = {
 export const periodic = {
   "computers.browser_room": {
     everyMs: 30_000,
-    run: async (ctx: CompCtx): Promise<void> => { const sb = spaceBrowser(); if (!sb) return; ensureSchema(ctx.db); await reconcileClaims(ctx, sb, { force: true }); await forgetExpired(ctx); },
+    run: async (ctx: CompCtx): Promise<void> => { const sb = spaceBrowser(); if (!sb) return; ensureSchema(ctx.db); await reconcileClaims(ctx, sb, { force: true }); await markOwnProfiles(ctx, sb); await forgetExpired(ctx); },
   },
 };
 

@@ -48,6 +48,11 @@ for (const os_ of ["linux", "macos"] as const) {
     assert.equal(removedAny(asked), false, asked.join(" | "));
     assert.match(out, /Removed this Space's 2 agent browser profiles\. The Space browser stays: it also holds 3 other profiles/);
   });
+  test(`${os_}: profiles that name no Space (made before Spaces were written down, perhaps another Space's): the container and the volume stay`, () => {
+    const { asked, out } = run(os_, '{"removed":1,"others":0,"unmarked":2}', "0");
+    assert.equal(removedAny(asked), false, asked.join(" | "));
+    assert.match(out, /it also holds 2 other profiles/);
+  });
   test(`${os_}: another install on the engine: they stay too, though nothing else is on the volume yet`, () => {
     assert.equal(removedAny(run(os_, '{"removed":1,"others":0,"unmarked":0}', "1").asked), false);
   });

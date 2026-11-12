@@ -8,6 +8,8 @@ export type ToolReason = "profile_held" | "profile_busy" | "browser_full" | "bro
 export class AgentError extends Error {
   readonly code: ToolCode;
   readonly reason: ToolReason | undefined;
+  /** browser_reopened: the start of the browser now (null: it is not running), so the caller knows what it has not seen yet. */
+  start: string | null | undefined;
   constructor(code: ToolCode, message: string, reason?: ToolReason) { super(message); this.name = "AgentError"; this.code = code; this.reason = reason; }
 }
 

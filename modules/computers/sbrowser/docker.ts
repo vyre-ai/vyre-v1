@@ -1,6 +1,12 @@
 // The Docker adapter of the Space browser: one container `vyre-sbrowser` per Space host from images/space-browser, a named volume for the profiles at /data, and browserd inside, which this adapter talks
 // to by running its control program (`docker exec <container> /opt/browserd/ctl <action> '<json>'`, one JSON object on stdout, a refusal is {"code","message"} on stderr with a non-zero exit), the same way
 // the agent computer's host talks to agentd (modules/computers/impl.ts). The container is started on the first browser tool and stays up: it holds nothing while no profile runs a browser.
+//
+// TRUST MODEL (sixth look, 12 Nov). Two Spaces whose daemons run on one Docker engine share this one container and its volume; their profiles are kept apart by agent id and by the Space each profile's
+// folder records. browserd asks no proof of Space for any control action (tool, status, takeover, give_back, sessions, sign_out, screenshot, download_read, forget, purge_space, mark_space, close_other):
+// whoever can run `ctl` in the container is trusted, and that is the daemons on this engine (through Docker or the runner) and root on the host. A daemon could therefore read or remove another
+// Space's profile by id; the Space's module filters what its people see and which profiles it acts on, never browserd. That is the line: a shared container trusts the daemons on its engine equally.
+// Behind the runner this matters only if two Spaces share one runner engine, which is not the Team server layout. Proof of Space in browserd is a later step, not this release's.
 import { NOT_FETCHED_REASON, fetchableImage } from "../../../sandbox/src/docker.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../../sandbox/src/docker.ts";
 import { computerSeccomp, reviewComputerConfig, toolErrorOf } from "../impl.ts";
@@ -292,7 +298,13 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
   return {
     available: () => o.api.ping().catch(() => false),
     async tool(a: BrowserToolCall) {
-      return call("tool", { profileId: a.profileId, tool: a.tool, args: a.args, timeoutMs: a.timeoutMs, ...(a.by ? { by: a.by } : {}), ...(a.fill ? { fillUrl: a.fill.url, fillToken: a.fill.token } : {}), ...(a.space ? { spaceId: a.space } : {}), ...(a.hold !== undefined ? { hold: a.hold } : {}), ...(a.refsFrom ? { refsFrom: a.refsFrom } : {}), ...(a.agent ? { agentName: a.agent.name, ...(a.agent.faceSvg ? { faceSvg: a.agent.faceSvg } : {}) } : {}) });
+      return call("tool", { profileId: a.profileId, tool: a.tool, args: a.args, timeoutMs: a.timeoutMs, ...(a.by ? { by: a.by } : {}), ...(a.fill ? { fillUrl: a.fill.url, fillToken: a.fill.token } : {}), ...(a.space ? { spaceId: a.space } : {}), ...(a.hold !== undefined ? { hold: a.hold } : {}), ...(a.refsFrom ? { refsFrom: a.refsFrom } : {}), ...(a.seenFrom !== undefined ? { seenFrom: a.seenFrom } : {}), ...(a.agent ? { agentName: a.agent.name, ...(a.agent.faceSvg ? { faceSvg: a.agent.faceSvg } : {}) } : {}) });
+    },
+    async markSpace(space, profileIds) {
+      // not up: -1, asked again at the next pass
+      if (!(await o.api.containerRunning(name))) return -1;
+      const r = (await call("mark_space", { spaceId: space, profileIds: [...profileIds] })) as { marked?: unknown };
+      return typeof r.marked === "number" ? r.marked : 0;
     },
     async closeOther(space, quietMs) {
       if (!(await o.api.containerRunning(name))) return null;
@@ -311,7 +323,7 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     },
     async downloadAck(profileId, file) { await call("download_ack", { profileId, name: file }); },
     async downloadKeep(profileId, file) { await call("download_keep", { profileId, name: file }); },
-    async takeover(a) { await call("takeover", { profileId: a.profileId, personId: a.personId, ...(a.space ? { spaceId: a.space } : {}) }); },
+    async takeover(a) { const r = (await call("takeover", { profileId: a.profileId, personId: a.personId, ...(a.space ? { spaceId: a.space } : {}) })) as { reopened?: unknown }; return { reopened: r?.reopened === true }; },
     async giveBack(profileId, g) { await call("give_back", { profileId, ...(g?.before !== undefined ? { before: g.before } : {}) }); },
     async screenshot(profileId) {
       const s = await call("screenshot", { profileId }) as { png: string; width: number; height: number };

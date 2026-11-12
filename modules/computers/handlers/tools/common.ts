@@ -16,7 +16,10 @@ import { askedThisTurn } from "./my-chrome-ask.ts";
 import { spaceBrowser } from "../../sbrowser/port.ts";
 import { profileIdOf } from "../../sbrowser/policy.ts";
 import { takeDownloads } from "../../sbrowser/downloads.ts";
-import { answerFrom, callEnded, callStarted, needRoom, refsStart, REOPENED_LINE, snapshotFrom } from "../../sbrowser/room.ts";
+import { answerFrom, callEnded, callStarted, lastSeenStart, needRoom, refsStart, refusedAt, REOPENED_LINE, snapshotFrom } from "../../sbrowser/room.ts";
+
+/** The steps that act on the page (anything but a look): each carries the start of the browser the agent last saw, and is refused after a reopen until the agent has seen the new page. */
+const ACTS: ReadonlySet<string> = new Set(["chrome_click", "chrome_act", "chrome_type", "chrome_fill", "chrome_send", "chrome_api", "chrome_eval"]);
 
 /** Does a step name an element by a ref from a snapshot (a key "ref" anywhere in its arguments)? Such a step carries the start its refs were taken under, and browserd refuses it after a reopen. */
 function namesRef(v: unknown, depth = 0): boolean {
@@ -41,6 +44,8 @@ export type ToolReason = "profile_held" | "profile_busy" | "browser_full" | "bro
 export class ToolError extends Error {
   readonly code: ToolCode;
   readonly reason: ToolReason | undefined;
+  /** browser_reopened: the start of the agent's browser now (null: not running), from browserd. */
+  start: string | null | undefined;
   constructor(code: ToolCode, message: string, reason?: ToolReason) { super(message); this.name = "ToolError"; this.code = code; this.reason = reason; }
 }
 
@@ -388,7 +393,7 @@ async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof space
   given = givenCount(profileId);
   // a step on refs says which start of the browser they came from: browserd refuses it, with the line, when the browser has started again since (its pages reloaded, the refs gone or moved)
   const from = spec.name !== "chrome_snapshot" && namesRef(args) ? refsStart(profileId) : undefined;
-  const send = (): Promise<ToolAnswer> => sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, hold: h.hold, ...(fill ? { fill } : {}), ...(from ? { refsFrom: from } : {}) });
+  const send = (): Promise<ToolAnswer> => sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, hold: h.hold, ...(fill ? { fill } : {}), ...(from ? { refsFrom: from } : {}), ...(ACTS.has(spec.name) ? { seenFrom: lastSeenStart(profileId) } : {}) });
   try {
     try { raw = await send(); } catch (e) {
       // the browser service is full though this profile holds room (another Space filled it): wait for room like any start, then send once more (it was refused before it ran)
@@ -397,6 +402,8 @@ async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof space
       raw = await send();
     }
   } catch (e) {
+    // an act on a page the agent has not seen: refused with the line; the refusal is its notice (sbrowser/room.ts refusedAt)
+    if (e instanceof ToolError && e.reason === "browser_reopened") { refusedAt(profileId, e.start); return refuse(ctx, e, profileId); }
     // browserd still holds a takeover the table no longer has (a give back that did not reach it): released only if it began before this call read the table, so a takeover made since stays; the
     // call was refused before it ran, so it is sent once more
     if (!(e instanceof ToolError && e.code === "paused" && /has the controls/i.test(e.message)) || heldBy(ctx, profileId) !== null) return refuse(ctx, e, profileId);

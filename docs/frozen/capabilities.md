@@ -45,6 +45,8 @@ Changed contracts, all in `manifests/computers.ts`; no capability was added or r
 - `computers.chrome.type@1` and `computers.chrome.send@1` gain the optional `downloads` output the other acting tools already had. In `downloads`, `fileId` is now optional and a `note` says why a download too large to move is not in Files.
 - `computers.browser.take_over@1`, `give_back@1` and `sign_out@1` ask for `computers.watch` instead of `computers.take_over`. The Space browser's own rule still decides who may (sbrowser/policy.ts: a personal agent's browser is its owner's, a team agent's its owner's and the admins'), so a plain member can take over their own Assistant's browser. This was decided in the review round of 12 Nov (audit B6).
 
-The lead signed the `slots` field and the `browser_full` reason. The other three items above are listed for the lead's sign-off.
+One consequence, called out by the reviewer: the `computers.take_over` role toggle no longer governs taking over an agent's Space browser. The browser's own policy does: its owner, and the admins for a team agent. The toggle still governs agent computers (the app's Computer tab gates Take over on it, and the catalogue calls it "Take over an agent computer"); no screen shows it as governing browsers.
 
-Signed: lead, 12 Nov 2026 (slots on computers.browser.profiles, the browser_full reason)
+Signed: lead, 12 Nov 2026 (all of the above: slots, browser_full, reopened and note on chrome outputs, downloads on type and send with fileId optional and a note, take_over, give_back and sign_out on computers.watch with the browser's policy deciding)
+
+For the lead's sign-off (sixth look, added after the signature above): `computers.browser.take_over@1` gains an optional output `note`, one line for the pane when the browser was reopened since the person last saw it and its page was reloaded; and acts on the page (`click`, `act`, `type`, `fill`, `send`, `api`, `eval`) may now be refused with the reason `browser_reopened` until the agent has seen the reloaded page.

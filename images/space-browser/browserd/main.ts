@@ -85,7 +85,7 @@ const hubOf = (id: string): Hub => {
     h = createScreencastHub({
       chrome: () => (p.chrome?.alive() ? p.chrome : null),
       wake: async () => { await manager.ensure(id); },
-      activity: () => { p.viewers = hubs.get(id)?.viewers() ?? 0; manager.touch(id); },
+      activity: () => { p.viewers = hubs.get(id)?.viewers() ?? 0; manager.touch(id); manager.personSaw(id); },
       log,
     });
     hubs.set(id, h);
@@ -103,7 +103,7 @@ const views = startViewServer({
   address,
   viewOf: (id): ViewOf | null => {
     const p = manager.get(id);
-    return { hub: hubOf(id), input: createCdpInput(() => pageOf(id)), takenOver: () => p.state.takeover !== null, onInput: (event) => { audit.push({ profileId: id, at: Date.now(), event }); if (audit.length > 1000) audit.shift(); manager.touch(id); p.personActiveAt = Date.now(); } };
+    return { hub: hubOf(id), input: createCdpInput(() => pageOf(id)), takenOver: () => p.state.takeover !== null, onInput: (event) => { audit.push({ profileId: id, at: Date.now(), event }); if (audit.length > 1000) audit.shift(); manager.touch(id); p.personActiveAt = Date.now(); manager.personSaw(id); } };
   },
 });
 
@@ -170,12 +170,13 @@ async function dispatch(action: string, a: Args): Promise<Args> {
         if (manager.get(pid).spaceId && manager.get(pid).vault.hasChannel()) bridges?.pair(pid);
         const args = (typeof a["args"] === "object" && a["args"] !== null ? a["args"] : {}) as Args;
         // every answer says which start of the browser it came from: the module knows a reopen (its pages reloaded) from it, and which refs are stale
-        const out = await manager.tool({ profileId: checkProfileId(a["profileId"]), tool: text(a, "tool"), args, ...(typeof a["refsFrom"] === "string" ? { refsFrom: a["refsFrom"] } : {}), timeoutMs: typeof a["timeoutMs"] === "number" ? a["timeoutMs"] : 30_000, ...(a["by"] === "person" ? { by: "person" } : {}), ...(channel ? { channel } : {}) });
+        const out = await manager.tool({ profileId: checkProfileId(a["profileId"]), tool: text(a, "tool"), args, ...(typeof a["refsFrom"] === "string" ? { refsFrom: a["refsFrom"] } : {}), ...(typeof a["seenFrom"] === "string" ? { seenFrom: a["seenFrom"] } : {}), timeoutMs: typeof a["timeoutMs"] === "number" ? a["timeoutMs"] : 30_000, ...(a["by"] === "person" ? { by: "person" } : {}), ...(channel ? { channel } : {}) });
         return { ...out, browserStart: manager.get(pid).startId };
       } finally { channel?.leave(); }
     }
     // a purge of one install on an engine that other Spaces share: only this Space's profiles go (closed cleanly first); what else is on the volume is counted, so the installer knows whether the volume is shared
     case "purge_space": return await manager.purgeSpace(text(a, "spaceId"));
+    case "mark_space": return { marked: manager.markSpace(text(a, "spaceId"), Array.isArray(a["profileIds"]) ? (a["profileIds"] as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 5000) : []) };
     case "close_other": return { closed: await manager.closeOther(text(a, "spaceId"), typeof a["quietMs"] === "number" ? Math.max(10_000, a["quietMs"]) : 90_000) };
     case "downloads": return { downloads: manager.downloads(checkProfileId(a["profileId"])) };
     case "profile_used": return { used: manager.used(checkProfileId(a["profileId"])) };
@@ -185,8 +186,7 @@ async function dispatch(action: string, a: Args): Promise<Args> {
     case "takeover": {
       const pid = checkProfileId(a["profileId"]);
       if (typeof a["spaceId"] === "string") manager.setSpace(pid, a["spaceId"]);
-      manager.takeover(pid, text(a, "personId"));
-      return {};
+      return manager.takeover(pid, text(a, "personId"));
     }
     case "give_back": manager.giveBack(checkProfileId(a["profileId"]), typeof a["before"] === "number" ? a["before"] : undefined); return {};
     case "screenshot": {
@@ -243,7 +243,7 @@ function serve(c: Socket): void {
       (result) => c.end(JSON.stringify({ ok: true, result }) + "\n"),
       (e: unknown) => {
         const err = e instanceof AgentError ? e : unavailable(e instanceof Error ? e.message : "the browser failed");
-        c.end(JSON.stringify({ ok: false, code: err.code, message: err.message, ...(err.reason ? { reason: err.reason } : {}) }) + "\n");
+        c.end(JSON.stringify({ ok: false, code: err.code, message: err.message, ...(err.reason ? { reason: err.reason } : {}), ...(err.start !== undefined ? { start: err.start } : {}) }) + "\n");
       },
     );
   });

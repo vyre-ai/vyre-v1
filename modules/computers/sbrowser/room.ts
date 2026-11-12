@@ -59,6 +59,8 @@ export function setRoomWaitMs(ms: number | null): void { ROOM_WAIT_MS = ms ?? 30
  */
 export const SHORT_GRACE_MS = 10_000;
 export const UNKNOWN_GRACE_MS = 90_000;
+/** A person's use counts longer than an agent's: a browser someone was watching or had the controls of in the last minute is not closed (they may press Take over next; sixth look C). */
+export const PERSON_GRACE_MS = 60_000;
 /** A call waiting this long says so, with its place in line, in the browser's row (so nobody thinks it is stuck). */
 let SAY_WAIT_MS = 10_000;
 /** Tests: say the wait sooner (default 10 s). */
@@ -137,6 +139,13 @@ export function answerFrom(profileId: string, start: string): boolean {
   return prev !== undefined && prev !== start;
 }
 export function snapshotFrom(profileId: string, start: string): void { if (start) snapStart.set(profileId, start); }
+/** The start the agent's last answer came from, or "" (none seen by this daemon). */
+export const lastSeenStart = (profileId: string): string => seenStart.get(profileId) ?? "";
+/** A refused act tells the agent once: what it now has to look at. With a known start before (a reopen this daemon saw), the refusal itself is the notice and the next act goes on; with none
+ * (this daemon restarted, or the browser is not running) acts stay refused until a look. */
+export function refusedAt(profileId: string, start: string | null | undefined): void {
+  if (seenStart.has(profileId) && typeof start === "string" && start) seenStart.set(profileId, start);
+}
 /** The start the refs of this profile's last snapshot belong to, or undefined (no snapshot seen by this daemon). */
 export const refsStart = (profileId: string): string | undefined => snapStart.get(profileId);
 
@@ -239,9 +248,26 @@ function closable(ctx: CompCtx, rows: readonly ProfileRow[], profileId: string):
     const st = turnState(ctx.space, r.profileId, ctx.now());
     if (st === "turn") continue;
     if (now - r.lastActiveAt < (st === "idle" ? SHORT_GRACE_MS : UNKNOWN_GRACE_MS)) continue;
+    if (r.personSeenAt !== undefined && now - r.personSeenAt < PERSON_GRACE_MS) continue;
     return r.profileId;
   }
   return null;
+}
+
+/**
+ * Once per daemon life, when the browser service is up: this Space's own profiles (every agent that ever used its Space browser, from this Space's own records: the browser timeline, claims, holds and
+ * moves) are marked with the Space in their folders, so a profile made before Spaces were written down, or one whose agent sleeps, is this Space's on disk too (sixth look, should-fix B).
+ */
+const marked = new Set<string>();
+export async function markOwnProfiles(ctx: CompCtx, sb: SpaceBrowser): Promise<void> {
+  if (marked.has(ctx.space) || !sb.markSpace) return;
+  const ids = new Set<string>();
+  for (const q of [
+    "SELECT DISTINCT computer_id AS id FROM computers_timeline WHERE computer_id NOT IN (SELECT computer_id FROM computers_computers)",
+    "SELECT claim_key AS id FROM computers_claim WHERE kind = 'browser'",
+    "SELECT profile_id AS id FROM computers_browser_hold",
+  ]) { try { for (const r of rowsOf(ctx.db, q)) ids.add(String(r["id"])); } catch { /* a table not there yet */ } }
+  try { if ((await within(DOCKER_MS, sb.markSpace(ctx.space, [...ids]), "the browser service")) >= 0) marked.add(ctx.space); } catch { /* the next pass */ }
 }
 
 /** A profile that waited and now has room is opened: a tab list starts its browser, and nothing else of the agent's turn is guessed. */
@@ -252,4 +278,4 @@ bindStarter("browser", async (_ctx, key) => {
 });
 
 /** Tests: forget what was claimed. */
-export function resetRoom(): void { lastReconcile = 0; seenStart.clear(); snapStart.clear(); agents.clear(); turnOwner.clear(); line.length = 0; waitStarted.clear(); roomTurn = Promise.resolve(); }
+export function resetRoom(): void { lastReconcile = 0; marked.clear(); seenStart.clear(); snapStart.clear(); agents.clear(); turnOwner.clear(); line.length = 0; waitStarted.clear(); roomTurn = Promise.resolve(); }

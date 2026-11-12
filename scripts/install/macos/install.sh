@@ -852,7 +852,9 @@ purge_browser() {
     else browser_remove_all; fi
     return 0
   fi
-  if [ "${others:-0}" = 0 ] && ! other_installs; then browser_remove_all; return 0; fi
+  # everything goes only when the volume holds nothing but this Space's (removed now): no other Space's profile, no profile that names no Space (it may be another Space's from before Spaces were
+  # written down), and no other install on this engine
+  if [ "${others:-0}" = 0 ] && [ "${unmarked:-0}" = 0 ] && ! other_installs; then browser_remove_all; return 0; fi
   say "  Removed this Space's ${removed:-0} agent browser profiles. The Space browser stays: it also holds $((${others:-0} + ${unmarked:-0})) other profiles (another Space's on this Docker engine, or older ones that name no Space)."
   [ "$was" = true ] || docker stop -t 10 "$SBROWSER" >/dev/null 2>&1 || true
 }
