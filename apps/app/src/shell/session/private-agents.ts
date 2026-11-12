@@ -3,7 +3,7 @@
 // whatever it did is credited to its person, "Irfad Imtiaz (Agent)", with the person's face; its own name never shows. It is never offered: not to @mention, not in Cmd-K, not as a chat.
 // The person themselves sees their agents by name. Logs (Console audit) add which agent it was in a details line, from `agentName`.
 import type { Principal } from "./runtime-data.ts";
-import { agentForPerson, agentOfName, namesItsPerson } from "../../../../../lib/words/agent-name.ts";
+import { agentForPerson, agentOfName, creditedName, namesItsPerson } from "../../../../../lib/words/agent-name.ts";
 export { agentForPerson };
 
 export interface PrincipalIn { id: string; name: string; kind: string; owner?: string; private?: boolean; assistant?: boolean; agentName?: string; roles?: readonly string[]; status?: string }
@@ -62,6 +62,8 @@ export function creditLine(by: { kind: string; id: string }, o: { me: string; na
   const person = o.for ?? o.ownerOf?.(by.id);
   if (person === undefined || !person.startsWith("usr_")) return o.nameOf(by.id);
   if (person === o.me) return `You, through ${o.nameOf(by.id)}`;
-  // the directory names someone else's agent already ("Maya’s Assistant", "Maya Lin (Agent)"); an agent it does not know is credited to its person
-  return agentForPerson(by.id, person, { nameOf: o.nameOf, known: (id) => o.ownerOf?.(id) !== undefined });
+  // someone else's private agent: the directory already names it by its person ("Maya’s Assistant", "Maya Lin (Agent)"), the one name (lib/words/agent-name); any other agent of theirs is
+  // credited to its person, "Maya Lin (Agent)"
+  const shown = o.nameOf(by.id);
+  return creditedName(shown) ? shown : asAgentOf(o.nameOf(person));
 }

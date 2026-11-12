@@ -29,3 +29,6 @@ export const markedAgent = (name: string): string => (namesItsPerson(name) ? nam
 export function agentForPerson(agentId: string, personId: string, o: { nameOf(id: string): string; known(id: string): boolean; assistant?: boolean }): string {
   return o.known(agentId) ? o.nameOf(agentId) : agentOfName(o.nameOf(personId), o.assistant === true ? "assistant" : "outside");
 }
+
+/** A name the server gave someone else's agent, which already says whose it is ("Maya’s Assistant", "Maya Lin (Agent)"); a bare "Assistant" is the reader's own word for their own, never this. */
+export const creditedName = (name: string): boolean => / \(Agent\)$/.test(name) || /[’']s? Assistant$/.test(name);
