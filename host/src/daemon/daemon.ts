@@ -804,7 +804,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // a person's live sessions that a provider proved (SSO or GitHub sign-in): the ones the wrap may open for, as at a fresh provider sign-in (modules/identity/projections.ts)
   const provenSessions = (p: string, since = 0): string[] => {
     try {
-      return (db?.all(`SELECT id FROM identity_sessions WHERE person_id = ? AND method IN ('sso', 'github') AND revoked_at IS NULL AND expires_at > ? AND created_at > ?`, p, Date.now(), since) as Array<{ id: string }> ?? []).map((r) => r.id).filter(sessionAlive);
+      // a session's age never ends it (identity_sessions.expires_at is enforced nowhere): every live proven session counts
+      return (db?.all(`SELECT id FROM identity_sessions WHERE person_id = ? AND method IN ('sso', 'github') AND revoked_at IS NULL AND created_at > ?`, p, since) as Array<{ id: string }> ?? []).map((r) => r.id).filter(sessionAlive);
     } catch { return []; }
   };
   let auditReopen: (p: string, sessions: string[]) => void = () => undefined;
@@ -2256,7 +2257,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       previews = createViewAs({ space: spaceId, snapshot: () => access.snap, store: () => spaceStore.open().store, now,
         sourceLive: source => {
           if (!db || accessStale || access.snap.principal(source.person)?.status !== "active") return false;
-          try { return db.all(`SELECT 1 AS ok FROM identity_sessions i JOIN devices_session s ON s.id=i.id JOIN devices_device d ON d.id=s.device_id WHERE i.id=? AND i.person_id=? AND i.device_id=? AND i.revoked_at IS NULL AND i.expires_at>? AND s.kind='device' AND s.person=i.person_id AND s.device_id=i.device_id AND s.revoked_at IS NULL AND d.person=i.person_id AND d.revokedAt IS NULL AND d.deleted_at IS NULL`, source.sessionId, source.person, source.device, now()).length === 1; } catch { return false; }
+          try { return db.all(`SELECT 1 AS ok FROM identity_sessions i JOIN devices_session s ON s.id=i.id JOIN devices_device d ON d.id=s.device_id WHERE i.id=? AND i.person_id=? AND i.device_id=? AND i.revoked_at IS NULL AND s.kind='device' AND s.person=i.person_id AND s.device_id=i.device_id AND s.revoked_at IS NULL AND d.person=i.person_id AND d.revokedAt IS NULL AND d.deleted_at IS NULL`, source.sessionId, source.person, source.device).length === 1; } catch { return false; }
         },
       });
       const identify = (t: string | null): (SessionInfo & { device: string }) | null => {

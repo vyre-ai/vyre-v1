@@ -329,7 +329,8 @@ export function finishRecoverySessions(ctx:IdentityCtx,personId:string,sessions:
 export function sessionOfToken(ctx: IdentityCtx, token: string): { sessionId: string; personId: string; deviceId: string } | undefined {
   const r = ctx.db.all(`SELECT id, person_id, device_id, expires_at, revoked_at FROM identity_sessions WHERE token_hash = ?`, sha(token))[0] as
     { id: string; person_id: string; device_id: string; expires_at: number; revoked_at: number | null } | undefined;
-  if (!r || r.revoked_at !== null || r.expires_at <= ctx.now()) return undefined;
+  // a session's age never ends it (owner rule: a Space stays signed in); expires_at is kept on the row and read nowhere
+  if (!r || r.revoked_at !== null) return undefined;
   return { sessionId: r.id, personId: r.person_id, deviceId: r.device_id };
 }
 
