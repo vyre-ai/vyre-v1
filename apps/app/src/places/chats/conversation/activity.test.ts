@@ -73,3 +73,8 @@ test("the API model's tools read as what they do, and no tool name leaks through
   assert.ok(!/terminal_run|mcp__|records_search/.test(t), t);
   assert.match(t, /running a command/);
 });
+
+test("an ordinary underscored word in the thinking line is left as written; only a known tool's name is said as what it does (review)", () => {
+  assert.equal(thinkingExcerpt("Checking the user_id on the record", 200), "Checking the user_id on the record");
+  assert.match(thinkingExcerpt("Then terminal_run with the user_id", 200), /^Then running a command with the user_id$/);
+});
