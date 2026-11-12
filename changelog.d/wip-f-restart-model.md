@@ -1,0 +1,2 @@
+- After the server restarts while an agent is in the middle of a command, the chat keeps its model. Before, every later message in that chat failed with "Your AI provider refused this request." A chat already stuck this way works again on its next message.
+- A chat with no model at all now says "No model is set for this chat" and how to pick one, instead of a provider refusal.

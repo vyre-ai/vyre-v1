@@ -93,6 +93,8 @@ export function conversationId(spec: Pick<SessionSpec, "threadId" | "agent" | "a
   return `vyre-${sha256b64(where).slice(0, 32)}`;
 }
 
+export const NO_MODEL_LINE = "No model is set for this chat. Pick one in the chat's model menu, or set the agent's model in its settings.";
+
 export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSession {
   const policy: RetryPolicy = { ...RETRY_DEFAULTS, ...deps.retry };
   const rnd = deps.random ?? Math.random;
@@ -231,6 +233,8 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
 
   async function* send(input: TurnInput): AsyncGenerator<DriverEvent> {
     sends += 1;
+    // no model: a provider answers 400 "`model` must be a non-empty string", which reads as a refusal. Nothing is sent; the turn says how to pick one.
+    if (model === "") { yield { type: "error", status: 0, code: "engine.no_model", message: NO_MODEL_LINE }; return; }
     const ac = new AbortController();
     abort = ac;
     results.clear();

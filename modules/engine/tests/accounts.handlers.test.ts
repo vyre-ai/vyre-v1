@@ -71,10 +71,10 @@ test("accounts.list says which accounts keep nothing (a local model always does)
 
 test("account.resolve: the starter's key, then the Space's fallback key when it is signed out", async () => {
   const live = fake(routes([prov({ id: "prv_1", handle: "#Dana_Anthropic" }), prov({ id: "prv_3", handle: "#Team_Anthropic_Key", scope: "shared" })]));
-  assert.deepEqual(await accountResolve(live.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: "#Dana_Anthropic", payer: "usr_dana", reason: "starter", allowed: true, itemId: "vit_prv_1" });
+  assert.deepEqual(await accountResolve(live.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: "#Dana_Anthropic", payer: "usr_dana", reason: "starter", allowed: true, model: "claude-sonnet-5-5", itemId: "vit_prv_1" });
 
   const down = fake(routes([prov({ id: "prv_1", handle: "#Dana_Anthropic", state: "failing" }), prov({ id: "prv_3", handle: "#Team_Anthropic_Key", scope: "shared" })]));
-  assert.deepEqual(await accountResolve(down.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: "#Team_Anthropic_Key", payer: "usr_dana", reason: "backup_key", allowed: true, itemId: "vit_prv_3", fellBack: true, via: "backup" });
+  assert.deepEqual(await accountResolve(down.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: "#Team_Anthropic_Key", payer: "usr_dana", reason: "backup_key", allowed: true, model: "claude-sonnet-5-5", itemId: "vit_prv_3", fellBack: true, via: "backup" });
 
   const none = fake(routes([prov({ id: "prv_1", handle: "#Dana_Anthropic", state: "failing" })], { "engine.defaults.get": () => ({ fallback: [] }) }));
   assert.deepEqual(await accountResolve(none.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: null, payer: null, reason: "none", allowed: false, why: "failed" });
@@ -82,7 +82,7 @@ test("account.resolve: the starter's key, then the Space's fallback key when it 
 
 test("account.resolve: the steerer pays when the call acts for them; Dana's Mine key is never in their list", async () => {
   const sam = fake(routes([prov({ id: "prv_9", handle: "#Sam_Anthropic" })]), { actingFor: "usr_sam" });
-  assert.deepEqual(await accountResolve(sam.ctx, { threadId: "thr_1", agentId: "agt_1", askerId: "usr_sam" }), { accountRef: "#Sam_Anthropic", payer: "usr_sam", reason: "steerer", allowed: true, itemId: "vit_prv_9" });
+  assert.deepEqual(await accountResolve(sam.ctx, { threadId: "thr_1", agentId: "agt_1", askerId: "usr_sam" }), { accountRef: "#Sam_Anthropic", payer: "usr_sam", reason: "steerer", allowed: true, model: "claude-sonnet-5-5", itemId: "vit_prv_9" });
 });
 
 test("account.resolve: a step key makes it a task; Company only drops personal accounts; the person's own sign-in pays for their turn on the host and on a device", async () => {
@@ -174,7 +174,7 @@ test("turning the Space's use of my subscription off stops my sandbox; turning i
 
 test("account.resolve dry: the composer's check answers for the caller, not the chat's starter, and says why nothing can pay", async () => {
   const sam = fake(routes([prov({ id: "prv_9", handle: "#Sam_Anthropic" })], { "engine.defaults.get": () => ({ fallback: [] }) }), { actingFor: "usr_sam" });
-  assert.deepEqual(await accountResolve(sam.ctx, { threadId: "thr_1", agentId: "agt_1", dry: true }), { accountRef: "#Sam_Anthropic", payer: "usr_sam", reason: "steerer", allowed: true, itemId: "vit_prv_9" });
+  assert.deepEqual(await accountResolve(sam.ctx, { threadId: "thr_1", agentId: "agt_1", dry: true }), { accountRef: "#Sam_Anthropic", payer: "usr_sam", reason: "steerer", allowed: true, model: "claude-sonnet-5-5", itemId: "vit_prv_9" });
   const none = fake(routes([], { "engine.defaults.get": () => ({ fallback: [] }) }), { actingFor: "usr_mia" });
   const out = await accountResolve(none.ctx, { threadId: "thr_1", agentId: "agt_1", dry: true });
   assert.deepEqual([out.allowed, out.payer, out.why], [false, null, "no_account"]);
@@ -187,7 +187,7 @@ test("account.resolve: the agent's AI account for its own work pays a routine, w
   const agent = (o: Record<string, unknown> = {}) => ({ "agents.get": () => ({ agent: { accountPolicy: "asker", workKey: "#Work_Credits", ...o } }), "engine.defaults.get": () => ({ fallback: [] }) });
   // the pick pays for a routine, though a cheaper account also covers it
   const ok = fake(routes([mine, cheap, work], agent()));
-  assert.deepEqual(await accountResolve(ok.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "agent_work" }), { accountRef: "#Work_Credits", payer: "usr_dana", reason: "starter", allowed: true, itemId: "vit_prv_w", pin: { ref: "#Work_Credits", used: true }, via: "work" });
+  assert.deepEqual(await accountResolve(ok.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "agent_work" }), { accountRef: "#Work_Credits", payer: "usr_dana", reason: "starter", allowed: true, model: "claude-sonnet-5-5", itemId: "vit_prv_w", pin: { ref: "#Work_Credits", used: true }, via: "work" });
   // Automatic (no pick) is the cheapest account that covers the work
   const auto = await accountResolve(fake(routes([mine, cheap, work], agent({ workKey: undefined }))).ctx, { threadId: "thr_1", agentId: "agt_1", kind: "agent_work" });
   assert.equal(auto.accountRef, "#Cheap_Work");

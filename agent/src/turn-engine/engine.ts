@@ -466,7 +466,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   async function runTurn(st: ThreadState, item: QueueItem): Promise<void> {
-    const agent = st.thread.agents.find((a) => a.id === item.agentId);
+    let agent = st.thread.agents.find((a) => a.id === item.agentId);
     // A wake that continues a parked turn runs on the account that was paying, and answers the held call.
     const wait = item.kind === "wake" ? waits.forWake(st.thread.id, item.qseq) : null;
     const payer = payerOf(st, item);
@@ -487,6 +487,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     if (wait) {
       const was = turnRows.find((t) => t.id === wait.turnId);
       if (was && was.state === "waiting") { was.state = "completed"; was.endedAt = now(); emit({ type: "turn.resumed", threadId: st.thread.id, turnId: was.id, agentId: was.agentId }); }
+    }
+    // a thread opened with no model on this agent (boot recovery opens from the chat's record, which names none when the chat runs on the agent's own): the turn runs on the model the resolver
+    // chose for it, never on an empty one (release gate, 12 Nov 2026: every turn after a restart mid tool call went out with model "")
+    if (agent && !agent.model) {
+      const { model: _none, ...rest } = agent;
+      agent = account?.model ? { ...rest, model: account.model } : rest;
     }
     const turn: TurnRow = {
       id: nextId("t"), threadId: st.thread.id, agentId: item.agentId, asker, payerReason: reason, model: agent?.model ?? null, state: "running",
@@ -813,8 +819,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       const code = turn.error?.code ?? "engine_error";
       const pk = `${st.thread.id}|${item.agentId}`;
       const streak = failStreak.get(pk);
-      const n = streak?.code === code ? streak.n + 1 : 1;
-      failStreak.set(pk, { code, n });
+      // no model set for the chat is not the agent failing: the person picks one, and nothing is held back meanwhile (the chat says how on every turn)
+      const n = code === "engine.no_model" ? 0 : streak?.code === code ? streak.n + 1 : 1;
+      if (code !== "engine.no_model") failStreak.set(pk, { code, n });
       if (PARK_CODES.has(code) || n >= STREAK_PARK) lockedPark.set(pk, { threadId: st.thread.id, agentId: item.agentId, asker, messageId: item.messageId, from: item.from, since: now(), code, ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}), repeat: !PARK_CODES.has(code) });
       emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(paying ? { account: { ref: paying.ref, driver: paying.driver } } : {}), ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}), ...(failResetsAt !== undefined && turn.error?.code === "provider.rate_limited" ? { resetsAt: failResetsAt } : {}) });
     }

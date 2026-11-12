@@ -1,5 +1,5 @@
 // Mount for the l-comp221 changes: the setup checklist of an agent computer (no sign-in step) and the engine error card for a server setup cause, a bare crash as the Space owner, and the same as a member.
-//   ?part=setup-chrome / err-sandbox-admin / err-sandbox-member / err-crash-admin / err-crash-member
+//   ?part=setup-chrome / err-no-model / err-sandbox-admin / err-sandbox-member / err-crash-admin / err-crash-member
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
@@ -23,8 +23,10 @@ export default function Mount(): ReactNode {
   );
   if (part === "setup-chrome") return frame(<SettingUp name="Dex" step={2} where="the Northwind server" />);
   const admin = part.endsWith("admin");
-  const data = part.startsWith("err-sandbox") ? { why: "sandbox" } : { exit: "1" };
-  const v = statusView({ id: "b1", type: "turn_status", v: 1, traceId: "", data: { state: "failed", turnId: "trn_1", code: "engine.cli_error", ...data } } as never, { admin });
+  const data = part.startsWith("err-sandbox") ? { why: "sandbox" } : part === "err-no-model" ? {} : { exit: "1" };
+  // err-no-model: a chat with no model set (release gate, 12 Nov 2026: the provider's 400 read as "Your AI provider refused this request")
+  const code = part === "err-no-model" ? "engine.no_model" : "engine.cli_error";
+  const v = statusView({ id: "b1", type: "turn_status", v: 1, traceId: "", data: { state: "failed", turnId: "trn_1", code, ...data } } as never, { admin });
   if (v.kind !== "error") return frame(null);
   return frame(<ErrorRowView block={v.block} actions={stub} />);
 }
