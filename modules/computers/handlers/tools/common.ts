@@ -69,7 +69,10 @@ export function computerFor(ctx: CompCtx, computerId: string | undefined): Compu
   if (ctx.principal.kind !== "agent") raise(ctx, "validation.bad_input", "Say which computer. Only an agent can leave it out.");
   const r = rowsOf(ctx.db, "SELECT computer_id FROM computers_computers WHERE agent_id = ?", ctx.principal.id)[0];
   if (!r) raise(ctx, "validation.not_found", "This agent has no computer. Give it one first.", { agentId: ctx.principal.id });
-  return needComputer(ctx, String(r["computer_id"]));
+  // the id left out (the gateway bound the call to the Space): the same question the named spelling asks at the gateway is asked here, on this computer, so an admin's deny on it stops both ways in
+  const own = String(r["computer_id"]);
+  if (ctx.authorize({ perm: "computers.use", level: "use" }, { type: "computer", id: own }).effect !== "allow") raise(ctx, "permission.no_grant", "This agent may not use its computer right now.", { computerId: own });
+  return needComputer(ctx, own);
 }
 
 function mayUse(ctx: CompCtx, c: ComputerRow): void {

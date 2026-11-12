@@ -79,10 +79,31 @@ export async function screenAnswer(d: AnswerAudienceDeps, q: { threadId: string;
   let closed: ReadResource[];
   if (others === null || !d.mayAll) closed = reads;   // who reads the chat, or what they may open, cannot be known: never share
   else if (others.length === 0) closed = [];
-  else closed = reads.filter((r) => r.type === "*" || !d.mayAll!(others, { perm: null, level: "view" }, r));
+  else {
+    closed = [];
+    for (const r of reads) {
+      if (r.type === "*") closed.push(r);
+      // an agent's own Space browser profile (a chrome tool with no computer named): the browser's own rule for who may watch that profile decides (computers.browser.profiles lists, for each
+      // person, the browsers they may watch: the agent's owner; an admin for a team agent; a person a shared agent was shared with; nobody else for a private or personal agent)
+      else if (r.type === "browser_profile") { if (!(await allWatch(d, others, String(r.id ?? "")))) closed.push(r); }
+      else if (!d.mayAll!(others, { perm: null, level: "view" }, r)) closed.push(r);
+    }
+  }
   if (closed.length === 0) return { body: q.reply, withheld: false, closed };
   await sendPrivately(d, q);
   return { body: PRIVATELY, withheld: true, closed };
+}
+
+/** May every one of these people watch this agent's Space browser profile? Asked as each of them; an answer that cannot be had never shares. */
+async function allWatch(d: AnswerAudienceDeps, people: readonly string[], agentId: string): Promise<boolean> {
+  if (agentId === "") return false;
+  for (const p of people) {
+    try {
+      const out = (await d.call("computers.browser.profiles", {}, p)) as { profiles?: Array<{ agentId?: string }> };
+      if (!(out.profiles ?? []).some((x) => x.agentId === agentId)) return false;
+    } catch { return false; }
+  }
+  return true;
 }
 
 /** The whole answer, in the asker's own chat with the agent (made once per chat it came from, and kept). */

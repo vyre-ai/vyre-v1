@@ -15,7 +15,7 @@ import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
 import type { CallOpts, Ctx, Decision, EmitOpts, Logger, StepRef } from "../../packages/contracts/src/ctx.ts";
 import type { CapabilityDef, CapName, ErrorCode, EventName, TraceContext } from "../../packages/contracts/src/types.ts";
 import type { AgentGate } from "./seams/agent-read.ts";
-import { BindingError, resolveResource } from "./routes/resource.ts";
+import { BindingError, SELF_BINDING_LINE, auditResourceOf, isSelfBound, resolveResource, selfTarget } from "./routes/resource.ts";
 import { auditTargets } from "./routes/audit-targets.ts";
 import type { AuditTarget } from "./routes/audit-targets.ts";
 import { codeForReason, fail, HostError, toVyreError } from "./routes/errors.ts";
@@ -386,7 +386,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       try { resource = resolveResource(c, input, seed.space, deps.resolveItem, seed.principal); }
       catch (e) {
         // a Vault name or handle that names nothing the caller may use reads the same as one that does not exist, in words a person or an agent can act on
-        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...(e.message === "no such item" ? { message: "There is no Vault item by that name that you can use. Check the name, or ask for the key." } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
+        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...((c.resource as { self?: string }).self === "agent" && e.message === "the id is missing" ? { message: SELF_BINDING_LINE } : {}), ...(e.message === "no such item" ? { message: "There is no Vault item by that name that you can use. Check the name, or ask for the key." } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
         throw e;
       }
       if (resource && deps.ensureResource) await deps.ensureResource(resource);
@@ -403,9 +403,14 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       kd = d;
       // an approval covers the Gate rules this call itself met (the same act asked of the same approver), not every Gate rule of every check made inside it
       if (approved) approvedGates = deps.authorize({ ...req, approved: false }).obligations.flatMap((o) => (o.type === "gate" ? [{ act: o.act, approver: o.approver }] : []));
+      // a self-bound call (an agent left the id out) is authorized on the Space, but the audit row and the chat answer check name what it really reaches (review S1, S4)
+      const self = resource !== null && isSelfBound(c, input, seed.principal);
+      const target = self ? selfTarget(c, input, seed.principal.id) : resource;
+      // the audit names whose computer or browser it was even when the gateway cannot tell the computer's id yet: the agent's own
+      const auditRes = auditResourceOf(c, input, seed.principal, resource);
       const audit = (cls: AuditRow["class"], reason: string): AuditRow => ({
         class: cls, cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: d.decisionId, reason,
-        resource, traceId, spanId: trace.spanId, at: t, risk: c.risk,
+        resource: auditRes as typeof resource, traceId, spanId: trace.spanId, at: t, risk: c.risk,
       });
       // Ask the person: an outside agent stopped at what only a person does, or at a role its person holds, asks that person instead of hitting a wall. The person's own access decides, alone,
       // as it will again when the call runs on their yes; nothing here lets the agent itself past anything.
@@ -459,7 +464,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       }
       // what an agent reads for a person inside a chat is noted, so its answer is checked against everyone who reads that chat before it is posted there (seams/answer-reads.ts, gap 6)
       if (c.effects === "read" && depth === 0 && resource !== null && seed.principal.kind === "agent" && seed.actingFor?.startsWith("usr_") && seed.thread !== undefined) {
-        noteRead({ thread: seed.thread, agent: seed.principal.id, asker: seed.actingFor, resource: { type: resource.type, id: resource.id } });
+        noteRead({ thread: seed.thread, agent: seed.principal.id, asker: seed.actingFor, resource: { type: target!.type, id: target!.id } });
       }
     }
     // the capability's own Gate (spec 2.14): fail closed when a Gate is declared and nothing can park the call
@@ -523,7 +528,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     const audited = shouldAudit(c) || seed.auditAll === true || (seed.principal.kind === "agent" && c.effects !== "read");
     const targets = audited ? auditTargets(c.name, input, output) : undefined;
     const auditRow: AuditRow | null = audited
-      ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...(targets ? { targets } : {}) }
+      ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource: auditResourceOf(c, input, seed.principal, resource) as typeof resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...(targets ? { targets } : {}) }
       : null;
     let stored = events;
     if (events.length || auditRow) stored = await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events, audit: auditRow });

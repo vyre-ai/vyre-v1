@@ -9,7 +9,7 @@ import { hasReads, noteRead, takeReads } from "../../../host/src/seams/answer-re
 const DANA = "usr_dana", MAYA = "usr_maya", GUS = "usr_gus", AGENT = "agt_x";
 const person = (id: string) => ({ kind: "person", id });
 
-function deps(o: { members: string[]; channel?: "invite" | "public"; closedTo?: Record<string, string[]>; space?: string[]; noMayAll?: boolean; postFails?: boolean }) {
+function deps(o: { members: string[]; channel?: "invite" | "public"; closedTo?: Record<string, string[]>; space?: string[]; noMayAll?: boolean; postFails?: boolean; watches?: Record<string, string[]> }) {
   const posts: Array<{ agentId: string; threadId: string; body: string; actingFor?: string }> = [];
   const asked: string[] = [];
   let n = 0;
@@ -20,6 +20,7 @@ function deps(o: { members: string[]; channel?: "invite" | "public"; closedTo?: 
       if (cap === "channels.get") return { channel: { visibility: o.channel, members: o.members.map(person) } };
       if (cap === "access.principals.list") return { principals: (o.space ?? o.members).map((id) => ({ id })) };
       if (cap === "chat.start") return { thread: { threadId: "thr_private" } };
+      if (cap === "computers.browser.profiles") return { profiles: (o.watches?.[as ?? ""] ?? []).map((agentId) => ({ agentId })) };
       throw new Error(`unexpected ${cap}`);
     },
     ...(o.noMayAll ? {} : { mayAll: (people, _a, r) => people.every((p) => !(o.closedTo?.[p] ?? []).includes(`${r.type}:${r.id}`)) }),
@@ -76,4 +77,35 @@ test("a check that cannot be made shares nothing: no per-person answer, or no pr
   read("thr_g", "record", "rec_h");
   await assert.rejects(screenAnswer(down.d, { threadId: "thr_g", agentId: AGENT, asker: DANA, reply }), "the engine then posts ANSWER_HELD, never the answer");
   assert.deepEqual(takeReads("thr_g", AGENT, DANA), []);
+});
+
+
+// ---- review S1 (12 Nov): what an agent read with no computer named is judged by what it really was
+
+test("a channel answer after the agent read the person's own Chrome (inMyChrome) goes to the asker privately: nobody else may open that computer", async () => {
+  // the kernel answers "no" for every person on the computer "my-chrome": it is no resource of the Space; here the stand-in says the same
+  const w = deps({ members: [DANA, MAYA, GUS], channel: "public", closedTo: { [MAYA]: ["computer:my-chrome"], [GUS]: ["computer:my-chrome"] } });
+  read("thr_s1", "computer", "my-chrome");
+  const s = await screenAnswer(w.d, { threadId: "thr_s1", agentId: AGENT, asker: DANA, reply });
+  assert.equal(s.withheld, true);
+  assert.deepEqual(s.closed, [{ type: "computer", id: "my-chrome" }]);
+});
+
+test("a channel answer after a read in the agent's own Space browser follows the browser's watch rule: shared only when everyone there may watch that profile", async () => {
+  // who may watch: the agent's owner, an admin for a team agent, a person a shared agent was shared with; nobody else (modules/computers/sbrowser/policy.ts profileAccess)
+  const open = deps({ members: [DANA, MAYA], channel: "invite", watches: { [MAYA]: [AGENT] } });
+  read("thr_s2", "browser_profile", AGENT);
+  assert.equal((await screenAnswer(open.d, { threadId: "thr_s2", agentId: AGENT, asker: DANA, reply })).withheld, false, "Maya may watch the agent's browser: the answer is shared");
+  assert.ok(open.asked.includes(`computers.browser.profiles:${MAYA}`), "asked as Maya, by the browser's own rule");
+  const closed = deps({ members: [DANA, MAYA, GUS], channel: "invite", watches: { [MAYA]: [AGENT], [GUS]: [] } });
+  read("thr_s3", "browser_profile", AGENT);
+  const s = await screenAnswer(closed.d, { threadId: "thr_s3", agentId: AGENT, asker: DANA, reply });
+  assert.equal(s.withheld, true, "Gus may not watch it: private to the asker");
+  assert.deepEqual(s.closed, [{ type: "browser_profile", id: AGENT }]);
+});
+
+test("nothing built on a read the gateway could not place (the agent's own computer, id left out) is ever shared", async () => {
+  const w = deps({ members: [DANA, MAYA], channel: "invite" });
+  read("thr_s4", "*", "");
+  assert.equal((await screenAnswer(w.d, { threadId: "thr_s4", agentId: AGENT, asker: DANA, reply })).withheld, true);
 });

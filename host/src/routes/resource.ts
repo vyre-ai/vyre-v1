@@ -56,3 +56,31 @@ export function resolveResource(
   }
   return { type: b.type, id: raw };
 }
+
+/** Did an agent leave the id out of a self binding (the call is about its own computer or Space browser, bound to the Space)? */
+export function isSelfBound(cap: Pick<CapabilityDef, "resource">, input: unknown, caller?: { kind: string }): boolean {
+  const b = cap.resource as { id?: string; self?: string };
+  return b.self === "agent" && caller?.kind === "agent" && typeof b.id === "string" && !str(pointer(input, b.id));
+}
+
+/**
+ * What a self-bound call really reaches, for the chat answer check and the audit row (review S1, S4, 12 Nov): the asking person's own Chrome (inMyChrome) is the computer "my-chrome", which
+ * only the asker sees; a chrome tool otherwise works in the agent's own Space browser profile, judged by the browser's own rule for who may watch that profile; anything else (the agent's own
+ * computer, which the gateway cannot tell yet) is unknown, "*", which never shares an answer.
+ */
+export function selfTarget(cap: Pick<CapabilityDef, "name">, input: unknown, agentId: string): { type: string; id: string | null } {
+  const i = (input ?? {}) as { inMyChrome?: unknown };
+  if (i.inMyChrome === true) return { type: "computer", id: "my-chrome" };
+  if (cap.name.startsWith("computers.chrome.")) return { type: "browser_profile", id: agentId };
+  return { type: "*", id: null };
+}
+
+/** The refusal a person gets for leaving the computer out: what to pass, in plain words. */
+export const SELF_BINDING_LINE = "Say which computer to use: pass its computerId. Leaving it out means an agent's own computer or browser, and only an agent has those.";
+
+/** The resource an audit row names: for a self-bound call what it reached (the agent's own computer when the gateway cannot tell its id), else the bound resource itself. */
+export function auditResourceOf<R extends { type: string; id: string | null }>(cap: Pick<CapabilityDef, "resource" | "name">, input: unknown, caller: { kind: string; id: string }, resource: R | null): R | { type: string; id: string | null } | null {
+  if (resource === null || !isSelfBound(cap, input, caller)) return resource;
+  const t = selfTarget(cap, input, caller.id);
+  return t.type === "*" ? { type: "agent_computer", id: caller.id } : t;
+}
