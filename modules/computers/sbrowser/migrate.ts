@@ -19,3 +19,11 @@ bindMigrationPort("importChromeData", async (ctx, a) => {
   if (a.profileId !== profileIdOf(a.agentId)) raise(ctx, "validation.bad_input", "That is not this agent's profile.");
   return sb.importChrome(a.profileId, a.data.tar);
 });
+
+// The move never writes over a profile that holds sign-ins. `profileUsed` starts nothing; a throw reaches the move as "not now" (no Space browser) or a bad input, never as "not used".
+bindMigrationPort("profileInUse", async (ctx, a) => {
+  const sb = spaceBrowser();
+  if (!sb) raise(ctx, "provider.unavailable", "The Space browser is not running on this host.");
+  if (a.profileId !== profileIdOf(a.agentId)) raise(ctx, "validation.bad_input", "That is not this agent's profile.");
+  return sb.profileUsed(a.profileId);
+});

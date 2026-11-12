@@ -1,4 +1,4 @@
-// The agent-computer proof for the rc.22 cut (lane l-machines): a Team server installed from compose.server.yml (project vyre-cut), then, in the real app as the Space's owner, create two agents, press "Set up its computer",
+// The agent-computer proof for the rc.22 cut (lane l-machines): a Team server installed from compose.server.yml (project vyre-cut), then, in the real app as the Space's owner, create two agents, open the agent's Computer tab (its Terminal and Browser, no desktop offered),
 // watch it reach Ready, look at its desktop, run one command in its Terminal, and check from inside the computers that each sits on its own network with no route to vyred or to the other. VYRE_CUT_URL, VYRE_CUT_CLAIM and
 // VYRE_APP_DIST name the running server, its one-time claim link and the app export; without them it skips. Pass lines start with PASS; shots go to VYRE_CUT_SHOTS.
 import test from "node:test";
@@ -46,30 +46,23 @@ test("agent computers on a real Team server: Set up, Ready, desktop, Terminal, o
       const thread = (await api("chat.start", { kind: "chat", agentIds: [agent.agentId], title: `${name} chat`, idempotencyKey: `cut-chat-${name}` })).thread.threadId as string;
       made.push({ agentId: agent.agentId, name, thread, computerId: "" });
     }
-    // the first agent through the real panel: open the pane's Computer tab and press Set up its computer
+    // the first agent through the real panel: its Computer tab has a Terminal and a Browser with nothing to set up, and no offer of a desktop anywhere (6 Nov: a workspace and the Space browser)
     const first = made[0]!;
     await page.goto(`${web.origin}/chat#subject=thread:${first.thread}`, { waitUntil: "load" });
     await page.getByTestId("composer-field").first().waitFor({ timeout: 60_000 });
     if (await page.getByTestId("pane-agent").count() === 0) await page.getByTestId("pane-button").click();
     await page.getByTestId("pane-agent").waitFor({ timeout: 30_000 });
     const tabIds = async (pg: typeof page): Promise<string> => (await pg.locator('[data-testid^="tab-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")))).join(" ");
-    // an agent without a computer has no Computer tab: About offers "Give <name> a computer", which opens the Computer tab on its Set up panel
-    await page.getByTestId("about-give").waitFor({ timeout: 60_000 }).catch(async (e) => { await shot("1b-no-give-offer"); console.log("TABS", await tabIds(page)); throw e; });
-    await page.getByTestId("about-give").click();
-    await page.getByTestId("computer-provision").waitFor({ timeout: 60_000 }).catch(async (e) => { await shot("1c-no-provision"); console.log("BODY", (await page.getByTestId("chats-right-pane").innerText().catch(() => "")).slice(0, 600)); throw e; });
-    await shot("1-set-up-its-computer");
-    pass("the Computer tab offers Set up its computer for an agent without one");
-    await page.getByTestId("computer-provision").click();
-    await page.getByTestId("computer-setting-up").waitFor({ timeout: 30_000 }).catch(() => undefined);
-    await shot("2-setting-up");
-    // Ready: the computer's screen is on the panel
-    const readyOrWhy = async (): Promise<string> => { for (let i = 0; i < 100; i++) { const l = (await api("computers.list", {})) as { computers: Array<Record<string, unknown>> }; const c = l.computers.find((x) => x["agentId"] === first.agentId); if (c && (c["state"] === "ready" || c["state"] === "failed")) return JSON.stringify(c).slice(0, 700); await page.waitForTimeout(3000); } return "timeout: " + JSON.stringify(((await api("computers.list", {})) as { computers: unknown[] }).computers).slice(0, 700); };
-    await page.getByTestId("computer-screen").waitFor({ timeout: 240_000 }).catch(async (e) => { await shot("2b-not-ready"); console.log("COMPUTER", await readyOrWhy()); console.log("CONTAINERS", sh("docker ps -a --filter label=vyre.computer --format '{{.Names}} {{.Status}}'").split("\n").slice(0, 4).join(" | ")); throw e; });
-    await page.waitForTimeout(4000);
-    await shot("3-ready-desktop");
-    pass("Set up its computer reached Ready: the computer's screen is on the panel");
-    const comps = (await api("computers.list", {})) as { computers: Array<{ computerId: string; agentId: string; state: string }> };
-    for (const m of made.slice(0, 1)) m.computerId = comps.computers.find((c) => c.agentId === m.agentId)!.computerId;
+    await page.getByTestId("tab-computer").click().catch(async (e) => { await shot("1b-no-computer-tab"); console.log("TABS", await tabIds(page)); throw e; });
+    await page.getByTestId("label-l-terminal").waitFor({ timeout: 60_000 }).catch(async (e) => { await shot("1c-no-terminal"); console.log("BODY", (await page.getByTestId("chats-right-pane").innerText().catch(() => "")).slice(0, 600)); throw e; });
+    await page.getByTestId("label-l-browser").waitFor({ timeout: 60_000 });
+    for (const gone of ["about-give", "computer-provision", "computer-none"]) assert.equal(await page.getByTestId(gone).count(), 0, `${gone} is not offered`);
+    await shot("1-terminal-and-browser");
+    pass("the Computer tab of an agent with no desktop shows its Terminal and its Browser, and offers no desktop");
+    // an older desktop for the first agent, made by the API as a person (the people who still hold one keep it): it wakes and its screen is on the page
+    first.computerId = (await api("computers.provision", { agentId: first.agentId, idempotencyKey: "cut-one" })).computer.computerId as string;
+    await api("computers.wake", { computerId: first.computerId });
+    await shot("3-older-desktop-woken");
     assert.ok(made[0]!.computerId, "the computer exists");
     // the second agent's computer by the API (the same provision the button calls), to check the two apart
     const two = made[1]!;
@@ -104,7 +97,7 @@ test("agent computers on a real Team server: Set up, Ready, desktop, Terminal, o
     assert.ok(!/CONNECTED|ECONNREFUSED/.test(toVyred), `no route to vyred's port 8420 (${vyredIp}): ${toVyred}`);
     assert.ok(!/CONNECTED|ECONNREFUSED/.test(toOther), `no route to the other agent computer: ${toOther}`);
     pass(`from computer one: vyred ${vyredIp}:8420 -> ${toVyred}; computer two ${n1[0]!.split(" ")[1]}:22 -> ${toOther} (a refused connection would mean a route, so only a timeout or no route passes)`);
-    // the everyday case: a member (not the owner) with an agent of their own presses Set up its computer; the server's permission path differs
+    // the everyday case: a member (not the owner) with an agent of their own sees the same Computer tab
     const roles = (await api("access.roles.list", {})).roles as Array<{ id: string; name: string }>;
     const invited = await api("members.invites.create", { role: roles.find((r) => r.name === "Member")!.id, idempotencyKey: "cut-member-invite" }) as { link: string };
     const joinUrl = new URL(invited.link);
@@ -131,19 +124,13 @@ test("agent computers on a real Team server: Set up, Ready, desktop, Terminal, o
     await mp.getByTestId("composer-field").first().waitFor({ timeout: 60_000 });
     if (await mp.getByTestId("pane-agent").count() === 0) await mp.getByTestId("pane-button").click();
     await mp.getByTestId("pane-agent").waitFor({ timeout: 30_000 });
-    await mp.getByTestId("about-give").waitFor({ timeout: 60_000 }).catch(async (e) => { await mshot("5a-member-no-give-offer"); throw e; });
-    await mp.getByTestId("about-give").click();
-    await mp.waitForTimeout(3000);
+    // a member's own agent: the same Computer tab, a Terminal and a Browser, and no offer of a desktop
+    await mp.getByTestId("tab-computer").click().catch(async (e) => { await mshot("5a-member-no-computer-tab"); throw e; });
+    await mp.getByTestId("label-l-terminal").waitFor({ timeout: 60_000 });
+    await mp.getByTestId("label-l-browser").waitFor({ timeout: 60_000 });
+    for (const gone of ["about-give", "computer-provision", "computer-provision-admin"]) assert.equal(await mp.getByTestId(gone).count(), 0, `${gone} is not offered to a member`);
     await mshot("5-member-computer-tab");
-    const memberButton = await mp.getByTestId("computer-provision").count();
-    const memberNote = await mp.getByTestId("computer-provision-admin").count();
-    console.log(`MEMBER sees: Set up button=${memberButton}, owner-or-admin note=${memberNote}`);
-    assert.equal(memberButton, 1, "a member sees Set up its computer for an agent of their own");
-    await mp.getByTestId("computer-provision").click();
-    await mp.getByTestId("computer-screen").waitFor({ timeout: 360_000 }).catch(async (e) => { await mshot("5b-member-not-ready"); throw e; });
-    await mp.waitForTimeout(4000);
-    await mshot("6-member-ready-desktop");
-    pass("a member pressed Set up its computer for their own agent and it reached Ready");
+    pass("a member's agent has the same Computer tab: a Terminal and a Browser, no desktop offered");
     await mctx.close();
     await shot("4-done");
     assert.deepEqual(guard.crashes(), []);

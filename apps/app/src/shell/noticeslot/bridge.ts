@@ -8,6 +8,8 @@ import { BANNER_QUERY, bannerTarget, collapseKey } from "../notifications/model.
 import type { Notification } from "../notifications/model.ts";
 import { notices as shared } from "./model.ts";
 import { viewing } from "./viewing.ts";
+import { osBanners } from "../notifications/os-banner.ts";
+import type { BannerMemory, BannerView, OsBanner } from "../notifications/os-banner.ts";
 import type { NoticeKind, NoticeStore } from "./model.ts";
 
 type ListOut = CapMap["notifications.list"]["out"];
@@ -54,11 +56,15 @@ export interface NotificationNoticesProps {
   query(cap: string, input: Record<string, unknown>): LiveQuery<ListOut>;
   call(cap: string, input: unknown): Promise<unknown>;
   open(target: { subject?: { type: string; id: string }; place?: string }): void;
+  /** In the desktop app: the operating system's banner for what is new here (notifications/os-banner.ts). Absent in a browser. */
+  os?: { view(): BannerView; show(b: OsBanner): void };
 }
 
 /** Mounted once by the signed-in shell: the live read of what needs me, kept in the slot. */
 export function useNotificationNotices(p: NotificationNoticesProps | null, store: NoticeStore = shared): void {
   const raised = useRef<Set<string>>(new Set());
+  // what this window has already seen and bannered, for its whole life; null until the first read, which only remembers
+  const bannered = useRef<BannerMemory | null>(null);
   useEffect(() => {
     if (p === null) return undefined;
     const q = p.query("notifications.list", BANNER_QUERY);
@@ -95,6 +101,11 @@ export function useNotificationNotices(p: NotificationNoticesProps | null, store
         return false;
       });
       raised.current = syncNotifications(store, raised.current, shown, act);
+      if (p.os) {
+        const r = osBanners(shown.filter((n) => n.level === "interrupt" && n.seenAt === undefined && !isGoalStuck(n)), bannered.current, p.os.view());
+        bannered.current = r.memory;
+        for (const b of r.banners) p.os.show(b);
+      }
     };
     const off = q.subscribe(read);
     const offView = viewing.subscribe(read);

@@ -38,9 +38,6 @@ export const wakeFailure = {
 
 const fullOf = (e: unknown): string => (e instanceof Error ? e.message.trim() : "");
 
-/** A refused provision is kept under the agent (there is no computer row yet), a failed wake under the computer. */
-export const provisionKey = (agentId: string): string => `agent:${agentId}`;
-
 const SERVER_CANNOT = /^This server can't start agent computers yet/i;
 const failureOf = (e: unknown, fallback: string): Failure => {
   const code = (e as { code?: unknown } | null)?.code;
@@ -74,26 +71,6 @@ export async function wake(d: PaneDeps, computerId: string, name: string, o: { q
     d.note(`Could not wake it: ${why}`);
     return false;
   }
-}
-
-/** Make the computer and wake it: "Set up its computer" is one press. `nodeId` is a server of the person's, left out for the Space server. */
-export async function provision(d: PaneDeps, agentId: string, name: string, nodeId?: string): Promise<boolean> {
-  let out: { computer?: { computerId?: string } } | null;
-  try {
-    out = (await d.call("computers.provision", { agentId, ...(nodeId ? { nodeId } : {}), idempotencyKey: key("computer", agentId) })) as typeof out;
-  } catch (e) {
-    // the server's own words stay on the panel, with Copy details: a refusal here (the host cannot run computers, the runtime is down) is the reason, not "could not set up"
-    const why = reasonOf(e);
-    wakeFailure.set(provisionKey(agentId), failureOf(e, why || "The computer could not be created."));
-    d.note(why ? `Could not set up its computer: ${why}` : "Could not set up its computer.");
-    return false;
-  }
-  wakeFailure.set(provisionKey(agentId), null);
-  d.note(`Setting up ${name}'s computer`);
-  const id = out?.computer?.computerId;
-  // waking can take a minute: the pane follows its state, so this does not wait here. A failed or refused wake is not dropped: wake() says it in the pane and keeps the reason for the computer's panel.
-  if (id) void wake(d, id, name, { quiet: true });
-  return true;
 }
 
 export function signOut(d: PaneDeps, computerId: string, site: string): Promise<boolean> {
