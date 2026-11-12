@@ -216,6 +216,8 @@ import type { HostDb } from "./sqlite.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The repo (or install) root that holds generated/, modules/ and host/modules.json. */
+/** How long a stop waits for the hook pass in flight before it lets the consumer go (host/src/daemon/consumers.ts close). */
+export const HOOKS_STOP_MS = 5_000;
 export const CODE_ROOT = path.resolve(HERE, "../../..");
 /** What a device compares its registry with at hello (sync): the hash of registry.json, which the generated module no longer exports (ci: no global hash). */
 const registryHash = sha256Hex(fs.readFileSync(new URL("../../../generated/registry.json", import.meta.url)));
@@ -1404,7 +1406,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         };
         closers.push(() => stopMcpRuntime?.());
       }
-      closers.push(() => hookRunner.pump().catch(() => {}));   // finish the pass in flight before the databases close
+      // the pass in flight ends, or is let go at the bound, before the databases close (stop() has already closed the runner; this covers a boot that fails part way)
+      closers.push(() => hookRunner.close(HOOKS_STOP_MS).catch(() => {}));
       closers.push(() => projectionRunner.pump().catch(() => {}));
       await hookRunner.start();
       // One sync at a time. Each access.sync call reads the module's tables when it begins and returns a snapshot of what it read plus its own events; two overlapping calls each missed the other's
@@ -2741,8 +2744,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     stopping ??= (async () => {
       sink.log({ space: space ?? "-", level: 20, msg: "daemon.stopping", place: "boot" });
       // first the hooks: no consumer is handed another event while the services close under it (what commits from here on is delivered by the next start, from the stored cursor), and the
-      // pass in flight ends before the engine and the seams go. Bounded, so a consumer that will not end cannot hold the stop.
-      if (hooks) await Promise.race([hooks.close().catch(() => undefined), new Promise<void>((r) => { setTimeout(r, 5_000).unref(); })]);
+      // pass in flight ends before the engine and the seams go. Bounded: a consumer still running at HOOKS_STOP_MS is let go (its answer is dropped and its cursor stays, so the next start hands it
+      // the same event again), and nothing waits for it after that, so one slow consumer never holds an update.
+      if (hooks) await hooks.close(HOOKS_STOP_MS).catch(() => undefined);
       for (const c of closers.reverse()) await Promise.resolve().then(c).catch(() => {});
       clearInfo(paths);
       o.onStopped?.();

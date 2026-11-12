@@ -155,8 +155,10 @@ export interface HookRunner {
    * The server is stopping: no consumer is handed another event (the pass in flight stops after the event it is on), so what commits while the services close stays for the next start, which
    * delivers it from the stored cursor. Answers when the pass in flight has ended. Without this the last passes of a stop handed events to consumers whose service had already gone (the engine, the
    * push port, a mail or calendar host): each answered "not running", the cursor moved past, and a goal's wake-up or a person's message was lost.
+   * `boundMs`: answer by then at the latest. A consumer still running at the bound is let go: whatever it answers later is dropped and its cursor is never written, so the next start hands it
+   * the same event again (as after a crash), and the stop goes on (the databases close after it, so a write the consumer makes after that is refused, never half made).
    */
-  close(): Promise<void>;
+  close(boundMs?: number): Promise<void>;
   /** Run one periodic job now. */
   runPeriodic(name: string): Promise<void>;
   /** Run a module's hostCall as that module and answer what it returns. */
@@ -215,6 +217,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
     return Number(r.seq);
   };
   const setCursor = (name: string, seq: number): void => {
+    if (abandoned) return;   // the stop let a running consumer go: nothing more is stored, the next start reads from what was
     read.set(name, seq);
     if (saved.get(name) === seq) return;
     d.db.run("INSERT INTO host_hook_cursor (name, seq, at) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET seq = excluded.seq, at = excluded.at", name, seq, d.now());
@@ -222,22 +225,30 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
   };
   /** Past events the consumer does not take: kept in memory until the end of the pass. */
   const readPast = (name: string, seq: number): void => { read.set(name, seq); };
-  const flush = (): void => { for (const [name, seq] of read) if (saved.get(name) !== seq) setCursor(name, seq); };
+  const flush = (): void => { if (abandoned) return; for (const [name, seq] of read) if (saved.get(name) !== seq) setCursor(name, seq); };
   const tries = new Map<string, number>();
   const kept = new Set<string>();
 
   async function deliver(c: ConsumerDef, e: StoredEvent): Promise<boolean> {
     const ev = toHookEvent(e);
+    inFlight = { consumer: c.name, event: e.type, seq: e.seq };
     try {
       await d.invoke(capName("consumer", c.name), { event: ev }, seed({ trace: { traceId: e.trace_id, spanId: "0".repeat(16) }, depth: e.depth + 1 }));
+      if (abandoned) return false;   // let go by the stop: this answer is dropped, the event is delivered again at the next start
       tries.delete(`${c.name}:${e.seq}`); kept.delete(`${c.name}:${e.seq}`);
       return true;
     } catch (err) {
+      if (abandoned) return false;
       const key = `${c.name}:${e.seq}`;
       // the service the consumer hands work to is stopping: the event is kept (the cursor stays on it, before any later one) and the next start delivers it. Not a failure, so not a try:
       // a shutdown with many passes must never reach MAX_TRIES and skip it.
       if (isKeptForRestart(err)) {
-        if (!kept.has(key)) { kept.add(key); d.info?.("a consumer kept an event for the next start", { consumer: c.name, event: e.type, seq: e.seq }); }
+        if (!kept.has(key)) {
+          kept.add(key);
+          // during a stop this is how it should go; while the server runs it means a service stopped under it, and this consumer's events wait behind this one until it comes back
+          if (closing) d.info?.("a consumer kept an event for the next start", { consumer: c.name, event: e.type, seq: e.seq });
+          else d.warn("a consumer kept an event for the next start while the server is running: its later events wait behind it", { consumer: c.name, event: e.type, seq: e.seq });
+        }
         return false;
       }
       const n = (tries.get(key) ?? 0) + 1;
@@ -261,7 +272,9 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
         if (closing) { setCursor(c.name, at); return; }   // stopping: this event and the ones after it are for the next start
         // an erased event (events.compact) has no payload to act on: it is skipped, as the projections skip it
         if (c.on.includes(e.type) && !isErased(e)) {
-          if (!(await deliver(c, e))) { setCursor(c.name, at); return; }   // stop here: this event is tried again on the next pass, before any later one
+          const taken = await deliver(c, e);
+          inFlight = null;
+          if (!taken) { setCursor(c.name, at); return; }   // stop here: this event is tried again on the next pass, before any later one
           at = e.seq;
           setCursor(c.name, at);   // a delivered event is recorded at once, so a crash repeats at most the one in flight
           if (performance.now() - since >= YIELD_EVERY_MS) { await yieldLoop(); since = performance.now(); }
@@ -273,7 +286,8 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
     }
   }
 
-  let running: Promise<void> | null = null, again = false, closing = false;
+  let running: Promise<void> | null = null, again = false, closing = false, abandoned = false;
+  let inFlight: { consumer: string; event: string; seq: number } | null = null;
   const run = (): Promise<void> => (async () => {
     try {
       await null;   // let `running` be assigned before the first check, even with nothing to run
@@ -297,14 +311,25 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
       for (const c of byConsumer.values()) if (cursor(c.name) === undefined) setCursor(c.name, head);
     },
     pump() {
-      if (closing) return running ?? Promise.resolve();
+      if (closing) return abandoned ? Promise.resolve() : running ?? Promise.resolve();
       if (running) { again = true; return running; }
       running = run();
       return running;
     },
-    close() {
+    close(boundMs) {
       closing = true;
-      return running ?? Promise.resolve();
+      const pass = running;
+      if (!pass || abandoned) return Promise.resolve();
+      if (boundMs === undefined) return pass;
+      return new Promise<void>((done) => {
+        const t = setTimeout(() => {
+          abandoned = true;   // before the stop goes on: from here this pass stores nothing, so no write lands in a database the stop closes
+          d.warn("a consumer was still running when the server stopped; it is handed the same event again at the next start", { ...(inFlight ?? {}), boundMs });
+          done();
+        }, boundMs);
+        t.unref?.();
+        void pass.then(() => { clearTimeout(t); done(); }, () => { clearTimeout(t); done(); });
+      });
     },
     async call(name, input, as) {
       if (!byCall.has(name)) throw new Error(`no host call named ${name}`);
