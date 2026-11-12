@@ -39,6 +39,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   status: number;
   headers: Record<string, string>;
   body: unknown;
@@ -74,6 +76,8 @@ type Out = {
   "output": {
     "body": {},
     "headers": {},
+    "note": "example",
+    "reopened": true,
     "status": 1
   }
 }

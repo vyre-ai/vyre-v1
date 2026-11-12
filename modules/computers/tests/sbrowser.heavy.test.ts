@@ -25,7 +25,13 @@ import { createDockerSpaceBrowser } from "../sbrowser/docker.ts";
 import { ToolError } from "../handlers/tools/common.ts";
 import { createFillService, fillHttp } from "../handlers/fill.ts";
 import { takeDownloads } from "../sbrowser/downloads.ts";
-import { harness } from "../fixtures/harness.ts";
+import { asPerson, codeOf, harness } from "../fixtures/harness.ts";
+import { tool as cap } from "./tools.fixture.ts";
+import { computerSubnets } from "../impl.ts";
+import { bindFill } from "../projections.ts";
+import { bindSpaceBrowser } from "../sbrowser/port.ts";
+import { agentCaller } from "../../../host/src/routes/site-host.ts";
+import { FILL_PATH } from "../../../host/src/seams/computers.ts";
 import type { FillLookup } from "../handlers/fill.ts";
 
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
@@ -39,6 +45,23 @@ const http = unixSocketHttp();
 const api = createDockerApi(http);
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const sb = createDockerSpaceBrowser({ api, name: NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, idleMinutes: 0.05, sweepSeconds: 2, startTimeoutMs: 90_000 });
+// a second service with Engine access and no runner, as on a server or a computer with Docker: it gets a network of its own
+const NET_NAME = `${NAME}n`;
+// a container of an earlier release: VYRE_SPACE_BROWSER_OLD_IMAGE is an image built from an earlier commit (CI builds it from the merge base); without it the same image is used and only the container's
+// settings are of the earlier release (the default bridge, no network of its own), which is replaced the same way
+const UPG_NAME = `${NAME}u`;
+const OLD_IMAGE = process.env["VYRE_SPACE_BROWSER_OLD_IMAGE"] ?? IMAGE;
+// Docker's address pools are finite and shared with every other test on the host: a test's own network is made beforehand with a subnet of its own outside the pools (the adapter finds it there, as it finds
+// the network an earlier start made), so the run does not fail with "all predefined address pools have been fully subnetted" when other work holds them
+const ownNetwork = async (net: string): Promise<void> => {
+  for (let i = 0; i < 20; i++) {
+    const third = Math.floor(Math.random() * 250) + 1;
+    const r = await http({ method: "POST", path: "/networks/create", json: { Name: net, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.sbrowser": "1" }, IPAM: { Config: [{ Subnet: `10.213.${third}.0/24`, Gateway: `10.213.${third}.1` }] } } });
+    if (r.status === 201 || r.status === 409) return;
+  }
+  throw new Error(`could not make ${net}`);
+};
+const sbNet = createDockerSpaceBrowser({ api, http, name: NET_NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000 });
 const tool = (profileId: string, name: string, args: Record<string, unknown> = {}, extra: { by?: "person"; fill?: { url: string; token: string }; space?: string } = {}) => sb.tool({ profileId, tool: name, args, timeoutMs: 30_000, ...extra });
 
 function host(cmd: string, args: string[], timeoutMs: number): Promise<{ code: number; out: string }> {
@@ -52,6 +75,7 @@ function host(cmd: string, args: string[], timeoutMs: number): Promise<{ code: n
 // ---- the sites the browsers visit, served from this test process on the Docker bridge ----------------------------------------------------------------
 
 const logins: Array<{ user: string; password: string }> = [];
+const slowHits = new Map<string, number>();
 let site: Server;
 let fillSite: Server;
 let GATEWAY = "172.17.0.1";
@@ -74,7 +98,14 @@ function serveSite(req: IncomingMessage, res: ServerResponse): void {
     page(res, `<p id=out>cookie:[${req.headers.cookie ?? ""}]</p>`);
   } else if (url.pathname === "/download") {
     res.writeHead(200, { "content-type": "application/octet-stream", "content-disposition": `attachment; filename="${url.searchParams.get("name") ?? "file.bin"}"` });
-    res.end(`the contents of ${url.searchParams.get("name") ?? "file.bin"}`);
+    const bytes = Number(url.searchParams.get("bytes") ?? 0);
+    res.end(bytes > 0 ? Buffer.alloc(bytes, 120) : `the contents of ${url.searchParams.get("name") ?? "file.bin"}`);
+  } else if (url.pathname === "/slow") {
+    const k = url.searchParams.get("k") ?? "";
+    slowHits.set(k, (slowHits.get(k) ?? 0) + 1);
+    setTimeout(() => page(res, `<p id=out>slow ${k}</p>`), 4000);
+  } else if (url.pathname === "/files") {
+    page(res, `<a id=small href="/download?name=invoice.txt">Invoice</a> <a id=big href="/download?name=archive.bin&bytes=${21 * 1024 * 1024}">Archive</a>`);
   } else if (url.pathname === "/ticker") {
     page(res, `<button id=b style="position:fixed;left:100px;top:100px;width:200px;height:100px" onclick="window.clicks=(window.clicks||0)+1;document.getElementById('n').textContent=window.clicks">go</button>
       <input id=t style="position:fixed;left:400px;top:100px;width:300px;height:40px"><p id=n style="position:fixed;left:100px;top:300px">0</p><div id=c style="position:fixed;left:100px;top:400px;font-size:60px"></div>
@@ -143,9 +174,13 @@ before(async () => {
 
 after(async () => {
   if (!ON) return;
-  await api.containerStop(NAME, 5).catch(() => undefined);
-  await api.containerRemove(NAME).catch(() => undefined);
-  await http({ method: "DELETE", path: `/volumes/${NAME}-data`, query: { force: "true" } }).catch(() => undefined);
+  for (const n of [NAME, NET_NAME, UPG_NAME]) {
+    await api.containerStop(n, 5).catch(() => undefined);
+    await api.containerRemove(n).catch(() => undefined);
+    await http({ method: "DELETE", path: `/volumes/${n}-data`, query: { force: "true" } }).catch(() => undefined);
+  }
+  await http({ method: "DELETE", path: `/networks/${NET_NAME}net` }).catch(() => undefined);
+  await http({ method: "DELETE", path: `/networks/${UPG_NAME}net` }).catch(() => undefined);
   site?.close(); fillSite?.close();
 });
 
@@ -475,6 +510,359 @@ test("@heavy space browser: every profile starts on the Vyre start page, shows i
   // and a curl with no cookie from inside the container sees nothing either
   const bare = await api.exec(NAME, { cmd: ["node", "-e", "fetch('http://127.0.0.1:7004/start').then(r=>r.text()).then(t=>console.log(/Dana/.test(t)?'LEAK':'ok'))"], env: [] });
   assert.equal(bare.stdout.trim(), "ok");
+});
+
+// Audit bug 1 (12 Nov): every profile's browser shares the container's loopback. Agent B's pages and tools try every way to reach agent A's browser: its DevTools on 127.0.0.1 (list, version, new,
+// activate, close, the page WebSocket), a cross-site request a page can send without reading the answer, and A's files (its bridge token) through a file address. None may work.
+test("@heavy space browser: agent B's browser cannot reach agent A's browser: no DevTools on loopback for list, new, close, activate or a WebSocket, and no file of A's profile", { skip, timeout: 300_000 }, async () => {
+  await tool("agt_victim", "chrome_open", { url: siteUrl("/set?name=victim&keep=1") });
+  const victimTab = ((await tool("agt_victim", "chrome_tabs", { action: "list" }))["tabs"] as Array<{ tabId: string }>)[0]!.tabId;
+  const tabsOfA = async (): Promise<number> => ((await tool("agt_victim", "chrome_tabs", { action: "list" }))["tabs"] as unknown[]).length;
+  const before = await tabsOfA();
+  await tool("agt_snoop", "chrome_open", { url: siteUrl("/whoami") });
+  const got: Record<string, string> = {};
+  const evalB = async (expression: string): Promise<string> => String((await tool("agt_snoop", "chrome_eval", { expression }))["result"]);
+  // the DevTools ports the browsers used (9300 and up), and Chrome's usual one
+  for (const port of [9222, 9300, 9301, 9302, 9303, 9304, 9305, 9306, 9307, 9308]) {
+    const base = `http://127.0.0.1:${port}`;
+    // A keeps working (the idle stop here is 3 s); a tab of A's that B closed shows here
+    await tool("agt_victim", "chrome_state").catch((e: unknown) => { got[`A lost its tab by ${port}`] = e instanceof Error ? e.message : "failed"; });
+    // the agent opens the list as a page and reads it
+    try {
+      const o = await tool("agt_snoop", "chrome_open", { url: `${base}/json/list` });
+      const body = await evalB("document.body ? document.body.innerText.slice(0, 400) : ''");
+      if (/webSocketDebuggerUrl|devtoolsFrontendUrl/.test(body) || String(o["title"]).includes("json")) got[`open ${port}/json/list`] = body.slice(0, 120);
+    } catch { /* refused: good */ }
+    // a page on the site asks without reading the answer (no-cors): close and activate are plain GETs
+    const blind = await evalB(`(async () => { const out = []; for (const p of ["/json/version", "/json/activate/${victimTab}", "/json/close/${victimTab}"]) { try { await fetch(${JSON.stringify(base)} + p, { mode: "no-cors" }); out.push(p + ":sent"); } catch (e) { out.push(p + ":blocked"); } } return out.join(","); })()`).catch(() => "");
+    if (/sent/.test(blind)) got[`no-cors ${port}`] = blind;
+    // the page WebSocket of A's tab
+    const ws = await evalB(`new Promise((res) => { try { const w = new WebSocket("ws://127.0.0.1:${port}/devtools/page/${victimTab}"); w.onopen = () => { w.close(); res("open"); }; w.onerror = () => res("error"); setTimeout(() => res("timeout"), 3000); } catch (e) { res("threw"); } })`).catch(() => "");
+    if (ws === "open") got[`ws ${port}`] = ws;
+  }
+  // a same-origin page on the DevTools port can PUT /json/new; nothing answers on any of them
+  for (const port of [9222, 9300, 9301, 9302]) {
+    try {
+      await tool("agt_snoop", "chrome_open", { url: `http://127.0.0.1:${port}/json/version` });
+      const made = await evalB(`fetch("/json/new?${siteUrl("/whoami")}", { method: "PUT" }).then((r) => String(r.status)).catch(() => "blocked")`);
+      if (made === "200") got[`put new ${port}`] = made;
+    } catch { /* nothing there */ }
+  }
+  // a file of A's profile: its bridge token, opened as a tab (the browser service, not only the module, refuses it)
+  for (const url of ["file:///data/profiles/agt_victim/bridge/admin.token", "file:///data/profiles/"]) {
+    try {
+      await tool("agt_snoop", "chrome_tabs", { action: "new", url });
+      const body = await evalB("document.body ? document.body.innerText.slice(0, 200) : ''");
+      if (body !== "" && !/blocked|ERR_BLOCKED|not available/i.test(body)) got[`file ${url}`] = body.slice(0, 60);
+    } catch { /* refused: good */ }
+  }
+  // and nothing listens for DevTools in the container at all
+  const listening = await api.exec(NAME, { cmd: ["sh", "-c", "cat /proc/net/tcp /proc/net/tcp6 2>/dev/null"], env: [] });
+  const ports = new Set(listening.stdout.split("\n").slice(1).map((l) => l.trim().split(/\s+/)).filter((c) => c[3] === "0A" && c[1]).map((c) => parseInt(c[1]!.split(":")[1]!, 16)));
+  for (const p of ports) if (p === 9222 || (p >= 9300 && p < 9500)) got[`listening ${p}`] = "yes";
+  const after = await tabsOfA().catch(() => -1);
+  if (after !== before) got["A's tab count"] = `${before} -> ${after}`;
+  assert.deepEqual(got, {}, `B reached A's browser: ${JSON.stringify(got)}`);
+  assert.equal(await text("agt_victim"), "set victim", "A's page is untouched");
+});
+
+// Audit bug 4 (12 Nov): the comments say the Space browser reaches only the Vault channel of the daemon. A stand-in daemon in this process applies the daemon's own rule (daemon.ts: a request that arrives on
+// a network in computerSubnets() reaches only POST FILL_PATH). A page in the browser asks it for other routes by every name it has for the host.
+test("@heavy space browser: with Engine access the service is on a network of its own, and a page in it reaches only the daemon's Vault channel, by the host's address or by host.docker.internal", { skip, timeout: 300_000 }, async () => {
+  const daemon = createServer((req, res) => {
+    const onNet = agentCaller(req.socket.localAddress, req.socket.remoteAddress, computerSubnets());
+    const path = (req.url ?? "").split("?")[0];
+    res.setHeader("access-control-allow-origin", "*");
+    if (onNet && !(req.method === "POST" && path === FILL_PATH)) { res.writeHead(403, { "content-type": "text/plain" }); res.end("refused"); return; }
+    res.writeHead(200, { "content-type": "text/plain" }); res.end(`open ${req.method} ${path}`);
+  });
+  const port = await listen(daemon);
+  await ownNetwork(`${NET_NAME}net`);
+  bindSpaceBrowser(sbNet);
+  try {
+    await sbNet.tool({ profileId: "agt_netty", tool: "chrome_status", args: {}, timeoutMs: 30_000 });
+    const info = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/containers/${NET_NAME}/json` })).body)) as { HostConfig: { NetworkMode: string }; NetworkSettings: { Networks: Record<string, { Gateway: string }> } };
+    const gw = Object.values(info.NetworkSettings.Networks)[0]!.Gateway;
+    const t = (name: string, args: Record<string, unknown>) => sbNet.tool({ profileId: "agt_netty", tool: name, args, timeoutMs: 30_000 });
+    const seen: Record<string, string> = {};
+    // review 6b: every other address the host answers on, too: the default bridge's gateway and the host's own addresses (its LAN or public one)
+    const others = [...new Set([GATEWAY, ...Object.values(os.networkInterfaces()).flat().filter((a): a is os.NetworkInterfaceInfo => !!a && a.family === "IPv4" && !a.internal).map((a) => a.address)])].filter((a) => a !== gw);
+    for (const host of [gw, "host.docker.internal", ...others]) {
+      await t("chrome_open", { url: `http://${host}:${port}/v1/capabilities/files.list` }).catch(() => undefined);
+      seen[`open ${host}`] = String((await t("chrome_eval", { expression: "document.body.innerText.slice(0, 60)" }))["result"]);
+      seen[`get ${host}`] = String((await t("chrome_eval", { expression: `fetch("http://${host}:${port}/local/daemon/stop").then((r) => r.text(), () => "unreachable")` }))["result"]);
+      seen[`fill ${host}`] = String((await t("chrome_eval", { expression: `fetch("http://${host}:${port}${FILL_PATH}", { method: "POST", body: "{}" }).then((r) => r.text(), () => "unreachable")` }))["result"]);
+    }
+    const want: Record<string, string> = {};
+    for (const host of [gw, "host.docker.internal", ...others]) Object.assign(want, { [`open ${host}`]: "refused", [`get ${host}`]: "refused", [`fill ${host}`]: `open POST ${FILL_PATH}` });
+    assert.deepEqual(seen, want, `only the Vault channel answers a page in the Space browser, on every address of the host (${others.join(", ")})`);
+    assert.equal(info.HostConfig.NetworkMode, `${NET_NAME}net`, "its own network, not the default bridge");
+    const net = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/networks/${NET_NAME}net` })).body)) as { IPAM: { Config: Array<{ Subnet: string }> } };
+    assert.deepEqual(computerSubnets(), [net.IPAM.Config[0]!.Subnet], "the daemon knows the service's network");
+  } finally {
+    bindSpaceBrowser(null); daemon.close();
+    // the Docker address pools are finite on a shared host: this test's network goes as soon as it is done
+    await api.containerStop(NET_NAME, 5).catch(() => undefined);
+    await api.containerRemove(NET_NAME).catch(() => undefined);
+    await http({ method: "DELETE", path: `/networks/${NET_NAME}net` }).catch(() => undefined);
+  }
+});
+
+// Audit B4 (12 Nov): the hold was enforced only inside browserd, which keeps it in memory. Through the module's own path (the capabilities an agent calls), every chrome_* tool must wait while a person has the
+// controls, also after the browser service restarts during the takeover; and giving back must always work.
+test("@heavy space browser: through the module every chrome tool of the agent waits while a person holds its browser, also after the browser service restarts, and giving back works", { skip, timeout: 300_000 }, async () => {
+  const AG = "agt_held";
+  const h = harness({ principal: { kind: "agent", id: AG }, actingFor: "usr_dana" });
+  const dana = asPerson(h, { kind: "person", id: "usr_dana" }, { respond: { "agents.share_class": () => ({ class: "personal", ownerId: "usr_dana", people: [] }) } });
+  bindSpaceBrowser(sb);
+  try {
+    await cap["computers.chrome.open"]!(h.ctx, { url: siteUrl("/ticker") });
+    await cap["computers.browser.take_over"]!(dana.ctx, { agentId: AG });
+    const all: Array<[string, Record<string, unknown>]> = [
+      ["computers.chrome.open", { url: siteUrl("/whoami") }], ["computers.chrome.state", {}], ["computers.chrome.snapshot", {}], ["computers.chrome.screenshot", {}], ["computers.chrome.console", {}],
+      ["computers.chrome.net", {}], ["computers.chrome.inspect", { ref: "e1" }], ["computers.chrome.sources", {}], ["computers.chrome.act", { ref: "e1", action: "click" }], ["computers.chrome.click", { x: 150, y: 150 }],
+      ["computers.chrome.type", { text: "x" }], ["computers.chrome.fill", { fields: [{ ref: "e1", value: "x" }] }], ["computers.chrome.wait", { until: "time", value: "10" }], ["computers.chrome.eval", { expression: "1" }],
+      ["computers.chrome.api", { method: "GET", url: siteUrl("/whoami") }], ["computers.chrome.send", { heldId: "hld_x" }], ["computers.chrome.tabs", { action: "list" }], ["computers.chrome.plan", { goal: "x" }], ["computers.chrome.resume", {}],
+    ];
+    const through = async (when: string): Promise<string[]> => {
+      const wrong: string[] = [];
+      for (const [name, input] of all) {
+        const r = await cap[name]!(h.ctx, input).then(() => "ran", (e: unknown) => (codeOf(e) === "provider.unavailable" && /A person has the controls/.test(JSON.stringify(e)) ? "waited" : `refused otherwise: ${JSON.stringify(e).slice(0, 120)}`));
+        if (r !== "waited") wrong.push(`${when} ${name}: ${r}`);
+      }
+      const b = await cap["computers.chrome.batch"]!(h.ctx, { steps: [{ tool: "state", args: {} }] }) as { results: Array<{ ok: boolean; result?: { error?: string } }> };
+      if (b.results[0]!.ok || !/A person has the controls/.test(String(b.results[0]!.result?.error))) wrong.push(`${when} batch: ${JSON.stringify(b.results[0])}`);
+      return wrong;
+    };
+    const wrong = await through("held");
+    assert.equal((await cap["computers.chrome.status"]!(h.ctx, {})).connected, true, "a look at the status runs while it is held");
+    // the browser service restarts under the person's hands
+    const r = await http({ method: "POST", path: `/containers/${NAME}/restart`, query: { t: "5" } });
+    assert.equal(r.status, 204, "the service restarted");
+    wrong.push(...(await through("after the restart")));
+    assert.deepEqual(wrong, [], "every tool waited");
+    assert.equal((await sb.profiles()).profiles.find((p) => p.profileId === AG)?.takeoverBy, "usr_dana", "the restarted service was told who has the controls");
+    const back = await cap["computers.browser.give_back"]!(dana.ctx, { agentId: AG }) as { profile: { takeoverBy?: string } };
+    assert.equal(back.profile.takeoverBy, undefined);
+    assert.equal(typeof (await cap["computers.chrome.state"]!(h.ctx, {})).url, "string", "given back, the agent works at once");
+  } finally { bindSpaceBrowser(null); }
+});
+
+// Audit B9 (12 Nov): a download often showed only on a later step (a file had to be quiet for a second), and one over 20 MB stayed in the service, tried at every step and never reported.
+test("@heavy space browser: the click that downloads a file reports it in the same step, and a file over 20 MB is reported once in plain words and not tried again", { skip, timeout: 300_000 }, async () => {
+  const AG = "agt_clicker";
+  const h = harness({ principal: { kind: "agent", id: AG }, actingFor: "usr_dana", respond: { "files.folder.create": () => ({ folder: { folderId: "fld_dl_clicker" } }) } });
+  bindSpaceBrowser(sb);
+  try {
+    await cap["computers.chrome.open"]!(h.ctx, { url: siteUrl("/files") });
+    const tree = String((await cap["computers.chrome.snapshot"]!(h.ctx, {})).tree);
+    const refOf = (label: string): string => /\[ref=(e\d+)\]/.exec(tree.split("\n").find((l) => l.includes(`"${label}"`)) ?? "")?.[1] ?? "";
+    const small = await cap["computers.chrome.click"]!(h.ctx, { ref: refOf("Invoice") });
+    assert.deepEqual((small.downloads ?? []).map((d: { path: string }) => d.path), ["Downloads/invoice.txt"], `the click that downloaded it says so (${JSON.stringify(small)})`);
+    const big = await cap["computers.chrome.click"]!(h.ctx, { ref: refOf("Archive") });
+    const note = (big.downloads ?? []).find((d: { name: string }) => d.name === "archive.bin") as { note?: string; fileId?: string } | undefined;
+    assert.ok(note && /more than the 20 MB/.test(String(note.note)) && note.fileId === undefined, `a file too large to move is reported with a plain line (${JSON.stringify(big)})`);
+    const later = await cap["computers.chrome.state"]!(h.ctx, {});
+    assert.equal(later.downloads, undefined, "and is not reported or tried again");
+    assert.deepEqual(await sb.downloads(AG), [], "nothing is left waiting in the list");
+  } finally { bindSpaceBrowser(null); }
+});
+
+// Review finding 1 (12 Nov): chrome_open with newTab, or after the last tab was closed, threw "newTab is not a function" (a local boolean hid the helper in agentd/chrome.ts, shared with agent computers).
+test("@heavy space browser: chrome_open opens a new tab when asked, and opens a page after the last tab was closed", { skip, timeout: 300_000 }, async () => {
+  await tool("agt_newtab", "chrome_open", { url: siteUrl("/whoami?n=1") });
+  const before = ((await tool("agt_newtab", "chrome_tabs", { action: "list" }))["tabs"] as unknown[]).length;
+  const opened = await tool("agt_newtab", "chrome_open", { url: siteUrl("/whoami?n=2"), newTab: true });
+  assert.match(String(opened["url"]), /n=2/);
+  const tabs = (await tool("agt_newtab", "chrome_tabs", { action: "list" }))["tabs"] as Array<{ tabId: string; url: string }>;
+  assert.equal(tabs.length, before + 1, "one more tab");
+  for (const t of tabs) await tool("agt_newtab", "chrome_tabs", { action: "close", tabId: t.tabId });
+  assert.equal(((await tool("agt_newtab", "chrome_tabs", { action: "list" }))["tabs"] as unknown[]).length, 0, "every tab closed");
+  const again = await tool("agt_newtab", "chrome_open", { url: siteUrl("/whoami?n=3") });
+  assert.match(String(again["url"]), /n=3/, "a page opens in a new tab when none is left");
+});
+
+// Review finding 4 (12 Nov): the adapter repeated a whole call when the error said "not answering", which ctl also prints for an error after the request was sent. A step in flight when browserd dies must come
+// back as an error, never be sent again by itself. What a dying browserd really produces is printed by the test.
+test("@heavy space browser: a step in flight when browserd dies is an error to the agent and is not sent again", { skip, timeout: 300_000 }, async () => {
+  // a browserd told to stop (TERM: it closes the browsers and answers) and one that is killed outright (KILL: the socket and the exec just end)
+  for (const sig of ["TERM", "KILL"]) {
+    const key = `die${sig}`;
+    await tool("agt_dying", "chrome_open", { url: siteUrl("/whoami") });
+    const step = tool("agt_dying", "chrome_open", { url: siteUrl(`/slow?k=${key}`) }).then(() => "answered", (e: unknown) => `refused: ${e instanceof Error ? e.message : String(e)}`);
+    for (let i = 0; i < 50 && !slowHits.get(key); i++) await sleep(100);
+    assert.equal(slowHits.get(key), 1, "the step reached the site");
+    // browserd is the container's program: the container stops with it (and this exec with it)
+    await api.exec(NAME, { cmd: ["sh", "-c", `kill -${sig} $(pgrep -f 'node /opt/browserd/main.ts')`], env: [] }).catch(() => undefined);
+    const got = await step;
+    console.log(`a step when browserd died (${sig}): ${got}`);
+    await sleep(6000);
+    assert.equal(slowHits.get(key), 1, `the step was not sent again (${sig}: ${got})`);
+    assert.match(got, /^refused: /, "the agent is told it did not finish");
+  }
+  // and the service comes back for the next call
+  await tool("agt_dying", "chrome_open", { url: siteUrl("/whoami") });
+});
+
+// Review finding 2 (12 Nov): when the give back did not reach browserd, browserd kept its own takeover and refused the agent for good while the Space said nobody held it.
+test("@heavy space browser: a give back that does not reach browserd is repaired by the agent's next call through the module", { skip, timeout: 300_000 }, async () => {
+  const AG = "agt_missed";
+  const h = harness({ principal: { kind: "agent", id: AG }, actingFor: "usr_dana" });
+  const dana = asPerson(h, { kind: "person", id: "usr_dana" }, { respond: { "agents.share_class": () => ({ class: "personal", ownerId: "usr_dana", people: [] }) } });
+  const realGiveBack = sb.giveBack.bind(sb);
+  bindSpaceBrowser(sb);
+  try {
+    await cap["computers.chrome.open"]!(h.ctx, { url: siteUrl("/whoami") });
+    await cap["computers.browser.take_over"]!(dana.ctx, { agentId: AG });
+    sb.giveBack = async () => { throw new ToolError("unavailable", "browserd stopped while it worked on the request"); };
+    await cap["computers.browser.give_back"]!(dana.ctx, { agentId: AG });
+    sb.giveBack = realGiveBack;
+    assert.equal((await sb.profiles()).profiles.find((p) => p.profileId === AG)?.takeoverBy, "usr_dana", "browserd missed it and still holds its own copy");
+    const out = await cap["computers.chrome.state"]!(h.ctx, {});
+    assert.equal(typeof out.url, "string", "the agent works: its call carried the hold as the Space has it");
+    assert.equal((await sb.profiles()).profiles.find((p) => p.profileId === AG)?.takeoverBy, undefined, "and browserd let go");
+  } finally { sb.giveBack = realGiveBack; bindSpaceBrowser(null); }
+});
+
+// Review finding 5 (12 Nov): an install that already ran the Space browser kept its old container (old browserd with DevTools ports, old policy, the default bridge) after an update.
+test("@heavy space browser: a container of an earlier release is replaced by this release's, and the profiles keep their sign-ins", { skip, timeout: 600_000 }, async () => {
+  const old = createDockerSpaceBrowser({ api, name: UPG_NAME, image: OLD_IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000 });
+  await old.tool({ profileId: "agt_kept", tool: "chrome_open", args: { url: siteUrl("/set?name=kept&keep=1") }, timeoutMs: 30_000 });
+  await old.stop("agt_kept");   // the sign-in is written to the profile folder
+  const before = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/containers/${UPG_NAME}/json` })).body)) as { Id: string; Image: string; HostConfig: { NetworkMode: string } };
+  assert.equal(before.HostConfig.NetworkMode, "bridge", "the earlier release's container is on the default bridge");
+  const lines: string[] = [];
+  await ownNetwork(`${UPG_NAME}net`);
+  const now = createDockerSpaceBrowser({ api, http, name: UPG_NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000, log: (m) => lines.push(m) });
+  await now.tool({ profileId: "agt_kept", tool: "chrome_open", args: { url: siteUrl("/whoami") }, timeoutMs: 30_000 });
+  const after = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/containers/${UPG_NAME}/json` })).body)) as { Id: string; Image: string; HostConfig: { NetworkMode: string } };
+  assert.notEqual(after.Id, before.Id, `replaced (${JSON.stringify(lines)})`);
+  assert.equal(after.HostConfig.NetworkMode, `${UPG_NAME}net`, "on its own network now");
+  const img = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/images/${encodeURIComponent(IMAGE)}/json` })).body)) as { Id: string };
+  assert.equal(after.Image, img.Id, "made from this release's image");
+  assert.ok(lines.some((l) => /replacing the container of an earlier release/.test(l)), JSON.stringify(lines));
+  const who = String((await now.tool({ profileId: "agt_kept", tool: "chrome_eval", args: { expression: "document.body.innerText" }, timeoutMs: 30_000 }))["result"]);
+  assert.equal(who, "cookie:[sid=kept]", "the profile kept its sign-in across the replacement");
+  const listening = await api.exec(UPG_NAME, { cmd: ["sh", "-c", "cat /proc/net/tcp /proc/net/tcp6 2>/dev/null"], env: [] });
+  const open = listening.stdout.split("\n").slice(1).map((l) => l.trim().split(/\s+/)).filter((c) => c[3] === "0A" && c[1]).map((c) => parseInt(c[1]!.split(":")[1]!, 16)).filter((p) => p === 9222 || (p >= 9300 && p < 9500));
+  assert.deepEqual(open, [], "and no DevTools port is open in it");
+  // a second adapter of the same release leaves it alone
+  const again = createDockerSpaceBrowser({ api, http, name: UPG_NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000, log: (m) => lines.push(m) });
+  await again.tool({ profileId: "agt_kept", tool: "chrome_state", args: {}, timeoutMs: 30_000 });
+  const third = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/containers/${UPG_NAME}/json` })).body)) as { Id: string };
+  assert.equal(third.Id, after.Id, "a container of this release is not replaced");
+});
+
+// Second look A (12 Nov): an agent's call that read "nobody holds it" and was sent after a person took over cleared the fresh takeover in browserd, and the agent's step ran under the person's hands.
+// The call is held between its read of the hold and its send (the Vault grant it asks for on the way), a person takes over in that gap, then the call goes on.
+test("@heavy space browser: an agent's call that read no hold before a person took over cannot undo the takeover or act under the person", { skip, timeout: 300_000 }, async () => {
+  const AG = "agt_racer";
+  const h = harness({ principal: { kind: "agent", id: AG }, actingFor: "usr_dana" });
+  const dana = asPerson(h, { kind: "person", id: "usr_dana" }, { respond: { "agents.share_class": () => ({ class: "personal", ownerId: "usr_dana", people: [] }) } });
+  bindSpaceBrowser(sb);
+  let gate: (() => void) | null = null;
+  let paused = false;
+  bindFill({ url: () => `http://${GATEWAY}:${fillPort}/`, async issue(a) { if (paused) { await new Promise<void>((r) => { gate = r; }); } return fills.issue(a); } });
+  try {
+    await cap["computers.chrome.open"]!(h.ctx, { url: siteUrl("/ticker") });
+    paused = true;
+    // asked for by another person, so the call asks the Vault for a grant of its own: that is where it is held
+    const forOmar = asPerson(h, { kind: "agent", id: AG }, { actingFor: "usr_omar" });
+    const click = cap["computers.chrome.click"]!(forOmar.ctx, { x: 150, y: 150 }).then(() => "clicked", (e: unknown) => (/A person has the controls/.test(JSON.stringify(e)) ? "waited" : `failed: ${JSON.stringify(e).slice(0, 160)}`));
+    for (let i = 0; i < 50 && !gate; i++) await sleep(20);
+    assert.ok(gate, "the agent's call is between its read of the hold and its send");
+    await cap["computers.browser.take_over"]!(dana.ctx, { agentId: AG });
+    paused = false;
+    (gate as unknown as () => void)();
+    assert.equal(await click, "waited", "the agent's step did not run under the person");
+    assert.equal((await sb.profiles()).profiles.find((p) => p.profileId === AG)?.takeoverBy, "usr_dana", "browserd still has the person at the controls");
+    assert.equal(String((await tool(AG, "chrome_eval", { expression: "String(window.clicks||0)" }, { by: "person" }))["result"]), "0", "the page got no click from the agent");
+    await cap["computers.browser.give_back"]!(dana.ctx, { agentId: AG });
+  } finally { bindFill(null); bindSpaceBrowser(null); }
+});
+
+// For lane f-desktop (12 Nov): whether a profile ever held Chrome data or sign-ins, asked without starting a browser or the container.
+test("@heavy space browser: profileUsed says whether a profile ever held Chrome data, starting nothing, with the service running or stopped", { skip, timeout: 300_000 }, async () => {
+  await tool("agt_used", "chrome_open", { url: siteUrl("/set?name=used&keep=1") });
+  assert.equal(await sb.profileUsed("agt_used"), true, "a profile its browser ran in");
+  assert.equal(await sb.profileUsed("agt_never_here"), false, "a profile that does not exist");
+  assert.ok(!(await sb.profiles()).profiles.some((p) => p.profileId === "agt_never_here"), "asking started nothing for it");
+  await api.containerStop(NAME, 10);
+  assert.equal(await api.containerRunning(NAME), false);
+  const look = createDockerSpaceBrowser({ api, http, name: NAME, image: IMAGE, user: { uid: 10001, gid: 10001 } });
+  assert.equal(await look.profileUsed("agt_used"), true, "read through the stopped container");
+  assert.equal(await look.profileUsed("agt_never_here"), false);
+  assert.equal(await api.containerRunning(NAME), false, "and the container was not started");
+  await tool("agt_used", "chrome_state");   // the service comes back for the next test
+});
+
+// Lead, 12 Nov (from f-desktop's finding on the old desktop): Chrome writes its cookie store about every 30 s, so a sign-in made seconds before a stop is lost unless the browser is closed cleanly
+// (Browser.close, then a bounded wait) before it is killed. Every way a profile's browser stops is tried within 2 s of the sign-in; it starts again and the page reads both back.
+test("@heavy space browser: a sign-in made a moment before a stop is still there after it, by every way a browser stops", { skip, timeout: 600_000 }, async () => {
+  const paths: Array<[string, (p: string) => Promise<void>]> = [
+    // the module's stop: closing a quiet browser to make room, an agent moved to Trash
+    ["stop (make room, Trash)", async (p) => { await sb.stop(p); }],
+    // the idle stop, on a service whose idle time is under a second
+    ["idle stop", async (p) => { for (let i = 0; i < 50; i++) { const r = (await sb.profiles()).profiles.find((x) => x.profileId === p); if (r && !r.running) return; await sleep(200); } throw new Error("did not stop after idle"); }],
+    // the container stopping: the service's own shutdown, and an old container replaced after an update
+    ["container stop (replacement, shutdown)", async () => { await api.containerStop(NAME, 10); }],
+  ];
+  const seen: Record<string, string> = {};
+  for (const [how, stopIt] of paths) {
+    const p = `agt_flush${Object.keys(seen).length}`;
+    // this file's service stops a quiet browser after 3 s (looked at every 2 s), well inside the 30 s Chrome waits before it writes its cookie store by itself
+    const t = (name: string, args: Record<string, unknown>) => sb.tool({ profileId: p, tool: name, args, timeoutMs: 30_000 });
+    await t("chrome_open", { url: siteUrl(`/set?name=${p}&keep=1`) });
+    await t("chrome_eval", { expression: `localStorage.setItem("vyre_flush", ${JSON.stringify(p)}); "ok"` });
+    const t0 = Date.now();
+    await stopIt(p);
+    const tookMs = Date.now() - t0;
+    await t("chrome_open", { url: siteUrl("/whoami") });
+    const cookie = String((await t("chrome_eval", { expression: "document.body.innerText" }))["result"]);
+    const stored = String((await t("chrome_eval", { expression: "localStorage.getItem('vyre_flush')" }))["result"]);
+    seen[how] = `${cookie} ${stored} (stopped in ${tookMs} ms)`;
+    assert.equal(cookie, `cookie:[sid=${p}]`, `${how}: the cookie came back`);
+    assert.equal(stored, p, `${how}: the local storage came back`);
+  }
+  console.log(`clean close: ${JSON.stringify(seen)}`);
+});
+
+// Lead, 12 Nov (f-wire's real-image pass found the container up after its daemon stopped): the container outlives a daemon restart on purpose, but one whose daemon has not asked it anything for a set
+// time closes its browsers cleanly and stops itself. Here the time is a few seconds; in the product it is 10 minutes, and the daemon's periodic pass asks every half minute while a browser runs.
+test("@heavy space browser: a container nobody asks anything for its set time closes its browsers cleanly and stops itself, and comes back signed in on the next call", { skip, timeout: 300_000 }, async () => {
+  const ORPH = `${NAME}o`;
+  const lone = createDockerSpaceBrowser({ api, name: ORPH, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000, orphanMinutes: 0.1 });
+  try {
+    await lone.tool({ profileId: "agt_lone", tool: "chrome_open", args: { url: siteUrl("/set?name=lone&keep=1") }, timeoutMs: 30_000 });
+    assert.equal(await api.containerRunning(ORPH), true);
+    let stopped = false;
+    for (let i = 0; i < 60 && !stopped; i++) { await sleep(1000); stopped = !(await api.containerRunning(ORPH)); }
+    assert.ok(stopped, "it stopped itself when nothing asked it anything");
+    const info = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/containers/${ORPH}/json` })).body)) as { State: { ExitCode: number }; HostConfig: { RestartPolicy?: { Name?: string } } };
+    assert.equal(info.State.ExitCode, 0, "a clean stop");
+    assert.ok(!info.HostConfig.RestartPolicy?.Name || info.HostConfig.RestartPolicy.Name === "no", "and nothing restarts it by itself");
+    await lone.tool({ profileId: "agt_lone", tool: "chrome_open", args: { url: siteUrl("/whoami") }, timeoutMs: 30_000 });
+    assert.equal(String((await lone.tool({ profileId: "agt_lone", tool: "chrome_eval", args: { expression: "document.body.innerText" }, timeoutMs: 30_000 }))["result"]), "cookie:[sid=lone]", "the next call starts it again, signed in");
+  } finally {
+    await api.containerStop(ORPH, 5).catch(() => undefined);
+    await api.containerRemove(ORPH).catch(() => undefined);
+    await http({ method: "DELETE", path: `/volumes/${ORPH}-data`, query: { force: "true" } }).catch(() => undefined);
+  }
+});
+
+test("@heavy space browser: a profile's tabs come back after its browser stops after idle", { skip, timeout: 300_000 }, async () => {
+  await tool("agt_tabby", "chrome_open", { url: siteUrl("/whoami?tab=one") });
+  await tool("agt_tabby", "chrome_tabs", { action: "new", url: siteUrl("/whoami?tab=two") });
+  let stopped = false;
+  for (let i = 0; i < 40 && !stopped; i++) { await sleep(1000); stopped = (await sb.profiles()).profiles.find((x) => x.profileId === "agt_tabby")?.running === false; }
+  assert.ok(stopped, "the browser stopped after idle");
+  let urls: string[] = [];
+  for (let i = 0; i < 20; i++) {
+    urls = ((await tool("agt_tabby", "chrome_tabs", { action: "list" }))["tabs"] as Array<{ url: string }>).map((t) => t.url);
+    if (urls.some((u) => u.includes("tab=one")) && urls.some((u) => u.includes("tab=two"))) break;
+    await sleep(500);
+  }
+  assert.ok(urls.some((u) => u.includes("tab=one")) && urls.some((u) => u.includes("tab=two")), `both tabs are back (${JSON.stringify(urls)})`);
 });
 
 test("@heavy space browser: the sites a profile is signed in to are listed while its browser sleeps, and listing starts nothing", { skip, timeout: 300_000 }, async () => {

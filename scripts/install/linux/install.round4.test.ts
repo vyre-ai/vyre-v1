@@ -360,7 +360,7 @@ test("--uninstall --purge does what it says and says what it did: contents of a 
   assert.ok(fs.existsSync(data), "a mount point cannot be removed");
   assert.deepEqual(fs.readdirSync(data), [], "but it is emptied, backups included");
   assert.ok(!fs.existsSync(dirVyre));
-  assert.match(out.stdout, /Removed: the server's containers and Docker volumes, the Space's data \(the folder .* stays, because it is a separate volume's mount point, but it is empty\), every backup in .*backups, the install folder/);
+  assert.match(out.stdout, /Removed: the server's containers and Docker volumes \(this Space's agents' browser sign-ins too\), the Space's data \(the folder .* stays, because it is a separate volume's mount point, but it is empty\), every backup in .*backups, the install folder/);
   assert.match(out.stdout, /Not removed: the Docker images it pulled .*, Docker itself, your DNS records, certificates issued for the name, and any backup you copied somewhere else\./);
   fs.rmSync(dir, { recursive: true });
 });

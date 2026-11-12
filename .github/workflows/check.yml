@@ -133,6 +133,10 @@ jobs:
             while [ "$d" != "." ] && [ ! -f "$d/tsconfig.json" ]; do d="$(dirname "$d")"; done
             [ -f "$d/tsconfig.json" ] && dirs="$dirs $d"
           done
+          # a change to the shared compiler settings is a change to every package that extends them (images/ among them)
+          if git diff --name-only --no-renames "$base"...HEAD | grep -qx 'tsconfig.base.json'; then
+            for t in $(git ls-files '*tsconfig.json' | xargs grep -l 'tsconfig.base.json' || true); do dirs="$dirs $(dirname "$t")"; done
+          fi
           dirs="$(echo $dirs | tr ' ' '\n' | sort -u)"
           [ -z "$dirs" ] && { echo "no package with a tsconfig.json changed"; exit 0; }
           tsc=tools/gen/node_modules/.bin/tsc

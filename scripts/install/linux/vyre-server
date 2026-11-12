@@ -248,8 +248,10 @@ health_url() {
 }
 
 # ---- start, stop, status, logs -----------------------------------------------------------------------------------------------------
-cmd_start() { [ ! -f "$(PENDING_FILE)" ] || lock_update_operation; refresh_disk_env || true; ensure_userns_vm || true; dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}"; }
-cmd_stop() { dc stop; }
+cmd_start() { [ ! -f "$(PENDING_FILE)" ] || lock_update_operation; refresh_disk_env || true; ensure_userns_vm || true; ensure_metadata_block; dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}"; }
+# The Space browser container (vyre-sbrowser) is not part of compose: the daemon makes it and it outlives a daemon restart on purpose (agents stay signed in through an update). Stopping the server stops it
+# too, so an uninstall (which runs stop) leaves no browser running; its volume, with the profiles, stays.
+cmd_stop() { dc stop; if command -v docker >/dev/null 2>&1; then docker stop -t 10 vyre-sbrowser >/dev/null 2>&1 || true; fi; }
 cmd_status() { dc ps; }
 cmd_logs() {
   follow=1; svc=""
@@ -611,6 +613,14 @@ check_all() {
       0) finding host.userns healthy "Docker's virtual machine allows the user namespaces the engine sandbox needs." ;;
     esac
   fi
+  # no container Vyre starts for agents reaches the cloud's metadata address
+  mst=$(meta_state)
+  case "$mst" in
+    on) if [ "$(meta_v6)" = missing ]; then finding host.metadata degraded "Agents' containers cannot reach the cloud metadata address over IPv4 (169.254.0.0/16), but the IPv6 one (fd00:ec2::254) is not blocked: there is no ip6tables on this server."
+        else finding host.metadata healthy "Agents' containers cannot reach the cloud metadata address (169.254.0.0/16); DNS to it still passes."; fi ;;
+    off) finding host.metadata degraded "Agents' containers can reach the cloud metadata address (169.254.0.0/16), which can hand out this server's credentials. Fix: vyre-server start." ;;
+    broken*) finding host.metadata degraded "Agents' containers may reach the cloud metadata address (169.254.0.0/16): ${mst#broken }." ;;
+  esac
   # the server answers
   if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 5 "$(health_url)" >/dev/null 2>&1; then
     finding host.healthz healthy "vyred answers /healthz."
@@ -1013,6 +1023,57 @@ ensure_userns() {
   return 0
 }
 
+# The cloud's metadata address (169.254.169.254 on most clouds, inside 169.254.0.0/16, and fd00:ec2::254 over IPv6) hands out the server's own details and, on some clouds, credentials. No container
+# Docker runs for Vyre (the Space browser, agents' workspaces, agent computers) may reach it; the rest of their internet stays open. On Google Cloud and Oracle Cloud the server's DNS resolver is that same
+# address (and AWS's can be 169.254.169.253), so DNS (port 53, UDP and TCP) to the range still passes and everything else to it is dropped. It cannot be done per network (Docker has no option for one
+# blocked range), so the rules sit at the top of Docker's DOCKER-USER chain, for the default bridge and every user bridge. Docker creates that chain at its start and never empties it; `vyre-server start`
+# runs at every boot (the systemd unit), every update, and the daily update check (which runs even when there is nothing to update), so a firewall reload that emptied the chain is repaired within a day.
+# Linux only. Where the rules cannot be put in place, doctor says why (never nothing, never "on"); the check reads the rules back with the same tool that put them there.
+meta_os() { _m=$(uname -s); [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_OS:-}" ] || _m=$VYRE_TEST_OS; printf '%s' "$_m"; }
+# meta_rules: "<tool> <destination> <bridge> <proto> <port> <target>" per rule, in the order they stand in the chain (DNS first, then the drop)
+meta_rules() { for i in docker0 br-+; do printf 'iptables 169.254.0.0/16 %s udp 53 RETURN\niptables 169.254.0.0/16 %s tcp 53 RETURN\niptables 169.254.0.0/16 %s - - DROP\nip6tables fd00:ec2::254/128 %s - - DROP\n' "$i" "$i" "$i" "$i"; done; }
+# meta_rule TOOL ACTION DEST IF PROTO PORT TARGET [POS]: check (-C), insert (-I, at POS) or delete (-D) one rule
+meta_rule() {
+  _p=""; [ "$5" = - ] || _p="-p $5 --dport $6"
+  # shellcheck disable=SC2086
+  "$1" -w "$2" DOCKER-USER ${8:-} -i "$4" -d "$3" $_p -m comment --comment vyre-metadata -j "$7" >/dev/null 2>&1
+}
+# meta_chain TOOL: the tool exists, has Docker's DOCKER-USER chain, and Docker's forwarded traffic goes through it in that tool's tables (an iptables-legacy and iptables-nft mismatch fails here)
+meta_chain() { command -v "$1" >/dev/null 2>&1 && "$1" -w -L DOCKER-USER -n >/dev/null 2>&1 && "$1" -w -C FORWARD -j DOCKER-USER >/dev/null 2>&1; }
+# meta_state: on | off (a rule is missing; start puts it there) | skip (not Linux, or a test that did not ask) | "broken <why>" (the rules cannot be put in place here)
+meta_state() {
+  [ "$(meta_os)" = Linux ] || { printf skip; return 0; }
+  # the script's own tests run start and update with stand-ins for Docker: they never touch the real firewall of the computer that runs them, unless a test asks for it (with stand-ins for iptables)
+  [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ "${VYRE_TEST_METADATA:-0}" = 1 ] || { printf skip; return 0; }
+  command -v iptables >/dev/null 2>&1 || { printf 'broken there is no iptables on this server'; return 0; }
+  if command -v docker >/dev/null 2>&1 && docker info 2>/dev/null | grep -i 'firewall backend' | grep -qi nftables; then printf 'broken Docker uses its nftables firewall, which has no DOCKER-USER chain'; return 0; fi
+  iptables -w -L DOCKER-USER -n >/dev/null 2>&1 || { printf "broken iptables has no DOCKER-USER chain: Docker's firewall rules are off, or Docker uses the other iptables backend"; return 0; }
+  iptables -w -C FORWARD -j DOCKER-USER >/dev/null 2>&1 || { printf "broken the DOCKER-USER chain iptables shows is not in the path of Docker's traffic (iptables-legacy and iptables-nft do not match)"; return 0; }
+  meta_rules | while read -r t d i pr po tg; do
+    # IPv6 rules only where Docker forwards IPv6 (its ip6tables chain is there)
+    [ "$t" = iptables ] || meta_chain "$t" || continue
+    meta_rule "$t" -C "$d" "$i" "$pr" "$po" "$tg" || { printf off; break; }
+  done | grep -q off && printf off || printf on
+}
+# meta_v6: "missing" when there is no ip6tables (the IPv4 rules still go in; doctor reports the IPv6 half on its own), "ok" otherwise
+meta_v6() { command -v ip6tables >/dev/null 2>&1 && printf ok || printf missing; }
+# ensure_metadata_block: when a rule is missing, every rule of ours is taken out and put back in order (the drops first, each DNS pass inserted above them); never fails the caller
+ensure_metadata_block() {
+  st=$(meta_state)
+  case "$st" in
+    broken*) say "  Containers may reach the cloud metadata address: ${st#broken }. vyre-server doctor reports it."; return 0 ;;
+    off) ;;
+    *) return 0 ;;
+  esac
+  for t in iptables ip6tables; do
+    [ "$t" = iptables ] || meta_chain "$t" || continue
+    meta_rules | while read -r rt d i pr po tg; do [ "$rt" = "$t" ] || continue; while meta_rule "$t" -D "$d" "$i" "$pr" "$po" "$tg"; do :; done; done
+    for want in DROP RETURN; do
+      meta_rules | while read -r rt d i pr po tg; do [ "$rt" = "$t" ] && [ "$tg" = "$want" ] || continue; meta_rule "$t" -I "$d" "$i" "$pr" "$po" "$tg" 1 || say "  Could not put the metadata rule ($tg $pr $po to $d through $i) in place with $t; vyre-server doctor reports it."; done
+    done
+  done
+  return 0
+}
 # ensure_userns_vm: the same setting on a Mac, where Docker runs in a Linux virtual machine (Docker Desktop, OrbStack, Colima) and this script cannot see its kernel. Colima's machine is
 # Ubuntu 24.04 with the restriction on: there bubblewrap answers "setting up uid map: Permission denied" and every agent turn that runs on the server fails. The setting is read through a
 # container, and when it is 1 a one-shot privileged container of the server's own image (already here, named by digest) turns it off. It belongs to the machine's running kernel and a
@@ -1237,6 +1298,8 @@ update_delegate() {
 cmd_update() {
   if [ "${VYRE_UPDATE_CONTINUE:-0}" = 1 ]; then update_continue "$@"; return; fi
   parse_update_args "$@"
+  # the daily check runs this even when there is nothing to update: a firewall reload that emptied Docker's DOCKER-USER chain is repaired within a day
+  ensure_metadata_block
   TMP=$(mktemp -d "${TMPDIR:-/tmp}/vyre-update.XXXXXX")
   lock_update_operation
   started=$(date +%s)
@@ -1300,6 +1363,7 @@ update_apply() {
   printf '%s\n' "$prev_link" >"$DIR/previous"
   set_current "$REL_VERSION"
   ln -sfn "$DIR/vyre.env" "$DIR/releases/$REL_VERSION/vyre.env"
+  ensure_metadata_block
   refresh_bin
   ensure_userns
   reason=""
@@ -1378,6 +1442,7 @@ cmd_rollback() {
   printf 'releases/%s\n' "$from" >"$DIR/previous"
   set_current "$prev"
   sync_image || die "the image of $prev could not be set; read $DIR/releases/$prev/images.lock."
+  ensure_metadata_block
   refresh_bin
   ensure_userns
   up_stack || die "the server did not start on $prev. Read: vyre-server logs."

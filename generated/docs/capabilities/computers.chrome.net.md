@@ -38,6 +38,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   requests: Array<{
       method: string;
       url: string;
@@ -73,6 +75,8 @@ type Out = {
     "tabId": "example"
   },
   "output": {
+    "note": "example",
+    "reopened": true,
     "requests": [
       {
         "body": "example",

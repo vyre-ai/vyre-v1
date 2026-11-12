@@ -25,7 +25,9 @@ try {
 } catch { /* the placeholder: no extension in this build */ }
 const id = key ? idOf(Buffer.from(key, "base64")) : idOf(Buffer.from(DIR));
 fs.mkdirSync("/etc/chromium/policies/managed", { recursive: true });
-fs.writeFileSync("/etc/chromium/policies/managed/vyre.json", JSON.stringify({ BrowserSignin: 0, SyncDisabled: true, PromptForDownloadLocation: false, HomepageLocation: START, HomepageIsNewTabPage: false, NewTabPageLocation: START, ShowHomeButton: false, RestoreOnStartup: 5, ExtensionSettings: { [id]: { toolbar_pin: "force_pinned" } } }));
+// RestoreOnStartup 1: a profile's browser that stopped after idle opens the tabs it had (owner, 6 Nov: "its own cookies, logins, tabs"). URLBlocklist: no page and no tool opens a file of the container
+// (every profile's folder, its bridge token among them, is readable by the one user all the browsers run as).
+fs.writeFileSync("/etc/chromium/policies/managed/vyre.json", JSON.stringify({ BrowserSignin: 0, SyncDisabled: true, PromptForDownloadLocation: false, HomepageLocation: START, HomepageIsNewTabPage: false, NewTabPageLocation: START, ShowHomeButton: false, RestoreOnStartup: 1, URLBlocklist: ["file://*"], ExtensionSettings: { [id]: { toolbar_pin: "force_pinned" } } }));
 if (has) {
   fs.mkdirSync("/etc/chromium/native-messaging-hosts", { recursive: true });
   fs.writeFileSync("/etc/chromium/native-messaging-hosts/run.vyre.bridge.json", JSON.stringify({

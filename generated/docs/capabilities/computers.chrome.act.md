@@ -38,13 +38,16 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
   heldId?: string;
   snapshot?: string;
   downloads?: Array<{
       name: string;
       path: string;
-      fileId: string;
+      fileId?: string;
+      note?: string;
     }>;
 };
 ```
@@ -78,11 +81,14 @@ type Out = {
       {
         "fileId": "fil_a1b2c3",
         "name": "example",
+        "note": "example",
         "path": "Downloads/report.pdf"
       }
     ],
     "heldId": "example",
+    "note": "example",
     "ok": true,
+    "reopened": true,
     "snapshot": "example"
   }
 }
