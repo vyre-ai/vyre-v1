@@ -183,7 +183,9 @@ fetch_release() {
   fetch "$base/$CHANNEL.json.sig" "$TMP/manifest.sig" 30 || die "could not fetch the manifest's signature; nothing was installed."
   verify_manifest "$TMP/manifest.json" "$TMP/manifest.sig" || die "the release signature does not match the Vyre release key in this installer; nothing was installed."
   say "  ok  the release signature verifies"
-  [ "$(jq -r '.v // empty' "$TMP/manifest.json")" = 1 ] || die "the release manifest is not a version this installer reads; nothing was installed."
+  # v 1, or v 2: a release that needs this newer updater. Every script of rc.25 and older reads only v 1 and stops right here, before any image pull or backup, saying "nothing was
+  # installed": a release published with v 2 is never carried out by the old updater (whose backup on a Mac reads the live databases from macOS). Run the install line again to update.
+  case "$(jq -r '.v // empty' "$TMP/manifest.json")" in 1|2) ;; *) die "the release manifest is not a version this installer reads; nothing was installed." ;; esac
   [ "$(jq -r '.channel // empty' "$TMP/manifest.json")" = "$CHANNEL" ] || die "the manifest is for another channel than $CHANNEL; nothing was installed."
   REL_VERSION=$(jq -r '.server.version // empty' "$TMP/manifest.json")
   url=$(jq -r '.server.tarball // empty' "$TMP/manifest.json")
@@ -323,9 +325,11 @@ spacedb_host_boot() {
   [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_BOOT_ID_FILE:-}" ] || _sbf=$VYRE_TEST_BOOT_ID_FILE
   head -n 1 "$_sbf" 2>/dev/null || true
 }
+# spacedb_engine_boot: "vyred|<boot id>" from the running vyred, or "oneshot|<boot id>" from a one-shot container when this engine runs no vyred of this install
 spacedb_engine_boot() {
-  if _sbc=$(spacedb_vyred); then docker exec "$_sbc" cat /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1; return 0; fi
+  if _sbc=$(spacedb_vyred); then printf 'vyred|'; docker exec "$_sbc" cat /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1; return 0; fi
   _sbi=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  printf 'oneshot|'
   [ -z "$_sbi" ] || docker run --rm --network none --entrypoint cat "$_sbi" /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1
   return 0
 }
@@ -333,10 +337,13 @@ engine_same_kernel() {
   if [ -z "$SPACEDB_SAME" ]; then
     SPACEDB_SAME=1
     if [ "$(spacedb_os)" != Darwin ]; then
-      if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_ENGINE:-}" ]; then _sk=${VYRE_TEST_ENGINE%%|*}; _seb=${VYRE_TEST_ENGINE#*|}
+      if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_ENGINE:-}" ]; then _sk=${VYRE_TEST_ENGINE%%|*}; _seb=vyred\|${VYRE_TEST_ENGINE#*|}
       else _sk=$(docker info --format '{{.OperatingSystem}}' 2>/dev/null | head -n 1) || _sk=""; _seb=""; [ -z "$_sk" ] || _seb=$(spacedb_engine_boot); fi
       _shb=$(spacedb_host_boot)
-      case "$_sk" in ""|*"Docker Desktop"*) ;; *) [ -z "$_shb" ] || [ "$_shb" != "$_seb" ] || SPACEDB_SAME=0 ;; esac
+      case "$_sk" in ""|*"Docker Desktop"*) ;; *) [ -z "$_shb" ] || [ "$_shb" != "${_seb#*|}" ] || SPACEDB_SAME=0 ;; esac
+      # the engine this shell talks to runs no vyred of this install: the server may be running under another Docker context (another kernel). The one-shot container speaks
+      # for this engine only, so host tools are trusted only when no database in the Space has a -wal or -shm beside it (nothing has it open)
+      if [ "$SPACEDB_SAME" = 0 ] && [ "${_seb%%|*}" = oneshot ] && [ -n "$(find "$DATA_DIR/space" \( -name '*-wal' -o -name '*-shm' \) 2>/dev/null | head -n 1)" ]; then SPACEDB_SAME=1; fi
     fi
   fi
   return "$SPACEDB_SAME"
@@ -608,8 +615,21 @@ check_all() {
   if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 5 "$(health_url)" >/dev/null 2>&1; then
     finding host.healthz healthy "vyred answers /healthz."
   else
-    finding host.healthz down "vyred does not answer on 127.0.0.1:$(port)."
+    # a server holding on a damaged database answers 503 with the line that names the file (host/src/daemon/damaged-db.ts)
+    held=$(curl -sS --max-time 5 "$(health_url)" 2>/dev/null | sed -n 's/.*"code":"space\.damaged","message":"\([^"]*\)".*/\1/p' | head -n 1)
+    if [ -n "$held" ]; then finding host.healthz down "vyred is holding, not serving: $held Backups are in $BACKUP_DIR."
+    else finding host.healthz down "vyred does not answer on 127.0.0.1:$(port)."; fi
   fi
+  # an update that was rolled back is not tried again (update_skipped); say so until a newer release goes on
+  skipped=$(update_skipped_line)
+  [ -z "$skipped" ] || finding host.update degraded "$skipped"
+  # damaged data a restore set aside is never deleted by Vyre: say how much there is and the command that removes it
+  dmg=""; dmg_kb=0; dmg_n=0
+  for d in "$DATA_DIR"/space.damaged-*; do
+    [ -d "$d" ] || continue
+    dmg="$dmg $d"; dmg_n=$((dmg_n + 1)); dmg_kb=$((dmg_kb + $(du -sk "$d" 2>/dev/null | awk '{print $1 + 0}')))
+  done
+  [ "$dmg_n" = 0 ] || finding host.damaged_data degraded "$dmg_n folder(s) of damaged data that a restore set aside are still here ($((dmg_kb / 1024)) MB). Nothing uses them. Once the Space works, delete them: rm -rf$dmg"
   # the install itself
   if [ -f "$DIR/current/VERSION" ] && [ -f "$DIR/vyre.env" ]; then finding host.release healthy "Vyre Server $(cur_version) on the $CHANNEL channel."
   else finding host.release down "No release is installed at $DIR. Run the installer again."
@@ -769,6 +789,7 @@ prune_backups() {
       else { kind = "other"; keep = k }
       if (++seen[kind] > keep) print $0 }' | while IFS= read -r old; do
     [ "$old" != "$out" ] || continue
+    [ "$old" != "$(cat "$DIR/state/keep-backup" 2>/dev/null)" ] || continue
     rm -f "$old" && say "  Removed an older backup: $(basename "$old")"
   done
   return 0
@@ -914,6 +935,28 @@ restore_undo() {
   resume_strays
   if [ "${DAMAGED:-0}" = 1 ]; then die "$2; the data that was there before (which would not back up) is back in $DATA_DIR/space."; fi
   die "$2; the data that was there before is back. Backup of it: $BACKUP_FILE"
+}
+
+# failed_here VERSION: an update to VERSION was rolled back here, or failed (not counting a manual rollback). Prints the date it happened.
+failed_here() {
+  _fh=$(awk -F '\t' -v v="$1" '$3 == v && ($4 == "rolled_back" || $4 == "failed") && $6 != "manual rollback" { d = $1 } END { print d }' "$DIR/state/updates.tsv" 2>/dev/null || true)
+  [ -n "$_fh" ] || return 1
+  printf '%s' "$_fh"
+}
+# update_skipped_line [VERSION]: "<v> did not start here and was rolled back on 12 Nov. It will not be tried again; the next release will." for VERSION, else for the newest version
+# that failed here and is newer than the one running (nothing when there is none).
+update_skipped_line() {
+  _sv=${1:-}
+  if [ -z "$_sv" ]; then
+    _sv=$(awk -F '\t' '($4 == "rolled_back" || $4 == "failed") && $6 != "manual rollback" { v = $3 } $4 == "ok" { v = "" } END { print v }' "$DIR/state/updates.tsv" 2>/dev/null || true)
+    [ -n "$_sv" ] || return 0
+    _c=$(ver_cmp "$_sv" "$(cur_version)" 2>/dev/null) || return 0
+    [ "$_c" = 1 ] || return 0
+  fi
+  _sd=$(failed_here "$_sv") || return 0
+  _day=$(printf '%s' "$_sd" | cut -c9-10 | sed 's/^0//'); _mon=$(printf '%s' "$_sd" | cut -c6-7)
+  case "$_mon" in 01) _mon=Jan ;; 02) _mon=Feb ;; 03) _mon=Mar ;; 04) _mon=Apr ;; 05) _mon=May ;; 06) _mon=Jun ;; 07) _mon=Jul ;; 08) _mon=Aug ;; 09) _mon=Sep ;; 10) _mon=Oct ;; 11) _mon=Nov ;; 12) _mon=Dec ;; esac
+  printf '%s did not start here and was rolled back on %s %s. It will not be tried again; the next release will.' "$_sv" "$_day" "$_mon"
 }
 
 record_update() {
@@ -1174,9 +1217,12 @@ update_delegate() {
   # a signal to this half does nothing until the child (which has its own traps and puts the old release back itself) has ended; then only the child's exit code decides,
   # so this half can never undo what the child finished
   trap ':' INT TERM HUP
-  VYRE_UPDATE_CONTINUE=1 VYRE_UPDATE_FROM=$from VYRE_UPDATE_TO=$REL_VERSION VYRE_UPDATE_STARTED=$started VYRE_UPDATE_LOCK_PID=$$ VYRE_HANDOFF=1 VYRE_DIR=$DIR \
+  # VYRE_SOURCE_ONLY=0: a first half that was itself sourced (a test, a proof script) must not make the child load its functions and quietly do nothing
+  VYRE_SOURCE_ONLY=0 VYRE_UPDATE_CONTINUE=1 VYRE_UPDATE_FROM=$from VYRE_UPDATE_TO=$REL_VERSION VYRE_UPDATE_STARTED=$started VYRE_UPDATE_LOCK_PID=$$ VYRE_HANDOFF=1 VYRE_DIR=$DIR \
     sh "$new" update "$@" && urc=0 || urc=$?
   trap - INT TERM HUP
+  # a child that says it finished must have switched: anything else is a second half that did not run
+  if [ "$urc" = 0 ] && [ "$(cur_version)" != "$REL_VERSION" ]; then printf 'vyre-server: the new release'"'"'s updater ended without installing %s.\n' "$REL_VERSION" >&2; urc=1; fi
   case "$urc" in
     0|4|5) ;;
     *)
@@ -1198,6 +1244,9 @@ cmd_update() {
   fetch_release
   c=$(ver_cmp "$REL_VERSION" "$from") || die "the running version ($from) or the offered one ($REL_VERSION) is not a version."
   if [ "$c" -le 0 ]; then say "Vyre Server $from is the newest on the $CHANNEL channel."; return 0; fi
+  # a version that already failed here is not tried again, night after night (each try would take a new pre-update backup holding what the failed version wrote, and push out the one
+  # from before it); --version naming it tries it once more on purpose
+  if [ "$WANT" != "$REL_VERSION" ] && failed_here "$REL_VERSION" >/dev/null; then say "$(update_skipped_line "$REL_VERSION")"; return 0; fi
   say "Vyre Server $REL_VERSION is available (running $from)."
   [ "$check_only" = 0 ] || return 10
   if [ "$DRY" = 1 ]; then say "Would install $REL_VERSION from the $CHANNEL channel; no images, backups or running services were changed."; return 0; fi
@@ -1267,6 +1316,7 @@ update_apply() {
     printf '%s\n' "$UPDATE_URL" >"$DIR/update-url"
     rm -f "$DIR/state/update.pending"
     record_update "$from" "$REL_VERSION" ok "$secs" ""
+    rm -f "$DIR/state/keep-backup"
     prune_releases || true
     prune_images || true
     say "Updated to $REL_VERSION in $secs s."
@@ -1281,6 +1331,8 @@ update_apply() {
   rm -f "$DIR/state/update.pending"
   refresh_bin
   up_stack || true
+  # the backup from before this failed update is the one a person needs after a bad night: kept until an update succeeds (the first one since the last success)
+  [ -s "$DIR/state/keep-backup" ] || printf '%s\n' "$BACKUP_FILE" >"$DIR/state/keep-backup"
   if wait_healthy; then record_update "$from" "$REL_VERSION" rolled_back "$secs" "$reason"; die "the update to $REL_VERSION failed ($reason) and the server is back on $from. Backup: $BACKUP_FILE" 4; fi
   record_update "$from" "$REL_VERSION" failed "$secs" "$reason"
   said_old=$(server_said "$DIR/state/update-$REL_VERSION-rollback.log")
@@ -1297,8 +1349,18 @@ update_apply() {
 
 # server_said FILE: keeps vyred's last log lines in FILE and prints the one line that says why it stopped (the last line naming an error, else the last line), without the compose prefix.
 server_said() {
-  dc logs --no-color --tail 80 vyred >"$1" 2>&1 || true
+  # vyred prints the one-time claim link at start: no line of it, and nothing shaped like a code or token, is kept or printed; the file is the owner's alone
+  ( umask 077; dc logs --no-color --tail 80 vyred 2>&1 | scrub_secrets >"$1" ) || true
+  chmod 0600 "$1" 2>/dev/null || true
   sed 's/^[^|]*| //' "$1" | awk 'NF { last = $0 } /[Ee]rror|malformed|damaged|cannot|could not|did not|failed|vyred: / { hit = $0 } END { if (hit != "") print hit; else print last }' | cut -c1-400
+}
+# scrub_secrets: stdin to stdout without claim links, one-time codes, bearer tokens or long key-like strings.
+scrub_secrets() {
+  sed -E -e '/Claim this Space|\/claim\/clm_/d' \
+    -e 's/(clm|vas|vat|tok|sk|key|sec)_[A-Za-z0-9_-]{8,}/[removed]/g' \
+    -e 's/VYRE-[A-Z2-9]{4}-[A-Z2-9]{4}/[removed]/g' \
+    -e 's/([Bb]earer|[Tt]oken|[Pp]assword|[Ss]ecret)([=: ]+)[^ ,;"]+/\1\2[removed]/g' \
+    -e 's/[A-Za-z0-9+_=-]{32,}/[removed]/g'
 }
 # damaged_db_in FILE...: the database a log names as damaged (vyred says "vyred: space/<name>.db is damaged"), or nothing.
 damaged_db_in() {
