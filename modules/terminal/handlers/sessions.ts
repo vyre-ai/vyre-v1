@@ -202,7 +202,8 @@ async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown
   ensure(ctx.db);
   if (a.host === "agent_computer") {
     // a workspace is every Space's (a Personal Space has one when the person's computer has a container runtime); the desktop computer an agent can be given is a Team Space's
-    if (!isTeam(ctx.space) && !(a.agentId !== undefined && (await workspacesFor(a.agentId)))) raise(ctx, "permission.needs_team", "Agent computers are part of a Team Space.");
+    // in a Personal Space with nothing to run it on now, say why and what would fix it (12 Nov, f-wire binds the real Space kind): a Team Space is not the answer
+    if (!isTeam(ctx.space) && !(a.agentId !== undefined && (await workspacesFor(a.agentId)))) raise(ctx, "provider.unavailable", NO_WORKSPACE_NOW_PERSONAL, { reason: "no_workspace_computer" });
     if (a.agentId === undefined) raise(ctx, "validation.bad_input", "Say which agent's workspace to open the terminal in.");
     await needWorkspace(ctx, a.agentId);
   }
@@ -454,6 +455,7 @@ async function targetForRun(ctx: TermCtx, a: RunInput, person: string, agentId: 
 
 // What is true for each kind of Space (12 Nov, the browser's voice, lane f-desktop): a Personal Space runs on the person's own computer; a Team Space on its server, which is not the computer the person is on.
 export const NO_WORKSPACE_PERSONAL = "Your Assistant runs commands on this computer for now. A workspace of its own needs Docker on this computer, or a server with Docker added in Console > Computers.";
+export const NO_WORKSPACE_NOW_PERSONAL = "This workspace can't run right now: Docker is not running on this computer, and no server with Docker is online for it. Start Docker, or add a server with Docker in Console > Computers.";
 export const NO_WORKSPACE_TEAM = "This Space can't run agent workspaces yet. That needs Docker on the Space's server, or another server with Docker added in Console > Computers.";
 
 /**
@@ -688,7 +690,8 @@ export function rulesSet(ctx: TermCtx, input: { rules: Rules }) {
   rules.ask = rules.ask.filter((e) => !rules.deny.includes(e));
   const me = actorOf(ctx);
   // an agent may make the person's rules stricter by itself, never looser (12 Nov, lead's decision): looser needs the person, in Terminal rules
-  if (ctx.principal.kind === "agent") {
+  // every caller that is not a person (an agent, an Automation or another service acting for someone) may only tighten them (review S4)
+  if (ctx.principal.kind !== "person") {
     const loose = loosens(rulesOf(ctx.db, me), rules);
     if (loose !== null) raise(ctx, "permission.role_lacks_permission", AGENT_LOOSENS_LINE, { reason: "loosens_rules", entry: loose });
   }

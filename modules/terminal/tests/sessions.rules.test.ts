@@ -129,3 +129,14 @@ test("a deny rule stops a command in the module itself, whoever sends it; allow 
   const ravi = hn.as({ kind: "person", id: "usr_ravi" });
   assert.equal((await call(hn, "terminal.run", { command: "rm -rf build", terminalId: t.terminalId, idempotencyKey: "i4" }, ravi)).exitCode, 0);
 });
+
+test("S4: an Automation or any other service acting for a person may only tighten that person's rules too", async () => {
+  reset();
+  const hn = harness();
+  await call(hn, "terminal.rules.set", { rules: rules({ allow: ["ls"], deny: ["rm -rf"] }) });
+  const automation = hn.as({ kind: "service", id: "svc_aut_nightly" }, "usr_dana");
+  assert.equal(await rejects(() => h["terminal.rules.set"]!(automation, { rules: rules({ allow: ["ls", "curl"], deny: ["rm -rf"] }) })), "permission.role_lacks_permission");
+  assert.equal(await rejects(() => h["terminal.rules.set"]!(automation, { rules: rules({ allow: ["ls"] }) })), "permission.role_lacks_permission");
+  await call(hn, "terminal.rules.set", { rules: rules({ allow: ["ls"], deny: ["rm -rf", "curl"] }) }, automation);
+  assert.deepEqual(rulesOf(hn.db, "usr_dana").deny, ["rm -rf", "curl"], "a stricter change goes through");
+});

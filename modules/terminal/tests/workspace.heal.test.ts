@@ -772,3 +772,20 @@ test("cut: the removal's own call stops the project's mirror for the agent and s
   assert.equal(await m.ensure(AGENT), "running", "and nothing more to do once the list agrees");
   m.close();
 });
+
+// ---- a Personal Space with no computer to run a workspace on now ---------------------------------------------------------------------------------------------
+
+test("a Personal Space (its kind bound as the daemon binds it) with no computer that can run workspaces now is told why and what fixes it, not that it needs a Team Space", async () => {
+  const { bindTeam } = await import("../projections.ts");
+  reset();
+  bindTeam(() => false);   // as host/src/daemon/module-ports.ts binds a Personal Space's kind (lane f-wire)
+  bindWorkspaces(false);
+  const hn = harness();
+  bindHost(fakeHost().host);
+  let err: unknown;
+  try { await h["terminal.open"]!(hn.ctx, { host: "agent_computer", agentId: "agt_dana_assistant", idempotencyKey: idem() }); } catch (e) { err = e; }
+  assert.equal(codeOf(err), "provider.unavailable");
+  const message = (err as { error: { message: string } }).error.message;
+  assert.equal(message, "This workspace can't run right now: Docker is not running on this computer, and no server with Docker is online for it. Start Docker, or add a server with Docker in Console > Computers.");
+  assert.doesNotMatch(message, /Team Space|machine/);
+});

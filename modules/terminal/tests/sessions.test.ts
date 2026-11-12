@@ -58,7 +58,8 @@ test("open: the folders a person's rules add are handed to the machine", async (
 test("open: refused in a Personal Space, without something to open it on, when the machine does not answer, and on a host with no terminals", async () => {
   const { hn, host } = setup();
   bindTeam(() => false);
-  assert.equal(await rejects(() => h["terminal.open"]!(hn.ctx, { host: "agent_computer", agentId: "agt_intake" })), "permission.needs_team");
+  // 12 Nov: a Personal Space is told why its workspace cannot run now and what would fix it, not that it needs a Team Space
+  assert.equal(await rejects(() => h["terminal.open"]!(hn.ctx, { host: "agent_computer", agentId: "agt_intake" })), "provider.unavailable");
   bindTeam(null);
   assert.equal(await rejects(() => h["terminal.open"]!(hn.ctx, { host: "agent_computer" })), "validation.bad_input");
   assert.equal(await rejects(() => h["terminal.open"]!(hn.ctx, { host: "device" })), "validation.bad_input");

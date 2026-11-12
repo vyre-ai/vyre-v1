@@ -34,3 +34,4 @@
 - Taking an agent off a project now stops its workspace's access before the change is confirmed.
 - A command with a Vault value right after another in the same tab is no longer refused as busy.
 - A command that moves the cursor, clears the screen or draws a progress bar no longer looks like it ran until its time ran out; it ends when it ends, with its exit code.
+- In a Personal Space whose workspace cannot run right now, the terminal says why and what fixes it, not that a Team Space is needed.
