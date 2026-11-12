@@ -27,3 +27,4 @@
 - An agent made in a private chat or in a thread of an invite-only channel can now be reached only by the people who read that chat, the people it was shared with, its owner, and the Space's owners and admins. Everyone else sees no such agent: it is not in their lists or pickers, they cannot open it, chat with it, mention it or give it a task, and Vyre answers as it does for an agent that does not exist.
 - Someone who leaves or is taken out of that chat loses the agent at once. A grant that was still being written when they left no longer comes back.
 - Starting a chat with, or giving a task to, an agent that does not exist is now refused.
+- Mentioning someone in an invite-only channel, or a thread under one, no longer notifies them or puts them in the thread if they cannot open the channel. The sender's message still offers Add.

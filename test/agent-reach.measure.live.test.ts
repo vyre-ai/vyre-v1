@@ -112,10 +112,13 @@ test("an agent made in an invite-only channel's thread: what a never-member can 
     const ghostAgent = (await ok(d, d.token, "agents.create", { name: "Gone helper", computer: false })).agent.agentId as string;
     await ok(d, d.token, "agents.delete", { agentId: ghostAgent });
     const codeOf = (r: { data: unknown }): string => String((r.data as { error?: { code?: string } }).error?.code ?? "");
+    // an open channel everyone in this walk is in, to mention the agent from
+    const openRoom = ((await ok(d, d.token, "channels.create", { name: "lobby", visibility: "public", memberIds: [ana.personId, carol.personId], agentIds: [] })).channel as { mainThreadId: string }).mainThreadId;
     const reachDoors: Array<[string, string, (id: string) => Record<string, unknown>]> = [
       ["agents.get", "agents.get", (id) => ({ agentId: id })], ["agents.summary", "agents.summary", (id) => ({ agentId: id })], ["agents.config.get", "agents.config.get", (id) => ({ agentId: id })],
       ["agents.routines.list", "agents.routines.list", (id) => ({ agentId: id })], ["agents.status", "agents.status", (id) => ({ agentId: id })],
       ["chat.start with it", "chat.start", (id) => ({ kind: "chat", agentIds: [id], first: "hello", idempotencyKey: `reach-${id}-${globalThis.crypto.randomUUID()}` })],
+      ["an @mention of it in a channel they are in", "chat.post", (id) => ({ threadId: openRoom, body: "can you look?", mentions: [{ kind: "agent", id }], idempotencyKey: `reach-mention-${globalThis.crypto.randomUUID()}` })],
       ["a task assigned to it", "tasks.create", (id) => ({ title: "Draft the letter", assigned: { kind: "agent", id }, idempotencyKey: `reach-task-${globalThis.crypto.randomUUID()}` })],
     ];
     const reach = async (who: { token: string }): Promise<Map<string, string>> => {
