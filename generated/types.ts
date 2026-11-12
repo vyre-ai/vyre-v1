@@ -4760,6 +4760,7 @@ export type AutomationsVaultUsageOut = {
           steps: Array<{
               nodeId: string;
               title: string;
+              blocked?: string;
             }>;
         }>;
       hidden?: number;

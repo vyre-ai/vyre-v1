@@ -4459,6 +4459,7 @@ if (!("nodeId" in o1790)) e.push(p + "/uses" + '/' + i1785 + "/automations" + '/
 if (!("title" in o1790)) e.push(p + "/uses" + '/' + i1785 + "/automations" + '/' + i1787 + "/steps" + '/' + i1789 + "/title" + ': required');
 if ("nodeId" in o1790) lf(o1790["nodeId"], p + "/uses" + '/' + i1785 + "/automations" + '/' + i1787 + "/steps" + '/' + i1789 + "/nodeId", e, L1);
 if ("title" in o1790) lf(o1790["title"], p + "/uses" + '/' + i1785 + "/automations" + '/' + i1787 + "/steps" + '/' + i1789 + "/title", e, L1);
+if ("blocked" in o1790) lf(o1790["blocked"], p + "/uses" + '/' + i1785 + "/automations" + '/' + i1787 + "/steps" + '/' + i1789 + "/blocked", e, L1);
 }
 }
 }
