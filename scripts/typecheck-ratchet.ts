@@ -39,13 +39,20 @@ export function trustworthy(r: { error?: unknown; signal?: string | null; status
   return null;
 }
 
-/** The baseline as the merge base with origin/main has it, or null when it cannot be read (no git, no such file there yet). */
-export function mergeBaseBaseline(root: string, file: string): number | null {
-  const mb = spawnSync("git", ["merge-base", "origin/main", "HEAD"], { cwd: root, encoding: "utf8" });
-  if (mb.status !== 0) return null;
-  const shown = spawnSync("git", ["show", `${mb.stdout.trim()}:${file}`], { cwd: root, encoding: "utf8" });
-  if (shown.status !== 0) return null;
-  try { const n = (JSON.parse(shown.stdout) as { count?: unknown }).count; return typeof n === "number" ? n : null; } catch { return null; }
+/** The branch this merges into: a pull request's target (GITHUB_BASE_REF), else int/rc25 (sixth look W1: not main, where the server baseline does not exist yet). */
+export const baseRefOf = (env: Record<string, string | undefined> = process.env): string => `origin/${env["GITHUB_BASE_REF"] || "int/rc25"}`;
+
+/**
+ * The baseline as the merge base with the target branch has it: its count; "new" when the file is not there yet (it is new on this branch, which the log says); "unreadable" when the
+ * merge base cannot be found (a shallow checkout, no git). On CI an unreadable base fails the ratchet, so the "may only fall" check is never skipped without a word.
+ */
+export function mergeBaseBaseline(root: string, file: string, ref: string = baseRefOf()): { state: "ok"; count: number } | { state: "new" } | { state: "unreadable"; why: string } {
+  const mb = spawnSync("git", ["merge-base", ref, "HEAD"], { cwd: root, encoding: "utf8" });
+  if (mb.status !== 0) return { state: "unreadable", why: `no merge base with ${ref} (${(mb.stderr || "").trim().slice(0, 120) || "a shallow checkout?"})` };
+  const at = mb.stdout.trim();
+  const shown = spawnSync("git", ["show", `${at}:${file}`], { cwd: root, encoding: "utf8" });
+  if (shown.status !== 0) return { state: "new" };
+  try { const n = (JSON.parse(shown.stdout) as { count?: unknown }).count; return typeof n === "number" ? { state: "ok", count: n } : { state: "unreadable", why: `${file} on ${ref} has no count` }; } catch { return { state: "unreadable", why: `${file} on ${ref} is not JSON` }; }
 }
 
 /** A CI runner, where a ratchet that cannot count must fail rather than pass. */
@@ -71,7 +78,10 @@ function main(): void {
   const count = countErrors(`${r.stdout}\n${r.stderr}`);
   const baseline = (JSON.parse(fs.readFileSync(baselineFile, "utf8")) as { count: number }).count;
   const update = process.argv.includes("--update");
-  const why = trustworthy(r, count, baseline, { update, mergeBaseBaseline: mergeBaseBaseline(root, target.baseline) });
+  const base = mergeBaseBaseline(root, target.baseline);
+  if (base.state === "unreadable" && inCi()) { console.log(`typecheck ratchet failed: the baseline on the target branch cannot be read: ${base.why}`); process.exit(1); }
+  if (base.state === "new") console.log(`${target.baseline} is new on this branch (not on ${baseRefOf()}): no earlier baseline to hold it to`);
+  const why = trustworthy(r, count, baseline, { update, mergeBaseBaseline: base.state === "ok" ? base.count : null });
   if (why !== null) { console.log(`typecheck ratchet failed: ${why}`); process.exit(1); }
   const v = judge(count, baseline);
   console.log(v.words);

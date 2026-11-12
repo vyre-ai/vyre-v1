@@ -79,3 +79,31 @@ test("V5: a spawn error fails, and a baseline above the merge base's fails", asy
   assert.match(trustworthy({ signal: null, status: 2 }, 100, 101, { update: false, mergeBaseBaseline: 100 }) ?? "", /above the one on the merge base/);
   assert.equal(trustworthy({ signal: null, status: 2 }, 100, 100, { update: false, mergeBaseBaseline: 100 }), null);
 });
+
+test("W1: the earlier baseline is read from the target branch (GITHUB_BASE_REF, else int/rc25): a count, a file new on this branch, or unreadable, which fails on CI", async () => {
+  const { baseRefOf, mergeBaseBaseline } = await import("./typecheck-ratchet.ts");
+  assert.equal(baseRefOf({ GITHUB_BASE_REF: "main" }), "origin/main");
+  assert.equal(baseRefOf({}), "origin/int/rc25");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ratchet-w1-"));
+  const git = (...a: string[]) => spawnSync("git", a, { cwd: dir, encoding: "utf8", env: { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" } });
+  try {
+    git("init", "-q", "-b", "base");
+    fs.mkdirSync(path.join(dir, "scripts"));
+    fs.writeFileSync(path.join(dir, "a.txt"), "a");
+    git("add", "-A"); git("commit", "-q", "-m", "base");
+    git("update-ref", "refs/remotes/origin/int/rc25", "HEAD");
+    git("checkout", "-q", "-b", "work");
+    fs.writeFileSync(path.join(dir, "scripts/typecheck-baseline.server.json"), JSON.stringify({ count: 5 }));
+    git("add", "-A"); git("commit", "-q", "-m", "work");
+    assert.deepEqual(mergeBaseBaseline(dir, "scripts/typecheck-baseline.server.json", "origin/int/rc25"), { state: "new" }, "new on this branch");
+    // the target branch has it at 3
+    git("checkout", "-q", "base");
+    fs.mkdirSync(path.join(dir, "scripts"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "scripts/typecheck-baseline.server.json"), JSON.stringify({ count: 3 }));
+    git("add", "-A"); git("commit", "-q", "-m", "base 3");
+    git("update-ref", "refs/remotes/origin/int/rc25", "HEAD");
+    git("checkout", "-q", "work"); git("merge", "-q", "--no-edit", "-X", "ours", "base");
+    assert.deepEqual(mergeBaseBaseline(dir, "scripts/typecheck-baseline.server.json", "origin/int/rc25"), { state: "ok", count: 3 });
+    assert.equal(mergeBaseBaseline(dir, "scripts/typecheck-baseline.server.json", "origin/nope").state, "unreadable", "no such branch: unreadable");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
