@@ -74,12 +74,12 @@ export interface HostRowOut { hostId: string; kind?: string; name: string; onlin
 export type HostsAnswer = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; available: boolean; hosts: readonly HostRowOut[] };
 
 /** What the "no computer yet" pane offers, from what the Space says about where a computer can run. The button is there only when a host can run one; otherwise the real reason is. */
-export function setupView(h: HostsAnswer): { kind: "checking" } | { kind: "can" } | { kind: "cannot"; reasons: string[] } {
+export function setupView(h: HostsAnswer, mayAddServer = true): { kind: "checking" } | { kind: "can" } | { kind: "cannot"; reasons: string[] } {
   if (h.state === "loading") return { kind: "checking" };
   if (h.state === "error") return { kind: "cannot", reasons: [`Vyre could not ask where an agent computer can run: ${h.message}`] };
   if (h.available) return { kind: "can" };
   const reasons = h.hosts.map((x) => x.reason).filter((r): r is string => typeof r === "string" && r !== "");
-  return { kind: "cannot", reasons: reasons.length > 0 ? [...new Set(reasons)] : ["No machine in this Space can run an agent computer yet. Add a server with Docker."] };
+  return { kind: "cannot", reasons: reasons.length > 0 ? [...new Set(reasons)] : [mayAddServer ? "No machine in this Space can run an agent computer yet. Add a server with Docker." : "No machine in this Space can run an agent computer yet. An owner or admin can add a server with Docker."] };
 }
 
 /** The machine that has the most room among those that can run one; the first when they tie. */
@@ -109,7 +109,7 @@ export function DeskPicture({ height = 124 }: { height?: number }): ReactElement
 
 /** The pane of an agent that has no computer: what it gets, where it will run (the best machine chosen), and one button. When no machine can run one, the real reason and the next step, never a button. */
 export function NoneBody({ hosts, canProvision, onProvision, name = "this agent", picked = null, onPick }: { hosts: HostsAnswer; canProvision: boolean; onProvision(hostId: string | null): void; name?: string; picked?: string | null; onPick?(hostId: string): void }): ReactElement {
-  const v = setupView(hosts);
+  const v = setupView(hosts, canProvision);
   const list = hosts.state === "ready" ? hosts.hosts : [];
   const chosen = list.find((h) => h.hostId === picked && h.canRun) ?? bestHost(list);
   return (

@@ -28,3 +28,6 @@
 - A finished helper's row in the crew strip no longer loses its test counts when its one read of the helper's chat fails on a busy server: the read is tried again.
 - An invite link already sent keeps working when the create is sent again with the same key (a slow answer and a retry): the earlier code is kept beside the fresh one, as a hash, until the invite is used, revoked or expires.
 - A Stop pressed while a reply is starting stops that reply: the press answers at once and the turn ends cancelled as it starts.
+- A replayed invite create says plainly when the invite was already used, revoked or has expired, and makes no new code for it. On a Space reached at its phone address, the first link of a replayed invite opens too.
+- A reply stopped while it was starting opens no session, fires no hook, sends nothing, asks nobody for an account, and is not run again after a restart.
+- A Team member is no longer offered Add a server on an agent's page or told to add one in its Computer tab; an owner or admin is named instead.

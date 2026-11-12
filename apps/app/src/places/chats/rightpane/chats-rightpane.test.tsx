@@ -602,6 +602,9 @@ test("Computer, none yet: the button is there only when a host can run one; when
   const err = render({ state: "error", message: "the Space did not answer" });
   assert.ok(has(err, "could not ask where an agent computer can run: the space did not answer".replace("the space", "the Space")) && !has(err, "Set up its computer"));
   assert.equal(setupView({ state: "loading" }).kind, "checking");
+  // a Team member who may not add a server is not told to (review F4): who can is named instead
+  const member = setupView({ state: "ready", available: false, hosts: [] }, false);
+  assert.deepEqual(member, { kind: "cannot", reasons: ["No machine in this Space can run an agent computer yet. An owner or admin can add a server with Docker."] });
 });
 
 test("a failed write says why in the app's own words, and a computer that could not be set up says the reason", async () => {
