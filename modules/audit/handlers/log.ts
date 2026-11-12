@@ -11,7 +11,13 @@ import {
 type Page = { cursor?: string; limit?: number };
 const who = (ctx: AuditCtx): string => ctx.principal.id;
 
+/** How long one visit to the log lasts: reads by the same person inside it (a page's first load, its polls, a filter, the next page, an object's Activity tab) are one view. */
+export const VIEW_VISIT_MS = 15 * 60_000;
+
+/** Opening the log is recorded once per visit, not once per read (owner walk, 12 Nov: a Console visit wrote "opened the audit log" about nine times). A person who comes back after the visit is over is recorded again. */
 function noteView(ctx: AuditCtx, action: string, resource: ResRef | undefined, detail: unknown): void {
+  const last = ctx.db.all(`SELECT * FROM audit_row WHERE actor_id = ? AND action = ? ORDER BY seq DESC LIMIT 1`, ctx.principal.id, action)[0] as { at?: number } | undefined;
+  if (last?.at !== undefined && ctx.now() - Number(last.at) < VIEW_VISIT_MS) return;
   appendRow(ctx, { actor: { kind: ctx.principal.kind, id: ctx.principal.id }, action, class: "sensitive", ...(resource ? { resource } : {}), after: detail });
 }
 

@@ -5,6 +5,7 @@ import { compileTransform, convert, IMPORTABLE } from "../mapping.ts";
 import type { FieldInfo, Transform } from "../mapping.ts";
 import { call, clean, hashOf, raise, saveSession, stable, staged, tableOf } from "../projections.ts";
 import type { ImportCtx, In, Mapping, NewField, Plan, RowError, Session, Table } from "../projections.ts";
+import { isHostService } from "../../../lib/trust.ts";
 import { fieldsOf } from "./parse.ts";
 
 export const ERRORS_SHOWN = 50;
@@ -55,14 +56,14 @@ const keyOf = (fields: Record<string, unknown>, match: readonly string[]): strin
 };
 
 /** Which of these rows already exist: records of the type whose match fields equal the row's, asked in chunks. */
-async function existing(ctx: ImportCtx, type: string, match: readonly string[], rows: readonly Built[]): Promise<Set<string>> {
+async function existing(ctx: ImportCtx, type: string, match: readonly string[], rows: readonly Built[]): Promise<Map<string, string[]>> {
   const wanted = new Map<string, Record<string, unknown>>();
   for (const b of rows) {
     if (!b.fields) continue;
     const k = keyOf(b.fields, match);
     if (k !== undefined && !wanted.has(k)) wanted.set(k, b.fields);
   }
-  const found = new Set<string>();
+  const found = new Map<string, string[]>();
   const list = [...wanted.values()];
   for (let i = 0; i < list.length; i += 100) {
     const chunk = list.slice(i, i + 100);
@@ -70,17 +71,23 @@ async function existing(ctx: ImportCtx, type: string, match: readonly string[], 
     // a page holds at most 500 rows (the capability's limit), so a chunk whose keys match many rows is read page by page
     let cursor: string | undefined;
     do {
-      const res = await call<{ rows?: Array<{ fields?: Record<string, unknown> }>; next?: string }>(ctx, "records.query", { type, filter, fields: [...match], limit: 500, ...(cursor !== undefined ? { cursor } : {}) });
-      for (const r of res.rows ?? []) { const k = r.fields ? keyOf(r.fields, match) : undefined; if (k !== undefined) found.add(k); }
+      const res = await call<{ rows?: Array<{ id?: string; fields?: Record<string, unknown> }>; next?: string }>(ctx, "records.query", { type, filter, fields: [...match], limit: 500, ...(cursor !== undefined ? { cursor } : {}) });
+      for (const r of res.rows ?? []) { const k = r.fields ? keyOf(r.fields, match) : undefined; if (k !== undefined) found.set(k, [...(found.get(k) ?? []), ...(r.id ? [r.id] : [])]); }
       cursor = res.next;
     } while (cursor !== undefined);
   }
   return found;
 }
 
-/** What each row would do: c create, u update, s skip, e error. */
+/** May the importer change every one of these records? A ctx that cannot check says yes here: the commit asks again and is the one that decides. */
+function mayEdit(ctx: ImportCtx, ids: readonly string[]): boolean {
+  if (!ctx.authorize || isHostService(ctx.principal)) return true;
+  return ids.every((id) => ctx.authorize!({ perm: "records.edit", level: "edit", cap: "records.update" }, { type: "record", id }).effect === "allow");
+}
+
+/** What each row would do: c create, u update, s skip, e error, r refused (it matches a record the importer may not edit; the commit reports it as failed). */
 export async function classify(ctx: ImportCtx, type: string, match: readonly string[], onMatch: Plan["onMatch"], rows: readonly Built[]): Promise<string> {
-  const have = match.length > 0 ? await existing(ctx, type, match, rows) : new Set<string>();
+  const have = match.length > 0 ? await existing(ctx, type, match, rows) : new Map<string, string[]>();
   const seen = new Set<string>();
   let out = "";
   for (const b of rows) {
@@ -89,6 +96,7 @@ export async function classify(ctx: ImportCtx, type: string, match: readonly str
     const k = match.length > 0 ? keyOf(b.fields, match) : undefined;
     const exists = k !== undefined && (have.has(k) || seen.has(k));
     if (k !== undefined) seen.add(k);
+    if (exists && onMatch === "update" && !mayEdit(ctx, have.get(k!) ?? [])) { out += "r"; continue; }
     out += !exists ? "c" : onMatch === "skip" ? "s" : onMatch === "create" ? "c" : "u";
   }
   return out;
@@ -141,7 +149,7 @@ export async function preview(ctx: ImportCtx, input: In): Promise<unknown> {
   s.previewToken = previewToken;
   saveSession(ctx.db, s);
   return {
-    previewToken, creates: count("c"), updates: count("u"), skips: count("s"),
+    previewToken, creates: count("c"), updates: count("u"), skips: count("s"), ...(count("r") > 0 ? { refused: count("r") } : {}),
     errors: errors.slice(0, ERRORS_SHOWN).map((e) => clean({ row: e.row, column: e.column, message: e.message })), errorCount: errors.length,
     newFields: newFields.map((n) => ({ key: n.key, type: n.type })), samples: rows.filter((b) => b.fields).slice(0, 5).map((b) => b.fields as Record<string, unknown>),
   };

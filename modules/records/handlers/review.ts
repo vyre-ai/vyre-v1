@@ -8,6 +8,7 @@
 // Completeness counts the fields a person fills (derived fields, such as formulas, lookups, rollups, counters and AI-maintained stamps, are not asked for).
 // Gap check reads the type's rules from the schema module through ctx.call (modules are leaves, boundary B1), so the rules have one owner.
 import { parseHlc } from "../../../lib/hlc.ts";
+import { isHostService } from "../../../lib/trust.ts";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Principal } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, EventName, NextStep, TraceContext, VyreError } from "../../../packages/contracts/src/types.ts";
@@ -25,7 +26,7 @@ export interface RvCtx {
   /** The capability API: gap_check reads the rules from the schema module, records.view reads the saved view from it. */
   call?: (cap: string, input: unknown) => Promise<unknown>;
   /** The host decision for the caller on one thing; the relations map leaves out what they may not see. */
-  authorize?: (action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }) => { effect: string };
+  authorize?: (action: { perm: string | null; level: "view" | "use" | "edit" | "manage"; cap?: string }, resource: { type: string; id: string | null }) => { effect: string };
 }
 
 export interface RvDeps {
@@ -289,6 +290,9 @@ export function createReviewHandlers(deps: RvDeps): ReviewHandlers {
       const target = targetOf(f);
       if (!target) return fail(ctx, "validation.bad_input", `${input.field} does not name the type it links to.`);
       const targetDef = await needType(store, target);
+      // To link, the caller (who the pipeline checked for edit on the record they are changing) must be able to see the other record; one they cannot see answers like one that is not there.
+      // The back-reference on the other record is the system's consequence of the link, so it needs no edit there.
+      if (!isHostService(ctx.principal) && ctx.authorize?.({ perm: null, level: "view" }, { type: "record", id: input.toId }).effect !== "allow") return fail(ctx, "validation.not_found", `no ${target} ${input.toId}`);
       const there = await need(target, input.toId);
       const here = await need(input.type, input.recordId);
       const unlink = input.unlink === true;

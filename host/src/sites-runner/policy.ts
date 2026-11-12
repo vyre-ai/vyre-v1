@@ -112,6 +112,8 @@ export function execBody(body: unknown): { body: Record<string, unknown> } | { w
   return { body: { ...body, Privileged: false, Tty: false } };
 }
 
+/** An image name Docker would look for on Docker Hub under `vyre/`: never fetched (see the pull rule in judge). */
+export const LOCAL_ONLY = /^((index\.)?docker\.io\/)?vyre\//;
 /** The first look at a request: what kind it is, or why it is refused. Requests on a container are checked again once its labels are read (siteContainer). */
 export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: string; action: string } | { ok: true; kind: "exec-start" | "exec-inspect"; id: string } | { ok: true; kind: "network-create" } | { ok: true; kind: "volume-create" } | { ok: true; kind: "network-connect"; network: string } {
   const p = bare(r.path);
@@ -123,6 +125,9 @@ export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: 
     // a digest pull names the whole reference in fromImage and sets no tag; any other pull is repo and tag
     const ref = from.includes("@") ? (r.query.has("tag") ? `${from}:${r.query.get("tag")}` : from) : `${from}:${r.query.get("tag") ?? "latest"}`;
     for (const k of r.query.keys()) if (k !== "fromImage" && k !== "tag") return no(`a pull may not set ${k}`);
+    // Vyre's own images come from ghcr.io/vyre-ai only. The local names vyre/agent-computer, vyre/space-browser and vyre/agent-workspace may run when they are already here, and are never
+    // fetched: with no registry host Docker would ask Docker Hub, where the vyre namespace is not Vyre's (sandbox/src/docker.ts fetchableImage is the same rule; policy.fetch.test.ts holds them together).
+    if (LOCAL_ONLY.test(ref)) return no("a local image name (vyre/...) is never fetched; this release's images come from ghcr.io/vyre-ai");
     return Object.values(ADDON_IMAGES).includes(ref) || isComputerImage(ref) || isWorkspaceImage(ref) || isSbrowserImage(ref) ? { ok: true, kind: "plain" } : no(`only ${Object.values(ADDON_IMAGES).join(" and ")} and the agent computer and workspace images may be fetched`);
   }
   const img = /^\/images\/(.+?)(\/json)?$/.exec(p);

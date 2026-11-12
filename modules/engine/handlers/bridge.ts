@@ -723,12 +723,12 @@ export const bridgeConsumers = {
   // a person signed in again (a Vault item was saved or changed): the turns parked on a missing sign-in run once. Whose sign-in is not in the event, and a turn whose account is still missing parks again at once.
   "engine.signin_resume": {
     on: ["vault.item_updated", "vault.item_created"],
-    run: async (): Promise<{ skipped?: string; resumed?: number }> => { const e = engineIfBound(); return e ? { resumed: e.resumeLocked(undefined, "engine.signin_missing") } : { skipped: "engine_not_running" }; },
+    run: async (ctx: EngineCtx): Promise<{ skipped?: string; resumed?: number }> => { const e = engineIfBound(); if (!e) keepForRestart(ctx); return e ? { resumed: e.resumeLocked(undefined, "engine.signin_missing") } : { skipped: "engine_not_running" }; },
   },
   "engine.bridge": {
     on: ["message.received", "message.edited"],
     run: async (ctx: EngineCtx, event: BridgeEvent): Promise<{ skipped?: string; receivedAs?: string[] }> => {
-      if (!bound) keepForRestart();   // closing: the host would move past a skipped event, so it is kept for the next start
+      if (!bound) keepForRestart(ctx);   // closing: the host would move past a skipped event, so it is kept for the next start
       const res = bound ? await bound.onEvent(ctx, event) : { skipped: "engine_not_running" };
       // a message that did not reach the engine says why, with the trace and the ids (one trace id, clear logs); the ones that did are not logged here
       if (res.skipped && res.skipped !== "known" && res.skipped !== "own_post") {

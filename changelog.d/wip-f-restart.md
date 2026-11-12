@@ -1,0 +1,3 @@
+- A message you send while the server restarts (every update restarts it) is answered once it is back, a few seconds later, without sending it again. Before, a few seconds of a shutdown were enough for the server to give up on it.
+- A goal's next wake-up that came due while the server was stopping now runs as soon as the server is back. Before, it waited for the goal's 45-minute retry and the goal could be marked stuck for it.
+- The same holds for everything else an agent is woken for while the server stops: a task handed to it, a routine run, an approved or declined request, a reviewed file, a key or access you answered, an unblocked turn.

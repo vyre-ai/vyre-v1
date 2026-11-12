@@ -42,3 +42,8 @@ test("every tool named with a handle or call shape in a skill, such as foo(...) 
 test("a focus skill stays short enough to load into a turn", () => {
   for (const d of dirs) assert.ok(text(d).length < 12_000, `${d}: ${text(d).length} characters`);
 });
+
+test("focus-records tells the agent what a stopped bulk upsert means and to retry the rows not written with a new idempotency key", () => {
+  const text = readFileSync(new URL("focus-records/SKILL.md", root), "utf8");
+  assert.match(text, /`stopped`[^\n]*notDone[^\n]*NEW idempotency key/);
+});
