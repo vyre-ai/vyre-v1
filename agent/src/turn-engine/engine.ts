@@ -167,10 +167,13 @@ interface ThreadState {
  * What the next turn of an agent is told after a turn of its was stopped (lead, 12 Nov 2026: after Stop the next message made the agent redo the stopped job). The chat keeps the person's ask and
  * the next turn reads it again, merged with the new one, and an engine that resumes its own session still holds the interrupted call: without this the model finished the stopped work first.
  */
+/** The stopped turn's own entry in the history the next turn reads. */
+export const STOPPED_MARK = "(Stopped by the person before it finished.)";
+
 export function stopNote(why: string, ask: string): string {
-  const said = ask.trim() === "" ? "" : ` (it was answering: """${ask.trim().length > 300 ? `${ask.trim().slice(0, 300)}...` : ask.trim()}""")`;
-  const how = why === "interrupt" ? "interrupted it with a new message" : why === "limit" ? "hit a spending limit, so it was stopped" : why === "left" ? "removed it" : why === "moved" ? "moved the task elsewhere" : "pressed Stop";
-  return `Your previous turn${said} was stopped before it finished: the person ${how}. That turn is closed. Any tool call or command it had started was interrupted and did not finish. Do not repeat or continue its work, and do not run its commands again, unless the person asks again. Answer only what comes after it.`;
+  const how = why === "interrupt" ? "sent a new message instead" : why === "limit" ? "reached a spending limit" : why === "left" ? "removed you" : why === "moved" ? "moved the task" : "pressed Stop";
+  const what = ask.trim() === "" ? "" : ` ("${ask.trim().length > 200 ? `${ask.trim().slice(0, 200)}...` : ask.trim()}")`;
+  return `Your previous turn${what} was stopped: the person ${how}. That turn is closed and anything it started did not finish. Do not redo or continue it unless they ask again. Answer only the newest message.`;
 }
 
 const defaultSchedule = (fn: () => void, ms: number): (() => void) => {
@@ -379,12 +382,34 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     catch (e) { opts.log?.("a Stop could not be written on its queue row; it holds until this host stops", { threadId, qseq, error: e instanceof Error ? e.message : String(e) }); }
   }
 
-  // the turns of an agent that were stopped, until its next turn reads it (stopNote): per thread and agent, the newest stop only
-  const stoppedNotes = new Map<string, { why: string; ask: string }>();
-  function noteStopped(threadId: string, agentId: string, messageId: string | null | undefined, why: string | undefined): void {
-    const st = threads.get(threadId);
-    const ask = messageId && st ? findMessage(st, messageId)?.body ?? "" : "";
-    stoppedNotes.set(`${threadId}|${agentId}`, { why: why ?? "stop", ask });
+  /**
+   * Was this agent's last finished turn in the thread stopped? Read from the queue rows, which outlive a restart: the newest row of the agent before this one that ran to an end. A stopped turn's
+   * row ends cancelled (or still stopping, before recover) with the reason it was stopped; a queued message dropped unrun is cancelled with no reason and does not count. A turn that completed
+   * after it ends the matter, so the note is read once.
+   */
+  function stoppedBefore(st: ThreadState, item: QueueItem): { why: string; ask: string; askId: string | null } | null {
+    let last: QueueItem | undefined;
+    for (const row of queue.list(st.thread.id)) {
+      if (row.agentId !== item.agentId || row.qseq >= item.qseq) continue;
+      if (row.state === "done" || ((row.state === "cancelled" || row.state === "stopping") && row.stopReason !== undefined)) last = row;
+    }
+    if (!last || last.state === "done") return null;
+    return { why: last.stopReason ?? "stop", ask: last.messageId ? findMessage(st, last.messageId)?.body ?? "" : "", askId: last.messageId ?? null };
+  }
+
+  /**
+   * The history the next turn reads, with the stopped turn closed in it: an entry of the agent's own, STOPPED_MARK, right after the stopped ask (or after what the agent had written to it), so
+   * the old ask and the new one are never one message to the model (the API merges a run of a person's messages into one).
+   */
+  function closedHistory(rows: readonly StoredMessage[], agentId: string, askId: string | null): StoredMessage[] {
+    const out = [...rows];
+    const at = askId ? out.findIndex((m) => m.id === askId) : -1;
+    if (at < 0) return out;
+    let end = at;
+    for (let i = at + 1; i < out.length && out[i]!.author.kind === "agent" && out[i]!.author.id === agentId; i++) end = i;
+    const ask = out[at]!;
+    out.splice(end + 1, 0, { id: `${ask.id}:stopped`, threadId: ask.threadId, threadSeq: out[end]!.threadSeq, author: { kind: "agent", id: agentId }, mentions: [], depth: ask.depth, body: STOPPED_MARK });
+    return out;
   }
 
   async function cancelRunning(st: ThreadState, why: string): Promise<void> {
@@ -596,15 +621,15 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         stop(await ask({ ...base, event: "prompt.submit", prompt: trigger?.body ?? "" }));
       }
       let switchTo: ResolvedAccount | null = null;
+      const stoppedTurn = stoppedBefore(st, item);
+      const recent = st.messages.slice(-(pokeRows.has(`${st.thread.id}:${item.qseq}`) ? POKE_WINDOW : historyWindow));
       const input = {
         threadId: st.thread.id, turnId: turn.id, agent, trigger, asker,
-        history: st.messages.slice(-(pokeRows.has(`${st.thread.id}:${item.qseq}`) ? POKE_WINDOW : historyWindow)),
+        history: stoppedTurn ? closedHistory(recent, item.agentId, stoppedTurn.askId) : recent,
         listeners: st.thread.agents.filter((a) => a.mode === "listen" && a.id !== agent.id).map((a) => (a.role === undefined ? { id: a.id } : { id: a.id, role: a.role })),
         // a stopped turn of this agent before this one is closed in what the model reads (stopNote), together with any note a hook left
         ...((): { notice?: string } => {
-          const key = `${st.thread.id}|${item.agentId}`;
-          const stopped = stoppedNotes.get(key);
-          if (stopped) stoppedNotes.delete(key);
+          const stopped = stoppedTurn;
           const notes = [...(stopped ? [stopNote(stopped.why, stopped.ask)] : []), ...hookNotes];
           return notes.length > 0 ? { notice: notes.join("\n") } : {};
         })(),
@@ -839,10 +864,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     }
     try { await opts.onTurnEnd?.(turn, paying ?? null); } catch { /* metering must never fail the turn */ }
     if (turn.state === "completed") { failStreak.delete(`${st.thread.id}|${item.agentId}`); emit({ type: "turn.completed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId }); }
-    else if (turn.state === "cancelled") {
-      noteStopped(st.thread.id, turn.agentId, item.messageId, run.why);
-      emit({ type: "turn.cancelled", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, ...(run.why ? { reason: run.why } : {}) });
-    }
+    else if (turn.state === "cancelled") emit({ type: "turn.cancelled", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, ...(run.why ? { reason: run.why } : {}) });
     else {
       const code = turn.error?.code ?? "engine_error";
       const pk = `${st.thread.id}|${item.agentId}`;
@@ -1008,7 +1030,6 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       // A turn the person stopped whose host died before it ended: closed as cancelled, and the chat says so once. It never runs again.
       for (const row of queue.list(threadId).filter((r) => r.state === "stopping")) {
         queue.setState(threadId, row.qseq, "cancelled");
-        noteStopped(threadId, row.agentId, row.messageId, row.stopReason ?? "stop");   // the next turn after the restart reads it closed too
         emit({ type: "turn.cancelled", threadId, turnId: opts.lostTurn?.(row) ?? `lost:${threadId}:${row.qseq}`, agentId: row.agentId, reason: row.stopReason ?? "stop",
           asker: row.from.startsWith("usr_") ? row.from : st.thread.starter, qseq: row.qseq });
       }

@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createMemoryLeases, createMemoryMessages, createMemoryQueue, createTurnEngine, scriptedProvider } from "../src/turn-engine/index.ts";
-import { stopNote } from "../src/turn-engine/engine.ts";
+import { STOPPED_MARK, stopNote } from "../src/turn-engine/engine.ts";
 import { threadMessages } from "../src/drivers/api/messages.ts";
 import { defaultPrompt } from "../src/drivers/cli/prompt.ts";
 import type { DriverEvent, OpenThread, ResolvedAccount, TurnInput } from "../src/turn-engine/index.ts";
@@ -26,7 +26,7 @@ function model(hold: { at: "start" | "text" | "tool" }) {
       ? [{ type: "tool_call", id: "c1", name: "terminal_run", input: { command: "sleep 120 && echo finished-long" } }, { type: "text", text: "finished-long" }, { type: "done" }]
       : [{ type: "text", text: "Starting the long command" }, { type: "text", text: " ...finished-long" }, { type: "done" }];
     const sawLong = input.history.some((m) => m.body === LONG) || threadMessages(input).some((m) => m.role === "user" && m.text.includes("sleep 120"));
-    const closed = (input.notice ?? "").includes("That turn is closed");
+    const closed = (input.notice ?? "").includes("That turn is closed") && input.history.some((m) => m.body === STOPPED_MARK);
     const out = sawLong && !closed ? `REDO sleep 120; then: ${now}` : `ANSWER ${now}`;
     answered.push(out);
     return [{ type: "text", text: out }, { type: "done" }];
@@ -43,8 +43,8 @@ test("the note says the stopped turn is closed, quotes its ask, and says how it 
   assert.match(n, /sleep 120/);
   assert.match(n, /pressed Stop/);
   assert.match(n, /did not finish/);
-  assert.match(n, /Do not repeat or continue its work/);
-  assert.match(stopNote("interrupt", "x"), /interrupted it with a new message/);
+  assert.match(n, /Do not redo or continue it/);
+  assert.match(stopNote("interrupt", "x"), /sent a new message instead/);
 });
 
 test("both drivers put the note before the model: the API messages end with it, the CLI prompt carries it", () => {
@@ -97,7 +97,7 @@ test("an interrupt by a new message: the old work does not resume", async () => 
   m.release();
   await engine.idle("T");
   assert.deepEqual(m.answered, ["ANSWER What is 2 plus 2?"]);
-  assert.match(m.p.sessions.at(-1)!.inputs.at(-1)!.notice ?? "", /interrupted it with a new message/);
+  assert.match(m.p.sessions.at(-1)!.inputs.at(-1)!.notice ?? "", /sent a new message instead/);
 });
 
 test("a helper's stopped turn is closed for its next turn too", async () => {
@@ -132,4 +132,58 @@ test("Stop, then the daemon restarts before the turn ended: after recover the ne
   second.receive({ threadId: "T", author: person, body: "What is 2 plus 2?" });
   await second.idle("T");
   assert.deepEqual(m.answered, ["ANSWER What is 2 plus 2?"]);
+});
+
+test("the API path: the old ask, the stopped mark and the new ask are three entries, never one merged message", () => {
+  const agent = { kind: "agent" as const, id: "intake" };
+  const input = { threadId: "T", turnId: "t2", agent: { id: "intake", mode: "lead" }, asker: "dana", listeners: [],
+    history: [
+      { id: "m1", threadId: "T", threadSeq: 1, author: person, mentions: [], depth: 0, body: LONG },
+      { id: "m1:stopped", threadId: "T", threadSeq: 1, author: agent, mentions: [], depth: 0, body: STOPPED_MARK },
+      { id: "m2", threadId: "T", threadSeq: 2, author: person, mentions: [], depth: 0, body: "What is 2 plus 2?" },
+    ],
+    trigger: { id: "m2", threadId: "T", threadSeq: 2, author: person, mentions: [], depth: 0, body: "What is 2 plus 2?" }, notice: stopNote("stop", LONG) } as unknown as TurnInput;
+  const msgs = threadMessages(input);
+  assert.deepEqual(msgs.slice(0, 3).map((m) => [m.role, m.text.slice(0, 17)]), [["user", LONG.slice(0, 17)], ["assistant", STOPPED_MARK.slice(0, 17)], ["user", "What is 2 plus 2?"]]);
+  assert.ok(msgs[2]!.text.endsWith(`(Vyre: ${stopNote("stop", LONG)})`), "the note is the instruction on top of the new ask");
+});
+
+test("the engine closes the stopped ask in the history it hands the next turn, and only once", async () => {
+  const m = model({ at: "text" });
+  const engine = createTurnEngine({ holder: "host:s", openSession: m.p.openSession, resolveAccount: async () => account() });
+  engine.openThread(thread());
+  engine.receive({ threadId: "T", author: person, body: LONG });
+  await until(() => m.p.sends() === 1);
+  await engine.stop("T");
+  m.release();
+  await engine.idle("T");
+  engine.receive({ threadId: "T", author: person, body: "What is 2 plus 2?" });
+  await engine.idle("T");
+  const h = m.p.sessions.at(-1)!.inputs.at(-1)!.history.map((x) => x.body);
+  const at = h.indexOf(LONG);
+  assert.ok(at >= 0 && h.slice(at + 1).includes(STOPPED_MARK) && h.indexOf(STOPPED_MARK) < h.indexOf("What is 2 plus 2?"), JSON.stringify(h));
+  engine.receive({ threadId: "T", author: person, body: "Thanks" });
+  await engine.idle("T");
+  assert.ok(!m.p.sessions.at(-1)!.inputs.at(-1)!.history.some((x) => x.body === STOPPED_MARK), "after a turn completed, the stop is behind it");
+});
+
+test("the note survives a restart after the stopped turn ended: it is read from the queue rows, not from memory", async () => {
+  const queue = createMemoryQueue(), messages = createMemoryMessages();
+  let n = 0;
+  const newId = (p: string): string => `${p}_${++n}`;
+  const m1 = model({ at: "text" });
+  const first = createTurnEngine({ holder: "host:a", queue, messages, newId, leases: createMemoryLeases(), openSession: m1.p.openSession, resolveAccount: async () => account() });
+  first.openThread(thread());
+  first.receive({ threadId: "T", author: person, body: LONG });
+  await until(() => m1.p.sends() === 1);
+  await first.stop("T");
+  m1.release();
+  await first.idle("T");
+  // an update restarts the server: a new engine, the same stores
+  const m2 = model({ at: "text" });
+  const second = createTurnEngine({ holder: "host:b", queue, messages, newId, leases: createMemoryLeases(), openSession: m2.p.openSession, resolveAccount: async () => account() });
+  second.openThread(thread());
+  second.receive({ threadId: "T", author: person, body: "What is 2 plus 2?" });
+  await second.idle("T");
+  assert.deepEqual(m2.answered, ["ANSWER What is 2 plus 2?"]);
 });
