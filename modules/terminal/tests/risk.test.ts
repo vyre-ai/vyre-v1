@@ -55,7 +55,7 @@ test("rm is red only when it is recursive or names a bare /, ~ or $HOME: -f alon
   for (const c of ["docker container rm -f x", "docker image rm -f img", "docker rm --force x", "docker rm -fv x", "docker rm -vf x", "docker compose rm -f", "podman rm -f x", "docker rmi -f img"]) assert.equal(riskOf(c), "danger", c);
   assert.equal(riskOf("docker rm x"), "change");
   // a dash inside a name is not a flag (r-term nit)
-  for (const c of ["docker rm web-frontend", "docker rmi php:8-fpm"]) assert.equal(riskOf(c), "change", c);
+  for (const c of ["docker rm web-frontend", "docker rm my-frontend", "docker rmi php:8-fpm"]) assert.equal(riskOf(c), "change", c);
 });
 
 test("a line is as risky as its worst part", () => {
