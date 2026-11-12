@@ -20,3 +20,4 @@
 - The Console calls the Computers page Computers in its list too, and a person's own computer no longer points them to vyre-server doctor.
 - The agent's folder shows the agent's own dot files (.env, .gitignore); only Vyre's .index and .vyre stay out.
 - Search finds rows inside Settings by name (Passkeys, Password), from the Settings page's own list.
+- When you @mention someone who is not in the chat, a quiet line under your message says "Maya is not in this chat." with Add (Add both, Add all 3); only you see it. Add brings them in from that message on and tells them about it; someone who cannot add people sees who can instead.

@@ -67358,6 +67358,13 @@
             "description": "The newcomer reads the messages from before they were added. Default: false in a private chat, true in a goal chat and a channel.",
             "type": "boolean"
           },
+          "mentionedIn": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
           "personId": {
             "examples": [
               "usr_a1b2c3"

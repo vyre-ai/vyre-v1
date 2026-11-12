@@ -42450,6 +42450,7 @@ export type ThreadsMembersAddIn = {
   threadId: string;
   personId: string;
   fromStart?: boolean;
+  mentionedIn?: string;
 };
 export type ThreadsMembersAddOut = {
   thread: {

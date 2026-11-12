@@ -259,8 +259,9 @@ export default defineManifest({
       errors: ['validation.not_found', 'validation.bad_input', 'validation.precondition_failed', 'validation.duplicate', 'permission.not_contained'],
     }),
     write('threads.members.add', 'Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker\'s private profile there. A chat\'s own agents become visible to the newcomer.', {
-      in: { ...threadT, personId: id.user, fromStart: t.opt(t.bool({ description: 'The newcomer reads the messages from before they were added. Default: false in a private chat, true in a goal chat and a channel.' })) },
-      out: { thread: threadRow }, on: ['thread', '/threadId'], emits: ['channel.member_added'], tool: 'chats',
+      in: { ...threadT, personId: id.user, fromStart: t.opt(t.bool({ description: 'The newcomer reads the messages from before they were added. Default: false in a private chat, true in a goal chat and a channel.' })),
+        mentionedIn: t.opt(id.message) },
+      out: { thread: threadRow }, on: ['thread', '/threadId'], emits: ['channel.member_added', 'message.mentioned'], tool: 'chats',
     }),
     write('threads.members.remove', 'Remove a person from a thread', {
       in: { ...threadT, personId: id.user }, out: { thread: threadRow }, on: ['thread', '/threadId'], emits: ['channel.member_removed'], tool: 'chats',

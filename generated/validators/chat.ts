@@ -4700,6 +4700,7 @@ if (!("personId" in o6466)) e.push(p + "/personId" + ': required');
 if ("threadId" in o6466) lf(o6466["threadId"], p + "/threadId", e, L13);
 if ("personId" in o6466) lf(o6466["personId"], p + "/personId", e, L16);
 if ("fromStart" in o6466) lf(o6466["fromStart"], p + "/fromStart", e, L3);
+if ("mentionedIn" in o6466) lf(o6466["mentionedIn"], p + "/mentionedIn", e, L85);
 }
 }
 }

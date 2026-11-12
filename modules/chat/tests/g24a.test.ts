@@ -194,6 +194,26 @@ test("threads.members.add and remove: a private chat gains a person (a group cha
   assert.deepEqual(assertEventsConform(hn), []);
 });
 
+test("threads.members.add with mentionedIn: the person added from the line under a message reads from that message on and is told about it as a mention (owner, 12 Nov)", async () => {
+  const hn = harness();
+  const chat = await chatOf(hn);
+  await h["chat.post"]!(hn.ctx, { threadId: chat, body: "an earlier line Leo should not read", idempotencyKey: key() });
+  hn.advance(1000);
+  const posted = (await h["chat.post"]!(hn.ctx, { threadId: chat, body: "@Leo can you check the pricing copy?", mentions: [{ kind: "person", id: LEO }], idempotencyKey: key() })).message;
+  assert.equal(hn.named("message.mentioned").length, 0, "a mention of someone not in a private chat tells them nothing (a reference, not an address)");
+  await ok("threads.members.add", hn.ctx, { threadId: chat, personId: LEO, mentionedIn: posted.messageId });
+  const told = hn.named("message.mentioned");
+  assert.equal(told.length, 1, "added: told once");
+  assert.equal(told[0]!.payload["personId"], LEO);
+  assert.equal(told[0]!.payload["messageId"], posted.messageId);
+  const listed = await h["chat.messages.list"]!(hn.person(LEO), { threadId: chat });
+  const bodies = (listed.messages as Array<{ body: string }>).map((m) => m.body);
+  assert.ok(bodies.some((b) => /pricing copy/.test(b)), "Leo reads the message that mentioned him");
+  assert.ok(!bodies.some((b) => /earlier line/.test(b)), "and not what came before it");
+  await refused("threads.members.add", hn.ctx, { threadId: chat, personId: MAYA, mentionedIn: "msg_missing" }, "validation.bad_input");
+  assert.deepEqual(assertEventsConform(hn), []);
+});
+
 test("threads.members.add: a goal's own chat gains people, and so does an ordinary private chat (owner ruling 4 Nov 2026)", async () => {
   const hn = harness();
   const goalChat = await chatOf(hn, { scopeType: "goal", scopeId: "gol_x" });

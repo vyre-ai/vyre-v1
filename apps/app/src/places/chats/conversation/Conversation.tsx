@@ -69,6 +69,7 @@ import type { MessageActions } from "./MessageView.tsx";
 import { Glyph, IconButton, PeopleCount, RenameField, TextButton } from "./parts.tsx";
 import { CONTINUE_TEXT, DEFAULT_AGENT_HOPS, limitOf, parkedAtLimit, parkedLine } from "./hops.ts";
 import { addedAgentMentions, askPost, pickerAgents, unansweredOwn } from "./askagent.ts";
+import { notInChatLine } from "./notinchat.ts";
 import { MemorySwitch } from "./memory-switch.tsx";
 import { SWITCH_NOTE, SWITCH_TITLE, hasSwitch, repliesOf } from "../thread-replies/model.ts";
 import { useReplySwitch } from "../thread-replies/ThreadSwitch.tsx";
@@ -310,6 +311,22 @@ function ConversationView(): ReactElement {
   const say = useCallback((text: string) => { setLine(text); setUndo(null); }, []);
   /** A rejected write: say what did not happen and that it can be tried again. The page keeps what it showed. */
   const fail = (what: string) => (e?: unknown): void => say(isDecided(e) ? DECIDED_LINE : `${what} Try again.`);
+
+  /* ---------- "Maya is not in this chat." under my own message (owner, 12 Nov): who may add, what the sender put away, what an Add said ---------- */
+  const dismissKey = `vyre.notInChat.dismissed:${data.threadId}`;
+  const [notHereGone, setNotHereGone] = useState<ReadonlySet<string>>(() => readDismissed(dismissKey));
+  const [notHereError, setNotHereError] = useState<Readonly<Record<string, string>>>({});
+  const [notHereBusy, setNotHereBusy] = useState<string | null>(null);
+  const channelHere = threadQ.status === "ready" && threadQ.data.thread.kind === "channel" ? (threadQ.data.thread.channelId ?? threadQ.data.thread.threadId) : null;
+  const [mayManageChannel, setMayManageChannel] = useState<boolean>(false);
+  useEffect(() => {
+    if (channelHere === null) return undefined;
+    let alive = true;
+    // a channel's people are added by those who manage it (channels.members.add asks for manage): the same check the Add people sheet makes
+    void Promise.resolve(data.call("access.check", { principal: { kind: "person", id: data.me.id }, action: { level: "manage" }, resource: { type: "channel", id: channelHere } }))
+      .then((o) => { if (alive) setMayManageChannel((o as { decision?: { effect?: string } } | null)?.decision?.effect === "allow"); }, () => { if (alive) setMayManageChannel(false); });
+    return () => { alive = false; };
+  }, [channelHere]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---------- sending: the message is on the page before chat.post answers ---------- */
   const run = useCallback((p: Pending) => {
@@ -553,7 +570,31 @@ function ConversationView(): ReactElement {
   const details = openDetails
     ? { read: (messageId: string) => readReplyDetails(data.call as Call, thread.threadId, messageId), open: (messageId: string) => openDetails(thread.threadId, messageId), meId: data.me.id, nameOf }
     : undefined;
+  const notHereLineOf = (m: Message) => notInChatLine(m, { meId: data.me.id, members: new Set(thread.members.map((x) => x.id)), directory: data.directory, mayAdd: thread.kind === "channel" ? mayManageChannel : true, dismissed: notHereGone });
+  const notHereSig = (m: Message): string | undefined => { const l = notHereLineOf(m); return l ? `${l.text}|${l.button ?? ""}|${notHereBusy === m.messageId ? "busy" : ""}|${notHereError[m.messageId] ?? ""}` : undefined; };
+  const notHereFor = (m: Message): ReactElement | null => {
+    const line = notHereLineOf(m);
+    if (!line) return null;
+    const addAll = (): void => {
+      setNotHereBusy(m.messageId);
+      setNotHereError((cur) => { const { [m.messageId]: _gone, ...rest } = cur; return rest; });
+      const done = thread.kind === "channel" && thread.channelId
+        ? Promise.resolve(data.call("channels.members.add", { channelId: thread.channelId, personIds: line.ids }))
+        : line.ids.reduce<Promise<unknown>>((at, personId) => at.then(() => data.call("threads.members.add", { threadId: thread.threadId, personId, mentionedIn: m.messageId })), Promise.resolve());
+      void done.then(() => setNotHereBusy(null), (e: unknown) => { setNotHereBusy(null); setNotHereError((cur) => ({ ...cur, [m.messageId]: `${addFailedWords(e)}` })); });
+    };
+    const dismiss = (): void => setNotHereGone((cur) => { const next = new Set([...cur, m.messageId]); writeDismissed(dismissKey, next); return next; });
+    const err = notHereError[m.messageId];
+    return (
+      <View testID={`not-in-chat-${m.messageId}`} style={st.notHereRow}>
+        <Text style={[st.lineText, st.quietLine]} testID="not-in-chat-text">{err ?? line.text}</Text>
+        {line.button && !err ? <TextButton label={line.button} testID="not-in-chat-add" disabled={notHereBusy === m.messageId} onPress={addAll} /> : null}
+        <IconButton icon="x" label="Dismiss" size={20} testID="not-in-chat-dismiss" onPress={dismiss} />
+      </View>
+    );
+  };
   const actions: MessageActions = {
+    belowMine: notHereFor,
     host,
     copy: (t) => { data.copy(t); say("Copied"); },
     // one message's own link, /open/message/<threadId>/<messageId>: it opens the chat on that message, through reach
@@ -769,7 +810,7 @@ function ConversationView(): ReactElement {
               const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
               const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
               const under = it.kind === "me" || it.kind === "other" ? replies.get(it.message.messageId) : undefined;
-              const row = <MessageView key={key} item={it} actions={rowActions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(it, matches, activeId, finding)} replies={under ? { s: under, clock: data.clock() } : undefined} />;
+              const row = <MessageView key={key} item={it} actions={rowActions} meId={data.me.id} stream={stream} sending={sending} below={it.kind === "me" ? notHereSig(it.message) : undefined} mark={markOf(it, matches, activeId, finding)} replies={under ? { s: under, clock: data.clock() } : undefined} />;
               // always wrapped on the web, so a row that grows old keeps its state; only the style changes
               return Platform.OS === "web" ? <View key={key} style={at < rows.length - OFFSCREEN_KEEP ? st.offscreen : undefined}>{row}</View> : row;
             })}
@@ -959,6 +1000,7 @@ const st = StyleSheet.create({
   toLatestText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   queueRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", columnGap: 10, rowGap: 2, paddingHorizontal: 24, paddingVertical: 4 },
   queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
+  notHereRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6, marginTop: 2 },
   lineBox: { paddingHorizontal: 24, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   lineText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   /** A quiet line: muted ink, no underline. */
@@ -978,4 +1020,19 @@ function FrameFeed({ frame, feed }: { frame: FrameStore | null | undefined; feed
   useEffect(() => { if (frame && feed) frame.set(feed); });
   useEffect(() => () => frame?.set(null), [frame]);
   return null;
+}
+
+/** The not-in-chat lines this person put away in this chat, on this device. */
+function readDismissed(key: string): ReadonlySet<string> {
+  try { const raw = globalThis.localStorage?.getItem(key); return new Set(raw ? (JSON.parse(raw) as string[]) : []); } catch { return new Set(); }
+}
+function writeDismissed(key: string, ids: ReadonlySet<string>): void {
+  try { globalThis.localStorage?.setItem(key, JSON.stringify([...ids].slice(-200))); } catch { /* a private window keeps it for this visit only */ }
+}
+/** Why an Add did not happen, in plain words; the line stays and says it. */
+function addFailedWords(e: unknown): string {
+  const code = (e as { code?: string } | null)?.code ?? "";
+  if (code.startsWith("permission.")) return "You cannot add people to this chat. Ask someone who manages it.";
+  const msg = e instanceof Error && e.message.length > 0 && e.message.length < 140 ? e.message.replace(/\.$/, "") : "That did not work";
+  return `Could not add them: ${msg}. Try again.`;
 }
