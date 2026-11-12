@@ -8,7 +8,7 @@ import { useOnline, useVaultData } from "../layout/data.tsx";
 import type { ItemKind } from "../layout/model.ts";
 import { Btn, Glyph, IconBtn } from "../layout/parts.tsx";
 import { TextField } from "../../../../../../ui/src/TextField/index.tsx";
-import { GATE_TEXT, gateFor, hiddenOf, offersAutomations, stepsLine, usedByOf } from "./automations.ts";
+import { GATE_TEXT, blockedNote, gateFor, hiddenOf, offersAutomations, stepsLine, usedByOf } from "./automations.ts";
 import type { AiAccount, BuilderStatus, UsedBy } from "./automations.ts";
 import { PendingSecrets, pendingSlots } from "./PendingSecrets.tsx";
 import type { PendingSlot } from "./PendingSecrets.tsx";
@@ -146,6 +146,7 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
           {used.map((u) => (
             <Row
               key={u.automationId} id={u.automationId} title={u.name}
+              {...(blockedNote(u) ? { note: blockedNote(u)!, noteLead: "Stops at next run", noteLeadTone: "warning" as const } : {})}
               trailing={<View style={s.trail}><Text numberOfLines={1} style={s.useSteps}>{u.steps.length === 1 ? u.steps[0]!.title : stepsLine(u.steps.length)}</Text><Glyph name="chevron" size={13} /></View>}
               onPress={() => data.nav.openAutomation?.(u.automationId)}
             />

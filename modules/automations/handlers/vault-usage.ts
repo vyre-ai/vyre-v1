@@ -3,9 +3,10 @@
 import { allAutomations } from "../projections.ts";
 import type { AutoCtx, Automation } from "../projections.ts";
 import { canView } from "./defs.ts";
+import { blockedKeySteps } from "../key-run.ts";
 
 type In = { handle?: unknown };
-interface Use { automationId: string; name: string; status: string; steps: { nodeId: string; title: string }[] }
+interface Use { automationId: string; name: string; status: string; steps: { nodeId: string; title: string; blocked?: string }[] }
 interface ItemUses { handle: string; automations: Use[]; hidden?: number }
 
 /** Does the caller see this item in the Vault: only then is the count of Automations they cannot open given (a count for an unseen handle would tell them it exists). */
@@ -73,6 +74,13 @@ export async function vaultUsage(ctx: AutoCtx, input: In): Promise<{ uses: ItemU
       if (!seen) { if (only !== null) hidden += 1; continue; }
       byItem.set(item, [...(byItem.get(item) ?? []), use]);
     }
+  }
+  // a step whose host was taken off this key's list says so on its row, before its next Run
+  for (const list of byItem.values()) for (const use of list) {
+    const a = allAutomations(ctx.db).find((x) => x.id === use.automationId);
+    if (!a) continue;
+    const blocked = await blockedKeySteps(ctx, a.definition.nodes);
+    for (const st of use.steps) { const b = blocked.find((x) => x.nodeId === st.nodeId); if (b) st.blocked = b.line; }
   }
   const uses: ItemUses[] = [...byItem.entries()].sort(([x], [y]) => (x < y ? -1 : 1)).map(([handle, automations]) => ({ handle, automations: automations.sort((p, q) => (p.name < q.name ? -1 : 1)) }));
   // one item asked for, and the caller can see it: the Automations they cannot open are counted, never named

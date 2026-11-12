@@ -63,7 +63,7 @@ export const GATE_TEXT: Readonly<Record<Exclude<Gate["state"], "ready">, { text:
   asked: { text: "An admin has been asked. This turns on when they allow it.", fix: "Check again" },
 };
 
-export interface UsedBy { automationId: string; name: string; status: string; steps: { nodeId: string; title: string }[] }
+export interface UsedBy { automationId: string; name: string; status: string; steps: { nodeId: string; title: string; blocked?: string }[] }
 
 /** The reply of automations.vault_usage for one item, as the rows to draw. Anything else is no rows. */
 export function usedByOf(out: unknown): UsedBy[] {
@@ -78,7 +78,7 @@ export function usedByOf(out: unknown): UsedBy[] {
       if (!r || typeof r["automationId"] !== "string" || typeof r["name"] !== "string") continue;
       const steps = Array.isArray(r["steps"]) ? (r["steps"] as unknown[]).flatMap((x) => {
         const st = x as Record<string, unknown> | null;
-        return st && typeof st["nodeId"] === "string" && typeof st["title"] === "string" ? [{ nodeId: st["nodeId"], title: st["title"] }] : [];
+        return st && typeof st["nodeId"] === "string" && typeof st["title"] === "string" ? [{ nodeId: st["nodeId"], title: st["title"], ...(typeof st["blocked"] === "string" ? { blocked: st["blocked"] } : {}) }] : [];
       }) : [];
       rows.push({ automationId: r["automationId"], name: r["name"], status: typeof r["status"] === "string" ? r["status"] : "draft", steps });
     }
@@ -103,4 +103,11 @@ export function trashLine(item: { name: string; handle: string }, names: readonl
   const parts = [...shown, ...(names.length > shown.length ? [`${names.length - shown.length} more`] : []), ...(hidden > 0 ? [`${hidden} you cannot open`] : [])];
   const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0]!;
   return `Move ${item.name} to Trash? ${n === 1 ? "1 automation uses" : `${n} automations use`} this key: ${list}. ${n === 1 ? "It" : "They"} will fail until it is restored or replaced. Agents that ask for ${item.handle} lose it too.`;
+}
+
+/** The short note a Used in row shows when one of its steps may no longer send the key to its host ("Not allowed to go to api.example.com"). */
+export function blockedNote(u: UsedBy): string | undefined {
+  const b = u.steps.find((s) => s.blocked)?.blocked;
+  const host = b ? /go to (\S+?)\.(?:\s|$)/.exec(b)?.[1] : undefined;
+  return b ? (host ? `Not allowed to go to ${host}` : "A step may no longer use this key") : undefined;
 }

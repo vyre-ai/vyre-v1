@@ -13,19 +13,21 @@ const request:ConnectorRequest=(url,o)=>new Promise((resolve,reject)=>{
 });
 const allowed=(host:string,domains:readonly string[])=>domains.some(domain=>domain.startsWith('*.')?host.endsWith(domain.slice(1))&&host.length>domain.length-1:host===domain);
 /** A key goes only to a host a person approved for it: given the Vault items a call has filled and the host it is about to reach, the line to refuse with, or null when every item may go there. */
-export type KeyHostCheck=(itemIds:readonly string[],host:string,caller:ConnectorCaller,domains:readonly string[])=>Promise<string|null>;
+/** One Vault item a call filled, and the binding it was filled for (which connection of which connector). */
+export interface FilledKey{itemId:string;connector:string;connectionId:string}
+export type KeyHostCheck=(keys:readonly FilledKey[],host:string,caller:ConnectorCaller,domains:readonly string[])=>Promise<string|null>;
 export function createConnectorsHost(o:{publicBase():string;own(caller:ConnectorCaller):boolean;network?:ConnectorNetwork;keyHost?:KeyHostCheck}){
  const pending=new Map<string,{caller:ConnectorCaller;binding:SecretBinding;used:boolean;value?:string}>();
  // the Vault items each call (by trace) has had filled: every request that call makes after a fill may reach only hosts approved for those items
- const filled=new Map<string,Set<string>>();
- const remember=(trace:string,itemId:string):void=>{const set=filled.get(trace)??new Set<string>();set.add(itemId);filled.delete(trace);filled.set(trace,set);while(filled.size>512){const oldest=filled.keys().next().value;if(oldest===undefined)break;filled.delete(oldest);}};
+ const filled=new Map<string,Map<string,FilledKey>>();
+ const remember=(trace:string,key:FilledKey):void=>{const set=filled.get(trace)??new Map<string,FilledKey>();set.set(key.itemId,key);filled.delete(trace);filled.set(trace,set);while(filled.size>512){const oldest=filled.keys().next().value;if(oldest===undefined)break;filled.delete(oldest);}};
  return{
   accepts:(ref:string)=>pending.has(ref),
   sink:(filled:Filled,execution?:FillExecution)=>{
    const entry=pending.get(filled.ref);if(!entry||entry.used||!execution)throw new Error('Connector fill reference is unavailable.');const c=entry.caller;
    const [base,field]=entry.binding.handle.split('.');
    if(execution.space!==c.space||execution.principal.kind!==c.principal.kind||execution.principal.id!==c.principal.id||execution.actingFor!==c.actingFor||execution.traceId!==c.trace.traceId||execution.parentSpanId!==c.trace.spanId||execution.depth!==c.depth+1||filled.handle.toLowerCase()!==base!.toLowerCase()||(field!==undefined&&filled.field!==field))throw new Error('Connector fill context does not match.');
-   entry.used=true;entry.value=filled.value;entry.caller.rememberVaultItem?.(filled.itemId);remember(c.trace.traceId,filled.itemId);
+   entry.used=true;entry.value=filled.value;entry.caller.rememberVaultItem?.(filled.itemId);remember(c.trace.traceId,{itemId:filled.itemId,connector:entry.binding.connector,connectionId:entry.binding.connectionId});
   },
   publicBase:()=>{const value=new URL(o.publicBase());if(!['http:','https:'].includes(value.protocol)||value.username||value.password)throw new Error('The configured Space address is invalid.');return value.origin;},
   async fill(caller:ConnectorCaller,binding:SecretBinding):Promise<string>{
@@ -41,7 +43,7 @@ export function createConnectorsHost(o:{publicBase():string;own(caller:Connector
     if(!ips.length||ips.some(ip=>blockedAddress(ip,o.own(caller))!==null))throw fail('permission.no_grant',caller.trace.traceId,{message:'This connector may not reach that network address.'});
     caller.assertAuthorized?.();
     const keys=filled.get(caller.trace.traceId);
-    if(keys&&keys.size>0){if(!o.keyHost)throw fail('permission.no_grant',caller.trace.traceId,{message:'This server cannot check where a key may go, so the request was not sent.'});const refused=await o.keyHost([...keys],url.hostname.toLowerCase().replace(/\.$/,''),caller,domains);if(refused!==null)throw fail('permission.no_grant',caller.trace.traceId,{message:refused});}
+    if(keys&&keys.size>0){if(!o.keyHost)throw fail('permission.no_grant',caller.trace.traceId,{message:'This server cannot check where a key may go, so the request was not sent.'});const refused=await o.keyHost([...keys.values()],url.hostname.toLowerCase().replace(/\.$/,''),caller,domains);if(refused!==null)throw fail('permission.no_grant',caller.trace.traceId,{message:refused});}
     let result;try{result=await(o.network?.request??request)(url,{ips,method,headers,...(body!==undefined?{body}:{})});}catch{throw fail('provider.network',caller.trace.traceId,{message:'The connector request failed.'});}
     if(Buffer.byteLength(result.text)>5*1024*1024)throw fail('provider.bad_response',caller.trace.traceId,{message:'The connector response is too large.'});
     if(result.status>=300&&result.status<400&&result.location){try{url=new URL(result.location,url);}catch{throw fail('provider.bad_response',caller.trace.traceId,{message:'The connector returned an invalid redirect.'});}if(result.status===303||([301,302].includes(result.status)&&method==='POST')){method='GET';body=undefined;}continue;}

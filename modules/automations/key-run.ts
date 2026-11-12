@@ -7,15 +7,15 @@ import { keyRefResolver } from "./key-ref-port.ts";
 import { raise } from "./projections.ts";
 import type { AutoCtx } from "./projections.ts";
 
-export async function assertKeyMayGo(ctx: AutoCtx, handle: string, url: string): Promise<void> {
+/** Is this key allowed to go to this host now: listed for it, or the exact host of its own saved address. Null when it is; else the line a person reads. Unresolvable keys answer null (the Vault refuses them itself). */
+export async function keyHostLine(ctx: AutoCtx, handle: string, url: string): Promise<{ handle: string; host: string; line: string } | null> {
   const host = hostOfUrl(url);
-  if (host === null) raise(ctx, "validation.bad_input", "That address cannot carry a key.");
   const resolve = keyRefResolver();
-  if (!resolve) return;   // a host without the Vault's reading (a module test): the fill below refuses or fills as before
+  if (!resolve || host === null) return null;
   const asker = ctx.actingFor ?? (ctx.principal?.kind === "person" ? ctx.principal.id : undefined);
   const ref = resolve(handle, asker);
-  if (!ref) return;   // nothing resolves: the Vault's own fill refuses it, with its own line
-  if (keyHostApproved(ctx.db as unknown as KeyHostDb, ref.id, host)) return;
+  if (!ref) return null;
+  if (keyHostApproved(ctx.db as unknown as KeyHostDb, ref.id, host)) return null;
   const hits = async (h: string): Promise<boolean> => {
     try {
       const m = ctx.call ? (await ctx.call("vault.items.match", { url: `https://${h}/` })) as { items?: { item?: { id?: unknown } }[] } | null : null;
@@ -24,6 +24,25 @@ export async function assertKeyMayGo(ctx: AutoCtx, handle: string, url: string):
   };
   const dot = host.indexOf(".");
   const parent = dot > 0 && !host.startsWith("[") ? host.slice(dot + 1) : "";
-  if (await hits(host) && (parent === "" || !parent.includes(".") || !(await hits(parent)))) return;
-  raise(ctx, "permission.no_grant", `${ref.handle} is no longer allowed to go to ${host}. Allow it again on the key's page, or change this step.`, { reason: "key_host_unapproved", host });
+  if (await hits(host) && (parent === "" || !parent.includes(".") || !(await hits(parent)))) return null;
+  return { handle: ref.handle, host, line: `${ref.handle} is no longer allowed to go to ${host}. Allow it again on the key's page, or change this step.` };
+}
+
+/** The key-bearing steps of a definition whose host is not allowed for their key, before any Run: the builder and "Used in" show them. */
+export async function blockedKeySteps(ctx: AutoCtx, nodes: readonly { id: string; key: string; input?: unknown }[]): Promise<{ nodeId: string; handle: string; host: string; line: string }[]> {
+  const out: { nodeId: string; handle: string; host: string; line: string }[] = [];
+  for (const n of nodes) {
+    const input = n.input as Record<string, unknown> | undefined;
+    const handle = (input?.["auth"] as { handle?: unknown } | undefined)?.handle;
+    if (n.key !== "http_request" || typeof handle !== "string" || typeof input?.["url"] !== "string" || input["url"].includes("{")) continue;
+    const b = await keyHostLine(ctx, handle, input["url"]);
+    if (b) out.push({ nodeId: n.id, ...b });
+  }
+  return out;
+}
+
+export async function assertKeyMayGo(ctx: AutoCtx, handle: string, url: string): Promise<void> {
+  if (hostOfUrl(url) === null) raise(ctx, "validation.bad_input", "That address cannot carry a key.");
+  const b = await keyHostLine(ctx, handle, url);
+  if (b) raise(ctx, "permission.no_grant", b.line, { reason: "key_host_unapproved", host: b.host });
 }

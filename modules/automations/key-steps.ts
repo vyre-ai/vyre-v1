@@ -143,8 +143,9 @@ async function agentHostApproved(ctx: AutoCtx, index: number, n: Node, ids: Read
 const BACKFILLED = "automations.key_hosts_backfilled";
 
 /**
- * Once, after the update that made keys go only to approved hosts: every key-bearing HTTP step in every Automation records its host as approved for its key, attributed to the person who saved that
- * version (else the owner), so nothing that worked before stops. These rows do not mark the key's list as kept by people, so a connector bound before the update is still adopted on first use.
+ * Once, after the update that made keys go only to approved hosts: a key-bearing HTTP step's host is approved for its key only where a PERSON chose it, that is, the newest version of the Automation
+ * that holds that exact step (same id, kind and input) was saved by a person; it is attributed to them. A step only an agent ever saved is not adopted: its next Run stops with the plain line and a
+ * person allows the host on the key's page. These rows do not mark the key's list as kept by people, so a connector a person bound before the update is still adopted on first use.
  */
 export async function backfillStepHosts(ctx: AutoCtx): Promise<number> {
   if (ctx.db.all("SELECT 1 AS x FROM automations_policy WHERE policy_key = ?", BACKFILLED).length > 0) return 0;
@@ -152,18 +153,20 @@ export async function backfillStepHosts(ctx: AutoCtx): Promise<number> {
   if (!resolve) return 0;   // the host's reading of keys is not wired yet: the next tick tries again
   let done = 0;
   for (const a of allAutomations(ctx.db)) {
-    const by = (ctx.db.all("SELECT by_who FROM automations_versions WHERE automation_id = ? AND n = ?", a.id, a.version) as { by_who?: unknown }[])[0]?.by_who;
-    const who = typeof by === "string" && by.startsWith("usr_") ? by : a.ownerId;
-    const ids = new Map<string, string>();
+    const versions = (ctx.db.all("SELECT n, by_who, definition FROM automations_versions WHERE automation_id = ? ORDER BY n DESC", a.id) as { n: number; by_who: string; definition: string }[])
+      .map((v) => { let def: Definition | null = null; try { def = JSON.parse(v.definition) as Definition; } catch { def = null; } return { by: v.by_who, def }; });
     for (const n of a.definition.nodes) {
       const handle = ((n.input as Record<string, unknown> | undefined)?.["auth"] as { handle?: unknown } | undefined)?.handle;
-      if (typeof handle !== "string") continue;
+      if (n.key !== "http_request" || typeof handle !== "string") continue;
+      // the newest version holding this exact step decides who chose its host
+      const chose = versions.find((v) => v.def?.nodes?.some((p) => sameStep(p, n)));
+      const who = chose?.by;
+      if (typeof who !== "string" || !who.startsWith("usr_")) continue;
       const ref = resolve(handle, who);
-      if (ref) ids.set(itemOf(handle), ref.id);
+      if (!ref) continue;
+      recordStepHosts(ctx, [n], new Map([[itemOf(handle), ref.id]]), who, false);
+      done += 1;
     }
-    if (ids.size === 0) continue;
-    recordStepHosts(ctx, a.definition.nodes, ids, who, false);
-    done += 1;
   }
   ctx.db.run("INSERT OR REPLACE INTO automations_policy (policy_key, policy_value) VALUES (?, ?)", BACKFILLED, "true");
   return done;

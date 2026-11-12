@@ -14,6 +14,7 @@ import {
 import { rememberAccountPicks } from "../accounts.ts";
 import { regrant, sendersOf, shareSenders } from "../grants.ts";
 import { guardKeySteps, recordStepHosts, usableKeyIds } from "../key-steps.ts";
+import { blockedKeySteps } from "../key-run.ts";
 import { publishAllowed } from "../connector-breadth.ts";
 import { storedLevel } from "../connector-level.ts";
 import { admit, contractOf } from "../val.ts";
@@ -486,7 +487,10 @@ export async function list(ctx: AutoCtx, input: In): Promise<unknown> {
 }
 
 export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
-  const issues = validateDefinition(input.definition as Definition, readPolicy(ctx.db));
+  const def = input.definition as Definition;
+  // a key-bearing step whose host was taken off its key's list shows before the next Run, with the line that Run would fail with
+  const keyBlocked = Array.isArray(def?.nodes) ? (await blockedKeySteps(ctx, def.nodes)).map((b) => issue("error", b.line, b.nodeId)) : [];
+  const issues = [...validateDefinition(def, readPolicy(ctx.db)), ...keyBlocked];
   return { ok: !hasErrors(issues), issues };
 }
 export async function triggersList(): Promise<unknown> {

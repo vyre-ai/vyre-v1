@@ -241,3 +241,15 @@ test("removing a host an Automation uses warns first, naming it; a host can be a
   await settle();
   assert.deepEqual(calls.find((c) => c.cap === "automations.key_hosts.allow")?.input, { vaultItemId: "vit_ghl", host: "api.gohighlevel.example" });
 });
+
+test("an Automation whose step may no longer send the key to its host says so on its Used in row, before its next Run", async () => {
+  const v = createSampleVault();
+  const base = v.data.call.bind(v.data);
+  v.data = { ...v.data, call: async (cap, input) => (cap === "automations.vault_usage"
+    ? { uses: [{ handle: "#Northwind_GHL", automations: [{ automationId: "aut_nightly", name: "New lead to GoHighLevel", status: "on", steps: [{ nodeId: "n1", title: "Create contact", blocked: "#Northwind_GHL is no longer allowed to go to api.gohighlevel.example. Allow it again on the key's page, or change this step." }] }] }] }
+    : base(cap, input)) };
+  const root = await open(v, "vit_ghl");
+  await settle();
+  const row = find(root, "row-aut_nightly");
+  assert.match(textOf(row), /Not allowed to go to api\.gohighlevel\.example/);
+});

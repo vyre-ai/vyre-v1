@@ -46,15 +46,16 @@ export function keyHostListed(db: { all(sql: string, ...a: unknown[]): unknown[]
 
 /**
  * The update path (lead, 12 Nov): a key whose list nobody has kept yet (no marker row, which an approval or a removal leaves) was in use before hosts were approved per key. Its
- * connector's declared domains are approved once, attributed to the update, so what worked before keeps working; from then on the list governs. Returns whether `host` is now approved.
+ * connector's declared domains are approved once, attributed to the person who made that choice (the caller passes them only when one did), so what a person set up before keeps working; from then on the
+ * list governs. Returns whether `host` is now approved.
  */
-export function adoptConnectorHosts(db: { all(sql: string, ...a: unknown[]): unknown[]; run?(sql: string, ...a: unknown[]): unknown }, itemId: string, host: string, domains: readonly string[], now: number): boolean {
+export function adoptConnectorHosts(db: { all(sql: string, ...a: unknown[]): unknown[]; run?(sql: string, ...a: unknown[]): unknown }, itemId: string, host: string, domains: readonly string[], now: number, by = "update"): boolean {
   try {
     // a key whose list people have kept (the marker row an approval or a removal leaves) is never filled again
     if (!db.run || db.all(`SELECT 1 AS x FROM automations_key_hosts WHERE item_id = ? AND host = ''`, itemId).length > 0) return false;
     const hosts = domains.map((d) => d.toLowerCase().replace(/\.$/, "")).filter((d) => d !== "");
     if (!hosts.includes(host)) return false;
-    for (const h of [...hosts, ""]) db.run(`INSERT OR IGNORE INTO automations_key_hosts (item_id, host, by, at) VALUES (?, ?, ?, ?)`, itemId, h, "update", now);
+    for (const h of [...hosts, ""]) db.run(`INSERT OR IGNORE INTO automations_key_hosts (item_id, host, by, at) VALUES (?, ?, ?, ?)`, itemId, h, by, now);
     return true;
   } catch { return false; }
 }
@@ -62,4 +63,21 @@ export function adoptConnectorHosts(db: { all(sql: string, ...a: unknown[]): unk
 /** The handle of an item, for a line a person reads; "this key" when it is not found. */
 export function handleOfItem(db: { all(sql: string, ...a: unknown[]): unknown[] }, itemId: string): string {
   try { const r = db.all(`SELECT "handle" FROM vault_meta WHERE "id" = ?`, itemId)[0] as { handle?: unknown } | undefined; return typeof r?.handle === "string" ? r.handle : "This key"; } catch { return "This key"; }
+}
+
+/**
+ * Who made the choice that a key goes to this connector's hosts, from the event log: the person who bound the connection (connection.created), else the person who published the connector
+ * (connector.published, the latest). Null when the log shows no person did either (an agent bound it and an agent published it): such hosts are never adopted, they wait for a person.
+ */
+export async function personWhoChose(log: { read(q: { type?: string; entity?: string; entity_id?: string; limit?: number }): Promise<{ actor?: string }[]> } | null, connectionId: string, connector: string): Promise<string | null> {
+  if (!log) return null;
+  const person = (a: unknown): a is string => typeof a === "string" && a.startsWith("usr_");
+  try {
+    const bound = await log.read({ type: "connection.created", entity: "connection", entity_id: connectionId, limit: 10 });
+    const binder = bound.map((e) => e.actor).find(person);
+    if (binder) return binder;
+    const published = await log.read({ type: "connector.published", entity: "connector", entity_id: connector, limit: 200 });
+    const last = published[published.length - 1]?.actor;
+    return person(last) ? last : null;
+  } catch { return null; }
 }

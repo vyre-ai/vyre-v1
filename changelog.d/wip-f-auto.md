@@ -21,3 +21,4 @@
 - A scheduled Run now says when the previous one was (the first: when the schedule was turned on), so a list step can ask only for what is new.
 - Automations: the web request trigger is called that everywhere; its address shows in full; with no public address the card says so and gives an admin the way to set one; a Personal Automation with one gets "Move to Space" on its banner; a Personal Space does not offer it.
 - A task step's agent picker also leaves out agents on someone's own computer in a Space Automation.
+- The update adopts a host for a key only where a person chose it (a step a person saved, a connection a person bound, a connector a person published); anything only an agent set up waits for a person. An Automation whose step may no longer send its key shows that on its Used in row and in the builder before its next Run.

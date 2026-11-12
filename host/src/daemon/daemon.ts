@@ -127,7 +127,7 @@ import { createModelFiles } from "../seams/memory-meaning.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { createTelemetryRecorder } from "../seams/telemetry.ts";
 import { connectorReadSender } from "../seams/connector-read.ts";
-import { adoptConnectorHosts, handleOfItem, keyHostListed, resolveKeyRef } from "../seams/key-ref.ts";
+import { adoptConnectorHosts, handleOfItem, keyHostListed, personWhoChose, resolveKeyRef } from "../seams/key-ref.ts";
 import type { KeyHostCheck } from "../seams/connectors.ts";
 import { documentPin } from "../seams/document-pin.ts";
 import type { DocumentFetch } from "../seams/document-pin.ts";
@@ -803,13 +803,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const ownNode = (p: string): boolean => cfg.roles.includes("device") || p === ownerOfSpace();
   // a key goes only to a host a person approved for it: the connector port asks this before every request a call makes after a Vault fill (the read as a person is wired once invoke exists)
   let keyHostCallAs: ((cap: string, input: unknown, person: string) => Promise<unknown>) | null = null;
-  const keyHostCheck: KeyHostCheck = async (itemIds, host, caller, domains) => {
+  const keyHostCheck: KeyHostCheck = async (keys, host, caller, domains) => {
     const h = db;
     if (!h) return "The Vault is not open, so the request was not sent.";
     const person = caller.actingFor?.startsWith("usr_") ? caller.actingFor : caller.principal.kind === "person" ? caller.principal.id : undefined;
-    for (const id of itemIds) {
+    for (const k of keys) {
+      const id = k.itemId;
       if (keyHostListed(h, id, host)) continue;
-      if (adoptConnectorHosts(h as never, id, host, domains, Date.now())) continue;
+      // the update path adopts a connector's hosts only where the log shows a person chose them (bound the connection or published the connector)
+      const chooser = await personWhoChose(log, k.connectionId, k.connector);
+      if (chooser && adoptConnectorHosts(h as never, id, host, domains, Date.now(), chooser)) continue;
       if (person && keyHostCallAs && await ownAddress(keyHostCallAs, person, id, host)) continue;
       return `${handleOfItem(h, id)} is not allowed to go to ${host}. Allow it on the key's page, or change this step.`;
     }
