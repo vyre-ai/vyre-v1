@@ -246,7 +246,7 @@ test("an Automation whose step may no longer send the key to its host says so on
   const v = createSampleVault();
   const base = v.data.call.bind(v.data);
   v.data = { ...v.data, call: async (cap, input) => (cap === "automations.vault_usage"
-    ? { uses: [{ handle: "#Northwind_GHL", automations: [{ automationId: "aut_nightly", name: "New lead to GoHighLevel", status: "on", steps: [{ nodeId: "n1", title: "Create contact", blocked: "#Northwind_GHL is no longer allowed to go to api.gohighlevel.example. Allow it again on the key's page, or change this step." }] }] }] }
+    ? { uses: [{ handle: "#Northwind_GHL", automations: [{ automationId: "aut_nightly", name: "New lead to GoHighLevel", status: "on", steps: [{ nodeId: "n1", title: "Create contact", blocked: "#Northwind_GHL is not allowed to go to api.gohighlevel.example. Allow it on the key's page, or change this step." }] }] }] }
     : base(cap, input)) };
   const root = await open(v, "vit_ghl");
   await settle();

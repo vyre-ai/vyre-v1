@@ -123,15 +123,15 @@ test("on update, a step a person saved keeps its host; a step only an agent save
     // the agent's step shows its state before the Run, then its Run stops with the line
     const def = ((await post(OWNER, "automations.get", { automationId: theirsId })).data["automation"] as { definition: unknown }).definition;
     const check = await post(OWNER, "automations.validate", { definition: def, kind: "personal" });
-    assert.match(check.text, /is no longer allowed to go to agent\.notely\.example/, check.text);
+    assert.match(check.text, /is not allowed to go to agent\.notely\.example/, check.text);
     const draftId = String((draft.data["automation"] as { id?: string }).id);
     const draftDef = ((await post(OWNER, "automations.get", { automationId: draftId })).data["automation"] as { definition: unknown }).definition;
-    assert.match((await post(OWNER, "automations.validate", { definition: draftDef, kind: "personal" })).text, /is no longer allowed to go to draft\.notely\.example/, "a draft is not adopted and says why");
+    assert.match((await post(OWNER, "automations.validate", { definition: draftDef, kind: "personal" })).text, /is not allowed to go to draft\.notely\.example/, "a draft is not adopted and says why");
     const usage = await post(OWNER, "automations.vault_usage", { handle });
-    assert.match(usage.text, /no longer allowed to go to agent\.notely\.example/, usage.text);
+    assert.match(usage.text, /not allowed to go to agent\.notely\.example/, usage.text);
     const stopped = await runAndWait(theirsId);
     assert.equal(stopped.status, "failed", stopped.steps);
-    assert.match(stopped.steps, /is no longer allowed to go to agent\.notely\.example\. Allow it again on the key's page, or change this step\./);
+    assert.match(stopped.steps, /is not allowed to go to agent\.notely\.example\. Allow it on the key's page, or change this step\./);
     assert.equal(sent.filter((s) => s.key && s.host === "agent.notely.example").length, 0, "the key never went to the host nobody chose");
 
     // the person who can fix it is told once, with the line
@@ -144,7 +144,7 @@ test("on update, a step a person saved keeps its host; a step only an agent save
       if (told.length === 0) await new Promise((r) => setTimeout(r, 150));
     }
     assert.equal(told.length, 1, `one failed-Run notice: ${JSON.stringify(notes).slice(0, 600)}`);
-    assert.match(String(told[0]?.title), /is no longer allowed to go to agent\.notely\.example\. Allow it again on the key's page, or change this step\./, JSON.stringify(told[0]));
+    assert.match(String(told[0]?.title), /is not allowed to go to agent\.notely\.example\. Allow it on the key's page, or change this step\./, JSON.stringify(told[0]));
     // a person allows it again: Retry on the stopped Run works, then a new Run works
     assert.equal((await post(OWNER, "automations.key_hosts.allow", { vaultItemId: handle, host: "agent.notely.example" })).status, 200);
     const retried = await post(OWNER, "runs.retry", { runId: stopped.runId });

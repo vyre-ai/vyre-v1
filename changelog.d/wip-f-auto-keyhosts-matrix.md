@@ -1,0 +1,1 @@
+- A key that may not go to a host now says "#Key is not allowed to go to <host>. Allow it on the key's page, or change this step.", the same words whether the host was removed or never approved.

@@ -30,7 +30,7 @@ async function approvedFor(ctx: AutoCtx, itemId: string, handle: string, host: s
   const dot = host.indexOf(".");
   const parent = dot > 0 && !host.startsWith("[") ? host.slice(dot + 1) : "";
   if (await hits(host) && (parent === "" || !parent.includes(".") || !(await hits(parent)))) return null;
-  return { handle, host, line: `${handle} is no longer allowed to go to ${host}. Allow it again on the key's page, or change this step.` };
+  return { handle, host, line: `${handle} is not allowed to go to ${host}. Allow it on the key's page, or change this step.` };
 }
 
 /** At run time, after the fill: the item the Vault actually filled may go to this host. Fails closed: no item id, no host, no table means the request does not go. */
