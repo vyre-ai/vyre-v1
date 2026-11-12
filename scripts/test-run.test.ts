@@ -7,6 +7,8 @@ import { runFile, capFor, breakdown, mergeTimings, skippedOf, allSkipped, DEFAUL
 
 // Scaled stand-in for the 20 s rule: the cap is 1 s here and the fixture runs 1.6 s, so the check is the same without a 21 s wait.
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "trun-"));
+/** The process exists (signal 0 tests for it without sending anything). */
+const alive = (pid: number): boolean => { try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === "EPERM"; } };
 const fixture = path.join(dir, "slowish.test.mjs");
 fs.writeFileSync(fixture, `import test from "node:test";
 test("fast one", () => {});
@@ -75,14 +77,27 @@ test("the runners print skip <file> (<reason>) and count skips apart from passes
 test("a file that fails a test and then never exits still shows why it failed when the watchdog kills it", async () => {
   // what an unclosed daemon or browser does: the test fails at once, the process stays alive, and node's own summary (which carries the error) is never printed
   const hang = path.join(dir, "fails-then-hangs.test.mjs");
+  const pidFile = path.join(dir, "fails-then-hangs.pid");
   fs.writeFileSync(hang, `import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+fs.writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));
 test("a test that fails and leaves something open", () => {
   setInterval(() => undefined, 1000);
   assert.equal("the port the daemon was told to use", "a port someone else took", "FIXTURE-FAILURE-MESSAGE: address already in use");
 });
 `);
-  const r = await runFile(hang, { cwd: dir, capMs: 3000 });
+  let r: Awaited<ReturnType<typeof runFile>>;
+  try {
+    r = await runFile(hang, { cwd: dir, capMs: 3000 });
+    // the watchdog ends the file's whole process group: node --test runs the file in a child of its own, and that child (the process that hangs) is gone too
+    const pid = Number(fs.readFileSync(pidFile, "utf8"));
+    assert.ok(pid > 0, "the fixture wrote its pid");
+    assert.equal(alive(pid), false, `the fixture's own process (${pid}) is not left running after the watchdog ended the file`);
+  } finally {
+    // never leave it behind, whatever the assertions said
+    try { const pid = Number(fs.readFileSync(pidFile, "utf8")); if (pid > 0 && alive(pid)) process.kill(pid, "SIGKILL"); } catch { /* not written */ }
+  }
   assert.equal(r.ok, false);
   assert.equal(r.overCap, true, "it hung, so the watchdog ended it");
   assert.match(r.out, /watchdog: .* exceeded its 3 s cap/);

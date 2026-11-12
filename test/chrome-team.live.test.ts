@@ -49,7 +49,7 @@ async function boot(): Promise<{ d: Daemon; owner: string; dir: string }> {
   return { d, owner: signedIn.json.data.session.token as string, dir };
 }
 
-import { findChromium, launch, site } from "../apps/chrome/tests/e2e/rig.ts";
+import { extensionChromeProblem, findChromium, launch, site } from "../apps/chrome/tests/e2e/rig.ts";
 import { bindPersonalChrome } from "../lib/personal-chrome.ts";
 import { harness } from "../modules/computers/fixtures/harness.ts";
 import { tool } from "../modules/computers/tests/tools.fixture.ts";
@@ -61,6 +61,9 @@ const MAIL = `<!doctype html><meta charset="utf-8"><title>Mail</title><main><for
 <label for="subject">Subject</label><input id="subject" name="subject" value="Your signed deed"><label for="body">Message</label><textarea id="body" name="body">Hi Dana, the deed is attached.</textarea><button type="submit">Send</button></form></main>`;
 
 test("a server-side turn for a member drives the extension on the member's own computer over the device link, and nobody else's turn can", { skip: !found && "no Chromium on this machine", timeout: 150_000 }, async () => {
+  // a Chromium that cannot run the extension fails here, in one line, before anything is started that could keep this file alive
+  const why = extensionChromeProblem(found!);
+  assert.equal(why, null, why ?? "");
   const space = await boot();
   const dirDevice = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-chrome-device-"));
   const device = await startDaemon({
