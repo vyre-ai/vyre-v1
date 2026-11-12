@@ -3,7 +3,9 @@
 // pro, preview, audio, realtime, search, transcribe or image model unless nothing else passes; and only what the Space's AI policy allows. Never for a subscription or OpenRouter.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BALANCED_TIER, defaultModelFor, pickDefault } from "../first-model.ts";
+import { BALANCED_TIER, afterDefaultTurn, defaultModelFor, pickDefault } from "../first-model.ts";
+import { confirmedFor, markConfirmed, markRan, ranFor, unavailableFor } from "../model-health.ts";
+import { harness } from "../fixtures/harness.ts";
 
 const none = new Set<string>();
 const open = (): boolean => false;
@@ -61,4 +63,34 @@ test("Google: a policy written with bare ids allows a model the key lists as mod
   assert.deepEqual(out, { model: "models/gemini-2.5-flash" });
   const none2 = await defaultModelFor({ ...d, policy: { ...d.policy, allowedModels: ["gemini-1.5-flash"] } }, { ref: "#G", driver: "google", provider: "google", kind: "api_key", models: ["models/gemini-2.5-flash"] });
   assert.deepEqual(none2, { why: "policy" });
+});
+
+// real-model gate, 13 Nov 2026: the model menu's one-word checks (no tools, no effort) confirmed gpt-5.6-luna, and the default took it over the plain flagship; it then failed the first tool turn
+test("only a model a chat turn ran on wins over the table: a model the menu's check answered does not", async () => {
+  const h = harness();
+  const listed = ["gpt-5.6-luna", "gpt-4.1", "gpt-5", "gpt-5-mini"];
+  const d = { db: h.ctx.db as never, now: 10_000, call: async () => { throw new Error("no call expected"); }, policy: { allowedModels: [], allowedProviders: [], labelProviders: {} } };
+  const acct = { ref: "#OA", driver: "openai", provider: "openai", kind: "api_key", models: listed };
+  markConfirmed(h.ctx.db as never, "#OA", "gpt-5.6-luna", 9_000);   // a probe answered it
+  assert.deepEqual(await defaultModelFor(d, acct), { model: "gpt-5" });
+  markRan(h.ctx.db as never, "#OA", "openai/gpt-4.1", 9_500);   // a chat turn completed on it (the turn names the model with its provider)
+  assert.deepEqual(await defaultModelFor(d, acct), { model: "gpt-4.1" });
+  assert.ok(confirmedFor(h.ctx.db as never, "#OA", 10_000).has("openai/gpt-4.1"), "a ran model still reads as confirmed in the menu");
+  assert.equal(ranFor(h.ctx.db as never, "#OA", 10_000).has("gpt-5.6-luna"), false);
+});
+
+test("safety net: a default model refused with provider.bad_request before any output is marked failed for the account, and the next turn takes the next candidate; a named model is never marked", async () => {
+  const h = harness();
+  const db = h.ctx.db as never;
+  const d = { db, now: 10_000, call: async () => { throw new Error("no call expected"); }, policy: { allowedModels: [], allowedProviders: [], labelProviders: {} } };
+  const acct = { ref: "#OA", driver: "openai", provider: "openai", kind: "api_key", models: ["gpt-5", "gpt-4.1", "gpt-4o"] };
+  assert.deepEqual(await defaultModelFor(d, acct), { model: "gpt-5" });
+  afterDefaultTurn(db, { state: "failed", model: "gpt-5", tokensOut: 0, error: { code: "provider.bad_request", message: "no" } }, "#OA", 10_100);
+  assert.ok(unavailableFor(db, "#OA", 10_200).has("gpt-5"));
+  assert.deepEqual(await defaultModelFor({ ...d, now: 10_200 }, acct), { model: "gpt-4.1" });
+  // a turn on a model nobody defaulted (a person's pick) that fails the same way leaves no mark; a completed turn marks the model ran
+  afterDefaultTurn(db, { state: "failed", model: "gpt-4o", tokensOut: 0, error: { code: "provider.bad_request", message: "no" } }, "#OA", 10_300);
+  assert.equal(unavailableFor(db, "#OA", 10_400).has("gpt-4o"), false);
+  afterDefaultTurn(db, { state: "completed", model: "gpt-4.1", tokensOut: 12, error: null }, "#OA", 10_500);
+  assert.ok(ranFor(db, "#OA", 10_600).has("gpt-4.1"));
 });

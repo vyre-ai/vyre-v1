@@ -1,0 +1,3 @@
+- On a new OpenAI API key, the first message with no model picked replies again. The default no longer takes a model just because the model menu's quick check answered; only a model a chat already ran on counts, and otherwise it takes the plain flagship (for example GPT-5 or GPT-4.1).
+- Some OpenAI models (gpt-5.6-luna among them) refuse a reasoning effort when the agent can use tools. Vyre now sends the request again the way OpenAI asks, with the effort set to none, and remembers that model, so a chat on it works whether it was picked by hand or by default.
+- When the default model is refused before it answers, Vyre sets it aside for that key, and the next message runs on the next model in line.
