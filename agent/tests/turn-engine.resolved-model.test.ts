@@ -19,3 +19,16 @@ test("an agent the thread names no model for runs on the resolver's model; one w
     assert.equal(e.turns("T")[0]?.model, want);
   }
 });
+
+test("a chat with no model fails each turn with engine.no_model, and that never parks the agent: the next message still runs once a model is picked", async () => {
+  let picked = false;
+  const p = scriptedProvider({ script: () => (picked ? [{ type: "text", text: "ok" }, { type: "done" }] : [{ type: "error", code: "engine.no_model", message: "No model is set for this chat." }]) as never });
+  const e = createTurnEngine({ holder: "h", openSession: p.openSession, resolveAccount: async () => account() });
+  e.openThread(thread());
+  for (let i = 0; i < 4; i++) { e.receive({ threadId: "T", author: { kind: "person", id: "dana" }, body: `try ${i}` }); await e.idle("T"); }
+  assert.deepEqual(e.turns("T").map((t) => t.error?.code), ["engine.no_model", "engine.no_model", "engine.no_model", "engine.no_model"], "every message ran and said so; none was held back");
+  picked = true;
+  e.receive({ threadId: "T", author: { kind: "person", id: "dana" }, body: "now" });
+  await e.idle("T");
+  assert.equal(e.turns("T").at(-1)?.state, "completed");
+});

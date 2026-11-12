@@ -819,8 +819,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       const code = turn.error?.code ?? "engine_error";
       const pk = `${st.thread.id}|${item.agentId}`;
       const streak = failStreak.get(pk);
-      const n = streak?.code === code ? streak.n + 1 : 1;
-      failStreak.set(pk, { code, n });
+      // no model set for the chat is not the agent failing: the person picks one, and nothing is held back meanwhile (the chat says how on every turn)
+      const n = code === "engine.no_model" ? 0 : streak?.code === code ? streak.n + 1 : 1;
+      if (code !== "engine.no_model") failStreak.set(pk, { code, n });
       if (PARK_CODES.has(code) || n >= STREAK_PARK) lockedPark.set(pk, { threadId: st.thread.id, agentId: item.agentId, asker, messageId: item.messageId, from: item.from, since: now(), code, ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}), repeat: !PARK_CODES.has(code) });
       emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(paying ? { account: { ref: paying.ref, driver: paying.driver } } : {}), ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}), ...(failResetsAt !== undefined && turn.error?.code === "provider.rate_limited" ? { resetsAt: failResetsAt } : {}) });
     }
