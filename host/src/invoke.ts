@@ -440,12 +440,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       }
       if (d.effect === "deny") {
         await deps.audit?.(audit("deny", d.reason));
-        // an agent a private chat made reads, to anyone who may not view it, exactly like an agent that does not exist (owner decision, 12 Nov 2026): the answer is the one an unknown agent id gets,
-        // asked of the same decision with an id that names nothing
-        if (resource !== null && resource.type === "agent" && deps.hidden?.(resource, seed.principal.id, seed.actingFor)) {
-          const none = deps.authorize({ ...req, resource: { ...resource, id: `agt_${"0".repeat(32)}` } });
-          throw fail(codeForReason(none.reason), traceId, { details: { cap: c.name, reason: none.reason, steps: none.steps.map((x) => x.text) } });
-        }
+        // an agent a private chat made reads, to anyone who may not view it, exactly like an agent that does not exist (owner decision, 12 Nov 2026): the agents module's own answer for an agent
+        // that is gone, "That agent does not exist.", which chat.start, a mention and a task assignee already refuse on
+        if (resource !== null && resource.type === "agent" && deps.hidden?.(resource, seed.principal.id, seed.actingFor)) throw fail("validation.not_found", traceId, { message: "That agent does not exist." });
         const code = codeForReason(d.reason);
         // an agent stopped at a folder or a file its person may be able to share: the refusal names the press, so the person gets it in Needs you
         const askShare = d.reason === "no_grant" && seed.principal.kind === "agent" && seed.actingFor !== undefined && resource !== null && (resource.type === "folder" || resource.type === "file");

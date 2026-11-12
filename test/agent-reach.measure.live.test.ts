@@ -108,7 +108,9 @@ test("an agent made in an invite-only channel's thread: what a never-member can 
     }
 
     // ---- reach (owner decision, 12 Nov 2026): an agent made in an invite-only channel's thread reads, to someone who cannot read that chat, exactly like an agent that does not exist
-    const ghostAgent = `agt_${"0".repeat(32)}`;
+    // an agent that does not exist: one the owner made and deleted (an id that never named anything is refused by the gateway before the agents module answers)
+    const ghostAgent = (await ok(d, d.token, "agents.create", { name: "Gone helper", computer: false })).agent.agentId as string;
+    await ok(d, d.token, "agents.delete", { agentId: ghostAgent });
     const codeOf = (r: { data: unknown }): string => String((r.data as { error?: { code?: string } }).error?.code ?? "");
     const reachDoors: Array<[string, string, (id: string) => Record<string, unknown>]> = [
       ["agents.get", "agents.get", (id) => ({ agentId: id })], ["agents.summary", "agents.summary", (id) => ({ agentId: id })], ["agents.config.get", "agents.config.get", (id) => ({ agentId: id })],
