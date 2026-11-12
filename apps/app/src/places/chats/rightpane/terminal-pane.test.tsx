@@ -93,7 +93,7 @@ test("a workspace the server cannot start (no image, no Docker: provider.unavail
   assert.deepEqual(await openHere(refusing(rig([], ws)).d), { s: "none" });
   // on their own computer: the terminal opens there
   const mac = refusing(rig([{ id: "dev_mac", name: "Mac", class: "desktop", current: true, lastSeenAt: 1 }], ws));
-  assert.deepEqual(await openHere(mac.d), { s: "opened", terminalId: "trm_new", elsewhere: true }, "and says it is not where the agent works");
+  assert.deepEqual(await openHere(mac.d), { s: "opened", terminalId: "trm_new" });
   assert.deepEqual(mac.calls.filter((c) => c.cap === "terminal.open").map((c) => c.input["host"]), ["agent_computer", "device"]);
   // any other refusal is still the pane's to say
   const other = rig([], ws);
@@ -102,9 +102,9 @@ test("a workspace the server cannot start (no image, no Docker: provider.unavail
   await assert.rejects(() => openHere(other.d), /not yours/);
 });
 
-test("a workspace that is waiting for room, or whose agent is in Trash, keeps its own line: the pane never quietly opens a shell elsewhere (r-term P1)", async () => {
+test("a workspace that is waiting for room, whose agent is in Trash, or whose Docker did not answer for a moment keeps its own line: the pane never quietly opens a shell elsewhere (r-term P1)", async () => {
   const ws = { agent: { agentId: "agt_1", name: "Assistant" }, "terminal.workspace": { state: "waiting", canAttach: true } };
-  for (const [reason, line] of [["waiting", "Waiting for room on this server. The workspace starts by itself when there is room."], ["gone", "This agent is in Trash."], [undefined, "The workspace did not start."]] as const) {
+  for (const [reason, line] of [["waiting", "Waiting for room on this server. The workspace starts by itself when there is room."], ["gone", "This agent is in Trash."], ["docker_down", "The container runtime does not answer."], ["unavailable", "Docker did not answer for the workspace (500: busy)."], [undefined, "The workspace did not start."]] as const) {
     const r = rig([{ id: "dev_mac", name: "Mac", class: "desktop", current: true, lastSeenAt: 1 }], ws);
     const inner = r.d.call;
     r.d.call = async (cap: string, input: unknown) => {
@@ -114,14 +114,14 @@ test("a workspace that is waiting for room, or whose agent is in Trash, keeps it
     await assert.rejects(() => openHere(r.d), (e: Error) => e.message === line, String(reason));
     assert.deepEqual(r.calls.filter((c) => c.cap === "terminal.open").map((c) => c.input["host"]), ["agent_computer"], `nothing opened elsewhere: ${String(reason)}`);
   }
-  // no image, no Docker, no machine for workspaces: it cannot run here, so the pane goes on
-  for (const reason of ["image_missing", "docker_down", "no_place"]) {
+  // no image, or no machine with Docker for workspaces: it cannot run here, so the pane goes on
+  for (const reason of ["image_missing", "no_place"]) {
     const r = rig([{ id: "dev_mac", name: "Mac", class: "desktop", current: true, lastSeenAt: 1 }], ws);
     const inner = r.d.call;
     r.d.call = async (cap: string, input: unknown) => {
       if (cap === "terminal.open" && (input as { host?: string }).host === "agent_computer") throw Object.assign(new Error("x"), { code: "provider.unavailable", details: { reason } });
       return inner(cap, input);
     };
-    assert.deepEqual(await openHere(r.d), { s: "opened", terminalId: "trm_new", elsewhere: true }, reason);
+    assert.deepEqual(await openHere(r.d), { s: "opened", terminalId: "trm_new" }, reason);
   }
 });

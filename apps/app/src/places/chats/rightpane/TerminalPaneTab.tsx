@@ -28,14 +28,14 @@ export function startSession(rows: readonly Row[], agent: { agentId?: string; co
 
 /** A name for the new session, and where it starts (a helper's terminal is named for the helper and starts in its workspace). */
 export interface OpenOpts { name?: string; cwd?: string }
-/** `elsewhere`: the agent's workspace cannot run on this server (no image, no Docker), so this is not where the agent works, and the pane says so. */
-export type Opened = { s: "opened"; terminalId: string; elsewhere?: true } | { s: "choose"; hosts: HostChoice[]; elsewhere?: true } | { s: "none" };
+export type Opened = { s: "opened"; terminalId: string } | { s: "choose"; hosts: HostChoice[] } | { s: "none" };
 
-/** Why a workspace would not start, from the server (modules/terminal/handlers/sessions.ts unavailable): only these mean it cannot run here at all. Waiting for room, an agent in Trash,
- * or anything unnamed keeps its own line, so the pane never quietly opens a shell somewhere the agent does not work (r-term P1, 12 Nov). */
-const CANNOT_RUN_HERE = new Set(["image_missing", "docker_down", "no_place"]);
+/** Why a workspace would not start, from the server (modules/terminal/handlers/sessions.ts unavailable): only these mean it cannot run on this server at all (no image, no machine
+ * with Docker for it). Waiting for room, an agent in Trash, Docker not answering for a moment, or anything unnamed keeps its own line, so the pane never quietly opens a shell
+ * somewhere the agent does not work (r-term P1, 12 Nov). */
+const CANNOT_RUN_HERE = new Set(["image_missing", "no_place"]);
 const cannotRunHere = (e: unknown): boolean => errorCode(e) === "provider.unavailable" && CANNOT_RUN_HERE.has(String((e as { details?: { reason?: unknown } } | null)?.details?.reason ?? ""));
-export const ELSEWHERE_LINE = "This server can't start the agent's workspace, so this terminal is not where the agent works.";
+
 
 /**
  * What Open terminal does. The chat's agent computer when it has one. Otherwise this computer, named by its device (a terminal on a computer must say which); when this one is not a computer
@@ -43,13 +43,12 @@ export const ELSEWHERE_LINE = "This server can't start the agent's workspace, so
  */
 export async function openHere(d: Pick<TerminalData, "call" | "newKey" | "agent" | "team" | "nameOf" | "clock">, opts: OpenOpts = {}): Promise<Opened> {
   let host: HostChoice | undefined;
-  let elsewhere = false;
   // the chat's agent has a workspace this person may enter: the terminal opens there, in the same sessions the agent's commands use. A server that cannot run one at all (no image,
-  // no Docker) is not where the pane stops: it goes on to this computer or the hosts there are, says this is not where the agent works, and says so when there are none
-  // (Personal first hour, 12 Nov). Waiting for room or an agent in Trash is the workspace's own answer and is shown.
+  // no machine with Docker) is not where the pane stops: it goes on to this computer or the hosts there are, and says so when there are none (Personal first hour, 12 Nov).
+  // Waiting for room, an agent in Trash or Docker not answering for a moment is the workspace's own answer and is shown.
   if (d.agent && (await inWorkspace(d, d.agent.agentId))) {
     try { return { s: "opened", terminalId: await openOn(d, { key: `agent:${d.agent.agentId}`, label: "", kind: "agent", online: true, agentId: d.agent.agentId }, opts) }; }
-    catch (e) { if (!cannotRunHere(e)) throw e; elsewhere = true; }
+    catch (e) { if (!cannotRunHere(e)) throw e; }
   }
   if (d.agent?.computerId) host = { key: `agent:${d.agent.computerId}`, label: "", kind: "agent", online: true, agentId: d.agent.agentId, computerId: d.agent.computerId };
   else {
@@ -58,9 +57,9 @@ export async function openHere(d: Pick<TerminalData, "call" | "newKey" | "agent"
   }
   if (!host) {
     const hosts = (await loadHosts(d.call, { team: d.team === true, now: d.clock().now, nameOf: d.nameOf ?? ((id) => id) })).filter((h) => h.online);
-    return hosts.length > 0 ? { s: "choose", hosts, ...(elsewhere ? { elsewhere: true as const } : {}) } : { s: "none" };
+    return hosts.length > 0 ? { s: "choose", hosts } : { s: "none" };
   }
-  return { s: "opened", terminalId: await openOn(d, host, opts), ...(elsewhere ? { elsewhere: true as const } : {}) };
+  return { s: "opened", terminalId: await openOn(d, host, opts) };
 }
 
 /** Does this agent have a workspace this person may open (terminal.workspace: running, asleep or not made yet, and theirs to enter)? */
@@ -81,7 +80,6 @@ export function TerminalPaneTab({ data }: { data: TerminalData }): ReactElement 
   const [id, setId] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [line, setLine] = useState<string | null>(null);
-  const [elsewhere, setElsewhere] = useState(false);
   useEffect(() => {
     let live = true;
     void (data.call("terminal.list", {}) as Promise<CapMap["terminal.list"]["out"]>).then(
@@ -97,7 +95,7 @@ export function TerminalPaneTab({ data }: { data: TerminalData }): ReactElement 
   const open = (): void => {
     setBusy(true); setLine(null);
     void openHere(data).then(
-      (o) => { setElsewhere(o.s !== "none" && o.elsewhere === true); if (o.s === "opened") setId(o.terminalId); else if (o.s === "choose") setChoices(o.hosts); else setLine("No computer to open a terminal on. Open Vyre on a computer, or add a server."); },
+      (o) => { if (o.s === "opened") setId(o.terminalId); else if (o.s === "choose") setChoices(o.hosts); else setLine("No computer to open a terminal on. Open Vyre on a computer, or add a server."); },
       fail,
     ).finally(() => setBusy(false));
   };
@@ -112,7 +110,6 @@ export function TerminalPaneTab({ data }: { data: TerminalData }): ReactElement 
         <Icon name="terminal" size={22} />
         {choices ? (
           <View testID="terminal-pane-hosts" style={st.hosts}>
-            {elsewhere ? <Text testID="terminal-pane-elsewhere" style={st.hint}>{ELSEWHERE_LINE}</Text> : null}
             <Text style={st.hint}>Open it on</Text>
             {collect(choices, (h) => (
               <Pressable key={h.key} accessibilityRole="button" accessibilityLabel={`Open terminal on ${h.label}`} testID={`terminal-pane-host-${h.key}`} disabled={busy} onPress={() => pick(h)} style={[st.btn, busy && { opacity: 0.5 }]}>
@@ -127,13 +124,7 @@ export function TerminalPaneTab({ data }: { data: TerminalData }): ReactElement 
       </View>
     );
   }
-  if (!elsewhere) return <TerminalTab key={id} data={paneData} terminalId={id} />;
-  return (
-    <View style={st.fill}>
-      <Text testID="terminal-pane-elsewhere" style={st.note}>{ELSEWHERE_LINE}</Text>
-      <TerminalTab key={id} data={paneData} terminalId={id} />
-    </View>
-  );
+  return <TerminalTab key={id} data={paneData} terminalId={id} />;
 }
 
 const st = StyleSheet.create({
@@ -143,6 +134,4 @@ const st = StyleSheet.create({
   hosts: { gap: 8, alignItems: "center" },
   hint: { fontSize: 12.5, color: "var(--ink-3)" as string },
   err: { fontSize: 12.5, color: "var(--danger)" as string },
-  fill: { flex: 1 },
-  note: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingHorizontal: 12, paddingVertical: 6 },
 });
