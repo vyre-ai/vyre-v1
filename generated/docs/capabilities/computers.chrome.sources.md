@@ -35,6 +35,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   scripts: Array<string>;
   endpoints: Array<{
       method: string;
@@ -71,6 +73,8 @@ type Out = {
         "url": "example"
       }
     ],
+    "note": "example",
+    "reopened": true,
     "scripts": [
       "example"
     ]
