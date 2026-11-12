@@ -165,3 +165,107 @@ test("a session an agent's command opens is readable by its owner while that fir
   const after = await call(d, token, "terminal.get", { terminalId: row.terminalId });
   assert.equal(after.status, 200, `after the Stop: ${JSON.stringify(after.data).slice(0, 200)}`);
 });
+
+test("a clean daemon stop and start (as an update does) leaves an agent's running command running: its counter keeps counting through the restart", { skip, timeout: 600_000 }, async (t) => {
+  const savedImage = process.env["VYRE_WORKSPACE_IMAGE"];
+  process.env["VYRE_WORKSPACE_IMAGE"] = IMAGE;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-keep-"));
+  const conf = {
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_keep", "--space-name", "Personal", "--space-kind", "personal", "--role", "space,device"], {}, "1.2.3"),
+    computersHomeIntervalMs: 300, workspaceIdleMs: 600_000,
+  };
+  let d = await boot(dir, standIn, undefined, conf);
+  let name = "";
+  t.after(async () => {
+    process.env["VYRE_WORKSPACE_IMAGE"] = savedImage ?? "";
+    if (savedImage === undefined) delete process.env["VYRE_WORKSPACE_IMAGE"];
+    await d.stop();
+    if (name !== "") { await docker(["rm", "-f", name], 60_000); await docker(["volume", "rm", "-f", `${name}-home`, `${name}-files`], 60_000); }
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const code = decodeURIComponent(new URL(d.claim!.url).pathname.split("/").pop() ?? "");
+  const device = { deviceName: "Dana's Mac", deviceClass: "desktop" };
+  assert.equal((await call(d, null, "identity.claim_owner", { code, spaceId: "spc_keep", username: "dana", displayName: "Dana Reyes", password: PASSWORD, ...device, keys: KEYS })).status, 200);
+  const token = ((await call(d, null, "identity.sign_in", { username: "dana", password: PASSWORD, ...device })).data.session as { token: string }).token;
+  const unlock = await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ key: Buffer.alloc(32, 7).toString("base64") }) });
+  assert.equal(unlock.status, 204);
+  const folder = await ok(d, token, "vault.folders.create", { name: "Accounts", scope: "mine" });
+  const flow = await ok(d, token, "providers.subscription_start", { providerKey: "claude-code" });
+  await ok(d, token, "vault.item.put", { folderId: folder.folder.id, name: "Dana_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: KEY, secret: true }] });
+  await ok(d, token, "providers.subscription_complete", { flowId: flow.flowId });
+  const agent = (await ok(d, token, "agents.create", { name: "Dex", role: "You help." })).agent.agentId as string;
+  name = `vyre-ws-${agent}`;
+  const threadId = (await ok(d, token, "chat.start", { kind: "chat", agentIds: [agent] })).thread.threadId as string;
+  await ok(d, token, "threads.set_mode", { threadId, mode: "auto" });
+  const post = (command: string, key: string) => ok(d, token, "chat.post", { threadId, body: `TOOL terminal_run ${JSON.stringify({ command, idempotencyKey: key })}`, mentions: [{ kind: "agent", id: agent }] });
+  const count = async (): Promise<number> => Number((await docker(["exec", name, "sh", "-c", "cat /tmp/vyre-count 2>/dev/null || echo 0"], 10_000)).out.trim().split("\n")[0] || 0);
+  await post("echo ready", "keep-ready");
+  await waitFor(async () => { await d.hooks?.pump?.(); const r = await docker(["inspect", name], 10_000); return r.code === 0 ? true : null; }, 120_000);
+  await new Promise((r) => setTimeout(r, 2000));
+  await post("i=0; while true; do i=$((i+1)); echo $i > /tmp/vyre-count; sleep 1; done", "keep-loop");
+  await waitFor(async () => ((await count()) >= 2 ? true : null), 60_000);
+  // a clean stop (an update stops the daemon the same way): the engine records its turns cancelled with reason closing, as their askers. In this one process the stopped daemon's turn loop
+  // still renews its lease once on the closed database ("database is not open", engine.ts renew after close); a real daemon process has exited by then, so that one error is let go here
+  const wind = (e: unknown): void => { if (!/database is not open/.test(String((e as Error)?.message ?? e))) throw e; };
+  process.on("uncaughtException", wind); process.on("unhandledRejection", wind);
+  t.after(() => { process.off("uncaughtException", wind); process.off("unhandledRejection", wind); });
+  await d.stop().catch(wind);
+  const atStop = await count();
+  await new Promise((r) => setTimeout(r, 3000));
+  assert.ok((await count()) > atStop, "still counting while the daemon is down");
+  d = await boot(dir, standIn, undefined, conf);
+  for (let i = 0; i < 10; i++) { await d.hooks?.pump?.(); await new Promise((r) => setTimeout(r, 500)); }
+  const a = await count();
+  await new Promise((r) => setTimeout(r, 3000));
+  const b = await count();
+  console.log(`KEEP counter ${atStop} at the stop, ${a} then ${b} after the restart`);
+  assert.ok(b > a, `the command still runs after the restart (${a} then ${b})`);
+  await docker(["exec", name, "sh", "-c", "pkill -f 'vyre-count' || true"], 10_000);
+});
+
+test("a tab that already ran a command and is busy with a later long one is readable by its owner", { skip, timeout: 600_000 }, async (t) => {
+  const savedImage = process.env["VYRE_WORKSPACE_IMAGE"];
+  process.env["VYRE_WORKSPACE_IMAGE"] = IMAGE;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-busy-"));
+  const d = await boot(dir, standIn, undefined, {
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_busy", "--space-name", "Personal", "--space-kind", "personal", "--role", "space,device"], {}, "1.2.3"),
+    computersHomeIntervalMs: 300, workspaceIdleMs: 600_000,
+  });
+  let name = "";
+  t.after(async () => {
+    process.env["VYRE_WORKSPACE_IMAGE"] = savedImage ?? "";
+    if (savedImage === undefined) delete process.env["VYRE_WORKSPACE_IMAGE"];
+    await d.stop();
+    if (name !== "") { await docker(["rm", "-f", name], 60_000); await docker(["volume", "rm", "-f", `${name}-home`, `${name}-files`], 60_000); }
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const code = decodeURIComponent(new URL(d.claim!.url).pathname.split("/").pop() ?? "");
+  const device = { deviceName: "Dana's Mac", deviceClass: "desktop" };
+  assert.equal((await call(d, null, "identity.claim_owner", { code, spaceId: "spc_busy", username: "dana", displayName: "Dana Reyes", password: PASSWORD, ...device, keys: KEYS })).status, 200);
+  const token = ((await call(d, null, "identity.sign_in", { username: "dana", password: PASSWORD, ...device })).data.session as { token: string }).token;
+  const unlock = await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ key: Buffer.alloc(32, 7).toString("base64") }) });
+  assert.equal(unlock.status, 204);
+  const folder = await ok(d, token, "vault.folders.create", { name: "Accounts", scope: "mine" });
+  const flow = await ok(d, token, "providers.subscription_start", { providerKey: "claude-code" });
+  await ok(d, token, "vault.item.put", { folderId: folder.folder.id, name: "Dana_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: KEY, secret: true }] });
+  await ok(d, token, "providers.subscription_complete", { flowId: flow.flowId });
+  const agent = (await ok(d, token, "agents.create", { name: "Dex", role: "You help." })).agent.agentId as string;
+  name = `vyre-ws-${agent}`;
+  const threadId = (await ok(d, token, "chat.start", { kind: "chat", agentIds: [agent] })).thread.threadId as string;
+  await ok(d, token, "threads.set_mode", { threadId, mode: "auto" });
+  const results = async (): Promise<number> => { await d.hooks?.pump?.(); const m = ((await call(d, token, "chat.messages.list", { threadId })).data.messages as Array<{ author?: { kind?: string }; body?: string }> | undefined) ?? []; return m.filter((x) => x.author?.kind === "agent" && /TOOL RESULT/.test(x.body ?? "")).length; };
+  const post = (command: string, key: string) => ok(d, token, "chat.post", { threadId, body: `TOOL terminal_run ${JSON.stringify({ command, session: "busy", idempotencyKey: key })}`, mentions: [{ kind: "agent", id: agent }] });
+  await post("echo first", "busy-first");
+  await waitFor(async () => ((await results()) >= 1 ? true : null), 120_000);
+  const row = ((await ok(d, token, "terminal.list", { section: "personal" })).terminals as Array<{ terminalId: string; name: string }>).find((x) => x.name === "busy");
+  assert.ok(row);
+  await post("sleep 20", "busy-long");
+  await waitFor(async () => { const r = await docker(["exec", name, "pgrep", "-f", "^sleep 20$"], 10_000); return r.code === 0 ? true : null; }, 60_000);
+  const g = await call(d, token, "terminal.get", { terminalId: row.terminalId });
+  const a = await call(d, token, "terminal.attach", { terminalId: row.terminalId });
+  console.log(`BUSY get ${g.status} attach ${a.status}`);
+  assert.deepEqual([g.status, a.status], [200, 200], "busy with a later command, the tab is readable by its owner");
+  // the turn ends before the daemon stops (a test daemon stopped mid-turn trips over its closed database)
+  await docker(["exec", name, "pkill", "-f", "^sleep 20$"], 10_000);
+  await waitFor(async () => ((await results()) >= 2 ? true : null), 60_000);
+});

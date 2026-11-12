@@ -403,7 +403,7 @@ jobs:
           VYRE_WORKSPACE_TEST_IMAGE: vyre/agent-workspace:ci-${{ github.run_id }}
         run: |
           set -o pipefail
-          node --test --test-force-exit --test-timeout=1800000 --test-reporter=spec modules/terminal/tests/workspace.isolation.heavy.test.ts modules/terminal/tests/workspace.trash.heavy.test.ts modules/sites/tests/site-networks.heavy.test.ts test/terminal.assistant-attach.heavy.test.ts test/terminal.stop.heavy.test.ts modules/terminal/tests/workspace.scale.heavy.test.ts 2>&1 | tee workspace-scale.log
+          node --test --test-force-exit --test-timeout=1800000 --test-reporter=spec modules/terminal/tests/workspace.isolation.heavy.test.ts modules/terminal/tests/workspace.trash.heavy.test.ts modules/sites/tests/site-networks.heavy.test.ts test/terminal.assistant-attach.heavy.test.ts test/terminal.stop.heavy.test.ts test/terminal.restart.heavy.test.ts modules/terminal/tests/workspace.scale.heavy.test.ts 2>&1 | tee workspace-scale.log
           grep -a -E "SCALE-NUMBERS|SITES-NUMBERS" workspace-scale.log || true
           # a skip is not a pass: node --test reports skipped tests on its own line
           grep -a -q -E "^ℹ skipped 0$" workspace-scale.log || { echo "a heavy test was skipped (is Docker or the image missing?)" >&2; exit 1; }
