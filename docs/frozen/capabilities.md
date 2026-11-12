@@ -117,3 +117,10 @@ The hashes in `docs/frozen/snapshots/automations.json` were written again at the
 `previews.get@1`, `previews.pages@1` and `previews.text@1` now declare `emits: ['preview.ready', 'preview.failed']`. The first read of a file version whose preview was never made renders it inline and announces the result, as `previews.render` does; an undeclared event was refused at run time, so that first read answered 500 "event not declared in emits". Nothing else in their contracts changed: same input, output, level, permission and errors; the events carry their own declared payloads.
 
 Signed: lead, 12 Nov 2026
+
+## 12 Nov 2026: read_link and read_docs say an agent may open any public link (lane f-wire)
+
+- What changed: the summaries of `automations.read_link@1` and `automations.read_docs@1`, the words the model reads. They now say the agent may open any public https link, including one it puts together, and that inside an Automation started from outside such a link waits for the person. Input, output, gate (`act: send`, `when: links.is_composed(input.url)`), level, permission and errors are unchanged; only `docs/frozen/snapshots/automations.json` moved.
+- Why: the gate's rule changed for rc.26 (modules/gate/handlers/grants.ts linksKnown: a composed link is held only under an uncleared Automation mark). The old words, "a link you put together yourself waits for the person", told the model to avoid composing links or to ask first, the opposite of the owner's rule that agents may open any link.
+
+Signed: lead, 12 Nov 2026
