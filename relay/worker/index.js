@@ -696,13 +696,16 @@ export class RouteRelay {
     if (w.n >= PUBLIC.perMinute || seen >= PUBLIC.ipPerMinute) return new Response(null, { status: 429, headers: { "retry-after": "60" } });
     // a web request trigger has its own minute too: for the Space, and for one hook
     if (typeof head.hook === "string") {
-      if (!w.hooks) w.hooks = { n: 0, per: new Map(), ips: new Map() };
+      // counted per Space, per hook, and per visitor address on that hook (a shared sender address posting for many customers cannot spend another customer's share without the hook's id).
+      // Memory is bounded: a key is added only when a request is let through, and at most HOOKS.perMinute are let through a minute, so each map holds at most that many entries.
+      if (!w.hooks) w.hooks = { n: 0, per: new Map(), visitors: new Map() };
+      const vk = `${ip}|${head.hook}`;
       const one = w.hooks.per.get(head.hook) || 0;
-      const mine = w.hooks.ips.get(ip) || 0;
-      if (w.hooks.n >= HOOKS.perMinute || one >= HOOKS.perHookPerMinute || mine >= HOOKS.perVisitorPerMinute) return new Response(null, { status: 429 });
+      const mine = w.hooks.visitors.get(vk) || 0;
+      if (w.hooks.n >= HOOKS.perMinute || one >= HOOKS.perHookPerMinute || mine >= HOOKS.perVisitorPerMinute) return new Response(null, { status: 429, headers: { "retry-after": "60" } });
       w.hooks.n++;
       w.hooks.per.set(head.hook, one + 1);
-      w.hooks.ips.set(ip, mine + 1);
+      w.hooks.visitors.set(vk, mine + 1);
     }
     w.n++;
     w.ips.set(ip, seen + 1);

@@ -492,13 +492,17 @@ test("/hooks/: only a POST of the exact shape reaches the box, with only content
   await bare(hook, { method: "POST", body: new Uint8Array((1 << 20) + 1) });
   assert.equal(asked.length, 1, "none of those reached the box");
   // the box says no (no such hook, paused, rotated): the same bare 404
-  for (const status of [404, 401, 429, 500]) { answer = status; await bare(hook, { method: "POST", body: "{}" }); }
+  for (const status of [404, 401, 500]) { answer = status; await bare(hook, { method: "POST", body: "{}" }); }
+  // the box's own rate limit is a 429 with Retry-After: it says nothing about the id or secret
+  answer = 429;
+  const limited = await call(rt, hook, { method: "POST", body: "{}" });
+  assert.deepEqual([limited.status, limited.headers.get("retry-after"), await limited.text()], [429, "60", ""]);
   answer = 200;
   assert.ok(lines.length > 0, "requests are logged");
   assert.ok(lines.every((l) => !l.includes(SECRET) && !l.includes("/hooks/automation")), `no log line carries the path: ${lines.join("\n")}`);
 });
 
-test("/hooks/: a Space takes 120 a minute and one hook 30; past that, the same bare 404 and nothing reaches the box", async t => {
+test("/hooks/: a Space takes 120 a minute and one hook 30; past that, a 429 with Retry-After and nothing reaches the box", async t => {
   const rt = world(t);
   const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, {}, "{}"));
   const post = (id, i) => call(rt, `https://harbor.vyre.run/hooks/automation/${id}/secretvalue${i}xx`, { method: "POST", body: "{}", headers: { "cf-connecting-ip": `198.51.100.${i % 250}` } });
@@ -507,19 +511,23 @@ test("/hooks/: a Space takes 120 a minute and one hook 30; past that, the same b
   assert.equal(ok, 30, "one hook: 30 a minute");
   for (let i = 0; i < 120; i++) await post(`aut_h${i % 10}`, i);
   assert.equal(asked.length, 120, "the Space: 120 a minute, whatever the hook");
-  assert.equal((await post("aut_new", 999)).status, 404);
+  const over = await post("aut_new", 999);
+  assert.deepEqual([over.status, over.headers.get("retry-after")], [429, "60"]);
   assert.equal(asked.length, 120);
 });
 
-test("/hooks/: one visitor takes 20 a minute, so a single address cannot spend the Space's whole budget", async t => {
+test("/hooks/: one visitor takes 20 a minute on one hook, with a 429 and Retry-After; the same address on another hook, or another address, still gets through", async t => {
   const rt = world(t);
   const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, {}, "{}"));
-  const post = (ip, i) => call(rt, `https://harbor.vyre.run/hooks/automation/aut_v${i % 5}/secretvalue${i}xx`, { method: "POST", body: "{}", headers: { "cf-connecting-ip": ip } });
+  const post = (ip, id, i) => call(rt, `https://harbor.vyre.run/hooks/automation/${id}/secretvalue${i}xx`, { method: "POST", body: "{}", headers: { "cf-connecting-ip": ip } });
   let mine = 0;
-  for (let i = 0; i < 25; i++) if ((await post("203.0.113.50", i)).status === 200) mine++;
+  for (let i = 0; i < 20; i++) if ((await post("203.0.113.50", "aut_shared", i)).status === 200) mine++;
   assert.equal(mine, 20);
-  assert.equal((await post("203.0.113.51", 99)).status, 200, "another visitor still gets through");
-  assert.equal(asked.length, 21);
+  const limited = await post("203.0.113.50", "aut_shared", 20);
+  assert.deepEqual([limited.status, limited.headers.get("retry-after")], [429, "60"], "the 21st from one address on one hook");
+  assert.equal((await post("203.0.113.50", "aut_other", 21)).status, 200, "a shared sender address still reaches another customer's hook: the count is per address and hook");
+  assert.equal((await post("203.0.113.51", "aut_shared", 22)).status, 200, "another address on the same hook");
+  assert.equal(asked.length, 22);
 });
 
 test("info.json says the relay carries web request triggers, so the box can tell its card the truth", async t => {

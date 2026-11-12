@@ -55,8 +55,9 @@ const RESPONSE_KEEP = new Set(["accept-ranges", "cache-control", "content-dispos
 export const DOOR = /^\/(?:mcp|oauth\/(?:authorize|register|token|wait)|\.well-known\/oauth-(?:protected-resource(?:\/mcp)?|authorization-server))$/;
 /**
  * A web request trigger: POST /hooks/automation/<id>/<secret> and that exact shape only (host/src/seams/relay.ts HOOK and host/src/routes/webhooks.ts AUTOMATION_PATH say the same). It is a new way in
- * from the internet, so it is narrow: POST only, no query, a body of 1 MB at most, only content-type and an idempotency key reach the box, and a Space takes 120 a minute, one hook 30 and one visitor 20 (the route
- * object counts them, alongside the per-visitor limit every public request has). Every refusal is the same bare 404, and the path, which carries the secret, is never logged.
+ * from the internet, so it is narrow: POST only, no query, a body of 1 MB at most, only content-type and an idempotency key reach the box, and a Space takes 120 a minute, one hook 30 and one visitor 20 on one hook
+ * (the route object counts them, alongside the per-visitor limit every public request has). A rate limit answers 429 with Retry-After (it says nothing about whether an id or secret is valid,
+ * and some senders turn an endpoint off after repeated 404s); every other refusal is the same bare 404, and the path, which carries the secret, is never logged.
  */
 export const HOOK = /^\/hooks\/automation\/(aut_[a-z0-9]{1,64})\/[A-Za-z0-9_-]{8,200}$/;
 export const HOOKS = Object.freeze({ maxBody: 1 << 20, perMinute: 120, perHookPerMinute: 30, perVisitorPerMinute: 20 });
@@ -407,6 +408,7 @@ export async function onHook(request, env, name, info, online) {
   const head = { method: "POST", path: url.pathname, ip: request.headers.get("cf-connecting-ip") || "", headers, hook: m[1] };
   let res;
   try { res = await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/p", { method: "POST", headers: { "x-vyre-p": JSON.stringify(head) }, body }); } catch { return done(notFound()); }
+  if (res.status === 429) return done(new Response(null, { status: 429, headers: { "retry-after": "60", "cache-control": "no-store" } }));
   if (res.status !== 200) return done(notFound());
   return done(new Response('{"accepted":true}', { status: 200, headers: { "content-type": "application/json", "cache-control": "no-store", "x-content-type-options": "nosniff" } }));
 }
