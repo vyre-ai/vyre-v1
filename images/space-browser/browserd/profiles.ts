@@ -146,8 +146,8 @@ export interface Profile {
   personActiveAt: number;
   /** When a person last had it in front of them (a view opened or closed, a takeover began or ended, their input): a person's use keeps the browser longer than an agent's (sixth look C). */
   personSeenAt: number;
-  /** The start of the browser a person last saw: one who takes over a browser reopened since is told its page was reloaded. */
-  personSeenStart: string;
+  /** The start of the browser each person last saw, by person: one who takes over a browser reopened since they last saw it is told its page was reloaded. */
+  seenBy: Map<string, string>;
 }
 
 export interface ProfileRow { profileId: string; spaceId?: string; personSeenAt?: number; running: boolean; tabs: number; busy: boolean; takeover: boolean; viewers: number; lastActiveAt: number; held: number; paused: boolean; takeoverBy?: string; bridge?: { connected: number; hello: boolean; optin: boolean } }
@@ -170,8 +170,8 @@ export interface ProfileManager {
   closeOther(spaceId: string, quietMs: number): Promise<string | null>;
   /** `reopened`: the browser started again since a person last saw it (or is not running and starts now): its page was reloaded. */
   takeover(id: string, personId: string): { reopened: boolean };
-  /** A person has it in front of them now (a view opened or closed, their input). */
-  personSaw(id: string): void;
+  /** A person has it in front of them now (a view opened or closed, their input); with their id, which start of the browser they saw. */
+  personSaw(id: string, personId?: string): void;
   /** `before`: release only a takeover that began before then (a release decided on a reading taken at that time never undoes a takeover that came after it). */
   giveBack(id: string, before?: number): void;
   /** A call says a person holds the profile (the Space's table): browserd holds it too. A call never releases one: only give back and the Space's periodic pass do. */
@@ -223,7 +223,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       p = {
         id, dir, vault: createVault(),
         state: { stopped: false, tabLimit: o.tabLimit ?? 10, takeover: null, busy: 0, caption: undefined },
-        chrome: null, lastActiveAt: now(), viewers: 0, agentId: undefined, agentName: undefined, spaceId: spaceOnDisk(dir), startId: "", starting: null, importingUntil: 0, dl: { active: new Set(), begunAt: 0, doneAt: 0 }, personActiveAt: 0, personSeenAt: 0, personSeenStart: "",
+        chrome: null, lastActiveAt: now(), viewers: 0, agentId: undefined, agentName: undefined, spaceId: spaceOnDisk(dir), startId: "", starting: null, importingUntil: 0, dl: { active: new Set(), begunAt: 0, doneAt: 0 }, personActiveAt: 0, personSeenAt: 0, seenBy: new Map(),
       };
       profiles.set(id, p);
     }
@@ -343,12 +343,15 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     const typing = name === "chrome_type" || name === "chrome_fill" || name === "chrome_act";
     // Handles are asked of the Vault before the browser starts: a refusal must not cost a Chromium.
     // a handle the call types is asked of the Vault as the person whose call it is (the call's own channel), never through whichever call came last
-    const filled = typing ? await (a.channel ?? p.vault).fillArgs(a.args) : { args: a.args, used: [] };
+    // busy from here (seventh look): while the Vault is asked for a value the browser is in use, so neither the idle sweep nor another Space's close_other closes it under the call
     p.state.busy += 1;
     p.lastActiveAt = now();
     try {
+      const filled = typing ? await (a.channel ?? p.vault).fillArgs(a.args) : { args: a.args, used: [] };
       const prof = await ensure(p.id);
       const c = prof.chrome as Chrome;
+      // and checked again once the browser is there: had it been closed and started again meanwhile, its page was reloaded, and nothing is typed into it
+      if (typeof a.seenFrom === "string" && a.seenFrom !== prof.startId) { const e = new AgentError("bad_input", REOPENED_LINE, "browser_reopened"); e.start = prof.startId; throw e; }
       // an act on refs from a snapshot taken under an earlier start of this browser (closed to make room, or stopped when idle, and its pages reloaded since): those refs may name nothing, or another
       // element. Refused, every time, until a new snapshot is taken (the module sends the start its last snapshot was taken under)
       if (typeof a.refsFrom === "string" && a.refsFrom !== "" && a.refsFrom !== prof.startId) throw new AgentError("bad_input", REOPENED_LINE, "browser_reopened");
@@ -378,12 +381,17 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       p.state.takeover = { personId, since: now() };
       p.lastActiveAt = now();
       const current = p.chrome?.alive() ? p.startId : "";
-      const reopened = p.personSeenStart !== "" && p.personSeenStart !== current;
+      const saw = p.seenBy.get(personId);
+      const reopened = saw !== undefined && saw !== current;
       p.personSeenAt = now();
-      if (current) p.personSeenStart = current;
+      if (current) p.seenBy.set(personId, current);
       return { reopened };
     },
-    personSaw(id) { const p = get(id); p.personSeenAt = now(); if (p.chrome?.alive() && p.startId) p.personSeenStart = p.startId; },
+    personSaw(id, personId) {
+      const p = get(id);
+      p.personSeenAt = now();
+      if (personId && p.chrome?.alive() && p.startId) { p.seenBy.set(personId, p.startId); if (p.seenBy.size > 50) p.seenBy.delete(p.seenBy.keys().next().value as string); }
+    },
     giveBack(id, before) { const p = get(id); if (p.state.takeover && before !== undefined && p.state.takeover.since >= before) return; const had = p.state.takeover !== null; p.state.takeover = null; p.lastActiveAt = now(); if (had) p.personSeenAt = now(); },
     setHold(id, personId) {
       const p = get(id);

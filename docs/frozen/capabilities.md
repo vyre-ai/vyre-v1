@@ -55,4 +55,6 @@ One consequence, called out by the reviewer: the `computers.take_over` role togg
 
 Signed: lead, 12 Nov 2026 (all of the above: slots, browser_full, reopened and note on chrome outputs, downloads on type and send with fileId optional and a note, take_over, give_back and sign_out on computers.watch with the browser's policy deciding)
 
-For the lead's sign-off (sixth look, added after the signature above): `computers.browser.take_over@1` gains an optional output `note`, one line for the pane when the browser was reopened since the person last saw it and its page was reloaded; and acts on the page (`click`, `act`, `type`, `fill`, `send`, `api`, `eval`) may now be refused with the reason `browser_reopened` until the agent has seen the reloaded page.
+Added on the reviewer's seventh look and signed below: `computers.browser.take_over@1` gains an optional output `note`, one line for the pane when the browser was reopened since the person last saw it and its page was reloaded; and acts on the page (`click`, `act`, `type`, `fill`, `send`, `api`, `eval`) may now be refused with the reason `browser_reopened` until the agent has seen the reloaded page.
+
+Signed: lead, 12 Nov 2026 (the optional note on computers.browser.take_over, and the browser_reopened refusal on acts)
