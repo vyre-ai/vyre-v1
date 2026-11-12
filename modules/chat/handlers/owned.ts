@@ -2,8 +2,8 @@
 //   owned     chat_thread_agent.owned = 1: the agent was made with threads.agent.create. It goes to Trash (agents.delete) when the chat is deleted or erased, or when it is removed from the chat, and comes
 //             back with threads.restore. A person who may not delete it cannot move it: the call is tolerated, never swallowed (a warning says so).
 //   grants    chat_thread_agent.grants: the resources threads.outside_agent.add shared with the agent, each with the source tag chat:<threadId>. Removing the agent takes them back at once.
-import { ensure, isMember, threadBy } from "../projections.ts";
-import { canSpeak } from "./post.ts";
+import { channelBy, ensure, isMember, membersOf, threadBy } from "../projections.ts";
+import { canSpeak, rootOf } from "./post.ts";
 import type { ChatCtx } from "../projections.ts";
 import { oneAtATime } from "../../../lib/one-at-a-time.ts";
 
@@ -64,6 +64,41 @@ async function grant(ctx: ChatCtx, threadId: string, agentId: string, subject: S
     const add = globalThis.crypto.randomUUID();
     await ctx.call("access.share", { resource: { type: "agent", id: agentId }, subject, level: "view", source: sourceOf(threadId), idempotencyKey: `own:${threadId}:${agentId}:${subject.id}:${add}` }, { idempotencyKey: `own:${threadId}:${agentId}:${subject.id}:${add}` });
   } catch (e) { warn(ctx, "a chat's own agent could not be shown to a reader of the chat", e, { threadId, agentId, subject: subject.id }); }
+  // the agent's files folder follows a closed chat: its readers keep it by a grant of the same source (the folder is cut off from the Space, followHome). At Edit, what the Member role gave them
+  // before: the agent writes its notes there in a turn a reader asked for, and an agent's write is capped by the asker's own access
+  if (!homeIsClosed(ctx, threadId)) return;
+  const folderId = await folderOf(ctx, agentId);
+  if (!folderId) return;
+  try {
+    const add = globalThis.crypto.randomUUID();
+    await ctx.call("access.share", { resource: { type: "folder", id: folderId }, subject, level: "edit", source: sourceOf(threadId), idempotencyKey: `ownf:${threadId}:${agentId}:${subject.id}:${add}` }, { idempotencyKey: `ownf:${threadId}:${agentId}:${subject.id}:${add}` });
+  } catch (e) { warn(ctx, "a chat's own agent's folder could not be opened to a reader of the chat", e, { threadId, agentId, subject: subject.id }); }
+}
+
+// ---- the files folder of an agent a chat made follows that chat --------------------------------------------------------------------------------------
+// What an agent keeps from its work in a chat lands in its own folder (agent/skills/focus-files "Your own folder"). For a chat closed to the Space (a private chat, a thread of an invite-only
+// channel) that folder must be closed the same way: cut off from the Space (access audience "added": the Space roles do not reach it; its owner and the Space's owners and admins keep it), and
+// open to the chat's readers by grants of the chat's source, which leaving takes back with the agent's own (leaveThreads). An open channel's agent keeps its folder open to the Space.
+
+/** Is this chat closed to the Space: a private chat, or a thread under an invite-only channel. */
+export function homeIsClosed(ctx: ChatCtx, threadId: string): boolean {
+  const t = threadBy(ctx.db, threadId);
+  if (!t) return false;
+  const root = rootOf(ctx, t);
+  if (root.channelId === undefined) return root.kind === "chat" || root.kind === "ask";
+  return channelBy(ctx.db, root.channelId)?.visibility === "invite";
+}
+
+async function folderOf(ctx: ChatCtx, agentId: string): Promise<string | undefined> {
+  if (!ctx.call) return undefined;
+  try { return ((await ctx.call("agents.get", { agentId })) as { agent?: { folderId?: string } }).agent?.folderId; } catch { return undefined; }
+}
+
+/** Set the agent's folder to follow its chat now: closed to the Space when the chat is, open to the Space when it is not. Throws when it cannot: a folder left open would be a leak. */
+export async function followHome(ctx: ChatCtx, threadId: string, agentId: string): Promise<void> {
+  const folderId = await folderOf(ctx, agentId);
+  if (!folderId || !ctx.call) return;
+  await ctx.call("access.audience_set", { resource: { type: "folder", id: folderId }, audience: homeIsClosed(ctx, threadId) ? "added" : "space" });
 }
 
 // A person's grants from chats are written and taken back in one queue per person (lib/one-at-a-time.ts): a grant still being written for a newcomer can never land after the same person was
@@ -85,6 +120,54 @@ export async function shareOwnedWith(ctx: ChatCtx, threadId: string, person: str
     for (const agentId of ownedIn(ctx, [threadId])) {
       if (!isMember(ctx.db, threadId, person)) return;
       await grant(ctx, threadId, agentId, { kind: "person", id: person });
+    }
+  }, limits(ctx));
+}
+
+/**
+ * Bring one agent a chat made in line with who reads that chat now: its folder follows the chat (followHome), and the chat's readers hold the agent and, for a closed chat, its folder by
+ * grants of the chat's source. A closed chat's readers are its root's people (and its starter); an open channel's is the Space. Run when a channel's visibility changes and once at start.
+ */
+export async function convergeAgent(ctx: ChatCtx, threadId: string, agentId: string): Promise<void> {
+  const t = threadBy(ctx.db, threadId);
+  if (!t || !ctx.call) return;
+  await followHome(ctx, threadId, agentId);
+  const root = rootOf(ctx, t);
+  if (homeIsClosed(ctx, threadId)) {
+    const readers = [...new Set([...(root.starter?.startsWith("usr_") ? [root.starter] : []), ...membersOf(ctx.db, root.id).filter((p) => p.startsWith("usr_"))])];
+    for (const person of readers) await oneAtATime(queueOf(ctx, person), async () => { await grant(ctx, threadId, agentId, { kind: "person", id: person }); }, limits(ctx));
+    // a chat that was open gave the whole Space its agent: that goes now
+    try { await ctx.call("access.unshare", { resource: { type: "agent", id: agentId }, subject: { kind: "group", id: "space" }, source: sourceOf(threadId) }); }
+    catch (e) { warn(ctx, "an agent a chat made stayed shown to the whole Space after the chat was closed", e, { threadId, agentId }); throw e; }
+  } else {
+    await grant(ctx, threadId, agentId, { kind: "group", id: "space" });
+  }
+}
+
+/** Every agent the threads of this chat made, brought in line (convergeAgent). */
+export async function convergeHome(ctx: ChatCtx, root: string): Promise<void> {
+  for (const threadId of familyOf(ctx, root)) for (const agentId of ownedIn(ctx, [threadId])) await convergeAgent(ctx, threadId, agentId);
+}
+
+/** Once at start, and daily: every agent a chat made, in line with its chat (agents and folders made before folders followed their chats are brought in line). */
+export async function convergeAllHomes(ctx: ChatCtx): Promise<void> {
+  ensure(ctx.db);
+  const rows = ctx.db.all(`SELECT "thread", "agentId" FROM chat_thread_agent WHERE "owned" = 1 AND "deleted_at" IS NULL`) as Row[];
+  for (const r of rows) {
+    try { await convergeAgent(ctx, String(r["thread"]), String(r["agentId"])); }
+    catch (e) { warn(ctx, "an agent a chat made could not be brought in line with its chat", e, { threadId: String(r["thread"]), agentId: String(r["agentId"]) }); }
+  }
+}
+
+/** A person came into a chat or a channel: the agents its threads made, in the threads they can now read, are shown to them, and for a closed chat their folders too. */
+export async function joinThreads(ctx: ChatCtx, joined: string, person: string): Promise<void> {
+  await oneAtATime(queueOf(ctx, person), async () => {
+    const reader: ChatCtx = { ...ctx, principal: { kind: "person", id: person } };
+    delete (reader as { actingFor?: string }).actingFor;
+    for (const threadId of familyOf(ctx, joined)) {
+      const t = threadBy(ctx.db, threadId);
+      if (!t || !canSpeak(reader, t) || !homeIsClosed(ctx, threadId)) continue;
+      for (const agentId of ownedIn(ctx, [threadId])) await grant(ctx, threadId, agentId, { kind: "person", id: person });
     }
   }, limits(ctx));
 }
@@ -118,9 +201,10 @@ export async function leaveThreads(ctx: ChatCtx, left: string, person: string, d
       const reader: ChatCtx = { ...ctx, principal: { kind: "person", id: person } };
       delete (reader as { actingFor?: string }).actingFor;
       const gone = familyOf(ctx, left).filter((id) => { const t = threadBy(ctx.db, id); return t === null || !canSpeak(reader, t); });
-      if (ctx.call) for (const threadId of gone) for (const agentId of ownedIn(ctx, [threadId])) {
-        try { await ctx.call("access.unshare", { resource: { type: "agent", id: agentId }, subject: { kind: "person", id: person }, source: sourceOf(threadId) }); }
-        catch (e) { warn(ctx, "a chat's own agent could not be taken out of a leaver's sight", e, { threadId, agentId, subject: person }); throw e; }
+      // every grant this thread gave the person (its agents and their folders), by the thread's source
+      if (ctx.call) for (const threadId of gone) if (ownedIn(ctx, [threadId]).length > 0) {
+        try { await ctx.call("access.unshare", { subject: { kind: "person", id: person }, source: sourceOf(threadId) }); }
+        catch (e) { warn(ctx, "a chat's own agent could not be taken out of a leaver's sight", e, { threadId, subject: person }); throw e; }
       }
       for (const threadId of gone) if (threadId !== left) ctx.db.run(`UPDATE chat_thread_member SET deleted_at = ?, version = version + 1, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL`, ctx.now(), ctx.now(), threadId, person);
     } catch (e) {
@@ -140,9 +224,9 @@ export async function unshareOwnedFrom(ctx: ChatCtx, threads: string | readonly 
   const list = typeof threads === "string" ? [threads] : threads;
   return oneAtATime(queueOf(ctx, person), async () => {
     if (ctx.call) {
-      for (const threadId of list) for (const agentId of ownedIn(ctx, [threadId])) {
-        try { await ctx.call("access.unshare", { resource: { type: "agent", id: agentId }, subject: { kind: "person", id: person }, source: sourceOf(threadId) }); }
-        catch (e) { warn(ctx, "a chat's own agent could not be taken out of a leaver's sight", e, { threadId, agentId, subject: person }); throw e; }
+      for (const threadId of list) if (ownedIn(ctx, [threadId]).length > 0) {
+        try { await ctx.call("access.unshare", { subject: { kind: "person", id: person }, source: sourceOf(threadId) }); }
+        catch (e) { warn(ctx, "a chat's own agent could not be taken out of a leaver's sight", e, { threadId, subject: person }); throw e; }
       }
     }
     return drop();

@@ -515,11 +515,25 @@ export async function joinShare(ctx: ShareCtx, input: { resource: ResourceRef; p
 }
 
 /**
+ * The host writing what a chat gives its readers (modules/chat/handlers/owned.ts, run as the host for the chat calls that change who reads a chat): only on the chat's own agents and their files
+ * folders. An agent qualifies when it already carries a grant of this chat (the chat gave it to its readers when it made it); a folder qualifies when it is the files folder of such an agent (it
+ * grants that agent its home Edit). A host write labelled chat:X on anything else goes through the delegation check like anyone's.
+ */
+function hostWritesChatGrant(store: AccessStore, res: ResourceRec, source: string): boolean {
+  const carries = (id: string): boolean => [...store.grants.values()].some((g) => g.source === source && g.resource.id === id);
+  if (res.type === "agent") return carries(res.id);
+  if (res.type !== "folder") return false;
+  // the agent's home grant on its own folder is written by the host with a fixed id (gnt_<agent id without agt_>home)
+  return [...store.grants.values()].some((g) => g.resource.id === res.id && g.subject.kind === "agent" && g.id === `gnt_${g.subject.id.replace(/^agt_/, "")}home` && carries(g.subject.id));
+}
+
+/**
  * The host writing a project's roles is not a person delegating (a Space admin without Manage on the project changes a role through projects.members.set, which checked the right; the host then writes
  * the grants). It is only that for the project's own things: the grant carries source project:<id>, and the resource is project <id> itself, or one that already carries a grant of that same source
  * (the project's folder and channel, shared by the person who made the project). A host write labelled project:X on any other resource goes through the delegation check like anyone's.
  */
 function hostWritesProjectGrant(ctx: ShareCtx, store: AccessStore, res: ResourceRec, source: string | undefined): boolean {
+  if (isHostService(ctx.principal) && source?.startsWith("chat:")) return hostWritesChatGrant(store, res, source);
   if (!isHostService(ctx.principal) || !source?.startsWith("project:")) return false;
   if (res.type === "project") return res.id === source.slice("project:".length);
   return [...store.grants.values()].some((g) => g.source === source && g.resource.type === res.type && g.resource.id === res.id);
@@ -825,8 +839,13 @@ export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef;
     commit(ctx, store, ss, false && wasFresh, [res.id], false);
     return { audience: "space" as Audience, exporters: "admins" as Exporters, outside: false };
   }
-  if (!RECORDS.has(res.type)) raise(trace, "validation.bad_input", "who it is open to is set on a record type or a record");
-  must(ctx, store, res, "manage", "changing who it is open to");
+  // A folder too, with Only people added or the whole Space, never Only me: the files folder of an agent a private chat made follows that chat (modules/chat/handlers/owned.ts), cut off from
+  // the Space so the Space roles do not reach it, open to the chat's readers by grants, its owner, and the Space's owners and admins (KEEPERS) as a record only for people added is.
+  const folder = res.type === "folder";
+  if (!RECORDS.has(res.type) && !folder) raise(trace, "validation.bad_input", "who it is open to is set on a record type, a record or a folder");
+  if (folder && (input.audience === "me" || input.exporters !== undefined || input.outside !== undefined)) raise(trace, "validation.bad_input", "a folder is open to the Space or only to people added");
+  // the host's own sweep brings old agent folders in line with their chats
+  if (!(folder && isHostService(ctx.principal))) must(ctx, store, res, "manage", "changing who it is open to");
   if ((input.exporters !== undefined || input.outside !== undefined) && res.type !== "record_type") raise(trace, "validation.bad_input", "who may export and links outside the Space are set on the record type");
   const wasFresh = isFresh(ctx, store, ss);
   const row: Record<string, unknown> = { ...(res.row ?? {}) };

@@ -15,3 +15,6 @@
 - An artifact or site page you opened stops working the moment you sign out, are suspended or removed, including on pages you own.
 - Taken out of a channel, you keep of its threads only what you can still read: in an invite-only channel you are out of its threads too, and its agents are no longer yours to see or chat with.
 - Lowering a file share now lowers it, even over a share made before or from the Console.
+- The files of an agent made in a private chat or in a thread of an invite-only channel are now only for the people who can read that chat, the agent's owner, and the Space's owners and admins. Other members no longer open, list or find them, and the agent cannot read them for someone who is not in that chat.
+- Leaving or being taken out of that chat takes its agent's files away at once. Making the channel public opens them to the Space, and making it invite-only again closes them. Someone added to the channel gets them.
+- Agents made in private chats before this update have their files closed the same way when the server starts.
