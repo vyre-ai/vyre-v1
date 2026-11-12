@@ -520,7 +520,22 @@ async function sessionForRun(ctx: TermCtx, a: RunInput): Promise<SessionRow> {
   ) as Row[];
   const hit = found[0];
   if (hit) return needAccess(ctx, sessionOf(hit));
-  return openSession(ctx, { host, ...(agentId === undefined ? {} : { agentId }), ...(deviceId === undefined ? {} : { deviceId }), name: tab, named: a.session !== undefined && a.session.trim() !== "", by: await tabFor(ctx, scope), ...(a.cwd === undefined ? {} : { cwd: a.cwd }) }, unavailable(ctx));
+  const spec: OpenInput = { host, ...(agentId === undefined ? {} : { agentId }), ...(deviceId === undefined ? {} : { deviceId }), name: tab, named: a.session !== undefined && a.session.trim() !== "", by: await tabFor(ctx, scope), ...(a.cwd === undefined ? {} : { cwd: a.cwd }) };
+  // The new tab is opened in a call of its own, which commits at once: its access resource (terminal/<id>) is registered in the commit of the call that opened it, and this call commits only
+  // when its command ends (or never, when it is stopped or fails). Opened here, the owner could not read the tab while the agent's first command in it ran, nor ever after a stopped one
+  // (release gate, 12 Nov: "The server shell is locked" for the Owner). Where no pipeline is around it (a test calling the handler), it is opened here as before.
+  if (ctx.call) {
+    const r = (await ctx.call("host.hook.call.terminal.open_tab", { input: spec })) as { terminalId?: unknown } | undefined;
+    const row = typeof r?.terminalId === "string" ? sessionBy(ctx.db, r.terminalId) : null;
+    if (row) return row;
+  }
+  return openSession(ctx, spec, unavailable(ctx));
+}
+
+/** The run's new tab, opened in its own call (sessionForRun): the same session terminal_run would have made, committed before its command runs. */
+export async function openTabForRun(ctx: TermCtx, spec: OpenInput): Promise<{ terminalId: string }> {
+  const row = await openSession(ctx, spec, unavailable(ctx));
+  return { terminalId: row.terminalId };
 }
 
 export async function run(ctx: TermCtx, a: RunInput) {

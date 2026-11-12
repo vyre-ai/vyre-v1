@@ -110,6 +110,7 @@ test("terminal_open on a workspace names the agent; an agent opens only its own 
 
 function facts(table: Record<string, { ownerId: string; kind?: string; runtime?: string }>) {
   return (cap: string, input: unknown): Promise<unknown> => {
+    if (cap === "host.hook.call.terminal.open_tab") return undefined;   // no pipeline here: the handler opens the run's tab itself
     if (cap !== "agents.get") throw new Error(`unexpected ${cap}`);
     const a = table[(input as { agentId: string }).agentId];
     return Promise.resolve(a ? { agent: { agentId: (input as { agentId: string }).agentId, ...a } } : undefined);

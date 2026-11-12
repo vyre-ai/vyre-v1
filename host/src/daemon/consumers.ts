@@ -46,6 +46,8 @@ export const HOST_ONLY_CALL = /^(vault\.signin_refreshed|vault\.mine_(set|remove
  */
 export const MODULE_PATH_CALL: Readonly<Record<string, readonly string[]>> = {
   "terminal.workspace_revoke": ["projects.members.remove", "projects.teammates.remove"],
+  // terminal_run's new tab, opened in a call of its own so it is committed (and its access resource registered) before the command runs
+  "terminal.open_tab": ["terminal.run"],
 };
 export function guardCall(name: string, ctx: Pick<Ctx, "origin" | "depth" | "trace"> & { principal?: { kind: string; id: string }; callerCap?: string }): void {
   const only = MODULE_PATH_CALL[name];

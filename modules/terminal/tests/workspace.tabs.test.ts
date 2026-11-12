@@ -34,6 +34,8 @@ const NAMES: Record<string, string> = { agt_ember: "Ember", agt_pamhelper: "Scou
 const calls = async (cap: string, input: unknown): Promise<unknown> => {
   if (cap === "threads.get") { const t = THREADS[(input as { threadId: string }).threadId]; return t ? { thread: { threadId: (input as { threadId: string }).threadId, ...t } } : undefined; }
   if (cap === "agents.get") return { agent: { agentId: (input as { agentId: string }).agentId, name: NAMES[(input as { agentId: string }).agentId] ?? "Dex", ownerId: "usr_dana", kind: "teammate" } };
+  // the run's new tab is opened in a call of its own under the pipeline; with none here, the handler opens it itself
+  if (cap === "host.hook.call.terminal.open_tab") return undefined;
   throw new Error(`unexpected ${cap}`);
 };
 

@@ -119,3 +119,49 @@ test("Stop during sleep 120: the command is interrupted and the next command ans
   assert.ok(ms < 20_000, `the next command answered in ${ms} ms, not after the sleep`);
   console.log(`STOP-NEXT ${ms} ms`);
 });
+
+test("a session an agent's command opens is readable by its owner while that first command still runs, and after it was stopped", { skip, timeout: 600_000 }, async (t) => {
+  const savedImage = process.env["VYRE_WORKSPACE_IMAGE"];
+  process.env["VYRE_WORKSPACE_IMAGE"] = IMAGE;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-open-"));
+  const d = await boot(dir, standIn, undefined, {
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_open", "--space-name", "Personal", "--space-kind", "personal", "--role", "space,device"], {}, "1.2.3"),
+    computersHomeIntervalMs: 300, workspaceIdleMs: 600_000,
+  });
+  let name = "";
+  t.after(async () => {
+    process.env["VYRE_WORKSPACE_IMAGE"] = savedImage ?? "";
+    if (savedImage === undefined) delete process.env["VYRE_WORKSPACE_IMAGE"];
+    await d.stop();
+    if (name !== "") { await docker(["rm", "-f", name], 60_000); await docker(["volume", "rm", "-f", `${name}-home`, `${name}-files`], 60_000); }
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const code = decodeURIComponent(new URL(d.claim!.url).pathname.split("/").pop() ?? "");
+  const device = { deviceName: "Dana's Mac", deviceClass: "desktop" };
+  assert.equal((await call(d, null, "identity.claim_owner", { code, spaceId: "spc_open", username: "dana", displayName: "Dana Reyes", password: PASSWORD, ...device, keys: KEYS })).status, 200);
+  const token = ((await call(d, null, "identity.sign_in", { username: "dana", password: PASSWORD, ...device })).data.session as { token: string }).token;
+  const unlock = await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ key: Buffer.alloc(32, 7).toString("base64") }) });
+  assert.equal(unlock.status, 204);
+  const folder = await ok(d, token, "vault.folders.create", { name: "Accounts", scope: "mine" });
+  const flow = await ok(d, token, "providers.subscription_start", { providerKey: "claude-code" });
+  await ok(d, token, "vault.item.put", { folderId: folder.folder.id, name: "Dana_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: KEY, secret: true }] });
+  await ok(d, token, "providers.subscription_complete", { flowId: flow.flowId });
+  const agent = (await ok(d, token, "agents.create", { name: "Dex", role: "You help." })).agent.agentId as string;
+  name = `vyre-ws-${agent}`;
+  const threadId = (await ok(d, token, "chat.start", { kind: "chat", agentIds: [agent] })).thread.threadId as string;
+  await ok(d, token, "threads.set_mode", { threadId, mode: "auto" });
+  const post = (command: string, key: string, session?: string) => ok(d, token, "chat.post", { threadId, body: `TOOL terminal_run ${JSON.stringify({ command, ...(session ? { session } : {}), idempotencyKey: key })}`, mentions: [{ kind: "agent", id: agent }] });
+  // the first command in a new tab runs long
+  await post("sleep 25", "open-long", "long");
+  const row = await waitFor(async () => { await d.hooks?.pump?.(); const r = (await ok(d, token, "terminal.list", { section: "personal" })).terminals as Array<{ terminalId: string; name: string }>; return r.find((x) => x.name === "long") ?? null; }, 60_000);
+  const get = await call(d, token, "terminal.get", { terminalId: row.terminalId });
+  const att = await call(d, token, "terminal.attach", { terminalId: row.terminalId });
+  console.log(`MIDRUN get ${get.status} attach ${att.status} ${JSON.stringify(get.data).slice(0, 200)}`);
+  assert.deepEqual([get.status, att.status], [200, 200], "the owner reads the tab the agent's first command opened, while it runs");
+  // stopped mid-command: still readable
+  await call(d, token, "engine.stop", { threadId, agentId: agent });
+  await new Promise((r) => setTimeout(r, 2000));
+  await d.hooks?.pump?.();
+  const after = await call(d, token, "terminal.get", { terminalId: row.terminalId });
+  assert.equal(after.status, 200, `after the Stop: ${JSON.stringify(after.data).slice(0, 200)}`);
+});

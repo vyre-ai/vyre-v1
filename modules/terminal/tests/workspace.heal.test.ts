@@ -262,6 +262,7 @@ const THREADS: Record<string, { kind: string; title?: string; parentThreadId?: s
 const threadCalls = async (cap: string, input: unknown): Promise<unknown> => {
   if (cap === "threads.get") { const t = THREADS[(input as { threadId: string }).threadId]; return t ? { thread: { threadId: (input as { threadId: string }).threadId, ...t } } : undefined; }
   if (cap === "agents.get") return { agent: { agentId: (input as { agentId: string }).agentId, name: (input as { agentId: string }).agentId.startsWith("agt_scout") ? "Scout" : "Dex", ownerId: "usr_dana", kind: "teammate" } };
+  if (cap === "host.hook.call.terminal.open_tab") return undefined;   // no pipeline here: the handler opens the run's tab itself
   throw new Error(`unexpected ${cap}`);
 };
 
@@ -294,6 +295,7 @@ test("terminal.status tells nothing about a session in another person's Assistan
   const facts = async (cap: string, input: unknown): Promise<unknown> => {
     if (cap === "agents.get") return { agent: { agentId: (input as { agentId: string }).agentId, ownerId: "usr_dana", kind: "assistant" } };
     if (cap === "threads.get") return undefined;
+    if (cap === "host.hook.call.terminal.open_tab") return undefined;   // no pipeline here: the handler opens the run's tab itself
     throw new Error(`unexpected ${cap}`);
   };
   const asst: TermCtx = { ...hn.as({ kind: "agent", id: "agt_asst" }, "usr_dana", "run_1"), thread: "thr_a", call: facts as never };

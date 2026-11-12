@@ -4,7 +4,7 @@
 // is read back with capture-pane. Live frames come from a tmux control-mode client (`%output` lines, decoded here).
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { forgetExpiredWorkspaces, onAgentGone, onAgentRestored, stopRuns } from "./handlers/sessions.ts";
+import { forgetExpiredWorkspaces, onAgentGone, onAgentRestored, openTabForRun, stopRuns } from "./handlers/sessions.ts";
 import { bindWorkspaceStatus, bindHost, bindKit, bindMachineHost, bindMachinePlace, bindMachineValues, bindPlace, bindTeam, bindValues, bindWorkspaces, boundHost, redeemTicket, scopeOfId, scrubberFor, spellingsFor } from "./projections.ts";
 import { unixSocketHttp } from "../../sandbox/src/docker.ts";
 import { buildWorkspaceManager, createWorkspaceTerminalHost } from "./workspace.ts";
@@ -789,6 +789,8 @@ export const periodic = {
  * inside its per-project queue): the agent's workspace stops mounting and mirroring the project now; the consumer on project.member_removed is the backstop.
  */
 export const hostCalls = {
+  /** terminal_run's new tab, opened and committed before its command runs (only terminal.run may call it: host/src/daemon/consumers.ts MODULE_PATH_CALL). */
+  "terminal.open_tab": (ctx: TermCtx, input: unknown): Promise<{ terminalId: string }> => openTabForRun(ctx, input as Parameters<typeof openTabForRun>[1]),
   "terminal.workspace_revoke": async (_ctx: TermCtx, input: { agentId?: unknown; projectId?: unknown }): Promise<{ done: boolean }> => {
     if (typeof input?.agentId !== "string" || typeof input.projectId !== "string" || !workspaceManager) return { done: false };
     await workspaceManager.cut(input.agentId, input.projectId);
