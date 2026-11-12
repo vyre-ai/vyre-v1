@@ -1335,7 +1335,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         };
         try {
           // every binding, read from the connectors module's own table in the Space store (its list does not carry the handles)
-          const conns = (spaceStore.open().tx.all("SELECT connection_id, connector, secrets FROM cn_connections") as { connection_id: string; connector: string; secrets: string }[]).map((r) => {
+          // a Space whose connectors module has not made its tables yet (a fresh one) has no connections to adopt: that is zero, not a failure
+          const hasTable = (spaceStore.open().tx.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'cn_connections'") as unknown[]).length > 0;
+          const conns = (hasTable ? spaceStore.open().tx.all("SELECT connection_id, connector, secrets FROM cn_connections") as { connection_id: string; connector: string; secrets: string }[] : []).map((r) => {
             let handles: string[] = [];
             try { handles = Object.values(JSON.parse(r.secrets) as Record<string, unknown>).filter((v): v is string => typeof v === "string"); } catch { handles = []; }
             return { connectionId: r.connection_id, connector: r.connector, handles };

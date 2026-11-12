@@ -132,3 +132,9 @@ Signed: lead, 12 Nov 2026 (the optional reason on engine.turn.record and on turn
 12 Nov 2026, lane f-term (ninth look Z2): `engine.stop_all@1` gains an optional input `reason`, the one value `update`, which the desktop app passes when it stops its turns to update itself (host/src/daemon/daemon.ts engineSource.stopTurns). Its turns end with reason update and their `turn.cancelled` events carry `reason: "update"` instead of `pressed`, so the terminal leaves what they run in an agent's workspace running (the workspace outlives the app; the kept message runs again after). A person's Stop all is unchanged. Optional addition only.
 
 Signed: lead, 12 Nov 2026 (the optional reason update on engine.stop_all)
+
+## 12 Nov 2026: engine.step_turn may fail with validation.precondition_failed when the account needs a model and the step has none (lane f-auto)
+
+`engine.step_turn@1` now lists `validation.precondition_failed` among its errors, with reason `no_model`. When the API driver refuses a turn for a missing model (`engine.no_model`, on open or mid-turn), the step fails with "This AI step has no model. Give it an agent that has a model, or set a model on its agent." It used to fail as `provider.unavailable`, "The AI provider could not answer this step." Nothing else changes: no new check at save or turn-on, and no new model source. A subscription keeps running on its CLI's own default. Additive: one more declared error.
+
+Signed: lead, 12 Nov 2026

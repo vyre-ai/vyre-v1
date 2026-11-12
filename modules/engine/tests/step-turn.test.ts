@@ -228,3 +228,14 @@ test("an automation's AI account pays only when the Space kept it for automation
   const g = scene({ principal: svc, providers: [chatsOnly, credits] });
   assert.equal((await run(g.h, { keyId: "prv_o", idempotencyKey: "g1" })).keyUsed, "#Chats_Only");
 });
+
+test("an account that needs a model and gets none: the step fails in its own words, not as a provider error, and is not retried", async () => {
+  const { h } = scene({ script: [{ type: "error", status: 0, code: "engine.no_model", message: "No model is set for this chat." }] });
+  await assert.rejects(run(h), (e: unknown) => {
+    const err = (e as { error?: { code?: string; message?: string; retryable?: boolean } }).error;
+    assert.equal(err?.code, "validation.precondition_failed");
+    assert.equal(err?.message, "This AI step has no model. Give it an agent that has a model, or set a model on its agent.");
+    assert.notEqual(err?.retryable, true);
+    return true;
+  });
+});
