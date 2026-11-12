@@ -286,3 +286,11 @@ test("an agent the asker may no longer reach (made in a private chat they are no
   assert.equal(w.message, "This agent is no longer available to you.");
   assert.equal(w.retryable, false);
 });
+
+test("engine.policy_model says the Space only allows certain models and opens the model menu; Try again would fail the same way, so there is none", async () => {
+  const { wordsFor } = await import("./status.ts");
+  const w = wordsFor("engine.policy_model");
+  assert.equal(w.message, "This Space only allows certain AI models.");
+  assert.deepEqual(w.next, [{ key: "pick_model", label: "Choose a model" }]);
+  assert.equal(w.retryable, false);
+});
