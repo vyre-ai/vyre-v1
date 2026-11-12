@@ -9741,7 +9741,7 @@
       "blocks": [],
       "cap": "channels.members.add",
       "deferred": false,
-      "description": "Add people to a channel. With mentionedIn, each added person is told about that message like any mention; the message must be in the channel and mention them",
+      "description": "Add people to a channel. With mentionedIn (the line under a message that mentioned them), the message must be in the channel and mention each of them",
       "effects": "write",
       "inputSchema": {
         "properties": {

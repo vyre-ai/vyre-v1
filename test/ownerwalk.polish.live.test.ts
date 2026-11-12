@@ -20,6 +20,9 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
   try {
     await connectAi(w);
     const dex = (await w.api("agents.create", { name: "Dex", role: "You help the team plan and ship launches.", idempotencyKey: "pw-dex" })).data.agent.agentId as string;
+    // the two teammates of the @mention steps (9 to 14) join first, while the walk is fresh
+    const maya = await w.join("Maya", "Lin", "maya");
+    const omar = await w.join("Omar", "Haddad", "omar");
 
     await w.step("1 Your Profile opens in the Settings tab already open", async () => {
       await w.go("settings", "settings-place");
@@ -171,8 +174,6 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
     });
 
     // 9 to 14: the @mention line (owner, 12 Nov 2026: "Maya is not in this chat." with Add, like Slack), in the same daemon and browser (review M6: one boot for the file)
-    const maya = await w.join("Maya", "Lin", "maya");
-    const omar = await w.join("Omar", "Haddad", "omar");
     const thread = (await w.api("chat.start", { kind: "chat", agentIds: [dex], title: "Pricing copy", idempotencyKey: "mw-th" })).data.thread.threadId as string;
     assert.equal((await w.api("threads.members.add", { threadId: thread, personId: omar.personId })).status, 200);
 

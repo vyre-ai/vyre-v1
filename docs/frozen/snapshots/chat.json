@@ -13,7 +13,7 @@
     "channels.join@1": "dcfecebf1fef052fd558d0b10988fe08b13d2f4c37ef63c44a87c37da73226df",
     "channels.leave@1": "61659cf90ca9ebcfe323df41b2c604eec031523aed80298afed66ebf52db0bcf",
     "channels.list@1": "da607fb2ace4d16bdfe04ac7e0bc9817509b743848efd8b99e002299e5e785de",
-    "channels.members.add@1": "fe63180807fdff2bc3f61703a2d3523c45d41dff080ade963fe125305f53fbbe",
+    "channels.members.add@1": "53da0bfd71a7adea38a848c32f1da6480dd617c0a268c7f809c572843ef7d05a",
     "channels.members.remove@1": "71a41b47912dd87181484028bc722c76aada2d4bfea7527df96219349059ec94",
     "channels.stream@1": "b1b5aecaf261aabd6bcaff3a3cb2a2cb85ba725b0dc8b3d620c1c0c50325da88",
     "channels.stream_prefs.get@1": "91cd97709d908f89e03c688f92e4904578f576113a3f206e422f20077ac25a4f",

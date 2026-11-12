@@ -8,7 +8,7 @@
 // The access level of each capability was checked on the channel before these run. Read cursors belong to threads.mark_read (table chat_thread_read, made here if it is not there yet).
 import { readFloor } from "./floor.ts";
 import {
-  MAX_NAME, askerOf, channelBy, channelByName, channelOfRecord, channelOut, ensure, membersOf, agentsOf, isMember, addAgent, addMember, messageBy, messageOf, nameKey, raise, refOf, threadBy, threadOf,
+  MAX_NAME, askerOf, channelBy, channelByName, channelOfRecord, channelOut, ensure, membersOf, agentsOf, isMember, addAgent, addMember, messageBy, messageOf, nameKey, raise, threadBy, threadOf,
 } from "../projections.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChannelRec, ChatCtx, Db, Mode } from "../projections.ts";
@@ -205,7 +205,7 @@ export async function channelsUnarchive(ctx: ChatCtx, input: { channelId: string
 
 export async function channelsMembersAdd(ctx: ChatCtx, input: { channelId: string; personIds: string[]; level?: string; mentionedIn?: string }) {
   const ch = loadLive(ctx, input.channelId);
-  // added from "Maya is not in this chat. Add" under a message in this channel (or a reply thread under it): each is told about it like any mention, the same as threads.members.add (12 Nov)
+  // added from "Maya is not in this chat. Add" under a message in this channel (or a reply thread under it): the message must be here and mention each of them (review M2, M3)
   const mentioned = input.mentionedIn !== undefined ? messageBy(ctx.db, input.mentionedIn) : null;
   const where = mentioned ? threadBy(ctx.db, mentioned.thread) : null;
   if (input.mentionedIn !== undefined && (!mentioned || !where || rootOf(ctx, where).id !== ch.mainThread)) raise(ctx, "validation.bad_input", "That message is not in this channel.", { mentionedIn: input.mentionedIn });
@@ -222,7 +222,7 @@ export async function channelsMembersAdd(ctx: ChatCtx, input: { channelId: strin
     addMember(ctx, ch.mainThread, personId);
     await joinThreads(ctx, ch.mainThread, personId);
     ctx.emit("channel.member_added", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId, by });
-    if (mentioned && where && mentioned.author !== personId) ctx.emit("message.mentioned", where.id, { messageId: mentioned.id, threadId: where.id, personId, author: refOf(mentioned.author), inThread: where.kind === "thread" });
+    // no second "mentioned you": a channel is not private, so chat.post already told everyone its chips name (post.ts deliver), member or not
   }
   return refreshed(ctx, ch.id);
 }

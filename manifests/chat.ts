@@ -592,9 +592,9 @@ export default defineManifest({
     write('channels.leave', 'Leave a channel', {
       in: channelT, out: { ok: t.bool() }, on: ['channel', '/channelId'], level: 'view', emits: ['channel.member_removed'], tool: 'chats', idem: 'natural',
     }),
-    write('channels.members.add', 'Add people to a channel. With mentionedIn, each added person is told about that message like any mention; the message must be in the channel and mention them', {
+    write('channels.members.add', 'Add people to a channel. With mentionedIn (the line under a message that mentioned them), the message must be in the channel and mention each of them', {
       in: { ...channelT, personIds: t.arr(id.user, { minItems: 1 }), level: t.opt(level), mentionedIn: t.opt(id.message) }, out: { channel: channelRow }, on: ['channel', '/channelId'], level: 'manage',
-      emits: ['channel.member_added', 'message.mentioned'], tool: 'chats',
+      emits: ['channel.member_added'], tool: 'chats',
     }),
     write('channels.members.remove', 'Remove a person from a channel', {
       in: { ...channelT, personId: id.user }, out: { channel: channelRow }, on: ['channel', '/channelId'], level: 'manage', emits: ['channel.member_removed'], tool: 'chats',

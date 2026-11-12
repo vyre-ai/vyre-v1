@@ -231,17 +231,18 @@ test("threads.members.add with mentionedIn: only a message that really mentions 
   assert.deepEqual(assertEventsConform(hn), []);
 });
 
-test("channels.members.add with mentionedIn tells each added person the same way as a chat (lead review M3, 12 Nov)", async () => {
+test("channels.members.add with mentionedIn: the person was told when the message was posted, and Add does not tell them twice (lead review M3, 12 Nov)", async () => {
   const hn = harness();
   const ch = await channelOf(hn);
   const posted = (await h["chat.post"]!(hn.ctx, { threadId: ch.mainThreadId, body: "@Leo please look", mentions: [{ kind: "person", id: LEO }], idempotencyKey: key() })).message;
+  assert.equal(hn.named("message.mentioned").filter((e) => e.payload["personId"] === LEO).length, 1, "a channel is not private: the post itself tells Leo, member or not");
   await h["channels.members.add"]!(hn.ctx, { channelId: ch.channelId, personIds: [LEO], mentionedIn: posted.messageId });
   const told = hn.named("message.mentioned").filter((e) => e.payload["personId"] === LEO);
-  assert.equal(told.length, 1, "Leo is told once");
+  assert.equal(told.length, 1, "Leo is told once, not again on Add");
   assert.equal(told[0]!.payload["messageId"], posted.messageId);
   const other = await chatOf(hn);
   const elsewhere = (await h["chat.post"]!(hn.ctx, { threadId: other, body: "@Maya hi", mentions: [{ kind: "person", id: MAYA }], idempotencyKey: key() })).message;
-  await refused("channels.members.add", hn.ctx, { channelId: ch.channelId, personIds: [MAYA], mentionedIn: elsewhere.messageId }, "validation.bad_input");
+  await assert.rejects(Promise.resolve().then(() => h["channels.members.add"]!(hn.ctx, { channelId: ch.channelId, personIds: [MAYA], mentionedIn: elsewhere.messageId })), (e: unknown) => codeOf(e) === "validation.bad_input", "a message from another chat is refused");
   assert.deepEqual(assertEventsConform(hn), []);
 });
 

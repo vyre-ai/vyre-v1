@@ -1281,7 +1281,7 @@
     {
       "deferred": false,
       "name": "channels_members_add",
-      "summary": "Add people to a channel. With mentionedIn, each added person is told about that message like any mention; the message must be in the channel and mention them",
+      "summary": "Add people to a channel. With mentionedIn (the line under a message that mentioned them), the message must be in the channel and mention each of them",
       "toolset": "chats"
     },
     {

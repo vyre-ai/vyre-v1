@@ -1,6 +1,6 @@
 # channels.members.add
 
-Add people to a channel. With mentionedIn, each added person is told about that message like any mention; the message must be in the channel and mention them
+Add people to a channel. With mentionedIn (the line under a message that mentioned them), the message must be in the channel and mention each of them
 
 | | |
 |---|---|
@@ -19,7 +19,7 @@ Add people to a channel. With mentionedIn, each added person is told about that 
 | HTTP | POST /v1/channels/members/add |
 | MCP tool | channels_members_add (chats) |
 | CLI | none |
-| Emits | channel.member_added, message.mentioned |
+| Emits | channel.member_added |
 
 ## Input
 

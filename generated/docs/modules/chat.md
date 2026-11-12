@@ -18,7 +18,7 @@ Requires: engine, hooks, mcp, members.
 - [channels.join](../capabilities/channels.join.md): Join a public channel
 - [channels.leave](../capabilities/channels.leave.md): Leave a channel
 - [channels.list](../capabilities/channels.list.md): List channels by section and folder (the items capability of the Channels list)
-- [channels.members.add](../capabilities/channels.members.add.md): Add people to a channel. With mentionedIn, each added person is told about that message like any mention; the message must be in the channel and mention them
+- [channels.members.add](../capabilities/channels.members.add.md): Add people to a channel. With mentionedIn (the line under a message that mentioned them), the message must be in the channel and mention each of them
 - [channels.members.remove](../capabilities/channels.members.remove.md): Remove a person from a channel
 - [channels.stream](../capabilities/channels.stream.md): The channel as a timeline: messages and Run items in order; repeated runs of one flow collapse into one row ("ran 6 times today"); counts feed the People, Agents and Runs menu
 - [channels.stream_prefs.get](../capabilities/channels.stream_prefs.get.md): My People, Agents and Runs choice for one channel

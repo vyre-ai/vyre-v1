@@ -119,7 +119,7 @@ export async function bootWalk(t: { test: (name: string, fn: () => Promise<void>
       const jp = await ctx.newPage(); watch(jp, username);
       const link = new URL(inv.link as string);
       await jp.goto(web.origin + link.pathname + link.hash);
-      await jp.getByTestId("step-accept").waitFor({ timeout: 20_000 });
+      await jp.getByTestId("step-accept").waitFor({ timeout: 20_000 }).catch(async (e: unknown) => { console.log(`JOIN PAGE (${username}): ${(await jp.locator("body").innerText().catch(() => "")).slice(0, 300)} LINK ${String(inv.link).replace(/[A-Za-z0-9_-]{12,}/g, (x: string) => `${x.slice(0, 3)}…(${x.length})`)} OPENED ${jp.url().replace(/[A-Za-z0-9_-]{12,}/g, (x: string) => `${x.slice(0, 3)}…(${x.length})`)}`); throw e; });
       await jp.getByTestId("web").click(); await jp.getByTestId("first").fill(first); await jp.getByTestId("last").fill(last); await jp.getByTestId("next").click();
       await jp.getByTestId("username").fill(username); await jp.getByTestId("password").fill(PASSWORD); await jp.getByTestId("confirm").fill(PASSWORD); await jp.getByTestId("next").click();
       await jp.getByTestId("device").fill(`${first}'s browser`); await jp.getByTestId("next").click();
