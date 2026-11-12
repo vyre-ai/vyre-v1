@@ -19619,6 +19619,12 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "reason": {
+            "enum": [
+              "update"
+            ],
+            "type": "string"
+          },
           "threadId": {
             "examples": [
               "thr_a1b2c3"

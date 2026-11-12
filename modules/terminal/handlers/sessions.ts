@@ -525,7 +525,10 @@ async function sessionForRun(ctx: TermCtx, a: RunInput): Promise<SessionRow> {
   // when its command ends (or never, when it is stopped or fails). Opened here, the owner could not read the tab while the agent's first command in it ran, nor ever after a stopped one
   // (release gate, 12 Nov: "The server shell is locked" for the Owner). Where no pipeline is around it (a test calling the handler), it is opened here as before.
   if (ctx.call) {
-    const r = (await ctx.call("host.hook.call.terminal.open_tab", { input: spec })) as { terminalId?: unknown } | undefined;
+    // the call failing (a pipeline that refuses it, a host call not there) opens the tab here as before, rather than failing the command
+    let r: { terminalId?: unknown } | undefined;
+    try { r = (await ctx.call("host.hook.call.terminal.open_tab", { input: spec })) as { terminalId?: unknown } | undefined; }
+    catch (e) { ctx.log.warn("terminal: the run's tab was opened in its own call's stead", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" }); r = undefined; }
     const row = typeof r?.terminalId === "string" ? sessionBy(ctx.db, r.terminalId) : null;
     if (row) return row;
   }

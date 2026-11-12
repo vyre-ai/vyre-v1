@@ -26,6 +26,7 @@ Stop every agent working in a thread (Stop all in the conversation header)
 ```ts
 type In = {
   threadId: string;
+  reason?: "update";
 };
 ```
 
@@ -51,6 +52,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "reason": "update",
     "threadId": "thr_a1b2c3"
   },
   "output": {

@@ -12504,6 +12504,7 @@ export type EngineStopOut = {
 };
 export type EngineStopAllIn = {
   threadId: string;
+  reason?: "update";
 };
 export type EngineStopAllOut = {
   stopped: number;

@@ -114,12 +114,14 @@ export async function interrupt(ctx: EngineCtx, input: { threadId: string; messa
   return { queued: r.queued };
 }
 
-async function stopWith(ctx: EngineCtx, threadId: string, o: { agentId?: string; all: boolean }): Promise<{ stopped: number }> {
+async function stopWith(ctx: EngineCtx, threadId: string, o: { agentId?: string; all: boolean; reason?: "update" }): Promise<{ stopped: number }> {
   const engine = await open(ctx, threadId);
-  const r = await engine.stop(threadId, { ...(o.agentId === undefined ? {} : { agentId: o.agentId }), clearQueue: o.all });
+  const r = await engine.stop(threadId, { ...(o.agentId === undefined ? {} : { agentId: o.agentId }), clearQueue: o.all, ...(o.reason ? { reason: o.reason } : {}) });
   const by = actorOf(ctx);
-  for (const c of r.stopped) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by, pressed: true });
-  for (const c of r.released) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by, pressed: true });
+  // a person's Stop is pressed; the app stopping its turns for an update is not (its terminal commands outlive the app), and says why
+  const why = o.reason ? { reason: o.reason } : { pressed: true };
+  for (const c of r.stopped) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by, ...why });
+  for (const c of r.released) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by, ...why });
   return { stopped: r.stopped.length + r.released.length + r.dropped.length };
 }
 
@@ -128,7 +130,7 @@ export const stop = (ctx: EngineCtx, input: { threadId: string; agentId?: string
   stopWith(ctx, input.threadId, { ...(input.agentId === undefined ? {} : { agentId: input.agentId }), all: false });
 
 /** Stop every agent working in the thread: the running turn, everything queued, everything parked. */
-export const stopAll = (ctx: EngineCtx, input: { threadId: string }): Promise<{ stopped: number }> => stopWith(ctx, input.threadId, { all: true });
+export const stopAll = (ctx: EngineCtx, input: { threadId: string; reason?: "update" }): Promise<{ stopped: number }> => stopWith(ctx, input.threadId, { all: true, ...(input.reason === "update" ? { reason: "update" as const } : {}) });
 
 // ---- set_mode, set_model, switch
 

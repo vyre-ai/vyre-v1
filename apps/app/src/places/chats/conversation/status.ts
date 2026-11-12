@@ -141,6 +141,7 @@ export function stoppedWords(reason: string): string {
     case "left": return "Stopped because the person it was working for left.";
     case "moved": return "Stopped because the task was handed to someone else.";
     case "closing": return "Waiting: the app was closing. It runs when the app opens again.";
+    case "update": return "Stopped for an update. Your message is kept.";
     case "lease": return "Stopped because the server it was running on went away. Send it again.";
     default: return "Stopped, and no reason was recorded. Send it again.";
   }

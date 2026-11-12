@@ -165,7 +165,8 @@ export default defineManifest({
       tool: 'chats', offline: 'online', idem: 'natural', risk: 'low',
     }),
     write('engine.stop_all', 'Stop every agent working in a thread (Stop all in the conversation header)', {
-      in: threadT, out: { stopped: t.int() }, on: ['thread', '/threadId'], level: 'use', emits: ['turn.cancelled'], tool: 'chats', offline: 'online', idem: 'natural', risk: 'low',
+      // reason update: the desktop app stops its turns to update itself (its kept messages run again after); what those turns ran in a terminal is left running
+      in: { ...threadT, reason: t.opt(t.enm('update')) }, out: { stopped: t.int() }, on: ['thread', '/threadId'], level: 'use', emits: ['turn.cancelled'], tool: 'chats', offline: 'online', idem: 'natural', risk: 'low',
     }),
     write('engine.set_mode', 'Set an agent to Leading or Listening in a thread; exactly one lead per thread', {
       in: { ...threadT, agentId: id.agent, mode: agentMode }, out: { mode: agentMode, leadAgentId: t.nullable(id.agent) }, on: ['thread', '/threadId'], level: 'use',

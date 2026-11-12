@@ -1473,3 +1473,19 @@ test("Y1: a turn's end record runs as its asker, so `by` decides nothing: closin
   assert.deepEqual(stop.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_2", by: "svc_host", pressed: true }, at: at() }), ["1"], "a departure, as the host, interrupts");
   await two;
 });
+
+test("Z1 and Z2: run.stopped (no marker, the stopper's free text as reason) interrupts its run's command and no other; an update's stop (reason update, not pressed) interrupts nothing", async () => {
+  const { consumers } = await import("../impl.ts");
+  const { agent, hn } = setup();
+  const seen: string[] = [];
+  bindHost(stoppableHost(seen) as never);
+  const stop = consumers["terminal.turn_stopped"]!;
+  const inRun: TermCtx = { ...agent, run: "run_abc" };
+  const cmd = h["terminal.run"]!(inRun, { command: "make deploy", idempotencyKey: idem() });
+  await until(() => seen.includes("make deploy"), "running");
+  // the app updating: the end record and the press event both say update, neither is pressed
+  assert.deepEqual(stop.run(hn.ctx, { name: "turn.cancelled", payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by: "svc_host", reason: "update" }, at: hn.ctx.now() }), [], "an update's stop: nothing");
+  assert.deepEqual(stop.run(hn.ctx, { name: "run.stopped", payload: { runId: "run_other", by: "usr_dana", reason: "not needed" }, at: hn.ctx.now() }), [], "another run's stop: nothing");
+  assert.deepEqual(stop.run(hn.ctx, { name: "run.stopped", payload: { runId: "run_abc", by: "usr_dana", reason: "not needed" }, at: hn.ctx.now() }), ["1"], "its run's stop interrupts it");
+  assert.equal((await cmd).exitCode, 130);
+});

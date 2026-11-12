@@ -1664,7 +1664,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           try { await invoke("chat.post", { threadId: t.threadId, body: "", mentions: [], clientId: `msg_brg${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`, idempotencyKey: `brg-upd-${t.threadId}-${Date.now().toString(36)}`, blocks: [{ type: "turn_status", v: 1, data: { state: "stopped_for_update", text: "Stopped for an update. Your message is kept.", ...(t.turnId ? { turnId: t.turnId } : {}) } }] }, { space: spaceId, principal: { kind: "agent", id: t.agentId }, actingFor: t.asker, origin: "engine" }); } catch { /* the line is a courtesy: the stop goes on */ }
         }
         for (const id of new Set((out.turns ?? []).map((t) => t.threadId))) {
-          try { stopped += ((await system("engine.stop_all", { threadId: id })) as { stopped?: number }).stopped ?? 0; } catch { /* that chat ends by itself or at the stop */ }
+          // reason update: the terminal leaves what these turns run in the agents' workspaces running (they outlive the app; the kept message runs again after)
+          try { stopped += ((await system("engine.stop_all", { threadId: id, reason: "update" })) as { stopped?: number }).stopped ?? 0; } catch { /* that chat ends by itself or at the stop */ }
         }
         return stopped;
       };

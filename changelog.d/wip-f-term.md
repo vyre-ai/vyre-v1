@@ -55,3 +55,4 @@
 - Stopping a turn now stops the command it started in the agent's terminal at once, so the next command runs right away; the terminal pane shows a refusal in its own words instead of a server-shell lock for a workspace.
 - A message sent into a busy chat interrupts the agent's running turn, and now also stops the terminal command that turn started (the person redirected the agent). A Stop never interrupts a later turn's command, a command waiting its turn in the tab is never typed once its turn is stopped, and a daemon stop or update leaves running commands alone.
 - The owner can open an agent's terminal tab while the agent's first command in it is still running, and after that command was stopped (it answered "not found" until the command ended, or for good when it was stopped).
+- Stopping a Run stops the terminal command it started again; the desktop app updating itself leaves agents' running terminal commands alone.

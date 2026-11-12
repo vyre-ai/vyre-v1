@@ -28,7 +28,7 @@ import { STOPPED_LINE } from "./stop-line.ts";
 export { STOPPED_LINE };
 
 /** The reasons a turn's end record carries when work was stopped on purpose: these interrupt the turn's terminal command (closing, lease and anything else never do). */
-const STOP_REASONS = new Set(["stop", "interrupt", "limit", "left", "moved", "run_stopped", "task_cancelled"]);
+const STOP_REASONS = new Set(["stop", "interrupt", "limit", "left", "moved"]);
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 export { fetchesOutside, isDangerCall, outwardOf } from "./handlers/index.ts";
@@ -816,9 +816,11 @@ export const consumers = {
   /** A turn was stopped: the commands it started in a terminal are interrupted at once (release gate, 12 Nov). */
   "terminal.turn_stopped": {
     on: ["turn.cancelled", "run.stopped"],
-    run: (_ctx: TermCtx, event: { payload: Record<string, unknown>; at?: number }): string[] => {
+    run: (_ctx: TermCtx, event: { name?: string; payload: Record<string, unknown>; at?: number }): string[] => {
       const p = event.payload ?? {};
       const str = (k: string): string | undefined => (typeof p[k] === "string" ? (p[k] as string) : undefined);
+      // a Run stopped: its own commands, matched on the run (its reason is the stopper's free text, never a marker; ninth look Z1)
+      if (event.name === "run.stopped") { const runId = str("runId"); if (!runId) return []; const n = stopRuns({ runId, ...(typeof event.at === "number" ? { at: event.at } : {}) }); return n > 0 ? [String(n)] : []; }
       // Only a Stop: an event written at the press (Stop, Interrupt, an agent paused, removed or leaving: pressed true), or a turn's end record whose reason is one that stops work. A daemon
       // stopping or updating (reason closing), a lost host (lease), a recovered turn, or an event with neither: nothing is interrupted (eighth look Y1). Decided by these facts, never by who
       // `by` names (a turn's end record runs as its asker). A run with no mark here (it ended, or this process started after it) is left alone; a second event finds it already stopped.
