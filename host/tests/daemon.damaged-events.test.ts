@@ -1,6 +1,6 @@
 // A Space server whose modules.db or events.db is damaged (12 Nov 2026: a Mac mini, after an update's backup read them from the wrong kernel) used to crash-loop under Docker's restart policy
 // printing only "vyred: database disk image is malformed" each time: nothing said which file, or that a backup puts it right, and every restart re-opened the damaged file.
-// Now: the first start names the file and the restore command in one line and exits 3; the next start checks that one file once and HOLDS: it stays up, opens nothing else, writes
+// Now: the start that meets it names the file and the restore command in one line and exits 3; the next start checks that one file once and HOLDS: it stays up, opens nothing else, writes
 // nothing, and answers every request (/healthz included) 503 with the line, so an update rolls back, doctor says why, and the restart policy has nothing to loop on. A restored good file
 // lets the next start go on as usual. Nothing is repaired (logs.db alone is set aside and made anew, by openLogSink).
 // One database per file (this one: events.db; daemon.damaged-db.test.ts: modules.db), so each file stays well under the fast runner's 30 s cap.
@@ -12,6 +12,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { holdMarker } from "../src/daemon/damaged-db.ts";
 import { STOP_BOUND_MS, reportArgs, watchStop } from "./stop-watch-kit.test.ts";
@@ -43,27 +44,29 @@ function start(dir: string, port: number, untilListening = false): Run {
   return { code, err: () => err, out: () => out, term: watch.term, stopMs: watch.stopMs, evidence: watch.evidence };
 }
 
-/** Every page after the first overwritten with noise: the header and the schema still read, the tables do not. */
-function damage(file: string): void {
+/**
+ * A damaged database written directly (no Space is booted to make one): a real SQLite file with a table of rows, then every byte after its 100-byte header overwritten with noise.
+ * The header still says SQLite, the pages do not read: the start that opens it fails with "database disk image is malformed", as with a file damaged in use.
+ */
+function makeDamaged(file: string): void {
+  const d = new DatabaseSync(file);
+  d.exec("CREATE TABLE t(v BLOB); INSERT INTO t SELECT randomblob(1000) FROM (WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<50) SELECT x FROM c)");
+  d.close();
   const b = fs.readFileSync(file);
-  const page = b.readUInt16BE(16) === 1 ? 65536 : b.readUInt16BE(16);
-  for (let i = page; i < b.length; i++) b[i] = (i * 37) & 0xff;
+  for (let i = 100; i < b.length; i++) b[i] = (i * 37) & 0xff;
   fs.writeFileSync(file, b);
-  for (const e of ["-wal", "-shm"]) fs.rmSync(file + e, { force: true });
 }
 const contents = (dir: string): string => fs.readdirSync(dir).filter((n) => /\.db$/.test(n)).sort().map((n) => `${n}:${createHash("sha256").update(fs.readFileSync(path.join(dir, n))).digest("hex")}`).join("\n");
 const fingerprint = (dir: string): string => fs.readdirSync(dir).filter((n) => /\.db(-wal|-shm)?$/.test(n)).sort().map((n) => { const f = path.join(dir, n); return `${n}:${fs.statSync(f).mtimeMs}:${createHash("sha256").update(fs.readFileSync(f)).digest("hex")}`; }).join("\n");
 
 for (const name of ["events.db"]) {
-  test(`a damaged ${name}: the first start names it and exits 3, the next one holds (up, 503 with the line, writing nothing) (a restored file: daemon.damaged-restore.test.ts)`, { timeout: 180_000 }, async () => {
+  test(`a damaged ${name}: the start that meets it names it and exits 3, the next one holds (up, 503 with the line, writing nothing) (a restored file: daemon.damaged-restore.test.ts)`, { timeout: 180_000 }, async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-damaged-"));
     const port = await freePort();
     try {
-      const first = start(dir, port, true);
-      await first.code;
-      assert.match(first.out(), /listening on/, `the first start makes the Space: ${first.err()}`);
-      assert.ok(first.stopMs()! <= STOP_BOUND_MS, `the stop after SIGTERM took ${first.stopMs()} ms\n${first.evidence()}`);
-      damage(path.join(dir, name));
+      // the damaged file, written directly in an empty data folder (a full boot to make a Space first cost a third of this file's time; the daemon's stop after a full
+      // boot is checked in daemon.damaged-restore.test.ts and daemon.damaged-cycle.heavy.test.ts)
+      makeDamaged(path.join(dir, name));
       // the start that meets it: one line, exit 3
       const fail = start(dir, port);
       assert.equal(await fail.code, 3, fail.err());

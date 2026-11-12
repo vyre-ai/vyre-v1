@@ -201,7 +201,8 @@ test("agent cap: an agent cannot interrupt a person more than 3 times an hour; t
 
 test("agent cap: counted per agent and per person, and the hour rolls", async () => {
   const h = harness();
-  const send = (agentId: string, to = alice.id) => h.call("notifications.send", sendInput({ to, kind: "agent.blocked", data: { agent: "A", reason: "r", agentId } }), as(bot));
+  // agent.blocked is a system kind, filed by the agents module's code (a call one level down) for the agent
+  const send = (agentId: string, to = alice.id) => h.call("notifications.send", sendInput({ to, kind: "agent.blocked", data: { agent: "A", reason: "r", agentId } }), as(bot, { depth: 1 }));
   for (let i = 0; i < 3; i++) assert.equal((await send(bot.id)).outcome, "interrupt");
   assert.equal((await send(bot.id)).outcome, "capped");
   assert.equal((await send(bot2.id)).outcome, "interrupt", "another agent has its own 3");
@@ -213,7 +214,8 @@ test("agent cap: counted per agent and per person, and the hour rolls", async ()
 test("agent cap: a person's own and a service's notifications are not capped, nor are kinds without an agent rate key, nor a repeat into a row that is already loud", async () => {
   const h = harness();
   for (let i = 0; i < 5; i++) assert.equal((await h.call("notifications.send", sendInput({ kind: "dm", data: { from: "Bob" } }), sender)).outcome, "interrupt");
-  for (let i = 0; i < 5; i++) assert.equal((await h.call("notifications.send", sendInput({ kind: "call.incoming", data: { from: "Scout", agentId: bot.id } }), as(bot))).outcome, "interrupt");
+  // call.incoming is a system kind, filed by the telephony module's code (a call one level down)
+  for (let i = 0; i < 5; i++) assert.equal((await h.call("notifications.send", sendInput({ kind: "call.incoming", data: { from: "Scout", agentId: bot.id } }), as(bot, { depth: 1 }))).outcome, "interrupt");
   const same = (n: number) => h.call("notifications.send", sendInput({ kind: "dm", data: { from: "Scout", agentId: bot2.id, n }, collapseKey: "one-thread" }), as(bot2));
   for (let i = 0; i < 6; i++) assert.equal((await same(i)).outcome, "interrupt", "six messages in one thread are one banner, not six interrupts");
 });
@@ -280,7 +282,7 @@ test("the reminder emails once per approval, and says nothing when the approval 
   const input = sendInput({ kind: "approval.backstop", subject: s, title: "Retainer", collapseKey: "approval.backstop:tsk_5" });
   await h.call("notifications.send", input, sender);
   await h.call("notifications.send", input, sender);
-  assert.deepEqual(h.emails, [{ to: alice.id, subject: "Something is waiting on you", deepLink: "vyre://task/tsk_5" }]);
+  assert.deepEqual(h.emails, [{ to: alice.id, subject: "Something is waiting on you", line: "An approval or an answer is waiting on you in Vyre.", open: { kind: "task", id: "tsk_5" } }]);
   const g = harness();
   g.callee("tasks.get", () => ({ task: { state: "done" } }));
   assert.deepEqual(await g.call("notifications.send", input, sender), { outcome: "dropped_muted" });
@@ -379,7 +381,8 @@ test("a Space scheduled for deletion, and the deletion cancelled, reach every ad
   assert.equal(first.place, "inbox");
   assert.equal(first.title, "The Space is scheduled for deletion on 18 November 2026. Everything is removed then.");
   assert.deepEqual(JSON.parse(first.actions), [{ label: "Cancel deletion", cap: "spaces.delete_cancel" }]);
-  assert.deepEqual(h.emails.map((m) => [m.to, m.subject]).sort(), [alice.id, bob.id].sort().map((to) => [to, first.title]));
+  // the email is fixed copy with the date (email.copy.test.ts), not the line's title
+  assert.deepEqual(h.emails.map((m) => [m.to, m.subject]).sort(), [alice.id, bob.id].sort().map((to) => [to, "Scheduled for deletion on 18 November 2026"]));
   const cancelled = await fan.run(ctx, { name: "space.deletion_cancelled", payload: { by: bob.id } });
   assert.equal(cancelled.length, 2);
   assert.equal(row(h, cancelled[0]!).title, "The scheduled deletion of the Space was cancelled.");

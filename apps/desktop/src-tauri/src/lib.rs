@@ -296,10 +296,7 @@ pub fn run() {
             }
         })
         .on_window_event(|window, event| {
-            // A banner was shown a moment ago and the window comes forward: open what the banner was about (native.rs).
-            if let tauri::WindowEvent::Focused(true) = event {
-                native::on_focus(window.app_handle());
-            }
+            // A window coming forward opens nothing: the notification plugin reports no press, and a focus is not one (native.rs).
             // the artifact viewer's child webview ends before its window does: a window closed with a child webview still open did not let the Windows app exit
             if let tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed = event {
                 if let Some(view) = window.app_handle().get_webview(artifact_view::VIEW) {

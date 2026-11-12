@@ -32,7 +32,7 @@ function browser(answers: Record<string, (c: BrowserToolCall) => BrowserAnswer> 
     },
     async downloads() { return downloadsNow(); }, async downloadRead(_p, name) { return new TextEncoder().encode(`bytes of ${name}`); }, async downloadAck(_p, name) { acked.push(name); },
     async takeover() {}, async giveBack() {}, async screenshot() { return { bytes: new Uint8Array([1, 2, 3]), width: 1, height: 1 }; },
-    async stream() { return { transport: "mjpeg", url: "http://x" }; }, async sessions() { return sessionsNow(); }, async signOut(_p, site) { signedOut.push(site); return true; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
+    async stream() { return { transport: "mjpeg", url: "http://x" }; }, async sessions() { return sessionsNow(); }, async signOut(_p, site) { signedOut.push(site); return true; }, async profileUsed() { return false; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
     async profiles() { return { profiles: [], maxRunning: 6 }; }, async health() { return { ok: true }; },
   };
   bindSpaceBrowser(sb);
@@ -307,7 +307,7 @@ test("while a person holds an agent's browser the agent's tools are refused with
     async downloads() { return []; }, async downloadRead() { return new Uint8Array(); }, async downloadAck() {},
     async takeover(a) { const by = held.get(a.profileId); if (by && by !== a.personId) throw new ToolError("bad_input", "Someone else has the controls."); held.set(a.profileId, a.personId); },
     async giveBack(id) { held.delete(id); },
-    async screenshot() { return { bytes: new Uint8Array([1]), width: 1, height: 1 }; }, async stream() { return { transport: "mjpeg", url: "http://x" }; }, async sessions() { return []; }, async signOut() { return true; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
+    async screenshot() { return { bytes: new Uint8Array([1]), width: 1, height: 1 }; }, async stream() { return { transport: "mjpeg", url: "http://x" }; }, async sessions() { return []; }, async signOut() { return true; }, async profileUsed() { return false; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
     async profiles() { return { profiles: [...held].map(([profileId, by]) => ({ profileId, running: true, tabs: 1, busy: false, takeover: true, takeoverBy: by, viewers: 1, lastActiveAt: 1, held: 0, paused: false })), maxRunning: 6 }; }, async health() { return { ok: true }; },
   };
   bindSpaceBrowser(sb);
@@ -352,7 +352,7 @@ function holdingBrowser(o: { giveBackFails?: boolean } = {}) {
     async downloads() { return []; }, async downloadRead() { return new Uint8Array(); }, async downloadAck() {},
     async takeover(a) { held.set(a.profileId, a.personId); },
     async giveBack(id) { if (o.giveBackFails) throw new ToolError("unavailable", "browserd stopped while it worked on the request"); held.delete(id); },
-    async screenshot() { return { bytes: new Uint8Array([1]), width: 1, height: 1 }; }, async stream() { return { transport: "mjpeg", url: "http://x", ws: "ws://x" }; }, async sessions() { return []; }, async signOut() { return true; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
+    async screenshot() { return { bytes: new Uint8Array([1]), width: 1, height: 1 }; }, async stream() { return { transport: "mjpeg", url: "http://x", ws: "ws://x" }; }, async sessions() { return []; }, async signOut() { return true; }, async profileUsed() { return false; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
     async profiles() { return { profiles: [...held].map(([profileId, by]) => ({ profileId, running: true, tabs: 1, busy: false, takeover: true, takeoverBy: by, viewers, holderViews, ...(personActiveAt ? { personActiveAt } : {}), lastActiveAt, held: 0, paused: false })), maxRunning: 6 }; }, async health() { return { ok: true }; },
   };
   bindSpaceBrowser(sb);

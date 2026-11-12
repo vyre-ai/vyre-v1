@@ -6,7 +6,7 @@ import type { LiveQuery, ScreenHooks } from "../../../../../client/src/index.ts"
 import { createSample } from "../../places/chats/conversation/sample.ts";
 import { createSampleSidebar } from "../../places/chats/sidebar/sample.ts";
 import type { Principal } from "../session/runtime-data.ts";
-import { COMPUTER_UNREACHED, computerLine, createGo } from "../../places/chats/mounts/data.ts";
+import { createGo } from "../../places/chats/mounts/data.ts";
 import type { LineAction } from "../../places/chats/mounts/data.ts";
 import type { Act } from "../../places/chats/mounts/route.ts";
 import { Composer } from "../../../../../ui/src/Composer/index.tsx";
@@ -82,9 +82,4 @@ test("every computer door opens the agent's Computer tab: it asks nothing, says 
   found.go.computerOfAgent("agt_intake");
   assert.deepEqual(found.acts, [{ t: "agent", agentId: "agt_intake", tab: "computer" }]);
   resetComputersAvailable();
-});
-
-test("computerLine maps the failures", () => {
-  assert.equal(computerLine(null, "Intake"), "Intake has no computer yet.");
-  assert.equal(computerLine(new Error("x"), "Intake"), COMPUTER_UNREACHED);
 });

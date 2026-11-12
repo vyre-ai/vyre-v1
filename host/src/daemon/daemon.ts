@@ -32,6 +32,8 @@ import { ScheduleQueue } from "../ctx/schedule.ts";
 import type { ScheduledCall } from "../ctx/schedule.ts";
 import { createBlobStore } from "../ctx/blobs.ts";
 import { createSpacePorts } from "../seams/space-ports.ts";
+import { createNotifyMailer } from "../seams/notify-mail.ts";
+import type { NoticeEmail } from "../seams/notify-mail.ts";
 import { rawDbOf, scopedDb } from "../ctx/db.ts";
 import { createBlobRoute } from "../routes/blobs.ts";
 import { createPortalLinkRoute } from "../routes/portal-link.ts";
@@ -1842,12 +1844,26 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         deviceOwner: (deviceId) => { if (!cfg.roles.includes("device")) return null; try { const r = db!.all(`SELECT "person" FROM devices_device WHERE "id" = ? AND "revokedAt" IS NULL AND "deleted_at" IS NULL`, deviceId)[0] as { person?: string } | undefined; return r?.person ?? null; } catch { return null; } },
         refused: (r) => { void invoke("audit.append", { action: "vault.use_refused", class: "deny", onBehalfOf: { kind: "person", id: r.asker }, ...(r.itemId ? { resource: { type: "vault_item", id: r.itemId } } : {}), detail: { agentId: r.agentId, handle: r.handle, reason: r.reason } }, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "seam" }).catch(() => undefined); },
       });
+      // the notifications module's email through the Space's own mail (seams/notify-mail.ts); the members' addresses come from the space ports wired below
+      const membersPortRef: { ports: ReturnType<typeof createSpacePorts> | null } = { ports: null };
+      const notifyMailer = createNotifyMailer({
+        invoke: (cap, input, seed) => invoke(cap, input, seed),
+        space: spaceId,
+        owner: () => access.owner() ?? cfg.owner ?? null,
+        emails: async () => (o.seams?.members ?? membersPortRef.ports?.members)?.emails(spaceId) ?? [],
+        // the Space's own https address (the one portal links use); none on a Space only this computer reaches
+        address: () => publicOrigin()?.origin ?? null,
+        spaceName: async () => String((db?.all("SELECT name FROM identity_space WHERE id = ?", spaceId)[0] as { name?: string } | undefined)?.name ?? cfg.spaceName ?? ""),
+        warn: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "notifications", ...(attrs ? { attrs } : {}) }),
+      });
       const hostDrivers: Record<string, SeamDriver> = {
         // sealed fields in Records: values live in the Vault, in a Space owned folder; the folder belongs to the Space owner so the owner can reveal what is in it
         // (schema seals an existing field through the same Vault, so both setters get one driver)
         setRecordsVault: () => sealedVault(),
         setSchemaVault: () => sealedVault(),
-        setPushPort: () => createPushPort(o.seams?.push),
+        // the notifications module's email goes out through the Space's own mail (seams/notify-mail.ts): the service mailbox with a verified domain, or nothing and a health line; a test or a
+        // host that passes its own email transport keeps it
+        setPushPort: () => createPushPort({ ...(o.seams?.push ?? {}), ...(o.seams?.push?.email ? {} : { email: (m: NoticeEmail) => notifyMailer.email(m), gaveUp: (m: { to: string; kind: string }) => notifyMailer.gaveUp(m) }) }),
         // portal invitations and sign-in links go out through mail.send from the service mailbox (P-L8_17)
         configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: o.seams?.publicUrl ? d.publicUrl : async () => {
           // a portal link has to reach someone outside and keeps a sign-in, so it needs an address of the Space's own: not loopback, and not /p/, which carries no session
@@ -2225,7 +2241,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const setters = o.seams?.setters ?? loaded.hostSeams;
       if (Object.keys(setters).length) {
         // who the members are by work email, Space files by id, and where downloaded bytes go: built from the Space's own database and the Files module
-        const spacePorts = createSpacePorts({
+        const spacePorts = membersPortRef.ports = createSpacePorts({
           db: db!, active: (id) => access.snap.principal(id)?.status === "active", putToSlot,
           // the Files calls run as the server itself, through the pipeline, so the scrubber and the audit still see them
           call: async (cap, input) => {

@@ -125,7 +125,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
       { label: "Chat", onSelect: chat },
       { label: "Automation Runs", onSelect: () => data.nav.openAutomationRuns(agentId) },
       { label: "Open Folder", onSelect: () => data.nav.openFolder(agent.folderId) },
-      ...(!noComputers && agent.hasComputer && data.agent.computerId ? [{ label: "Open Computer", onSelect: () => { setOwn("computer"); onTab?.("computer"); } }] : []),
+      ...(!noComputers && (usesWorkModel(data) || (agent.hasComputer && data.agent.computerId)) ? [{ label: "Open Computer", onSelect: () => { setOwn("computer"); onTab?.("computer"); } }] : []),
       ...(outside ? [{ separator: true as const }, { label: "Remove", onSelect: () => setSure(true) }] : data.canEdit ? [{ separator: true as const }, paused ? { label: "Resume", onSelect: () => void resume(deps, agentId, name) } : { label: "Pause", onSelect: () => void pause(deps, agentId, name, "Paused from the agent page") }] : []),
     ], x, y, "other", { label: `${name}'s page` });
   };
@@ -153,7 +153,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
             {outside && !sure ? <TextButton label="Remove" testID="remove-button" onPress={() => setSure(true)} /> : null}
             {outside ? null : <TextButton label="Automation runs" testID="runs-button" onPress={() => data.nav.openAutomationRuns(agentId)} />}
             <Tool icon="folder" label="Open folder" testID="folder-button" onPress={() => data.nav.openFolder(agent.folderId)} />
-            {!noComputers && agent.hasComputer && data.agent.computerId ? <Tool icon="watch" label="Computer" testID="computer-button" onPress={() => { setOwn("computer"); onTab?.("computer"); }} /> : null}
+            {!noComputers && (usesWorkModel(data) || (agent.hasComputer && data.agent.computerId)) ? <Tool icon="watch" label="Computer" testID="computer-button" onPress={() => { setOwn("computer"); onTab?.("computer"); }} /> : null}
             <Tool icon="more" label="More" testID="more-button" onPress={moreMenu} />
           </View>
         </View>

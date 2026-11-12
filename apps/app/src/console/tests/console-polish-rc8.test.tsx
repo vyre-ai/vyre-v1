@@ -96,17 +96,16 @@ test("Stepper nudges a whole number and keeps it inside its bounds", async () =>
   } finally { restore(); }
 });
 
-test("Provision computer: agents are rows you tap, not a Select button each, and the primary says why it is off", async () => {
+test("Agent computers lists the old desktops and offers no way to make a new one; a row you tap (pickRow) still picks, ignores a tap when disabled, and shows its check", async () => {
   const rows = {
     "computers.list": { computers: [] },
     "agents.list": { agents: [{ agentId: "agt_docs", name: "Docs", status: "active", hasComputer: false, ownerId: "usr_irfad", folderId: "f" }, { agentId: "agt_intake", name: "Intake", status: "active", hasComputer: true, ownerId: "usr_irfad", folderId: "f" }] },
     "computers.health": { state: "healthy", runtime: "docker", awake: 0, asleep: 0 },
   };
   const { AgentComputers } = await import("../pages/Agents.tsx");
-  const out = await openSheet(createRoot, <AgentComputers />, rows, "computer-new");
-  assert.ok(out.find("row-provision-agent-agt_docs"), "an agent is a row");
-  assert.ok(!out.text.includes("Select"), "no Select button");
-  assert.ok(hasTip(out.root, "Pick an agent"), "Provision says why it is off");
+  const page = draw(<AgentComputers />, rows);
+  assert.ok(page.includes("console-agent-computers") && page.includes("No agent computers."), "the page is there and says it is empty");
+  assert.ok(!page.includes("computer-new") && !page.includes("Provision computer") && !page.includes("provision-agent-"), "nothing offers to make a computer");
   const { pickRow } = await import("../pages/shared.tsx");
   let tapped = 0;
   const props = pickRow({ id: "r", title: "Docs", picked: false, onPress: () => { tapped++; } });
@@ -116,4 +115,14 @@ test("Provision computer: agents are rows you tap, not a Select button each, and
   assert.equal(tapped, 1, "a disabled row ignores the tap");
   assert.ok(pickRow({ id: "r", title: "Docs", picked: true, onPress: () => undefined }).trailing, "a picked row shows its check");
   assert.equal(pickRow({ id: "r", title: "Docs", picked: false, onPress: () => undefined }).trailing, null);
+});
+
+test("an old desktop's row says in one plain line how its move ended", async () => {
+  const { movedLine } = await import("../pages/Agents.tsx");
+  const at = Date.UTC(2026, 10, 12, 12);
+  assert.equal(movedLine(undefined), "");
+  assert.match(movedLine({ state: "done", at }), /^Moved to a workspace and the Space browser on 12 Nov\. Remove this desktop when you no longer need it$/);
+  assert.match(movedLine({ state: "partial", at }), /agent signs in again once/);
+  assert.match(movedLine({ state: "failed", at, error: "The workspace is not ready." }), /did not work: The workspace is not ready$/);
+  assert.equal(movedLine({ state: "failed", at, error: "Moving its sign-ins was interrupted. It will be tried again." }), "Moving its sign-ins was interrupted. It will be tried again", "an interrupted import is said plainly, never as its internal mark");
 });
