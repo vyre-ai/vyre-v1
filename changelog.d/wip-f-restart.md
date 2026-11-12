@@ -6,3 +6,4 @@
 - A notification is never sent to you twice because the server restarted while it was going out: "your Space will be deleted" arrives once.
 - A CI job that was starting while the server restarted goes on on the machine already made for it, and that machine is deleted when the job ends.
 - Nothing runs after a restart for a person who was removed or suspended while the server stopped; the log says why it was dropped.
+- A Space deletion notice or an approval reminder email that fails to send is tried again, and one cut off by a restart is sent after it.

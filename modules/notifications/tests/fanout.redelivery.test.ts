@@ -75,3 +75,47 @@ test("an event with no id (a direct call, a test) is not remembered: every call 
   await fan.run(ctx, { name: "member.joined", payload: { personId: "usr_new", invitedBy: alice.id } } as never);
   assert.equal(rows(h, "member.joined"), 2);
 });
+
+test("a delivery cut off after a recipient's mark and before their send answered: the redelivery tells that recipient, once; the one it had reached is not told again", async () => {
+  const h = harness();
+  admins(h);
+  const fan = consumers["notifications.fanout"];
+  const ctx = h.ctxFor(null, sender);
+  const ev = { id: "evt_delete_cut", name: "space.deletion_scheduled", payload: { by: alice.id, at: Date.UTC(2026, 10, 18, 9, 0, 0) } };
+  h.emailHang((m) => m.to === bob.id);
+  void fan.run(ctx, ev as never);   // the stop lets this delivery go while bob's email is on its way
+  for (let i = 0; i < 100 && rows(h, "space.deletion_scheduled") < 2; i++) await new Promise((r) => setTimeout(r, 5));
+  assert.deepEqual(h.emails.map((m) => m.to), [alice.id]);
+  h.emailHang(null);
+  await fan.run(ctx, ev as never);   // the next start hands the same event over again
+  assert.deepEqual(h.emails.map((m) => m.to).sort(), [alice.id, bob.id].sort(), "bob is told (his send never finished), alice is not told twice");
+  assert.equal(rows(h, "space.deletion_scheduled"), 2);
+});
+
+test("an email that failed for a kind where the email is the point (the Space deletion notices): the recipient is tried again on the next try, and the ones already told are not", async () => {
+  const h = harness();
+  admins(h);
+  const fan = consumers["notifications.fanout"];
+  const ctx = h.ctxFor(null, sender);
+  const ev = { id: "evt_delete_fail", name: "space.deletion_cancelled", payload: { by: bob.id } };
+  h.emailFail((m) => m.to === bob.id);
+  await assert.rejects(() => fan.run(ctx, ev as never), /email/, "the delivery says it is not done, so the host tries the event again (bounded by its tries)");
+  assert.deepEqual(h.emails.map((m) => m.to), [alice.id]);
+  h.emailFail(null);
+  await fan.run(ctx, ev as never);
+  assert.deepEqual(h.emails.map((m) => m.to).sort(), [alice.id, bob.id].sort(), "bob's email goes out on the next try; alice gets one");
+  assert.equal(rows(h, "space.deletion_cancelled"), 2, "no second Inbox line");
+  await fan.run(ctx, ev as never);
+  assert.equal(h.emails.length, 2, "once both are told, a further delivery sends nothing");
+});
+
+test("the approval reminder email that failed is tried again by the scheduled job's retry, and goes out once", async () => {
+  const h = harness();
+  const input = { to: alice.id, kind: "approval.backstop", subject: { type: "task", id: "tsk_9" }, title: "Retainer", collapseKey: "approval.backstop:tsk_9" };
+  h.emailFail(() => true);
+  await assert.rejects(() => h.call("notifications.send", input, sender), /email/, "the scheduled job sees a failure and retries with backoff");
+  h.emailFail(null);
+  await h.call("notifications.send", input, sender);
+  await h.call("notifications.send", input, sender);
+  assert.deepEqual(h.emails.map((m) => m.subject), ["Something is waiting on you"]);
+});

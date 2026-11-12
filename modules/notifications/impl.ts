@@ -2,7 +2,7 @@
 // setPushPort is the host's door for the APNs/FCM transport and the computer's idle time (call it at boot); the fanout consumer turns events that name a notification kind into rows.
 import { handlers } from "./handlers/index.ts";
 import { setPushPort } from "./handlers/push.ts";
-import { clearForSubject, send } from "./handlers/rules.ts";
+import { clearForSubject, resendKindEmail, send, sendOne } from "./handlers/rules.ts";
 import { readSettings, syncSetting } from "./handlers/deliver.ts";
 import type { NotifCtx } from "./projections.ts";
 
@@ -190,24 +190,40 @@ export const consumers = {
       const planned = await plan(ctx, event);
       const out: string[] = [];
       if (event.id) ctx.db.run("DELETE FROM notifications_fanout_sent WHERE at < ?", ctx.now() - FANOUT_KEEP_MS);   // a redelivery comes within minutes; a month is far past any
+      let unsent = 0;
       for (const input of planned === undefined ? [] : Array.isArray(planned) ? planned : [planned]) {
-        // The host hands a consumer the same event again after a crash, or after a stop let it go mid-run (it is at least once). Each recipient is written down before it is sent to, so a second
-        // delivery skips whoever the first one reached: no second row, push or email. A send that fails takes its mark back, so the next try sends it. An event with no id is not remembered.
+        // The host hands a consumer the same event again after a crash, after a stop let it go mid-run, or when it throws (it is at least once). Each recipient is written down before it is sent
+        // to, and the notification it got is written once the send answered:
+        //   mark with a notification   reached: not sent again (an email that failed for a kind where the email is the point is sent again, alone)
+        //   mark with none            cut off before the send answered (a crash or a stop): sent again, the kind's email included even when the row collapses into the one filed
+        //   no mark                   not reached yet: sent
+        // A send that throws takes its mark back. One mark covers the row, the push and the email: a failed push is not tried again (it never was). An event with no id is not remembered.
         const target = `${input.to}|${input.kind}|${input.subject ? `${input.subject.type}:${input.subject.id}` : ""}|${input.collapseKey ?? ""}`;
+        let redo = false;
         if (event.id) {
-          const fresh = ctx.db.run("INSERT OR IGNORE INTO notifications_fanout_sent (event_id, target, notification_id, at) VALUES (?, ?, NULL, ?)", event.id, target, ctx.now()).changes > 0;
+          const fresh = ctx.db.run("INSERT OR IGNORE INTO notifications_fanout_sent (event_id, target, notification_id, email_pending, at) VALUES (?, ?, NULL, 0, ?)", event.id, target, ctx.now()).changes > 0;
           if (!fresh) {
-            const had = (ctx.db.all("SELECT notification_id FROM notifications_fanout_sent WHERE event_id = ? AND target = ?", event.id, target)[0] as { notification_id?: string | null } | undefined)?.notification_id;
-            if (had) out.push(had);
-            continue;
+            const had = ctx.db.all("SELECT notification_id, email_pending FROM notifications_fanout_sent WHERE event_id = ? AND target = ?", event.id, target)[0] as { notification_id?: string | null; email_pending?: number } | undefined;
+            if (had?.notification_id) {
+              if (Number(had.email_pending) === 1) {
+                if (await resendKindEmail(ctx, input.to, had.notification_id)) ctx.db.run("UPDATE notifications_fanout_sent SET email_pending = 0 WHERE event_id = ? AND target = ?", event.id, target);
+                else unsent++;
+              }
+              out.push(had.notification_id);
+              continue;
+            }
+            redo = true;
           }
         }
-        let r: Awaited<ReturnType<typeof send>>;
-        try { r = await send(ctx, input); }
+        let r: Awaited<ReturnType<typeof sendOne>>;
+        try { r = await sendOne(ctx, input, false, redo); }
         catch (e) { if (event.id) ctx.db.run("DELETE FROM notifications_fanout_sent WHERE event_id = ? AND target = ?", event.id, target); throw e; }
-        if (event.id && r.notificationId) ctx.db.run("UPDATE notifications_fanout_sent SET notification_id = ? WHERE event_id = ? AND target = ?", r.notificationId, event.id, target);
+        if (event.id && r.notificationId) ctx.db.run("UPDATE notifications_fanout_sent SET notification_id = ?, email_pending = ? WHERE event_id = ? AND target = ?", r.notificationId, r.emailFailed ? 1 : 0, event.id, target);
+        if (r.emailFailed) unsent++;
         if (r.notificationId) out.push(r.notificationId);
       }
+      // an email that is the point of its kind did not go out: the delivery is not done, so the host tries the event again (the next try sends only those emails; after its tries it gives up and logs)
+      if (unsent > 0 && event.id) throw new Error(`${unsent} email${unsent === 1 ? "" : "s"} could not be sent; the next try sends ${unsent === 1 ? "it" : "them"} again`);
       return out;
     },
   },

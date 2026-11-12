@@ -53,7 +53,7 @@ export function harness(o: HarnessOptions = {}) {
   const pushes: PushMessage[] = [];
   const emails: Emailed[] = [];
   const callees: Record<string, Callee> = {};
-  const state = { idleMs: o.computerIdleMs, sendResult: o.sendResult ?? "ok" };
+  const state = { idleMs: o.computerIdleMs, sendResult: o.sendResult ?? "ok", emailHang: null as null | ((m: Emailed) => boolean), emailFail: null as null | ((m: Emailed) => boolean) };
   let schSeq = 0;
   const emitsOf = (cap: string): Set<string> => new Set(registry.capabilities.find((c) => c.name === cap)?.emits ?? []);
 
@@ -61,7 +61,11 @@ export function harness(o: HarnessOptions = {}) {
     async send(msg) { if (state.sendResult === "throw") throw new Error("apns down"); pushes.push(msg); return state.sendResult === "gone" ? "gone" : "ok"; },
     async computerIdleMs() { return state.idleMs; },
     spaceName: () => "Northwind",
-    async email(m) { emails.push(m); },
+    async email(m) {
+      if (state.emailHang?.(m)) return new Promise<void>(() => undefined);   // the send is cut off (a stop let the consumer go, or a crash): it never answers
+      if (state.emailFail?.(m)) throw new Error("mail down");
+      emails.push(m);
+    },
   };
   setPushPort(o.noPort ? null : port);
 
@@ -124,6 +128,10 @@ export function harness(o: HarnessOptions = {}) {
     now: (): number => clock,
     idle(ms: number | undefined): void { state.idleMs = ms; },
     sendResult(r: "ok" | "gone" | "throw"): void { state.sendResult = r; },
+    /** an email to whoever `f` picks never answers (null: none) */
+    emailHang(f: null | ((m: Emailed) => boolean)): void { state.emailHang = f; },
+    /** an email to whoever `f` picks fails (null: none) */
+    emailFail(f: null | ((m: Emailed) => boolean)): void { state.emailFail = f; },
     close(): void { setPushPort(null); },
   };
 }
