@@ -19,7 +19,7 @@ export async function complete(ctx: Ctx, input: { accountRef: string; prompt: st
   await ensureRuntime(ctx as unknown as EngineCtx);
   const run = completerOf();
   if (!run) raise(ctx as unknown as EngineCtx, "internal.unavailable", "The engine is not running on this host.");
-  const list = (await accountsList(ctx, {} as never)) as { accounts: Array<{ ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean; itemId?: string }> };
+  const list = (await accountsList(ctx, {} as never)) as { accounts: Array<{ ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean; itemId?: string; models?: string[] }> };
   const row = list.accounts.find((a) => a.ref === input.accountRef);
   if (!row) raise(ctx as unknown as EngineCtx, "validation.not_found", "That account is not one you can run on.", { accountRef: input.accountRef });
   // a CLI engine's request needs an engine process: where this person's chats run it starts there (their own computer through its link), an API key's request stays here on their own key
@@ -35,7 +35,7 @@ export async function complete(ctx: Ctx, input: { accountRef: string; prompt: st
   if (!jobModel) {
     const pol = await readPolicy(ctx as unknown as EngineCtx);
     const d = await defaultModelFor({ db: (ctx as unknown as EngineCtx).db as never, now: ctx.now(), call: (cap, i) => ctx.call(cap as never, i as never), policy: pol },
-      { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind });
+      { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, models: row.models });
     if (d.why === "policy") raise(ctx as unknown as EngineCtx, "permission.provider_label", PROVIDER_DEFAULT_WORDS, { reason: "policy_model" });
     jobModel = d.model;
   }

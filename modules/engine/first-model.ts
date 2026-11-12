@@ -3,7 +3,7 @@
 // once, and the reply's label shows the model that ran, so the person sees it and can change it.
 //   source   the list the key's check kept (one GET /models through providers.test when the engine has none kept): never a completion, never the model checks the menu starts
 //   chat     the adapter's chat filter where it has one (OpenAI), and abilities().tools for the rest: no image, speech, embedding or moderation model
-//   order    a model already run on this account ("ok"), then the provider's balanced tier below (newest first), then the vendor's order (the rule fitModel uses for the Space AI key)
+//   order    a model already run on this account ("ok"), then the provider's balanced tier below (its own order per provider), then the vendor's order (the rule fitModel uses for the Space AI key)
 //   avoid    pro, preview, audio, realtime, search, transcribe and image models, unless nothing else passes
 //   policy   only what the Space's AI policy allows; when the key lists chat models but the policy allows none, the turn says so in the policy's words
 //   never    a subscription (its CLI keeps its own default) or OpenRouter (it runs its own default)
@@ -15,18 +15,24 @@ import { confirmedFor } from "./model-health.ts";
 import { saveTested, savedTested } from "./live-models.ts";
 
 /**
- * The default nobody chose: balanced cost and ability per provider, newest first. The owner may change this table. A provider with no entry takes the vendor's first chat model.
+ * The default nobody chose: balanced cost and ability per provider. The owner may change this table. A provider with no entry takes the vendor's first chat model.
+ * order: "vendor" where the provider's own list is newest first (Anthropic's /v1/models), so the first match listed wins and a dated id is never compared as a number;
+ *        "newest" where the vendor's order means nothing (OpenAI, Google, xAI), so the matches are sorted newest first by name.
+ * A "-latest" alias in a vendor-ordered list comes after the dated ids (an old alias must not win), and serves only when it is the one match.
  */
-export const BALANCED_TIER: Readonly<Record<string, RegExp>> = {
-  anthropic: /sonnet/i,
-  openai: /^gpt-\d[\d.]*o?$/i,   // the plain flagship: gpt-5, gpt-5.5, gpt-4o, gpt-4.1; no -mini, -nano, -pro, no dated or preview suffix
-  google: /gemini-[\d.]+-flash$/i,
-  xai: /^grok-\d[\d.]*$/i,
+export const BALANCED_TIER: Readonly<Record<string, { match: RegExp; order: "vendor" | "newest" }>> = {
+  anthropic: { match: /sonnet/i, order: "vendor" },
+  openai: { match: /^gpt-\d[\d.]*o?$/i, order: "newest" },   // the plain flagship: gpt-5, gpt-5.5, gpt-4o, gpt-4.1; no -mini, -nano, -pro, no dated or preview suffix
+  google: { match: /gemini-[\d.]+-flash$/i, order: "newest" },
+  xai: { match: /^grok-\d[\d.]*$/i, order: "newest" },
 };
 /** Never the default while anything else passes: costly or not a plain chat model. */
 export const AVOID_DEFAULT = /pro$|-pro-|preview|audio|realtime|search|transcribe|image/i;
 
 const newestFirst = (a: string, b: string): number => b.localeCompare(a, "en", { numeric: true });
+const alias = (m: string): boolean => /-latest$/i.test(m);
+/** A model id as a policy writes it: Google may list "models/<id>" where the policy says "<id>". */
+export const policyId = (m: string): string => m.replace(/^models\//, "");
 
 /** The pure rule. `blocked(model)` is the Space policy's answer for that model on this provider. */
 export function pickDefault(models: readonly string[], o: { provider: string; driver?: string; confirmed: ReadonlySet<string>; blocked: (model: string) => boolean }): string | undefined {
@@ -38,7 +44,8 @@ export function pickDefault(models: readonly string[], o: { provider: string; dr
   const ran = pool.find((m) => o.confirmed.has(m));
   if (ran) return ran;
   const tier = BALANCED_TIER[o.provider];
-  const balanced = tier ? pool.filter((m) => tier.test(m)).sort(newestFirst)[0] : undefined;
+  const matches = tier ? pool.filter((m) => tier.match.test(m)) : [];
+  const balanced = tier?.order === "vendor" ? [...matches.filter((m) => !alias(m)), ...matches.filter(alias)][0] : [...matches].sort(newestFirst)[0];
   return balanced ?? pool[0];
 }
 
@@ -64,7 +71,7 @@ export async function defaultModelFor(d: DefaultFor, account: { ref: string; dri
   const pol = { allowedAccounts: "any", allowedModels: d.policy.allowedModels ?? [], allowedProviders: d.policy.allowedProviders ?? [], labelProviders: d.policy.labelProviders ?? {} } as unknown as Policy;
   let confirmed: ReadonlySet<string> = new Set();
   try { confirmed = confirmedFor(d.db, account.ref, d.now); } catch { /* none known */ }
-  const model = pickDefault(listed, { provider: account.provider, driver: account.driver, confirmed, blocked: (m) => blockedBy(pol, { provider: account.provider, model: m }) !== null });
+  const model = pickDefault(listed, { provider: account.provider, driver: account.driver, confirmed, blocked: (m) => blockedBy(pol, { provider: account.provider, model: policyId(m) }) !== null });
   if (model) return { model };
   const anyChat = pickDefault(listed, { provider: account.provider, driver: account.driver, confirmed, blocked: () => false });
   return anyChat ? { why: "policy" } : {};
