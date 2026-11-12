@@ -13,7 +13,7 @@ import { computerWords, copyText, giveBack, provision, provisionKey, signOut, sl
 import type { PaneDeps } from "./actions.ts";
 import { useOnline, usePaneData, useScreenQuery } from "./data.tsx";
 import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
-import { agoLabel, computerView, dayMonth, stepRows, stepWho, stepsLine } from "./model.ts";
+import { agoLabel, computerView, dayMonth, stepRows, stepWho, stepsLine, toolWord } from "./model.ts";
 import type { Clock, Computer, Session, Step } from "./model.ts";
 import { Icon, LeadIcon, PaneList, TextButton, Tool } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
@@ -362,7 +362,7 @@ export function stepEntries(o: { steps: readonly Step[]; live: boolean; asleep: 
     const when = running ? "now" : o.asleep ? offsetLabel(x.at - (steps[0]?.at ?? x.at)) : agoLabel(x.at, o.clock);
     out.push({
       key: `${o.key ?? "step"}-${x.stepId}`, type: "row", title: x.caption, note: `${stepWho(x)} · ${when}`, selected: o.sel === i,
-      leading: <Thumb dark={x.tool === "Terminal"} person={x.by === "person"} />, onPress: () => o.onSelect(last ? null : i), menu, testID: `step-${x.stepId}`,
+      leading: <Thumb dark={toolWord(x.tool) === "Terminal"} person={x.by === "person"} />, onPress: () => o.onSelect(last ? null : i), menu, testID: `step-${x.stepId}`,
     });
   });
   return out;

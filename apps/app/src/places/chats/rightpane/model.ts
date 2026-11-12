@@ -179,8 +179,17 @@ export function stepRows(steps: readonly Step[]): Step[] {
   return steps.slice().sort((a, b) => a.idx - b.idx);
 }
 
+/** The tool a step used, in a word: a step keeps the tool's own name (chrome_open, screen_click, computer_files_write), which is never shown as it is (f-wire, 12 Nov). */
+export function toolWord(tool: string): string {
+  if (/^chrome_/.test(tool)) return "Chrome";
+  if (/^screen_/.test(tool)) return "Screen";
+  if (/^computer_files_/.test(tool)) return "Files";
+  if (/^terminal/i.test(tool)) return "Terminal";
+  return tool;
+}
+
 export function stepWho(s: Step): string {
-  return s.by === "person" ? "You" : s.tool;
+  return s.by === "person" ? "You" : toolWord(s.tool);
 }
 
 /* ---------- threads ---------- */

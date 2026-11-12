@@ -45,7 +45,6 @@ test("an agent's Space browser work shows in the chat as the live card and in th
   const shots = process.env["VYRE_TEST_CAPTURE_DIR"] ?? fs.mkdtempSync(path.join(os.tmpdir(), "vyre-browser-card-"));
   fs.mkdirSync(shots, { recursive: true });
   const browserd = scriptedBrowser();
-  bindSpaceBrowser(browserd.sb);
   t.after(() => bindSpaceBrowser(null));
 
   let agent = "";
@@ -55,11 +54,14 @@ test("an agent's Space browser work shows in the chat as the live card and in th
       yield* run("tool_search", { query: "chrome open" });   // deferred tools are found first, as the engine does
       const r = yield* run("chrome_open", { url: "https://www.harborquotes.com/pricing" });
       toolSaid = JSON.stringify(r).slice(0, 600);
+      yield* run("chrome_open", { url: "https://www.harborquotes.com/plans" });   // a second step: the newest step is the live view, an older one shows its picture
       yield { type: "text", text: "The pricing page is open." };
     }
   });
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-browser-card-")));
   const d = await boot(dir, model, { config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_fresh", "--space-name", "Card Co"], {}, "1.2.3") });
+  // the daemon binds the Space browser it finds at boot (a real one where Docker answers): the scripted service goes in after it
+  bindSpaceBrowser(browserd.sb);
   const web = await edge(dist, d.url);
   const browser = await pw.chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
   try {
@@ -95,9 +97,10 @@ test("an agent's Space browser work shows in the chat as the live card and in th
       await d.hooks?.pump?.();
       said = JSON.stringify(((await api("chat.messages.list", { threadId })).messages as Array<{ body?: string; author?: unknown; blocks?: unknown }>).map((m) => [m.author, m.body, m.blocks])).slice(0, 1500);
       const r = await api("computers.browser.timeline", { agentId: agent });
-      return (r.steps as unknown[]).length > 0 ? (r.steps as Array<{ caption: string; frameFileId?: string }>) : null;
+      return (r.steps as unknown[]).length > 1 ? (r.steps as Array<{ stepId: string; caption: string; frameFileId?: string; idx: number }>).sort((x, y) => x.idx - y.idx) : null;
     }, 60_000, () => `tool: ${toolSaid}\n${said}\n${hostLog(d)}`);
     assert.ok(steps[0]!.frameFileId, "the step has its picture");
+    assert.ok((await api("files.read", { fileId: steps[0]!.frameFileId, as: "base64" })).base64, "the person may read the step's picture");
     await waitFor(async () => (((await api("chat.messages.list", { threadId })).messages as Array<{ blocks?: Array<{ type: string }> }>).some((m) => (m.blocks ?? []).some((b) => b.type === "browser_screenshot")) ? true : null), 30_000, () => hostLog(d));
 
     const me = (await api("identity.whoami", {})).principal.id as string;
@@ -123,8 +126,17 @@ test("an agent's Space browser work shows in the chat as the live card and in th
     await page.getByText("Steps", { exact: true }).first().waitFor({ timeout: 20_000 });
     assert.ok(await page.getByText(steps[0]!.caption, { exact: true }).count() > 0, "the step's caption is listed");
     await shot("browser-steps-tab");
-    await page.getByText(steps[0]!.caption, { exact: true }).first().click();
+    // the older step (the newest is the live view); its caption is the chat card's too, so the row is picked by its own id
+    await page.getByTestId(`row-step-${steps[0]!.stepId}`).click();
     await page.getByTestId("browser-step-picture").waitFor({ timeout: 20_000 });
+    // the list below the card moves down with it: the Steps heading never sits on the picture
+    const below = async (): Promise<boolean> => {
+      const card = await page.getByTestId("browser-card").boundingBox(), head = await page.getByText("Steps", { exact: true }).first().boundingBox();
+      return card !== null && head !== null && head.y >= card.y + card.height - 1;
+    };
+    for (let i = 0; i < 50 && !(await below()); i++) await page.waitForTimeout(100);
+    if (!(await below())) console.log("DBG", JSON.stringify({ card: await page.getByTestId("browser-card").boundingBox(), live: await page.getByTestId("browser-live").boundingBox(), head: await page.getByText("Steps", { exact: true }).first().boundingBox(), label: await page.getByText("Browser", { exact: true }).first().boundingBox(), cells: await page.locator("[data-testid=work-list] > div > div > div").evaluateAll((els) => els.slice(0, 12).map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.y), Math.round(r.height), (e as HTMLElement).style.top, (e.textContent ?? "").slice(0, 30)]; })) }));
+    assert.ok(await below(), "the Steps list starts below the browser card");
     await shot("browser-step-picture");
     await ctx.close();
   } finally { await browser.close(); web.close(); await stop(d); fs.rmSync(dir, { recursive: true, force: true }); }

@@ -269,8 +269,8 @@ test("mounted: the Browser section lists what the agent did in its browser, step
     const k = stub(ws(), br());
     const asked: Array<[string, unknown]> = [];
     const steps = [
-      { stepId: "stp_b2", idx: 2, at: 2_000, caption: "Opened the bank login · No picture: a Vault value is on this page", tool: "Chrome", by: "agent" },
-      { stepId: "stp_b1", idx: 1, at: 1_000, caption: "Opened the pricing page", tool: "Chrome", by: "agent", frameFileId: "fil_pricing" },
+      { stepId: "stp_b2", idx: 2, at: 2_000, caption: "Opened the bank login · No picture: a Vault value is on this page", tool: "chrome_open", by: "agent" },
+      { stepId: "stp_b1", idx: 1, at: 1_000, caption: "Opened the pricing page", tool: "chrome_open", by: "agent", frameFileId: "fil_pricing" },
     ];
     const call = async (cap: string, input: unknown): Promise<unknown> => {
       asked.push([cap, input]);
@@ -283,6 +283,7 @@ test("mounted: the Browser section lists what the agent did in its browser, step
     assert.ok(asked.some(([c, i]) => c === "computers.browser.timeline" && (i as { agentId?: string }).agentId === s.data.agent.agentId), "the agent's own browser timeline is read");
     const t = textOf(root);
     assert.ok(t.includes("2 steps"));
+    assert.ok(t.includes("Chrome · ") && !t.includes("chrome_open"), "the tool reads as a word, never its own name");
     assert.ok(t.indexOf("Opened the pricing page") < t.indexOf("Opened the bank login · No picture: a Vault value is on this page"), "oldest first, the caption as it came");
     await press(find(root, "row-step-stp_b1"));
     await flush(); await flush();
