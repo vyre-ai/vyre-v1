@@ -1,14 +1,18 @@
 // What a turn is doing, in a few words: from the host's step names and the provider's thinking, never invented. Pure, so the same words come out wherever a reply streams.
 import type { ActivitySnapshot } from "../../../shell/session/turn-streams.ts";
 
+/** The tools the app knows by name, and what each is doing in words. */
+const TOOL_WORDS: Record<string, string> = {
+  read: "Reading", glob: "Looking for files", grep: "Searching", bash: "Running a command", edit: "Editing", multiedit: "Editing", write: "Writing a file", notebookedit: "Editing a notebook",
+  websearch: "Searching the web", toolsearch: "Looking for tools", webfetch: "Reading a page", terminal_run: "Running a command", read_link: "Reading a page", web_search: "Searching the web", task: "Working with a helper", agent: "Working with a helper", sub_task_model: "Starting a helper", crew_start: "Starting a teammate", crew_merge: "Asking to merge", crew_push: "Asking to push", todowrite: "Planning", exitplanmode: "Planning", askuserquestion: "Asking you",
+};
+
 /** A tool's name as a person would say what is happening: "Read" is "Reading", a Vyre tool "mcp__vyre__records_search" is "Searching records". Unknown names stay plain. */
 export function stepWords(name: string): string {
   const n = name.replace(/^mcp__[a-z0-9]+__/i, "").replace(/^vyre[_-]/i, "");
   const key = n.toLowerCase();
-  const table: Record<string, string> = {
-    read: "Reading", glob: "Looking for files", grep: "Searching", bash: "Running a command", edit: "Editing", multiedit: "Editing", write: "Writing a file", notebookedit: "Editing a notebook",
-    websearch: "Searching the web", toolsearch: "Looking for tools", webfetch: "Reading a page", terminal_run: "Running a command", read_link: "Reading a page", web_search: "Searching the web", task: "Working with a helper", agent: "Working with a helper", sub_task_model: "Starting a helper", crew_start: "Starting a teammate", crew_merge: "Asking to merge", crew_push: "Asking to push", todowrite: "Planning", exitplanmode: "Planning", askuserquestion: "Asking you",
-  };
+  const table = TOOL_WORDS;
+
   if (table[key]) return table[key]!;
   const words = n.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(/[_\s-]+/).filter(Boolean);
   if (words.length === 0) return "Working";
@@ -23,7 +27,8 @@ export function stepWords(name: string): string {
 /** The last stretch of thinking as one short line, or "". */
 export function thinkingExcerpt(text: string, max = 72): string {
   // a tool's own name never shows (owner, 4 Nov): a snake_case or mcp__ name in the thinking is said as what it does ("I'll call terminal_run" reads "I'll call running a command")
-  const one = text.replace(/\bmcp__[a-z0-9]+__[A-Za-z0-9_]+|\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g, (m) => stepWords(m).toLowerCase()).replace(/\s+/g, " ").trim();
+  // only a known tool's name (or a server's mcp__ name) is replaced: an ordinary word with an underscore ("user_id") is left as written
+  const one = text.replace(/\bmcp__[a-z0-9]+__[A-Za-z0-9_]+|\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g, (m) => (m.startsWith("mcp__") || TOOL_WORDS[m.toLowerCase()] ? stepWords(m).toLowerCase() : m)).replace(/\s+/g, " ").trim();
   if (one === "") return "";
   return one.length > max ? `…${one.slice(one.length - max).trimStart()}` : one;
 }
