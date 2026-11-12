@@ -3,6 +3,8 @@ import{sessionTheme}from'./space-theme.ts';
 import{sessionCatalogue}from'./space-catalog.ts';
 // The authenticated application shell. Kept behind SessionGate's lazy boundary so a signed-out
 // first paint does not parse the screen registry, virtual lists, command surface, or place chrome.
+import { osShell } from "../notifications/os-shell.ts";
+import { windowFocused } from "../notifications/os-banner.ts";
 import { OpenLink } from "../reach/OpenLink.tsx";
 import { subscribeUpdates, updateState, updateWaiting } from "../../startup/update/store.ts";
 import { ConsoleAlone, onConsoleHost } from "../console-host.ts";
@@ -311,11 +313,27 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   // the Personal Space on this computer, so a Team Space can offer "use the same AI account" (never copied without a yes)
   const personalCall = useMemo(() => { const p = catalogue.find((item) => item.def.kind === "personal" && item.def.spaceId !== stored.def.spaceId && isLoopbackUrl(item.baseUrl)); return p ? createCapCaller({ baseUrl: p.baseUrl, token: () => p.token }) : null; }, [catalogueKey, stored.def.spaceId]);
   // what needs me (replies, mentions, held approvals, alerts) and an update that is ready are persisting notices in the top bar's slot; pressing one opens what it is about
+  // in the desktop app the same notices also reach the operating system's banner when the person is not looking at that place, and the dock or taskbar badge shows the Needs you count
+  const shellOs = useMemo(() => osShell(), []);
+  const placeNow = useRef(location.place);
+  placeNow.current = location.place;
+  // the kinds the person keeps off the desktop ("Notify me on" without Desktop): no banner for them
+  const offDesktop = useRef<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    if (!session || !shellOs) return undefined;
+    const q = session.hooks.capQuery<{ kinds: readonly { key: string; mine?: { channels?: readonly string[] } }[] }>("notifications.kinds.list");
+    const read = (): void => { const s = q.getSnapshot(); if (s.status === "ready") offDesktop.current = new Set(s.data.kinds.filter((k) => k.mine?.channels !== undefined && !k.mine.channels.includes("desktop")).map((k) => k.key)); };
+    const off = q.subscribe(read);
+    read();
+    return off;
+  }, [session, shellOs]);
   const banners = useMemo<NotificationNoticesProps | null>(() => (session ? {
     query: (cap, input) => session.hooks.capQuery(cap, input),
     call: (cap, input) => session.call(cap, input),
     open: (t) => { if (t.subject) session.runtime.open({ subject: t.subject }); else if (t.place) hub.go(t.place as PlaceId); },
-  } : null), [session, hub]);
+    ...(shellOs ? { os: { view: () => ({ focused: windowFocused(), here: (n) => !n.subject && n.place === placeNow.current, address: stored.baseUrl, allows: (kind) => !offDesktop.current.has(kind) }), show: (b) => shellOs.notify(b) } } : {}),
+  } : null), [session, hub, shellOs, stored.baseUrl]);
+  useEffect(() => { shellOs?.badge(needsYou); }, [shellOs, needsYou]);
   useNotificationNotices(banners);
   const updateSource = useMemo<UpdateSource | null>(() => {
     const u = desktopUpdates();

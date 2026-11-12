@@ -1,0 +1,4 @@
+- In the desktop app, a notice reaches you as a system banner when you are not looking at the place it is about: the same words as the notice, never a message's body, and pressing it opens that place. The dock or taskbar badge shows your Needs you count and clears with it. If the system turned Vyre's banners off, Settings, Notifications says so once.
+- Email notices go out from your Space's own sending mailbox when it has one with a verified domain: the Space deletion notices to each admin, and the approval reminder. With no sending mailbox nothing is emailed and Console health says so: "Email notices are off: this Space has no sending mailbox. People see notices in the app only."
+- A notice email that failed is tried again every ten minutes, a few times; if it still fails, Console health names the person it could not reach.
+- Admins are told about the Space being scheduled for deletion even when one of the Space's roles cannot be read.

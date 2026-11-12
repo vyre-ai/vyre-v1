@@ -167,7 +167,10 @@ export interface PushTransportDeps {
   computerIdleMs?: (person: string) => Promise<number | undefined>;
   /** the Space's display name for the push title; omitted: the Space id */
   spaceName?: (space: string) => Promise<string | undefined> | string | undefined;
-  email?: (msg: { to: string; subject: string; deepLink: string }) => Promise<void>;
+  /** the email transport (seams/notify-mail.ts in a daemon): answers what became of it; "sent" only when it went out */
+  email?: (msg: { to: string; subject: string; deepLink: string; key?: string }) => Promise<void | "sent" | "no_mailbox" | "no_address" | "suppressed" | "held">;
+  /** an email the module gave up on after its tries: the host says so to admins */
+  gaveUp?: (msg: { to: string; kind: string }) => Promise<void>;
 }
 export interface PushPortSeam extends Omit<PushTransportDeps, "send"> {
   send(msg: PushSendMessage): Promise<"ok" | "gone">;
@@ -178,6 +181,7 @@ export function createPushPort(deps: PushTransportDeps = {}): PushPortSeam {
     ...(deps.computerIdleMs ? { computerIdleMs: deps.computerIdleMs } : {}),
     ...(deps.spaceName ? { spaceName: deps.spaceName } : {}),
     ...(deps.email ? { email: deps.email } : {}),
+    ...(deps.gaveUp ? { gaveUp: deps.gaveUp } : {}),
   };
 }
 

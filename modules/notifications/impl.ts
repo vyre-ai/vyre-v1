@@ -1,7 +1,7 @@
 // Notifications module (lane L6). The host loads these handlers once the host/modules.json row is live (ARCH 12.4, ruling 25).
 // setPushPort is the host's door for the APNs/FCM transport and the computer's idle time (call it at boot); the fanout consumer turns events that name a notification kind into rows.
 import { handlers } from "./handlers/index.ts";
-import { setPushPort } from "./handlers/push.ts";
+import { pushPort, setPushPort } from "./handlers/push.ts";
 import { clearForSubject, resendKindEmail, send, sendOne } from "./handlers/rules.ts";
 import { readSettings, syncSetting } from "./handlers/deliver.ts";
 import type { NotifCtx } from "./projections.ts";
@@ -131,7 +131,12 @@ async function adminsOf(ctx: NotifCtx): Promise<string[]> {
     const roles = ((await ctx.call("access.roles.list", {})) as { roles?: Array<{ id: string; name: string; permissions?: string[] }> }).roles ?? [];
     const ids = roles.filter((r) => (r.permissions ?? []).includes("server.network") || r.name === "Owner" || r.name === "Admin").map((r) => r.id);
     const out = new Set<string>();
-    for (const roleId of ids) for (const h of ((await ctx.call("access.roles.get", { roleId })) as { holders?: Array<{ kind?: string; id?: string }> }).holders ?? []) if (h.kind === "person" && typeof h.id === "string") out.add(h.id);
+    // one role that cannot be read (an id the reader refuses) leaves the others: before, one refusal emptied the whole list and no admin heard anything
+    for (const roleId of ids) {
+      let holders: Array<{ kind?: string; id?: string }> = [];
+      try { holders = ((await ctx.call("access.roles.get", { roleId })) as { holders?: Array<{ kind?: string; id?: string }> }).holders ?? []; } catch { continue; }
+      for (const h of holders) if (h.kind === "person" && typeof h.id === "string") out.add(h.id);
+    }
     return [...out].slice(0, 100);
   } catch { return []; }
 }
@@ -254,7 +259,7 @@ export const consumers = {
         //   mark with none            cut off before the send answered: sent again, the kind's email included even when the row collapses into the one filed
         //   no mark                   not reached yet: sent
         // A send that throws takes its mark back. One mark covers the row and the push: a failed push is not tried again. An event with no id is not remembered.
-        // Nothing but a delivery of the same event sends a pending email again (no periodic pass): see team/BACKLOG.md.
+        // A pending email is sent again by the next delivery of the same event, or by the periodic pass (retryPendingEmails, bounded).
         const target = `${input.to}|${input.kind}|${input.subject ? `${input.subject.type}:${input.subject.id}` : ""}|${input.collapseKey ?? ""}`;
         let redo = false;
         if (event.id) {
@@ -280,7 +285,7 @@ export const consumers = {
         if (r.emailFailed) unsent++;
         if (r.notificationId) out.push(r.notificationId);
       }
-      if (unsent > 0) ctx.log?.warn("the fanout could not send every email; the ones left are sent only if this event is delivered again", { unsent });
+      if (unsent > 0) ctx.log?.warn("the fanout could not send every email; the ones left are tried again by the periodic pass", { unsent });
       return out;
     },
   },
@@ -299,4 +304,42 @@ export const consumers = {
     on: ["settings.changed"],
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> { return syncSetting(ctx.db, event.payload) ? [String(event.payload.key)] : []; },
   },
+};
+
+/** How many times the periodic pass tries a pending email before it gives up and the host tells admins. */
+export const EMAIL_RETRY_TRIES = 5;
+
+/**
+ * A Space deletion email that failed every try in its delivery (notifications_fanout_email) is tried again every ten minutes, up to EMAIL_RETRY_TRIES times; then it is given up and the host puts
+ * one line where admins see server health ("A notice about deleting this Space could not be emailed to Bob."). A pass that finds the mail server down stops for this round.
+ */
+export async function retryPendingEmails(ctx: NotifCtx): Promise<{ sent: number; failed: number; gaveUp: number }> {
+  const rows = ctx.db.all(`SELECT e.event_id AS eventId, e.target AS target, s.notification_id AS notificationId, COALESCE(t.tries, 0) AS tries
+    FROM notifications_fanout_email e JOIN notifications_fanout_sent s ON s.event_id = e.event_id AND s.target = e.target
+    LEFT JOIN notifications_email_tries t ON t.event_id = e.event_id AND t.target = e.target ORDER BY e.at LIMIT 50`) as Array<{ eventId: string; target: string; notificationId: string | null; tries: number }>;
+  const mail = { down: false };
+  const out = { sent: 0, failed: 0, gaveUp: 0 };
+  const clear = (r: { eventId: string; target: string }): void => {
+    ctx.db.run("DELETE FROM notifications_fanout_email WHERE event_id = ? AND target = ?", r.eventId, r.target);
+    ctx.db.run("DELETE FROM notifications_email_tries WHERE event_id = ? AND target = ?", r.eventId, r.target);
+  };
+  for (const r of rows) {
+    if (mail.down) break;
+    const [person = "", kind = ""] = r.target.split("|");
+    if (!r.notificationId || !person) { clear(r); continue; }
+    if (Number(r.tries) >= EMAIL_RETRY_TRIES) {
+      clear(r);
+      out.gaveUp++;
+      await pushPort()?.gaveUp?.({ to: person, kind }).catch(() => undefined);
+      continue;
+    }
+    if (await resendKindEmail(ctx, person, r.notificationId, mail)) { clear(r); out.sent++; continue; }
+    out.failed++;
+    ctx.db.run("INSERT INTO notifications_email_tries (event_id, target, tries, at) VALUES (?, ?, 1, ?) ON CONFLICT(event_id, target) DO UPDATE SET tries = tries + 1, at = excluded.at", r.eventId, r.target, ctx.now());
+  }
+  return out;
+}
+
+export const periodic = {
+  "notifications.email_retry": { everyMs: 10 * 60_000, run: (ctx: NotifCtx): Promise<{ sent: number; failed: number; gaveUp: number }> => retryPendingEmails(ctx) },
 };

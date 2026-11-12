@@ -10,6 +10,9 @@ import type { OpenItem } from "./open-link.ts";
 import { TELL_SENT } from "./reach.ts";
 import { belowPhone } from "../../../../../ui/src/SidePane/layout.ts";
 
+/** The places a banner may open (the notification row's place). */
+const PLACES = new Set(["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console"]);
+
 const leave = (): void => {
   const h = (globalThis as { history?: { state: unknown; replaceState(s: unknown, t: string, u: string): void } }).history;
   const at = (globalThis as { location?: { pathname?: string } }).location?.pathname ?? "";
@@ -28,6 +31,8 @@ export function OpenLink({ hub, rt, me, spaceId }: { hub: Pick<ShellHub, "go">; 
     let live = true;
     const item = takeOpen();
     if (item === null) return undefined;
+    // a desktop banner about a place rather than one thing (notifications/os-banner.ts): the place itself, every person's own
+    if (item.kind === "place") { setHeld(null); if (PLACES.has(item.id)) { leave(); hub.go(item.id as Parameters<typeof hub.go>[0]); } return undefined; }
     const nav = rt.call("console.nav", {}).then((o) => adminPages({ groups: [], ...(o as object) } as Parameters<typeof adminPages>[0]), () => new Set<string>());
     void decideOpen(item, { viewer: () => ({ id: me, spaceId }), call: (c, i) => rt.call(c, i), consolePages: () => nav, memo: new Map() }).then((d) => {
       if (!live) return;

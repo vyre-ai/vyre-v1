@@ -25,7 +25,10 @@ export interface PushPort {
   spaceName?(space: string): Promise<string | undefined> | string | undefined;
   idleMinutes?(): number;
   /** One email backstop (4 hours after an approval waits); the module calls it once per approval. */
-  email?(msg: { to: string; subject: string; deepLink: string }): Promise<void>;
+  /** The email transport: answers what became of it ("sent" or why not); an older transport that answers nothing sent it. A throw is a failure to try again. */
+  email?(msg: { to: string; subject: string; deepLink: string; key: string }): Promise<void | "sent" | "no_mailbox" | "no_address" | "suppressed" | "held">;
+  /** An email given up on after its tries: the host says so to admins (one health line). */
+  gaveUp?(msg: { to: string; kind: string }): Promise<void>;
 }
 let port: PushPort | null = null;
 /** Called by the host at boot (null at shutdown and in tests). */
