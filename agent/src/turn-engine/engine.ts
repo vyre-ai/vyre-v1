@@ -576,6 +576,21 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     let paying: ResolvedAccount | null | undefined = account;
     let hooksAsked = false;
     let parked: { callId: string; name: string; held: HeldCall } | null = null;
+    /** The task of a wait written before the session closed (putWait), or null. */
+    let earlyWait: string | null = null;
+    const putWait = (p: { callId: string; name: string; held: HeldCall }): string => {
+      waits.put({
+        taskId: p.held.taskId, threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, callId: p.callId, toolName: p.name, asker: turn.asker,
+        runId: p.held.runId ?? null, at: now(), resolution: null, wakeQseq: null,
+      });
+      return p.held.taskId;
+    };
+    const dropWait = (taskId: string): void => {
+      const w = waits.get(taskId);
+      if (!w) return;
+      waits.remove(taskId);
+      if (w.wakeQseq !== null && w.wakeQseq >= 0) queue.setState(st.thread.id, w.wakeQseq, "cancelled");
+    };
     const asked: string[] = [];
     let afterTool = false;
     let reply = "";
@@ -822,6 +837,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     } finally {
       stopBeat();
       pokeRows.delete(`${st.thread.id}:${item.qseq}`);
+      // the card is in the chat from the moment the call is held, so the wait is written now, before the session is let go: an answer that lands while it closes finds the wait and
+      // resumes it (release gate, 12 Nov: an Allow pressed during a slow close was lost, and the turn sat waiting). It is taken back below when the turn does not end parked.
+      if (parked && !run.cancelled && !run.lostLease && !turn.error) earlyWait = putWait(parked);
       // a hung session may never close: give it a few seconds, then drop it so the turn can end
       try { await Promise.race([run.session?.close(), new Promise<void>((done) => { const h = setTimeout(done, 5000); if (typeof h === "object" && "unref" in h) h.unref(); })]); } catch { /* a session that will not close is dropped */ }
     }
@@ -829,14 +847,15 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     const mineStill = leases.renew(st.thread.id, opts.holder, now());
     leases.setTurn(st.thread.id, opts.holder, null);
     st.running = null;
+    // a wait written early for a turn that does not end parked (stopped while closing) goes, and so does a wake an answer queued for it: nothing resumes into a dead turn. A lost lease
+    // leaves it: the host that took the thread over owns the rows, and an answer there resumes the agent from the wait (as after a restart).
+    if (earlyWait && mineStill && (run.cancelled || turn.error)) dropWait(earlyWait);
     if (!mineStill) { turn.endedAt = now(); turn.state = "failed"; turn.error ??= { code: "lease_lost", message: "another host took this thread" }; return; }   // the new holder owns the row
     if (parked && !run.cancelled && !turn.error) {
       settleInfo(info, paying ?? null, usages, priced);
       turn.state = "waiting";
-      waits.put({
-        taskId: parked.held.taskId, threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, callId: parked.callId, toolName: parked.name, asker: turn.asker,
-        runId: parked.held.runId ?? null, at: now(), resolution: null, wakeQseq: null,
-      });
+      // written once: an answer that came while the session closed is on the row with its wake, and is kept (the wake runs next, from loop())
+      if (!earlyWait || !waits.get(earlyWait)) putWait(parked);
       queue.setState(st.thread.id, item.qseq, "done");
       recordSpend(turn);
       // what the turn cost up to the hold is metered now: the wake is a new turn row with its own usage, and this one would otherwise stay at nothing
