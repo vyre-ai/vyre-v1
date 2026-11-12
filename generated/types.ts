@@ -2878,6 +2878,7 @@ export type AutomationsCreateOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsDeleteIn = {
@@ -3120,6 +3121,7 @@ export type AutomationsGetOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
   canEdit?: boolean;
 };
@@ -3332,6 +3334,7 @@ export type AutomationsMakePersonalCopyOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsMigrateRunsIn = {
@@ -3462,6 +3465,7 @@ export type AutomationsMoveOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsOpenDocumentIn = {
@@ -3605,6 +3609,7 @@ export type AutomationsPackagesImportOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
   needs: {
     connections: Array<{
@@ -3757,6 +3762,7 @@ export type AutomationsPromoteOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
   diff: {
     grants: Array<{
@@ -3925,6 +3931,7 @@ export type AutomationsRestoreVersionOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsRetryIn = {
@@ -3943,6 +3950,20 @@ export type AutomationsRunIn = {
 };
 export type AutomationsRunOut = {
   runId: string;
+};
+export type AutomationsRunsAsGetIn = {
+  automationId: string;
+  agentId?: string;
+  runId?: string;
+};
+export type AutomationsRunsAsGetOut = {
+  kind: "personal" | "space";
+  runsAs?: string;
+  name?: string;
+  trigger?: string;
+  ok: boolean;
+  reason?: "nobody" | "not_active" | "cannot_ask" | "assistant";
+  line?: string;
 };
 export type AutomationsScheduleChooseIn = {
   automationId: string;
@@ -4076,6 +4097,7 @@ export type AutomationsSetEnabledOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsSetOwnerIn = {
@@ -4176,6 +4198,7 @@ export type AutomationsSetOwnerOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsStepsListIn = {
@@ -4316,6 +4339,7 @@ export type AutomationsTemplatesUseOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsTestIn = {
@@ -4450,6 +4474,7 @@ export type AutomationsUndeleteOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsUpdateIn = {
@@ -4610,6 +4635,7 @@ export type AutomationsUpdateOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsValidateIn = {
@@ -45035,6 +45061,7 @@ export interface CapMap {
   "automations.restore_version": { in: AutomationsRestoreVersionIn; out: AutomationsRestoreVersionOut };
   "automations.retry": { in: AutomationsRetryIn; out: AutomationsRetryOut };
   "automations.run": { in: AutomationsRunIn; out: AutomationsRunOut };
+  "automations.runs_as.get": { in: AutomationsRunsAsGetIn; out: AutomationsRunsAsGetOut };
   "automations.schedule_choose": { in: AutomationsScheduleChooseIn; out: AutomationsScheduleChooseOut };
   "automations.senders": { in: AutomationsSendersIn; out: AutomationsSendersOut };
   "automations.set_enabled": { in: AutomationsSetEnabledIn; out: AutomationsSetEnabledOut };
@@ -47372,6 +47399,13 @@ export type AutomationRunStartedPayload = {
   test: boolean;
   depth: number;
   origin?: string;
+};
+export type AutomationRunsAsChangedPayload = {
+  automationId: string;
+  from: string | null;
+  to: string | null;
+  by: string;
+  why: "on" | "save" | "restore" | "promote" | "cleared";
 };
 export type AutomationRunsMigratedPayload = {
   automationId: string;
@@ -51360,6 +51394,7 @@ export interface EventMap {
   "automation.promoted": AutomationPromotedPayload;
   "automation.restored": AutomationRestoredPayload;
   "automation.run_started": AutomationRunStartedPayload;
+  "automation.runs_as_changed": AutomationRunsAsChangedPayload;
   "automation.runs_migrated": AutomationRunsMigratedPayload;
   "automation.trigger_dropped": AutomationTriggerDroppedPayload;
   "automation.updated": AutomationUpdatedPayload;

@@ -8,8 +8,11 @@
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 import type { JsonSchema } from "../../../packages/contracts/src/types.ts";
 import { stepError } from "../projections.ts";
-import { buildBrief, MAX_BRIEF_INPUT } from "./brief.ts";
+import { buildBrief, isOutside, MAX_BRIEF_INPUT } from "./brief.ts";
 import type { StepCall, StepEnv, StepNode, StepResult } from "./control.ts";
+
+/** A Run a stranger could start (an email, a form, a webhook): its trigger and inputs go in the brief as outside content. */
+const outsideOf = (env: StepEnv): { from: string } | undefined => (env.run.trigger !== undefined && isOutside(env.run.trigger) ? { from: env.run.trigger } : undefined);
 
 type Rec = Record<string, unknown>;
 const rec = (v: unknown): v is Rec => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -53,7 +56,7 @@ function promptOf(env: StepEnv, cfg: Rec, call: StepCall, title: string): string
   if (!prompt) throw stepError("validation.bad_input", `The AI step "${title}" needs a prompt.`, false);
   try {
     return buildBrief({
-      kind: "answer", goal: prompt, automation: env.run.automation ?? env.run.label, trigger: call.trigger, outputs: call.outputs, also: [call.item],
+      kind: "answer", goal: prompt, automation: env.run.automation ?? env.run.label, trigger: call.trigger, outside: outsideOf(env), outputs: call.outputs, also: [call.item],
       inputs: cfg["inputs"], schema: rec(cfg["outputSchema"]) ? (cfg["outputSchema"] as JsonSchema) : undefined, doneMeans: stringsOf(cfg["doneMeans"]), timeoutMinutes: typeof cfg["timeoutMinutes"] === "number" ? cfg["timeoutMinutes"] : undefined,
     });
   } catch (e) {
@@ -142,6 +145,23 @@ async function taskStep(env: StepEnv, node: StepNode, cfg: Rec, call: StepCall, 
   if (!assigned) throw stepError("validation.precondition_failed", `The AI step "${title}" is a task and needs someone to do it. Pick an agent.`, false);
   const reviewer = assigneeOf(cfg["reviewer"]);
   const approver = assigneeOf(cfg["approver"]);
+  // checked again as it runs (it was checked when saved): the agent may have become someone's Assistant since. A Space Automation, which runs as itself, never gives work to anyone's Assistant;
+  // a Personal one only to its owner's own (lead 12 Nov, rule 4)
+  for (const w of [assigned, reviewer, approver]) {
+    if (w?.kind !== "agent") continue;
+    const got = (await env.ctx.call!("agents.get", { agentId: w.id }).catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) }))) as { agent?: { kind?: string; ownerId?: string; name?: string }; error?: string } | null;
+    const a = got?.agent;
+    const p = env.ctx.principal;
+    if (!a && p.kind !== "person") {
+      // the Automation may not read the agent: whether it may give it work is the same check a task makes
+      const u = (await env.ctx.call!("agents.outside.usable", { agentId: w.id }).catch(() => null)) as { usable?: boolean } | null;
+      if (u?.usable === false) throw stepError("validation.precondition_failed", `A Space automation cannot give work to a person's Assistant or to an agent on someone's own computer: choose a team agent in "${title}".`, false);
+      continue;
+    }
+    if (a?.kind !== "assistant") continue;
+    if (p.kind !== "person") throw stepError("validation.precondition_failed", `${a.name ?? "That agent"} is a person's Assistant. A Space automation cannot give work to anyone's Assistant: choose a team agent in "${title}".`, false);
+    if (a.ownerId !== p.id) throw stepError("validation.precondition_failed", `${a.name ?? "That agent"} is someone else's Assistant. Choose your own Assistant or a team agent in "${title}".`, false);
+  }
   const schema = rec(cfg["outputSchema"]) ? (cfg["outputSchema"] as JsonSchema) : undefined;
   const doneMeans = stringsOf(cfg["doneMeans"]);
   const escalateTo = assigneeOf(cfg["escalateTo"]);
@@ -150,7 +170,7 @@ async function taskStep(env: StepEnv, node: StepNode, cfg: Rec, call: StepCall, 
   let brief: string;
   try {
     brief = buildBrief({
-      kind: "task", goal, automation: env.run.automation ?? env.run.label, trigger: call.trigger, outputs: call.outputs, also: [call.item], inputs: cfg["inputs"], schema, doneMeans,
+      kind: "task", goal, automation: env.run.automation ?? env.run.label, trigger: call.trigger, outside: outsideOf(env), outputs: call.outputs, also: [call.item], inputs: cfg["inputs"], schema, doneMeans,
       reviewer: reviewer ? names[reviewer.id] ?? `The ${reviewer.kind === "agent" ? "reviewing agent" : "reviewer"}` : undefined, approver: approver ? names[approver.id] ?? `The ${approver.kind === "agent" ? "approving agent" : "approver"}` : undefined,
       timeoutMinutes: minutes,
     });
@@ -160,7 +180,7 @@ async function taskStep(env: StepEnv, node: StepNode, cfg: Rec, call: StepCall, 
   }
   const owner = env.ctx.principal.kind === "person" ? env.ctx.principal.id : undefined;
   const notes: Record<string, string> = {
-    brief, "run.step": node.id, ...(doneMeans && doneMeans.length > 0 ? { done_means: JSON.stringify(doneMeans) } : {}), ...(schema ? { output_schema: JSON.stringify(schema) } : {}),
+    brief, "run.step": node.id, ...(env.run.automation ? { "automation.id": env.run.automation } : {}), ...(env.run.trigger ? { "automation.trigger": env.run.trigger } : {}), ...(doneMeans && doneMeans.length > 0 ? { done_means: JSON.stringify(doneMeans) } : {}), ...(schema ? { output_schema: JSON.stringify(schema) } : {}),
     ...(typeof cfg["nudgeMinutes"] === "number" ? { "baton.nudge_minutes": String(cfg["nudgeMinutes"]) } : {}), ...(escalateTo ? { "baton.escalate_to": JSON.stringify(escalateTo) } : {}), ...(owner ? { "baton.owner": owner } : {}),
   };
   const made = (await env.ctx.call!("tasks.create", {
@@ -174,6 +194,7 @@ async function taskStep(env: StepEnv, node: StepNode, cfg: Rec, call: StepCall, 
     // the brief is the first thing in the task's thread, and an unattended task works without asking first (anything that leaves Vyre is still held)
     const threadId = made?.task?.threadId;
     if (threadId) {
+      // every Run keeps Auto: one a stranger could start is marked as holding outside content instead (the engine's task baton), and the Gate's own rules stop its dangerous acts (lead 12 Nov)
       await soft(() => env.ctx.call!("threads.set_mode", { threadId, mode: "auto", idempotencyKey: `${call.key}:mode` }));
       await soft(() => env.ctx.call!("chat.post", { threadId, body: brief, idempotencyKey: `${call.key}:brief` }));
     }

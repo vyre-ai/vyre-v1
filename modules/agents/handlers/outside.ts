@@ -77,12 +77,12 @@ export function next(ctx: AgentsCtx, _input: Record<string, never>) {
 /**
  * May the person asking give this agent work: a task, an automation step, a crew? An outside agent takes work from its owner only. Any other agent also needs Can use on it (Share's second level):
  * Can chat with lets a person add it to their chats and talk to it, nothing more, because work on an agent runs on the person's own AI account and acts for them. The owner, the host and a
- * person who sees all agents (an admin) pass; the private Assistant is its person's alone. An agent that is not there says yes, as before: the caller finds that out where it matters.
+ * person who sees all agents (an admin) pass; the private Assistant is its person's alone. An agent that is not there is not usable.
  */
 export function usable(ctx: AgentsCtx, input: { agentId: string }) {
   ensure(ctx.db);
   const a = agentBy(ctx.db, input.agentId);
-  if (!a) return { usable: true };
+  if (!a) return { usable: false };   // an agent that is not there takes no work (review 12 Nov, 9: not found is not usable)
   const who = askerOf(ctx);
   if (isHostService(ctx.principal)) return { usable: true };
   if (isAssistant(a)) return { usable: a.ownerId === who };   // a person's Assistant is theirs alone

@@ -70,7 +70,7 @@ test("Can use in their work (use): an agent can be given work only with Can use;
   assert.deepEqual(await h["agents.outside.usable"]!(use.person(LEO), { agentId: a.agentId }), { usable: true });
   assert.deepEqual(await h["agents.outside.usable"]!(view.person(DANA), { agentId: a.agentId }), { usable: true }, "the owner");
   assert.deepEqual(await h["agents.outside.usable"]!(view.as({ kind: "service", id: "svc_host" } as never), { agentId: a.agentId }), { usable: true }, "the host");
-  assert.deepEqual(await h["agents.outside.usable"]!(view.person(LEO), { agentId: "agt_unknown" }), { usable: true }, "an agent that is not there is the caller's to find out");
+  assert.deepEqual(await h["agents.outside.usable"]!(view.person(LEO), { agentId: "agt_unknown" }), { usable: false }, "an agent that is not there takes no work (review 12 Nov, 9: not found is not usable; before, it said yes)");
 });
 
 test("Can edit (edit): settings (agent.toml, AGENT.md, memory) change; renaming does not. Pause, delete and share are level manage in the pipeline and in access.share", async () => {

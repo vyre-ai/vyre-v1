@@ -49,6 +49,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "automations.restore_version": async (ctx) => { throw new VyreErr(notImplemented("automations.restore_version", ctx.trace)); },
   "automations.retry": async (ctx) => { throw new VyreErr(notImplemented("automations.retry", ctx.trace)); },
   "automations.run": async (ctx) => { throw new VyreErr(notImplemented("automations.run", ctx.trace)); },
+  "automations.runs_as.get": async (ctx) => { throw new VyreErr(notImplemented("automations.runs_as.get", ctx.trace)); },
   "automations.schedule_choose": async (ctx) => { throw new VyreErr(notImplemented("automations.schedule_choose", ctx.trace)); },
   "automations.senders": async (ctx) => { throw new VyreErr(notImplemented("automations.senders", ctx.trace)); },
   "automations.set_enabled": async (ctx) => { throw new VyreErr(notImplemented("automations.set_enabled", ctx.trace)); },

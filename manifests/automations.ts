@@ -70,6 +70,7 @@ const packageRow = t.obj({
 const row = t.obj({
   id: id.automation, name: t.str(), description: t.opt(t.str()), kind: kindEnum, groupId: t.opt(groupId), ownerId: t.str(), status, pausedReason: t.opt(t.str()),
   version: t.int({ minimum: 1 }), definition, followers: t.arr(t.str()), alerts, createdAt: t.ts(), updatedAt: t.ts(),
+  runsAs: t.opt(t.str({ description: 'A Space automation: the person whose yes its agent work runs on (who last turned it on or published a change to it); absent when nobody has', examples: ['usr_a1b2c3'] })),
 });
 const groupRow = t.obj({ id: groupId, name: t.str(), count: t.int(), order: t.int() });
 const accessDiff = t.obj({
@@ -149,6 +150,7 @@ export default defineManifest({
     ev('automation.enabled', 'An Automation was turned on', { p: { automationId: id.automation }, subject: ['automation', '/automationId'] }),
     ev('automation.disabled', 'An Automation was turned off or paused', { p: { automationId: id.automation, reason: t.opt(t.str()) }, subject: ['automation', '/automationId'] }),
     ev('automation.version_restored', 'An earlier version was restored as the newest version', { p: { automationId: id.automation, versionId: id.version, version: t.int() }, subject: ['automation', '/automationId'] }),
+    ev('automation.runs_as_changed', 'The person a Space Automation runs as changed: someone turned it on, published a change, restored a version or put it on the Space; or nobody, after a change no person pressed', { p: { automationId: id.automation, from: t.nullable(t.str()), to: t.nullable(t.str()), by: t.str(), why: t.enm('on', 'save', 'restore', 'promote', 'cleared') }, subject: ['automation', '/automationId'], retention: 'audit' }),
     ev('automation.promoted', 'A Personal Automation became a Space Automation with access granted to the automation itself', { p: { automationId: id.automation, ownerId: t.str(), grants: t.int(), keysReplaced: t.int() }, subject: ['automation', '/automationId'], retention: 'audit' }),
     ev('automation.copied', 'A Space Automation was copied to a Personal Automation', { p: { automationId: id.automation, fromId: id.automation }, subject: ['automation', '/automationId'] }),
     ev('automation.moved', 'An Automation moved to a Group', { p: { automationId: id.automation, groupId: t.nullable(groupId) }, subject: ['automation', '/automationId'] }),
@@ -246,7 +248,7 @@ export default defineManifest({
     }),
     write('automations.update', 'Change the name, description or definition; a definition change saves a new version', {
       in: { ...target, name: t.opt(t.str()), description: t.opt(t.str()), definition: t.opt(definition), expectedVersion: t.opt(t.int()) },
-      out: { automation: row }, on: ['automation', '/automationId'], emits: ['automation.updated'], tool: 'automations', errors: ['validation.version_conflict', 'validation.bad_input'],
+      out: { automation: row }, on: ['automation', '/automationId'], emits: ['automation.updated', 'automation.runs_as_changed'], tool: 'automations', errors: ['validation.version_conflict', 'validation.bad_input'],
     }),
     write('automations.migrate_runs', 'Move selected active runs onto a definition version without replaying finished steps', {
       in: { ...target, toVersion: t.int({ minimum: 1 }), runIds: t.arr(id.run, { minItems: 1 }) },
@@ -255,7 +257,7 @@ export default defineManifest({
       errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('automations.set_enabled', 'Turn an Automation on or off', {
-      in: { ...target, enabled: t.bool() }, out: { automation: row }, on: ['automation', '/automationId'], emits: ['automation.enabled', 'automation.disabled'], tool: 'automations',
+      in: { ...target, enabled: t.bool() }, out: { automation: row }, on: ['automation', '/automationId'], emits: ['automation.enabled', 'automation.disabled', 'automation.runs_as_changed'], tool: 'automations',
       errors: ['validation.precondition_failed'],
     }),
     outward('automations.code_reach', 'System: a code step that names hosts asks the Gate before the sandbox opens to them. It does nothing itself', {
@@ -296,7 +298,7 @@ export default defineManifest({
     write('automations.undelete', 'Restore an Automation from Trash', { in: target, out: { automation: row }, on: ['automation', '/automationId'], level: 'manage', emits: ['automation.restored'], tool: 'automations' }),
     read('automations.versions', 'List versions of an Automation (One History)', { in: target, out: { versions: t.arr(versionRow) }, on: ['automation', '/automationId'], tool: 'automations' }),
     write('automations.restore_version', 'Restore an Automation to an earlier version (saved as a new version)', {
-      in: { ...target, versionId: id.version }, out: { automation: row }, on: ['automation', '/automationId'], emits: ['automation.version_restored', 'automation.updated'], tool: 'automations',
+      in: { ...target, versionId: id.version }, out: { automation: row }, on: ['automation', '/automationId'], emits: ['automation.version_restored', 'automation.updated', 'automation.runs_as_changed'], tool: 'automations',
       agent: { planMode: 'blocked' },
     }),
     read('automations.validate', 'Check a definition against the step and trigger catalogue: missing inputs, unreachable steps, loops, personal triggers that need a Team Space', {
@@ -352,7 +354,7 @@ export default defineManifest({
     }),
     write('automations.promote', 'Promote a Personal Automation to the Space: keeps history and versions, runs on access granted to the automation itself', {
       in: { ...target, confirm: t.lit(true), ownerId: t.opt(t.str({ description: 'Named accountable owner; the caller by default' })), replaceKeys: t.opt(t.arr(t.obj({ stepId: t.str(), keyId: t.str() }))) },
-      out: { automation: row, diff: accessDiff }, on: ['automation', '/automationId'], perm: 'automations.space', level: 'manage', risk: 'high', emits: ['automation.promoted'], audit: 'always', tool: 'automations',
+      out: { automation: row, diff: accessDiff }, on: ['automation', '/automationId'], perm: 'automations.space', level: 'manage', risk: 'high', emits: ['automation.promoted', 'automation.runs_as_changed'], audit: 'always', tool: 'automations',
       errors: ['validation.precondition_failed'],
     }),
     create('automations.make_personal_copy', 'Make a Personal copy of a Space Automation; it runs with only your access', {
@@ -370,6 +372,11 @@ export default defineManifest({
     }),
     write('automations.followers.remove', 'Stop following an Automation', {
       in: { ...target, follower: t.str({ examples: ['usr_a1b2c3'] }) }, out: { followers: t.arr(t.str()) }, on: ['automation', '/automationId'], emits: ['automation.follower_removed'], tool: 'automations',
+    }),
+    read('automations.runs_as.get', 'Whose yes a Space automation\'s agent work runs on, and whether that person may still give it to this agent; for one Run, its trigger', {
+      in: { ...target, agentId: t.opt(id.agent), runId: t.opt(id.run) },
+      out: { kind: kindEnum, runsAs: t.opt(t.str()), name: t.opt(t.str()), trigger: t.opt(t.str()), ok: t.bool(), reason: t.opt(t.enm('nobody', 'not_active', 'cannot_ask', 'assistant')), line: t.opt(t.str()) },
+      on: ['automation', '/automationId'], tool: 'automations',
     }),
     read('automations.webhook_url.get', 'The inbound webhook URL of an Automation that has a webhook trigger', {
       in: target, out: { url: t.str(), method: t.lit('POST') }, on: ['automation', '/automationId'], level: 'edit', tool: 'automations', team: true,
