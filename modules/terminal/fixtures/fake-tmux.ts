@@ -5,17 +5,19 @@ import type { Exec, ExecResult } from "../impl.ts";
 export type ScriptResult = { out: string; code: number } | { hang: true };
 export type Script = ScriptResult | ((command: string, env: Record<string, string>) => ScriptResult);
 
-interface Sess { name: string; cols: number; rows: number; cwd: string; lines: string[]; typed: string; hung: boolean; env: Record<string, string>; up?: number }
+interface Sess { name: string; cols: number; rows: number; cwd: string; lines: string[]; typed: string; hung: boolean; env: Record<string, string>; up?: number; opts: Map<string, string> }
 
 export interface FakeTmuxOptions {
   scripts?: Record<string, Script>;
   installed?: boolean;
   version?: string;
+  /** Script outputs after which the end marker's row is drawn over (see overwriteEnd). */
+  overwriteEnd?: string[];
   /** Lines of history a session keeps; past it a tenth is dropped at a time, as tmux does. Default 20000. */
   historyLimit?: number;
 }
 
-const RUN = /^ printf '%s\\n' '(__VYRE_BEG_[0-9a-f]+__)'; (?:cd '((?:[^']|'\\'')*)' && )?([\s\S]*); printf '\\n%s:%d\\n' '(__VYRE_END_[0-9a-f]+__)' \$\?$/;
+const RUN = /^ printf '%s\\n' '(__VYRE_BEG_[0-9a-f]+__)'; (?:cd '((?:[^']|'\\'')*)' && )?([\s\S]*); __vyre_rc=\$\?; '[^']*' set-option -q -t '[^']*' (@vyre_rc_[0-9a-f]+) "\$__vyre_rc" 2>\/dev\/null; printf '\\n%s:%d\\n' '(__VYRE_END_[0-9a-f]+__)' "\$__vyre_rc"; unset __vyre_rc$/;
 
 /** Read one shell word starting at `at`: single quotes, a backslash-escaped character, and unquoted text up to a space. Returns the word's value and where it ended. */
 function word(text: string, at: number): { value: string; end: number } {
@@ -58,6 +60,8 @@ function unwrap(body: string, buffers: Map<string, string>): { command: string; 
 
 export function fakeTmux(o: FakeTmuxOptions = {}) {
   const sessions = new Map<string, Sess>();
+  /** Outputs of scripted commands that draw over the end marker's row (tput, a progress bar): the end line never shows on the screen. */
+  const overwriteEnd = new Set<string>(o.overwriteEnd ?? []);
   /** A pane's shell pid, made up from its session name. */
   const pidOf = (name: string): number => 1000 + [...name].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 50_000, 7) * 2;
   /** tmux paste buffers by name: what load-buffer read from its standard input. */
@@ -99,12 +103,15 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
       print(s, r.out);
       return;
     }
-    const [, beg, , body, end] = m;
+    const [, beg, , body, rcOption, end] = m;
     const { command, env } = unwrap(body as string, buffers);
     print(s, beg as string);
     const r = result(command.trim(), env);
     if ("hang" in r) { s.hung = true; return; }
     if (r.out !== "") print(s, r.out);
+    s.opts.set(rcOption as string, String(r.code));
+    // a program that drew over the marker's row (tput, a progress bar): the screen shows no end line, only the stored code says it ended
+    if (overwriteEnd.has(r.out)) return;
     print(s, "");
     print(s, `${end as string}:${r.code}`);
   }
@@ -143,7 +150,7 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
     if (sub === "new-session") {
       const name = flag(argv, "-s") as string;
       if (sessions.has(name)) return bad(`duplicate session: ${name}`);
-      sessions.set(name, { name, cols: Number(flag(argv, "-x")), rows: Number(flag(argv, "-y")), cwd: flag(argv, "-c") ?? "/home/agent", lines: [], typed: "", hung: false, env: {} });
+      sessions.set(name, { name, cols: Number(flag(argv, "-x")), rows: Number(flag(argv, "-y")), cwd: flag(argv, "-c") ?? "/home/agent", lines: [], typed: "", hung: false, env: {}, opts: new Map() });
       return ok();
     }
     if (sub === "list-buffers") return ok([...buffers.keys()].map((b) => `${b}\n`).join(""));
@@ -159,6 +166,9 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
         const fmt = argv[argv.length - 1];
         if (fmt === "#{history_size} #{cursor_y} #{history_limit}") { const g = grid(s); return ok(`${g.h} ${g.cy} ${limit}\n`); }
         if (fmt === "#{pane_pid} #{pane_dead} #{pane_in_mode}") return ok(`${pidOf(s.name)} 0 0\n`);
+        // a user option in a format: its value, or nothing when unset
+        const opt = /^(.*)#\{(@[A-Za-z0-9_]+)\}$/.exec(fmt ?? "");
+        if (opt) return ok(`${opt[1]}${s.opts.get(opt[2] as string) ?? ""}\n`);
         return ok(`${fmt === "#{pane_current_path}" ? s.cwd : fmt === "#{pane_current_command}" ? (s.hung ? "sleep" : "bash") : ""}\n`);
       }
       case "send-keys": {
@@ -176,6 +186,12 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
         const screen = g.all.slice(g.h);
         while (screen.length < s.rows) screen.push("");
         return ok(`${[...g.all.slice(Math.max(0, g.h - n), g.h), ...screen].join("\n")}\n`);
+      }
+      case "set-option": {
+        const key = argv.find((a) => a.startsWith("@"));
+        if (key === undefined) return ok();
+        if (argv.includes("-u")) s.opts.delete(key); else s.opts.set(key, argv[argv.indexOf(key) + 1] ?? "");
+        return ok();
       }
       case "resize-window": s.cols = Number(flag(argv, "-x")); s.rows = Number(flag(argv, "-y")); return ok();
       case "kill-session": sessions.delete(s.name); return ok();

@@ -163,3 +163,14 @@ test("review 7: when a program moves the cursor up (an editor, tput), the live r
   const after = await host.read("v1", { lines: 1, since: cursor });
   assert.equal(/line \d+/.test(after.text), false, `no old line sent again: ${after.text}`);
 });
+
+test("a run whose program drew over the end marker's row (tput, a progress bar) still ends at once with its exit code, from the code the line stores in a tmux option", async () => {
+  const tm = fakeTmux({ scripts: { "draw": { out: "50%", code: 3 } }, overwriteEnd: ["50%"] });
+  const host = createTmuxHost({ exec: tm.exec, pollMs: 5, sleep: async () => { await new Promise((x) => setTimeout(x, 2)); } });
+  await host.open({ terminalId: "e1", target, name: "x", cols: 80, rows: 24, folders: [] });
+  const t0 = Date.now();
+  const r = await host.run("e1", { command: "draw", env: {}, timeoutMs: 10_000 });
+  assert.equal(r.exitCode, 3);
+  assert.ok(Date.now() - t0 < 2000, "it did not wait out its time");
+  assert.equal(tm.sessions.get("vyre-e1")!.opts.size, 0, "the stored code is removed after");
+});

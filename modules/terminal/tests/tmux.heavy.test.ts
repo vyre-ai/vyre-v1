@@ -488,3 +488,21 @@ test("real tmux (review 7): while vim is open and after it exits, the live read 
   assert.deepEqual(old, [], `no line of the screen before vim was sent again: ${JSON.stringify(seen.slice(-30))}`);
   await host.close("trm_heavy_up");
 });
+
+test("real tmux (12 Nov): a run ends at once with its exit code after it moved the cursor up, cleared the screen or drew a progress bar with carriage returns", { skip }, async () => {
+  await open("trm_heavy_draw", { rows: 12 });
+  const cases: Array<[string, string, number, RegExp]> = [
+    // rows longer than the end marker: the marker written over one keeps the old row's tail, so the marker line never reads clean
+    ["the cursor moved up over earlier, longer rows", "for i in $(seq 1 30); do echo \"row $i $(printf 'x%.0s' $(seq 1 70))\"; done; printf '\\033[8A'; exit_with() { return $1; }; exit_with 4", 4, /row 1 x/],
+    ["the screen cleared", "seq 1 30; clear; echo after-clear", 0, /after-clear/],
+    ["a progress bar", "for i in 10 20 30 40 50 60 70 80 90 100; do printf '\\r%3d%% %s' $i 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; sleep 0.05; done; printf '\\r'", 0, /100%/],
+  ];
+  for (const [what, command, code, shows] of cases) {
+    const r = await host.run("trm_heavy_draw", { command, env: {}, timeoutMs: 20_000 });
+    assert.equal(r.exitCode, code, what);
+    assert.ok(r.durationMs < 6000, `${what}: ended in ${r.durationMs} ms, not at the limit`);
+    assert.match(r.output, shows, `${what}: ${JSON.stringify(r.output.slice(-200))}`);
+  }
+  assert.equal((await runTmux(["show-options", "-t", "vyre-trm_heavy_draw"])).stdout.includes("@vyre_rc_"), false, "no stored code is left on the session");
+  await host.close("trm_heavy_draw");
+});

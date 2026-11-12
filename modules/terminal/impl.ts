@@ -220,25 +220,35 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
   }
 
   /** Type one line, press Enter and read the screen until the end marker shows: the output between the markers and the exit code. */
-  async function runLine(session: string, line: string, beg: string, end: string, timeoutMs: number): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }> {
+  /**
+   * Type one line, press Enter and wait for its end. The end is known by two things: the end marker on the screen (fast, and what the output is cut at), and the exit code the line stores in a tmux
+   * option of the session (rcOption), which no program can overwrite. A command that moved the cursor up, cleared the screen or drew a progress bar can write over the marker's row; the option still says
+   * it ended, so the run never waits out its time for nothing (12 Nov).
+   */
+  async function runLine(session: string, line: string, beg: string, end: string, timeoutMs: number, rcOption: string): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }> {
     const t0 = now();
     await tmux(["send-keys", "-t", session, "-l", "--", line]);
     await tmux(["send-keys", "-t", session, "Enter"]);
     const endRe = new RegExp(`^${end}:(\\d+)$`, "m");
+    const RC = "__VYRE_RC__:";
+    const cut = (lines: string[], code: number) => {
+      let from = -1;
+      for (let i = lines.length - 1; i >= 0; i--) if (lines[i] === beg) { from = i; break; }
+      let output = tidy(lines.slice(from + 1).filter((l) => !l.includes(end)).join("\n"));
+      let truncated = from < 0;
+      if (output.length > maxOutput) { output = output.slice(output.length - maxOutput); truncated = true; }
+      return { exitCode: code, output, truncated, durationMs: now() - t0 };
+    };
+    const forget = (): Promise<unknown> => o.exec(["tmux", "set-option", "-u", "-q", "-t", session, rcOption]).catch(() => undefined);
     for (;;) {
-      const screen = await capture(session, scrollback);
+      // the screen and the stored exit code in one tmux call
+      const both = tidy(await tmux(["capture-pane", "-p", "-J", "-t", session, "-S", `-${Math.max(1, scrollback)}`, ";", "display-message", "-p", "-t", session, `${RC}#{${rcOption}}`]));
+      const at = both.lastIndexOf(RC);
+      const rc = at >= 0 ? both.slice(at + RC.length).trim() : "";
+      const screen = tidy(at >= 0 ? both.slice(0, at) : both);
       const m = endRe.exec(screen);
-      if (m && m.index !== undefined) {
-        const before = screen.slice(0, m.index);
-        const lines = before.split("\n");
-        let from = -1;
-        for (let i = lines.length - 1; i >= 0; i--) if (lines[i] === beg) { from = i; break; }
-        let output = tidy(lines.slice(from + 1).join("\n"));
-        const scrolledOff = from < 0;
-        let truncated = scrolledOff;
-        if (output.length > maxOutput) { output = output.slice(output.length - maxOutput); truncated = true; }
-        return { exitCode: Number(m[1]), output, truncated, durationMs: now() - t0 };
-      }
+      if (m && m.index !== undefined) { await forget(); return cut(screen.slice(0, m.index).split("\n"), Number(m[1])); }
+      if (/^\d+$/.test(rc)) { await forget(); return cut(screen.split("\n"), Number(rc)); }
       if (now() - t0 >= timeoutMs) {
         await tmux(["send-keys", "-t", session, "C-c"]).catch(() => undefined);
         throw Object.assign(new Error("the command did not finish in time"), { code: "timeout" });
@@ -314,8 +324,10 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
           : `{ ${r.command}\n}`;
         const cd = r.cwd === undefined ? "" : `cd ${shQuote(r.cwd)} && `;
         // Begin and end markers are printed by the shell, so the typed line (which holds them only inside quotes) never matches a marker line. The leading space keeps the line out of the shell's history.
-        const line = ` printf '%s\\n' ${shQuote(beg)}; ${cd}${body}; printf '\\n%s:%d\\n' ${shQuote(end)} $?`;
-        return await runLine(session, line, beg, end, leftMs);
+        // the exit code also goes into a tmux option of the session, which nothing on the screen can overwrite (runLine)
+        const rcOption = `@vyre_rc_${nonce}`;
+        const line = ` printf '%s\\n' ${shQuote(beg)}; ${cd}${body}; __vyre_rc=$?; ${tm} set-option -q -t ${shQuote(session)} ${rcOption} "$__vyre_rc" 2>/dev/null; printf '\\n%s:%d\\n' ${shQuote(end)} "$__vyre_rc"; unset __vyre_rc`;
+        return await runLine(session, line, beg, end, leftMs, rcOption);
       } finally {
         running.delete(session);
         if (buffer !== null) { await o.exec(["tmux", "delete-buffer", "-b", buffer]).catch(() => undefined); mine.delete(buffer); }
