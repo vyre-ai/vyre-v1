@@ -304,7 +304,8 @@ export function currentSessionId(ctx: IdentityCtx, personId: string): string | u
   const deviceId = ctx.device ?? ctx.session?.deviceId;
   if (!deviceId) return undefined;
   const rows = ctx.db.all(`SELECT * FROM identity_sessions WHERE person_id = ?`, personId) as { id: string; device_id: string; revoked_at: number | null; expires_at: number; created_at: number }[];
-  return rows.filter((r) => r.device_id === deviceId && r.revoked_at === null && r.expires_at > ctx.now() && (!ctx.session?.id || r.id === ctx.session.id))
+  // not filtered on expires_at: nothing where requests come in checks it (host/src/daemon/session.ts reads the devices tables), so a session past it still works and must still be found to end it
+  return rows.filter((r) => r.device_id === deviceId && r.revoked_at === null && (!ctx.session?.id || r.id === ctx.session.id))
     .sort((a, b) => b.created_at - a.created_at)[0]?.id;
 }
 /** End one session here and at the gateway. */
@@ -328,7 +329,8 @@ export function finishRecoverySessions(ctx:IdentityCtx,personId:string,sessions:
 export function sessionOfToken(ctx: IdentityCtx, token: string): { sessionId: string; personId: string; deviceId: string } | undefined {
   const r = ctx.db.all(`SELECT id, person_id, device_id, expires_at, revoked_at FROM identity_sessions WHERE token_hash = ?`, sha(token))[0] as
     { id: string; person_id: string; device_id: string; expires_at: number; revoked_at: number | null } | undefined;
-  if (!r || r.revoked_at !== null || r.expires_at <= ctx.now()) return undefined;
+  // a session's age never ends it (owner rule: a Space stays signed in); expires_at is kept on the row and read nowhere
+  if (!r || r.revoked_at !== null) return undefined;
   return { sessionId: r.id, personId: r.person_id, deviceId: r.device_id };
 }
 

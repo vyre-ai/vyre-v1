@@ -73,7 +73,8 @@ test("Space admin without Manage: change a role, remove, and add people on a pro
 
     await p.goto(`${web.origin}/chat#subject=project:${pid}`, { waitUntil: "load" });
     await p.getByTestId("project-page").waitFor({ timeout: 30_000 });
-    await p.getByTestId("conversation").or(p.getByTestId("conversation-loading")).first().waitFor({ timeout: 20_000 }).catch(() => undefined);
+    // Ada is not in the project's invite-only chat, so the chat pane shows its gate, not a conversation: wait for whichever the pane shows (waiting for a conversation alone ran out its 20 s here, every open)
+    await p.getByTestId("conversation").or(p.getByTestId("conversation-loading")).or(p.getByTestId("project-chat-gate")).first().waitFor({ timeout: 20_000 }).catch(() => undefined);
     await p.waitForTimeout(800);
     await guard.check("after the project opened");
     // Ada is not in the project's invite-only chat: a calm line with Join chat, never an error with Retry
@@ -95,7 +96,8 @@ test("Space admin without Manage: change a role, remove, and add people on a pro
     // paper, then the same address in graphite (?skin=graphite wins for that view), then back to paper with the menu open again
     const reopen = async (): Promise<void> => {
       await p.getByTestId("project-page").waitFor({ timeout: 30_000 });
-      await p.getByTestId("conversation").or(p.getByTestId("conversation-loading")).first().waitFor({ timeout: 20_000 }).catch(() => undefined);
+      // Ada is not in the project's invite-only chat, so the chat pane shows its gate, not a conversation: wait for whichever the pane shows (waiting for a conversation alone ran out its 20 s here, every open)
+    await p.getByTestId("conversation").or(p.getByTestId("conversation-loading")).or(p.getByTestId("project-chat-gate")).first().waitFor({ timeout: 20_000 }).catch(() => undefined);
       await p.waitForTimeout(800);
       await openRoleMenu();
       await guard.check("after the role menu reopened");

@@ -281,3 +281,25 @@ test("a file that cannot be moved is left alone and the rest are still filed", a
   await onRecordEvent(h.ctx, { name: "record.updated", payload: { recordId: id, type: "contact", fields: { docs: ["fil_gone", "fil_ok"] } }, actor: DANA });
   assert.deepEqual(h.only("files.move").map((m) => (m.input as { fileId: string }).fileId), ["fil_ok"]);
 });
+
+test("a record share taken away while the folder's sync is mid-way is not written back onto the folder", async () => {
+  const h = harness();
+  const id = mkRecord(h, { title: "Race" });
+  h.world.recordShares.set(id, [{ subject: { kind: "person", id: MAYA }, level: "edit" }]);
+  await created(h, id);
+  const folderId = String(h.world.records.get(id)!.fields["folder"]);
+  // Leo is given the record; the sync reads that, and its write of Leo's folder copy is held
+  h.world.recordShares.set(id, [{ subject: { kind: "person", id: MAYA }, level: "edit" }, { subject: { kind: "person", id: LEO }, level: "view" }]);
+  const real = h.world.handlers["access.share"]!;
+  let release!: () => void, reached!: () => void;
+  const gate = new Promise<void>((r) => { release = r; });
+  const held = new Promise<void>((r) => { reached = r; });
+  h.world.handlers["access.share"] = async (i, o) => { if (i.subject?.id === LEO && i.resource?.id === folderId) { reached(); await gate; } return real(i, o); };
+  const sync = syncAccess(h.ctx, "project", id, folderId);
+  await held;
+  h.world.recordShares.set(id, [{ subject: { kind: "person", id: MAYA }, level: "edit" }]);   // Leo's record share is taken away now
+  release();
+  await sync;
+  assert.deepEqual(h.world.grants.filter((g) => g.resource.id === folderId && g.subject.id === LEO), [], "Leo holds nothing on the record's folder");
+  assert.ok(h.world.grants.some((g) => g.resource.id === folderId && g.subject.id === MAYA), "Maya keeps hers");
+});

@@ -16,10 +16,12 @@ const SERVER = path.join(HERE, "vyre-server");
 const read = (f: string): string => fs.readFileSync(f, "utf8");
 const tmp = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-install-test-"));
 
+// An engine on this computer's own kernel (vyre-server decides by the boot id read inside Docker): these tests model a Linux server whose Docker runs on its own kernel.
+const SAME_ENGINE = `Ubuntu|${((): string => { try { return fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim(); } catch { return "no-boot-id"; } })()}`;
 type Out = { status: number | null; stdout: string; stderr: string };
 /** Runs a snippet of sh with a script's functions loaded and nothing else executed. */
 function sh(script: string, body: string, env: Record<string, string> = {}): Out {
-  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_TEST_OS: "Linux", ...env } });
+  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_TEST_ENGINE: SAME_ENGINE, VYRE_TEST_OS: "Linux", ...env } });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
@@ -686,7 +688,7 @@ test("an update killed mid-way rolls back and starts the server again", async ()
     const { spawn } = await import("node:child_process");
     // fetch_release and the pull are stubbed; the health check hangs so the update is still running when the signal arrives.
     const script = `. "${SERVER}"\ntrap cleanup EXIT\nfetch_release(){ REL_VERSION=1.1.0; }; unpack_release(){ :; }; docker(){ return 0; }; backup_data(){ BACKUP_FILE=f; }; cur_version(){ printf 1.0.0; }; dc(){ echo "$*" >>"${dir}/dc.log"; }; wait_healthy(){ touch "${dir}/waiting"; n=0; while [ $n -lt 30 ]; do sleep 1; n=$((n+1)); done; }; cmd_update --yes --version 1.1.0 --feed-base https://x.example/`;
-    const child = spawn("sh", ["-c", script], { env: { PATH: process.env.PATH ?? "", VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_DIR: dir, TMPDIR: dir }, stdio: "ignore" });
+    const child = spawn("sh", ["-c", script], { env: { PATH: process.env.PATH ?? "", VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_TEST_ENGINE: SAME_ENGINE, VYRE_DIR: dir, TMPDIR: dir }, stdio: "ignore" });
     for (let n = 0; n < 100 && !fs.existsSync(path.join(dir, "waiting")); n++) await new Promise((r) => setTimeout(r, 50));
     assert.ok(fs.existsSync(path.join(dir, "waiting")));
     assert.ok(fs.existsSync(path.join(dir, "state", "update.pending")), "the marker is there while the update runs");
@@ -1056,7 +1058,7 @@ test("a live-backup update that fails to start rolls back and starts the previou
       + `cmd_update --yes --version 1.1.0 --sha256 ${"a".repeat(64)}`;
     const out = sh(SERVER, body, { VYRE_DIR: dir, VYRE_FIXTURE_DIR: dir, TMPDIR: dir });
     assert.equal(out.status, 4, out.stderr);
-    assert.deepEqual(read(path.join(dir, "order")).trim().split("\n"), ["backup pre-1.1.0 live", "dc stop", "switch 1.1.0", "start", "switch 1.0.0", "start"], "back on the previous release, started again");
+    assert.deepEqual(read(path.join(dir, "order")).trim().split("\n"), ["backup pre-1.1.0 live", "dc stop", "switch 1.1.0", "start", "dc logs --no-color --tail 80 vyred", "switch 1.0.0", "start"], "the new version's last log lines are kept, then back on the previous release, started again");
     assert.equal(fs.existsSync(path.join(dir, "state", "update.pending")), false);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
