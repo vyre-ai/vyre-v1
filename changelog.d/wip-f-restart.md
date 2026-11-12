@@ -1,9 +1,9 @@
 - A message you send while the server restarts (every update restarts it) is answered once it is back, a few seconds later, without sending it again. Before, a few seconds of a shutdown were enough for the server to give up on it.
 - A goal's next wake-up that came due while the server was stopping now runs as soon as the server is back. Before, it waited for the goal's 45-minute retry and the goal could be marked stuck for it.
 - The same holds for everything else an agent is woken for while the server stops: a task handed to it, a routine run, an approved or declined request, a reviewed file, a key or access you answered, an unblocked turn.
-- An update never hangs on one slow background job: the server waits at most 5 seconds for it, then stops, and the job gets the same work again when the server is back.
+- An update never hangs on one slow background job: the server waits at most 15 seconds for it, then stops, and the job gets the same work again when the server is back.
 - Updates and stops give the server up to a minute to finish cleanly before it is forced to stop, so it always closes its data itself.
-- A notification is never sent to you twice because the server restarted while it was going out: "your Space will be deleted" arrives once.
+- A notification is never filed for you twice because the server restarted while it was going out, and one the restart cut off is still filed after it.
 - A CI job that was starting while the server restarted goes on on the machine already made for it, and that machine is deleted when the job ends.
 - Nothing runs after a restart for a person who was removed or suspended while the server stopped; the log says why it was dropped.
-- A Space deletion notice or an approval reminder email that fails to send is tried again, and one cut off by a restart is sent after it.
+- Where a server has an email transport (none does today: notifications reach you in the Inbox), a Space deletion notice or an approval reminder email that fails is tried again, and a dead mail server no longer holds up the other notifications.

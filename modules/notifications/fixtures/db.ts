@@ -16,7 +16,7 @@ import type { Caller } from "./seed.ts";
 // guard, so the fixture asks the runtime for the built-in. Swap this for the testkit's in-memory database when it exports one.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 // the migration carries the entity tables too (same as the generated schema), so the fixture applies it alone
-const migration = ["0001_notifications_state.sql", "0002_settings_effects.sql", "0004_fanout_sent.sql"].map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8")).join("\n");
+const migration = ["0001_notifications_state.sql", "0002_settings_effects.sql", "0004_fanout_sent.sql", "0005_fanout_email.sql"].map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8")).join("\n");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
 export interface Ev { name: string; subject: string; payload: Record<string, unknown>; id: string }
