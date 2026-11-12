@@ -59,3 +59,13 @@ test("the guard catches what it is for", () => {
   assert.ok(leaksCode("The epoch bumped"));
   assert.equal(leaksCode("Priya saved Fee agreement.pdf"), null, "a file name is not a dotted name");
 });
+
+test("joining reads as sentences a person says (owner walk, 12 Nov: 'Vyre accepted the create account of an invite', 'created an invite of a member')", () => {
+  assert.equal(auditSentence({ actor: "Olivia Owner", action: "members.invites.create", resource: "Northwind Studio" }), "Olivia Owner made an invite to the Space");
+  assert.equal(auditSentence({ actor: "Maya Lin", action: "members.accept" }), "Maya Lin joined the Space from an invite");
+  assert.equal(auditSentence({ actor: "Vyre", action: "invites.accept_create_account" }), "Vyre set up a new member's account");
+  assert.equal(auditSentence({ actor: "Vyre", action: "access.groups.add_member" }), "Vyre added a member to a team");
+  assert.equal(auditSentence({ actor: "Vyre", action: "access.roles.assign" }), "Vyre assigned a role", "a role given while someone joins reads plainly; with a name it keeps 'assigned a role to Omar'");
+  assert.equal(auditSentence({ actor: "Olivia Owner", action: "access.share" }), "Olivia Owner shared an item", "not 'shared the access settings'");
+  for (const a of ["members.invites.create", "members.accept", "invites.accept_create_account", "access.groups.add_member", "access.roles.assign"]) assert.equal(leaksCode(auditSentence({ actor: "Vyre", action: a })), null, a);
+});

@@ -39,7 +39,9 @@ test("an event kept for the next start is not a failed try: more passes than MAX
   for (let i = 0; i < MAX_TRIES + 3; i++) await r.pump();
   assert.deepEqual(got, [1], "event 2 is kept, and 3 waits behind it (the order in the chat holds)");
   assert.equal(db.get("m.x"), 1, "the stored cursor stays before the kept event");
-  assert.deepEqual(warns, [], "a kept event is not a failure: no 'failed' or 'gave up' line");
+  assert.deepEqual(warns.filter((w) => /failed|gave up/.test(w)), [], "a kept event is not a failure: no 'failed' or 'gave up' line");
+  // the runner is not closing here (no stop), so the keep is said once, as a warning: in a real daemon a service only stops after the runner has closed, and this consumer's queue now waits
+  assert.deepEqual(warns, ["a consumer kept an event for the next start while the server is running: its later events wait behind it"]);
   stopping = false;
   await r.pump();
   assert.deepEqual(got, [1, 2, 3], "the service is back: the kept event and the ones after it are handed over, in order, once");
@@ -56,6 +58,46 @@ test("the next start delivers an event the last one kept: a new runner on the st
   const next = runner(new Map(db), events, (seq) => { got.push(seq); });
   await next.pump();
   assert.deepEqual(got, [2]);
+});
+
+test("a kept event during a stop is not a warning: the runner is closing, so it is the expected case", async () => {
+  const db = new Map<string, number>([["m.x", 0]]);
+  const events = [ev(1, "x")];
+  const warns: string[] = [];
+  let release!: () => void;
+  const held = new Promise<void>((done) => { release = done; });
+  let first = true;
+  const r = runner(db, events, async () => { if (first) { first = false; await held; throw keptForRestart("t".repeat(32)); } }, warns);
+  const pass = r.pump();
+  await new Promise((done) => setTimeout(done, 10));
+  const closed = r.close();
+  release();
+  await closed; await pass;
+  assert.deepEqual(warns, []);
+  assert.equal(db.get("m.x"), 0, "the kept event stays for the next start");
+});
+
+test("close with a bound lets a hanging consumer go: close answers at the bound, nothing is stored after it, and the next start hands the same event over once", async () => {
+  const db = new Map<string, number>([["m.x", 0]]);
+  const events = [ev(1, "x"), ev(2, "x")];
+  const warns: string[] = [];
+  let release!: () => void;
+  const held = new Promise<void>((done) => { release = done; });
+  const got: number[] = [];
+  const r = runner(db, events, async (seq) => { got.push(seq); if (seq === 2) await held; }, warns);
+  const pass = r.pump();
+  await new Promise((done) => setTimeout(done, 10));
+  const t0 = Date.now();
+  await r.close(50);
+  assert.ok(Date.now() - t0 < 1_000, "close answered at its bound");
+  assert.deepEqual(warns, ["a consumer was still running when the server stopped; it is handed the same event again at the next start"]);
+  release(); await pass;
+  assert.equal(db.get("m.x"), 1, "event 2 finished after the bound: its cursor was not written");
+  await r.close(50);   // a second close (the closer after stop) answers at once
+  const after: number[] = [];
+  const next = runner(new Map(db), events, (seq) => { after.push(seq); });
+  await next.pump();
+  assert.deepEqual(after, [2], "the next start hands event 2 over again, once");
 });
 
 test("a stop: the pass in flight ends after the event it is on, nothing is handed over after close(), and the next start delivers what committed meanwhile, in order, once", async () => {

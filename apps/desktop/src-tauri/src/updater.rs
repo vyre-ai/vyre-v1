@@ -28,7 +28,7 @@ const TURN_WAIT: Duration = Duration::from_secs(10 * 60);
 /// After the turns were told to stop: how long they get to end before the daemons are stopped anyway (a turn a daemon had not ended is picked up again when it starts).
 const STOP_TURNS_GRACE: Duration = Duration::from_secs(10);
 /// How long a daemon has to end after it was asked to stop, before it is killed.
-const STOP_WAIT: Duration = Duration::from_secs(15);
+const STOP_WAIT: Duration = Duration::from_secs(60);
 
 /// `beta` for a prerelease version, `stable` for a release.
 pub(crate) fn channel_of(version: &str) -> &'static str {

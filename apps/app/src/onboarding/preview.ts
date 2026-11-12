@@ -72,6 +72,7 @@ export async function previewFor(call: CapCall, card: CardKind): Promise<Preview
       return { heading: "Shared folders", items: r.mounts.filter((m) => m.kind !== "local").map((m) => ({ id: m.mountId, label: m.name, note: SOURCE[m.kind] ?? m.kind })), hint: "Not yet. Folders you connect appear here." };
     }
     default:
-      return { heading: "Preview", items: [], hint: "Not yet. What this step sets up appears here." };
+      // a step with nothing of its own to show shows no card: a generic "Not yet. What this step sets up appears here." reads as unfinished (owner walk, 12 Nov)
+      return { heading: "Preview", items: [], hint: "" };
   }
 }
