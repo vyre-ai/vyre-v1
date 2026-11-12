@@ -1,0 +1,1 @@
+- Stop in a chat now stops the helpers and teammates that chat started, whether they are working or waiting for your approval. A helper waiting for approval has its request closed, so it leaves Needs you and a late Allow does nothing. Stopping one helper from its own row stops only that helper.

@@ -114,13 +114,49 @@ export async function interrupt(ctx: EngineCtx, input: { threadId: string; messa
   return { queued: r.queued };
 }
 
-async function stopWith(ctx: EngineCtx, threadId: string, o: { agentId?: string; all: boolean }): Promise<{ stopped: number }> {
+async function stopWith(ctx: EngineCtx, threadId: string, o: { agentId?: string; all: boolean }, depth = 0): Promise<{ stopped: number }> {
   const engine = await open(ctx, threadId);
   const r = await engine.stop(threadId, { ...(o.agentId === undefined ? {} : { agentId: o.agentId }), clearQueue: o.all });
   const by = actorOf(ctx);
   for (const c of r.stopped) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by });
   for (const c of r.released) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by });
-  return { stopped: r.stopped.length + r.released.length + r.dropped.length + (r.starting ?? 0) };   // a turn marked while starting counts: it will not run
+  // a parked turn released here ends now: its record says cancelled, not waiting, so the chat's list and a helper's row read stopped (the engine says nothing for it: it was not running)
+  for (const c of r.released) {
+    const t = engine.turns(threadId).find((x) => x.id === c.turnId);
+    try { await ctx.call("engine.turn.record", { threadId, turnId: c.turnId, agentId: c.agentId, phase: "cancelled", qseq: t?.qseq ?? 0, ...(t?.asker ? { asker: t.asker } : {}) }); }
+    catch (e) { ctx.log?.warn?.("a released turn's record could not be closed", { turnId: c.turnId, error: e instanceof Error ? e.message : String(e) }); }
+  }
+  let n = r.stopped.length + r.released.length + r.dropped.length + (r.starting ?? 0);   // a turn marked while starting counts: it will not run
+  await dropHolds(ctx, r.released.map((x) => x.taskId));
+  // Stop in a chat reaches the helpers and teammates that chat started (H1): what the person stopped stays stopped. Each is stopped whole, through the same durable Stop, and a helper waiting on
+  // an approval has its hold dropped, so its task leaves Needs you and a late Allow runs nothing. Stopping one agent of the chat (agentId) or a helper from its own row reaches no one else.
+  if (o.agentId === undefined && depth < 3) {
+    let members: Array<{ id: string; state: string; holdTaskId?: string }> = [];
+    try { members = ((await (await import("./crew-status.ts")).crewStatus(ctx, { threadId })) as { members?: typeof members }).members ?? []; }
+    catch (e) { ctx.log?.warn?.("the helpers of a stopped chat could not be read", { threadId, error: e instanceof Error ? e.message : String(e) }); }
+    for (const m of members) {
+      if (m.state === "done" || m.state === "failed" || m.state === "stopped") continue;
+      try {
+        if (m.holdTaskId) await dropHolds(ctx, [m.holdTaskId]);
+        n += (await stopWith(ctx, m.id, { all: true }, depth + 1)).stopped;
+      } catch (e) { ctx.log?.warn?.("a helper of a stopped chat could not be stopped", { threadId, helper: m.id, error: e instanceof Error ? e.message : String(e) }); }
+    }
+  }
+  return { stopped: n };
+}
+
+/** The Gate holds behind these approval tasks are dropped, as the person who stopped: the call is never made, the task leaves Needs you, and a press that races the Stop finds the hold closed. */
+async function dropHolds(ctx: EngineCtx, taskIds: readonly string[]): Promise<void> {
+  if (taskIds.length === 0) return;
+  let holds: Array<{ holdId?: string; id?: string; taskId?: string }> = [];
+  try { holds = ((await ctx.call("gate.holds.list", { states: ["held"] })) as { holds?: typeof holds }).holds ?? []; } catch { return; }
+  for (const taskId of taskIds) {
+    const h = holds.find((x) => x.taskId === taskId);
+    const holdId = h?.holdId ?? h?.id;
+    if (!holdId) continue;
+    try { await ctx.call("gate.deny", { holdId, taskId, mode: "drop", note: "Stopped." }); }
+    catch (e) { ctx.log?.warn?.("a stopped helper's hold could not be dropped", { taskId, error: e instanceof Error ? e.message : String(e) }); }
+  }
 }
 
 /** Stop one agent working in a thread (its running turn, its queued turns and its parked turns). Without an agent, the turn that is running. */
