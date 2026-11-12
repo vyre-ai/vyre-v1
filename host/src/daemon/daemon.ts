@@ -653,12 +653,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let remoteChrome: ReturnType<typeof createRemotePort>;
   const computeStream = createComputeStream({ procsChanged: () => machinesSync(), chromeEvent: (link, e) => remoteChrome.onEvent({ nodeId: link.nodeId, person: link.person }, e), poll: (c) => computePoll(c, {}), device: (t) => deviceOfToken(t), report: (from, r) => machinesIngest(from, r), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
   streamRef = computeStream;
+  // the sessions this daemon has seen end (newest kept): an ended session never comes back, so a socket that still holds one is cut off from memory, without a database read per publish
+  const endedSessions = new Set<string>();
+  const ENDED_KEPT = 50_000;
   /**
    * A session ended (`person` set when known: whose it was), or a person can no longer act (`everyone`: suspended, removed). Everything live that the session or person holds closes now:
    * the app's sockets (ws.ts endSessions; each also refuses any frame on its own), the person's own computer link to this Space, and the live views of computers and browsers they opened by
    * ticket. A view is not tied to one session, so ending any session of the person closes their views; they open again with a new ticket.
    */
   const endLive = (m: { sessionId?: string; person?: string }, everyone: boolean): void => {
+    if (m.sessionId) { endedSessions.add(m.sessionId); if (endedSessions.size > ENDED_KEPT) endedSessions.delete(endedSessions.values().next().value!); }
     if (o.liveCloseOnEnd !== false) hub?.endSessions?.(everyone ? { person: m.person! } : { ...(m.sessionId ? { sessionId: m.sessionId } : {}) });
     computeStream.endSessions(everyone ? { person: m.person! } : { ...(m.sessionId ? { sessionId: m.sessionId } : {}) }, m.person);
     if (m.person) browserStream.endPerson(m.person);
@@ -2400,7 +2404,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           return identify(bearer(h["authorization"]) ?? (ticket === null ? null : liveTickets.spend(ticket)));
         },
         // the same test identify makes for every HTTP request, made again for every call on an open socket: the session row and its device, and the person still active in the snapshot
-        live: (s) => s.principal.kind !== "person" || (s.sessionId === undefined ? s.device === ADMIN_DEVICE : sessionLive(db!, s.sessionId) && access.snap.principal(s.principal.id)?.status === "active"),
+        live: (s) => s.principal.kind !== "person" || (s.sessionId === undefined ? s.device === ADMIN_DEVICE : !endedSessions.has(s.sessionId) && sessionLive(db!, s.sessionId) && access.snap.principal(s.principal.id)?.status === "active"),
+        // what the Space sends on its own: from memory only. Every way a session ends reaches endLive, which notes it here; suspend and remove show in the snapshot's status
+        liveFast: (s) => s.principal.kind !== "person" || (s.sessionId === undefined ? s.device === ADMIN_DEVICE : !endedSessions.has(s.sessionId) && access.snap.principal(s.principal.id)?.status === "active"),
         invoke, sink,
         eventsSince: (_s, cursor) => (recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : []),
         head: () => headSeq,

@@ -159,6 +159,11 @@ export interface LiveOptions {
    * suspended or removed) is refused and its socket closed, so ending a session is in force on a socket that was already open the moment the ending call returns. Omitted: never asked.
    */
   live?(session: LiveSession): boolean;
+  /**
+   * The same question answered from memory, for what the Space sends on its own (every publish asks it once per open socket): the sessions this daemon has seen end, and the person's status in
+   * the access snapshot. Frames coming in and calls still ask `live`, which reads the database, as the backstop. Omitted: `live` is asked for both.
+   */
+  liveFast?(session: LiveSession): boolean;
   invoke?: Invoke;
   /**
    * Sync's live hub (ARCH 5.9). When given, a socket speaks the sync protocol: hello is answered by the hub (hello_ok { ok: { serverVersion, epoch, serverHlc, mode, head, entityVersions } }),
@@ -238,6 +243,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
   // The session behind every socket is asked again before anything goes in or out (o.live): no frame from a session that ended is handled, and nothing more reaches it. A socket whose call
   // ended its own session (signing out over it) gets that call's answer first, then closes.
   const stillLive = (c: Conn): boolean => !o.live || o.live(c.session);
+  const stillLiveFast = (c: Conn): boolean => (o.liveFast ? o.liveFast(c.session) : stillLive(c));
   const ended = (c: Conn): void => {
     if (c.closed) return;
     if (c.inflight > 0) { c.ending = true; return; }
@@ -246,7 +252,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
   /** A frame the Space sends on its own (events, ticks, sync batches, turn text): only to a socket whose session is still live. */
   const sendLive = (c: Conn, frame: Record<string, unknown>): void => {
     if (c.closed || c.ending) return;
-    if (!stillLive(c)) { ended(c); return; }
+    if (!stillLiveFast(c)) { ended(c); return; }
     send(c, frame);
   };
 
@@ -369,7 +375,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
       for (const c of conns.values()) {
         if (c.session.space !== space) continue;
         if (c.link) { if (last) sendLive(c, { t: "changed", seq: last.seq }); continue; }
-        if (c.closed || c.ending || !stillLive(c)) { ended(c); continue; }
+        if (c.closed || c.ending || !stillLiveFast(c)) { ended(c); continue; }
         for (const e of events) { c.pending.push(e); send(c, eventFrame(e)); }
       }
     },
