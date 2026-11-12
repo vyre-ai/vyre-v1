@@ -22,11 +22,14 @@ const sites = Array.from({ length: N }, (_, i) => `sit_t${RUN}${String(i).padSta
 const PORT = 8099;
 
 const docker = (args: string[], ms = 120_000): Promise<{ code: number; out: string }> => new Promise((r) => { execFile("docker", args, { timeout: ms, maxBuffer: 16 * 1024 * 1024 }, (e, out, err) => r({ code: e ? 1 : 0, out: `${String(out)}${String(err)}` })); });
-/** Networks on the host whose subnet is outside the site range: the ones Docker's default pools hand out (a module may not import another, so this is counted here). */
-const poolCount = async (): Promise<number> => (await poolSubnets()).filter((x) => !x.startsWith("10.213.")).length;
-const poolSubnets = async (): Promise<string[]> => {
+/**
+ * The names of the networks on the host with a subnet outside the site range: the ones Docker's default pools hand out (a module may not import another, so this is read here).
+ * Names, not a count: a CI host runs other jobs at the same time, and their networks come and go in those pools while this test runs (12 Nov: 6 against 3 on a shared runner).
+ */
+const poolNets = async (): Promise<string[]> => {
   const ids = (await docker(["network", "ls", "-q"])).out.split("\n").filter(Boolean);
-  return (await docker(["network", "inspect", "-f", "{{range .IPAM.Config}}{{.Subnet}} {{end}}", ...ids])).out.split(/\s+/).filter(Boolean);
+  const lines = (await docker(["network", "inspect", "-f", "{{.Name}}|{{range .IPAM.Config}}{{.Subnet}} {{end}}", ...ids])).out.split("\n").filter(Boolean);
+  return lines.filter((l) => (l.split("|")[1] ?? "").split(/\s+/).filter(Boolean).some((x) => !x.startsWith("10.213."))).map((l) => l.split("|")[0]!);
 };
 
 test("60 sites on one host: each network a /28 of 10.213.0.0/16 taking nothing of Docker's pools; an app reaches its own database and nothing of another site", { skip, timeout: 1_200_000 }, async (t) => {
@@ -42,7 +45,7 @@ test("60 sites on one host: each network a /28 of 10.213.0.0/16 taking nothing o
     await runnerSrv.close();
     fs.rmSync(dir, { recursive: true, force: true });
   });
-  const poolsBefore = await poolCount();
+  const poolsBefore = new Set(await poolNets());
 
   // 60 site networks, ten at a time, through the runner
   for (let i = 0; i < N; i += 10) {
@@ -52,7 +55,9 @@ test("60 sites on one host: each network a /28 of 10.213.0.0/16 taking nothing o
   const subnets = await Promise.all(made.map(async (m) => (await docker(["network", "inspect", "-f", "{{(index .IPAM.Config 0).Subnet}}", m.net])).out.trim()));
   for (const s of subnets) assert.match(s, /^10\.213\.\d{1,3}\.\d{1,3}\/28$/, "a /28 of the site range");
   assert.equal(new Set(subnets).size, N, "each its own");
-  assert.equal(await poolCount(), poolsBefore, "none took a subnet from Docker's default pools");
+  // none of this run's networks, and no network named for one of this run's sites, appeared in Docker's default pools (another job's networks on the same host are not this test's business)
+  const ours = (await poolNets()).filter((n) => !poolsBefore.has(n) && (made.some((m) => m.net === n) || n.includes(RUN)));
+  assert.deepEqual(ours, [], "none took a subnet from Docker's default pools");
 
   // a stand-in app and database on each site's network
   for (let i = 0; i < N; i += 10) {
@@ -77,5 +82,5 @@ test("60 sites on one host: each network a /28 of 10.213.0.0/16 taking nothing o
   // and site 0 reaches none of the other 59
   const fromFirst = await Promise.all(made.slice(1).map((_, k) => reach(0, apps[k + 1]!)));
   assert.equal(fromFirst.filter(Boolean).length, 0, "site 0 reaches no other site");
-  console.log(`SITES-NUMBERS ${JSON.stringify({ sites: N, poolSubnetsUsedByThem: (await poolCount()) - poolsBefore, firstSubnet: subnets[0], lastSubnet: subnets[N - 1] })}`);
+  console.log(`SITES-NUMBERS ${JSON.stringify({ sites: N, poolSubnetsUsedByThem: ours.length, firstSubnet: subnets[0], lastSubnet: subnets[N - 1] })}`);
 });
