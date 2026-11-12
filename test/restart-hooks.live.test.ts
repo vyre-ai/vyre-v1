@@ -1,10 +1,11 @@
 // What the hook runner does in a real daemon stop (host/src/daemon/daemon.ts stop, host/src/daemon/consumers.ts close).
 //   close first  an event committed after the stop has begun is handed to no consumer while the services close; the next start hands it over once.
-//   bounded      a consumer that hangs does not hold the stop: stop returns within the bound, the consumer's later write is refused (the databases are closed), and the next start hands it the
-//                same event again, once.
+//   bounded      a consumer that hangs does not hold the stop: stop returns within the bound; what it wrote before stays (no transaction around ctx.db), what it writes after is refused (the
+//                databases are closed), and the next start runs it again on the same event, once.
 // A booted daemon whose module hooks are replaced by two test consumers (the access module's are kept, as the daemon always keeps them).
 import test from "node:test";
 import assert from "node:assert/strict";
+import { DatabaseSync } from "node:sqlite";
 import { boot, seededDir, waitFor } from "./memory-live-kit.ts";
 import { HOOKS_STOP_MS } from "../host/src/daemon/daemon.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
@@ -42,7 +43,7 @@ test("an event committed while the server stops is handed to no consumer during 
   } finally { await d.stop(); }
 });
 
-test("a consumer that hangs does not hold the stop: stop returns within the bound, its late write is refused, and the next start hands it the same event once", { timeout: 120_000 }, async () => {
+test("a consumer that hangs does not hold the stop: stop returns within the bound, the write it made before stays, the write it makes after is refused, and the next start runs it again on the same event once", { timeout: 120_000 }, async () => {
   let hang = true;
   let release!: () => void;
   const held = new Promise<void>((r) => { release = r; });
@@ -55,8 +56,9 @@ test("a consumer that hangs does not hold the stop: stop returns within the boun
       run: async (ctx: Ctx, ev) => {
         runs.push({ n: ev.payload["n"], after: !hang });
         if (!hang) return;
+        ctx.db.run("INSERT INTO notifications_backstops (key, at) VALUES (?, ?)", "before-the-stop", 1);   // committed at once: there is no transaction around ctx.db
         await held;
-        try { ctx.db.all("SELECT COUNT(*) AS n FROM notifications_items"); lateWrite = "ran"; } catch (e) { lateWrite = `refused: ${e instanceof Error ? e.message : String(e)}`; }
+        try { ctx.db.run("INSERT INTO notifications_backstops (key, at) VALUES (?, ?)", "after-the-stop", 2); lateWrite = "ran"; } catch (e) { lateWrite = `refused: ${e instanceof Error ? e.message : String(e)}`; }
       },
     }],
   }];
@@ -73,7 +75,10 @@ test("a consumer that hangs does not hold the stop: stop returns within the boun
     assert.ok(took < HOOKS_STOP_MS + 15_000, `the stop returned in ${took} ms, not held by the hanging consumer`);
     release();
     await waitFor(async () => (lateWrite !== null ? true : null), 5_000);
-    assert.match(String(lateWrite), /^refused/, "a write after the databases closed is refused, never half made");
+    assert.match(String(lateWrite), /^refused/, "a write after the databases closed is refused");
+    // what the let-go consumer did before the stop is not undone: its first write stayed, its second never landed (so a consumer must be safe to run twice on one event)
+    const kept = new DatabaseSync(d.paths.modules, { readOnly: true }).prepare("SELECT key FROM notifications_backstops ORDER BY key").all() as Array<{ key: string }>;
+    assert.deepEqual(kept.map((r) => r.key), ["before-the-stop"]);
     hang = false;
     d = await boot(dir, undefined, undefined, { hooks });
     await settle(d);

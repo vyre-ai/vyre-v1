@@ -156,7 +156,9 @@ export interface HookRunner {
    * delivers it from the stored cursor. Answers when the pass in flight has ended. Without this the last passes of a stop handed events to consumers whose service had already gone (the engine, the
    * push port, a mail or calendar host): each answered "not running", the cursor moved past, and a goal's wake-up or a person's message was lost.
    * `boundMs`: answer by then at the latest. A consumer still running at the bound is let go: whatever it answers later is dropped and its cursor is never written, so the next start hands it
-   * the same event again (as after a crash), and the stop goes on (the databases close after it, so a write the consumer makes after that is refused, never half made).
+   * the same event again (as after a crash), and the stop goes on. What the let-go consumer did is not undone: there is no transaction around ctx.db, so each write it made before the
+   * databases closed stays; each write after that is refused (the database is closed); the events it emits are lost (they commit at the end of its call, and the log is closed by then). The next
+   * start runs the consumer again on the same event, so a consumer must be safe to run twice on one event (it is at least once, as after a crash).
    */
   close(boundMs?: number): Promise<void>;
   /** Run one periodic job now. */

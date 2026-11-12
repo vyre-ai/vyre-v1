@@ -216,8 +216,13 @@ import type { HostDb } from "./sqlite.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The repo (or install) root that holds generated/, modules/ and host/modules.json. */
-/** How long a stop waits for the hook pass in flight before it lets the consumer go (host/src/daemon/consumers.ts close). */
-export const HOOKS_STOP_MS = 5_000;
+/**
+ * How long a stop waits for the hook pass in flight before it lets the consumer go (host/src/daemon/consumers.ts close). Above the engine closer's 10 s, so it is not the wait most likely to fire.
+ * A whole stop's bounded waits add up to about 30 s (this, the engine closer's 10 s, the Runs' 5 s); what stops the daemon waits longer: compose stop_grace_period 60 s
+ * (images/vyred/compose.server.yml, compose.device.yml), systemd TimeoutStopSec 150 s for `vyre-server stop` (scripts/install/linux/units/vyre-server.service), the desktop app's update 60 s
+ * before it kills (apps/desktop/src-tauri/src/updater.rs STOP_WAIT).
+ */
+export const HOOKS_STOP_MS = 15_000;
 export const CODE_ROOT = path.resolve(HERE, "../../..");
 /** What a device compares its registry with at hello (sync): the hash of registry.json, which the generated module no longer exports (ci: no global hash). */
 const registryHash = sha256Hex(fs.readFileSync(new URL("../../../generated/registry.json", import.meta.url)));
@@ -2744,8 +2749,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     stopping ??= (async () => {
       sink.log({ space: space ?? "-", level: 20, msg: "daemon.stopping", place: "boot" });
       // first the hooks: no consumer is handed another event while the services close under it (what commits from here on is delivered by the next start, from the stored cursor), and the
-      // pass in flight ends before the engine and the seams go. Bounded: a consumer still running at HOOKS_STOP_MS is let go (its answer is dropped and its cursor stays, so the next start hands it
-      // the same event again), and nothing waits for it after that, so one slow consumer never holds an update.
+      // pass in flight ends before the engine and the seams go. Bounded: a consumer still running at HOOKS_STOP_MS is let go (its answer is dropped and its cursor stays, so the next start runs it
+      // again on the same event), and nothing waits for it after that, so one slow consumer never holds an update. Its earlier writes stay and its later ones are refused once the databases
+      // close; its events are lost (consumers.ts close).
       if (hooks) await hooks.close(HOOKS_STOP_MS).catch(() => undefined);
       for (const c of closers.reverse()) await Promise.resolve().then(c).catch(() => {});
       clearInfo(paths);

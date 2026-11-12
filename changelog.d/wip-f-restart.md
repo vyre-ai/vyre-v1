@@ -2,3 +2,4 @@
 - A goal's next wake-up that came due while the server was stopping now runs as soon as the server is back. Before, it waited for the goal's 45-minute retry and the goal could be marked stuck for it.
 - The same holds for everything else an agent is woken for while the server stops: a task handed to it, a routine run, an approved or declined request, a reviewed file, a key or access you answered, an unblocked turn.
 - An update never hangs on one slow background job: the server waits at most 5 seconds for it, then stops, and the job gets the same work again when the server is back.
+- Updates and stops give the server up to a minute to finish cleanly before it is forced to stop, so it always closes its data itself.
