@@ -19,7 +19,7 @@ Change the level, conditions or expiry of a grant
 | HTTP | POST /v1/access/grants/update |
 | MCP tool | access_grants_update (meta) |
 | CLI | none |
-| Emits | grant.updated, access.changed |
+| Emits | grant.updated, grant.revoked, access.changed |
 
 ## Input
 

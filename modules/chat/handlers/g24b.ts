@@ -13,7 +13,7 @@ import {
 import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChannelRec, ChatCtx, Db, Mode } from "../projections.ts";
 import { mayGovernChannel, seesSpace } from "./post.ts";
-import { grantsOf, leaveThreads, revokeGrants } from "./owned.ts";
+import { convergeHome, grantsOf, joinThreads, leaveThreads, revokeGrants } from "./owned.ts";
 
 type Row = Record<string, unknown>;
 const KINDS = ["people", "agents", "runs"] as const;
@@ -132,6 +132,7 @@ export async function channelsJoin(ctx: ChatCtx, input: { channelId: string }) {
   if (isMember(ctx.db, ch.mainThread, asker)) return view(ctx, ch);
   if (ch.visibility !== "public") raise(ctx, "validation.bad_input", "This channel is invite-only. Ask a member to add you.");
   addMember(ctx, ch.mainThread, asker);
+  await joinThreads(ctx, ch.mainThread, asker);
   ctx.emit("channel.member_added", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId: asker, by: asker });
   return view(ctx, ch);
 }
@@ -171,6 +172,8 @@ export async function channelsUpdate(ctx: ChatCtx, input: { channelId: string; n
   if (input.visibility !== undefined && input.visibility !== ch.visibility) {
     ctx.db.run("UPDATE chat_channel SET visibility = ?, updatedAt = ? WHERE id = ?", input.visibility, now, ch.id);
     fields.push("visibility");
+    // the agents its threads made, and their folders, follow who reads the channel now (owned.ts convergeHome)
+    await convergeHome(ctx, ch.mainThread);
   }
   if (fields.length > 0) ctx.emit("channel.updated", ch.id, { channelId: ch.id, fields });
   return refreshed(ctx, ch.id);
@@ -211,6 +214,7 @@ export async function channelsMembersAdd(ctx: ChatCtx, input: { channelId: strin
   for (const personId of ids) {
     if (isMember(ctx.db, ch.mainThread, personId)) continue;
     addMember(ctx, ch.mainThread, personId);
+    await joinThreads(ctx, ch.mainThread, personId);
     ctx.emit("channel.member_added", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId, by });
   }
   return refreshed(ctx, ch.id);
