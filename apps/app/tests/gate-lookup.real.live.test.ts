@@ -51,10 +51,9 @@ test("GATE lookup (Personal Space): three lookups, then an Ask first approval wi
     await ask("1-reykjavik", "Look up the population of Reykjavik on the web and tell me the source.");
     await ask("2-akureyri", "Now look up the population of Akureyri on the web too and tell me the source.");
     await ask("3-two-towns", "In one answer, look up the population of Kopavogur and of Hafnarfjordur on the web, with a source for each.");
-    // part 2: Ask first
-    await call("threads.set_mode", { threadId: thread, mode: "ask" });
-    const n0 = await agentReplies(); const tAsk = Date.now();
-    await post("Create a file called note-from-gate.txt in your Vyre folder with the single line: written after approval. Then tell me it is done.");
+    // part 2: a hold that exists in Auto: a command the terminal flags as dangerous
+        const n0 = await agentReplies(); const tAsk = Date.now();
+    await post("Run `rm -f ~/note-from-gate.txt` in the terminal and tell me what happened.");
     let cardAt = -1; for (let i = 0; i < 240 && cardAt < 0; i++) { if (/wants to|Allow/.test(await body(page)) && await page.getByRole("button", { name: /^Allow$/ }).count()) cardAt = Date.now() - tAsk; else await page.waitForTimeout(500); }
     await page.screenshot({ path: path.join(shots, "4-ask-first-card.png") });
     console.log(`GATE LOOKUP ask-first: card after ${cardAt} ms; text: ${await cardText() || (await body(page)).slice(-300)}; buttons: ${await page.evaluate(() => [...document.querySelectorAll("[role=button],button")].map((b) => (b as HTMLElement).innerText.trim()).filter((x) => /allow|deny|always|approve|decline/i.test(x)).join(" / "))}`);
