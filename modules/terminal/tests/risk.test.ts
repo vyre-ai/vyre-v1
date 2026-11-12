@@ -47,6 +47,13 @@ test("rm is red only when it is recursive or names a bare /, ~ or $HOME: -f alon
   // docker's --rm is not rm (r-term R3): a container that is removed when it exits, reading or listing recursively, is not a delete
   for (const c of ["docker run --rm img grep -r x /src", "docker run --rm img ls -R", "docker run --rm img ls /"]) assert.equal(riskOf(c), "change", c);
   assert.equal(riskOf("/bin/rm -rf dir"), "danger");
+  assert.equal(riskOf("x && rm -rf y"), "danger");
+  assert.equal(riskOf("find . -name '*.tmp' | xargs rm -rf"), "danger", "rm after xargs is still rm");
+  // an empty quote glued to the flag is still the flag (r-term R5)
+  assert.equal(riskOf('rm -r"" dir'), "danger");
+  // docker and podman force removes keep their own rule in every spelling (r-term R4)
+  for (const c of ["docker container rm -f x", "docker image rm -f img", "docker rm --force x", "docker rm -fv x", "docker rm -vf x", "docker compose rm -f", "podman rm -f x", "docker rmi -f img"]) assert.equal(riskOf(c), "danger", c);
+  assert.equal(riskOf("docker rm x"), "change");
 });
 
 test("a line is as risky as its worst part", () => {

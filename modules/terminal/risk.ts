@@ -25,7 +25,7 @@ const DANGER: ReadonlyArray<RegExp> = [
   /(^|[\s;&|])sudo\b/, /(^|[\s;&|])su(\s|$)/, /(^|[\s;&|])doas\b/,
   // rm is red when it is recursive (an r or R in any of its flag groups, or --recursive) or names a bare /, ~ or $HOME. -f alone is not: it deletes what a plain rm deletes (release gate, 12 Nov)
   // GNU rm takes any unique prefix of --recursive (--r, --rec). The rm is a word of its own, so docker's --rm is not it.
-  /(?<![-\w])rm\s+([^|;&]*\s)?(-[a-zA-Z]*[rR][a-zA-Z]*|--r[a-z]*)(\s|$)/, /(?<![-\w])rm\s+([^|;&]*\s)?(\/|~|\$HOME)(\s|$)/,
+  /(?<![-\w])rm\s+([^|;&]*\s)?(-[a-zA-Z]*[rR][a-zA-Z]*|--r[a-z]*)(?![a-zA-Z0-9-])/, /(?<![-\w])rm\s+([^|;&]*\s)?(\/|~|\$HOME)(\s|$)/,
   // git rm --force drops uncommitted changes, the same loss as git checkout -- . (a plain git rm keeps them in history)
   /\bgit\s+rm\b[^|;&]*(\s-[a-zA-Z]*f[a-zA-Z]*|\s--force)(\s|$)/,
   /\bdd\s+[^|;&]*\bof=/, /\bmkfs(\.\w+)?\b/, /\bfdisk\b|\bparted\b|\bwipefs\b|\bshred\b/,
@@ -33,7 +33,7 @@ const DANGER: ReadonlyArray<RegExp> = [
   /\b(chmod|chown|chgrp)\s+[^|;&]*-[a-zA-Z]*R/, /\bchmod\s+(-\w+\s+)?[0-7]*777\b/,
   /\bgit\s+push\b[^|;&]*(--force\b|--force-with-lease\b|\s-f\b)/, /\bgit\s+reset\s+--hard\b/, /\bgit\s+clean\s+-[a-zA-Z]*f/, /\bgit\s+(checkout|restore)\s+(--\s+)?\.(\s|$)/,
   /\b(drop\s+(database|table|schema)|truncate\s+table)\b/i,
-  /\bdocker\s+(system\s+prune|volume\s+(rm|prune)|rm\s+-f|rmi\s+-f)\b/, /\bkubectl\s+(delete|drain|cordon)\b/,
+  /\bdocker\s+(system\s+prune|volume\s+(rm|prune))\b/, /\b(docker|podman)\s+((container|image|compose)\s+)?(rm|rmi)\s+[^|;&]*(-[a-zA-Z]*f[a-zA-Z]*|--force)\b/, /\bkubectl\s+(delete|drain|cordon)\b/,
   /\b(curl|wget)\b[^|;&]*\|\s*(sudo\s+)?(ba|z|da)?sh\b/, /:\(\)\s*\{/,
   />\s*\/dev\/(sd|nvme|disk|hd)/, /\b(iptables|ufw|nft)\b/, /\bcrontab\s+-r\b/, /\bpasswd\b|\bvisudo\b|\buserdel\b|\bdeluser\b/,
   /\bkill\s+-9\s+(-1|1)\b|\bkillall\b|\bpkill\s+-9\b/, /\bsystemctl\s+(stop|disable|mask)\b/,
