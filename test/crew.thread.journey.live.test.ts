@@ -40,7 +40,8 @@ test("an agent in a channel thread starts helpers: the strip is in the thread, t
   async function* step(id: string, name: string, detail: string, ms: number): AsyncGenerator<{ type: "block"; kind: string; payload: Record<string, unknown> }> {
     yield { type: "block", kind: "tool_call", payload: { id, name } };
     yield { type: "block", kind: "tool_input", payload: { id, detail } };
-    await Promise.race([hold, new Promise((r) => setTimeout(r, ms))]);
+    // the long wait ends when the walk lets go: its timer is cleared then, or it would hold the file open for its full length after the test is done (the file ran past its cap)
+    await Promise.race([hold, new Promise<void>((r) => { const timer = setTimeout(r, ms); void hold.then(() => clearTimeout(timer)); })]);
     yield { type: "block", kind: "tool_result", payload: { id, ok: true } };
   }
   const model = scriptedModel(async function* (input, run) {

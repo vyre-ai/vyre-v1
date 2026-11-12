@@ -84,7 +84,8 @@ test("Overview, real data: an Unpaid block sums real invoices, and the number fo
       await guard.check(`the Overview, ${tag} ${size} ${skin}`);
       // the same data says the same words in either skin; the header and the Status property read one stage; a section is named once
       assert.match(await page.locator("[data-testid=live-metric] [data-testid=live-metric-line]").first().innerText(), /unpaid across \d+ invoices$/, `${skin}: the metric names the type, not "rows"`);
-      assert.equal((await page.getByTestId("project-health").innerText()).trim(), (await page.getByTestId("prop-status").innerText()).trim(), `${skin}: the header and the Status property agree`);
+      // the header is the Status menu (rc.22): its name says the stage; its text also carries the menu's chevron, which is not part of the stage
+      assert.equal(await page.getByTestId("project-health").getAttribute("aria-label"), `Status: ${(await page.getByTestId("prop-status").innerText()).trim()}`, `${skin}: the header and the Status property agree`);
       assert.match(await page.getByTestId("live-status").first().innerText(), /\nPlanning\n0 open/, `${skin}: the Status block names the stage the same way as the header and the property`);
       assert.equal(await page.getByText("Invoices", { exact: true }).count(), 1, `${skin}: "Invoices" names the section once`);
       await page.screenshot({ path: path.join(shots, `overview-real-${tag}-${size}-${skin}.png`) });

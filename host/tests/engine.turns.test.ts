@@ -63,7 +63,8 @@ for (const [code, expected] of DENIALS) {
 
 test("a call held for approval is not a yes", async () => {
   const w = world(() => ({ status: "held", taskId: "tsk_1", traceId: TRACE }));
-  assert.deepEqual(await w.host.source.lookup("#Dana_Claude.setup_token", WHO), { kind: "denied", reason: "no_access" });
+  // still a no, and said as itself (review 12 Nov, finding 9): the agent is told the item needs approval, not that it has no access
+  assert.deepEqual(await w.host.source.lookup("#Dana_Claude.setup_token", WHO), { kind: "denied", reason: "needs_approval" });
   assert.deepEqual(w.reads, []);
 });
 

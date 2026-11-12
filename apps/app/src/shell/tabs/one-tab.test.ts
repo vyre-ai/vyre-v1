@@ -2,7 +2,7 @@
 // tabs saved with duplicates close the older ones when the Space opens, keeping the one used last.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { EMPTY_TABS, createTabsController, landOn, dedupeTabs, openTab, placeTab, readTabs, screenTitle, tabsStorageKey, writeTabs } from "./store.ts";
+import { EMPTY_TABS, PROFILE_HASH, createTabsController, landOn, dedupeTabs, openTab, placeTab, readTabs, screenTitle, tabsStorageKey, writeTabs } from "./store.ts";
 import { titleAsk } from "./titles.ts";
 import type { TabEntry, TabsState, TabsStorage } from "./store.ts";
 
@@ -15,6 +15,14 @@ test("opening a place that has a tab goes to it: the Chats rail while a chat tab
   const next = openTab(s, placeTab("chats"));
   assert.deepEqual(keys(next), keys(s), "no second Chats");
   assert.equal(next.active, "chats:thr_1");
+});
+
+test("your profile (the avatar, Your Profile) opens in the Settings tab already open, never a second Settings tab", () => {
+  const s = state([tab("chats"), tab("settings", "page=ai", "Settings", 5)], "chats");
+  const next = openTab(s, placeTab("settings", PROFILE_HASH));
+  assert.deepEqual(keys(next), ["chats", "settings"], "one Settings tab");
+  assert.equal(next.active, "settings");
+  assert.equal(next.tabs[1]!.hash, PROFILE_HASH, "and it shows the profile");
 });
 
 test("with several tabs of a place, the one on screen wins, else the one used last", () => {

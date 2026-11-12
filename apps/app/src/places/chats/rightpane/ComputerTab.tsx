@@ -14,7 +14,7 @@ import type { PaneDeps } from "./actions.ts";
 import { useOnline, usePaneData, useScreenQuery } from "./data.tsx";
 import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { agoLabel, computerView, dayMonth, stepRows, stepWho, stepsLine } from "./model.ts";
-import type { Computer, Session, Step } from "./model.ts";
+import type { Clock, Computer, Session, Step } from "./model.ts";
 import { Icon, LeadIcon, PaneList, TextButton, Tool } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
 
@@ -315,22 +315,7 @@ function ComputerBody({ deps, computerId, window, canTake, admin }: { deps: Pane
     { key: "l-session", type: "label", text: view.screen === "asleep" ? "Last session" : "Session", right: stepsLine(steps.length) },
   ];
   if (steps.length === 0) entries.push({ key: "no-steps", type: "empty", text: "Nothing yet. Steps appear as it works." });
-  steps.forEach((x, i) => {
-    const last = i === steps.length - 1;
-    const running = view.screen === "live" && last && x.by === "agent";
-    const menu: MenuEntry[] = [
-      { label: "Show This Step", onSelect: () => setSel(last ? null : i) },
-      { label: "Copy Caption", onSelect: () => void copyText(deps, x.caption) },
-      { separator: true },
-      { label: "Make a Skill from Here", onSelect: () => data.nav.skillFromStep(c.computerId, x.stepId) },
-    ];
-    // A finished session reads as the prototype's: the tool and how far into the session the step was (Chrome · 0:02); a live one says how long ago.
-    const when = running ? "now" : view.screen === "asleep" ? offsetLabel(x.at - (steps[0]?.at ?? x.at)) : agoLabel(x.at, clock);
-    entries.push({
-      key: `step-${x.stepId}`, type: "row", title: x.caption, note: `${stepWho(x)} · ${when}`, selected: sel === i,
-      leading: <Thumb dark={x.tool === "Terminal"} person={x.by === "person"} />, onPress: () => setSel(last ? null : i), menu, testID: `step-${x.stepId}`,
-    });
-  });
+  entries.push(...stepEntries({ steps, live: view.screen === "live", asleep: view.screen === "asleep", clock, sel, onSelect: setSel, onCopy: (text) => void copyText(deps, text), onSkill: (stepId) => data.nav.skillFromStep(c.computerId, stepId) }));
   entries.push({ key: "l-sites", type: "label", text: "Signed in on its computer" });
   if (sessions.length === 0) entries.push({ key: "no-sites", type: "empty", text: "Not signed in anywhere yet." });
   for (const x of sessions) {
@@ -356,6 +341,31 @@ export function RunsOn({ text, onPress }: { text: string; onPress?: () => void }
 export function offsetLabel(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/**
+ * The rows of a session's steps, newest last: one per step with its caption, who took it and when, Show This Step, Copy Caption and (for a computer) Make a Skill from Here. The Computer tab draws
+ * a computer's steps with it, and the Browser section an agent's steps in its Space browser profile (f-wire, 12 Nov): one list for both.
+ */
+export function stepEntries(o: { steps: readonly Step[]; live: boolean; asleep: boolean; clock: Clock; sel: number | null; onSelect(i: number | null): void; onCopy(text: string): void; onSkill?: (stepId: string) => void; key?: string }): Entry[] {
+  const out: Entry[] = [];
+  const { steps } = o;
+  steps.forEach((x, i) => {
+    const last = i === steps.length - 1;
+    const running = o.live && last && x.by === "agent";
+    const menu: MenuEntry[] = [
+      { label: "Show This Step", onSelect: () => o.onSelect(last ? null : i) },
+      { label: "Copy Caption", onSelect: () => o.onCopy(x.caption) },
+      ...(o.onSkill ? [{ separator: true as const }, { label: "Make a Skill from Here", onSelect: () => o.onSkill!(x.stepId) }] : []),
+    ];
+    // A finished session reads as the prototype's: the tool and how far into the session the step was (Chrome · 0:02); a live one says how long ago.
+    const when = running ? "now" : o.asleep ? offsetLabel(x.at - (steps[0]?.at ?? x.at)) : agoLabel(x.at, o.clock);
+    out.push({
+      key: `${o.key ?? "step"}-${x.stepId}`, type: "row", title: x.caption, note: `${stepWho(x)} · ${when}`, selected: o.sel === i,
+      leading: <Thumb dark={x.tool === "Terminal"} person={x.by === "person"} />, onPress: () => o.onSelect(last ? null : i), menu, testID: `step-${x.stepId}`,
+    });
+  });
+  return out;
 }
 
 /** The small frame a step shows in its leading slot: a dark window with a bar and two lines, as the prototype's step list draws the screen at that step. */

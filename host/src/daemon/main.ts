@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { loadConfig } from "./config.ts";
 import type { DaemonConfig } from "./config.ts";
 import { startDaemon } from "./daemon.ts";
+import { DAMAGED_EXIT, damagedDatabase, damagedLine, isCorruption } from "./damaged-db.ts";
 import type { Daemon } from "./daemon.ts";
 
 const version = process.env["VYRE_VERSION"] ?? "0.0.0-dev";
@@ -97,7 +98,11 @@ async function main(): Promise<number> {
   try { d = await startDaemon({ config, onStopped:resolveStopped, engineInstall: true }); }
   catch (e) {
     // A daemon that could not start ends here, at once and non-zero, with the reason on stderr: the services it had begun (the scheduler, the stores) would otherwise keep the process alive and the
-    // shell that started it would wait out its timeout instead of showing this line.
+    // shell that started it would wait out its timeout instead of showing this line. A damaged database is named, with the way back (damaged-db.ts), and exits 3.
+    if (isCorruption(e)) {
+      process.stderr.write(`${damagedLine(damagedDatabase(config.dataDir), e instanceof Error ? e.message : String(e))}\n`, () => process.exit(DAMAGED_EXIT));
+      return DAMAGED_EXIT;
+    }
     process.stderr.write(`vyred: ${e instanceof Error ? e.message : String(e)}\n`, () => process.exit(1));
     return 1;
   }

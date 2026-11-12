@@ -1,7 +1,7 @@
 // What the engine does when whoever a piece of work belongs to is gone or paused (holes 10 and 12). A Job is running, paused, lost or stopped, and nothing runs for an agent that was deleted or for a person
 // who left. Everything here repeats safely: the events are delivered at least once and a second pass finds nothing to stop.
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
-import { sqlQueue } from "../projections.ts";
+import { keepForRestart, sqlQueue } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -43,6 +43,8 @@ export async function stopAgent(ctx: EngineCtx, engine: TurnEngine | null, agent
 
 /** An agent came back: a Job that paused with it carries on in its own thread. */
 export async function resumeAgent(ctx: EngineCtx, engine: TurnEngine | null, agentId: string, open: (threadId: string, asker: string) => Promise<void>): Promise<string[]> {
+  // the Job rows move to working before the agent is woken: with no engine because the server is stopping, they are left paused and the event is kept, so the next start wakes the agent
+  if (!engine) keepForRestart(ctx);
   const rows = ctx.db.all("SELECT job_id, thread_id, asker FROM engine_crew_job WHERE agent_id = ? AND state = 'paused'", agentId) as Row[];
   const woken: string[] = [];
   for (const r of rows) {

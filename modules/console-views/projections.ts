@@ -204,14 +204,28 @@ const resourceOf = (v: unknown): string | undefined => {
   return type ? `${type}/${str(r?.["id"]) ?? ""}`.replace(/\/$/, "") : undefined;
 };
 
+/** The person an act was about, from the row's targets (a join names the person who joined). */
+const personTarget = (r: Record<string, unknown>): string | undefined => {
+  const t = asList(asRow(r["after"])?.["targets"]).find((x) => str(x["kind"]) === "person");
+  return t ? str(t["id"]) : undefined;
+};
+/** Steps the Space takes by itself while someone joins (their account, their role, their first team): one line says they joined, these say nothing more. */
+const JOIN_STEPS: ReadonlySet<string> = new Set(["invites.accept_create_account", "access.roles.assign", "access.groups.add_member"]);
+
 export async function recentActivity(ctx: ViewCtx, limit: number): Promise<ActivityRow[]> {
-  const out = await ask(ctx, "audit.list", { limit });
-  const rows = asList(out?.["rows"]).flatMap((r): ActivityRow[] => {
+  // asked for a little more than shown, since a join's own steps are folded into its one line
+  const out = await ask(ctx, "audit.list", { limit: limit * 3 });
+  const list = asList(out?.["rows"]);
+  const joins = new Set(list.filter((r) => str(r["action"]) === "members.accept").map((r) => str(r["traceId"]) ?? ""));
+  const rows = list.flatMap((r): ActivityRow[] => {
     const at = num(r["at"]);
     const action = str(r["action"]);
     if (at === undefined || !action) return [];
     // reading the log is itself a row, and this very read is one: the glance lists what people changed, not that someone looked
     if (action === "audit.viewed") return [];
+    // a join reads as one plain line, "Maya Lin joined the Space from an invite", said of the person who joined (the row's actor is the join link, not a person)
+    if (action === "members.accept") { const who = personTarget(r); return [{ at, actor: who ?? actorOf(r["actor"]), action }]; }
+    if (str(asRow(r["actor"])?.["kind"]) === "service" && JOIN_STEPS.has(action) && (joins.has(str(r["traceId"]) ?? "") || action === "invites.accept_create_account")) return [];
     const resource = resourceOf(r["resource"]);
     return [{ at, actor: actorOf(r["actor"]), action, ...(resource ? { resource } : {}) }];
   });

@@ -57,3 +57,49 @@ test("a screenshot block marked live reads as a card titled by its caption", () 
   assert.equal(line.title, "Opened the form");
   assert.equal(line.data["live"], true);
 });
+
+// f-wire, 12 Nov: an agent's steps in its Space browser profile post a browser_screenshot block, which was drawn as a bare line with no picture and nothing to open. The same card now draws it,
+// keyed by the agent: live from the browser while the agent uses it, its picture once it is done, the caption as it comes.
+function browserRig(row: Record<string, unknown> | null) {
+  const calls: Array<[string, unknown]> = [];
+  const opened: string[] = [];
+  const cfg: LiveCardConfig = {
+    call: async (cap, input) => {
+      calls.push([cap, input]);
+      if (cap === "computers.browser.profiles") return { profiles: row ? [{ agentId: "agt_web", tabs: 1, viewers: 0, ...row }] : [] };
+      if (cap === "computers.browser.stream") return { url: "/live/browser/agt_web" };
+      if (cap === "files.read") return { base64: "iVBORw0KGgo=", truncated: false };
+      return {};
+    },
+    now: () => 1, openComputer: (id) => void opened.push(id), agentId: "agt_lead",
+  };
+  return { cfg, calls, opened };
+}
+
+test("a browser step while the agent uses its browser is the browser's live view; pressing it opens that agent's Computer tab", async () => {
+  const restore = installDom();
+  try {
+    const r = browserRig({ running: true, busy: true });
+    const root = await mount(createRoot, <LiveCard id="b3" agentId="agt_web" fileId="fil_1" caption="Opened the pricing page" cfg={r.cfg} />);
+    await flush(); await flush();
+    assert.ok(find(root, "live-card-stream-b3"), "the browser's live view is drawn");
+    assert.ok(r.calls.some(([c, i]) => c === "computers.browser.stream" && (i as { agentId?: string }).agentId === "agt_web"), "the stream is the agent's profile");
+    assert.ok(!r.calls.some(([c]) => c === "computers.get"), "no computer is asked for");
+    assert.match(textOf(find(root, "live-card-b3")), /Live/);
+    await press(find(root, "live-card-screen-b3"));
+    assert.deepEqual(r.opened, ["agt_web"], "the agent that browsed, not the chat's lead");
+  } finally { restore(); }
+});
+
+test("a browser step once the browser is idle is its picture, Done, with the caption as it comes (a withheld picture says why)", async () => {
+  const restore = installDom();
+  try {
+    const r = browserRig({ running: true, busy: false });
+    const caption = "Opened the bank login · No picture: a Vault value is on this page";
+    const root = await mount(createRoot, <LiveCard id="b4" agentId="agt_web" fileId="fil_1" caption={caption} cfg={r.cfg} />);
+    await flush(); await flush();
+    assert.ok(find(root, "live-card-still-b4"));
+    assert.match(textOf(find(root, "live-card-b4")), /Done/);
+    assert.ok(textOf(find(root, "live-card-b4")).includes(caption));
+  } finally { restore(); }
+});

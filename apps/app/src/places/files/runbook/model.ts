@@ -231,7 +231,8 @@ export function fmtTime(at: number, now: number, offsetMin: number): string {
 export function runError(err: unknown): string {
   const e = err as { code?: unknown; message?: unknown } | null;
   const text = `${typeof e?.code === "string" ? e.code : ""} ${typeof e?.message === "string" ? e.message : ""}`;
-  if (text.includes("permission.needs_team")) return "Running commands needs a Team Space.";
+  // a Personal Space runs commands too (on the person's computer or a server they added): this refusal means no computer can take them now, never that the Space is the wrong kind
+  if (text.includes("permission.needs_team")) return "No computer can run this right now. Start the agent's computer, or pick another place to run it.";
   if (text.includes("permission")) return "You need Use on this file and terminal access to run it.";
   if (text.includes("conflict")) return "Something is already running. Wait for it, or stop it first.";
   if (text.includes("precondition")) return "That computer is not available. Pick another place to run it.";

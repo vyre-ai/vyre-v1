@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { ed25519Signer } from "../../../kernel/src/audit/index.ts";
 import { handlers } from "../impl.ts";
+import { VIEW_VISIT_MS } from "../handlers/log.ts";
 import { classOfInvoke, genesis, hashOf } from "../projections.ts";
 import type { AuditSeams, RowRec } from "../projections.ts";
 import { codeOf, harness, NOW, SPACE } from "../fixtures/db.ts";
@@ -194,6 +195,19 @@ test("list: newest first, filters, search, paging; viewing the log is itself rec
   const p3 = await handlers["audit.list"](ctx, { limit: 2, cursor: p2.next! });
   assert.ok(p3.rows.every((r) => r.seq < Number(p2.next)));
   assert.deepEqual((await handlers["audit.list"](ctx, { cursor: "garbage", limit: 1 })).rows.length, 1);
+});
+
+test("opening the log is one row per visit: reads inside fifteen minutes add nothing, a read after the visit is recorded again", async () => {
+  const h = await chain();
+  const views = (): number => rowsOf(h).filter((r) => r.action === "audit.viewed").length;
+  const ctx = h.as(ADMIN);
+  for (let i = 0; i < 9; i++) { await handlers["audit.list"](ctx, i % 2 ? { class: "admin" } : {}); h.advance(5_000); }
+  assert.equal(views(), 1, "nine reads in one visit (a load, polls, a filter) are one view, not nine");
+  await handlers["audit.list"](h.as("usr_other_admin"), {});
+  assert.equal(views(), 2, "another person's visit is their own row");
+  h.advance(VIEW_VISIT_MS);
+  await handlers["audit.list"](ctx, {});
+  assert.equal(views(), 3, "coming back after the visit is over is recorded again");
 });
 
 test("get returns one row and records the view; an unknown id is not found", async () => {
