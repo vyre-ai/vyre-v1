@@ -13,7 +13,9 @@ import assert from "node:assert/strict";
 import { bootWalk, composer, connectAi } from "./ownerwalk-kit.test.ts";
 
 test("owner walk fixes: one Settings tab, Add a Space alone, the composer's words, Cmd-K finds Settings, New project, the Computer pane's layout, the @mention line", async (t) => {
+  const tb = Date.now();
   const w = await bootWalk(t, "polish");
+  console.log(`TIMING boot ${Date.now() - tb} ms`);
   if (!w) return;
   const { page } = w;
   const tabs = async (): Promise<string[]> => (await page.getByTestId("tab-strip").innerText()).split("\n").map((x) => x.trim()).filter((x) => x !== "" && x !== "×");
@@ -21,8 +23,9 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
     await connectAi(w);
     const dex = (await w.api("agents.create", { name: "Dex", role: "You help the team plan and ship launches.", idempotencyKey: "pw-dex" })).data.agent.agentId as string;
     // the two teammates of the @mention steps (9 to 14) join first, while the walk is fresh
-    const maya = await w.join("Maya", "Lin", "maya");
-    const omar = await w.join("Omar", "Haddad", "omar");
+    const t0 = Date.now();
+    const [maya, omar] = await Promise.all([w.join("Maya", "Lin", "maya"), w.join("Omar", "Haddad", "omar")]);   // side by side: each in its own browser context
+    console.log(`TIMING joins ${Date.now() - t0} ms`);
 
     await w.step("1 Your Profile opens in the Settings tab already open", async () => {
       await w.go("settings", "settings-place");
