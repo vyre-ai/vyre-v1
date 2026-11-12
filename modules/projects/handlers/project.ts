@@ -622,8 +622,8 @@ async function intoChannel(ctx: ProjectsCtx, cap: string, input: Record<string, 
   try { await ctx.call(cap, input); } catch (e) {
     if (codeOf(e) === "validation.not_found") { ctx.log.warn("projects: the project's channel is gone", { cap }); return; }
     // an archived channel takes no one in until it is brought back (the project's roles still change; the project's channel is the one place they do not reach)
-    const msg = (e as { error?: { message?: string }; message?: string })?.error?.message ?? (e instanceof Error ? e.message : "");
-    if (codeOf(e) === "validation.bad_input" && /archived/i.test(msg)) { ctx.log.warn("projects: the project's channel is archived", { cap }); return; }
+    const x = e as { error?: { details?: { reason?: string } }; details?: { reason?: string } };
+    if ((x?.error?.details?.reason ?? x?.details?.reason) === "archived") { ctx.log.warn("projects: the project's channel is archived", { cap }); return; }
     throw e;
   }
 }

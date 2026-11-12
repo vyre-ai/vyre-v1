@@ -105,3 +105,18 @@ test("a remove that failed half-way is finished by the next call: everything the
   assert.deepEqual(h.world.grants.filter((g) => g.subject.id === LEO), [], "nothing on the project, its folder or its channel");
   assert.equal(h.world.channelPeople.get(made.channelId)?.has(LEO) ?? false, false, "out of the channel");
 });
+
+test("an archived project channel is recognised by its reason, not its words: the role still changes; a refusal with other reasons is said", async () => {
+  const h = harness();
+  const made = await run(h, "projects.create", { type: "project", title: "Archived", idempotencyKey: key() });
+  const refuse = (details: Record<string, unknown> | undefined, message: string) => {
+    h.world.handlers["channels.members.add"] = () => { throw Object.assign(new Error(message), { error: { code: "validation.bad_input", message, ...(details ? { details } : {}) } }); };
+  };
+  // the chat module's archived refusal carries reason archived, whatever its words say
+  refuse({ reason: "archived" }, "This chat is closed for now.");
+  await run(h, "projects.members.set", { projectId: made.projectId, principal: LEO, role: "member" });
+  assert.deepEqual(onProject(h, made.projectId, LEO), ["edit"], "the role changed although the channel takes no one in");
+  // the word "archived" in some other refusal is not the archived case
+  refuse(undefined, "The archived settings say no.");
+  await assert.rejects(() => run(h, "projects.members.set", { projectId: made.projectId, principal: LEO, role: "lead" }), /archived settings say no/);
+});

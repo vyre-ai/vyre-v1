@@ -280,3 +280,9 @@ test("engine.no_model says the chat has no model and opens the model menu; Try a
   assert.deepEqual(w.next, [{ key: "pick_model", label: "Choose a model" }]);
   assert.equal(w.retryable, false);
 });
+
+test("an agent the asker may no longer reach (made in a private chat they are not in, or deleted) says so plainly, and offers no retry", () => {
+  const w = wordsFor("agent_gone");
+  assert.equal(w.message, "This agent is no longer available to you.");
+  assert.equal(w.retryable, false);
+});

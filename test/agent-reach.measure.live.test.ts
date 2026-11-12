@@ -262,6 +262,22 @@ test("an agent made in an invite-only channel's thread: what a never-member can 
         assert.equal(/Code notes/.test(r.content) || r.content.includes(SECRET), false, `the agent's ${tool} gives Carol nothing of T's folder`);
       }
     } else note("(4) the agent's files_read in Carol's turn", `chat.start ${cs.status}`);
+    // a chat from before: Carol's share is taken back, and she writes in the chat she already has with the agent. The agent does not answer her; the chat says it plainly (review, rounds eleven and twelve)
+    if (cs.status === 200) {
+      const her = (cs.data as { thread: { threadId: string } }).thread.threadId;
+      await ok(d, d.token, "access.unshare", { resource: { type: "agent", id: agentId }, subject: { kind: "person", id: carol.personId } });
+      const turnsBefore = seen.filter((x) => x.threadId === her).length;
+      await ok(d, carol.token, "chat.post", { threadId: her, body: "Are you still there?" });
+      // the turn is refused at admission (the agents module answers as Carol: not found): one failed line, agent_gone, which the app words "This agent is no longer available to you."
+      const line = await waitFor(async () => {
+        const msgs = (await api(d, carol.token, "chat.messages.list", { threadId: her })).data as { messages?: Array<{ body?: string; blocks?: Array<{ type?: string; data?: { state?: string; code?: string } }> }> };
+        return (msgs.messages ?? []).some((m) => (m.blocks ?? []).some((b) => b.type === "turn_status" && b.data?.state === "failed" && b.data?.code === "agent_gone")) ? true : null;
+      }, 20_000).catch(() => false);
+      const turnsAfter = seen.filter((x) => x.threadId === her).length;
+      note("an existing chat with the agent, after Carol lost it", `new turns ${turnsAfter - turnsBefore}; the plain line shown: ${line}`);
+      assert.equal(turnsAfter - turnsBefore, 0, "the agent does not answer someone who may no longer reach it");
+      assert.equal(line, true, "the chat says so plainly");
+    }
     // a device already synced: Carol's computer pulled the folder while it was open to the Space (as before this fix). Closing it again (the chat's audience, made invite-only) hides it in the
     // next pull, the row the app wipes
     const pull = async (cursor: number, id: string): Promise<{ next: number; has: boolean; hides: boolean }> => {
