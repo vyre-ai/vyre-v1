@@ -113,7 +113,7 @@ export interface CapabilityDef {
   surfaces: {
     http?: 'auto' | { method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; path: string };
     mcp?: { toolset: Toolset; name?: string; deferred?: boolean };   // deferred = found by tool_search, not listed
-    agent?: boolean | { planMode: 'allowed' | 'blocked'; blocks?: string[] };   // default: true when mcp set
+    agent?: boolean | { planMode: 'allowed' | 'blocked'; blocks?: string[]; only?: Record<string, readonly string[]> };   // default: true when mcp set; only: the tool offers only these values for these input fields
     cli?: string;                      // 'vyre records query'
     outboundWebhook?: boolean;         // may be subscribed from Console > Webhooks
   };

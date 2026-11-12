@@ -117,7 +117,7 @@ export async function exceptionsRemove(ctx: AccessCtx, input: { exceptionId: str
 
 /** An exception whose end has come: the server removes it (the periodic job below), and the audit log has the row. */
 export async function exceptionsLapse(ctx: AccessCtx, input: { exceptionId: string }) {
-  if ((ctx as { origin?: string }).origin !== "hook") raise(ctx.trace.traceId, "permission.role_lacks_permission", "Only the server ends an exception at its end.");
+  if ((ctx as { origin?: string }).origin !== "hook" || (ctx as { forwarded?: boolean }).forwarded === true) raise(ctx.trace.traceId, "permission.role_lacks_permission", "Only the server ends an exception at its end.");
   const g = storeOf(ctx).grants.get(input.exceptionId);
   if (!g || !isException(g) || g.conditions.expiresAt === undefined || g.conditions.expiresAt > ctx.now()) return { removed: false };
   return drop(ctx, input.exceptionId, true);

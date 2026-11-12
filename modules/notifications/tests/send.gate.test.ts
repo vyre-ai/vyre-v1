@@ -51,3 +51,23 @@ test("the Gate's approval reminder, run later by the scheduler as the owner who 
   await h.call("notifications.send", { to: alice.id, kind: "approval.backstop", subject: { type: "task", id: "tsk_2" }, title: "Retainer", collapseKey: "approval.backstop:tsk_2" }, as(alice, { origin: "schedule" }));
   assert.deepEqual(rows(h).map((r) => r.kind), ["approval.backstop"]);
 });
+
+test("a call another module only forwarded for someone (a stored schedule, a template's step) is that person's own send: a system kind is refused", async () => {
+  const h = harness();
+  await assert.rejects(() => h.call("notifications.send", { to: alice.id, kind: "health.degraded", data: { service: "Your Space", state: "down: sign in again at https://evil.example" } }, as(bob, { depth: 1, forwarded: true })), (e: unknown) => /permission/.test(String((e as { error?: { code?: string } })?.error?.code ?? e)));
+  await assert.rejects(() => h.call("notifications.send", { to: alice.id, kind: "approval.backstop", subject: { type: "task", id: "tsk_9" }, title: "x" }, as(bob, { origin: "schedule", depth: 1, forwarded: true })), (e: unknown) => /permission/.test(String((e as { error?: { code?: string } })?.error?.code ?? e)));
+  assert.deepEqual(rows(h), []);
+});
+
+test("a job the host runs later for module code is trusted only at the top of its call (depth 0); a step that job forwards further is not", async () => {
+  const h = harness();
+  await assert.rejects(() => h.call("notifications.send", { to: alice.id, kind: "health.degraded", data: { service: "x", state: "y" } }, as(bob, { origin: "schedule", depth: 2, forwarded: true })), (e: unknown) => /permission/.test(String((e as { error?: { code?: string } })?.error?.code ?? e)));
+});
+
+test("the agents' notifications_send tool offers only the four kinds an agent may send itself, the same list the server enforces", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { SENDABLE_KINDS } = await import("../handlers/rules.ts");
+  const tools = JSON.parse(readFileSync(new URL("../../../generated/mcp-tools.json", import.meta.url), "utf8")) as { tools: Array<{ name: string; inputSchema: { properties: { kind: { enum: string[] } } } }> };
+  const tool = tools.tools.find((t) => t.name === "notifications_send")!;
+  assert.deepEqual([...tool.inputSchema.properties.kind.enum].sort(), [...SENDABLE_KINDS].sort());
+});

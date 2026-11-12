@@ -5,3 +5,4 @@
 - A notice email that failed is tried again every ten minutes, a few times; if it still fails, each admin's Console names the person it could not reach. A deletion that was cancelled is never followed by its "scheduled" email.
 - Only Vyre itself sends the Space deletion notices and its other system notices (approval reminders, health, incidents). A person or an agent can send only notices about themselves talking to someone, and the notice names who really sent it.
 - The Space owner always hears about the Space being scheduled for deletion, even when a role cannot be read. A link to Console opens it only for people Console lets in; anyone else lands in their Inbox.
+- A schedule, a template or a Kit that runs a step for you runs it with your own standing, so it cannot send a notice only Vyre may send. An agent's notice tool now offers only the notices an agent may send.

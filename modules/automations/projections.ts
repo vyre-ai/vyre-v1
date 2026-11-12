@@ -56,6 +56,8 @@ export interface AutoCtx {
   origin?: string;
   /** how many capabilities deep this call is: 0 from the gateway */
   depth?: number;
+  /** forwarded for its caller by another module (a stored schedule, a template or Kit step): the caller's own call, never module code (lib/trust.ts isForwarded) */
+  forwarded?: boolean;
   trace: { traceId: string };
   now(): number;
   db: Db;
