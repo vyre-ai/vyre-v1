@@ -2,7 +2,7 @@
   "version": "1.0.0-rc.26",
   "lines": [
     "Add an OpenAI or Anthropic key and say hello: the Assistant replies without you picking a model first.",
-    "Stop means stop. The agent's running command ends, your next message is answered on its own, and a stopped turn stays stopped after a restart.",
+    "Stop means stop: the agent's command ends, your next message is answered on its own, and a stopped turn stays stopped after a restart.",
     "An agent opens public links in a chat without asking. Sending, sharing and deleting folders still wait for your yes.",
     "An agent made in a private chat can be reached only by the people in that chat.",
     "A working agent's row says what it is doing, such as running a command or reading a page."
