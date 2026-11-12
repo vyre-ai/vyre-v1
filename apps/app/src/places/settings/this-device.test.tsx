@@ -10,7 +10,7 @@ test("This device draws my machines first, then Phone access, and the old Comput
   const s = createSampleSettings(northwind);
   const out = renderToStaticMarkup(<SettingsDataProvider value={{ ...s.data, call: async () => ({}) }}><ThisDevicePage /></SettingsDataProvider>).replaceAll("<!-- -->", "");
   assert.ok(out.includes('data-testid="machines"'), "the shared Machines component");
-  assert.ok(out.includes("Loading machines"), "it reads the machines through machines.list");
+  assert.ok(out.includes("Loading computers"), "it reads the machines through machines.list");
   assert.ok(!out.includes("Needs a Team Space"));
 });
 

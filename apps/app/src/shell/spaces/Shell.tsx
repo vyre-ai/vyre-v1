@@ -24,6 +24,7 @@ import { SidebarBack, SidebarExpand, SidebarHide, SidebarSlot, SidebarSlotProvid
 import type { SidebarStorage } from "../sidebar/index.ts";
 import type { KitDef, PlaceId } from "../rail/kits.ts";
 import { MainTabs, useTabs } from "../tabs/MainTabs.tsx";
+import { PROFILE_HASH } from "../tabs/store.ts";
 import { TitleBar } from "../titlebar/TitleBar.tsx";
 import { notices } from "../noticeslot/model.ts";
 import { inTerminal } from "../keyboard/useShellKeys.ts";
@@ -56,6 +57,11 @@ export interface PlaceContext {
   kit: KitDef;
 }
 
+/** Where Space Settings goes: a Team Space's own settings are Console > Space (offered only to someone who may open the Console); a Personal Space keeps its Space pages in Settings (owner walk, 12 Nov: it opened Your Profile). */
+export function spaceSettingsTarget(def: { kind: string; console?: boolean }): ["console" | "settings", string] {
+  return def.kind !== "personal" && def.console === true ? ["console", "screen=console.page&page=space"] : ["settings", "page=space"];
+}
+
 export interface ShellProps {
   hub: ShellHub;
   theme?: ShellTheme;
@@ -66,6 +72,8 @@ export interface ShellProps {
   onOpenWaiting?: () => void;
   /** Sign out, Add a Space and the like leave the shell; it tells you. */
   onSpaceAction?: (action: SpaceAction) => void;
+  /** The host opens Add a Space itself (the join or create screens): the shell then does nothing more for "add". Without it, "add" falls back to adding a server. */
+  addsSpace?: boolean;
   /** Production activates the target server session; sample hubs can switch locally. */
   onSwitchSpace?: (spaceId:string) => void;
   /** Called when a person points at or focuses a place in the rail or a tab: the session reads that place's first queries ahead of the click. */
@@ -252,10 +260,10 @@ export function Shell(props: ShellProps): ReactElement {
   const act = (action: SpaceAction): void => {
     props.onSpaceAction?.(action);
     const name = session.def.name;
-    if (action === "settings") hub.go("settings");
+    if (action === "settings") hub.go(...spaceSettingsTarget(session.def));
     else if (action === "terminal") hub.go("chats", `screen=chats.terminal-list&at=${Date.now()}`);
     else if (action === "add-server") { requestAddServer(); hub.go("settings"); }
-    else if (action === "profile") hub.go("settings", "profile");
+    else if (action === "profile") hub.go("settings", PROFILE_HASH);
     else if (action === "away") {
       // a session sets away for real (stored, seen by teammates); a sample shell with no Space behind it only shows it here
       if (props.team) props.team.away(!state.away);
@@ -263,7 +271,7 @@ export function Shell(props: ShellProps): ReactElement {
     } else if (action === "invite") {
       if (props.team) props.team.invite();
       else hub.flash(`Inviting people needs ${name} to be open`);
-    } else if (action === "add") { requestAddServer(); hub.go("settings"); }
+    } else if (action === "add" && props.addsSpace !== true) { requestAddServer(); hub.go("settings"); }
   };
 
   const switchBy = (spaceId: string): void => {

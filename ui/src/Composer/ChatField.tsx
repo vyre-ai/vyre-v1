@@ -34,6 +34,12 @@ export interface ChatFieldProps {
   onHeight?: (h: number) => void;
 }
 
+/** The empty field's words and its accessible name, set on the editable; called whenever the composer's placeholder or label changes (owner walk, 12 Nov: a finished chat still said "Steer Assistant…"). */
+export function syncFieldWords(dom: { getAttribute(k: string): string | null; setAttribute(k: string, v: string): void }, placeholder: string, label: string): void {
+  if (dom.getAttribute("data-placeholder") !== placeholder) dom.setAttribute("data-placeholder", placeholder);
+  if (dom.getAttribute("aria-label") !== label) dom.setAttribute("aria-label", label);
+}
+
 /** True where a real browser DOM is there to mount the editor on; a test renderer or a server render is not. */
 export function canMountChatField(): boolean {
   const d = (globalThis as { document?: { createElement?: (t: string) => { classList?: { add?: unknown } } } }).document;
@@ -141,6 +147,9 @@ export function ChatField(p: ChatFieldProps): ReactElement {
     })().catch(() => { if (!gone) cb.current.onFail(); });
     return () => { gone = true; stop(); cb.current.controlRef(null); made?.destroy(); ed.current = null; };
   }, []);
+
+  // the words in the empty field follow the chat ("Steer Dex…" while it works, "Message Dex…" once it is done): the editor is made once, so its placeholder and name are kept up to date here
+  useEffect(() => { const e = ed.current; if (e) syncFieldWords(e.view.dom, p.placeholder, p.label); }, [p.placeholder, p.label]);
 
   // what the composer holds now (a pick, a clear, a send) and where its mentions are: the field shows it, unless it is what the field itself just said
   const key = JSON.stringify([p.value, p.ranges.map((r) => [r.start, r.end])]);

@@ -44,7 +44,8 @@ export function spaceMenuEntries(input: SpaceMenuInput): MenuEntry[] {
   out.push({ label: "Add a Space", icon: iconMarkup("join"), onSelect: () => input.onAction("add") });
   // copies a real invite link (a Member, 7 days): only for someone who may invite, and never in a Personal Space
   if (open !== undefined && open.kind !== "personal" && open.invite === true) out.push({ label: "Invite People", icon: iconMarkup("userPlus"), onSelect: () => input.onAction("invite") });
-  out.push({ label: "Space Settings", icon: iconMarkup("settings"), onSelect: () => input.onAction("settings") });
+  // the Space's own settings: in a Team Space they are the Console's (Console > Space), so only someone who may open the Console is offered them; a Personal Space keeps them in Settings
+  if (open === undefined || open.kind === "personal" || open.console === true) out.push({ label: "Space Settings", icon: iconMarkup("settings"), onSelect: () => input.onAction("settings") });
   out.push({ label: "Add a Server", icon: iconMarkup("server"), onSelect: () => input.onAction("add-server") });
   if (open !== undefined && open.terminal) out.push({ label: "Open Terminal", icon: iconMarkup("terminal"), onSelect: () => input.onAction("terminal") });
   if (input.runsOn !== undefined && open?.kind === "team") {

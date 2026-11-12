@@ -456,6 +456,10 @@ export interface TableViewProps {
   view?: Partial<TableViewState>;
   /** What the Records place adds to the header, before New: the switch between the table and the other kinds of view. */
   headerExtra?: ReactNode;
+  /** Opened by New project (Cmd-K, the Projects +): the new row is started at once, as if New was pressed. */
+  startNew?: boolean;
+  /** Told once the new row is started, so the request is spent and never starts another row (a reload, a reopened tab). */
+  onStarted?: () => void;
 }
 
 /**
@@ -468,7 +472,7 @@ function aggregateOf(field: FieldDef, rows: readonly RecordRow[]): string {
   return v.length === 0 ? "" : `Avg ${(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1)}`;
 }
 
-function Grid({ type, def, views, base, saved, headerExtra }: { type: string; def: TypeDef; views: readonly SavedView[]; base: TableViewState; saved: SavedView | undefined; headerExtra: ReactNode }): ReactElement {
+function Grid({ type, def, views, base, saved, headerExtra, startNew: startAtOnce = false, onStarted }: { type: string; def: TypeDef; views: readonly SavedView[]; base: TableViewState; saved: SavedView | undefined; headerExtra: ReactNode; startNew?: boolean; onStarted?: (() => void) | undefined }): ReactElement {
   const data = useRecordsData();
   const { state, dispatch } = useRecordsState();
   const menu = useMenu();
@@ -589,6 +593,8 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const [adding, setAdding] = useState<{ name: string; busy: boolean; error?: string } | null>(null);
   const titleLabel = (def.fields.find((f) => f.key === def.titleField)?.title ?? "name").toLowerCase();
   const startNew = (): void => setAdding({ name: `New ${def.title.toLowerCase()}`, busy: false });   // the prototype starts a new row with this name, selected: Enter saves, Esc cancels
+  // New project from Cmd-K or the Projects +: the table opens with its new row started, once
+  useEffect(() => { if (startAtOnce) { startNew(); onStarted?.(); } }, [startAtOnce]);   // eslint-disable-line react-hooks/exhaustive-deps
   const createNew = (): void => {
     if (adding === null || adding.busy) return;
     const name = adding.name.trim();
@@ -919,7 +925,7 @@ export function TableLoading(): ReactElement {
   );
 }
 
-function TypeTable({ type, view, headerExtra }: { type: string; view: Partial<TableViewState> | undefined; headerExtra: ReactNode }): ReactElement {
+function TypeTable({ type, view, headerExtra, startNew = false, onStarted }: { type: string; view: Partial<TableViewState> | undefined; headerExtra: ReactNode; startNew?: boolean; onStarted?: (() => void) | undefined }): ReactElement {
   const { state } = useRecordsState();
   const describe = useLive("schema.describe", { type });
   const views = useScreenQuery<ViewsOut>(SCREENS.views, "views", { type });
@@ -928,22 +934,22 @@ function TypeTable({ type, view, headerExtra }: { type: string; view: Partial<Ta
   const def = describe.status === "ready" ? describe.data.types.find((t) => t.key === type) : undefined;
   if (!def) return <TableLoading />;
   const base: TableViewState = { ...fromSaved(saved), ...view };
-  return <Grid key={`${type}:${saved?.viewId ?? ""}`} type={type} def={def} views={list} base={base} saved={saved} headerExtra={headerExtra} />;
+  return <Grid key={`${type}:${saved?.viewId ?? ""}`} type={type} def={def} views={list} base={base} saved={saved} headerExtra={headerExtra} startNew={startNew} onStarted={onStarted} />;
 }
 
-export function TableView({ type, view, headerExtra }: TableViewProps): ReactElement {
+export function TableView({ type, view, headerExtra, startNew, onStarted }: TableViewProps): ReactElement {
   const data = useOptionalRecordsData();
   if (!data) return <TableLoading />;
-  return <Open type={type} view={view} headerExtra={headerExtra} />;
+  return <Open type={type} view={view} headerExtra={headerExtra} startNew={startNew === true} {...(onStarted ? { onStarted } : {})} />;
 }
 
-function Open({ type, view, headerExtra }: TableViewProps): ReactElement {
+function Open({ type, view, headerExtra, startNew, onStarted }: TableViewProps): ReactElement {
   const { state } = useRecordsState();
   const types = useScreenQuery<TypesOut>(SCREENS.types, "types");
   if (types.status !== "ready") return <TableLoading />;
   const open = type ?? effectiveType(state, typeGroups(types.data.types));
   if (!open) return <States kind="empty" title="No record types yet." icon="records" />;
-  return <TypeTable type={open} view={view} headerExtra={headerExtra} />;
+  return <TypeTable type={open} view={view} headerExtra={headerExtra} startNew={startNew === true} onStarted={onStarted} />;
 }
 
 const styles = StyleSheet.create({

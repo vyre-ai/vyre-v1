@@ -323,7 +323,8 @@ function ConversationView(): ReactElement {
       return act.sendMessage(data, { text: p.body, mentions: p.mentions, key: p.key, kind: p.kind, working: p.working, ...(p.refs && p.refs.length > 0 ? { refs: p.refs } : {}), attachments, ...(p.alsoToChat === true ? { alsoToChat: true } : {}) });
     })().then(
       (r) => setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, messageId: r.messageId, state: "sending" as const } : x))),
-      (e) => { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "failed" as const } : x))); say(`Not sent.${p.files && p.files.length > 0 && e instanceof Error && e.message.length < 120 ? ` ${e.message}.` : ""} Retry or discard it.`); },
+      (e) => { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "failed" as const } : x))); // "Not sent" with Retry and Discard is under the message itself; the composer line only adds why, when a file was the reason (owner walk, 12 Nov: said twice)
+        if (p.files && p.files.length > 0 && e instanceof Error && e.message.length < 120) say(`Not sent: ${e.message}.`); },
     );
   }, [data, say]);
 
@@ -466,11 +467,11 @@ function ConversationView(): ReactElement {
 
   /* ---------- menus: all open under the button that asked ---------- */
   const stopMenu = (x: number, y: number): void => {
-    if (working.length === 1) { void act.stopAgent(data, working[0]).then(() => say("Stopped. The steps so far are kept."), fail("Could not stop it.")); return; }
+    if (working.length === 1) { void act.stopAgent(data, working[0]).catch(fail("Could not stop it.")); return; }
     menu.show([
       ...collect(working, (id): MenuEntry => ({ label: `Stop ${nameOf(id)}`, onSelect: () => void act.stopAgent(data, id).then(() => say(`${nameOf(id)} stopped`), fail("Could not stop it.")) })),
       { separator: true },
-      { label: "Stop All", danger: true, onSelect: () => void act.stopAll(data).then(() => say("Everything stopped. The steps so far are kept."), fail("Could not stop.")) },
+      { label: "Stop All", danger: true, onSelect: () => void act.stopAll(data).catch(fail("Could not stop.")) },
     ], x, y, "other", { label: "Stop" });
   };
   const helpersMenu = (x: number, y: number): void => {
@@ -522,7 +523,7 @@ function ConversationView(): ReactElement {
       { label: "Fork This Chat", onSelect: () => void runSlash("/fork", commandEnv()) } as MenuEntry,
       { label: "Export as Markdown", onSelect: () => void runSlash("/export md", commandEnv()) } as MenuEntry,
       { label: "Export as JSON", onSelect: () => void runSlash("/export json", commandEnv()) } as MenuEntry,
-      ...(isWorking ? [{ separator: true } as MenuEntry, { label: "Stop All", danger: true, onSelect: () => void act.stopAll(data).then(() => say("Everything stopped. The steps so far are kept."), fail("Could not stop.")) } as MenuEntry] : []),
+      ...(isWorking ? [{ separator: true } as MenuEntry, { label: "Stop All", danger: true, onSelect: () => void act.stopAll(data).catch(fail("Could not stop.")) } as MenuEntry] : []),
     ];
     return items;
   };
@@ -850,7 +851,7 @@ function ConversationView(): ReactElement {
             {...(lead ? { lead: nameOf(lead.agentId) } : {})} members={thread.members.filter((p) => p.kind === "person").map((p) => nameOf(p.id))} listening={collect(thread.agents.filter((a) => a.mode === "listen"), (a) => nameOf(a.agentId))}
             lists={lists} agentChat={thread.kind !== "channel"} onChange={(t) => { typedRef.current = t; setTyped(t); }} onCommand={(name) => void runSlash(`/${name}`, commandEnv())}
             onSubmit={(p) => submit(p, "queue")} onInterrupt={(p) => submit(p, "interrupt")}
-            onStop={() => void (working.length > 1 ? act.stopAll(data) : act.stopAgent(data, working[0])).then(() => say("Stopped. The steps so far are kept."), fail("Could not stop it."))}
+            onStop={() => void (working.length > 1 ? act.stopAll(data) : act.stopAgent(data, working[0])).catch(fail("Could not stop it."))}
           />
         </View>
       )}
