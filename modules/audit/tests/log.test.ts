@@ -267,3 +267,12 @@ test("the class an invoke row gets", () => {
   assert.equal(classOfInvoke("allow", "low"), "change");
   assert.equal(classOfInvoke("allow", "medium"), "sensitive");
 });
+
+test("the host reading the audit log for itself records no view; a person's read still does", async () => {
+  const h = await chain();
+  const before = rowsOf(h).length;
+  await handlers["audit.list"](h.as("svc_host", undefined, "service"), { action: "vault.revealed" });
+  assert.equal(rowsOf(h).length, before, "a join retry's own read leaves no audit.viewed row");
+  await handlers["audit.list"](h.as(ADMIN), { action: "vault.revealed" });
+  assert.equal(rowsOf(h).at(-1)!.action, "audit.viewed");
+});

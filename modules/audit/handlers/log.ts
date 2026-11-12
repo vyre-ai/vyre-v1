@@ -1,6 +1,6 @@
 // Audit capabilities (spec 2.25, ARCH 4.1). Reads are open to audit.read (the invoke pipeline checks it); viewing the log is itself an audit row, written here because
 // list and get are low risk and the pipeline only audits medium and above. verify and export are `audit: always`, so the pipeline writes their rows.
-import { isSystemCall } from "../../../lib/trust.ts";
+import { isHostService, isSystemCall } from "../../../lib/trust.ts";
 import { checkpointBytes } from "../../../kernel/src/audit/index.ts";
 import type { AuditCtx, CheckpointRec, Filter, Klass, Ref, ResRef, RowRec } from "../projections.ts";
 import {
@@ -12,6 +12,8 @@ type Page = { cursor?: string; limit?: number };
 const who = (ctx: AuditCtx): string => ctx.principal.id;
 
 function noteView(ctx: AuditCtx, action: string, resource: ResRef | undefined, detail: unknown): void {
+  // the host reading its own log (a join retry checking for a change since a step failed) is not a person viewing it
+  if (isHostService(ctx.principal)) return;
   appendRow(ctx, { actor: { kind: ctx.principal.kind, id: ctx.principal.id }, action, class: "sensitive", ...(resource ? { resource } : {}), after: detail });
 }
 

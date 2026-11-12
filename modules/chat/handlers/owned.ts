@@ -124,7 +124,7 @@ export async function leaveThreads(ctx: ChatCtx, left: string, person: string, d
       }
       for (const threadId of gone) if (threadId !== left) ctx.db.run(`UPDATE chat_thread_member SET deleted_at = ?, version = version + 1, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL`, ctx.now(), ctx.now(), threadId, person);
     } catch (e) {
-      if (dropped && row !== undefined) ctx.db.run(`UPDATE chat_thread_member SET deleted_at = NULL WHERE "id" = ?`, String(row));   // the place in `left` comes back: nothing was left half done in silence
+      if (dropped && row !== undefined) ctx.db.run(`UPDATE chat_thread_member SET deleted_at = NULL, version = version + 1, updated_at = ? WHERE "id" = ?`, ctx.now(), String(row));   // the place in `left` comes back: nothing was left half done in silence
       throw e;
     }
     return dropped;

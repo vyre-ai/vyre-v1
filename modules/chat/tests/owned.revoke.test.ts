@@ -144,3 +144,18 @@ test("an archived channel never keeps someone in: the host takes a person and an
   assert.equal(hn.rows("SELECT * FROM chat_thread_member WHERE thread = ? AND principal = ? AND deleted_at IS NULL", ch.mainThreadId, LEO).length, 0, "Leo is out of the archived channel");
   assert.equal(hn.rows("SELECT * FROM chat_thread_agent WHERE thread = ? AND agentId = ? AND deleted_at IS NULL", ch.mainThreadId, INTAKE).length, 0, "and so is the agent");
 });
+
+test("a leave that cannot take a grant back fails and gives the person their place back, as a change devices see", async () => {
+  const { hn } = world();
+  const ch = (await h["channels.create"]!(hn.ctx, { name: "stuck", visibility: "invite", memberIds: [LEO], idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
+  await h["threads.agent.create"]!(hn.ctx, { threadId: ch.mainThreadId, name: "Stuck helper", idempotencyKey: key() });
+  const row = () => hn.rows("SELECT * FROM chat_thread_member WHERE thread = ? AND principal = ?", ch.mainThreadId, LEO).at(-1)!;
+  const before = Number(row()["version"]);
+  const calls = (hn as unknown as { ctx: { call: (c: string, i: unknown) => Promise<unknown> } }).ctx;
+  const real = calls.call;
+  calls.call = async (c: string, i: unknown) => { if (c === "access.unshare") throw Object.assign(new Error("down"), { error: { code: "internal.unavailable" } }); return real(c, i); };
+  await assert.rejects(h["channels.members.remove"]!(hn.ctx, { channelId: ch.channelId, personId: LEO }));
+  calls.call = real;
+  assert.equal(row()["deleted_at"], null, "Leo is in the channel again");
+  assert.ok(Number(row()["version"]) > before + 0, "and the row's version moved, so a device that synced the drop sees him back");
+});

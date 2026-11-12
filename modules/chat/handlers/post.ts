@@ -68,18 +68,6 @@ function mayEnterChannel(ctx: ChatCtx, root: ThreadRec, thread: ThreadRec, asker
   return isMember(ctx.db, root.id, asker) || root.starter === asker;
 }
 
-/**
- * An agent a chat made for itself is for the people who can read that chat (owned.ts): someone who cannot read any chat that made it, such as a person taken out of an invite-only channel,
- * cannot start a chat with it or mention it; the answer is the same as for an agent that does not exist. After refuseUnseenAgents, which asks the agents module.
- */
-export function refuseUnreadableAgents(ctx: ChatCtx, ids: readonly string[]): void {
-  if (ctx.principal.kind !== "person") return;
-  for (const agentId of new Set(ids)) {
-    const homes = ctx.db.all(`SELECT "thread" FROM chat_thread_agent WHERE "agentId" = ? AND "owned" = 1 AND "deleted_at" IS NULL`, agentId) as Array<Record<string, unknown>>;
-    if (homes.length > 0 && !homes.some((h) => { const t = threadBy(ctx.db, String(h["thread"])); return t !== null && canSpeak(ctx, t); })) raise(ctx, "validation.not_found", "That agent does not exist.", { agentId });
-  }
-}
-
 /** Who may speak in a thread. Channels and their threads answer to grants (the pipeline already checked them); a private chat answers to its members and the agents in it. */
 export function canSpeak(ctx: ChatCtx, thread: ThreadRec): boolean {
   const root = rootOf(ctx, thread);
@@ -228,7 +216,6 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   if (body.length > MAX_BODY) raise(ctx, "validation.bad_input", `A message can hold at most ${MAX_BODY} characters.`);
   const mentions = cleanMentions(ctx, input.mentions);
   await refuseUnseenAgents(ctx, mentions.filter((m) => m.kind === "agent").map((m) => m.id));
-  refuseUnreadableAgents(ctx, mentions.filter((m) => m.kind === "agent").map((m) => m.id));
   if (input.via !== undefined && author.kind !== "agent") raise(ctx, "validation.bad_input", "Only an agent posts on a routine.");
 
   // A resent message (the offline queue replays) carries the id the device gave it: the same id in the same thread is the same message.

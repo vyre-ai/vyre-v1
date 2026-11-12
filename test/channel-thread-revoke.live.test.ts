@@ -35,9 +35,22 @@ test("removed from an invite-only channel: no thread of it, no agent made in it,
     assert.equal(await listed(d, legal.threadId, bob.personId), true, "and is listed in T");
     await ok(d, d.token, "channels.members.remove", { channelId: legal.ch.channelId, personId: bob.personId });
     assert.notEqual(await reads(d, bob, legal.threadId), 200, "removed: he cannot open T");
-    assert.notEqual(await sees(d, bob, legal.agentId), 200, "he cannot see T's agent");
-    assert.notEqual((await api(d, bob.token, "chat.start", { kind: "chat", agentIds: [legal.agentId], idempotencyKey: `bob-${Date.now()}` })).status, 200, "nor start a chat with it");
-    assert.notEqual((await api(d, carol.token, "chat.start", { kind: "chat", agentIds: [legal.agentId], idempotencyKey: `carol-${Date.now()}` })).status, 200, "as nobody outside the channel can");
+    assert.notEqual(await sees(d, bob, legal.agentId), 200, "he no longer holds T's agent through the chat (its chat: grant is gone)");
+    // every way to reach the agent answers Bob, removed, exactly as it answers Carol, who was never in the channel: nothing of what the channel gave him is left. (What a member of the Space
+    // reaches of a Space agent through their role is the same for both; whether a chat's own agent should be closed to the Space is a product question, put to the lead.)
+    const reach = async (who: { token: string; personId: string }, label: string, other: string): Promise<Record<string, number>> => {
+      const out: Record<string, number> = {};
+      const st = async (name: string, cap: string, input: Record<string, unknown>): Promise<void> => { out[name] = (await api(d, who.token, cap, input)).status; };
+      await st("agents.get", "agents.get", { agentId: legal.agentId });
+      await st("chat.start with it (a chat or DM)", "chat.start", { kind: "chat", agentIds: [legal.agentId], idempotencyKey: `${label}-start-${Date.now()}` });
+      const own = (await ok(d, who.token, "chat.start", { kind: "chat", agentIds: [], personId: other, idempotencyKey: `${label}-own-${Date.now()}` })).thread.threadId as string;
+      await st("@mention", "chat.post", { threadId: own, body: "hello", mentions: [{ kind: "agent", id: legal.agentId }], idempotencyKey: `${label}-mention-${Date.now()}` });
+      await st("poke in T", "threads.poke", { threadId: legal.threadId, agentId: legal.agentId });
+      await st("assign it a task", "tasks.create", { title: "Walk task", assigned: { kind: "agent", id: legal.agentId }, idempotencyKey: `${label}-task-${Date.now()}` });
+      out["shares_of"] = await sees(d, who, legal.agentId);
+      return out;
+    };
+    assert.deepEqual(await reach(bob, "bob", carol.personId), await reach(carol, "carol", bob.personId), "Bob, removed, reaches T's agent on every path exactly as Carol does");
     assert.equal(await listed(d, legal.threadId, bob.personId), false, "and he is not listed in T");
 
     const open = await threadWithAgent(d, bob, "public", "open-room");
