@@ -29,7 +29,7 @@ const sleepMs = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, 
 const sh = (cmd: string) => api.exec(NAME, { cmd: ["sh", "-c", cmd], env: [], user: "10001:10001" });
 
 const PAGE = "http://127.0.0.1:8765/";
-const SERVER = `require('http').createServer((q,r)=>{r.setHeader('content-type','text/html');r.end('<!doctype html><title>t</title><p>test page</p>')}).listen(8765,'127.0.0.1')`;
+const SERVER = `require('node:' + 'http').createServer((q,r)=>{r.setHeader('content-type','text/html');r.end('<!doctype html><title>t</title><p>test page</p>')}).listen(8765,'127.0.0.1')`;
 
 test("@heavy the sign-in paths of a real Chrome profile are read from a stopped agent computer, caches left out", { skip, timeout: 600_000 }, async () => {
   fs.chmodSync(filesRoot, 0o777);
@@ -122,5 +122,67 @@ test("@heavy sleeping the desktop through the product's own sleep, seconds after
     if (computerId) await remove(h.ctx, { computerId }).catch(() => undefined);
     bindHost(null);
     fs.rmSync(root2, { recursive: true, force: true });
+  }
+});
+
+// ---- the whole move, with both real images: what was signed in on the old desktop is signed in in the agent's Space browser profile
+
+import { createServer } from "node:http";
+import { execFileSync } from "node:child_process";
+import { createDockerSpaceBrowser } from "../sbrowser/docker.ts";
+import { bindSpaceBrowser } from "../sbrowser/port.ts";
+import { bindMigrationPort, migrateComputers, migrationRows } from "../migrate.ts";
+
+test("@heavy the whole move: a cookie, a localStorage value and an IndexedDB record set on the old desktop, slept through the product's own sleep, are read back by the page in the agent's Space browser profile", { skip, timeout: 900_000 }, async () => {
+  const SB_IMAGE = process.env["VYRE_SPACE_BROWSER_IMAGE"] ?? "vyre/space-browser:heavy";
+  const SB_NAME = `vyre-sbrowser-hv${suffix}`;
+  let gateway = "172.17.0.1";
+  try { gateway = execFileSync("docker", ["network", "inspect", "bridge", "--format", "{{(index .IPAM.Config 0).Gateway}}"], { encoding: "utf8" }).trim().split("\n")[0]! || gateway; } catch { /* the usual bridge address */ }
+  const site = createServer((_q, r) => { r.setHeader("content-type", "text/html"); r.end("<!doctype html><title>t</title><p>test page</p>"); });
+  const port = await new Promise<number>((res) => site.listen(0, "0.0.0.0", () => res((site.address() as { port: number }).port)));
+  const url = `http://${gateway}:${port}/`;
+  const root3 = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-chrome-move-")));
+  fs.chmodSync(root3, 0o777);
+  const desk = createDockerComputerHost({ api, http, image: IMAGE, prefix: PREFIX, filesRoot: () => root3, startTimeoutMs: 120_000 });
+  const sb = createDockerSpaceBrowser({ api, http, name: SB_NAME, image: SB_IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 120_000 });
+  const h = harness();
+  bindHost(desk);
+  bindSpaceBrowser(sb);
+  bindMigrationPort("ensureWorkspace", async (_c, a) => ({ workspaceId: `wks_${a.agentId}` }));
+  let computerId = "";
+  try {
+    computerId = (await provision(h.ctx, { agentId: INTAKE, idempotencyKey: "k-cc3" })).computer.computerId;
+    await wake(h.ctx, { computerId });
+    const t = (tool: string, args: Record<string, unknown>) => desk.tool!({ computerId, tool, args, timeoutMs: 60_000 });
+    await t("chrome_open", { url });
+    await t("chrome_eval", { expression: `document.cookie = "vyre_move=cookie-ok; max-age=31536000; path=/"; localStorage.setItem("vyre_ls", "ls-ok"); "set"` });
+    const idb = await t("chrome_eval", { expression: `new Promise((res, rej) => { const o = indexedDB.open("vyre_db", 1); o.onupgradeneeded = () => o.result.createObjectStore("s"); o.onsuccess = () => { const tx = o.result.transaction("s", "readwrite"); tx.objectStore("s").put("idb-ok", "k"); tx.oncomplete = () => res("idb"); }; o.onerror = () => rej(String(o.error)); })` });
+    assert.equal((idb as { result?: unknown }).result, "idb");
+    await sleep(h.ctx, { computerId });   // the product's own sleep, seconds after the sign-in
+    assert.equal(await sb.profileUsed(INTAKE), false, "the agent's Space browser profile has never been used");
+    const r = await migrateComputers(h.ctx);
+    console.log(`MOVE ${JSON.stringify(r)} ${JSON.stringify(migrationRows(h.ctx))}`);
+    assert.equal(migrationRows(h.ctx)[0]?.state, "done", `the move is done: ${JSON.stringify(migrationRows(h.ctx))}`);
+    // the page, in the agent's Space browser profile, reads back everything
+    const b = (tool: string, args: Record<string, unknown>) => sb.tool({ profileId: INTAKE, tool, args, timeoutMs: 60_000 });
+    await b("chrome_open", { url });
+    const seen = {
+      cookie: String((await b("chrome_eval", { expression: "document.cookie" }))["result"]),
+      ls: String((await b("chrome_eval", { expression: "localStorage.getItem('vyre_ls')" }))["result"]),
+      idb: String((await b("chrome_eval", { expression: `new Promise((res) => { const o = indexedDB.open("vyre_db"); o.onsuccess = () => { const g = o.result.transaction("s").objectStore("s").get("k"); g.onsuccess = () => res(String(g.result)); g.onerror = () => res("error"); }; o.onerror = () => res("open error"); })` }))["result"]),
+    };
+    console.log(`STAGE B page in the Space browser saw: ${JSON.stringify(seen)}`);
+    assert.match(seen.cookie, /vyre_move=cookie-ok/, `the cookie survived the move (the page saw: ${JSON.stringify(seen)})`);
+    assert.equal(seen.ls, "ls-ok", "the localStorage value survived");
+    assert.equal(seen.idb, "idb-ok", "the IndexedDB record survived");
+  } finally {
+    await sb.forget(INTAKE).catch(() => undefined);
+    await api.containerStop(SB_NAME, 5).catch(() => undefined);
+    await api.containerRemove(SB_NAME).catch(() => undefined);
+    await http({ method: "DELETE", path: `/volumes/${SB_NAME}-data`, query: { force: "true" } }).catch(() => undefined);
+    if (computerId) await remove(h.ctx, { computerId }).catch(() => undefined);
+    bindHost(null); bindSpaceBrowser(null); bindMigrationPort("ensureWorkspace", null);
+    site.close();
+    fs.rmSync(root3, { recursive: true, force: true });
   }
 });

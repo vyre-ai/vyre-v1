@@ -15,3 +15,4 @@
 - An old desktop's sign-ins are never copied over a browser whose state cannot be checked.
 - Moving an old desktop's sign-ins copies only cookies, saved logins, site storage and settings (never Chrome's caches), checks the Space browser is ready before reading anything, waits longer between tries when the server cannot take it yet, and finishes the import even if the server restarted in the middle.
 - Putting an older desktop to sleep now closes its Chrome cleanly first, so a sign-in made seconds before is kept.
+- Moving an old desktop's sign-ins was proven end to end on real Docker with both real images: a cookie, a page storage value and an IndexedDB record made on the old desktop are read back by the page in the agent's Space browser.

@@ -19,7 +19,7 @@ function browser() {
   const sb = {
     async available() { return true; },
     async tool(a: { profileId: string; tool: string }) { events.push(`tool ${a.profileId} ${a.tool}`); return { tabId: "t1", url: "https://example.com/", title: "Example", loading: false }; },
-    async importChrome(profileId: string, tar: Uint8Array) { events.push(`import ${profileId} ${tar.length}`); return { bytes: tar.length }; },
+    async profileUsed() { return false; }, async importChrome(profileId: string, tar: Uint8Array) { events.push(`import ${profileId} ${tar.length}`); return { bytes: tar.length }; },
     async downloads() { return []; }, async stop() {}, async forget() {}, async health() { return { ok: true }; },
     async sessions() { return signedIn.map((site) => ({ site, since: 1, lastSeen: 1 })); },
   } as unknown as SpaceBrowser;

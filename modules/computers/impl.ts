@@ -615,14 +615,6 @@ bindMigrationPort("browserReady", async () => {
 },
 );
 
-/**
- * The idle pass, every minute: a desktop that is awake, with nothing running, quiet for its idle time goes to sleep; room that opened starts the waiting line; an asleep desktop moves to a workspace
- * and a browser profile. Until 12 Nov nothing called sleepIdle, so an old desktop stayed "working" for ever and the move (which needs it asleep) never ran.
- */
-export const periodic = {
-  "computers.idle": { everyMs: 60_000, run: async (ctx: CompCtx): Promise<string[]> => { const n = await sleepIdle(ctx); return n > 0 ? [`${n} to sleep`] : []; } },
-};
-
 /** An agent moved to Trash (also a person's Assistant when the person leaves): its Space browser stops and its profile is kept while it can be restored, then removed (sbrowser/forget.ts). */
 export const consumers = {
   "computers.browser_forget": {
@@ -633,6 +625,8 @@ export const consumers = {
 
 /** Every half minute: Space browser claims of browsers that stopped are released (also ones left from before a restart), and a profile waiting for room starts when there is room (sbrowser/room.ts). */
 export const periodic = {
+  /** The idle pass, every minute: a desktop that is awake, with nothing running, quiet for its idle time goes to sleep; room that opened starts the waiting line; an asleep desktop moves to a workspace and a browser profile. */
+  "computers.idle": { everyMs: 60_000, run: async (ctx: CompCtx): Promise<string[]> => { const n = await sleepIdle(ctx); return n > 0 ? [`${n} to sleep`] : []; } },
   "computers.browser_room": {
     everyMs: 30_000,
     run: async (ctx: CompCtx): Promise<void> => { const sb = spaceBrowser(); if (!sb) return; ensureSchema(ctx.db); await reconcileClaims(ctx, sb, { force: true }); await forgetExpired(ctx); },

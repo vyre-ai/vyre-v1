@@ -8644,7 +8644,8 @@ export type ComputersChromeActOut = {
   downloads?: Array<{
       name: string;
       path: string;
-      fileId: string;
+      fileId?: string;
+      note?: string;
     }>;
 };
 export type ComputersChromeApiIn = {
@@ -8693,7 +8694,8 @@ export type ComputersChromeClickOut = {
   downloads?: Array<{
       name: string;
       path: string;
-      fileId: string;
+      fileId?: string;
+      note?: string;
     }>;
 };
 export type ComputersChromeConsoleIn = {
@@ -8771,7 +8773,8 @@ export type ComputersChromeOpenOut = {
   downloads?: Array<{
       name: string;
       path: string;
-      fileId: string;
+      fileId?: string;
+      note?: string;
     }>;
 };
 export type ComputersChromePlanIn = {
@@ -8811,6 +8814,12 @@ export type ComputersChromeSendIn = {
 export type ComputersChromeSendOut = {
   sent: boolean;
   taskId?: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId?: string;
+      note?: string;
+    }>;
 };
 export type ComputersChromeSnapshotIn = {
   computerId?: string;
@@ -8849,7 +8858,8 @@ export type ComputersChromeStateOut = {
   downloads?: Array<{
       name: string;
       path: string;
-      fileId: string;
+      fileId?: string;
+      note?: string;
     }>;
 };
 export type ComputersChromeStatusIn = {
@@ -8896,6 +8906,12 @@ export type ComputersChromeTypeIn = {
 export type ComputersChromeTypeOut = {
   ok: boolean;
   heldId?: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId?: string;
+      note?: string;
+    }>;
 };
 export type ComputersChromeWaitIn = {
   computerId?: string;
@@ -8911,7 +8927,8 @@ export type ComputersChromeWaitOut = {
   downloads?: Array<{
       name: string;
       path: string;
-      fileId: string;
+      fileId?: string;
+      note?: string;
     }>;
 };
 export type ComputersConfigureIn = {
@@ -20281,6 +20298,11 @@ export type ImportGetOut = {
     failed: number;
     ranAutomations: boolean;
     errorsFileId?: string;
+    errors?: Array<{
+        row: number;
+        column?: string;
+        message: string;
+      }>;
   };
 };
 export type ImportListIn = {
@@ -20303,6 +20325,11 @@ export type ImportListOut = {
       failed: number;
       ranAutomations: boolean;
       errorsFileId?: string;
+      errors?: Array<{
+          row: number;
+          column?: string;
+          message: string;
+        }>;
     }>;
   next?: string;
   total?: number;
@@ -20431,6 +20458,7 @@ export type ImportPreviewOut = {
   creates: number;
   updates: number;
   skips: number;
+  refused?: number;
   errors: Array<{
       row: number;
       column?: string;
@@ -31626,12 +31654,25 @@ export type RecordsBulkUpsertIn = {
   rows: Array<Record<string, unknown>>;
   match: Array<string>;
   runAutomations?: boolean;
+  createOnly?: boolean;
+  skipExisting?: boolean;
   idempotencyKey: string;
 };
 export type RecordsBulkUpsertOut = {
   created: number;
   updated: number;
   skipped: number;
+  stopped?: {
+    reason: "unavailable" | "version_conflict";
+    row: number;
+    message: string;
+    notDone: Array<number>;
+  };
+  refused?: Array<{
+      row: number;
+      reason: string;
+      message: string;
+    }>;
 };
 export type RecordsChangesIn = {
   type: string;

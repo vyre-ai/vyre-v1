@@ -23,7 +23,7 @@ function sbrowser(o: { running?: () => string[] } = {}) {
     async downloads() { return []; }, async downloadRead() { return new Uint8Array(); }, async downloadAck() {},
     async takeover() {}, async giveBack() {}, async screenshot() { return { bytes: new Uint8Array(), width: 1, height: 1 }; },
     async stream() { return { transport: "mjpeg", url: "http://x" }; },
-    async sessions() { return sessionsNow(); }, async signOut(_p, site) { signedOut.push(site); return true; }, async importChrome(profileId, tar) { imports.push({ profileId, bytes: tar.length }); return { bytes: tar.length }; },
+    async sessions() { return sessionsNow(); }, async signOut(_p, site) { signedOut.push(site); return true; }, async profileUsed() { return false; }, async importChrome(profileId, tar) { imports.push({ profileId, bytes: tar.length }); return { bytes: tar.length }; },
     async stop() {}, async forget() {},
     async profiles() { const rows: ProfileRow[] = (o.running?.() ?? []).map((id) => ({ profileId: id, running: true, tabs: 1, busy: false, takeover: false, viewers: 0, lastActiveAt: 1, held: 0, paused: false })); return { profiles: rows, maxRunning: 6 }; },
     async health() { return { ok: true }; },
