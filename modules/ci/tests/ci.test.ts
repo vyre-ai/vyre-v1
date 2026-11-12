@@ -102,6 +102,41 @@ test("start: the just-in-time runner comes first, then one machine tagged for th
   assert.equal(w.state.droplets.length, 1);
 });
 
+test("start cut off after the machine was made (a stop let the consumer go): the job delivered again finishes the start on that machine, and makes no second one", async () => {
+  const w = world();
+  await w.turnOn();
+  w.state.hangCreate = true;
+  void w.job("queued", { jobId: 30 });   // the stop lets this one go: it never returns
+  for (let i = 0; i < 50 && w.state.droplets.length === 0; i++) await new Promise((r) => setTimeout(r, 5));
+  assert.equal(w.state.droplets.length, 1);
+  let { runs } = await w.call("ci.runs.list", { projectId: "prj_site" });
+  assert.equal(runs[0].state, "starting");
+  w.state.hangCreate = false;
+  await w.job("queued", { jobId: 30 });   // the next start hands the same event over again
+  assert.equal(w.state.droplets.length, 1, "no second machine");
+  ({ runs } = await w.call("ci.runs.list", { projectId: "prj_site" }));
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].state, "running");
+  assert.equal(runs[0].dropletId, w.state.droplets[0]!.id, "the run knows its machine, so the job's end deletes it");
+  assert.equal(w.named("ci.run_started").length, 1);
+  await w.job("completed", { jobId: 30, conclusion: "success" });
+  assert.equal(w.state.droplets.length, 0, "the machine is deleted when the job ends, not left billed until the sweep");
+});
+
+test("start cut off before any machine was made: the job delivered again starts it, with one runner and one machine", async () => {
+  const w = world();
+  await w.turnOn();
+  w.state.hangJit = true;
+  void w.job("queued", { jobId: 31 });
+  for (let i = 0; i < 50 && w.state.jit.length === 0; i++) await new Promise((r) => setTimeout(r, 5));
+  w.state.hangJit = false;
+  await w.job("queued", { jobId: 31 });
+  assert.equal(w.state.droplets.length, 1);
+  const { runs } = await w.call("ci.runs.list", { projectId: "prj_site" });
+  assert.equal(runs[0].state, "running");
+  assert.deepEqual(w.state.jit.map((j) => j["idempotencyKey"]), [w.state.jit[0]!["idempotencyKey"], w.state.jit[0]!["idempotencyKey"]], "the runner is asked for with the same key, so GitHub's answer is the one already made");
+});
+
 test("start: a runner config that is not what GitHub sends never reaches a script", () => {
   assert.throws(() => userData("abc; rm -rf /", 60));
   assert.match(userData("abc_-=/+", 60), /--jitconfig abc_-=\/\+/);
