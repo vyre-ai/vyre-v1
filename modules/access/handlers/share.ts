@@ -529,6 +529,8 @@ function hostWritesChatGrant(store: AccessStore, res: ResourceRec, source: strin
 
 /** A folder the host may open or close without Manage: the files folder of an agent a chat made (it holds that agent's home grant, and the agent carries a grant of a chat). */
 function hostMayCloseFolder(store: AccessStore, res: ResourceRec): boolean {
+  // the agent itself: one a chat made carries that chat's grants
+  if (res.type === "agent") return [...store.grants.values()].some((x) => x.resource.type === "agent" && x.resource.id === res.id && x.source?.startsWith("chat:") === true);
   if (res.type !== "folder") return false;
   return [...store.grants.values()].some((g) => g.resource.id === res.id && g.subject.kind === "agent" && g.id === `gnt_${g.subject.id.replace(/^agt_/, "")}home`
     && [...store.grants.values()].some((x) => x.resource.type === "agent" && x.resource.id === g.subject.id && x.source?.startsWith("chat:") === true));
@@ -848,12 +850,14 @@ export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef;
   }
   // A folder too, with Only people added or the whole Space, never Only me: the files folder of an agent a private chat made follows that chat (modules/chat/handlers/owned.ts), cut off from
   // the Space so the Space roles do not reach it, open to the chat's readers by grants, its owner, and the Space's owners and admins (KEEPERS) as a record only for people added is.
-  const folder = res.type === "folder";
-  if (!RECORDS.has(res.type) && !folder) raise(trace, "validation.bad_input", "who it is open to is set on a record type, a record or a folder");
-  if (folder && (input.audience === "me" || input.exporters !== undefined || input.outside !== undefined)) raise(trace, "validation.bad_input", "a folder is open to the Space or only to people added");
+  // a folder, or an agent a private chat made (owner decision, 12 Nov 2026): cut off from the Space as a record only for people added is, so the Space roles do not reach it; the chat's readers
+  // hold it by grants of the chat's source, its owner keeps it, and the Space's owners and admins keep Manage (KEEPERS). An agent nobody may see reads as one that does not exist (host invoke)
+  const folder = res.type === "folder" || res.type === "agent";
+  if (!RECORDS.has(res.type) && !folder) raise(trace, "validation.bad_input", "who it is open to is set on a record type, a record, a folder or an agent");
+  if (folder && (input.audience === "me" || input.exporters !== undefined || input.outside !== undefined)) raise(trace, "validation.bad_input", "a folder or an agent is open to the Space or only to people added");
   // asking a folder to be what it already is changes nothing and needs nothing (an agent an open channel made: its folder is open to the Space from the start)
   if (folder && input.audience !== undefined && input.audience === audienceOf(res)) return { audience: audienceOf(res), exporters: "admins" as Exporters, outside: false };
-  // the host's own sweep brings old agent folders in line with their chats: without Manage only on the files folder of a chat's own agent (hostMayCloseFolder), never on any other folder
+  // the host's own sweep brings a chat's own agents and their folders in line with their chats: without Manage only on those (hostMayCloseFolder), never on any other folder or agent
   if (!(folder && isHostService(ctx.principal) && hostMayCloseFolder(store, res))) must(ctx, store, res, "manage", "changing who it is open to");
   if ((input.exporters !== undefined || input.outside !== undefined) && res.type !== "record_type") raise(trace, "validation.bad_input", "who may export and links outside the Space are set on the record type");
   const wasFresh = isFresh(ctx, store, ss);

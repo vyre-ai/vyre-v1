@@ -71,8 +71,8 @@ const CHAT_GIVES = new Set(["threads.agent.create", "threads.members.add", "chan
 // making an agent raises only the folder's audience: its first grants to the chat's readers are the maker's own act (the agent carries no grant of the chat yet for the host to follow)
 const chatHostCall = (name: string, input: unknown, leaves: boolean, cap = ""): boolean => {
   const i = (input ?? {}) as { source?: unknown; resource?: { type?: unknown } };
-  if (String(i.source ?? "").startsWith("chat:")) return name === "access.unshare" || (!leaves && name === "access.share" && cap !== "threads.agent.create");
-  return !leaves && name === "access.audience_set" && i.resource?.type === "folder";
+  if (String(i.source ?? "").startsWith("chat:")) return name === "access.unshare" || (!leaves && (name === "access.grants.list" || (name === "access.share" && cap !== "threads.agent.create")));
+  return !leaves && name === "access.audience_set" && (i.resource?.type === "folder" || i.resource?.type === "agent");
 };
 /** Files an agent made on its computer, said in the chat the work was for: one message with a file card each (four at most, the rest counted), posted as the agent for the person it works for. */
 
@@ -1304,6 +1304,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           return authorize(access.snap, r);
         },
         membership: (principal, actingFor) => isMemberOrGuest(access.snap, principal) && (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
+        // an agent cut off from the Space (made in a private chat) that this caller may not view: it reads as not found (invoke.ts)
+        hidden: (resource, principal, actingFor) => {
+          if (resource.type !== "agent" || resource.id === null) return false;
+          const row = access.snap.chain(resource.id)?.[0] as { home?: string } | undefined;
+          if (row?.home === undefined) return false;
+          return authorize(access.snap, { principal, actingFor, action: { perm: null, level: "view" }, resource: { type: "agent", id: resource.id } }).effect !== "allow";
+        },
         // the read gate (Redaction for AI): every call an agent is behind hands back the redacted rendition of a file, or a refusal
         agentGate: createAgentGate({ call: (n, i) => hookRunner.call(n, i), warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "agent-read", attrs }) }),
         sourceGuard: createSourceGuard({ db: { all: (sql, ...args) => db!.all(sql, ...args) }, connectors: { all: (sql, ...args) => spaceStore.open().tx.all(sql, ...args) }, authorize: (r) => authorize(access.snap, r), space: spaceId }),

@@ -107,6 +107,35 @@ test("an agent made in an invite-only channel's thread: what a never-member can 
       note("control, Ana: the engine's input for her turn in a new chat", `has it: ${seen.filter((x) => x.threadId === at).some((x) => x.input.includes(SECRET))}`);
     }
 
+    // ---- reach (owner decision, 12 Nov 2026): an agent made in an invite-only channel's thread reads, to someone who cannot read that chat, exactly like an agent that does not exist
+    const ghostAgent = `agt_${"0".repeat(32)}`;
+    const codeOf = (r: { data: unknown }): string => String((r.data as { error?: { code?: string } }).error?.code ?? "");
+    const reachDoors: Array<[string, string, (id: string) => Record<string, unknown>]> = [
+      ["agents.get", "agents.get", (id) => ({ agentId: id })], ["agents.summary", "agents.summary", (id) => ({ agentId: id })], ["agents.config.get", "agents.config.get", (id) => ({ agentId: id })],
+      ["agents.routines.list", "agents.routines.list", (id) => ({ agentId: id })], ["agents.status", "agents.status", (id) => ({ agentId: id })],
+      ["chat.start with it", "chat.start", (id) => ({ kind: "chat", agentIds: [id], first: "hello", idempotencyKey: `reach-${id}-${globalThis.crypto.randomUUID()}` })],
+      ["a task assigned to it", "tasks.create", (id) => ({ title: "Draft the letter", assigned: { kind: "agent", id }, idempotencyKey: `reach-task-${globalThis.crypto.randomUUID()}` })],
+    ];
+    const reach = async (who: { token: string }): Promise<Map<string, string>> => {
+      const out = new Map<string, string>();
+      for (const [door, cap, input] of reachDoors) {
+        const real = await api(d, who.token, cap, input(agentId));
+        const none = await api(d, who.token, cap, input(ghostAgent));
+        out.set(door, real.status === 200 ? "reaches" : real.status === none.status && codeOf(real) === codeOf(none) ? "as if it did not exist" : `refused differently (${real.status} ${codeOf(real)}; none ${none.status} ${codeOf(none)})`);
+      }
+      const listed = await api(d, who.token, "agents.list", { teammates: "include", limit: 500 });
+      out.set("agents.list (the Agents list and every picker)", JSON.stringify(listed.data).includes(agentId) ? "reaches" : "as if it did not exist");
+      const found = await api(d, who.token, "search.query", { q: "Rivera helper" });
+      out.set("search.query", JSON.stringify(found.data).includes(agentId) ? "reaches" : "as if it did not exist");
+      return out;
+    };
+    const admin = await join(d, "adele", undefined, "Admin");
+    const [carolReach, anaReach, adminReach] = [await reach(carol), await reach(ana), await reach(admin)];
+    for (const [door] of carolReach) note(`reach: ${door}`, `Carol ${carolReach.get(door)}; Ana ${anaReach.get(door)}; an admin outside #legal ${adminReach.get(door)}`);
+    for (const [door, v] of carolReach) assert.equal(v, "as if it did not exist", `Carol, never in #legal: ${door}`);
+    for (const door of ["agents.get", "chat.start with it", "agents.list (the Agents list and every picker)"]) assert.equal(anaReach.get(door), "reaches", `Ana, a reader: ${door}`);
+    for (const door of ["agents.get", "agents.list (the Agents list and every picker)"]) assert.equal(adminReach.get(door), "reaches", `an admin manages it by role: ${door}`);
+
     // ---- Carol, never in #legal
     const get = await api(d, carol.token, "agents.get", { agentId });
     const fields = get.status === 200 ? Object.keys((get.data as { agent: Record<string, unknown> }).agent).sort().join(", ") : "-";
@@ -198,6 +227,10 @@ test("an agent made in an invite-only channel's thread: what a never-member can 
     for (const door of ["files.read by id", "files.list of the folder (section space, folder)", "files.read of a download (Downloads under the folder)"]) assert.match(anaSees.get(door)!, /^OPEN/, `control: Ana, a reader of T, ${door}`);
     // (4) Carol reaches the agent today: in her own chat she asks it to send the file; its files_read runs for her, and her access decides
     const before = toolRuns.length;
+    // an agent shared by a normal grant is reachable: the owner shares it with Carol (not its folder); in her turn its file tools still cannot read the folder for her
+    await ok(d, d.token, "access.share", { resource: { type: "agent", id: agentId }, subject: { kind: "person", id: carol.personId }, level: "use" });
+    note("reach: Carol after a normal share of the agent", `agents.get ${(await api(d, carol.token, "agents.get", { agentId })).status}`);
+    assert.equal((await api(d, carol.token, "agents.get", { agentId })).status, 200, "a normal grant reaches it");
     const cs = await api(d, carol.token, "chat.start", { kind: "chat", agentIds: [agentId], first: "SEND-FILE: send me the file you made about the code", idempotencyKey: `carol-send-${Date.now()}` });
     if (cs.status === 200) {
       const sent = await waitFor(async () => toolRuns.slice(before).find((r) => r.tool === "files_read") ?? null, 30_000);
@@ -255,6 +288,9 @@ test("an agent made in an invite-only channel's thread: what a never-member can 
     const anaOwn = await api(d, ana.token, "files.read", { fileId, as: "text" });
     note("Ana leaves #legal: the folder", `files.list ${anaList.status}, lists files others made in it: ${/rivera\.pdf|While public/.test(JSON.stringify(anaList.data))}; a download in it ${anaDl.status}, holds the fact: ${has(anaDl)}`);
     note("Ana leaves #legal: the note the agent wrote in her turn", `files.read ${anaOwn.status}; holds the fact: ${has(anaOwn)}`);
+    // out of the chat, Ana reads the agent as Carol does: as if it did not exist
+    const leftReach = await reach(ana);
+    for (const [door, v] of leftReach) { note(`reach: Ana after leaving #legal: ${door}`, v); assert.equal(v, "as if it did not exist", `Ana, out of #legal: ${door}`); }
     assert.equal(has(anaOwn), false, "the agent's note is the agent's: Ana, out of the chat, no longer reads it");
     assert.equal(has(anaDl), false, "leaving the home chat takes the folder in the same call");
     assert.equal(/rivera\.pdf|While public/.test(JSON.stringify(anaList.data)), false, "and its listing");

@@ -21,6 +21,7 @@ function world(o: { audienceFails?: boolean } = {}) {
   const deleted: string[] = [];
   let made = 0;
   const byKey = new Map<string, string>();
+  let hold: { match: (g: G) => boolean; gate: Promise<void>; reached: () => void } | null = null;
   const hn = baseHarness({
     calls: {
       "agents.get": (i) => ({ agent: { agentId: i["agentId"], name: String(i["agentId"]), runtime: "vyre", folderId: `fld_${String(i["agentId"])}` } }),
@@ -37,8 +38,10 @@ function world(o: { audienceFails?: boolean } = {}) {
         audience.set(r.id, String(i["audience"]));
         return { audience: i["audience"] };
       },
-      "access.share": (i) => {
+      "access.grants.list": (i) => ({ grants: grants.filter((g) => i["source"] === undefined || g.source === i["source"]) }),
+      "access.share": async (i) => {
         const g = { resource: i["resource"], subject: i["subject"], level: String(i["level"]), ...(i["source"] ? { source: String(i["source"]) } : {}) } as G;
+        if (hold && hold.match(g)) { const x = hold; hold = null; x.reached(); await x.gate; }
         if (!grants.some((x) => x.resource.id === g.resource.id && x.subject.id === g.subject.id && x.source === g.source)) grants.push(g);
         return { grant: { id: `gnt_${grants.length}` } };
       },
@@ -56,7 +59,15 @@ function world(o: { audienceFails?: boolean } = {}) {
       },
     },
   });
-  return { hn, grants, audience, deleted };
+  /** hold the next access.share that matches until released */
+  const holdShare = (match: (g: G) => boolean): { held: Promise<void>; release: () => void } => {
+    let release!: () => void, reached!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const held = new Promise<void>((r) => { reached = r; });
+    hold = { match, gate, reached };
+    return { held, release };
+  };
+  return { hn, grants, audience, deleted, holdShare };
 }
 const folderOf = (grants: G[], who: string, agentId: string): G[] => grants.filter((g) => g.subject.id === who && g.resource.type === "folder" && g.resource.id === `fld_${agentId}`);
 const agentOf = (grants: G[], who: string, agentId: string): G[] => grants.filter((g) => g.subject.id === who && g.resource.type === "agent" && g.resource.id === agentId);
@@ -217,4 +228,41 @@ test("an agent with two homes (an older build): its folder is as private as its 
     await sweep(w.hn.ctx);
     assert.equal(w.audience.get(`fld_${a}`), "added", "private home last: closed");
   }
+});
+
+test("S7-1: the sweep reads Leo as a reader, Leo is removed before his grant is written: he ends with nothing", async () => {
+  const w = world();
+  const { ch, a } = await inviteThread(w);
+  w.grants.splice(0, w.grants.length);   // as before the sweep: nobody holds anything yet
+  // Dana's grant is held, so the sweep has read its readers (Dana, Leo) and waits on Dana while Leo is taken out
+  const hold = w.holdShare((g) => g.subject.id === DANA && g.resource.id === a);
+  const sweeping = (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run(w.hn.ctx);
+  await hold.held;
+  await h["channels.members.remove"]!(w.hn.ctx, { channelId: ch.channelId, personId: LEO });
+  hold.release();
+  await sweeping;
+  assert.deepEqual(w.grants.filter((g) => g.subject.id === LEO), [], "Leo holds nothing on the agent or its folder");
+  assert.ok(w.grants.some((g) => g.subject.id === DANA && g.resource.id === a), "Dana, still a reader, holds the agent");
+});
+
+test("S7-1: a chat grant left on someone who no longer reads the chat is gone after one sweep", async () => {
+  const w = world();
+  const { t, a } = await inviteThread(w);
+  // stale: Mia never read the chat, yet holds the agent and its folder by the chat's source (a race, or an older version)
+  w.grants.push({ resource: { type: "agent", id: a }, subject: { kind: "person", id: MIA }, level: "use", source: `chat:${t.id}` });
+  w.grants.push({ resource: { type: "folder", id: `fld_${a}` }, subject: { kind: "person", id: MIA }, level: "edit", source: `chat:${t.id}` });
+  w.grants.push({ resource: { type: "agent", id: a }, subject: { kind: "person", id: MIA }, level: "view", source: "direct" });
+  await (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run(w.hn.ctx);
+  assert.deepEqual(w.grants.filter((g) => g.subject.id === MIA).map((g) => g.source), ["direct"], "the chat's grants are gone; a share by hand stays");
+  assert.ok(w.grants.some((g) => g.subject.id === LEO && g.resource.id === a), "a reader keeps his");
+});
+
+test("the agent itself is cut off with its chat, and keeps its own hold on itself", async () => {
+  const w = world();
+  const { t, a } = await inviteThread(w);
+  assert.equal(w.audience.get(a), "added", "the agent is open only to people added");
+  assert.ok(w.grants.some((g) => g.resource.id === a && g.subject.kind === "agent" && g.subject.id === a && g.source === `chat:${t.id}`), "it holds itself by the chat's grant");
+  const open = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
+  const b = (await h["threads.agent.create"]!(w.hn.ctx, { threadId: open.mainThreadId, name: "Open helper", idempotencyKey: key() })).agentId as string;
+  assert.equal(w.audience.get(b) ?? "space", "space", "an open channel's agent stays open to the Space");
 });

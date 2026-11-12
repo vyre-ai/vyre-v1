@@ -157,6 +157,8 @@ export interface InvokeDeps {
   validateEvent?(name: string, payload: unknown): string[];
   /** kernel authorize bound to the Space's access snapshot */
   authorize(req: AuthReq): KernelDecision;
+  /** True when a refused resource is one this caller may not even know of (an agent a private chat made, cut off from the Space, that they cannot view): the refusal reads as not found */
+  hidden?(resource: { type: string; id: string | null }, principal: string, actingFor: string | undefined): boolean;
   /** Is this person (or the person an agent acts for) a member or guest of the Space: any role or any grant. Needed by capabilities at level 'member' (ruling 69); without it they fall back to view on the Space. */
   membership?(principal: string, actingFor?: string): boolean;
   handler(cap: string, v: number): Handler | undefined;
@@ -438,6 +440,12 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       }
       if (d.effect === "deny") {
         await deps.audit?.(audit("deny", d.reason));
+        // an agent a private chat made reads, to anyone who may not view it, exactly like an agent that does not exist (owner decision, 12 Nov 2026): the answer is the one an unknown agent id gets,
+        // asked of the same decision with an id that names nothing
+        if (resource !== null && resource.type === "agent" && deps.hidden?.(resource, seed.principal.id, seed.actingFor)) {
+          const none = deps.authorize({ ...req, resource: { ...resource, id: `agt_${"0".repeat(32)}` } });
+          throw fail(codeForReason(none.reason), traceId, { details: { cap: c.name, reason: none.reason, steps: none.steps.map((x) => x.text) } });
+        }
         const code = codeForReason(d.reason);
         // an agent stopped at a folder or a file its person may be able to share: the refusal names the press, so the person gets it in Needs you
         const askShare = d.reason === "no_grant" && seed.principal.kind === "agent" && seed.actingFor !== undefined && resource !== null && (resource.type === "folder" || resource.type === "file");
