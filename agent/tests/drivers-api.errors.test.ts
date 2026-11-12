@@ -126,9 +126,13 @@ test("an error event before the first delta is retried; one after a delta is sur
   assert.equal(errorOf(b.events).code, "provider.overloaded", "overloaded is its own code, not a limit and not a generic outage");
 });
 
-test("a stream that goes quiet is cut after the idle time and reported", async () => {
+test("a stream that goes quiet after it began answering is cut after the idle time and reported", async () => {
+  // the idle limit is for a provider that started and then stopped; one that never starts ends at the first-token deadline (the next tests)
   const g = gate();
+  const wire = fixture("openai-text");
+  g.push(wire.slice(0, wire.indexOf("\n\n", wire.indexOf("Hello")) + 2));
   const { events, f } = await run(() => ({ body: g.body }), { idleMs: 30, retry: { max: 0 } });
+  assert.ok(events.some((x) => x.type === "text"), "it began answering");
   assert.equal(f.requests.length, 1);
   const e = errorOf(events);
   assert.equal(e.code, "provider.unavailable");
@@ -169,6 +173,16 @@ test("a stream that opens and then says nothing hears the first-token line even 
   let r: Awaited<ReturnType<typeof run>>;
   try { r = await run(() => ({ body: g.body }), { firstTokenMs: 80, idleMs: 5_000, retry: { max: 0 }, onNoFirstToken: (e) => seen.push(e) }); } finally { Date.now = realNow; }
   assert.equal(errorOf(r.events).code, "engine.no_first_token");
+  assert.equal(seen.length, 1);
+});
+
+test("with the driver's own limits (idle shorter than first token), a stream that opens and says nothing ends with the first-token line, not as a provider that stopped answering", async () => {
+  // the defaults are IDLE_MS 60 s and FIRST_TOKEN_API_MS 90 s; scaled down in the same ratio. Before the first text, thinking or tool event the idle limit does not apply (review W3, 12 Nov)
+  const g = gate();
+  const seen: unknown[] = [];
+  const r = await run(() => ({ body: g.body }), { firstTokenMs: 900, idleMs: 600, retry: { max: 2 }, onNoFirstToken: (e) => seen.push(e) });
+  assert.equal(errorOf(r.events).code, "engine.no_first_token");
+  assert.equal(r.f.requests.length, 1, "a silent provider is not retried");
   assert.equal(seen.length, 1);
 });
 
