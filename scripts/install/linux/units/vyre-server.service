@@ -14,7 +14,7 @@ WorkingDirectory=@VYRE_DIR@
 ExecStart=@BIN@ start
 ExecStop=@BIN@ stop
 TimeoutStartSec=300
-TimeoutStopSec=60
+TimeoutStopSec=150
 
 [Install]
 WantedBy=multi-user.target

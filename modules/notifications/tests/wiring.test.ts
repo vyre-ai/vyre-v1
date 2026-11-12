@@ -59,17 +59,16 @@ const FILED_DIRECTLY: Record<string, string> = {
 };
 
 /**
- * Known gaps, found by the f-wire sweep on 12 Nov 2026 and left for the lead: the manifest says the event files this kind, Settings shows the kind's switch, and nothing files it.
- * Who should receive each (admins, the incident owner, the connection owner) is a product decision. Remove an entry when it is wired; the test fails while an entry is already covered.
+ * Known gaps (f-wire, 12 Nov 2026, wired the rest on the lead's decision): the manifest says the event files this kind and nothing files it, each with why. A kind only these name has no
+ * switch in Settings (UNSENT_KINDS). Remove an entry when it is wired; the test fails while an entry is already covered.
  */
 const NOT_YET_FILED: readonly string[] = [
-  "backup.failed", "health.changed", "network.certificate_failed", "update.failed", "sandbox.denied",
-  "incident.opened", "incident.assigned",
-  "report.submitted", "report.resolved",
-  "conflict.confirmation_needed", "sync.conflict",
-  "connection.needs_reconnect", "connector.publish_failed", "mailbox.sync_failed", "mount.conflict", "mount.failed", "source.link_pending", "source.mapping_failed",
-  "sync.deletes_paused", "sync.op_rejected", "sync.push_failed", "sync.schema_changed",
-  "import.failed", "site.build_failed",
+  // nothing emits it
+  "sandbox.denied",
+  // the review task they open already reaches the admins through task.requested; a second line would say the same thing twice
+  "report.submitted", "conflict.confirmation_needed",
+  // the payload names nobody to tell (the reporter, the record's people, the mailbox's people): a product decision
+  "report.resolved", "sync.conflict", "mailbox.sync_failed",
 ];
 
 test("every event a manifest says files a notification is read by the fanout, filed by its own module, or listed as a known gap", () => {
@@ -92,4 +91,35 @@ test("every event a manifest says files a notification is read by the fanout, fi
     assert.ok(notifying.some((e) => e.name === n), `${n} still names a kind`);
     assert.ok(!fanOn.has(n), `${n} is wired now: take it off NOT_YET_FILED`);
   }
+});
+
+test("Settings hides exactly the kinds that nothing files: a kind that starts being sent comes back to the page", () => {
+  const app = fs.readFileSync(fileURLToPath(new URL("../../../apps/app/src/places/settings/pages-a.tsx", import.meta.url)), "utf8");
+  const hidden = new Set([...(/UNSENT_KINDS[^=]*= new Set\(\[([^\]]*)\]\)/.exec(app)?.[1] ?? "").matchAll(/"([a-z_.]+)"/g)].map((m) => m[1]!));
+  assert.ok(hidden.size > 0, "found the hidden kinds in Settings");
+  const notifying = registry.events.filter((e) => typeof (e as { notify?: unknown }).notify === "string") as Array<{ name: string; notify: string }>;
+  const filedKinds = new Set(notifying.filter((e) => fanOn.has(e.name) || FILED_DIRECTLY[e.name] !== undefined).map((e) => e.notify));
+  for (const k of hidden) assert.ok(!filedKinds.has(k), `${k} is filed now (an event that names it is read or sent): show its switch again`);
+  const onlyGaps = new Set(notifying.filter((e) => NOT_YET_FILED.includes(e.name)).map((e) => e.notify).filter((k) => !filedKinds.has(k)));
+  for (const k of onlyGaps) assert.ok(hidden.has(k), `${k} is named only by events nothing files: hide its switch (UNSENT_KINDS)`);
+});
+
+test("the lines the lead's decision wired (12 Nov): health and sync trouble to every admin, an incident to its owner, a failed import or site build to who started it", async () => {
+  const h = harness();
+  h.callee("access.roles.list", () => ({ roles: [{ id: "rol_admin", name: "Admin", permissions: [] }] }));
+  h.callee("access.roles.get", () => ({ holders: [{ kind: "person", id: alice.id }, { kind: "person", id: bob.id }] }));
+  const fan = consumers["notifications.fanout"];
+  const ctx = h.ctxFor(null, as(svc));
+  const rows = (ids: string[]): Array<{ person: string; kind: string; title: string }> => ids.map((id) => h.sqlite.prepare("SELECT person, kind, title FROM notifications_items WHERE id = ?").get(id) as { person: string; kind: string; title: string });
+  const run = async (name: string, payload: Record<string, unknown>, actor?: string) => rows(await fan.run(ctx, { name, subject: "", id: `evt_${name}`, payload, ...(actor ? { actor } : {}) } as never));
+  for (const name of ["health.changed", "backup.failed", "incident.opened", "import.failed", "site.build_failed", "connection.needs_reconnect", "sync.op_rejected"]) assert.ok(fanOn.has(name), `the fanout reads ${name}`);
+  const down = await run("health.changed", { key: "access.projection", from: "healthy", to: "down" });
+  assert.deepEqual(down.map((r) => [r.person, r.kind, r.title]).sort(), [[alice.id, "health.degraded", "Access projections is down"], [bob.id, "health.degraded", "Access projections is down"]].sort());
+  assert.deepEqual(await run("health.changed", { key: "access.projection", from: "down", to: "healthy" }), [], "a check that recovers files nothing");
+  assert.deepEqual((await run("backup.failed", { reason: "disk full" })).map((r) => r.title), ["The backup is failing", "The backup is failing"]);
+  assert.deepEqual((await run("incident.opened", { incidentId: "inc_1", kind: "data_leak", ownerId: cara.id })).map((r) => [r.person, r.kind, r.title]), [[cara.id, "incident.owned", "Incident you own: data leak"]]);
+  assert.deepEqual((await run("import.failed", { importId: "imp_1", runId: "run_9", type: "contact", error: "bad file" }, cara.id)).map((r) => [r.person, r.kind, r.title]), [[cara.id, "run.failed", "The import of contact failed: bad file"]]);
+  assert.deepEqual(await run("site.build_failed", { siteId: "sit_1", deploymentId: "dep_1", reason: "x" }, "system"), [], "a build nobody started tells nobody");
+  assert.deepEqual((await run("connection.needs_reconnect", { connectionId: "con_1", connector: "hubspot" })).map((r) => [r.kind, r.title]), [["sync.attention", "Sync needs attention on the hubspot connection"], ["sync.attention", "Sync needs attention on the hubspot connection"]]);
+  assert.deepEqual((await run("sync.op_rejected", { cap: "records.update", code: "x", deviceId: "dev_1", opId: "op_1", personId: cara.id })).map((r) => [r.person, r.title]), [[cara.id, "Sync needs attention on your device"]]);
 });

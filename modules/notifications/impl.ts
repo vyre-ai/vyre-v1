@@ -5,6 +5,7 @@ import { setPushPort } from "./handlers/push.ts";
 import { clearForSubject, send } from "./handlers/rules.ts";
 import { readSettings, syncSetting } from "./handlers/deliver.ts";
 import type { NotifCtx } from "./projections.ts";
+import { registry } from "../../generated/registry.ts";
 
 export { handlers, setPushPort };
 
@@ -103,6 +104,26 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 /** A date in words, in UTC: 18 November 2026. */
 export const dayOf = (ms: number): string => { const d = new Date(ms); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
 
+/** One line for each admin. */
+function toAdmins(ctx: NotifCtx, line: Omit<SendIn, "to">): Promise<SendIn[]> {
+  return adminsOf(ctx).then((to) => to.map((id) => ({ ...line, to: id }) as SendIn));
+}
+/** A health check's name, as the Console names it. */
+const healthTitle = (key: string): string => (registry.health as ReadonlyArray<{ key: string; title?: string }>).find((h) => h.key === key)?.title ?? (key || "A service");
+/** The events that file sync.attention, and what each names in its line. */
+const SYNC_ATTENTION: Readonly<Record<string, (p: Record<string, unknown>) => string>> = {
+  "connection.needs_reconnect": (p) => `the ${String(p.connector ?? "")} connection`.replace("the  ", "a "),
+  "connector.publish_failed": (p) => `the ${String(p.key ?? "")} connector`.replace("the  ", "a "),
+  "mount.failed": () => "a connected folder",
+  "mount.conflict": (p) => (typeof p.name === "string" && p.name !== "" ? p.name : "a connected folder"),
+  "source.mapping_failed": () => "a source",
+  "source.link_pending": () => "a source",
+  "sync.deletes_paused": (p) => `${String(p.type ?? "a record type")} sync`,
+  "sync.push_failed": (p) => `${String(p.type ?? "a record type")} sync`,
+  "sync.schema_changed": (p) => `${String(p.type ?? "a record type")} sync`,
+  "sync.op_rejected": () => "your device",
+};
+
 /** Everyone who holds the Owner or Admin role: the people a machine alert is for. */
 async function adminsOf(ctx: NotifCtx): Promise<string[]> {
   if (!ctx.call) return [];
@@ -143,6 +164,33 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
     // one line for each admin: who asked, and which hook stopped what
     return adminsOf(ctx).then((to) => to.filter((id) => id !== p.by).map((id) => ({ to: id, kind: "hook.asked", subject: { type: "thread", id: String(p.threadId ?? "") }, title: `${String(p.line ?? "A hook stopped something")}${typeof p.note === "string" && p.note !== "" ? `: ${p.note}` : ""}`.slice(0, 200), collapseKey: `hook.asked:${String(p.hookId ?? "")}:${String(p.by ?? "")}` })));
   }
+  // Something is down (f-wire, 12 Nov): a health check that turned degraded or down, a backup, an update or a certificate that failed reaches every admin; it collapses while the same thing stays down
+  if (e.name === "health.changed") {
+    if (p.to !== "degraded" && p.to !== "down") return undefined;
+    const key = String(p.key ?? "");
+    return toAdmins(ctx, { kind: "health.degraded", subject: { type: "space", id: ctx.space }, title: healthTitle(key), data: { service: healthTitle(key), state: p.to === "down" ? "down" : "slow" }, collapseKey: `health.degraded:${key}` });
+  }
+  if (e.name === "backup.failed" || e.name === "update.failed" || e.name === "network.certificate_failed") {
+    const service = e.name === "backup.failed" ? "The backup" : e.name === "update.failed" ? "The update" : `The certificate for ${String(p.host ?? "this Space")}`;
+    return toAdmins(ctx, { kind: "health.degraded", subject: { type: "space", id: ctx.space }, title: service, data: { service, state: "failing" }, collapseKey: `health.degraded:${e.name}` });
+  }
+  // an AI incident goes to the person who owns it, at once (an Interrupt that respects no hours)
+  if ((e.name === "incident.opened" || e.name === "incident.assigned") && typeof p.ownerId === "string" && p.ownerId.startsWith("usr_")) {
+    const what = typeof p.kind === "string" && p.kind !== "" ? p.kind.replaceAll("_", " ") : "an AI incident";
+    return { to: p.ownerId, kind: "incident.owned", title: what, collapseKey: `incident.owned:${String(p.incidentId ?? "")}` } as never;
+  }
+  // A sync that needs a person: every admin hears it once per thing that needs them; a device's own rejected change goes to that device's person
+  if (SYNC_ATTENTION[e.name]) {
+    const device = SYNC_ATTENTION[e.name]!(p);
+    const id = String(p.connectionId ?? p.mountId ?? p.sourceId ?? p.syncTypeId ?? p.key ?? "");
+    if (e.name === "sync.op_rejected") return typeof p.personId === "string" ? { to: p.personId, kind: "sync.attention", title: device, data: { device }, collapseKey: `sync.attention:${e.name}:${String(p.deviceId ?? "")}` } : undefined;
+    return toAdmins(ctx, { kind: "sync.attention", subject: { type: "space", id: ctx.space }, title: device, data: { device }, collapseKey: `sync.attention:${e.name}:${id}` });
+  }
+  // an import or a site build that failed: the person who started it hears it as a failed run (a system start has nobody to tell)
+  if ((e.name === "import.failed" || e.name === "site.build_failed") && typeof e.actor === "string" && e.actor.startsWith("usr_")) {
+    const name = e.name === "import.failed" ? `The import of ${String(p.type ?? "records")}` : "The site build";
+    return { to: e.actor, kind: "run.failed", ...(typeof p.runId === "string" && p.runId !== "" ? { subject: { type: "run", id: p.runId }, runId: p.runId } : {}), data: { name, message: String(p.error ?? p.reason ?? "it stopped") } } as never;
+  }
   if (e.name === "run.succeeded" && p.kind === "routine" && ctx.call) {
     // Alerts: a routine that succeeded is told only to people who asked for successes too (failures always come through run.failed)
     return ctx.call("runs.get", { runId: p.runId }).then((r) => {
@@ -182,7 +230,9 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {
   "notifications.fanout": {
-    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "ci.blocked", "hook.admin_asked"],
+    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "ci.blocked", "hook.admin_asked",
+      "health.changed", "backup.failed", "update.failed", "network.certificate_failed", "incident.opened", "incident.assigned", "import.failed", "site.build_failed",
+      "connection.needs_reconnect", "connector.publish_failed", "mount.failed", "mount.conflict", "source.mapping_failed", "source.link_pending", "sync.deletes_paused", "sync.push_failed", "sync.schema_changed", "sync.op_rejected"],
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
       const planned = await plan(ctx, event);
       const out: string[] = [];

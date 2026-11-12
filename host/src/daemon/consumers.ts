@@ -2,6 +2,7 @@
 //   consumer  `export const consumers = { "<module>.<name>": { on: ["event.name", ...], run(ctx, event) } }`. The host runs it once per matching event, after the event is committed, at
 //             least once: a cursor per consumer lives in modules.db (`host_hook_cursor`), and a restart picks up where it stopped. A consumer first seen starts at the end of the log
 //             (history is not replayed into it). A consumer that throws is retried on the next pass; after MAX_TRIES it is skipped and logged so one bad event cannot hold the rest.
+//             A consumer whose service is stopping throws the kept error (routes/errors.ts keptForRestart): that is not a try, the cursor stays on the event and the next start delivers it.
 //   periodic  `export const periodic = { "<module>.<name>": { everyMs, run(ctx) } }`, run by the scheduler.
 //   runs      the runs module exports `onRunFailed` and `sweepEscalations` by name (P-L6_11); the host maps them to the consumer `runs.alerts` and the periodic job `runs.escalations`.
 // Both kinds get a full ctx: the host runs each through the invoke pipeline as a host-only capability (`host.hook.<name>`) that declares the events its module's capabilities emit, so
@@ -13,7 +14,7 @@ import type { StoredEvent } from "../../../kernel/src/log/index.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
 import type { CtxSeed, Handler, Invoke } from "../invoke.ts";
-import { fail } from "../routes/errors.ts";
+import { fail, isKeptForRestart } from "../routes/errors.ts";
 import type { RawDb } from "../ctx/db.ts";
 
 export const MAX_TRIES = 5;
@@ -134,6 +135,8 @@ export interface HookRunnerDeps {
   /** one real capability of the module, so the loader's per-module services (ctx.db) are built for the right owner */
   capOf(module: string): CapabilityDef | undefined;
   warn(msg: string, attrs?: Record<string, unknown>): void;
+  /** a line that is not a problem (an event kept for the next start); omitted, it is not logged */
+  info?(msg: string, attrs?: Record<string, unknown>): void;
 }
 
 export interface HookRunner {
@@ -148,6 +151,16 @@ export interface HookRunner {
   start(): Promise<void>;
   /** Deliver everything committed since each consumer's cursor. Passes never overlap; a call made during a pass runs another when it ends. */
   pump(): Promise<void>;
+  /**
+   * The server is stopping: no consumer is handed another event (the pass in flight stops after the event it is on), so what commits while the services close stays for the next start, which
+   * delivers it from the stored cursor. Answers when the pass in flight has ended. Without this the last passes of a stop handed events to consumers whose service had already gone (the engine, the
+   * push port, a mail or calendar host): each answered "not running", the cursor moved past, and a goal's wake-up or a person's message was lost.
+   * `boundMs`: answer by then at the latest. A consumer still running at the bound is let go: whatever it answers later is dropped and its cursor is never written, so the next start hands it
+   * the same event again (as after a crash), and the stop goes on. What the let-go consumer did is not undone: there is no transaction around ctx.db, so each write it made before the
+   * databases closed stays; each write after that is refused (the database is closed); the events it emits are lost (they commit at the end of its call, and the log is closed by then). The next
+   * start runs the consumer again on the same event, so a consumer must be safe to run twice on one event (it is at least once, as after a crash).
+   */
+  close(boundMs?: number): Promise<void>;
   /** Run one periodic job now. */
   runPeriodic(name: string): Promise<void>;
   /** Run a module's hostCall as that module and answer what it returns. */
@@ -206,6 +219,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
     return Number(r.seq);
   };
   const setCursor = (name: string, seq: number): void => {
+    if (abandoned) return;   // the stop let a running consumer go: nothing more is stored, the next start reads from what was
     read.set(name, seq);
     if (saved.get(name) === seq) return;
     d.db.run("INSERT INTO host_hook_cursor (name, seq, at) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET seq = excluded.seq, at = excluded.at", name, seq, d.now());
@@ -213,17 +227,32 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
   };
   /** Past events the consumer does not take: kept in memory until the end of the pass. */
   const readPast = (name: string, seq: number): void => { read.set(name, seq); };
-  const flush = (): void => { for (const [name, seq] of read) if (saved.get(name) !== seq) setCursor(name, seq); };
+  const flush = (): void => { if (abandoned) return; for (const [name, seq] of read) if (saved.get(name) !== seq) setCursor(name, seq); };
   const tries = new Map<string, number>();
+  const kept = new Set<string>();
 
   async function deliver(c: ConsumerDef, e: StoredEvent): Promise<boolean> {
     const ev = toHookEvent(e);
+    inFlight = { consumer: c.name, event: e.type, seq: e.seq };
     try {
       await d.invoke(capName("consumer", c.name), { event: ev }, seed({ trace: { traceId: e.trace_id, spanId: "0".repeat(16) }, depth: e.depth + 1 }));
-      tries.delete(`${c.name}:${e.seq}`);
+      if (abandoned) return false;   // let go by the stop: this answer is dropped, the event is delivered again at the next start
+      tries.delete(`${c.name}:${e.seq}`); kept.delete(`${c.name}:${e.seq}`);
       return true;
     } catch (err) {
+      if (abandoned) return false;
       const key = `${c.name}:${e.seq}`;
+      // the service the consumer hands work to is stopping: the event is kept (the cursor stays on it, before any later one) and the next start delivers it. Not a failure, so not a try:
+      // a shutdown with many passes must never reach MAX_TRIES and skip it.
+      if (isKeptForRestart(err)) {
+        if (!kept.has(key)) {
+          kept.add(key);
+          // during a stop this is how it should go; while the server runs it means a service stopped under it, and this consumer's events wait behind this one until it comes back
+          if (closing) d.info?.("a consumer kept an event for the next start", { consumer: c.name, event: e.type, seq: e.seq });
+          else d.warn("a consumer kept an event for the next start while the server is running: its later events wait behind it", { consumer: c.name, event: e.type, seq: e.seq });
+        }
+        return false;
+      }
       const n = (tries.get(key) ?? 0) + 1;
       tries.set(key, n);
       d.warn("a consumer failed on an event", { consumer: c.name, event: e.type, seq: e.seq, try: n, error: err instanceof Error ? err.message : String(err) });
@@ -242,9 +271,12 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
       const page = await d.log.read({ after: at, limit: PAGE });
       if (!page.length) return;
       for (const e of page) {
+        if (closing) { setCursor(c.name, at); return; }   // stopping: this event and the ones after it are for the next start
         // an erased event (events.compact) has no payload to act on: it is skipped, as the projections skip it
         if (c.on.includes(e.type) && !isErased(e)) {
-          if (!(await deliver(c, e))) { setCursor(c.name, at); return; }   // stop here: this event is tried again on the next pass, before any later one
+          const taken = await deliver(c, e);
+          inFlight = null;
+          if (!taken) { setCursor(c.name, at); return; }   // stop here: this event is tried again on the next pass, before any later one
           at = e.seq;
           setCursor(c.name, at);   // a delivered event is recorded at once, so a crash repeats at most the one in flight
           if (performance.now() - since >= YIELD_EVERY_MS) { await yieldLoop(); since = performance.now(); }
@@ -256,13 +288,14 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
     }
   }
 
-  let running: Promise<void> | null = null, again = false;
+  let running: Promise<void> | null = null, again = false, closing = false, abandoned = false;
+  let inFlight: { consumer: string; event: string; seq: number } | null = null;
   const run = (): Promise<void> => (async () => {
     try {
       await null;   // let `running` be assigned before the first check, even with nothing to run
       do {
         again = false;
-        for (const c of byConsumer.values()) await passFor(c);
+        for (const c of byConsumer.values()) { if (closing) break; await passFor(c); }
         flush();
       } while (again);
     } finally { running = null; }   // set in the same tick as the last check of `again`, so a call can never be told "a pass is running" by a pass that has finished
@@ -280,9 +313,25 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
       for (const c of byConsumer.values()) if (cursor(c.name) === undefined) setCursor(c.name, head);
     },
     pump() {
+      if (closing) return abandoned ? Promise.resolve() : running ?? Promise.resolve();
       if (running) { again = true; return running; }
       running = run();
       return running;
+    },
+    close(boundMs) {
+      closing = true;
+      const pass = running;
+      if (!pass || abandoned) return Promise.resolve();
+      if (boundMs === undefined) return pass;
+      return new Promise<void>((done) => {
+        const t = setTimeout(() => {
+          abandoned = true;   // before the stop goes on: from here this pass stores nothing, so no write lands in a database the stop closes
+          d.warn("a consumer was still running when the server stopped; it is handed the same event again at the next start", { ...(inFlight ?? {}), boundMs });
+          done();
+        }, boundMs);
+        t.unref?.();
+        void pass.then(() => { clearTimeout(t); done(); }, () => { clearTimeout(t); done(); });
+      });
     },
     async call(name, input, as) {
       if (!byCall.has(name)) throw new Error(`no host call named ${name}`);

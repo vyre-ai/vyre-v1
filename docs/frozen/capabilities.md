@@ -30,6 +30,13 @@ Nothing blocks the freeze. The sample read cleanly: summaries match the declared
 
 
 
-## Changes after the freeze
+## 12 Nov 2026: threads.remove_agent is audited always (lane f-revoke)
+
+`threads.remove_agent@1` now has `audit: 'always'`, as `threads.outside_agent.remove` has. Nothing else in its contract changed: same input, output, level, permission, events and errors. Why: since the f-revoke round, taking an agent out of a chat also takes back, as the host, every grant that chat gave it, whoever gave it; the Console's audit log must show who took that access away, as it already does for an outside agent. Snapshot: docs/frozen/snapshots/chat.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+
+Signed: lead, 12 Nov 2026
+
+## 12 Nov 2026: Vault keys go only to approved hosts (lane f-auto)
 
 - 12 Nov 2026, lane f-auto: `automations.try_read` is now held (gate `send`, when `automations.key_host_unapproved(input)`, risk medium, error `permission.needs_approval`): an agent's test read that would send a Vault key to a host nobody approved for that item waits for a person (Allow, Always allow, Deny). New `automations.key_hosts.list`, `automations.key_hosts.allow` and `automations.key_hosts.remove`: the hosts approved per Vault item (table `automations_key_hosts`, migration 0013). Signed: lead, 12 Nov 2026.
+- 12 Nov 2026, lane f-auto, second look: `automations.key_hosts.pending` and `automations.key_hosts.pending_bind` (what a held read or binding would send, read by the server for the card); `connections.create` and `connections.set_secret` are held (gate `send`, when `automations.bind_hosts_unapproved(input)`, error `permission.needs_approval`) when an agent binds a key to hosts not approved for it. `automations.vault_usage` gains an optional `hidden` count. Signed: lead, 12 Nov 2026.

@@ -27,7 +27,7 @@ const TEST_ONLY: Readonly<Record<string, string>> = {
  *   bindTeam (terminal, computers): unbound means "a Team Space", so a Personal Space is treated as a team one where nothing else says where a turn runs.
  *   bindSandboxStopper: turning subscription sharing off never stops the person's server sandbox (it reports sandboxStopped false).
  */
-const KNOWN_UNBOUND: ReadonlySet<string> = new Set(["modules/terminal:bindTeam", "modules/computers:bindTeam", "modules/engine:bindSandboxStopper"]);
+const KNOWN_UNBOUND: ReadonlySet<string> = new Set();
 
 const testy = (rel: string): boolean => /(^|\/)(tests?|fixtures)\//.test(rel) || /\.test\.tsx?$/.test(rel) || /-kit\.test\.ts$/.test(rel);
 

@@ -1,0 +1,1 @@
+- An agent's merge of records that waits for a yes now says "merge records into one" on its card.
