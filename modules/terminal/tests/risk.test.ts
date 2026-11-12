@@ -39,6 +39,14 @@ test("rm is red only when it is recursive or names a bare /, ~ or $HOME: -f alon
   assert.equal(isDangerous("rm -f x; rm -r y"), true);
   // the other force rules keep their own patterns: the rm change neither frees them nor reaches inside them
   for (const c of ["docker rm -f web", "docker rmi -f img", "git clean -f", "git clean -fd", "git push -f origin main"]) assert.equal(riskOf(c), "danger", c);
+  // GNU rm takes any unique prefix of --recursive (r-term R1)
+  for (const c of ["rm --r dir", "rm --rec dir", "rm -f --recur dir", "rm -f --rec dir"]) assert.equal(riskOf(c), "danger", c);
+  // git rm --force drops uncommitted changes, like git checkout -- . (r-term R2); a plain git rm stays a change
+  for (const c of ["git rm -f a.txt", "git rm --force a.txt", "git rm --cached -f a.txt", "git rm -rf dir"]) assert.equal(riskOf(c), "danger", c);
+  assert.equal(riskOf("git rm a.txt"), "change");
+  // docker's --rm is not rm (r-term R3): a container that is removed when it exits, reading or listing recursively, is not a delete
+  for (const c of ["docker run --rm img grep -r x /src", "docker run --rm img ls -R", "docker run --rm img ls /"]) assert.equal(riskOf(c), "change", c);
+  assert.equal(riskOf("/bin/rm -rf dir"), "danger");
 });
 
 test("a line is as risky as its worst part", () => {
