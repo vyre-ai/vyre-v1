@@ -135,6 +135,9 @@ function decoder(): StreamDecoder {
   };
 }
 
+/** Models OpenAI said take reasoning_effort only as "none" when a request carries function tools (learned from its own refusal, for this process). */
+const EFFORT_NONE_WITH_TOOLS = new Set<string>();
+
 export function openaiCompatible(o: CompatOptions): ProviderAdapter {
   return {
     ...(o.router ? { defaultsModel: true } : {}),
@@ -147,8 +150,10 @@ export function openaiCompatible(o: CompatOptions): ProviderAdapter {
     request(req: CallRequest): WireRequest {
       // Reasoning effort: OpenAI's own `reasoning_effort` for its reasoning models (o-series, gpt-5), OpenRouter's `reasoning.effort` for any routed model. Max is high: the highest both name.
       const level = req.effort === undefined ? undefined : req.effort === "max" ? "high" : req.effort;
-      const reasoning = level === undefined ? {} : o.id === "openai" && /^(o\d|gpt-5)/.test(req.model) ? { reasoning_effort: level } : o.router ? { reasoning: { effort: level } } : {};
       const tools = sortTools(req.tools).map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.inputSchema ?? { type: "object", properties: {} } } }));
+      // a model OpenAI said takes reasoning_effort only as "none" when the request carries function tools (amend below) gets "none" with tools from then on
+      const noneWithTools = o.id === "openai" && tools.length > 0 && EFFORT_NONE_WITH_TOOLS.has(req.model);
+      const reasoning = noneWithTools ? { reasoning_effort: "none" } : level === undefined ? {} : o.id === "openai" && /^(o\d|gpt-5)/.test(req.model) ? { reasoning_effort: level } : o.router ? { reasoning: { effort: level } } : {};
       const mark = o.router && req.model.startsWith("anthropic/");
       return {
         path: "/chat/completions",
@@ -170,6 +175,17 @@ export function openaiCompatible(o: CompatOptions): ProviderAdapter {
         },
       };
     },
+    // OpenAI refuses reasoning_effort with function tools on /v1/chat/completions for some models, and says to send "none" (gate, 13 Nov 2026: gpt-5.6-luna). The request goes once more
+    // with "none", tools kept, and the model is remembered for this process. Any other refusal is the turn's error.
+    ...(o.id === "openai" ? {
+      amend(req: CallRequest, wire: WireRequest, status: number, text: string): WireRequest | undefined {
+        const body = wire.body as Record<string, unknown>;
+        if (status !== 400 || !Array.isArray(body["tools"]) || body["reasoning_effort"] === "none") return undefined;
+        if (!/reasoning_effort/i.test(text) || !/tools/i.test(text) || !/none/i.test(text)) return undefined;
+        EFFORT_NONE_WITH_TOOLS.add(req.model);
+        return { ...wire, body: { ...body, reasoning_effort: "none" } };
+      },
+    } : {}),
     decoder,
     modelsRequest: () => ({ path: "/models", headers: o.opencode ? { "user-agent": vyreUserAgent() } : {}, ...(o.modelsUrl ? { url: o.modelsUrl } : {}) }),
     parseModels(json): ModelInfo[] {

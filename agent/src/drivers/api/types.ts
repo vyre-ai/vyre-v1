@@ -92,6 +92,8 @@ export interface ProviderAdapter {
   /** True when the provider's input token count already includes cached tokens (OpenAI style). Anthropic reports them apart, so the session adds them. */
   readonly inputIncludesCache: boolean;
   request(req: CallRequest): WireRequest;
+  /** A request the provider refused and said how to fix (a 4xx before any output): the corrected request, which the session sends once. Undefined when the refusal is not one it knows. */
+  amend?(req: CallRequest, wire: WireRequest, status: number, text: string): WireRequest | undefined;
   decoder(): StreamDecoder;
   /** `url` is set when the model list lives outside the base address (OpenCode Go). */
   modelsRequest(): { path: string; headers: Record<string, string>; url?: string };

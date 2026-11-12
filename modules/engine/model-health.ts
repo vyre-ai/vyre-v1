@@ -1,6 +1,7 @@
 // Which models an account serves (owner ruling, 4 Nov 2026: a model that is not available is not shown). Three things are kept per account and model:
 //  - bad: a turn or a probe found the engine refusing it. The picker leaves it out; the mark ends after REST_MS, so it is tried again later and comes back by itself when it works.
-//  - ok: a probe or a turn confirmed it. Confirmed for CONFIRM_MS, then checked again.
+//  - ok: a probe confirmed it (one tiny request, no tools). Confirmed for CONFIRM_MS, then checked again.
+//  - ran: a chat turn completed on it (tools and all). Confirmed as ok is; only this mark tells the first-hour default "already ran here" (first-model.ts).
 //  - neither: not checked yet. For an API key the picker shows it greyed ("Checking...") while a background probe (one tiny request, capped) runs.
 // A sign-in change (a key added, removed or changed, a re-auth) forgets everything for the accounts, so they are checked again.
 import { modelGone } from "../../agent/src/drivers/cli/errors.ts";
@@ -34,7 +35,8 @@ function ensure(db: Db): void {
   db.run("CREATE TABLE IF NOT EXISTS engine_model_account (provider_id TEXT PRIMARY KEY, account_ref TEXT NOT NULL)");
   ready.add(db as object);
 }
-const put = (db: Db, ref: string, model: string, state: "bad" | "ok" | "slow", now: number): void => {
+type State = "bad" | "ok" | "slow" | "ran";
+const put = (db: Db, ref: string, model: string, state: State, now: number): void => {
   ensure(db);
   db.run("INSERT OR REPLACE INTO engine_model_health (account_ref, model, state, at) VALUES (?, ?, ?, ?)", ref, model, state, now);
 };
@@ -43,15 +45,19 @@ const put = (db: Db, ref: string, model: string, state: "bad" | "ok" | "slow", n
 export const markUnavailable = (db: Db, ref: string, model: string, now: number): void => put(db, ref, model, "bad", now);
 /** The account served the model (a probe answered, or a turn ran on it). */
 export const markConfirmed = (db: Db, ref: string, model: string, now: number): void => put(db, ref, model, "ok", now);
+/** A chat turn completed on the model. */
+export const markRan = (db: Db, ref: string, model: string, now: number): void => put(db, ref, model, "ran", now);
 
-const modelsIn = (db: Db, ref: string, state: "bad" | "ok" | "slow", since: number): Set<string> => {
+const modelsIn = (db: Db, ref: string, state: State, since: number): Set<string> => {
   ensure(db);
   return new Set((db.all("SELECT model FROM engine_model_health WHERE account_ref = ? AND state = ? AND at > ?", ref, state, since) as Array<{ model: string }>).map((r) => r.model));
 };
 /** The models this account is known not to serve right now. */
 export const unavailableFor = (db: Db, ref: string, now: number): Set<string> => modelsIn(db, ref, "bad", now - REST_MS);
 /** The models this account is known to serve. */
-export const confirmedFor = (db: Db, ref: string, now: number): Set<string> => new Set([...modelsIn(db, ref, "ok", now - CONFIRM_MS), ...modelsIn(db, ref, "slow", now - CONFIRM_MS)]);
+export const confirmedFor = (db: Db, ref: string, now: number): Set<string> => new Set([...modelsIn(db, ref, "ok", now - CONFIRM_MS), ...modelsIn(db, ref, "slow", now - CONFIRM_MS), ...modelsIn(db, ref, "ran", now - CONFIRM_MS)]);
+/** The models a chat turn completed on for this account (not a probe's answer). */
+export const ranFor = (db: Db, ref: string, now: number): Set<string> => modelsIn(db, ref, "ran", now - CONFIRM_MS);
 /** The models this account served but took longer than SLOW_MS to answer a one-word check. */
 export const slowFor = (db: Db, ref: string, now: number): Set<string> => modelsIn(db, ref, "slow", now - CONFIRM_MS);
 

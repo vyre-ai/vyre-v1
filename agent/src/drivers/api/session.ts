@@ -115,7 +115,8 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
 
   /** One provider call. Yields decoded events as they arrive; the last one is `stop`, `error`, or the end of the stream. */
   async function* call(req: CallRequest, signal: AbortSignal): AsyncGenerator<Decoded> {
-    const wire = deps.adapter.request(req);
+    let wire = deps.adapter.request(req);
+    let amended = false;
     const url = `${deps.base.replace(/\/+$/, "")}${wire.path}`;
     for (let attempt = 0; ; attempt++) {
       if (signal.aborted) return;
@@ -173,6 +174,9 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
       if (!res.ok) {
         signal.removeEventListener("abort", relay);
         const text = scrub((await res.text().catch(() => "")).slice(0, 2_000), secrets);
+        // a refusal the provider says how to fix (openai.ts amend: reasoning_effort with function tools): the corrected request goes once, nothing having been streamed yet
+        const fixed = amended ? undefined : deps.adapter.amend?.(req, wire, res.status, text);
+        if (fixed) { wire = fixed; amended = true; continue; }
         if (await retryOrFail(res.status, text, res)) continue;
         const c = classify(res.status, text);
         const after = c.code === "provider.rate_limited" ? retryAfterMs(res.headers.get("retry-after"), deps.clock.now()) : undefined;
