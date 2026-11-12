@@ -115,7 +115,7 @@ export function guestOf(ctx: MembersCtx, inviteId: string): { level: "view" | "r
  */
 export async function invitesGuest(ctx: MembersCtx, input: { email: string; scope: { type: string; id: string }; level?: "view" | "reply"; idempotencyKey: string }) {
   const tid = ctx.trace.traceId;
-  if (((ctx as { depth?: number }).depth ?? 0) < 1 || ctx.principal?.kind !== "person") raise(tid, "permission.no_grant", "A guest is invited from inside a chat.");
+  if (((ctx as { depth?: number }).depth ?? 0) < 1 || (ctx as { forwarded?: boolean }).forwarded === true || ctx.principal?.kind !== "person") raise(tid, "permission.no_grant", "A guest is invited from inside a chat.");
   if (input.scope.type !== "channel" || !input.scope.id.startsWith("chn_")) raise(tid, "validation.bad_input", "A guest is invited to a channel's chat.");
   const level = input.level ?? "view";
   if (level !== "view" && level !== "reply") raise(tid, "validation.bad_input", "A guest can view or reply.");

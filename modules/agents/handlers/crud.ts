@@ -187,7 +187,7 @@ export const create = (ctx: AgentsCtx, input: CreateInput) => make(ctx, input, i
 
 /** agents.outside.connect: the agent an app becomes when a person allows it. Only the sign-in reaches this: a nested call from mcp.oauth.allow, as that person. */
 export async function connectOutside(ctx: AgentsCtx, input: { clientName: string }) {
-  if ((ctx.depth ?? 0) < 1 || ctx.principal.kind !== "person") raise(ctx, "permission.no_grant", "An outside agent is made by a person allowing it to join.");
+  if ((ctx.depth ?? 0) < 1 || ctx.forwarded === true || ctx.principal.kind !== "person") raise(ctx, "permission.no_grant", "An outside agent is made by a person allowing it to join.");
   ensure(ctx.db);
   const made = await make(ctx, { name: await outsideName(ctx, input.clientName), role: "Runs outside Vyre", face: outsideFace(ctx) }, "agent", "outside");
   const agent = made.agent as { agentId: string; name: string };

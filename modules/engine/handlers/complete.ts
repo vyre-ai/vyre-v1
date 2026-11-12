@@ -13,7 +13,7 @@ export const DEVICE_ONESHOT_MS = 90_000;
 
 export async function complete(ctx: Ctx, input: { accountRef: string; prompt: string; system?: string; model?: string }) {
   // Internal only: a model request on someone's account is made by a module on behalf of a key it resolved, never by a person, an agent tool or MCP, which all arrive at depth 0.
-  if (!(ctx.depth >= 1)) raise(ctx as unknown as EngineCtx, "permission.no_grant", "This is called by the Space's own jobs, not directly.");
+  if (!(ctx.depth >= 1) || ctx.forwarded === true) raise(ctx as unknown as EngineCtx, "permission.no_grant", "This is called by the Space's own jobs, not directly.");
   await ensureRuntime(ctx as unknown as EngineCtx);
   const run = completerOf();
   if (!run) raise(ctx as unknown as EngineCtx, "internal.unavailable", "The engine is not running on this host.");

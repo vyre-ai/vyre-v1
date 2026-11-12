@@ -237,14 +237,14 @@ export function reportDenials(ctx: Ctx, kitId: string, what: readonly string[]):
   }
 }
 
-/** Runs one script of an installed Kit as the caller. api.call goes through ctx.call, so the caller's access, the Gate and the audit apply. */
+/** Runs one script of an installed Kit as the caller. api.call goes through ctx.call, so the caller's access, the Gate and the audit apply. A script's capabilities are the Kit author's choice, so each call is forwarded for the caller (asCaller), never module code. */
 export async function runKitScript(ctx: Ctx, kitId: string, scriptName: string, input?: unknown): Promise<SandboxResult> {
   const k = mustKit(ctx, kitId);
   if (k.installedVersion === null) fail(ctx, "validation.precondition_failed", `${k.title} is not installed.`);
   const row = versionRow(ctx, k.id, k.installedVersion);
   const script = row ? (parseManifest(row).scripts ?? []).find((s) => s.name === scriptName) : undefined;
   if (!script) fail(ctx, "validation.not_found", `${k.title} has no script named ${scriptName}.`);
-  const res = await runSandboxed({ source: script.source, input, caps: script.caps, call: (cap, i) => ctx.call(cap as never, i) });
+  const res = await runSandboxed({ source: script.source, input, caps: script.caps, call: (cap, i) => ctx.call(cap as never, i, { asCaller: true }) });
   if (res.denials.length > 0) reportDenials(ctx, k.id, res.denials);
   return res;
 }

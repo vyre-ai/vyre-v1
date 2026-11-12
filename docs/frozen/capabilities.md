@@ -41,3 +41,9 @@ Signed: lead, 12 Nov 2026
 12 Nov 2026: access.grants.update may emit grant.revoked and access.unshare may emit grant.updated, because a record share's folder copy follows in the same call (lane f-revoke). Lowering a share on a record drops its copy on the record's folder when the person keeps no level there (`grant.revoked`), and taking one of several record shares away lowers the copy to what is left (`grant.updated`). Nothing else in either contract changed: same input, output, level, permission and errors; the events carry their own declared payloads.
 
 Signed: lead, 12 Nov 2026
+
+## 12 Nov 2026: notifications.send narrows the agent tool's kinds (lane f-notify, paragraph added by lane f-trust)
+
+The hash of `notifications.send@1` changed from 4274fa4300adf0432f0d36182549c6e83f4df16f52880bc20ca874d66fd9f1d0 to 7e92d4bebba03ae2536cbd528ddb29d7d150d12ba8cd75ed70ae70df6a62490d in commit 9bc1392c8. The manifest gained `surfaces.agent.only`, a generator option that cuts one enum on the agent's tool only: an agent may send only the kinds about it talking to someone (dm, mention, item.shared, agent.task_finished). The capability itself is unchanged: the same input, output, level, permission, events and errors, and module code still sends every kind. Why: the other kinds come from Vyre and its modules, so the agent's tool should not offer them; the server refuses them anyway (SENDABLE_KINDS in modules/notifications/handlers/rules.ts). The lane f-trust change that makes a forwarded call (a stored schedule, a template step, a Kit step) count as its caller's own call touches no manifest and no snapshot. Snapshot: docs/frozen/snapshots/notifications.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+
+Signed: lead, 12 Nov 2026

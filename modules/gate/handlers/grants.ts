@@ -27,7 +27,7 @@ function targetsAfter(s: StepIn, kept: string[], press: "save" | "on"): string[]
 
 export async function grantsSet(ctx: GateCtx, input: In): Promise<unknown> {
   // the automation capability a person pressed calls this, and it checked their access to the automation; nobody calls it from outside
-  if ((ctx.depth ?? 0) === 0 && !isHostService(ctx.principal)) raise(ctx, "permission.role_lacks_permission", "An automation sets this when it is saved.", { reason: "system_only" });
+  if (((ctx.depth ?? 0) === 0 || ctx.forwarded === true) && !isHostService(ctx.principal)) raise(ctx, "permission.role_lacks_permission", "An automation sets this when it is saved.", { reason: "system_only" });
   const by = ctx.principal;
   // a person's own press; an outside agent working under its person's setup grant runs as them but has not pressed anything (lib/trust.ts isPersonPress)
   const pressed = isPersonPress(ctx) || isHostService(by);
@@ -101,7 +101,7 @@ export async function grantsTake(ctx: GateCtx, input: In): Promise<unknown> {
  * chats they hold in (`threads`, kept as goal rows that alwaysCovered matches), and ends them with an empty list when the goal pauses, stops or ends. A call without a press changes only the chats.
  */
 export async function grantsGoal(ctx: GoalsGrantCtx, input: In): Promise<unknown> {
-  if ((ctx.depth ?? 0) === 0 && !isHostService(ctx.principal)) raise(ctx, "permission.role_lacks_permission", "A goal sets this when its owner starts or edits it.", { reason: "system_only" });
+  if (((ctx.depth ?? 0) === 0 || ctx.forwarded === true) && !isHostService(ctx.principal)) raise(ctx, "permission.role_lacks_permission", "A goal sets this when its owner starts or edits it.", { reason: "system_only" });
   const now = ctx.now();
   if (input.set !== undefined) {
     if (!(isPersonPress(ctx) && ctx.principal.id === input.person)) raise(ctx, "permission.role_lacks_permission", "Only the owner's own press grants a goal a permission.", { reason: "press_only" });
