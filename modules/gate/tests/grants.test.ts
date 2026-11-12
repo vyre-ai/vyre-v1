@@ -151,14 +151,14 @@ test("a taint in a Job's thread reaches the chat above, and taint is the server'
   await assert.rejects(h.call("gate.taint.mark", { threads: ["thr_chat"], source: "x" }, as(bot)), (e) => codeOf(e) === "permission.role_lacks_permission");
 });
 
-test("once outside content was read in the chain: a link the person gave or a page linked to is known; one put together is not; the table holds hashes", async () => {
+test("under an Automation's mark: a link the person gave or a page linked to is known; one put together is not; the table holds hashes", async () => {
   const h = harness();
   await h.call("gate.grants.ask", { threadId: "thr_chat", messageId: "msg_1", asked: [], links: ["https://acme.test/a?x=1#top"] }, alice as never);
-  await mark(h, ["thr_chat", "thr_other"]);
+  for (const t of ["thr_chat", "thr_other"]) await h.call("gate.taint.mark", { threads: [t], source: `automation:aut_0123456789abcdef0123456789abcdef:${alice.id}` }, gate);
   assert.equal(await known(h, "https://acme.test/a?x=1"), true);
   assert.equal(await known(h, "https://acme.test/a?x=2"), false, "a changed query is a new link");
   assert.equal(await known(h, "https://acme.test/a?x=1", ["thr_other"]), false);
-  await mark(h, ["thr_chat"], ["https://acme.test/b"]);
+  await h.call("gate.taint.mark", { threads: ["thr_chat"], source: "automations.read_link", links: ["https://acme.test/b"] }, gate);
   assert.equal(await known(h, "https://acme.test/b"), true);
   assert.equal(JSON.stringify(h.db.all("SELECT * FROM gate_links")).includes("acme.test"), false);
 });
@@ -252,17 +252,15 @@ test("an ask is taken back by the next message only when the agent has replied s
 });
 
 
-// lead, 12 Nov: a link the agent put together is a read until something a stranger wrote has been read in the chain since the person last spoke (owner, 2 Nov: agents may open any link)
-test("a composed link is free in an unmarked chain, held once the chain is marked, and free again after the person speaks", async () => {
+// lead's ruling for rc.26, 12 Nov: in an ordinary chat an agent may open any link; only a chain an Automation's trigger marked holds a link the agent put together
+test("a composed link is free in an ordinary chat, before and after a page was read; under an Automation's mark it is held unless the content linked to it", async () => {
   const h = harness();
-  assert.equal(await known(h, "https://harbor.test/rates"), true, "nothing outside read yet: the agent opens the link");
-  assert.equal(await known(h, "https://harbor.test/rates", ["thr_helper", "thr_chat"]), true, "a helper under an unmarked chat too");
+  assert.equal(await known(h, "https://harbor.test/rates"), true, "nothing read yet");
   await mark(h, ["thr_helper", "thr_chat"], ["https://harbor.test/plans"]);
-  assert.equal(await known(h, "https://other.test/x", ["thr_helper", "thr_chat"]), false, "after a page was read, a composed link to another host is held");
-  assert.equal(await known(h, "https://harbor.test/plans", ["thr_helper", "thr_chat"]), true, "a link that page gave is a read");
-  await h.call("gate.grants.ask", { threadId: "thr_chat", messageId: "msg_2", asked: [] }, alice as never);
-  assert.equal(await known(h, "https://other.test/x"), true, "the person spoke in the chat: its next composed link is free");
-  assert.equal(await known(h, "https://other.test/x", ["thr_helper", "thr_chat"]), false, "the helper's own thread keeps its mark until its content is behind a person's word there");
+  assert.equal(await known(h, "https://other.test/x", ["thr_helper", "thr_chat"]), true, "a page was read: a link to a new host is still a read");
+  await h.call("gate.taint.mark", { threads: ["thr_run"], source: `automation:aut_0123456789abcdef0123456789abcdef:${alice.id}`, links: ["https://harbor.test/form"] }, gate);
+  assert.equal(await known(h, "https://other.test/x", ["thr_run"]), false, "a stranger-started Run's chain holds a composed link");
+  assert.equal(await known(h, "https://harbor.test/form", ["thr_run"]), true, "a link the content gave is a read there too");
   await assert.rejects(known(h, "https://other.test/x", []), "no thread to judge is refused by the contract (and the hook counts it as composed before asking)");
 });
 

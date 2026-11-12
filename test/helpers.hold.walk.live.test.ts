@@ -36,10 +36,10 @@ test("a helper's held link: the lead chat shows its row as Needs you and the app
     }
     if (input.resumed) { yield { type: "text", text: input.resumed.approved ? "The rates page is open." : "I could not open the rates page." }; return; }
     if (!/Look up the current Harbor rates/.test(input.trigger?.body ?? "")) { yield { type: "text", text: "Reported above." }; return; }
-    yield* run("tool_search", { query: "read link" });
-    // the first link it puts together goes through (nothing outside read yet); the page it read marks the chain, so the next one, to another host, waits for the person (lead, 12 Nov)
+    yield* run("tool_search", { query: "notes create" }); yield* run("tool_search", { query: "read link" });
+    // a link it puts together is a read in an ordinary chat (lead's ruling, 12 Nov): it goes through; the note it writes in Ask first is the change that waits for the person
     yield* run("read_link", { url: "https://www.other-rates.example/compare" });
-    yield* run("read_link", { url: "https://www.harborquotes.example/rates" });
+    yield* run("notes_create", { title: "Harbor rates", body: "From harborquotes.example", idempotencyKey: "hx-note" });
     yield { type: "text", text: "Done." };
   });
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-helper-hold-")));
@@ -67,7 +67,7 @@ test("a helper's held link: the lead chat shows its row as Needs you and the app
     await api("providers.set_space_use", { idempotencyKey: "b-spaceuse", providerId: provider, allow: true });
     agent = (await api("agents.create", { name: "Scout", role: "You look things up for the team.", idempotencyKey: "h-agent" })).agent.agentId as string;
     chat = (await api("chat.start", { kind: "chat", agentIds: [agent], title: "Rates check", idempotencyKey: "h-chat" })).thread.threadId as string;
-    await api("threads.set_mode", { threadId: chat, mode: "auto", idempotencyKey: "h-auto" });
+    await api("threads.set_mode", { threadId: chat, mode: "ask", idempotencyKey: "h-auto" });
     for (const flow of ["team", "personal", "member"]) await api("spaces.onboarding.seen", { flow }).catch(() => undefined);
     await api("chat.post", { threadId: chat, body: "Look up the rates with a helper", mentions: [{ kind: "agent", id: agent }], idempotencyKey: "h-ask" });
     const held = await waitFor(async () => (((await api("engine.helpers.status", { threadId: chat })).helpers as Array<{ state: string; holdTaskId?: string }>).find((h) => h.state === "needs_you" && h.holdTaskId) ?? null), 60_000, () => hostLog(d));
@@ -87,9 +87,9 @@ test("a helper's held link: the lead chat shows its row as Needs you and the app
     // the row says it waits before the card is checked, so a missing card is pictured too
     await page.waitForTimeout(3000);
     await card.waitFor({ timeout: 40_000 }).catch(async (e) => { await page.screenshot({ path: path.join(shots, "helper-hold-FAILED-no-card.png") }); throw e; });
-    assert.match(await card.innerText(), /harborquotes\.example/);
+    assert.match(await card.innerText(), /Rates on the web \(Scout\)/);
     assert.doesNotMatch(await card.innerText(), /automations|read link|read_link/);
-    assert.ok(await page.getByText("Needs your OK to open harborquotes.example", { exact: false }).count() > 0, "the helper's row says what it waits for");
+    assert.ok(await page.getByText("Needs your OK to", { exact: false }).count() > 0, "the helper's row says what it waits for");
     assert.equal(await page.getByText("Open the thread", { exact: true }).count(), 0, "the raised card links to no thread");
     await shot("helper-hold-card");
     await card.getByText("Allow", { exact: true }).first().click();

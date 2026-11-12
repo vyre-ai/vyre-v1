@@ -25,16 +25,16 @@ test("Deny on a helper's held link: the helper reports it could not open it, the
     }
     if (input.resumed) { yield { type: "text", text: input.resumed.approved ? "The rates are on the page." : "I could not open the rates page, so I have no rates to report." }; return; }
     if (!/Look up the current Harbor rates/.test(input.trigger?.body ?? "")) { yield { type: "text", text: "Reported above." }; return; }
-    yield* run("tool_search", { query: "read link" });
+    yield* run("tool_search", { query: "read link" }); yield* run("tool_search", { query: "notes create" });
     yield* run("read_link", { url: "https://www.other-rates.example/compare" });   // free: nothing outside read yet
-    yield* run("read_link", { url: "https://www.harborquotes.example/rates" });     // held: a page was read
+    yield* run("notes_create", { title: "Harbor rates", body: "From harborquotes.example", idempotencyKey: "hx-note" });     // held: a page was read
     yield { type: "text", text: "Done." };
   });
   const s = await claimedSpace(model);
   lead = s.assistant;
   try {
     chat = (await s.api("chat.start", { kind: "chat", agentIds: [lead], title: "Rates", idempotencyKey: "hd-chat" })).thread.threadId as string;
-    await s.api("threads.set_mode", { threadId: chat, mode: "auto", idempotencyKey: "hd-auto" });
+    await s.api("threads.set_mode", { threadId: chat, mode: "ask", idempotencyKey: "hd-auto" });
     await s.api("chat.post", { threadId: chat, body: "look up the rates with a helper", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "hd-ask" });
     const held = await waitFor(async () => (((await s.api("engine.helpers.status", { threadId: chat })).helpers as Array<{ threadId: string; state: string; holdTaskId?: string }>).find((h) => h.state === "needs_you" && h.holdTaskId) ?? null), 40_000, () => hostLog(s.d));
     await s.api("tasks.act", { taskId: held.holdTaskId, action: "reject", note: "Not that site.", idempotencyKey: "hd-deny" });
