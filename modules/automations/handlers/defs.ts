@@ -266,7 +266,7 @@ const hasErrors = (issues: readonly Issue[]): boolean => issues.some((i) => i.se
 //   An AI step in a Personal automation runs on its owner's own account (keyId may pick one); in a Space automation it needs a Space-shared key in keyId. The message names what to add.
 interface Support { code: { available: boolean; reason?: string }; ai: { available: boolean; reason?: string } }
 /** One AI account as engine.accounts.list { place: "automation" } answers it: the same rule the resolver applies, with the reason when it cannot run an automation. */
-interface AccountLite { ref: string; providerId?: string; name?: string; title: string; mine: boolean; status: string; usable?: boolean; why?: string; aliases?: string[] }
+interface AccountLite { ref: string; providerId?: string; name?: string; title: string; mine: boolean; status: string; usable?: boolean; why?: string; aliases?: string[]; models?: string[] }
 
 async function supportOf(ctx: AutoCtx): Promise<Support> {
   const none = { available: false, reason: "This server has not started the part that runs it." };
@@ -351,7 +351,41 @@ export async function liveStepIssues(ctx: AutoCtx, kind: Automation["kind"], def
     const code = (await supportOf(ctx)).code;
     if (!code.available) for (const n of def.nodes) if (n.key === "code") out.push(issue("error", `Run code cannot be turned on here. ${code.reason ?? "This server has no sandbox."}`, n.id));
   }
-  return [...out, ...(await aiAccountIssues(ctx, kind, def)), ...(await agentStepIssues(ctx, kind, def))];
+  return [...out, ...(await aiAccountIssues(ctx, kind, def)), ...(await agentStepIssues(ctx, kind, def)), ...(await aiModelIssues(ctx, kind, def))];
+}
+
+/** The engine's words for an AI step with no model (modules/engine/step-turn.ts NO_MODEL_STEP), with the step named. */
+const noModelLine = (index: number): string => `Step ${index + 1} has no model. Give it an agent that has a model, or set a model on its agent.`;
+
+/**
+ * An AI step needs a model to run on: its agent's model, or, in a Space Automation, the models the Space AI key or the Space account it runs on lists. A step with neither is refused where the person is looking (save while on,
+ * turn on, promote, restore), in the engine's own words with the step named. A default model for a person's own key is rc.27.
+ */
+export async function aiModelIssues(ctx: AutoCtx, kind: Automation["kind"], def: Definition): Promise<Issue[]> {
+  if (!ctx.call) return [];
+  const out: Issue[] = [];
+  let spaceKeyModels: number | null = null;
+  for (const [index, n] of def.nodes.entries()) {
+    if (n.key !== "ai") continue;
+    const cfg = { ...(n.input ?? {}), ...(n.ai ?? {}) } as Record<string, unknown>;
+    const agentId = typeof cfg["agentId"] === "string" && cfg["agentId"] !== "" ? cfg["agentId"] : undefined;
+    if (agentId) {
+      const got = (await ctx.call("agents.get", { agentId }).catch(() => null)) as { agent?: { model?: unknown } } | null;
+      if (typeof got?.agent?.model === "string" && got.agent.model.trim() !== "") continue;
+      if (!got?.agent) continue;   // a missing agent is refused by its own line (agentStepIssues)
+    }
+    if (kind === "space") {
+      spaceKeyModels ??= ((await ctx.call("providers.space_key.get", {}).catch(() => null)) as { models?: unknown[] } | null)?.models?.length ?? 0;
+      if (spaceKeyModels > 0) continue;
+      // a Space account that lists its models: the one the step or the Automation names, else any kept for automations (Automatic)
+      const named = typeof cfg["keyId"] === "string" && cfg["keyId"] !== "" ? cfg["keyId"] : def.ai?.keyId && def.ai.keyId !== "" ? def.ai.keyId : undefined;
+      const accounts = (await providersOf(ctx, kind, named !== undefined)) ?? [];
+      const fits = (p: AccountLite): boolean => !p.mine && (p.models?.length ?? 0) > 0;
+      if (named ? accounts.some((p) => refOf(p).includes(named) && fits(p)) : accounts.some((p) => fits(p) && paysForAutomations(p))) continue;
+    }
+    out.push(issue("error", noModelLine(index), n.id));
+  }
+  return out;
 }
 
 /**

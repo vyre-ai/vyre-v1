@@ -3,7 +3,7 @@ import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { harness, codeOf } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
-import { STEP_AGENT, setMinuteForTests, stepTurn } from "../step-turn.ts";
+import { setMinuteForTests, stepTurn } from "../step-turn.ts";
 import type { StepTurnIn } from "../step-turn.ts";
 import { bindStepOpen } from "../projections.ts";
 import { capsSet, pauseAll, usageQuery } from "../handlers/spend.ts";
@@ -12,11 +12,12 @@ import type { DriverEvent } from "../../../agent/src/turn-engine/types.ts";
 
 type Prov = { id: string; handle?: string; itemId: string; name: string; providerKey: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; uses?: Record<string, unknown>; capped?: boolean };
 const key = (over: Partial<Prov> = {}): Prov => ({ id: "prv_1", handle: "#Mine_Anthropic", itemId: "vit_1", name: "Mine Anthropic", providerKey: "anthropic", connection: "api_key", scope: "mine", engine: "anthropic", spaceMayUse: false, state: "ok", ...over });
-const team = (over: Partial<Prov> = {}): Prov => key({ id: "prv_t", handle: "#Team_Key", itemId: "vit_t", name: "Team key", scope: "shared", ...over });
+// a Space account lists the models it serves (the Vault keeps them), so a step's agent model can be checked against it
+const team = (over: Partial<Prov> = {}): Prov => key({ id: "prv_t", handle: "#Team_Key", itemId: "vit_t", name: "Team key", scope: "shared", models: ["claude-sonnet-5-5"], ...over } as Partial<Prov>);
 const sub = (over: Partial<Prov> = {}): Prov => key({ id: "prv_s", handle: "#My_Claude", itemId: "vit_c", name: "My Claude", providerKey: "claude-code", connection: "subscription", engine: "claude-code", spaceMayUse: true, ...over });
 const answer: DriverEvent[] = [{ type: "text", text: "Hello " }, { type: "text", text: "there." }, { type: "usage", inputTokens: 40, outputTokens: 7 }, { type: "done" }];
 
-function scene(o: { principal?: Harness["ctx"]["principal"]; providers?: Prov[]; script?: readonly DriverEvent[]; agent?: Record<string, unknown>; facts?: string[]; policy?: "any" | "company"; listed?: string[] } = {}) {
+function scene(o: { principal?: Harness["ctx"]["principal"]; providers?: Prov[]; script?: readonly DriverEvent[]; agent?: Record<string, unknown>; facts?: string[]; policy?: "any" | "company" } = {}) {
   const h = harness({ principal: o.principal ?? { kind: "person", id: "usr_dana" } });
   const provider = scriptedProvider({ script: o.script ?? answer });
   bindStepOpen(provider.openSession);
@@ -26,29 +27,27 @@ function scene(o: { principal?: Harness["ctx"]["principal"]; providers?: Prov[];
     seen.push(cap);
     if (cap === "providers.list") return { providers: o.providers ?? [key()] };
     if (cap === "engine.policy.get") return { allowedAccounts: o.policy ?? "any" };
-    // the Vault's key test: the models the key serves, in the vendor's order
-    if (cap === "providers.test") return { ok: true, models: o.listed ?? ["claude-sonnet-5-5", "claude-haiku-5-5"] };
     if (cap === "agents.get") return { agent: { agentId: "agt_intake", name: "Intake", role: "You answer intake questions.", model: "claude-sonnet-5-5", accountPolicy: "asker", status: "awake", ...(o.agent ?? {}) } };
     if (cap === "memory.facts.list") return { facts: (o.facts ?? []).map((text) => ({ text })) };
     return base(cap, input);
   };
   return { h, provider, seen };
 }
-const run = (h: Harness, over: Partial<StepTurnIn> = {}) => stepTurn(h.ctx, { prompt: "Say hello.", runId: "run_1", stepId: "ask", idempotencyKey: "run_1:ask:1", ...over });
+// a step runs on its agent's model (a step with no agent has no model, and says so: the last test)
+const run = (h: Harness, over: Partial<StepTurnIn> = {}) => stepTurn(h.ctx, { prompt: "Say hello.", runId: "run_1", stepId: "ask", idempotencyKey: "run_1:ask:1", agentId: "agt_intake", ...over });
 afterEach(() => { bindStepOpen(null); setMinuteForTests(60_000); });
 
 test("a Personal turn runs on the owner's own key with no tools, and returns the answer, the key by handle and the model", async () => {
   const { h, provider } = scene();
   const out = await run(h);
-  assert.deepEqual(out, { text: "Hello there.", keyUsed: "#Mine_Anthropic", modelUsed: "claude-sonnet-5-5", tokensIn: 40, tokensOut: 7 });
-  assert.equal(provider.specs[0]!.agent.model, "claude-sonnet-5-5", "no agent: the paying key's first listed model, never an empty one");
+  assert.deepEqual(out, { text: "Hello there.", keyUsed: "#Mine_Anthropic", modelUsed: "claude-sonnet-5-5", tokensIn: 40, tokensOut: 7, agentName: "Intake" });
   const spec = provider.specs[0]!;
   assert.equal(spec.tools, "none");
   assert.equal(spec.asker, "usr_dana");
-  assert.equal(spec.agent.id, STEP_AGENT);
+  assert.equal(spec.agent.model, "claude-sonnet-5-5", "the step runs on its agent's model");
   assert.deepEqual([spec.account?.ref, spec.account?.driver, spec.account?.payer, spec.account?.kind], ["#Mine_Anthropic", "anthropic", "usr_dana", "api_key"]);
   assert.equal(provider.sessions[0]!.closed, true, "the session is given back");
-  assert.equal(provider.sessions[0]!.inputs[0]!.trigger?.body, "Say hello.");
+  assert.equal(provider.sessions[0]!.inputs[0]!.trigger?.body, "You are Intake, an agent in Vyre. You answer intake questions.\n\nSay hello.", "the agent's header, then the prompt");
   assert.deepEqual(provider.sessions[0]!.inputs[0]!.history, []);
 });
 
@@ -160,7 +159,7 @@ test("the turn is counted: usage by person, agent and model, and the meters can 
   await run(h);
   const u = await usageQuery(h.ctx, { by: "person" });
   assert.deepEqual(u.rows.map((r) => [r.key, r.totals.turns, r.totals.tokensIn, r.totals.tokensOut]), [["usr_dana", 1, 40, 7]]);
-  assert.deepEqual((await usageQuery(h.ctx, { by: "agent" })).rows.map((r) => r.key), [STEP_AGENT]);
+  assert.deepEqual((await usageQuery(h.ctx, { by: "agent" })).rows.map((r) => r.key), ["agt_intake"]);
   capsSet(h.ctx, { scope: "person", caps: { turnsPerDay: 1 } });
   await run(h, { idempotencyKey: "n2" });
   await assert.rejects(run(h, { idempotencyKey: "n3" }), (e) => { assert.equal(codeOf(e), "permission.limit"); return true; });
@@ -232,12 +231,12 @@ test("an automation's AI account pays only when the Space kept it for automation
   assert.equal((await run(g.h, { keyId: "prv_o", idempotencyKey: "g1" })).keyUsed, "#Chats_Only");
 });
 
-test("a step with no model to run on fails in its own words before any turn opens", async () => {
-  const { h, provider } = scene({ listed: [] });
-  await assert.rejects(run(h), (e: unknown) => {
+test("a step with no model fails in its own words before any turn opens", async () => {
+  const { h, provider } = scene();
+  await assert.rejects(run(h, { agentId: undefined } as never), (e: unknown) => {
     const err = (e as { error?: { code?: string; message?: string } }).error;
     assert.equal(err?.code, "validation.precondition_failed");
-    assert.match(String(err?.message), /^This AI step has no model to run on\./);
+    assert.equal(err?.message, "This AI step has no model. Give it an agent that has a model, or set a model on its agent.");
     return true;
   });
   assert.equal(provider.specs.length, 0, "nothing opened");

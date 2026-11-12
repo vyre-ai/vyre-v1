@@ -171,10 +171,12 @@ function liveHarness(opts: { code?: boolean | string; providers?: Prov[] } = {})
   const code = opts.code ?? true;
   let providers = opts.providers ?? [];
   h.callee("steps.support", () => ({ code: code === true ? { available: true } : { available: false, reason: code === false ? "No sandbox." : code }, ai: { available: true } }));
+  // an AI step runs on its agent's model: the default step names a team agent that has one
+  h.callee("agents.get", (i) => ((i as { agentId?: string }).agentId === "agt_writer" ? { agent: { agentId: "agt_writer", name: "Writer", kind: "team", model: "claude-sonnet-5-5" } } : { agent: { agentId: (i as { agentId?: string }).agentId, name: "Bare", kind: "team" } }));
   h.callee("engine.accounts.list", (i) => ({ accounts: accountsFrom(providers, ((i as { place?: "chat" | "automation" | "agent" | "space" } | undefined)?.place) ?? "automation", (i as { explicit?: boolean } | undefined)?.explicit === true, (i as { runsAs?: "person" | "space" } | undefined)?.runsAs) }));
   return Object.assign(h, { setProviders(p: Prov[]) { providers = p; } });
 }
-const aiNode = (over: Record<string, unknown> = {}, ai?: Record<string, unknown>) => node("a", "ai", { prompt: "Summarise", ...over }, ai ? { ai } : {});
+const aiNode = (over: Record<string, unknown> = {}, ai?: Record<string, unknown>) => node("a", "ai", { prompt: "Summarise", agentId: "agt_writer", ...over }, ai ? { ai } : {});
 const draftWith = async (h: Harness, n: ReturnType<typeof node>): Promise<string> => (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [n] } }), alice)).automation.id as string;
 const turnOn = (h: Harness, id: string) => h.call("automations.set_enabled", { automationId: id, enabled: true }, alice);
 const messageOf = (e: unknown): string => (e as { error?: { message?: string } }).error?.message ?? String(e);
@@ -196,6 +198,17 @@ test("the step catalogue hides Run code where the server cannot sandbox it, and 
   const both = await keys(liveHarness());
   assert.equal(both.includes("code") && both.includes("ai"), true);
   assert.equal((await keys(harness())).some((k) => k === "code" || k === "ai"), false, "a server that has not said it can run them hides them");
+});
+
+test("an AI step with no model source is refused at turn-on, with the step named: no agent, or an agent with no model", async () => {
+  const h = liveHarness({ providers: [prov()] });
+  for (const over of [{ agentId: undefined }, { agentId: "agt_bare" }]) {
+    await assert.rejects(turnOn(h, await draftWith(h, aiNode(over))), (e) => {
+      assert.equal(reasonOf(e), "live_step");
+      assert.match(messageOf(e), /^Step 1 has no model\. Give it an agent that has a model, or set a model on its agent\.$/);
+      return true;
+    });
+  }
 });
 
 test("a Personal AI step needs no key: it turns on when the owner has an account that works on the server", async () => {
