@@ -101,9 +101,10 @@ async function pageOf(id: string): Promise<Cdp> {
 const views = startViewServer({
   port: PORT,
   address,
+  seen: (id, personId) => manager.personSaw(id, personId),
   viewOf: (id): ViewOf | null => {
     const p = manager.get(id);
-    return { hub: hubOf(id), input: createCdpInput(() => pageOf(id)), takenOver: () => p.state.takeover !== null, onInput: (event) => { audit.push({ profileId: id, at: Date.now(), event }); if (audit.length > 1000) audit.shift(); manager.touch(id); p.personActiveAt = Date.now(); manager.personSaw(id); } };
+    return { hub: hubOf(id), input: createCdpInput(() => pageOf(id)), takenOver: () => p.state.takeover !== null, onInput: (event) => { audit.push({ profileId: id, at: Date.now(), event }); if (audit.length > 1000) audit.shift(); manager.touch(id); p.personActiveAt = Date.now(); manager.personSaw(id, p.state.takeover?.personId); } };
   },
 });
 

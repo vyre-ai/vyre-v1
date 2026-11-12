@@ -460,3 +460,41 @@ test("a person's view and takeover are remembered; taking over a browser reopene
     assert.deepEqual(r.m.takeover("agt_dex", "usr_dana"), { reopened: true }, "the page they saw was reloaded since");
   } finally { r.done(); }
 });
+
+// Seventh look: the reopen check must hold across the Vault lookup. The browser is busy while the value is fetched (no sweep closes it), and a close that lands anyway (a forced stop) is caught after
+// the browser is there again: the act is refused and the value never reaches the page; busy returns to zero.
+test("while a #Handle is fetched the browser is busy (the idle sweep leaves it); a close that lands meanwhile is caught after the start: refused, nothing typed, busy back to zero", async () => {
+  const r = rig({ idleMs: 1000 });
+  try {
+    await r.call("agt_dex");
+    const first = r.m.get("agt_dex").startId;
+    let release!: () => void;
+    const fetched = new Promise<void>((res) => { release = res; });
+    const channel = { fillArgs: async (a: Record<string, unknown>) => { await fetched; return { args: { ...a, text: "s3cret" }, used: [] }; } } as unknown as Parameters<typeof r.m.tool>[0]["channel"];
+    const typing = r.m.tool({ profileId: "agt_dex", tool: "chrome_type", args: { text: "#Acme.password" }, timeoutMs: 5000, seenFrom: first, ...(channel ? { channel } : {}) });
+    await new Promise((res) => setTimeout(res, 10));
+    r.clock.t += 10 * 60_000;
+    assert.deepEqual(await r.m.sweep(), [], "busy while the value is fetched: the idle sweep leaves it");
+    assert.equal(r.m.get("agt_dex").state.busy, 1);
+    await r.m.stop("agt_dex");   // a close that lands anyway
+    release();
+    await assert.rejects(typing, (e) => e instanceof AgentError && e.reason === "browser_reopened");
+    assert.equal(r.m.get("agt_dex").state.busy, 0, "busy returns to zero");
+    assert.ok(!r.launched.some((l) => l.tools.includes("chrome_type")), "the value never reached a page");
+  } finally { r.done(); }
+});
+
+// Seventh look, C per person: the start each person last saw is their own, so a second person who takes over after a reopen is told too.
+test("the reopened note on takeover is per person: each who saw the old page is told", async () => {
+  const r = rig();
+  try {
+    await r.call("agt_dex");
+    r.m.personSaw("agt_dex", "usr_ann"); r.m.personSaw("agt_dex", "usr_bob");
+    await r.m.stop("agt_dex"); await r.call("agt_dex");
+    assert.deepEqual(r.m.takeover("agt_dex", "usr_ann"), { reopened: true });
+    r.m.giveBack("agt_dex");
+    assert.deepEqual(r.m.takeover("agt_dex", "usr_bob"), { reopened: true }, "Ann's takeover did not use up Bob's notice");
+    r.m.giveBack("agt_dex");
+    assert.deepEqual(r.m.takeover("agt_dex", "usr_ann"), { reopened: false }, "the same start Ann saw last");
+  } finally { r.done(); }
+});
