@@ -90,7 +90,7 @@ import { Scheduler } from "../scheduler/index.ts";
 import { loopLag } from "../scheduler/looplag.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
-import { createGateHook, moduleFetches, moduleOutward, moduleWhens, payloadHash } from "./gate-hook.ts";
+import { createGateHook, moduleFetches, moduleOutward, moduleWhens, ownAddress, payloadHash } from "./gate-hook.ts";
 import { bindPayloadHash } from "../../../lib/payload-hasher.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { FILL_PATH, createComputersFillHost, createFillRoute } from "../seams/computers.ts";
@@ -110,6 +110,8 @@ import { createModelFiles } from "../seams/memory-meaning.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { createTelemetryRecorder } from "../seams/telemetry.ts";
 import { connectorReadSender } from "../seams/connector-read.ts";
+import { adoptConnectorHosts, handleOfItem, keyHostListed, resolveKeyRef } from "../seams/key-ref.ts";
+import type { KeyHostCheck } from "../seams/connectors.ts";
 import { documentPin } from "../seams/document-pin.ts";
 import type { DocumentFetch } from "../seams/document-pin.ts";
 import { createConnectorsHost } from "../seams/connectors.ts";
@@ -753,7 +755,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let ownerOfSpace: () => string | null = () => cfg.owner;
   let callerOf: (h: http.IncomingHttpHeaders) => Promise<{ person: string; sessionId?: string } | null> = () => Promise.resolve(null);
   const ownNode = (p: string): boolean => cfg.roles.includes("device") || p === ownerOfSpace();
-  const connectorPort=createConnectorsHost({publicBase:()=>{const address=cfg.address??`http://${cfg.host}:${boundPort}`;return /^https?:\/\//.test(address)?address:`https://${address}`;},own:caller=>ownNode(caller.actingFor??caller.principal.id),...(o.connectorNetwork?{network:o.connectorNetwork}:{})});
+  // a key goes only to a host a person approved for it: the connector port asks this before every request a call makes after a Vault fill (the read as a person is wired once invoke exists)
+  let keyHostCallAs: ((cap: string, input: unknown, person: string) => Promise<unknown>) | null = null;
+  const keyHostCheck: KeyHostCheck = async (itemIds, host, caller, domains) => {
+    const h = db;
+    if (!h) return "The Vault is not open, so the request was not sent.";
+    const person = caller.actingFor?.startsWith("usr_") ? caller.actingFor : caller.principal.kind === "person" ? caller.principal.id : undefined;
+    for (const id of itemIds) {
+      if (keyHostListed(h, id, host)) continue;
+      if (adoptConnectorHosts(h as never, id, host, domains, Date.now())) continue;
+      if (person && keyHostCallAs && await ownAddress(keyHostCallAs, person, id, host)) continue;
+      return `${handleOfItem(h, id)} is not allowed to go to ${host}. Allow it on the key's page, or change this step.`;
+    }
+    return null;
+  };
+  const connectorPort=createConnectorsHost({keyHost:(ids,host,caller,domains)=>keyHostCheck(ids,host,caller,domains),publicBase:()=>{const address=cfg.address??`http://${cfg.host}:${boundPort}`;return /^https?:\/\//.test(address)?address:`https://${address}`;},own:caller=>ownNode(caller.actingFor??caller.principal.id),...(o.connectorNetwork?{network:o.connectorNetwork}:{})});
   // Owner ruling 3 Nov (R62 amended): a Space server also holds a person's key for as long as the signed-in session that handed it over is live, so a member's own AI account runs their own turns on the
   // Space. Without a session (the local admin token) only the person's own node takes it.
   const sessionAlive = (id: string): boolean => (db ? sessionLive(db, id) : false);
@@ -1218,7 +1234,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             return r.output;
           },
           unseal: (s) => seal.unseal(s), now,
-          evaluators: moduleWhens(loaded.moduleExports, () => db, (cap, input) => system(cap, input), async (cap, input, person) => {
+          evaluators: moduleWhens(loaded.moduleExports, () => db, (cap, input) => system(cap, input), keyHostCallAs = async (cap, input, person) => {
             const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "gate" });
             if (r.status !== "ok") throw new Error(`${cap} did not answer`);
             return r.output;
@@ -2140,7 +2156,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         configureVault: (d) => ({ signin: createProviderSignin({ fetch: d.fetch, ...(cfg.spaceKind === "personal" ? { localSignin: (p: SigninProvider) => readLocalSignin(p) } : {}) }), refreshed: { take: (t: string, itemId: string) => signinRefresh.take(t, itemId) }, sinks: { container_env: (f: { value: string; ref: string }) => { siteSecrets.set(f.ref, { value: f.value, at: Date.now() }); }, ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode, ...(o.providerFetch ? { fetch: o.providerFetch } : {}) }), refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         setConnectorsHost: () => connectorPort,
         setDocumentNetwork: () => o.documentNetwork ?? documentPin(),
-        setConnectorReadSender: (d) => connectorReadSender(d),
+        setConnectorReadSender: (d) => connectorReadSender(d, (ref, asker) => resolveKeyRef(db!, ref, asker)),
+        // the same reading of a key reference for the module (the held test read's card names the item a person approves)
+        setKeyRefResolver: () => (ref: unknown, asker?: string) => resolveKeyRef(db!, ref, asker),
         // the HTTP request step's key: the Vault fills the handle for one call through the same per-execution port connectors use (access is checked by vault.fill as the Run's principal)
         // Run code runs in bubblewrap under the data directory; where bwrap is missing the step is refused, never run in the daemon
         setCodeHost: () => ({ dataDir: paths.root }),

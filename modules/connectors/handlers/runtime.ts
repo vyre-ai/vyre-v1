@@ -204,7 +204,8 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
     res = await http(url.toString(), { method, headers, ...(body !== undefined ? { body } : {}) });
   } catch (e) {
     const changed=(e as {error?:{code?:string}})?.error?.code;
-    if(changed==='permission.no_grant')return refuse(ctx,'permission.no_grant','Access changed before this connector request.');
+    // the host's own line (a key that may not go to this host, Vault access that changed) is what the person reads
+    if(changed==='permission.no_grant')return refuse(ctx,'permission.no_grant',(e as {error?:{message?:string}})?.error?.message||'Access changed before this connector request.');
     if(changed==='validation.precondition_failed')return refuse(ctx,'validation.precondition_failed','The connection changed before this request. Try again.');
     const msg = scrub.text(e instanceof Error ? e.message : String(e));
     logRow(null, msg);

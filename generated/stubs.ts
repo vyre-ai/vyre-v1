@@ -239,6 +239,8 @@ export function stubs(ctx: CallCtx) {
       key_hosts: {
         allow: call("automations.key_hosts.allow"),
         list: call("automations.key_hosts.list"),
+        pending: call("automations.key_hosts.pending"),
+        pending_bind: call("automations.key_hosts.pending_bind"),
         remove: call("automations.key_hosts.remove"),
       },
       list: call("automations.list"),

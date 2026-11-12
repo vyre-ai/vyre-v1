@@ -11,6 +11,8 @@ HTTP 403. Retryable: no.
 - automations.read_link
 - automations.try_read
 - changesets.approve
+- connections.create
+- connections.set_secret
 - engine.crew.push
 - git.push
 - git.sync

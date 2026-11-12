@@ -9,7 +9,8 @@
 import { canonical, sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { OUTWARD_ACTS, bringsOutside, linksIn, targetsOf } from "../../../lib/grants.ts";
-import { resolveVaultItem } from "../seams/vault.ts";
+import { hostOfUrl, keyReadHost } from "../../../lib/key-target.ts";
+import { resolveKeyRef } from "../seams/key-ref.ts";
 import { fail } from "../routes/errors.ts";
 import type { CtxSeed, GateHook } from "../invoke.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
@@ -196,6 +197,23 @@ export function moduleFetches(exports: ReadonlyMap<string, Record<string, unknow
   return (cap, input) => cap === "terminal.run" && typeof read === "function" && (read as (c: string) => boolean)(String((input as { command?: unknown } | null)?.command ?? ""));
 }
 
+/**
+ * Is `host` exactly the host of the item's own saved address (url, website, site, uri)? The Vault's matcher also answers for subdomains of the saved host, and a saved address on a shared host
+ * (a hosting platform's domain) would then approve every other tenant's subdomain, so a match counts only when the parent of `host` does not match too. Other hosts a person allows by name.
+ */
+export async function ownAddress(callAs: (cap: string, input: unknown, person: string) => Promise<unknown>, person: string, itemId: string, host: string): Promise<boolean> {
+  const hits = async (h: string): Promise<boolean> => {
+    try {
+      const m = (await callAs("vault.items.match", { url: `https://${h}/` }, person)) as { items?: { item?: { id?: unknown } }[] } | null;
+      return (m?.items ?? []).some((x) => x.item?.id === itemId);
+    } catch { return false; }
+  };
+  if (!(await hits(host))) return false;
+  const dot = host.indexOf(".");
+  const parent = dot > 0 && !host.startsWith("[") ? host.slice(dot + 1) : "";
+  return parent === "" || !parent.includes(".") || !(await hits(parent));
+}
+
 export function moduleWhens(
   exports: ReadonlyMap<string, Record<string, unknown>>, db: () => ScopedDb | null, call: (cap: string, input: unknown) => Promise<unknown>,
   /** A read as one person (what they may see), for a condition that depends on it. */
@@ -209,30 +227,65 @@ export function moduleWhens(
     const isProtected = fn as (ctx: { db: ScopedDb; call: typeof call }, input: unknown) => Promise<boolean>;
     out["git.is_protected"] = (input) => { const h = db(); return h ? isProtected({ db: h, call }, input) : true; };
   }
-  // A test read sends a Vault key: it goes, without a person, only to a host approved for that item (one a person allowed, or the host of the item's own saved address). Anything else waits for
-  // a person who may use the item. A person's own read is theirs: the Vault releases the key only if they may use it.
-  const planned = exports.get("automations")?.["plannedHost"];
+  // A test read sends a Vault key: it goes, without a person, only to a host approved for that item (one a person allowed, or the exact host of the item's own saved address). Anything else waits
+  // for a person who may use the item, and so does anything this cannot name: a host it cannot read or an item it cannot resolve holds, it never lets the read through. The host and the item are read
+  // with the same functions the card's lookup and the sender use (lib/key-target.ts, seams/key-ref.ts). A person's own read is theirs: the Vault releases the key only if they may use it.
   const approved = exports.get("automations")?.["keyHostApproved"];
-  if (typeof planned === "function" && typeof approved === "function") {
-    out["automations.key_host_unapproved"] = async (input, seed) => {
-      if (seed.principal.kind === "person") return false;
-      const host = (planned as (i: unknown) => string | null)(input);
-      if (host === null) return false;   // the read plans no request (bad method, host outside its own list, not https): the handler refuses it and sends nothing
-      const h = db();
-      if (!h) return true;
-      const itemId = resolveVaultItem(h, "vault_item", "handle", String((input as { vaultItemId?: unknown }).vaultItemId ?? ""));
-      if (itemId === null) return false;   // no such item: the Vault gives no key, nothing is sent
-      if ((approved as (d: unknown, id: string, host: string) => boolean)(h, itemId, host)) return false;
-      try {
-        // the item's own saved address (url, website, site, uri): its host and that domain's subdomains, as the Vault's matcher reads it, for the person the key would be released to
-        const person = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
-        if (!person || !callAs) return true;
-        const m = (await callAs("vault.items.match", { url: `https://${host}/` }, person)) as { items?: { item?: { id?: unknown } }[] } | null;
-        if ((m?.items ?? []).some((x) => x.item?.id === itemId)) return false;
-      } catch { /* the matcher could not answer: ask the person */ }
-      return true;
-    };
-  }
+  out["automations.key_host_unapproved"] = async (input, seed) => {
+    if (seed.principal.kind === "person") return false;
+    const host = keyReadHost(input);
+    const h = db();
+    if (host === null || !h || typeof approved !== "function") return true;
+    const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
+    const ref = resolveKeyRef(h, (input as { vaultItemId?: unknown } | null)?.vaultItemId, asker);
+    if (ref === null) return true;
+    if ((approved as (d: unknown, id: string, host: string) => boolean)(h, ref.id, host)) return false;
+    if (!asker || !callAs) return true;
+    return !(await ownAddress(callAs, asker, ref.id, host));
+  };
+  // Binding a Vault key to a connector (connections.create, connections.set_secret) sends that key to the connector's domains from then on. An agent's binding waits for a person unless every one of
+  // those domains is approved for every key it binds; anything this cannot read (the connector, a domain, a key) holds. A person's own binding is theirs, and records the domains for the key.
+  // a person binding a key themselves approves the connector's domains for it, through the same capability their press on the key's page uses (it checks they may use the key)
+  const personBinds = async (input: unknown, person: string): Promise<void> => {
+    if (!callAs) return;
+    const i = (input ?? {}) as { connector?: unknown; secrets?: unknown; connectionId?: unknown; handle?: unknown };
+    const refs: string[] = i.secrets && typeof i.secrets === "object" ? Object.values(i.secrets as Record<string, unknown>).filter((v): v is string => typeof v === "string") : typeof i.handle === "string" ? [i.handle] : [];
+    if (refs.length === 0) return;
+    try {
+      let connector = typeof i.connector === "string" ? i.connector : "";
+      if (connector === "" && typeof i.connectionId === "string") connector = String(((await call("connections.get", { connectionId: i.connectionId })) as { connection?: { connector?: unknown } } | null)?.connection?.connector ?? "");
+      const got = (await call("connectors.get", { key: connector })) as { connector?: { domains?: unknown } } | null;
+      const domains = Array.isArray(got?.connector?.domains) ? (got!.connector!.domains as unknown[]).filter((x): x is string => typeof x === "string") : [];
+      for (const ref of refs) for (const host of domains) await callAs("automations.key_hosts.allow", { vaultItemId: ref, host }, person).catch(() => undefined);
+    } catch { /* nothing recorded: the binding's requests then wait for a person at run time */ }
+  };
+  out["automations.bind_hosts_unapproved"] = async (input, seed) => {
+    if (seed.principal.kind === "person") { await personBinds(input, seed.principal.id); return false; }
+    const h = db();
+    if (!h || typeof approved !== "function") return true;
+    const i = (input ?? {}) as { connector?: unknown; secrets?: unknown; connectionId?: unknown; handle?: unknown };
+    let connector = typeof i.connector === "string" ? i.connector : "";
+    const refs: string[] = i.secrets && typeof i.secrets === "object" ? Object.values(i.secrets as Record<string, unknown>).filter((v): v is string => typeof v === "string") : typeof i.handle === "string" ? [i.handle] : [];
+    if (refs.length === 0) return false;
+    try {
+      if (connector === "" && typeof i.connectionId === "string") connector = String(((await call("connections.get", { connectionId: i.connectionId })) as { connection?: { connector?: unknown } } | null)?.connection?.connector ?? "");
+      const got = (await call("connectors.get", { key: connector })) as { connector?: { domains?: unknown } } | null;
+      const domains = Array.isArray(got?.connector?.domains) ? (got!.connector!.domains as unknown[]) : null;
+      if (!domains || domains.length === 0 || !domains.every((x) => typeof x === "string")) return true;
+      const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
+      for (const ref of refs) {
+        const r = resolveKeyRef(h, ref, asker);
+        if (!r) return true;
+        for (const raw of domains as string[]) {
+          const host = hostOfUrl(`https://${raw}/`);
+          if (host === null) return true;
+          if ((approved as (d: unknown, id: string, host: string) => boolean)(h, r.id, host)) continue;
+          if (!asker || !callAs || !(await ownAddress(callAs, asker, r.id, host))) return true;
+        }
+      }
+      return false;
+    } catch { return true; }
+  };
   const danger = exports.get("terminal")?.["isDangerCall"];
   // a destructive or elevated command is held for a yes whatever the mode; an unreadable call counts as destructive
   if (typeof danger === "function") out["terminal.is_danger"] = (input) => (danger as (ctx: unknown, input: unknown) => Promise<boolean>)(null, input);

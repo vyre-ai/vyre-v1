@@ -3,6 +3,7 @@
 import { HOLD_PHRASES } from "./hold-phrases.ts";
 import { validZone, zoneName } from "./zones.ts";
 import { outwardOf } from "./outward.ts";
+import { keyReadHost } from "./key-target.ts";
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -20,15 +21,6 @@ export function verbPhrase(words: string): string {
   return `${verb} ${aOrAn(noun)} ${noun}`;
 }
 
-
-/** The host a connector's test read would send its key to: the path when it is a full address, else the first listed domain. Empty when neither names one. */
-export function keyReadHost(input: unknown): string {
-  const i = obj(input);
-  const path = str(i["path"]).trim();
-  if (/^https:\/\//i.test(path)) { try { return new URL(path).hostname.toLowerCase(); } catch { return ""; } }
-  const d = Array.isArray(i["domains"]) ? str(i["domains"][0]).trim().toLowerCase() : "";
-  return /^[a-z0-9.-]+$/.test(d) ? d : "";
-}
 
 /** The address a link points at, as a person says it: "example.com". */
 export function hostOfLink(raw: string): string {
@@ -66,11 +58,10 @@ export function capPhrase(cap: string): string {
 /** Steps whose words depend on what they carry: opening a link names the site. */
 export function wantsFromInput(cap: string, input: Obj | undefined): string | null {
   // a test read sends a Vault key: the card names the key and the one host it would go to
+  // the card names the key from the server's own reading (automations.key_hosts.pending); this fallback names only the host, never what the agent wrote for the key
   if (cap === "automations.try_read") {
     const host = keyReadHost(input);
-    const item = str(obj(input)["vaultItemId"]).replace(/\.[A-Za-z][A-Za-z0-9_]*$/, "");
-    const key = /^#[A-Za-z0-9_]{1,80}$/.test(item) ? item : "a key";
-    return host ? `send ${key} to ${host}` : `send ${key} to an app`;
+    return host ? `send a key to ${host}` : "send a key to an app";
   }
   if (cap === "automations.read_link") {
     const url = str(obj(input)["url"]);

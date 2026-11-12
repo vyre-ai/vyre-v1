@@ -13,3 +13,6 @@
 - Used in, and the Move to Trash confirm, count the Automations you cannot open that use the key ("and 2 more you cannot open"), and the confirm says agents lose the key too.
 - Vault: a key's page lists where it may be sent ("Sent to"), and a person who may use the key can remove a host with one press.
 - A task step in a Space Automation no longer offers anyone's Assistant as the agent to hand work to; a Personal one offers only its owner's own.
+- A held test read names the key the server resolved, with its name ("Scout wants to send #Notely (Notely API key) to api.notely.com"), and a read whose host or key cannot be named waits for a person instead of going out.
+- Binding a Vault key to a connector by an agent waits for a person when the connector's hosts are not approved for that key; the card names every host. A connector request carrying a key goes only to hosts approved for it, and says which key and host when it is refused.
+- A key's own saved address approves its exact host only, not other sites under the same domain.

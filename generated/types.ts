@@ -3224,6 +3224,42 @@ export type AutomationsKeyHostsListOut = {
       at: number;
     }>;
 };
+export type AutomationsKeyHostsPendingIn = {
+  method?: string;
+  path: string;
+  domains: Array<string>;
+  vaultItemId: string;
+  header?: string;
+  prefix?: string;
+  actionKey?: string;
+  markedSafe?: boolean;
+};
+export type AutomationsKeyHostsPendingOut = {
+  found: boolean;
+  itemId?: string;
+  handle?: string;
+  name?: string;
+  host?: string;
+};
+export type AutomationsKeyHostsPendingBindIn = {
+  connector?: string;
+  secrets?: Record<string, string>;
+  connectionId?: string;
+  slot?: string;
+  handle?: string;
+  title?: string;
+  ownerKind?: string;
+  scopes?: Array<string>;
+};
+export type AutomationsKeyHostsPendingBindOut = {
+  found: boolean;
+  items: Array<{
+      itemId: string;
+      handle: string;
+      name: string;
+    }>;
+  hosts: Array<string>;
+};
 export type AutomationsKeyHostsRemoveIn = {
   itemId: string;
   host: string;
@@ -44943,6 +44979,8 @@ export interface CapMap {
   "automations.http_send": { in: AutomationsHttpSendIn; out: AutomationsHttpSendOut };
   "automations.key_hosts.allow": { in: AutomationsKeyHostsAllowIn; out: AutomationsKeyHostsAllowOut };
   "automations.key_hosts.list": { in: AutomationsKeyHostsListIn; out: AutomationsKeyHostsListOut };
+  "automations.key_hosts.pending": { in: AutomationsKeyHostsPendingIn; out: AutomationsKeyHostsPendingOut };
+  "automations.key_hosts.pending_bind": { in: AutomationsKeyHostsPendingBindIn; out: AutomationsKeyHostsPendingBindOut };
   "automations.key_hosts.remove": { in: AutomationsKeyHostsRemoveIn; out: AutomationsKeyHostsRemoveOut };
   "automations.list": { in: AutomationsListIn; out: AutomationsListOut };
   "automations.make_personal_copy": { in: AutomationsMakePersonalCopyIn; out: AutomationsMakePersonalCopyOut };

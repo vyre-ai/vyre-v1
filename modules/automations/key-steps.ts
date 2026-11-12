@@ -2,7 +2,8 @@
 // whose address, headers or body changed needs that right again. Someone without it can still change every other step. A Run fills the key as the Automation, so this check at save is what stops an
 // editor from pointing a key they cannot use at their own server. The host a key goes to is fixed in the step: an address whose host is filled in at run time cannot carry a key.
 import { isTrustedService } from "../../lib/trust.ts";
-import { keyHostApproved, normalHost } from "./key-hosts.ts";
+import { hostOfUrl } from "../../lib/key-target.ts";
+import { keyHostApproved } from "./key-hosts.ts";
 import type { KeyHostDb } from "./key-hosts.ts";
 import { raise } from "./projections.ts";
 import type { AutoCtx, Definition } from "./projections.ts";
@@ -90,16 +91,21 @@ async function agentHostApproved(ctx: AutoCtx, index: number, n: Node, ids: Read
   if (n.key !== "http_request" || !input || typeof input["url"] !== "string") return;
   const auth = input["auth"] as { handle?: unknown } | undefined;
   if (!auth || typeof auth.handle !== "string") return;
-  let host: string | null = null;
-  try { host = normalHost(new URL(input["url"]).hostname); } catch { host = null; }
+  const host = hostOfUrl(input["url"]);
   const handle = itemOf(auth.handle);
   const itemId = ids.get(handle);
   if (host !== null && itemId !== undefined) {
     if (keyHostApproved(ctx.db as unknown as KeyHostDb, itemId, host)) return;
-    try {
-      const m = ctx.call ? (await ctx.call("vault.items.match", { url: `https://${host}/` })) as { items?: { item?: { id?: unknown } }[] } | null : null;
-      if ((m?.items ?? []).some((x) => x.item?.id === itemId)) return;
-    } catch { /* the matcher could not answer: not approved */ }
+    // the item's own saved address counts for its exact host only (a saved address on a shared hosting domain must not approve other tenants' subdomains)
+    const hits = async (h: string): Promise<boolean> => {
+      try {
+        const m = ctx.call ? (await ctx.call("vault.items.match", { url: `https://${h}/` })) as { items?: { item?: { id?: unknown } }[] } | null : null;
+        return (m?.items ?? []).some((x) => x.item?.id === itemId);
+      } catch { return false; }
+    };
+    const dot = host.indexOf(".");
+    const parent = dot > 0 && !host.startsWith("[") ? host.slice(dot + 1) : "";
+    if (await hits(host) && (parent === "" || !parent.includes(".") || !(await hits(parent)))) return;
   }
   const named = auth.handle.split(".")[0] ?? "";
   raise(ctx, "permission.no_grant", `Step ${index + 1} sends ${/^#[A-Za-z0-9_]{1,80}$/.test(named) ? named : "a key"} to ${host ?? "an address"}, which nobody approved for this key. A person allows the host on the key first.`, { reason: "key_host_unapproved", step: n.id, ...(host ? { host } : {}) });

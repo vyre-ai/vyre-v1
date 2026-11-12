@@ -5,6 +5,8 @@
 
 import { isIP } from "node:net";
 import { normalizedHost, refusesAddress } from "../../../lib/address-guard.ts";
+import { hostOfUrl } from "../../../lib/key-target.ts";
+import type { KeyRef } from "./key-ref.ts";
 import type { SeamDriverDeps } from "./index.ts";
 
 /** What the module's document network gives: a lookup and a connect that dials the given addresses. */
@@ -16,11 +18,19 @@ export interface PinnedNet {
 type Plan = { method: string; url: string; vaultItemId: string; header?: string; prefix?: string };
 type Sent = { status: number; failed?: "vault" | "network" | "private" };
 
-export function connectorReadSender(d: Pick<SeamDriverDeps, "vault" | "fetch" | "space">): (plan: Plan, asker?: string, net?: PinnedNet | null) => Promise<Sent> {
+/** `resolve` is the one reading of a key reference (seams/key-ref.ts) the Gate's hold used: the key read is the item it named, asked for by its canonical handle. */
+export function connectorReadSender(d: Pick<SeamDriverDeps, "vault" | "fetch" | "space">, resolve?: (ref: string, asker?: string) => KeyRef | null): (plan: Plan, asker?: string, net?: PinnedNet | null) => Promise<Sent> {
   return async (plan, asker, net) => {
     let url: URL;
     try { url = new URL(plan.url); } catch { return { status: 0, failed: "network" }; }
-    if (url.protocol !== "https:") return { status: 0, failed: "network" };
+    if (url.protocol !== "https:" || hostOfUrl(plan.url) === null) return { status: 0, failed: "network" };
+    // the item the hold named, or nothing: a reference that does not resolve the same way is never handed to the Vault
+    let ref = plan.vaultItemId;
+    if (resolve) {
+      const r = resolve(plan.vaultItemId, asker);
+      if (r === null) return { status: 0, failed: "vault" };
+      ref = `${r.handle}${r.field ? `.${r.field}` : ""}`;
+    }
     // the addresses this read may dial, checked before the key is opened
     let addresses: string[] | null = null;
     if (net?.connect) {
@@ -31,7 +41,7 @@ export function connectorReadSender(d: Pick<SeamDriverDeps, "vault" | "fetch" | 
     }
     let value = "";
     try {
-      value = await d.vault.secret(plan.vaultItemId, d.space, asker);
+      value = await d.vault.secret(ref, d.space, asker);
     } catch {
       return { status: 0, failed: "vault" };
     }

@@ -239,6 +239,8 @@ export function createClient(transport: Transport) {
       key_hosts: {
         allow: call("automations.key_hosts.allow", 1),
         list: call("automations.key_hosts.list", 1),
+        pending: call("automations.key_hosts.pending", 1),
+        pending_bind: call("automations.key_hosts.pending_bind", 1),
         remove: call("automations.key_hosts.remove", 1),
       },
       list: call("automations.list", 1),

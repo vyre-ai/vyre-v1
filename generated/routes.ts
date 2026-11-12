@@ -3027,6 +3027,42 @@ const routes0: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/automations/key_hosts/pending",
+    "cap": "automations.key_hosts.pending",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/key_hosts/pending_bind",
+    "cap": "automations.key_hosts.pending_bind",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/automations/key_hosts/remove",
     "cap": "automations.key_hosts.remove",
     "v": 1,
@@ -5498,7 +5534,10 @@ const routes0: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes1: Route[] = [
   {
     "method": "POST",
     "path": "/v1/chat/helpers/list",
@@ -5536,10 +5575,7 @@ const routes0: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes1: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/chat/history/search",
@@ -8162,7 +8198,7 @@ const routes1: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",
@@ -8312,7 +8348,7 @@ const routes1: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",
@@ -11039,7 +11075,10 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/engine/incident/assign",
@@ -11075,10 +11114,7 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes2: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/engine/incident/note",
@@ -16585,7 +16621,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/google/drive/get_file",
@@ -16623,10 +16662,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/google/drive/list_changes",
@@ -22072,7 +22108,10 @@ const routes3: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/mcp/tool/describe",
@@ -22108,10 +22147,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/mcp/tools/list",
@@ -27551,7 +27587,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/plugins/allow/list",
@@ -27587,10 +27626,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/plugins/browse",
@@ -33103,7 +33139,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sites/password_set",
@@ -33140,10 +33179,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/preview_rebuild",
@@ -38618,7 +38654,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "delete"
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/twilio/recording/download",
@@ -38654,10 +38693,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/twilio/recording/stop",

@@ -479,6 +479,16 @@ export default defineManifest({
       tool: 'automations',
       agent: { planMode: 'blocked' },
     }),
+    read('automations.key_hosts.pending', 'What a held test read would send: the Vault item (as the server reads the reference, for the person looking) and the host. The card names the key from this. Names only, never a value.', {
+      in: { method: t.opt(t.str()), path: t.str(), domains: t.arr(t.str()), vaultItemId: t.str(), header: t.opt(t.str()), prefix: t.opt(t.str()), actionKey: t.opt(t.str()), markedSafe: t.opt(t.bool()) },
+      out: { found: t.bool(), itemId: t.opt(t.str()), handle: t.opt(t.str()), name: t.opt(t.str()), host: t.opt(t.str()) },
+      agent: { planMode: 'blocked' },
+    }),
+    read('automations.key_hosts.pending_bind', 'What a held key binding would do: the Vault keys (as the server reads them, for the person looking) and every domain of the connector. Names only, never a value.', {
+      in: { connector: t.opt(t.str()), secrets: t.opt(t.rec(t.str())), connectionId: t.opt(t.str()), slot: t.opt(t.str()), handle: t.opt(t.str()), title: t.opt(t.str()), ownerKind: t.opt(t.str()), scopes: t.opt(t.arr(t.str())) },
+      out: { found: t.bool(), items: t.arr(t.obj({ itemId: t.str(), handle: t.str(), name: t.str() })), hosts: t.arr(t.str()) },
+      agent: { planMode: 'blocked' },
+    }),
     write('automations.key_hosts.allow', 'A person who may use a Vault key approves one host it may be sent to. A person only.', {
       in: { vaultItemId: t.str({ description: 'The item id (vit_...) or its handle (#Name or #Name.field)' }), host: t.str() },
       out: { hosts: t.arr(t.obj({ host: t.str(), by: t.str(), at: t.int() })) },

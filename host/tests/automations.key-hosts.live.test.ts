@@ -60,7 +60,7 @@ test("an agent's test read sends a Vault key only to a host a person approved fo
     const folder = await post(OWNER, "/v1/vault/folders/create", { name: "Keys", scope: "shared" });
     const folderId = String((folder.data["folder"] as { id?: string }).id);
     // Notely keeps its own address on the item; Plainkey has none
-    const notely = await post(OWNER, "/v1/vault/item/put", { folderId, name: "Notely", kind: "api_key", fields: [{ key: "api_key", value: SECRET }, { key: "url", value: "https://notely.example", secret: false }] });
+    const notely = await post(OWNER, "/v1/vault/item/put", { folderId, name: "Notely", kind: "api_key", fields: [{ key: "api_key", value: SECRET }, { key: "url", value: "https://api.notely.example", secret: false }] });
     assert.equal(notely.status, 200, notely.text);
     const plain = await post(OWNER, "/v1/vault/item/put", { folderId, name: "Plainkey", kind: "api_key", fields: [{ key: "api_key", value: SECRET }] });
     assert.equal(plain.status, 200, plain.text);
@@ -75,7 +75,7 @@ test("an agent's test read sends a Vault key only to a host a person approved fo
     assert.ok((holds ?? []).some((h) => h.capName === "automations.try_read"), `a hold waits for a person: ${JSON.stringify(holds)}`);
 
     console.log(`MATCH ${(await post(OWNER, "/v1/vault/items/match", { url: "https://api.notely.example/" })).text.slice(0, 200)}`);
-    // 2. the item's own saved address (and its subdomains) needs no approval
+    // 2. the item's own saved address (its exact host) needs no approval
     const own = await read(AGENT, "#Notely", "api.notely.example");
     assert.equal(own.data["level"], "tested", own.text);
     assert.deepEqual(seen.map((s) => s.host), ["api.notely.example"]);
@@ -110,6 +110,24 @@ test("an agent's test read sends a Vault key only to a host a person approved fo
     assert.match(viaStep.text, /nobody approved for this key/, viaStep.text);
     const viaOwn = await post(AGENT, "/v1/automations/create", { name: "Agent step ok", definition: { triggers: trig, nodes: [{ id: "get", key: "http_request", title: "Get", input: { method: "GET", url: "https://api.notely.example/v1", auth: { kind: "header", header: "X-Api-Key", handle: "#Notely.api_key" } } }] } });
     assert.equal(viaOwn.status, 200, `the item's own address is fine: ${viaOwn.text.slice(0, 300)}`);
+
+    // 8. the hold fails closed: a host the old check could not spell, an IPv6 literal, and item forms the server cannot resolve are held, never sent
+    const sentBefore = seen.length;
+    for (const [item, host] of [["#Plainkey", "under_score.plainkey.example"], ["#Plainkey", "[2001:db8::1]"], ["Plain key", "api.plainkey.example"], ["#Nobody_here", "api.plainkey.example"], [plainId, "api2.plainkey.example"], ["Plainkey", "api3.plainkey.example"]] as const) {
+      const r = await read(AGENT, item, host);
+      assert.notEqual(r.data["level"], "tested", `${item} to ${host}: ${r.text}`);
+    }
+    assert.equal(seen.length, sentBefore, `nothing was sent: ${JSON.stringify(seen.slice(sentBefore))}`);
+    // the card's lookup names the key the server resolved, for an id, a handle or a bare name
+    for (const ref of [`${plainId}.api_key`, "#Plainkey.api_key", "Plainkey"]) {
+      const p = await post(OWNER, "/v1/automations/key_hosts/pending", { method: "GET", path: "/v1/ping", domains: ["api.plainkey.example"], vaultItemId: ref });
+      assert.deepEqual([p.data["found"], p.data["itemId"], p.data["handle"], p.data["name"], p.data["host"]], [true, plainId, "#Plainkey", "Plainkey", "api.plainkey.example"], `${ref}: ${p.text}`);
+    }
+    const unknown = await post(OWNER, "/v1/automations/key_hosts/pending", { method: "GET", path: "/v1/ping", domains: ["api.plainkey.example"], vaultItemId: "Plain key" });
+    assert.equal(unknown.data["found"], false, unknown.text);
+    // a saved address names its exact host: a sibling on the same parent domain still waits
+    const sibling = await read(AGENT, "#Notely", "evil.notely.example");
+    assert.notEqual(sibling.data["level"], "tested", sibling.text);
 
     assert.deepEqual(seen.filter((s) => s.key).map((s) => s.host).sort(), ["api.notely.example", "api.plainkey.example", "status.elsewhere.example"], "the key went only to approved hosts and the person's own read");
   } finally {

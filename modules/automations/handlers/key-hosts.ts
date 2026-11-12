@@ -1,6 +1,7 @@
 // Where a Vault key may be sent: list, allow and remove the approved hosts of one item. Only a person who may use the item approves or removes; the list shows to anyone who can see the item.
 // The Vault answers which items the caller sees and at what level (vault.items.list); this module keeps only item ids and host names, never a value.
-import { allowKeyHost, keyHostsOf, normalHost, removeKeyHost } from "../key-hosts.ts";
+import { allowKeyHost, keyHostsOf, normalHost, plannedHost, removeKeyHost } from "../key-hosts.ts";
+import { keyRefResolver } from "../key-ref-port.ts";
 import type { KeyHostDb } from "../key-hosts.ts";
 import { raise } from "../projections.ts";
 import type { AutoCtx } from "../projections.ts";
@@ -12,7 +13,8 @@ const USE = new Set(["use", "edit", "manage"]);
 async function seenItem(ctx: AutoCtx, ref: unknown): Promise<SeenItem | null> {
   if (typeof ref !== "string" || ref.trim() === "" || !ctx.call) return null;
   const want = ref.trim();
-  const base = want.startsWith("#") ? want.replace(/\.[A-Za-z][A-Za-z0-9_]*$/, "").toLowerCase() : want;
+  const bare = want.replace(/\.[A-Za-z][A-Za-z0-9_]*$/, "");
+  const base = /^vit_[a-z0-9]+$/.test(bare) ? bare : (bare.startsWith("#") ? bare : `#${bare}`).toLowerCase();
   let out: unknown;
   try { out = await ctx.call("vault.items.list", { limit: 500 }); } catch { return null; }
   const items = (out as { items?: unknown } | null)?.items;
@@ -52,5 +54,42 @@ export async function keyHostsRemove(ctx: AutoCtx, input: { itemId?: unknown; ho
   if (!host) raise(ctx, "validation.bad_input", "That is not a host name.");
   const item = await seenItem(ctx, input.itemId);
   if (!item || !USE.has(item.yourLevel)) raise(ctx, "permission.no_grant", NOT_YOURS);
-  return { removed: removeKeyHost(ctx.db as unknown as KeyHostDb, item.id, host) };
+  return { removed: removeKeyHost(ctx.db as unknown as KeyHostDb, item.id, host, ctx.principal.id, ctx.now()) };
+}
+
+/**
+ * What a held test read would send, as the server reads it: the item (by the host's one reading of the reference, for the person looking) and the host. The card names the key from here, never from
+ * what the agent wrote, and Always allow approves this item id. An item the person cannot see in the Vault is not described.
+ */
+export async function keyHostsPending(ctx: AutoCtx, input: Record<string, unknown>): Promise<{ found: boolean; itemId?: string; handle?: string; name?: string; host?: string }> {
+  const host = plannedHost(input);
+  const resolve = keyRefResolver();
+  const asker = ctx.actingFor ?? (ctx.principal.kind === "person" ? ctx.principal.id : undefined);
+  const ref = resolve ? resolve(input["vaultItemId"], asker) : null;
+  if (!ref || host === null) return { found: false, ...(host ? { host } : {}) };
+  const seen = await seenItem(ctx, ref.id);
+  if (!seen) return { found: false, host };
+  return { found: true, itemId: ref.id, handle: ref.handle, name: ref.name, host };
+}
+
+/** What a held key binding would do: the keys (as the server reads them, for the person looking) and every domain of the connector. The card names all of them, never "and others". */
+export async function keyHostsPendingBind(ctx: AutoCtx, input: { connector?: unknown; secrets?: unknown; connectionId?: unknown; handle?: unknown }): Promise<{ found: boolean; items: { itemId: string; handle: string; name: string }[]; hosts: string[] }> {
+  const none = { found: false, items: [], hosts: [] };
+  const resolve = keyRefResolver();
+  if (!resolve || !ctx.call) return none;
+  let connector = typeof input.connector === "string" ? input.connector : "";
+  try {
+    if (connector === "" && typeof input.connectionId === "string") connector = String(((await ctx.call("connections.get", { connectionId: input.connectionId })) as { connection?: { connector?: unknown } } | null)?.connection?.connector ?? "");
+    const got = (await ctx.call("connectors.get", { key: connector })) as { connector?: { domains?: unknown } } | null;
+    const hosts = Array.isArray(got?.connector?.domains) ? (got!.connector!.domains as unknown[]).flatMap((d) => (typeof d === "string" && normalHost(d) ? [normalHost(d)!] : [])) : [];
+    const refs = input.secrets && typeof input.secrets === "object" ? Object.values(input.secrets as Record<string, unknown>) : [input.handle];
+    const asker = ctx.actingFor ?? (ctx.principal.kind === "person" ? ctx.principal.id : undefined);
+    const items: { itemId: string; handle: string; name: string }[] = [];
+    for (const ref of refs) {
+      const r = resolve(ref, asker);
+      if (!r || !(await seenItem(ctx, r.id))) return { ...none, hosts };
+      items.push({ itemId: r.id, handle: r.handle, name: r.name });
+    }
+    return { found: items.length > 0 && hosts.length > 0, items, hosts };
+  } catch { return none; }
 }

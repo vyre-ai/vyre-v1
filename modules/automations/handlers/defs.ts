@@ -879,6 +879,8 @@ export async function promote(ctx: AutoCtx, input: In): Promise<unknown> {
   }
   const issues = validateDefinition(a.definition, readPolicy(ctx.db));
   if (hasErrors(issues)) raise(ctx, "validation.precondition_failed", issues.find((i) => i.severity === "error")!.message, { reason: "invalid_definition", issues });
+  // a move to the Space is a save: the mover may use every key its steps use
+  await guardKeySteps(ctx, undefined, a.definition);
   let replaced = 0;
   if (diff.keysToReplace.length) {
     const def = JSON.parse(JSON.stringify(a.definition)) as Definition;
@@ -913,6 +915,8 @@ export async function makePersonalCopy(ctx: AutoCtx, input: In): Promise<unknown
   const now = ctx.now();
   const owner = me(ctx);
   const name = typeof input.name === "string" && input.name.trim() ? input.name.trim() : `${src.name} (copy)`;
+  // a copy is a save: the copier may use every key its steps use
+  await guardKeySteps(ctx, undefined, src.definition);
   const copy: Automation = clean({
     id: newId("aut", now), name, description: src.description, kind: "personal" as const, ownerId: owner, status: "draft" as const, version: 1,
     definition: JSON.parse(JSON.stringify(src.definition)) as Definition, followers: [owner], alerts: defaultAlerts(readPolicy(ctx.db), owner), createdBy: ctx.principal.id,

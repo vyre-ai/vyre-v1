@@ -29,6 +29,8 @@
     "automations.http_send@1": "f83c6ccf89ccbf38a832d5adf35b0e368727d25a832b4b5c3583034ab5815d02",
     "automations.key_hosts.allow@1": "c75afbdf985e0821a4a865e3210dbdf68d3f4dfbe51f3dd1a56cef35f9b11bb0",
     "automations.key_hosts.list@1": "80dc89a4fa15fa40926ba7cca41b48c7ebc67cfa083567b141429f6d8eaf027e",
+    "automations.key_hosts.pending@1": "deabebd581759268d4501a4d49d22e547b3877cb759175d6e9d8a4d2e2ab0272",
+    "automations.key_hosts.pending_bind@1": "781a7e7e11808eb91d6248824f46cacc031a023cb5cd1d8bd5bd0466399f7ca6",
     "automations.key_hosts.remove@1": "5d369293e464bf7bd476064db0ed5407f601db770b22290c04ad3bfdf729834d",
     "automations.list@1": "865e6ed0a4001d1beb85db4c0e9f9469ee02f5135dd57c91f483f686220951d9",
     "automations.make_personal_copy@1": "d8ecde040ec6144952490f9f7ace3a4729d77791e6015ea29b43d6507cf1d556",
