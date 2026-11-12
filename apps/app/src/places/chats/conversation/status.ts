@@ -78,6 +78,7 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   "engine.timeout": { message: "The engine did not answer in time.", retryable: true },
   "engine.session_gone": { message: "The engine lost this chat's earlier session.", cause: "Try again: it starts from the chat's summary.", retryable: true },
   "engine.model_unavailable": { message: "That model cannot run here.", next: [{ key: "pick_model", label: "Choose another model" }, { key: "run_on_my_computer", label: "Run it on my computer" }], retryable: false },
+  "engine.no_model": { message: "No model is set for this chat.", cause: "Pick one in the chat's model menu, or set the agent's model in its settings.", next: [{ key: "pick_model", label: "Choose a model" }], retryable: false },
   "engine.no_model_works": { message: "None of your AI accounts can answer right now.", cause: "Check your AI accounts, then try again.", next: [{ key: "connect_ai", label: "Open AI accounts" }], retryable: true },
   "engine.no_account": { message: "Connect your AI to get replies.", cause: "No AI account is saved for this chat yet.", next: [{ key: "connect_ai", label: "Connect your AI" }], retryable: false },
   "engine.account_unavailable": { message: "Your AI account could not be reached just now.", next: [{ key: "connect_ai", label: "Check your AI account" }], retryable: true },
@@ -98,7 +99,8 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   paid_fallback: { message: "This account is out for now.", cause: "A paid key could answer. It is in your Tasks for you to say yes.", retryable: false },
   host_lost: { message: "The server stopped while this was running.", cause: "It may have done part of the work. Check before running it again.", retryable: true },
   agent_paused: { message: "This agent is paused, so it did not answer.", cause: "Resume it from its page, then try again.", retryable: true },
-  agent_gone: { message: "This agent was deleted, so it did not answer.", retryable: false },
+  // deleted, or made in a private chat the asker is not in (owner decision, 12 Nov 2026): both read the same, so neither tells a hidden agent from a gone one
+  agent_gone: { message: "This agent is no longer available to you.", retryable: false },
   no_asker: { message: "No one asked for this, so it did not run.", cause: "An agent's message started it. Ask the agent yourself and it runs for you.", retryable: false },
 };
 

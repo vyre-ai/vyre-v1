@@ -17,6 +17,7 @@ export type OfferState = Readonly<Record<string, "open" | "declined" | "accepted
 
 const LIVE_KEY = "sk_live_";
 const SAFE_APP = "this app";
+const KEY_WORD = /\s+(?:api[\s_-]*keys?|api[\s_-]*tokens?|access[\s_-]*tokens?|keys?|tokens?|secrets?|credentials?)$/i;
 
 function decisionOf(state: OfferState, itemId: string): OfferState[string] | undefined {
   if (!Object.hasOwn(state, itemId)) return undefined;
@@ -29,7 +30,9 @@ function appNameOf(name: string): string {
   if (collapsed.includes(LIVE_KEY)) return SAFE_APP;
   const trimmed = name.trim();
   if (trimmed.length === 0) return SAFE_APP;
-  return trimmed;
+  // "Notely API key" names the key; the app is Notely. A name that is only the key word stays as it is.
+  const cut = trimmed.replace(KEY_WORD, "").trim();
+  return cut === "" || /^(?:api|access)$/i.test(cut) ? trimmed : cut;
 }
 
 export function offerForSavedItem(state: OfferState, item: SavedItem): { state: OfferState; offer: Offer | null } {

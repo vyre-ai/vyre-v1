@@ -190,7 +190,16 @@ function callerLevel(ctx: ShareCtx, store: AccessStore, res: ResourceRec): Level
   return levelFor(store, ctx.principal.id, res, ctx.now(), actingId(ctx));
 }
 
+/**
+ * A thing cut off from the Space (only people added, only me) that the caller holds nothing on reads as one that does not exist: the same answer resourceOf gives a made-up id, so neither a
+ * refusal nor a quiet "nothing to do" tells an outsider a hidden agent, folder or record is there (review of fbfb021cd). Run before any early answer.
+ */
+function hideFrom(ctx: ShareCtx, store: AccessStore, res: ResourceRec): void {
+  if ((res.row?.["audience"] === "added" || res.row?.["audience"] === "me") && callerLevel(ctx, store, res) === null) raise(ctx.trace.traceId, "validation.not_found", "no such resource");
+}
+
 function must(ctx: ShareCtx, store: AccessStore, res: ResourceRec, need: Level, what: string): Level {
+  hideFrom(ctx, store, res);
   const have = callerLevel(ctx, store, res);
   if (!atLeast(res.type, have, need)) raise(ctx.trace.traceId, "permission.no_grant", `${what} needs ${need} on this`);
   return have!;
@@ -527,6 +536,15 @@ function hostWritesChatGrant(store: AccessStore, res: ResourceRec, source: strin
   return [...store.grants.values()].some((g) => g.resource.id === res.id && g.subject.kind === "agent" && g.id === `gnt_${g.subject.id.replace(/^agt_/, "")}home` && carries(g.subject.id));
 }
 
+/** A folder the host may open or close without Manage: the files folder of an agent a chat made (it holds that agent's home grant, and the agent carries a grant of a chat). */
+function hostMayCloseFolder(store: AccessStore, res: ResourceRec): boolean {
+  // the agent itself: one a chat made carries that chat's grants
+  if (res.type === "agent") return [...store.grants.values()].some((x) => x.resource.type === "agent" && x.resource.id === res.id && x.source?.startsWith("chat:") === true);
+  if (res.type !== "folder") return false;
+  return [...store.grants.values()].some((g) => g.resource.id === res.id && g.subject.kind === "agent" && g.id === `gnt_${g.subject.id.replace(/^agt_/, "")}home`
+    && [...store.grants.values()].some((x) => x.resource.type === "agent" && x.resource.id === g.subject.id && x.source?.startsWith("chat:") === true));
+}
+
 /**
  * The host writing a project's roles is not a person delegating (a Space admin without Manage on the project changes a role through projects.members.set, which checked the right; the host then writes
  * the grants). It is only that for the project's own things: the grant carries source project:<id>, and the resource is project <id> itself, or one that already carries a grant of that same source
@@ -841,11 +859,18 @@ export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef;
   }
   // A folder too, with Only people added or the whole Space, never Only me: the files folder of an agent a private chat made follows that chat (modules/chat/handlers/owned.ts), cut off from
   // the Space so the Space roles do not reach it, open to the chat's readers by grants, its owner, and the Space's owners and admins (KEEPERS) as a record only for people added is.
-  const folder = res.type === "folder";
-  if (!RECORDS.has(res.type) && !folder) raise(trace, "validation.bad_input", "who it is open to is set on a record type, a record or a folder");
-  if (folder && (input.audience === "me" || input.exporters !== undefined || input.outside !== undefined)) raise(trace, "validation.bad_input", "a folder is open to the Space or only to people added");
-  // the host's own sweep brings old agent folders in line with their chats
-  if (!(folder && isHostService(ctx.principal))) must(ctx, store, res, "manage", "changing who it is open to");
+  // a folder, or an agent a private chat made (owner decision, 12 Nov 2026): cut off from the Space as a record only for people added is, so the Space roles do not reach it; the chat's readers
+  // hold it by grants of the chat's source, its owner keeps it, and the Space's owners and admins keep Manage (KEEPERS). An agent nobody may see reads as one that does not exist (host invoke)
+  const folder = res.type === "folder" || res.type === "agent";
+  if (!RECORDS.has(res.type) && !folder) raise(trace, "validation.bad_input", "who it is open to is set on a record type, a record, a folder or an agent");
+  if (folder && (input.audience === "me" || input.exporters !== undefined || input.outside !== undefined)) raise(trace, "validation.bad_input", "a folder or an agent is open to the Space or only to people added");
+  // the host's own no-op (the sweep over an agent an open channel made, already open) needs nothing: the host is no outsider
+  if (folder && isHostService(ctx.principal) && input.audience !== undefined && input.audience === audienceOf(res)) return { audience: audienceOf(res), exporters: "admins" as Exporters, outside: false };
+  // the host's own sweep brings a chat's own agents and their folders in line with their chats: without Manage only on those (hostMayCloseFolder), never on any other folder or agent
+  if (!(folder && isHostService(ctx.principal) && hostMayCloseFolder(store, res))) must(ctx, store, res, "manage", "changing who it is open to");
+  // asking a folder or an agent to be what it already is changes nothing: answered quietly, but only after the rights check, so it tells an outsider nothing (an agent an open channel made:
+  // its folder is open to the Space from the start, and the maker's own followHome asks for that)
+  if (folder && input.audience !== undefined && input.audience === audienceOf(res)) return { audience: audienceOf(res), exporters: "admins" as Exporters, outside: false };
   if ((input.exporters !== undefined || input.outside !== undefined) && res.type !== "record_type") raise(trace, "validation.bad_input", "who may export and links outside the Space are set on the record type");
   const wasFresh = isFresh(ctx, store, ss);
   const row: Record<string, unknown> = { ...(res.row ?? {}) };
@@ -1157,6 +1182,7 @@ export async function foldersPlace(ctx: ShareCtx, input: { resource: ResourceRef
   if (folder.type !== res.type) raise(trace, "validation.precondition_failed", `this folder holds ${folder.type} items`);
   const key = pk(res.type, res.id);
   const current = ss.placement.get(key) ?? null;
+  hideFrom(ctx, store, res);
   if (current === folder.id) return { ok: true };
   const have = must(ctx, store, res, current ? "manage" : "edit", "moving it");
   must(ctx, store, folderRes, "edit", "adding to this folder");
@@ -1181,6 +1207,7 @@ export async function foldersUnplace(ctx: ShareCtx, input: { resource: ResourceR
   const res = resourceOf(ctx, store, input.resource);
   const key = pk(res.type, res.id);
   const current = ss.placement.get(key);
+  hideFrom(ctx, store, res);
   if (!current) return { ok: true };
   // taking it out removes what the folder gave others, so it needs Manage
   must(ctx, store, res, "manage", "taking it out of the folder");

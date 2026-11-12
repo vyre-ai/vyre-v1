@@ -71,7 +71,9 @@ test("the owner's Assistant makes a project in one go, every read of the id list
     await s.d.hooks?.pump?.();
     const channel = (await s.api("channels.get", { channelId: out["made"].channelId })).channel as { mainThreadId: string };
     const thread = (await s.api("threads.get", { threadId: channel.mainThreadId })).thread as { agents: Array<{ agentId: string }> };
-    assert.deepEqual(thread.agents.map((a) => a.agentId), [assistant], "the project chat has its lead from the start");
+    // its lead from the start, and the teammate the Assistant added is in the project's channel too (a refusal there is reported, never swallowed; review, 12 Nov 2026)
+    const mateId = String(out["mate"].teammate.agentId);
+    assert.deepEqual(thread.agents.map((a) => a.agentId).sort(), [assistant, mateId].sort(), "the project chat has its lead from the start, and the teammate is in it");
     const route = await s.api("engine.route.preview", { threadId: channel.mainThreadId });
     assert.deepEqual(route.responders, [assistant], "a plain message in the project chat is answered by its lead");
     // a Space agent is not the owner's hands: it is refused where the Assistant passes

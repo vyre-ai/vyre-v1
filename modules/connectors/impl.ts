@@ -90,7 +90,8 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
     const execution={...ctx,rememberVaultItem:(id:string)=>usedVaultItems.add(id),assertAuthorized};
     const cc: ConnectorsCtx = {
       trace: ctx.trace, emit: (n, s, p, o) => ctx.emit(n, s, p, o), call: (c, i) => ctx.call(c, i),
-      http: (url,init) => port&&definition&&stored?.state==='live'?port.http(execution,definition.domains,url,init):ctx.http(url,init),
+      // a live connector's requests go through the port (domains, and where each filled key may go); anything else may never carry a filled key, so a request after a fill is refused
+      http: (url,init) => port&&definition&&stored?.state==='live'?port.http(execution,definition.domains,url,init):usedVaultItems.size>0?refuse(cc,'permission.no_grant','This connector is not live, so it cannot send a Vault key. Publish it first.'):ctx.http(url,init),
       ...(ctx.log ? { log: ctx.log } : {}), ...(ctx.schedule ? { schedule: (at, cap, input) => ctx.schedule!(at, cap, input) } : {}), ...((ctx.actingFor??ctx.principal?.id)?{actor:ctx.actingFor??ctx.principal!.id}:{}),
       trusted: isTrustedService(ctx.principal),
       canManageSpace: () => ctx.authorize({ perm: 'connectors.manage', level: 'edit' }, { type: 'space', id: ctx.space }).effect === 'allow',

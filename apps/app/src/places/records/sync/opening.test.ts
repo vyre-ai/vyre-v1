@@ -16,3 +16,8 @@ test("the other two openings load the skill and keep a key out of chat", () => {
   assert.match(BRING_IN_OPENING, /Never ask me to paste a key/);
   assert.equal(editMappingOpening({ app: "Ledger", type: "person" }), "Change how Ledger syncs to Records. Record type person. Read the spec with sync_specs_get, change it, check it with sync_specs_validate and apply it again. Load the crm-sync-builder skill.");
 });
+
+test("the app name drops a trailing key word, as the Vault's Add to Automations does", () => {
+  assert.equal(appNameOf("Notely API key"), "Notely");
+  assert.equal(appNameOf("Acme token"), "Acme");
+});

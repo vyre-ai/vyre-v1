@@ -207,3 +207,23 @@ test("a held install draws as a card: what it is, what it does, what it needs, t
   ]);
   assert.equal(excerptLines({ planId: "ins_1", for: "me", card: { name: "tasks-mcp", kind: "mcp_remote", summary: "x", commit: "", needs: { domains: [], vaultKeys: [], files: [] } } }, 5, "install.apply")[3]!.text, "Not pinned. It is their server.");
 });
+
+test("a held test read of a Vault key names the key the server resolved, and Always allow approves that item and host", async () => {
+  const calls: { cap: string; input: unknown }[] = [];
+  const held = { task: { id: "tsk_k", kind: "approve", title: "Approve", state: "awaiting_approval", blocks: [{ type: "doc_excerpt", v: 1, data: { act: "send", cap: "automations.try_read", input: { method: "GET", path: "/v1/ping", domains: ["api.notely.example"], vaultItemId: "vit_abc123.api_key" } } }], actions: [] } };
+  const d = {
+    call: async (cap: string, input: unknown) => {
+      calls.push({ cap, input });
+      if (cap === "tasks.get") return held;
+      if (cap === "automations.key_hosts.pending") return { found: true, itemId: "vit_abc123", handle: "#Notely", name: "Notely API key", host: "api.notely.example" };
+      return {};
+    },
+    nav: { openBeside: () => undefined },
+  } as never;
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_k" agent="Scout" agentId="agt_1" data={d} />);
+  await flush();
+  assert.match(textOf(root), /Scout wants to send #Notely \(Notely API key\) to api\.notely\.example/);
+  await press(find(root, "approval-always-tsk_k"));
+  await flush();
+  assert.deepEqual(calls.find((c) => c.cap === "automations.key_hosts.allow")?.input, { vaultItemId: "vit_abc123", host: "api.notely.example" });
+});

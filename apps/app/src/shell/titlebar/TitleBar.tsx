@@ -5,7 +5,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ShellIcon } from "../rail/icons.tsx";
 import { useResume } from "../../onboarding/resume-context.ts";
-import { syncLabel } from "./model.ts";
+import { syncLabel, reconnectingNow } from "./model.ts";
 import { NoticeSlot } from "../noticeslot/NoticeSlot.tsx";
 import { notices } from "../noticeslot/model.ts";
 import { RADIUS } from "../../../../../ui/src/tokens/radius.ts";
@@ -27,8 +27,8 @@ export interface TitleBarProps {
 
 export function TitleBar(props: TitleBarProps): ReactElement {
   const { title, online, waiting, compact = false } = props;
-  // the device itself has a network (the browser says so) but the Space is not answering: the app is reconnecting, not offline
-  const sync = syncLabel(online, waiting, typeof navigator !== "undefined" && navigator.onLine === true);
+  // the device itself has a network unless the device positively says it has none (navigator.onLine is false); when the app cannot tell, it is reconnecting, not offline
+  const sync = syncLabel(online, waiting, reconnectingNow());
   const resume = useResume();
   const [over, setOver] = useState(false);
   // the connection is a notice like any other: raised while it is not plain "Connected", resolved when it is

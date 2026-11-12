@@ -9,7 +9,7 @@ import { AgentPage, AgentPageLoading } from "./AgentPage.tsx";
 import { acceptSuggestion, dismissSuggestion, moveToTrash, pause, resume, saveRoleLine, setAccounts, setRoutine, startChat } from "./actions.ts";
 import type { PageDeps } from "./actions.ts";
 import {
-  AGENT_MD_LIMIT, LOCKED_NOTE, ROLE_MAX, TABS, accountLine, moveRef, chatsOf, dollars, instructionsLine, isTabKey, limitRows, mineOnly, roleToSave, routineLabel, routineNote, spendLine, spendRatio, statusLine,
+  AGENT_MD_LIMIT, computerRowNote, LOCKED_NOTE, ROLE_MAX, TABS, accountLine, moveRef, chatsOf, dollars, instructionsLine, isTabKey, limitRows, mineOnly, roleToSave, routineLabel, routineNote, spendLine, spendRatio, statusLine,
   stripOf, suggestionTitle, OUTCOME_WORDS, OUTSIDE_LINE, OUTSIDE_TABS, offlineLine, toolWords,
 } from "./model.ts";
 import type { AgentRow, Routine, Summary, TabKey, Thread } from "./model.ts";
@@ -145,8 +145,15 @@ test("a routine's switch turns it on or off with an Undo; the row says when it r
 test("Settings: AGENT.md against 150 lines, agent.toml, model, account, memory, computer, limits, access and keys (names only)", () => {
   const s = createSample("owner");
   const out = html(s, "settings");
-  inOrder(out, ['data-testid="label-l-files"', "93 of 150 lines", 'data-testid="row-setting-toml"', 'data-testid="row-setting-model"', "opus, then sonnet", "Runs on the account of whoever asks", "Proposes facts for you to accept", "Has its own computer", 'data-testid="label-l-limits"', "Spend per day", "Turns per day", "Minutes per run", 'data-testid="label-l-access"', "calendar.read", "#CRM_API, #CALENDAR_BOOKING (names only)"]);
+  inOrder(out, ['data-testid="label-l-files"', "93 of 150 lines", 'data-testid="row-setting-toml"', 'data-testid="row-setting-model"', "opus, then sonnet", "Runs on the account of whoever asks", "Proposes facts for you to accept", computerRowNote(false, agentNow(s).hasComputer), 'data-testid="label-l-limits"', "Spend per day", "Turns per day", "Minutes per run", 'data-testid="label-l-access"', "calendar.read", "#CRM_API, #CALENDAR_BOOKING (names only)"]);
   assert.ok(has(out, "Instructions") && has(out, "AGENT.md") && has(out, "agent.toml") && has(out, "Limits"));
+  // every agent has a workspace and a browser now (an old desktop, where one exists, is the Computer tab's business): the row says that for all, and never "None yet" or "Has its own computer"
+  assert.ok(!has(out, "None yet") && !has(out, "Has its own computer"));
+  // the row says what the Computer tab knows: a bound workspace and browser say so, an older desktop alone is named, and nothing known is neutral (never a claim about a terminal that may not run here)
+  assert.equal(computerRowNote(true, false), "A terminal and a browser of its own");
+  assert.equal(computerRowNote(true, true), "A terminal and a browser of its own");
+  assert.equal(computerRowNote(false, true), "Has an older desktop");
+  assert.equal(computerRowNote(false, false), "Its terminal and browser are on the Computer tab");
   assert.equal(instructionsLine(93), "93 of 150 lines");
   assert.equal(instructionsLine(140), "140 of 150 lines, nearly full");
   assert.equal(instructionsLine(AGENT_MD_LIMIT + 1), "151 of 150 lines, over the limit");

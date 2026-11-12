@@ -47,7 +47,7 @@ export function PromoteSheet({ automation, onClose, onPromoted, preview: given }
       <View style={s.head}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text numberOfLines={2} style={s.title}>{`Promote “${automation.name}” to the Space`}</Text>
-          <Text style={s.sub}>This is the access it will run on. Confirm the changes.</Text>
+          <Text style={s.sub}>Teammates who can open Automations will see it. This is the access it will run on.</Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} testID="promote-close" style={[s.x, pointer]}><Glyph name="x" size={14} color="var(--ink-3)" /></Pressable>
       </View>

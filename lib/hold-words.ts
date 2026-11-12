@@ -3,6 +3,7 @@
 import { HOLD_PHRASES } from "./hold-phrases.ts";
 import { validZone, zoneName } from "./zones.ts";
 import { outwardOf } from "./outward.ts";
+import { keyReadHost } from "./key-target.ts";
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -56,7 +57,13 @@ export function capPhrase(cap: string): string {
 
 /** Steps whose words depend on what they carry: opening a link names the site. */
 export function wantsFromInput(cap: string, input: Obj | undefined): string | null {
-  if (cap === "automations.read_link" || cap === "automations.try_read") {
+  // a test read sends a Vault key: the card names the key and the one host it would go to
+  // the card names the key from the server's own reading (automations.key_hosts.pending); this fallback names only the host, never what the agent wrote for the key
+  if (cap === "automations.try_read") {
+    const host = keyReadHost(input);
+    return host ? `send a key to ${host}` : "send a key to an app";
+  }
+  if (cap === "automations.read_link") {
     const url = str(obj(input)["url"]);
     return url ? `open ${hostOfLink(url)}` : "open a link";
   }

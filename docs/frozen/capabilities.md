@@ -42,6 +42,12 @@ Nothing blocks the freeze. The sample read cleanly: summaries match the declared
 
 Signed: lead, 12 Nov 2026
 
+## 12 Nov 2026: Vault keys go only to approved hosts (lane f-auto)
+
+- 12 Nov 2026, lane f-auto: `automations.try_read` is now held (gate `send`, when `automations.key_host_unapproved(input)`, risk medium, error `permission.needs_approval`): an agent's test read that would send a Vault key to a host nobody approved for that item waits for a person (Allow, Always allow, Deny). New `automations.key_hosts.list`, `automations.key_hosts.allow` and `automations.key_hosts.remove`: the hosts approved per Vault item (table `automations_key_hosts`, migration 0013). Signed: lead, 12 Nov 2026.
+- 12 Nov 2026, lane f-auto, second look: `automations.key_hosts.pending` and `automations.key_hosts.pending_bind` (what a held read or binding would send, read by the server for the card); `connections.create` and `connections.set_secret` are held (gate `send`, when `automations.bind_hosts_unapproved(input)`, error `permission.needs_approval`) when an agent binds a key to hosts not approved for it. `automations.vault_usage` gains an optional `hidden` count. Signed: lead, 12 Nov 2026.
+- 13 Nov 2026, lane f-auto: `automations.vault_usage` steps gain an optional `blocked` line (the step's key may no longer go to its host); `automations.key_hosts.list` hosts gain `usedBy` and an optional `hidden` count; the schedule trigger's payload gains an optional `previousScheduledFor`; the web request trigger's title is "A web request arrives". Signed: lead, 12 Nov 2026.
+
 ## 12 Nov 2026: access.grants.update may emit grant.revoked, and access.unshare may emit grant.updated (lane f-revoke)
 
 12 Nov 2026: access.grants.update may emit grant.revoked and access.unshare may emit grant.updated, because a record share's folder copy follows in the same call (lane f-revoke). Lowering a share on a record drops its copy on the record's folder when the person keeps no level there (`grant.revoked`), and taking one of several record shares away lowers the copy to what is left (`grant.updated`). Nothing else in either contract changed: same input, output, level, permission and errors; the events carry their own declared payloads.
@@ -99,5 +105,15 @@ What changed:
 All four changes are additive and optional; nothing existing changes shape.
 
 Why: the owner's line "Maya is not in this chat." with Add under the sender's message (owner, 12 Nov 2026), its review (M2 to M4), and the lead's rule of one name for a person's Assistant.
+
+Signed: lead, 12 Nov 2026
+
+## 12 Nov 2026: the automations snapshot after two signed changes met (lead, at the merge)
+
+The hashes in `docs/frozen/snapshots/automations.json` were written again at the merge of lane f-auto into int/rc25, which already held lane f-vaultuse. Each lane's own contract change is described and signed in its paragraph in this file (f-vaultuse: the runs-as field, `automations.runs_as.get@1`, `automation.runs_as_changed`; f-auto: the key-host capabilities `automations.key_hosts.*` and the held test read). Both touch `manifests/automations.ts`, so the merged manifest's hashes are new and neither lane's snapshot matched. Nothing beyond those two reviewed changes is in this snapshot; it was regenerated on the build box with `node tools/gen/src/cli.ts --snapshots`.
+
+## 12 Nov 2026: previews.get, previews.pages and previews.text may emit preview.ready and preview.failed (lane f-revoke)
+
+`previews.get@1`, `previews.pages@1` and `previews.text@1` now declare `emits: ['preview.ready', 'preview.failed']`. The first read of a file version whose preview was never made renders it inline and announces the result, as `previews.render` does; an undeclared event was refused at run time, so that first read answered 500 "event not declared in emits". Nothing else in their contracts changed: same input, output, level, permission and errors; the events carry their own declared payloads.
 
 Signed: lead, 12 Nov 2026

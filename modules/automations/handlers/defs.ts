@@ -13,6 +13,9 @@ import {
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
 import { regrant, sendersOf, shareSenders } from "../grants.ts";
+import { guardKeySteps, recordStepHosts, usableKeyIds } from "../key-steps.ts";
+import { blockedKeySteps } from "../key-run.ts";
+import { hookBase } from "../key-ref-port.ts";
 import { publishAllowed } from "../connector-breadth.ts";
 import { storedLevel } from "../connector-level.ts";
 import { admit, contractOf } from "../val.ts";
@@ -522,7 +525,10 @@ export async function list(ctx: AutoCtx, input: In): Promise<unknown> {
 }
 
 export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
-  const issues = validateDefinition(input.definition as Definition, readPolicy(ctx.db));
+  const def = input.definition as Definition;
+  // a key-bearing step whose host was taken off its key's list shows before the next Run, with the line that Run would fail with
+  const keyBlocked = Array.isArray(def?.nodes) ? (await blockedKeySteps(ctx, def.nodes)).map((b) => issue("error", b.line, b.nodeId)) : [];
+  const issues = [...validateDefinition(def, readPolicy(ctx.db)), ...keyBlocked];
   return { ok: !hasErrors(issues), issues };
 }
 export async function triggersList(): Promise<unknown> {
@@ -570,6 +576,7 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
   refuseSecret(ctx, def);
   const agentIssue = (await agentStepIssues(ctx, "personal", def))[0];
   if (agentIssue) raise(ctx, "validation.precondition_failed", agentIssue.message, { reason: "agent_not_yours", issues: [agentIssue] });
+  await guardKeySteps(ctx, undefined, def);
   if (input.groupId && !findGroup(ctx.db, input.groupId)) raise(ctx, "validation.not_found", "That Group does not exist.", { reason: "no_group" });
   const now = ctx.now();
   const owner = me(ctx);
@@ -602,6 +609,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   if (input.definition !== undefined && !same(input.definition, a.definition)) {
     checkStructure(ctx, input.definition);
     refuseSecret(ctx, input.definition);
+    await guardKeySteps(ctx, a.definition, input.definition);
     const policy = readPolicy(ctx.db);
     // an agent the saver may not give work to is refused at once, on or off: it is not a draft to finish later but someone else's (lead 12 Nov, rule 4)
     const agentIssue = (await agentStepIssues(ctx, a.kind, input.definition))[0];
@@ -658,6 +666,8 @@ export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
     }
     a.status = "on";
     delete a.pausedReason;
+    // turning it on is publishing it: a person who may use a step's key approves that step's host for it
+    if (ctx.principal.kind === "person") recordStepHosts(ctx, a.definition.nodes, await usableKeyIds(ctx));
     touch(ctx, a);
     await regrant(ctx, a, "on");
     emitAuto(ctx, "automation.enabled", a.id, {});
@@ -718,6 +728,7 @@ export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> 
   const v = versionById(ctx.db, a.id, input.versionId);
   if (!v) raise(ctx, "validation.not_found", "That version does not exist.", { reason: "no_version" });
   refuseSecret(ctx, v.definition);
+  await guardKeySteps(ctx, a.definition, v.definition);
   const restored = a.status === "on" ? await blocksGoingLive(ctx, a.kind, v.definition, readPolicy(ctx.db)) : validateDefinition(v.definition, readPolicy(ctx.db));
   if (a.status === "on" && hasErrors(restored)) {
     raise(ctx, "validation.precondition_failed", "Turn the automation off before restoring a version with errors.", { reason: "invalid_definition" });
@@ -817,7 +828,8 @@ export async function followersRemove(ctx: AutoCtx, input: In): Promise<unknown>
   return { followers: a.followers };
 }
 
-function webhookUrl(ctx: AutoCtx, id: string, secret: string): string { return `${ctx.baseUrl ?? ""}/hooks/automation/${id}/${secret}`; }
+/** The address an app posts to: the Space's own public address from the host (a context's own base first, for a host that sets one); a bare path when the Space has none that carries web requests. */
+function webhookUrl(ctx: AutoCtx, id: string, secret: string): string { return `${(ctx.baseUrl ?? hookBase() ?? "").replace(/\/+$/, "")}/hooks/automation/${id}/${secret}`; }
 function needWebhookTrigger(ctx: AutoCtx, a: Automation): void {
   if (!a.definition.triggers.some((t) => t.key === "webhook")) raise(ctx, "validation.precondition_failed", "Add a webhook trigger first.", { reason: "no_webhook_trigger" });
 }
@@ -940,6 +952,8 @@ export async function promote(ctx: AutoCtx, input: In): Promise<unknown> {
   }
   const issues = [...validateDefinition(a.definition, readPolicy(ctx.db)), ...(await agentStepIssues(ctx, "space", a.definition))];
   if (hasErrors(issues)) raise(ctx, "validation.precondition_failed", issues.find((i) => i.severity === "error")!.message, { reason: "invalid_definition", issues });
+  // a move to the Space is a save: the mover may use every key its steps use
+  await guardKeySteps(ctx, undefined, a.definition);
   let replaced = 0;
   if (diff.keysToReplace.length) {
     const def = JSON.parse(JSON.stringify(a.definition)) as Definition;
@@ -976,6 +990,8 @@ export async function makePersonalCopy(ctx: AutoCtx, input: In): Promise<unknown
   const now = ctx.now();
   const owner = me(ctx);
   const name = typeof input.name === "string" && input.name.trim() ? input.name.trim() : `${src.name} (copy)`;
+  // a copy is a save: the copier may use every key its steps use
+  await guardKeySteps(ctx, undefined, src.definition);
   const copy: Automation = clean({
     id: newId("aut", now), name, description: src.description, kind: "personal" as const, ownerId: owner, status: "draft" as const, version: 1,
     definition: JSON.parse(JSON.stringify(src.definition)) as Definition, followers: [owner], alerts: defaultAlerts(readPolicy(ctx.db), owner), createdBy: ctx.principal.id,

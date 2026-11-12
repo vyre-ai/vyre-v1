@@ -626,6 +626,26 @@ export function openVerdict(r: OpenResult): string {
 }
 
 /** Builds a list from a list. Written as a function (not `.map`) so a list of JSX is plainly the composition of its parts. */
+/** The server says this send's key was used before (with other input, such as a changed screen): the message is already in the thread, so the "Not sent" bubble is not true and goes. */
+export function keyAlreadyUsed(e: unknown): boolean {
+  const d = (e as { details?: { reason?: unknown; cap?: unknown } } | null)?.details;
+  // only the post's own key says the message is in the thread: a file's create (an upload that ran again with a new blob) shares the send's key prefix and says nothing about the post
+  return d?.reason === "idempotency_conflict" && d.cap === "chat.post";
+}
+
+/** What a failed try does to the pending list: the message is already in the thread (the post's own key was used) and its bubble goes; any other failure leaves the bubble as "Not sent." for Retry. */
+export function afterFailure(list: readonly Pending[], key: string, e: unknown): Pending[] {
+  if (keyAlreadyUsed(e)) return list.filter((x) => x.key !== key);
+  return list.map((x) => (x.key === key ? { ...x, state: "failed" as const } : x));
+}
+
+/** The files of a send after their upload: each one that had no stored file gets the id the upload made, in order, so a retry attaches them again instead of uploading again. */
+export function withUploaded(files: readonly PendingFile[] | undefined, ids: readonly string[]): PendingFile[] | undefined {
+  if (!files) return files as undefined;
+  let i = 0;
+  return files.map((f) => (f.fileId === undefined && i < ids.length ? { ...f, fileId: ids[i++]! } : f));
+}
+
 export function collect<T, U>(list: readonly T[], fn: (item: T, index: number) => U): U[] {
   const out: U[] = [];
   for (const [i, x] of list.entries()) out.push(fn(x, i));

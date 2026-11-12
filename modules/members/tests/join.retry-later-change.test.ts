@@ -145,3 +145,17 @@ test("only a change to that one role, made after the step failed, holds a role r
   const listed = (await handlers["members.joins.list"](g.as("usr_admin"), {})).joins.find((x: { personId: string }) => x.personId === DANA);
   assert.equal(listed?.steps.find((x: { key: string }) => x.key === "role:rol_admin")?.error, "Vyre could not check this, so it left it. Give it by hand if it is still wanted.");
 });
+
+test("a role step that failed because access did not know the new person yet (nothing could be read then) is given on the retry when no one changed it since", async () => {
+  const h = harness();
+  const out = await handlers["members.invites.create"](h.as("usr_admin"), { role: "rol_admin", idempotencyKey: "k-unknown-yet" });
+  // at the accept, the access module has not folded the new person: assigning fails and reading what they hold fails too
+  h.world.failing.add("access.roles.assign:rol_admin");
+  h.world.failing.add("access.principals.get");
+  assert.equal((await handlers["members.accept"](h.anon, { code: codeFrom(out.link), ...JOIN })).personId, DANA);
+  h.world.failing.clear();
+  assert.notEqual(stepOf(h, "role:rol_admin").state, "done", "the step failed at the accept");
+  await drainJoins(h.anon, undefined, { periodic: true });
+  assert.ok(sh(h).roles.includes("rol_admin"), "the retry gives the role");
+  assert.equal(stepOf(h, "role:rol_admin").state, "done");
+});

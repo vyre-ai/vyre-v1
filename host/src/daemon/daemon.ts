@@ -73,8 +73,8 @@ const CHAT_GIVES = new Set(["threads.agent.create", "threads.members.add", "chan
 // making an agent raises only the folder's audience: its first grants to the chat's readers are the maker's own act (the agent carries no grant of the chat yet for the host to follow)
 const chatHostCall = (name: string, input: unknown, leaves: boolean, cap = ""): boolean => {
   const i = (input ?? {}) as { source?: unknown; resource?: { type?: unknown } };
-  if (String(i.source ?? "").startsWith("chat:")) return name === "access.unshare" || (!leaves && name === "access.share" && cap !== "threads.agent.create");
-  return !leaves && name === "access.audience_set" && i.resource?.type === "folder";
+  if (String(i.source ?? "").startsWith("chat:")) return name === "access.unshare" || (!leaves && (name === "access.grants.list" || (name === "access.share" && cap !== "threads.agent.create")));
+  return !leaves && name === "access.audience_set" && (i.resource?.type === "folder" || i.resource?.type === "agent");
 };
 /** Files an agent made on its computer, said in the chat the work was for: one message with a file card each (four at most, the rest counted), posted as the agent for the person it works for. */
 
@@ -113,7 +113,7 @@ import { endOfDeadJob } from "./dead-jobs.ts";
 import { loopLag } from "../scheduler/looplag.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
-import { createGateHook, moduleFetches, moduleOutward, moduleWhens, payloadHash } from "./gate-hook.ts";
+import { createGateHook, moduleFetches, moduleOutward, moduleWhens, ownAddress, payloadHash } from "./gate-hook.ts";
 import { bindPayloadHash } from "../../../lib/payload-hasher.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { FILL_PATH, createComputersFillHost, createFillRoute } from "../seams/computers.ts";
@@ -134,6 +134,9 @@ import { createModelFiles } from "../seams/memory-meaning.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { createTelemetryRecorder } from "../seams/telemetry.ts";
 import { connectorReadSender } from "../seams/connector-read.ts";
+import { createRelayHooksCheck } from "../seams/relay-hooks.ts";
+import { adoptPersonBindings, handleOfItem, keyHostListed, resolveKeyRef } from "../seams/key-ref.ts";
+import type { KeyHostCheck } from "../seams/connectors.ts";
 import { documentPin } from "../seams/document-pin.ts";
 import type { DocumentFetch } from "../seams/document-pin.ts";
 import { createConnectorsHost } from "../seams/connectors.ts";
@@ -597,6 +600,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     try { return (db?.all("SELECT state FROM network_phone WHERE id = 1")[0] as { state?: string } | undefined)?.state === "claimed"; } catch { return false; }
   };
   // every public link starts here: the address this Space was given, else the phone name it holds at the relay
+  const relayCarriesHooks = createRelayHooksCheck(fetchFn);
   const publicOrigin = (): { origin: string; relay: boolean } | null => {
     let claimed: { name?: string; state?: string } | undefined;
     try { claimed = db?.all("SELECT name, state FROM network_phone WHERE id = 1")[0] as typeof claimed; } catch { /* the table comes with the network module */ }
@@ -808,7 +812,23 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let ownerOfSpace: () => string | null = () => cfg.owner;
   let callerOf: (h: http.IncomingHttpHeaders) => Promise<{ person: string; sessionId?: string } | null> = () => Promise.resolve(null);
   const ownNode = (p: string): boolean => cfg.roles.includes("device") || p === ownerOfSpace();
-  const connectorPort=createConnectorsHost({publicBase:()=>{const address=cfg.address??`http://${cfg.host}:${boundPort}`;return /^https?:\/\//.test(address)?address:`https://${address}`;},own:caller=>ownNode(caller.actingFor??caller.principal.id),...(o.connectorNetwork?{network:o.connectorNetwork}:{})});
+  // a key goes only to a host a person approved for it: the connector port asks this before every request a call makes after a Vault fill (the read as a person is wired once invoke exists)
+  let keyHostCallAs: ((cap: string, input: unknown, person: string) => Promise<unknown>) | null = null;
+  // the update's one-time adoption of connector hosts (set once the modules are loaded, run once after the scheduler starts)
+  let adoptBindingsOnce: (() => Promise<void>) | null = null;
+  const keyHostCheck: KeyHostCheck = async (keys, host, caller) => {
+    const h = db;
+    if (!h) return "The Vault is not open, so the request was not sent.";
+    const person = caller.actingFor?.startsWith("usr_") ? caller.actingFor : caller.principal.kind === "person" ? caller.principal.id : undefined;
+    for (const k of keys) {
+      const id = k.itemId;
+      if (keyHostListed(h, id, host)) continue;
+      if (person && keyHostCallAs && await ownAddress(keyHostCallAs, person, id, host)) continue;
+      return `${handleOfItem(h, id)} is not allowed to go to ${host}. Allow it on the key's page, or change this step.`;
+    }
+    return null;
+  };
+  const connectorPort=createConnectorsHost({keyHost:(ids,host,caller,domains)=>keyHostCheck(ids,host,caller,domains),publicBase:()=>{const address=cfg.address??`http://${cfg.host}:${boundPort}`;return /^https?:\/\//.test(address)?address:`https://${address}`;},own:caller=>ownNode(caller.actingFor??caller.principal.id),...(o.connectorNetwork?{network:o.connectorNetwork}:{})});
   // Owner ruling 3 Nov (R62 amended): a Space server also holds a person's key for as long as the signed-in session that handed it over is live, so a member's own AI account runs their own turns on the
   // Space. Without a session (the local admin token) only the person's own node takes it.
   const sessionAlive = (id: string): boolean => (db ? sessionLive(db, id) : false);
@@ -1295,6 +1315,28 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         return chain;
       };
       // The Gate hook, only once the Gate module is live (a stub answers with examples, which must never decide a send). Its questions and parked calls run as the Space itself.
+      adoptBindingsOnce = async () => {
+        const h = db;
+        if (!h) return;
+        const flag = "automations.connector_hosts_adopted";
+        try { if (h.all("SELECT 1 AS x FROM automations_policy WHERE policy_key = ?", flag).length > 0) return; } catch { return; }
+        const asPerson = async (cap: string, input: unknown, person: string): Promise<unknown> => {
+          const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "gate" });
+          if (r.status !== "ok") throw new Error(`${cap} did not answer`);
+          return r.output;
+        };
+        try {
+          // every binding, read from the connectors module's own table in the Space store (its list does not carry the handles)
+          const conns = (spaceStore.open().tx.all("SELECT connection_id, connector, secrets FROM cn_connections") as { connection_id: string; connector: string; secrets: string }[]).map((r) => {
+            let handles: string[] = [];
+            try { handles = Object.values(JSON.parse(r.secrets) as Record<string, unknown>).filter((v): v is string => typeof v === "string"); } catch { handles = []; }
+            return { connectionId: r.connection_id, connector: r.connector, handles };
+          });
+          const adopted = await adoptPersonBindings({ db: h, log, connections: conns, domainsOf: async (key) => ((await system("connectors.get", { key })) as { connector?: { domains?: unknown } } | null)?.connector?.domains, isBuiltin: (key) => { try { return (spaceStore.open().tx.all("SELECT builtin FROM cn_connectors WHERE key = ?", key)[0] as { builtin?: number } | undefined)?.builtin === 1; } catch { return false; } }, liveVersion: (key) => { try { return (spaceStore.open().tx.all("SELECT version FROM cn_connectors WHERE key = ? AND state = 'live'", key)[0] as { version?: string } | undefined)?.version ?? null; } catch { return null; } }, usableBy: async (person) => ((await asPerson("vault.items.list", { limit: 500 }, person)) as { items?: { id?: unknown; handle?: unknown; yourLevel?: unknown }[] } | null)?.items ?? [], now: now() });
+          h.run("INSERT OR REPLACE INTO automations_policy (policy_key, policy_value) VALUES (?, ?)", flag, "true");
+          sink.log({ space: spaceId, level: 30, msg: "automations.connector_hosts_adopted", place: "boot", attrs: { adopted } });
+        } catch (e) { sink.log({ space: spaceId, level: 40, msg: "automations.connector_hosts_adopt_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }); }
+      };
       const gate = loaded.serving.get("gate") === "live"
         ? withGateNesting(createGateHook({
           call: async (cap, input, trace) => {
@@ -1303,7 +1345,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             return r.output;
           },
           unseal: (s) => seal.unseal(s), now,
-          evaluators: moduleWhens(loaded.moduleExports, () => db, (cap, input) => system(cap, input)),
+          evaluators: moduleWhens(loaded.moduleExports, () => db, (cap, input) => system(cap, input), keyHostCallAs = async (cap, input, person) => {
+            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "gate" });
+            if (r.status !== "ok") throw new Error(`${cap} did not answer`);
+            return r.output;
+          }, (connectionId) => {
+            try {
+              const row = spaceStore.open().tx.all("SELECT connector, secrets FROM cn_connections WHERE connection_id = ?", connectionId)[0] as { connector?: string; secrets?: string } | undefined;
+              if (!row?.connector) return null;
+              return { connector: row.connector, handles: Object.values(JSON.parse(row.secrets ?? "{}") as Record<string, unknown>).filter((v): v is string => typeof v === "string") };
+            } catch { return null; }
+          }),
           outward: moduleOutward(loaded.moduleExports), fetches: moduleFetches(loaded.moduleExports),
           threads: threadChain,
           // an uncleared Automation mark on the thread or one above it; when the table cannot be read, held only for a thread that belongs to an Automation's outside-started Run
@@ -1344,6 +1396,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           return authorize(access.snap, r);
         },
         membership: (principal, actingFor) => isMemberOrGuest(access.snap, principal) && (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
+        // an agent cut off from the Space (made in a private chat) that this caller may not view: it reads as not found (invoke.ts)
+        hidden: (resource, principal, actingFor) => {
+          if (resource.type !== "agent" || resource.id === null) return false;
+          const row = access.snap.chain(resource.id)?.[0] as { home?: string } | undefined;
+          if (row?.home === undefined) return false;
+          return authorize(access.snap, { principal, actingFor, action: { perm: null, level: "view" }, resource: { type: "agent", id: resource.id } }).effect !== "allow";
+        },
         // the read gate (Redaction for AI): every call an agent is behind hands back the redacted rendition of a file, or a refusal
         agentGate: createAgentGate({ call: (n, i) => hookRunner.call(n, i), warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "agent-read", attrs }) }),
         sourceGuard: createSourceGuard({ db: { all: (sql, ...args) => db!.all(sql, ...args) }, connectors: { all: (sql, ...args) => spaceStore.open().tx.all(sql, ...args) }, authorize: (r) => authorize(access.snap, r), space: spaceId }),
@@ -1410,18 +1469,29 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           // run as the host, and only a grant that carries this project's own source (project:<id>); the access module then lets the host write it only on the project or on a resource already carrying that source.
           // The project's own channel follows its roles the same way: putting a person or an agent in it, or taking them out, runs as the host, and only for this project's own channel (read from
           // the projects table, never from the input), so a project remove takes away everything the project gave whoever presses it, provided they may change the project's roles.
-          // projects.teammates.create is not wrapped: making a teammate shares the project's things with a new agent as the caller (who must manage the project, checked first), as it did before;
-          // run as the host, a share on a resource that carries no project grant yet is a delegation the host cannot make, and the owner's Assistant could no longer add a teammate
-          if (h && (cap === "projects.members.set" || cap === "projects.members.remove" || cap === "projects.teammates.remove")) return ((ctx, input) => {
+          // projects.teammates.create keeps its shares as the caller (who must manage the project, checked first): as the host, a share on a resource that carries no project grant yet is a
+          // delegation the host cannot make. Only its calls on the project's OWN channel run as the host, so a teammate made by the owner's Assistant (Manage on the project through its person,
+          // which does not reach the channel) is in the project's channel
+          // projects.create the same: its first members go into the channel it just made, as the host, while its shares stay the caller's
+          const sharesAsHost = cap !== "projects.teammates.create" && cap !== "projects.create";
+          if (h && (cap === "projects.members.set" || cap === "projects.members.remove" || cap === "projects.teammates.remove" || cap === "projects.teammates.create" || cap === "projects.create")) return ((ctx, input) => {
             const projectId = String((input as { projectId?: unknown } | null)?.projectId ?? "");
             const source = `project:${projectId}`;
             const own = (): string | null => { try { return (db!.all(`SELECT "channelId" FROM projects_project WHERE "projectId" = ?`, projectId)[0] as { channelId?: string | null } | undefined)?.channelId ?? null; } catch { return null; } };
+            // projects.create has no project id yet: its own channel is the one this very call makes (channels.create, answered to it)
+            const made = new Set<string>();
             const raised = (name: string, callInput: unknown): boolean => {
               const i = (callInput ?? {}) as { source?: unknown; channelId?: unknown };
-              if ((name === "access.share" || name === "access.unshare") && i.source === source) return true;
-              return CHANNEL_FOLLOWS.has(name) && typeof i.channelId === "string" && i.channelId === own();
+              if (sharesAsHost && (name === "access.share" || name === "access.unshare") && i.source === source) return true;
+              return CHANNEL_FOLLOWS.has(name) && typeof i.channelId === "string" && (made.has(i.channelId) || (projectId !== "" && i.channelId === own()));
             };
-            return h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => (raised(name, callInput) ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input);
+            const pass = ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>;
+            return h({ ...ctx, call: async (name: string, callInput: unknown, opts?: unknown) => {
+              if (raised(name, callInput)) return system(name, callInput, ctx.trace);
+              const out = await pass(name, callInput, opts);
+              if (cap === "projects.create" && name === "channels.create") { const id = (out as { channel?: { channelId?: unknown } } | null)?.channel?.channelId; if (typeof id === "string") made.add(id); }
+              return out;
+            } } as typeof ctx, input);
           }) as Handler;
           // leaving a chat or a channel, or being taken out of one, or an agent taken out: what the membership gave (grants tagged chat:<thread>, written when the person or agent came in) is taken
           // back as the host, because the person leaving may not be the one who gave them. The call itself was authorized; only access.unshare with a chat: source is widened (modules/chat/handlers/owned.ts).
@@ -1439,7 +1509,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         ...(gate ? { gate } : {}),
         personal,
         // P-H_16: an object a call creates is a resource in the same commit, so it is authorizable at once
-        resources: createResourceRegistrar({ events: registry.events, exists: (id) => access.snap.resource(id) !== undefined, resource: (id) => access.snap.resource(id) }),
+        resources: createResourceRegistrar({ events: registry.events, exists: (id) => access.snap.resource(id) !== undefined, resource: (id) => access.snap.resource(id), agentHome: (id) => homeScopeOf(db!, id)?.homeFolder ?? null }),
         principals: createPrincipalRegistrar({
           exists: (id) => access.snap.info(id) !== null,
           levelOf: (person, space) => {
@@ -2283,11 +2353,25 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         configureVault: (d) => ({ signin: createProviderSignin({ fetch: d.fetch, ...(cfg.spaceKind === "personal" ? { localSignin: (p: SigninProvider) => readLocalSignin(p) } : {}) }), refreshed: { take: (t: string, itemId: string) => signinRefresh.take(t, itemId) }, sinks: { container_env: (f: { value: string; ref: string }) => { siteSecrets.set(f.ref, { value: f.value, at: Date.now() }); }, ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode, ...(o.providerFetch ? { fetch: o.providerFetch } : {}) }), refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         setConnectorsHost: () => connectorPort,
         setDocumentNetwork: () => o.documentNetwork ?? documentPin(),
-        setConnectorReadSender: (d) => connectorReadSender(d),
+        setConnectorReadSender: (d) => connectorReadSender(d, (ref, asker) => resolveKeyRef(db!, ref, asker),
+          // at send time the asker must still be able to use the item (a Shared item read for no one: the Space's own items only, which the Vault reader allows)
+          (itemId, asker) => !asker || authorize(access.snap, { principal: asker, action: { perm: null, level: "use" }, resource: { type: "vault_item", id: itemId } }).effect === "allow"),
+        // the same reading of a key reference for the module (the held test read's card names the item a person approves)
+        setKeyRefResolver: () => (ref: unknown, asker?: string) => resolveKeyRef(db!, ref, asker),
+        setKeyUsableBy: () => async (person: string) => {
+          const ids = new Map<string, string>();
+          const r = await invoke("vault.items.list", { limit: 500 }, { space: spaceId, principal: { kind: "person", id: person }, origin: "gate" });
+          const items = r.status === "ok" ? ((r.output as { items?: { id?: unknown; handle?: unknown; yourLevel?: unknown }[] } | null)?.items ?? []) : [];
+          for (const i of items) if (typeof i.handle === "string" && typeof i.id === "string" && (i.yourLevel === "use" || i.yourLevel === "edit" || i.yourLevel === "manage")) ids.set(i.handle.toLowerCase(), i.id);
+          return ids;
+        },
+        // the web request trigger's address: the Space's own public address. A relay (vyre.run) name is not given: the relay carries only /p/* (forms and sites), never /hooks/
+        // the Space's own address carries web requests; a vyre.run name does only once the relay says it does (asked, cached)
+        setPublicBase: () => () => { const p = publicOrigin(); return p && (!p.relay || relayCarriesHooks(p.origin)) ? p.origin : null; },
         // the HTTP request step's key: the Vault fills the handle for one call through the same per-execution port connectors use (access is checked by vault.fill as the Run's principal)
         // Run code runs in bubblewrap under the data directory; where bwrap is missing the step is refused, never run in the daemon
         setCodeHost: () => ({ dataDir: paths.root }),
-        setHttpStepHost: () => ({ fill: (ctx: unknown, handle: string) => connectorPort.fill(ctx as Parameters<typeof connectorPort.fill>[0], { connector: "http_request", connectionId: "step", slot: "auth", handle }) }),
+        setHttpStepHost: () => ({ fill: (ctx: unknown, handle: string) => connectorPort.fillItem(ctx as Parameters<typeof connectorPort.fill>[0], { connector: "http_request", connectionId: "step", slot: "auth", handle }) }),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open(), space: spaceStore.space }, now }),
         ...(o.seams?.drivers ?? {}),
@@ -2860,6 +2944,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   };
   const schedulerUnit = async (): Promise<RunningUnit> => {
     await scheduler.start();
+    // the update's one-time step: a connector a person published, bound to a key by a person who may use it, keeps its hosts; nothing else is adopted, now or at request time
+    void adoptBindingsOnce?.();
     return Promise.resolve({ exited: new Promise<UnitExit>(() => {}), stop: () => scheduler.stop() });
   };
 

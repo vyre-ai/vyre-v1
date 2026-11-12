@@ -271,3 +271,18 @@ test("a failed turn that hit a usage limit says when the account is usable again
   const plain = statusView(block({ state: "failed", code: "provider.rate_limited", turnId: "t1" }));
   assert.equal((plain as { block: { data: { cause?: string } } }).block.data.cause, "Wait for it to reset, or use another account.");
 });
+
+test("engine.no_model says the chat has no model and opens the model menu; Try again would fail the same way, so there is none", async () => {
+  const { wordsFor } = await import("./status.ts");
+  const w = wordsFor("engine.no_model");
+  assert.equal(w.message, "No model is set for this chat.");
+  assert.match(w.cause ?? "", /Pick one in the chat's model menu/);
+  assert.deepEqual(w.next, [{ key: "pick_model", label: "Choose a model" }]);
+  assert.equal(w.retryable, false);
+});
+
+test("an agent the asker may no longer reach (made in a private chat they are not in, or deleted) says so plainly, and offers no retry", () => {
+  const w = wordsFor("agent_gone");
+  assert.equal(w.message, "This agent is no longer available to you.");
+  assert.equal(w.retryable, false);
+});

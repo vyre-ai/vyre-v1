@@ -50,8 +50,10 @@ export function NoticeSlot({ store = shared, compact = false }: { store?: Notice
     return (
       <View style={st.wrapCompact}>
         <Pressable role="button" aria-label={v.top ? `Notifications: ${v.top.text}` : "Notifications"} testID="notice-bell" onPress={toggle} style={st.bell}>
-          <ShellIcon name={v.hasLocked ? "lock" : "bell"} size={16} color={v.top ? "var(--ink-2)" : "var(--ink-3)"} />
-          {v.top ? <View testID="notice-dot" style={st.dot} /> : null}
+          {/* a dot alone does not say a message may not send: while the connection notice is up the bar says it in a word */}
+          {v.top?.kind === "offline" ? <ShellIcon name="cloudOff" size={14} color="var(--ink-2)" /> : <ShellIcon name={v.hasLocked ? "lock" : "bell"} size={16} color={v.top ? "var(--ink-2)" : "var(--ink-3)"} />}
+          {v.top?.kind === "offline" ? <Text testID="notice-word" style={st.word} numberOfLines={1}>{v.top.text.split(",")[0]}</Text> : null}
+          {v.top && v.top.kind !== "offline" ? <View testID="notice-dot" style={st.dot} /> : null}
         </Pressable>
         {open ? <Pressable accessible={false} style={st.backdrop} onPress={() => setOpen(false)} /> : null}
         {popover}
@@ -85,7 +87,8 @@ const st = StyleSheet.create({
   more: { fontSize: 11.5, color: "var(--ink-3)" as string },
   act: { paddingHorizontal: 7, height: 20, borderRadius: RADIUS, justifyContent: "center" },
   actText: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },
-  bell: { width: 30, height: 26, alignItems: "center", justifyContent: "center", borderRadius: RADIUS },
+  bell: { minWidth: 30, height: 26, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: RADIUS, paddingHorizontal: 4 },
+  word: { fontSize: 12, color: "var(--ink-2)" as string, marginLeft: 5 },
   dot: { position: "absolute", top: 4, right: 6, width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--accent)" as string },
   backdrop: { position: "fixed" as unknown as "absolute", left: 0, right: 0, top: 0, bottom: 0, zIndex: 70 },
   popover: { position: "absolute", top: 30, left: 0, zIndex: 80, minWidth: 340, padding: 10, gap: 8, borderRadius: 12, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string, boxShadow: "var(--sh-pop)" as string },

@@ -7,13 +7,17 @@ export const offersAutomations = (kind: ItemKind): boolean => OFFERS.has(kind);
 
 const SAFE_APP = "this app";
 const SECRET_SHAPE = /(sk|pk|rk|ghp|gho|xox[abprs]|eyJ|AKIA|AIza)[-_A-Za-z0-9]{8,}/;
+const KEY_WORD = /\s+(?:api[\s_-]*keys?|api[\s_-]*tokens?|access[\s_-]*tokens?|keys?|tokens?|secrets?|credentials?)$/i;
 
 /** The item name as an app name. A name that looks like a pasted key is not repeated. */
 export function appNameOf(name: string): string {
   const trimmed = name.trim().replace(/\s+/g, " ");
   if (trimmed === "") return SAFE_APP;
   if (SECRET_SHAPE.test(trimmed.replace(/\s+/g, ""))) return SAFE_APP;
-  return trimmed.length > 60 ? `${trimmed.slice(0, 60).trim()}` : trimmed;
+  // "Notely API key" names the key; the app is Notely. A name that is only the key word stays as it is.
+  const cut = trimmed.replace(KEY_WORD, "").trim();
+  const app = cut === "" || /^(?:api|access)$/i.test(cut) ? trimmed : cut;
+  return app.length > 60 ? `${app.slice(0, 60).trim()}` : app;
 }
 
 /** The first message of the session. The skill carries the how; this carries only who and which handle. */
@@ -59,7 +63,7 @@ export const GATE_TEXT: Readonly<Record<Exclude<Gate["state"], "ready">, { text:
   asked: { text: "An admin has been asked. This turns on when they allow it.", fix: "Check again" },
 };
 
-export interface UsedBy { automationId: string; name: string; status: string; steps: { nodeId: string; title: string }[] }
+export interface UsedBy { automationId: string; name: string; status: string; steps: { nodeId: string; title: string; blocked?: string }[] }
 
 /** The reply of automations.vault_usage for one item, as the rows to draw. Anything else is no rows. */
 export function usedByOf(out: unknown): UsedBy[] {
@@ -74,7 +78,7 @@ export function usedByOf(out: unknown): UsedBy[] {
       if (!r || typeof r["automationId"] !== "string" || typeof r["name"] !== "string") continue;
       const steps = Array.isArray(r["steps"]) ? (r["steps"] as unknown[]).flatMap((x) => {
         const st = x as Record<string, unknown> | null;
-        return st && typeof st["nodeId"] === "string" && typeof st["title"] === "string" ? [{ nodeId: st["nodeId"], title: st["title"] }] : [];
+        return st && typeof st["nodeId"] === "string" && typeof st["title"] === "string" ? [{ nodeId: st["nodeId"], title: st["title"], ...(typeof st["blocked"] === "string" ? { blocked: st["blocked"] } : {}) }] : [];
       }) : [];
       rows.push({ automationId: r["automationId"], name: r["name"], status: typeof r["status"] === "string" ? r["status"] : "draft", steps });
     }
@@ -83,3 +87,27 @@ export function usedByOf(out: unknown): UsedBy[] {
 }
 
 export const stepsLine = (n: number): string => (n === 1 ? "1 step" : `${n} steps`);
+
+/** How many Automations the person cannot open also use the item (vault_usage gives a count for one item they can see, never names). */
+export function hiddenOf(out: unknown): number {
+  const uses = (out as { uses?: unknown } | null)?.uses;
+  if (!Array.isArray(uses)) return 0;
+  return uses.reduce((n: number, u) => { const h = (u as { hidden?: unknown } | null)?.hidden; return n + (typeof h === "number" && h > 0 ? h : 0); }, 0);
+}
+
+/** The Trash confirm: who stops working, named where the person can open them and counted where they cannot. */
+export function trashLine(item: { name: string; handle: string }, names: readonly string[], hidden: number): string {
+  const n = names.length + hidden;
+  if (n === 0) return `Move ${item.name} to Trash? Agents and Automations that ask for ${item.handle} lose it until you bring it back.`;
+  const shown = names.slice(0, 3);
+  const parts = [...shown, ...(names.length > shown.length ? [`${names.length - shown.length} more`] : []), ...(hidden > 0 ? [`${hidden} you cannot open`] : [])];
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0]!;
+  return `Move ${item.name} to Trash? ${n === 1 ? "1 automation uses" : `${n} automations use`} this key: ${list}. ${n === 1 ? "It" : "They"} will fail until it is restored or replaced. Agents that ask for ${item.handle} lose it too.`;
+}
+
+/** The short note a Used in row shows when one of its steps may no longer send the key to its host ("Not allowed to go to api.example.com"). */
+export function blockedNote(u: UsedBy): string | undefined {
+  const b = u.steps.find((s) => s.blocked)?.blocked;
+  const host = b ? /go to (\S+?)\.(?:\s|$)/.exec(b)?.[1] : undefined;
+  return b ? (host ? `Not allowed to go to ${host}` : "A step may no longer use this key") : undefined;
+}

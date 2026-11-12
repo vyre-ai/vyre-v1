@@ -6,7 +6,7 @@ import { openingTitle } from "./data.ts";
 
 test("Add to Automations and Build a connector openings have their titles; other messages have none", () => {
   assert.equal(openingTitle(connectorOpening({ name: "Resend", handle: "#Resend" })), "Add Resend to Automations");
-  assert.equal(openingTitle(connectorOpening({ name: "Northwind Lawmatics key", handle: "#Nw_Law" })), "Add Northwind Lawmatics key to Automations");
+  assert.equal(openingTitle(connectorOpening({ name: "Northwind Lawmatics key", handle: "#Nw_Law" })), "Add Northwind Lawmatics to Automations");
   assert.equal(openingTitle(BUILD_CONNECTOR_OPENING), "Build a connector");
   assert.equal(openingTitle("Hello there"), undefined);
 });

@@ -27,3 +27,7 @@
 - A move of an older desktop that stops to try again is now counted as waiting, and its row keeps the reason in words.
 - The Space browser image build now fails when its bridge module is a link instead of a real file, and a move that cannot start the Space browser says so in plain words.
 - The app now says "Reconnecting…" in the top bar within about 1.5 seconds of losing the server (and "Offline" only when this device has no network), and the line goes away by itself when the server is back.
+- On a phone the top bar says "Reconnecting…" in a word while the server is unreachable, a "Not sent" message whose key the server already has resolves to sent, and a shell that cannot tell if the device has a network says "Reconnecting…" rather than "Offline".
+- A message with a large file that fails to send keeps its uploaded file for Retry, and its "Not sent" bubble only goes when the server says the message itself was already sent.
+- The Watch sheet in Vyre for Chrome no longer shows a greyed Agent computer option or says an agent has no computer; and the Settings computer row says what the Computer tab knows instead of always claiming a terminal and a browser.
+- A message with several large files that fails part way keeps the files already stored, attaches them in the order they were picked on Retry, and uploads nothing twice.

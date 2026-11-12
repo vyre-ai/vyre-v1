@@ -167,6 +167,8 @@ export interface InvokeDeps {
   validateEvent?(name: string, payload: unknown): string[];
   /** kernel authorize bound to the Space's access snapshot */
   authorize(req: AuthReq): KernelDecision;
+  /** True when a refused resource is one this caller may not even know of (an agent a private chat made, cut off from the Space, that they cannot view): the refusal reads as not found */
+  hidden?(resource: { type: string; id: string | null }, principal: string, actingFor: string | undefined): boolean;
   /** Is this person (or the person an agent acts for) a member or guest of the Space: any role or any grant. Needed by capabilities at level 'member' (ruling 69); without it they fall back to view on the Space. */
   membership?(principal: string, actingFor?: string): boolean;
   handler(cap: string, v: number): Handler | undefined;
@@ -404,7 +406,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       try { resource = resolveResource(c, input, seed.space, resolveFor, seed.principal); }
       catch (e) {
         // a Vault name or handle that names nothing the caller may use reads the same as one that does not exist, in words a person or an agent can act on
-        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...((c.resource as { self?: string }).self === "agent" && e.message === "the id is missing" ? { message: seed.forAgent !== undefined ? OUTSIDE_AGENT_LINE : SELF_BINDING_LINE } : {}), ...(e.message === "no such item" ? { message: NO_SUCH_ITEM } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
+        // the line names the handle the caller wrote (their own input, never a value), so a failed Run says which key to bring back
+        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...((c.resource as { self?: string }).self === "agent" && e.message === "the id is missing" ? { message: seed.forAgent !== undefined ? OUTSIDE_AGENT_LINE : SELF_BINDING_LINE } : {}), ...(e.message === "no such item" ? { message: missingItemLine(input, e.pointer) } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
         throw e;
       }
       if (resource && deps.ensureResource) await deps.ensureResource(resource);
@@ -471,6 +474,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       }
       if (d.effect === "deny") {
         await deps.audit?.(audit("deny", d.reason));
+        // an agent a private chat made reads, to anyone who may not view it, exactly like an agent that does not exist (owner decision, 12 Nov 2026): the agents module's own answer for an agent
+        // that is gone, "That agent does not exist.", which chat.start, a mention and a task assignee already refuse on
+        if (resource !== null && resource.type === "agent" && deps.hidden?.(resource, seed.principal.id, seed.actingFor)) throw fail("validation.not_found", traceId, { message: "That agent does not exist." });
         const code = codeForReason(d.reason);
         // an agent stopped at a folder or a file its person may be able to share: the refusal names the press, so the person gets it in Needs you
         const askShare = d.reason === "no_grant" && seed.principal.kind === "agent" && seed.actingFor !== undefined && resource !== null && (resource.type === "folder" || resource.type === "file");
@@ -539,7 +545,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     }
     // P-H_16: every object this call created becomes a resource in the same commit, so it is authorizable at once (one place for every module)
     if (deps.resources && events.length) {
-      for (const row of deps.resources.register({ cap: c, input, space: seed.space, owner: seed.actingFor ?? seed.principal.id, events })) {
+      for (const row of deps.resources.register({ cap: c, input, space: seed.space, owner: seed.actingFor ?? seed.principal.id, principal: seed.principal, events })) {
         events.push(envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth) as EventEnvelope);
         // An agent that makes a record type for the person it acts for holds Manage on it (the person owns it): it needs to set who the type is open to as part of the same work. Only a record type, only
         // an agent acting for a person. This adds no power beyond the person: every call the agent makes still takes the lower of its grants and its asker's access.
@@ -687,3 +693,16 @@ function withNote(targets: AuditTarget[] | undefined, note: { where: string; tar
 function fellBackNote(note: { where: string; targets: AuditTarget[] } | undefined, computerId: string | undefined): { where: string; targets: AuditTarget[] } | undefined {
   return note && computerId && note.where.startsWith("browser:") ? { ...note, where: `computer:${computerId}` } : note;
 }
+/** The person's line for a Vault name that names nothing they may use. The name is read back from the input at the pointer the binder gave, only when it is shaped like a handle. */
+export function missingItemLine(input: unknown, pointer: string): string {
+  let at: unknown = input;
+  for (const part of pointer.split("/").slice(1)) {
+    const k = part.replace(/~1/g, "/").replace(/~0/g, "~");
+    at = at !== null && typeof at === "object" ? (at as Record<string, unknown>)[k] : undefined;
+  }
+  const name = typeof at === "string" ? at.trim().split(".")[0] ?? "" : "";
+  return /^#[A-Za-z0-9_]{1,80}$/.test(name)
+    ? `There is no Vault item ${name} that you can use. Check it is still in the Vault, or ask for the key.`
+    : "There is no Vault item by that name that you can use. Check the name, or ask for the key.";
+}
+

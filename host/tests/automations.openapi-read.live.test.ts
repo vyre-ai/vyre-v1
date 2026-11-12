@@ -44,7 +44,8 @@ test("a pasted OpenAPI document drafts actions and a safe read marks one tested"
       },
     }),
     fetch: caddyFetch,
-    seams: { vaultSinks: { env: () => undefined }, fetch: seamFetch },
+    // names resolve without the outside DNS (a safe read checks its host is public first)
+    seams: { vaultSinks: { env: () => undefined }, fetch: seamFetch, drivers: { setDocumentNetwork: () => ({ lookup: async () => ["93.184.216.34"], fetch: async () => { throw new Error("not used"); } }) } },
     session: (h) => {
       const token = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
       return token === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "exec-live" } : null;

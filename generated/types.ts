@@ -3207,6 +3207,72 @@ export type AutomationsHttpSendOut = {
   headers: Record<string, string>;
   body: unknown;
 };
+export type AutomationsKeyHostsAllowIn = {
+  vaultItemId: string;
+  host: string;
+};
+export type AutomationsKeyHostsAllowOut = {
+  hosts: Array<{
+      host: string;
+      by: string;
+      at: number;
+    }>;
+};
+export type AutomationsKeyHostsListIn = {
+  itemId: string;
+};
+export type AutomationsKeyHostsListOut = {
+  hosts: Array<{
+      host: string;
+      by: string;
+      at: number;
+      usedBy: Array<string>;
+      hidden?: number;
+    }>;
+};
+export type AutomationsKeyHostsPendingIn = {
+  method?: string;
+  path: string;
+  domains: Array<string>;
+  vaultItemId: string;
+  header?: string;
+  prefix?: string;
+  actionKey?: string;
+  markedSafe?: boolean;
+};
+export type AutomationsKeyHostsPendingOut = {
+  found: boolean;
+  itemId?: string;
+  handle?: string;
+  name?: string;
+  host?: string;
+};
+export type AutomationsKeyHostsPendingBindIn = {
+  connector?: string;
+  secrets?: Record<string, string>;
+  connectionId?: string;
+  slot?: string;
+  handle?: string;
+  title?: string;
+  ownerKind?: string;
+  scopes?: Array<string>;
+};
+export type AutomationsKeyHostsPendingBindOut = {
+  found: boolean;
+  items: Array<{
+      itemId: string;
+      handle: string;
+      name: string;
+    }>;
+  hosts: Array<string>;
+};
+export type AutomationsKeyHostsRemoveIn = {
+  itemId: string;
+  host: string;
+};
+export type AutomationsKeyHostsRemoveOut = {
+  removed: boolean;
+};
 export type AutomationsListIn = {
   section?: "personal" | "shared" | "space";
   folder?: string;
@@ -4722,8 +4788,10 @@ export type AutomationsVaultUsageOut = {
           steps: Array<{
               nodeId: string;
               title: string;
+              blocked?: string;
             }>;
         }>;
+      hidden?: number;
     }>;
 };
 export type AutomationsVersionsIn = {
@@ -45071,6 +45139,11 @@ export interface CapMap {
   "automations.groups.rename": { in: AutomationsGroupsRenameIn; out: AutomationsGroupsRenameOut };
   "automations.http_read": { in: AutomationsHttpReadIn; out: AutomationsHttpReadOut };
   "automations.http_send": { in: AutomationsHttpSendIn; out: AutomationsHttpSendOut };
+  "automations.key_hosts.allow": { in: AutomationsKeyHostsAllowIn; out: AutomationsKeyHostsAllowOut };
+  "automations.key_hosts.list": { in: AutomationsKeyHostsListIn; out: AutomationsKeyHostsListOut };
+  "automations.key_hosts.pending": { in: AutomationsKeyHostsPendingIn; out: AutomationsKeyHostsPendingOut };
+  "automations.key_hosts.pending_bind": { in: AutomationsKeyHostsPendingBindIn; out: AutomationsKeyHostsPendingBindOut };
+  "automations.key_hosts.remove": { in: AutomationsKeyHostsRemoveIn; out: AutomationsKeyHostsRemoveOut };
   "automations.list": { in: AutomationsListIn; out: AutomationsListOut };
   "automations.make_personal_copy": { in: AutomationsMakePersonalCopyIn; out: AutomationsMakePersonalCopyOut };
   "automations.migrate_runs": { in: AutomationsMigrateRunsIn; out: AutomationsMigrateRunsOut };

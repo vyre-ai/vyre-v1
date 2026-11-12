@@ -1,0 +1,29 @@
+// A Vault item an Automation uses goes to Trash: the next Run fails on that step with a line that names the item, so a person knows which key to bring back, and the line holds no value.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { bootCore } from "../../fixtures/seed/core/index.ts";
+import { boot, dump, keyed, noSecret, ok, promoted, seededDir, until } from "./automations-http-rig.ts";
+import type { Seen, StepRow } from "./automations-http-rig.ts";
+
+test("a Run whose Vault item is in Trash fails with a line that names the item", async () => {
+  const seen: Seen[] = [];
+  const d = await boot(seededDir(bootCore), seen);
+  try {
+    const handle = await keyed(d);
+    const id = await promoted(d, "missing-key", "Read items", [{ id: "look", key: "http_request", title: "Read items", input: { method: "GET", url: "https://api.example.com/v1/items", auth: { kind: "bearer", handle } } }]);
+    const items = (await ok(d, "/v1/vault/items/list", {}))["items"] as { id: string; name?: string }[];
+    await ok(d, "/v1/vault/item/delete", { itemId: items.find((i) => i.name === "Acme")!.id });
+    const runId = String((await ok(d, "/v1/automations/run", { automationId: id, idempotencyKey: "missing-key-run" }))["runId"]);
+    await until("the run to fail", 12_000, async () => {
+      const run = (await ok(d, "/v1/runs/get", { runId }))["run"] as { status?: string };
+      if (run.status === "succeeded") assert.fail(`the run succeeded without its key: ${await dump(d, runId, id)}`);
+      return run.status === "failed" ? true : undefined;
+    });
+    const steps = (await ok(d, "/v1/runs/steps", { runId }))["steps"] as StepRow[];
+    const look = steps.find((s) => s.step === "look");
+    assert.equal(look?.state, "failed");
+    assert.match(String(look?.error?.message), new RegExp(`${handle.split(".")[0]}\\b`), `the line names the item: ${JSON.stringify(look)}`);
+    assert.equal(seen.length, 0, "nothing was sent without the key");
+    noSecret(await dump(d, runId, id), "the failed run");
+  } finally { await d.stop(); }
+});

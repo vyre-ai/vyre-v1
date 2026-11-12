@@ -6,7 +6,10 @@ import { httpRead, httpSend, setHttpStepHost } from "../handlers/http-step.ts";
 import type { AutoCtx } from "../projections.ts";
 import type { FetchDeps } from "../public-fetch.ts";
 
-const ctx = { trace: { traceId: "trc_1" } } as AutoCtx;
+// the approved-host table: vit_1 may go to api.example.com (the item the fake Vault fills unless a test says otherwise)
+const approved: Record<string, string[]> = { vit_1: ["api.example.com"] };
+const db = { all: (_sql: string, id: unknown) => (approved[String(id)] ?? []).map((host) => ({ host, by: "usr_a", at: 1 })), run: () => undefined, get: () => undefined };
+const ctx = { trace: { traceId: "trc_1" }, db } as unknown as AutoCtx;
 const SECRET = "sk-live-0123456789abcdef";
 
 interface Seen { url: string; method: string; headers: Record<string, string>; body?: string }
@@ -70,7 +73,7 @@ test("a redirect to a private address is refused and the second request is never
 
 test("a GET follows a public redirect, and a header with a login is dropped when the redirect leaves the origin", async () => {
   const seen: Seen[] = [];
-  setHttpStepHost({ fill: async () => SECRET });
+  setHttpStepHost({ fill: async () => ({ value: SECRET, itemId: "vit_1" }) });
   setDocumentNetwork(network((r) => (r.url.startsWith("https://api.example.com/") ? new Response(null, { status: 302, headers: { location: "https://cdn.other.example/file" } }) : new Response("done")), seen));
   const out = await httpRead(ctx, { method: "GET", url: "https://api.example.com/go", auth: { kind: "bearer", handle: "#Acme_API" } }) as Record<string, unknown>;
   assert.equal(out["body"], "done");
@@ -107,7 +110,7 @@ test("each capability takes only its own methods", async () => {
 test("bearer, basic and named-header auth put the filled value in one header", async () => {
   const seen: Seen[] = [];
   const asked: string[] = [];
-  setHttpStepHost({ fill: async (_c, handle) => { asked.push(handle); return SECRET; } });
+  setHttpStepHost({ fill: async (_c, handle) => { asked.push(handle); return { value: SECRET, itemId: "vit_1" }; } });
   setDocumentNetwork(network(() => new Response("ok"), seen));
   await httpRead(ctx, { method: "GET", url: "https://api.example.com/a", auth: { kind: "bearer", handle: "#Acme_API" } });
   await httpRead(ctx, { method: "GET", url: "https://api.example.com/b", auth: { kind: "basic", handle: "#Acme_API.password", username: "dana" } });
@@ -119,7 +122,7 @@ test("bearer, basic and named-header auth put the filled value in one header", a
 });
 
 test("a secret never comes back: a response that echoes it is scrubbed in the body and the headers, and login headers are dropped", async () => {
-  setHttpStepHost({ fill: async () => SECRET });
+  setHttpStepHost({ fill: async () => ({ value: SECRET, itemId: "vit_1" }) });
   setDocumentNetwork(network((r) => new Response(JSON.stringify({ seen: r.headers["authorization"], note: `key ${SECRET}` }), {
     headers: { "content-type": "application/json", "x-echo": SECRET, "set-cookie": "sid=abc", "www-authenticate": "Bearer" },
   }), []));
@@ -127,13 +130,13 @@ test("a secret never comes back: a response that echoes it is scrubbed in the bo
   const text = JSON.stringify(out);
   assert.equal(text.includes(SECRET), false, text);
   assert.equal(text.includes("sid=abc"), false);
-  assert.deepEqual((out as { body: unknown }).body, { seen: "Bearer [hidden]", note: "key [hidden]" });
+  assert.deepEqual((out as { body: unknown }).body, { seen: "[hidden]", note: "key [hidden]" });
   assert.equal((out as { headers: Record<string, string> }).headers["x-echo"], "[hidden]");
   assert.equal("set-cookie" in (out as { headers: Record<string, string> }).headers, false);
 });
 
 test("a failed request never carries the secret in its error", async () => {
-  setHttpStepHost({ fill: async () => SECRET });
+  setHttpStepHost({ fill: async () => ({ value: SECRET, itemId: "vit_1" }) });
   setDocumentNetwork({ ...network(() => new Response("x"), []), connect: async () => { throw new Error(`boom ${SECRET}`); } });
   const m = await message(httpRead(ctx, { method: "GET", url: "https://api.example.com/x", auth: { kind: "bearer", handle: "#Acme_API" } }));
   assert.equal(m.includes(SECRET), false);
@@ -144,11 +147,11 @@ test("auth with no Vault, a bad handle, a missing user name or an empty value is
   setDocumentNetwork(network(() => new Response("x"), []));
   const base = { method: "GET", url: "https://api.example.com/" };
   assert.equal(await code(httpRead(ctx, { ...base, auth: { kind: "bearer", handle: "#Acme_API" } })), "validation.precondition_failed", "the host cannot fill");
-  setHttpStepHost({ fill: async () => SECRET });
+  setHttpStepHost({ fill: async () => ({ value: SECRET, itemId: "vit_1" }) });
   assert.equal(await code(httpRead(ctx, { ...base, auth: { kind: "bearer", handle: SECRET } })), "validation.bad_input", "a pasted value is not a handle");
   assert.equal(await code(httpRead(ctx, { ...base, auth: { kind: "basic", handle: "#Acme_API" } })), "validation.bad_input");
   assert.equal(await code(httpRead(ctx, { ...base, auth: { kind: "header", handle: "#Acme_API", header: "host" } })), "validation.bad_input");
-  setHttpStepHost({ fill: async () => "" });
+  setHttpStepHost({ fill: async () => ({ value: "", itemId: "vit_1" }) });
   assert.equal(await code(httpRead(ctx, { ...base, auth: { kind: "bearer", handle: "#Acme_API" } })), "validation.precondition_failed");
 });
 
@@ -190,4 +193,34 @@ test("HEAD returns the status and headers and no body", async () => {
   setDocumentNetwork(network(() => new Response(null, { status: 200, headers: { etag: "abc" } }), []));
   const out = await httpRead(ctx, { method: "HEAD", url: "https://api.example.com/a" }) as Record<string, unknown>;
   assert.deepEqual([out["status"], out["body"], (out["headers"] as Record<string, string>)["etag"]], [200, null, "abc"]);
+});
+
+test("the step checks the item the Vault filled, not the one it expected, and sends nothing it cannot check", async () => {
+  const seen: Seen[] = [];
+  setDocumentNetwork(network(() => new Response("{}", { status: 200 }), seen));
+  const req = { method: "GET", url: "https://api.example.com/v1/items", auth: { kind: "bearer", handle: "#Acme_API" } };
+  // a different item filled under the same handle (a Mine item beside the Shared one): it is not approved for this host
+  setHttpStepHost({ fill: async () => ({ value: SECRET, itemId: "vit_2" }) });
+  assert.match(await message(httpRead(ctx, req)), /allowed to go to api\.example\.com/);
+  // a fill that cannot name its item
+  setHttpStepHost({ fill: async () => ({ value: SECRET }) as never });
+  assert.equal(await code(httpRead(ctx, req)), "permission.no_grant");
+  // no table to check against
+  setHttpStepHost({ fill: async () => ({ value: SECRET, itemId: "vit_1" }) });
+  assert.equal(await code(httpRead({ trace: { traceId: "trc_2" } } as AutoCtx, req)), "permission.no_grant");
+  assert.equal(seen.length, 0, "nothing went out");
+});
+
+test("an app that echoes the key base64'd, as base64 of user:key, or URL-encoded gets it scrubbed", async () => {
+  const seen: Seen[] = [];
+  const b64 = Buffer.from(SECRET).toString("base64");
+  const basic = Buffer.from(`ana:${SECRET}`).toString("base64");
+  const url = encodeURIComponent(SECRET + "/x");
+  setDocumentNetwork(network(() => new Response(JSON.stringify({ a: b64, b: basic, c: url }), { status: 200, headers: { "content-type": "application/json", "x-echo": b64 } }), seen));
+  setHttpStepHost({ fill: async () => ({ value: SECRET + "/x", itemId: "vit_1" }) });
+  const out = JSON.stringify(await httpRead(ctx, { method: "GET", url: "https://api.example.com/v1/items", auth: { kind: "header", header: "X-Api-Key", handle: "#Acme_API" } }));
+  assert.ok(!out.includes(url), out);
+  setHttpStepHost({ fill: async () => ({ value: SECRET, itemId: "vit_1" }) });
+  const out2 = JSON.stringify(await httpRead(ctx, { method: "GET", url: "https://api.example.com/v1/items", auth: { kind: "basic", username: "ana", handle: "#Acme_API" } }));
+  for (const form of [b64, basic]) assert.ok(!out2.includes(form), `${form} in ${out2}`);
 });
