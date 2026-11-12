@@ -37,16 +37,15 @@ test("GATE Team Space on the Space AI key only: a member with no AI account asks
     const mine = (await call("agents.list", {}, mtoken)).agents as Array<{ agentId: string; name: string }>; const asst = mine[0]!; agents.push(asst.agentId);
     await call("agents.update", { agentId: asst.agentId, patch: { model: GATE_MODEL } }, mtoken, false);
     const home = (await call("channels.home", {}, mtoken)).channel as { channelId: string; mainThreadId: string };
-    const added = await call("channels.agents.add", { channelId: home.channelId, agentId: asst.agentId, mode: "listen" }, mtoken, false); console.log(`GATE SPACEKEY adding the member's Assistant to #vyre as the member: ${JSON.stringify(added).slice(0, 220)}`);
-    if (!JSON.stringify(added).includes("channel")) { const viaOwner = await call("channels.agents.add", { channelId: home.channelId, agentId: asst.agentId, mode: "listen" }, otoken, false); console.log(`GATE SPACEKEY adding it as the owner: ${JSON.stringify(viaOwner).slice(0, 220)}`); }
+    const added = await call("channels.agents.add", { channelId: home.channelId, agentId: asst.agentId, mode: "listen" }, otoken, false); console.log(`GATE SPACEKEY owner adds the member's Assistant to #vyre: ${JSON.stringify(added).slice(0, 160)}`);
     const ask = async (label: string, threadId: string, text: string, mention: boolean): Promise<void> => {
       const t0 = Date.now();
       await call("chat.post", { threadId, body: text, ...(mention ? { mentions: [{ kind: "agent", id: asst.agentId }] } : {}) }, mtoken, false);
-      let state = ""; let err = "";
-      for (let i = 0; i < 300; i++) { const t = ((await call("engine.turns.list", { threadId }, mtoken, false)).turns ?? []) as Array<{ state: string; startedAt?: number; error?: { code?: string; message?: string } }>; const mine2 = t.filter((x) => (x.startedAt ?? 0) >= t0 - 1000)[0]; state = mine2?.state ?? "none yet"; err = mine2?.error ? `${mine2.error.code}: ${mine2.error.message}` : ""; if (mine2 && mine2.state !== "running" && mine2.state !== "queued") break; await new Promise((r) => setTimeout(r, 600)); }
+      let state = ""; let err = ""; let modelRow = "";
+      for (let i = 0; i < 300; i++) { const t = ((await call("engine.turns.list", { threadId }, mtoken, false)).turns ?? []) as Array<{ state: string; startedAt?: number; error?: { code?: string; message?: string } }>; const mine2 = (t as Array<{ state: string; startedAt?: number; model?: string; error?: { code?: string; message?: string } }>).filter((x) => (x.startedAt ?? 0) >= t0 - 1000)[0]; state = mine2?.state ?? "none yet"; modelRow = mine2?.model ?? ""; err = mine2?.error ? `${mine2.error.code}: ${mine2.error.message}` : ""; if (mine2 && mine2.state !== "running" && mine2.state !== "queued") break; await new Promise((r) => setTimeout(r, 600)); }
       await mp.waitForTimeout(1500); await mp.screenshot({ path: path.join(shots, `${label}.png`) });
       const b = await body(mp); const tail = b.slice(Math.max(0, b.lastIndexOf(text.slice(0, 18))), b.lastIndexOf(text.slice(0, 18)) + 500);
-      console.log(`GATE SPACEKEY ${label}: turn ${state} after ${Date.now() - t0} ms${err ? ` error ${err}` : ""}; what the member sees: ${tail}`);
+      console.log(`GATE SPACEKEY ${label}: turn ${state} after ${Date.now() - t0} ms, turn row model "${modelRow}", "deepseek" shown on the member's screen: ${/deepseek/i.test(await body(mp))}${err ? ` error ${err}` : ""}; what the member sees: ${tail}`);
       if (state !== "completed") failures.push(`${label}: ${state} ${err}`);
     };
     const priv = (await call("chat.start", { kind: "chat", agentIds: [asst.agentId], title: "member private" }, mtoken)).thread.threadId as string;

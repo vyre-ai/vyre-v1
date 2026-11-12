@@ -27,8 +27,8 @@ test("GATE Allow: six trials, one Allow resumes the held turn once", { skip: gat
     const call = async (cap: string, data: unknown = {}): Promise<any> => { const r = await ctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token}` }, data: { idempotencyKey: `a-${Math.random()}`, ...(data as object) } }); const j = (await r.json().catch(() => ({}))) as any; if (r.status() !== 200) throw new Error(`${cap}: ${r.status()} ${JSON.stringify(j).replaceAll(REAL_KEY, "***").slice(0, 200)}`); return j.data; };   // eslint-disable-line @typescript-eslint/no-explicit-any
     await addAi(call);
     agentId = (await call("agents.list")).agents[0].agentId as string; await call("agents.update", { agentId, patch: { model: GATE_MODEL } });
-    const thread = (await call("chat.start", { kind: "chat", agentIds: [agentId], title: "allow trials" })).thread.threadId as string;
-    await page.goto(`${web.origin}/chats`, { waitUntil: "load" }); await page.getByTestId("shell").waitFor({ timeout: 30_000 }); await page.getByText("allow trials", { exact: true }).first().click().catch(() => undefined); await page.waitForTimeout(1500);
+    let thread = "";
+    const freshChat = async (n: number): Promise<void> => { thread = (await call("chat.start", { kind: "chat", agentIds: [agentId], title: `allow trial ${n}` })).thread.threadId as string; await page.goto(`${web.origin}/chats`, { waitUntil: "load" }); await page.getByTestId("shell").waitFor({ timeout: 30_000 }); await page.getByText(`allow trial ${n}`, { exact: true }).first().click().catch(() => undefined); await page.waitForTimeout(1500); };
     type T = { state: string; startedAt?: number };
     const turns = async (): Promise<T[]> => ((await call("engine.turns.list", { threadId: thread })).turns ?? []);
     const replies = async (): Promise<number> => ((await call("chat.messages.list", { threadId: thread })).messages as Array<{ author: { kind: string }; body: string }>).filter((m) => m.author.kind === "agent" && m.body.trim() !== "").length;
@@ -37,6 +37,7 @@ test("GATE Allow: six trials, one Allow resumes the held turn once", { skip: gat
     const results: string[] = [];
     for (let n = process.env["GATE_ALLOW_SLOW_ONLY"] ? 4 : 1; n <= 6; n++) {
       const fast = n <= 3;
+      if (!(process.env["GATE_ALLOW_SAME_CHAT"] === "1" && thread !== "")) await freshChat(n);
       const r0 = await replies(); const tAsk = Date.now();
       await call("chat.post", { threadId: thread, body: `Run exactly this one command in the terminal and then tell me what happened: echo run >> ~/runs-${n}.log; mkdir -p ~/scratch-${n} && echo x > ~/scratch-${n}/f && rm -rf ~/scratch-${n}; echo removed-${n}`, mentions: [{ kind: "agent", id: agentId }] });
       let cardAt = -1; for (let i = 0; i < 600 && cardAt < 0; i++) { if (await allowBtn.count()) cardAt = Date.now() - tAsk; else await page.waitForTimeout(100); }
@@ -45,8 +46,11 @@ test("GATE Allow: six trials, one Allow resumes the held turn once", { skip: gat
       await page.screenshot({ path: path.join(shots, `t${n}-card.png`) });
       if (!fast) await page.waitForTimeout(10_000 - (Date.now() - tCard) > 0 ? 10_000 - (Date.now() - tCard) : 0); else await page.waitForTimeout(300);
       const cardsBefore = await allowBtn.count();
+      const FORCE = process.env["GATE_ALLOW_FORCE"] === "1";
       if (!fast) await page.screenshot({ path: path.join(shots, `t${n}-before-press.png`) });
-      const tPress = Date.now(); let how = "normal click"; try { await allowBtn.first().click({ timeout: 5000 }); } catch (e) { how = `normal click failed (${String(e).split("\n")[0]!.slice(0, 90)}), forced`; await allowBtn.first().click({ force: true }); }
+      const under = await allowBtn.first().evaluate((el) => { const r = el.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2; const top = document.elementFromPoint(x, y) as HTMLElement | null; return { rect: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)], underPointer: top ? `${top.tagName} ${top.getAttribute("data-testid") ?? ""} ${(top.innerText ?? "").slice(0, 30)}` : "nothing", isButtonOrInside: top ? el.contains(top) || top.contains(el) : false, scrollY: window.scrollY }; }).catch(() => null);
+      console.log(`GATE ALLOW trial ${n} before the press: ${JSON.stringify(under)}`);
+      const tPress = Date.now(); let how = "normal click"; try { if (FORCE) throw new Error("forced on purpose"); await allowBtn.first().click({ timeout: 5000 }); } catch (e) { how = `normal click failed (${String(e).split("\n")[0]!.slice(0, 90)}), forced`; await allowBtn.first().click({ force: true }); }
       let leftWaiting = -1, replied = -1;
       for (let i = 0; i < 1200; i++) { const t = await turns(); if (leftWaiting < 0 && !t.some((x) => x.state === "waiting")) leftWaiting = Date.now() - tPress; if (replied < 0 && (await replies()) > r0) replied = Date.now() - tPress; if (replied >= 0 && !t.some((x) => x.state === "running" || x.state === "queued" || x.state === "waiting")) break; if (Date.now() - tPress > 120_000) break; await page.waitForTimeout(100); }
       await page.waitForTimeout(4000);
@@ -54,6 +58,8 @@ test("GATE Allow: six trials, one Allow resumes the held turn once", { skip: gat
       const runs = dk("exec", cid() || "x", "sh", "-c", `wc -l < ~/runs-${n}.log 2>/dev/null || echo 0`).trim();
       let holds = "unreadable"; try { const db = new DatabaseSync(path.join(d.dir, "modules.db"), { readOnly: true }); holds = (db.prepare("SELECT id, state, decided_at, substr(input,1,60) i FROM gate_holds WHERE created_at >= ? ORDER BY created_at").all(tAsk) as Array<{ id: string; state: string; decided_at: number | null; i: string }>).map((h) => `${h.id.slice(-5)}:${h.state}`).join(" "); db.close(); } catch { /* keep */ }
       await page.screenshot({ path: path.join(shots, `t${n}-end.png`) });
+      let audit = "unreadable"; try { const ldb = new DatabaseSync(path.join(d.dir, "logs.db"), { readOnly: true }); audit = (ldb.prepare("SELECT at, cap, result FROM logs WHERE at >= ? AND (cap LIKE 'tasks.%' OR cap LIKE 'gate.%' OR cap LIKE 'terminal.%') AND msg = 'invoke' ORDER BY id").all(tPress - 1000) as Array<{ at: number; cap: string; result: string }>).map((r) => `+${r.at - tPress}ms ${r.cap}=${r.result}`).join(" ") || "no tasks/gate/terminal invoke lines since the press"; ldb.close(); } catch { /* keep */ }
+      console.log(`GATE ALLOW trial ${n} server lines since the press: ${audit}`);
       const line = `trial ${n} [${how}] (${fast ? "press within 1 s of the card" : "press after 10 s"}): card after ${cardAt} ms; press to turn leaving waiting ${leftWaiting} ms; press to reply ${replied} ms; command ran ${runs} time(s); Allow buttons before ${cardsBefore}, after ${second}; holds ${holds}`;
       results.push(line); console.log(`GATE ALLOW ${line}`);
     }

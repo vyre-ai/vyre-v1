@@ -118,7 +118,10 @@ test("REAL MODEL: helpers are one row each, the lead answers once, a helper chat
       // one strip, a row per helper; the row opens the peek in the Crew pane; Open chat there shows the helper's chat with its brief
       await page.getByTestId("crew-strip").first().waitFor({ timeout: 40_000 }).catch(async (e) => { await guard.check("waiting for the strip"); await shoot(page, `${mode}-FAILED-strip`); throw e; });
       await shot(`${mode}-1-strip`);
-      await page.locator('[role="button"][data-testid^="crew-chip-"]').first().click({ timeout: 15_000 });
+      // each helper has its own row in the strip, with its state word; the helper's name opens the peek (the row is no longer a button)
+      const states = await page.locator('[data-testid^="crew-chip-"][data-testid$="-state"]').allInnerTexts();
+      if (states.length < 2 || states.some((x) => x.trim() === "")) throw new Error(`each helper is visible with its state: ${JSON.stringify(states)}`);
+      await page.locator('[data-testid^="crew-chip-"][data-testid$="-name"]').first().click({ timeout: 15_000 });
       await page.getByTestId("crew-peek-open").click({ timeout: 20_000 });
       await page.getByText(/Brief from/).first().waitFor({ timeout: 20_000 }).catch(async (e) => { await guard.check("waiting for the helper chat"); await shoot(page, `${mode}-FAILED-helper-chat`); throw e; });
       await shot(`${mode}-2-helper-chat`);

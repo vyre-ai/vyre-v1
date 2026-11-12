@@ -42,7 +42,7 @@ export async function bootGate(kind: "personal" | "team", name: string, opts: { 
   const port = opts.port ?? await freePort();
   const address = `http://127.0.0.1:${port}`;
   const env: NodeJS.ProcessEnv = { ...process.env, VYRE_TEST_KEY_CHECK: "real" };
-  delete env["OPENCODE_API_KEY"]; delete env["NODE_TEST_CONTEXT"];
+  delete env["OPENCODE_API_KEY"]; delete env["OPENAI_API_KEY"]; delete env["NODE_TEST_CONTEXT"];
   let child: ChildProcess | null = null; let out = ""; let claim: string | null = null;
   const launch = (): Promise<void> => new Promise((resolve, reject) => {
     const c = spawn(process.execPath, ["host/src/daemon/main.ts", "--role", "space", "--data-dir", dir, "--port", String(port), "--space", `spc_gate_${kind}`, "--space-name", name, "--space-kind", kind, "--address", address], { cwd: REPO, env, stdio: ["ignore", "pipe", "pipe"] });

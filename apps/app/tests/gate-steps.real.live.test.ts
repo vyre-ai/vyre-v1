@@ -48,8 +48,10 @@ test("GATE steps: the rows while a command runs", { skip: gateSkip(), timeout: 9
     for (let i = 0; i < 200; i++) { const t = ((await call("engine.turns.list", { threadId: thread })).turns ?? []) as Array<{ state: string }>; if (!t.some((x) => x.state === "running" || x.state === "queued")) break; await page.waitForTimeout(500); }
     await post("Start one helper to run `sleep 40 && echo helper-done` in its terminal, and tell me when it reports.");
     for (let i = 0; i < 160 && !running("sleep 40"); i++) await page.waitForTimeout(500);
-    await page.waitForTimeout(3000);
-    await grab("2-helper-command", "the helper's sleep 40");
+    await page.waitForTimeout(15_000);
+    const rowText = async (): Promise<string> => { const ids = ["role", "state", "line", "time"]; const out: string[] = []; for (const k of ids) { const t = await page.locator(`[data-testid^="crew-chip-"][data-testid$="-${k}"]`).allInnerTexts().catch(() => []); out.push(`${k}: ${JSON.stringify(t)}`); } return out.join("; "); };
+    console.log(`GATE STEPS helper row about 15 s into its sleep 40 (elements crew-chip-*): ${await rowText()}`);
+    await grab("2-helper-command", "the helper's sleep 40 (15 s in)");
     assert.ok(thread);
   } finally {
     await browser.close(); web.close(); await d.stop();
