@@ -10,6 +10,7 @@ import { handlers } from "../impl.ts";
 import { QUARTERLY } from "../handlers/review.ts";
 import { codeOf, NOW } from "../fixtures/requestdb.ts";
 import { can, grant, world } from "../fixtures/askworld.ts";
+import type { GrantRec } from "../projections.ts";
 
 interface RegCap { name: string; output: JsonSchema }
 const registry = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { $defs: Record<string, JsonSchema>; capabilities: RegCap[] };
@@ -186,4 +187,27 @@ test("a review leaves out the grants the host keeps for an agent (its own folder
   await handlers["access.reviews.decide"](h.as("usr_admin"), { reviewId: review.id, grantId: "gnt_byhand1", decision: "remove" } as never);
   assert.equal(store.grants.has("gnt_byhand1"), false, "removed");
   assert.equal(store.grants.has(home) && store.grants.has(owner), true, "the agent's own grants stay");
+});
+
+test("a review keeps an agent's Space reach (space, grown) and an Assistant's own (own) to decide; it leaves out home and owner, a second home's too", async () => {
+  const { h, store } = world();
+  const AGENT = "agt_0123456789abcdef0123456789abcdef";
+  const g = (id: string, subject: { kind: "agent" | "person"; id: string }, resource: { type: string; id: string }, level: GrantRec["level"]): GrantRec => ({ id, subject, resource, level, conditions: {}, by: "usr_admin", createdAt: NOW - 1000 });
+  store.principals.set(AGENT, { id: AGENT, kind: "agent", name: "Maya's Assistant", status: "active", owner: "usr_maya", createdAt: 1 } as never);
+  const base = AGENT.slice(4);
+  for (const x of [
+    g(`gnt_${base}space`, { kind: "agent", id: AGENT }, { type: "folder", id: "fld_1" }, "edit"),
+    g(`gnt_${base}grown`, { kind: "agent", id: AGENT }, { type: "folder", id: "fld_1" }, "view"),
+    g(`gnt_${base}own`, { kind: "agent", id: AGENT }, { type: "folder", id: "fld_2" }, "edit"),
+    // a second home: the first home's id followed by the new folder's 8 characters (principals.ts:159)
+    g(`gnt_${base}homenewfold1`, { kind: "agent", id: AGENT }, { type: "folder", id: "fld_newfold1xx" }, "edit"),
+    g(`gnt_${base}ownernewfold1`, { kind: "person", id: "usr_maya" }, { type: "folder", id: "fld_newfold1xx" }, "manage"),
+  ]) store.grants.set(x.id, x);
+  store.bump();
+  const { review } = await start(h, { scope: ["folder"] });
+  const ids = (itemRows(h) as Array<{ grant_id: string }>).map((r) => r.grant_id);
+  for (const id of [`gnt_${base}space`, `gnt_${base}grown`, `gnt_${base}own`]) assert.equal(ids.includes(id), true, `${id}: an agent's reach is reviewed`);
+  for (const id of [`gnt_${base}homenewfold1`, `gnt_${base}ownernewfold1`]) assert.equal(ids.includes(id), false, `${id}: a second home is the same kept grant`);
+  await handlers["access.reviews.decide"](h.as("usr_admin"), { reviewId: review.id, grantId: `gnt_${base}space`, decision: "remove" } as never);
+  assert.equal(store.grants.has(`gnt_${base}space`), false, "and the agent's Space reach can be removed in a review");
 });
