@@ -2,6 +2,8 @@
 // whose address, headers or body changed needs that right again. Someone without it can still change every other step. A Run fills the key as the Automation, so this check at save is what stops an
 // editor from pointing a key they cannot use at their own server. The host a key goes to is fixed in the step: an address whose host is filled in at run time cannot carry a key.
 import { isTrustedService } from "../../lib/trust.ts";
+import { keyHostApproved, normalHost } from "./key-hosts.ts";
+import type { KeyHostDb } from "./key-hosts.ts";
 import { raise } from "./projections.ts";
 import type { AutoCtx, Definition } from "./projections.ts";
 
@@ -61,15 +63,44 @@ export async function guardKeySteps(ctx: AutoCtx, before: Definition | undefined
     changed.push({ index, node: n, handles });
   });
   if (changed.length === 0) return;
-  let usable = new Set<string>();
+  const usable = new Set<string>();
+  const ids = new Map<string, string>();
   if (ctx.call) {
     try {
-      const out = (await ctx.call("vault.items.list", { limit: 500 })) as { items?: { handle?: unknown; yourLevel?: unknown }[] } | null;
-      usable = new Set((out?.items ?? []).flatMap((i) => (typeof i.handle === "string" && typeof i.yourLevel === "string" && USE.has(i.yourLevel) ? [i.handle.toLowerCase()] : [])));
+      const out = (await ctx.call("vault.items.list", { limit: 500 })) as { items?: { id?: unknown; handle?: unknown; yourLevel?: unknown }[] } | null;
+      for (const i of out?.items ?? []) {
+        if (typeof i.handle !== "string" || typeof i.yourLevel !== "string" || !USE.has(i.yourLevel)) continue;
+        usable.add(i.handle.toLowerCase());
+        if (typeof i.id === "string") ids.set(i.handle.toLowerCase(), i.id);
+      }
     } catch { /* the Vault did not answer: nothing counts as usable */ }
   }
   for (const c of changed) {
     const missing = [...c.handles].find((h) => !usable.has(h));
     if (missing) raise(ctx, "permission.no_grant", `Step ${c.index + 1} uses a key you cannot use. Ask someone who can use it to publish this change, or remove the key from the step.`, { reason: "key_not_yours", step: c.node.id });
   }
+  // an agent (anything but a person) writing a step that sends a key: the host must be one a person approved for that key, as for the test read. A test run would otherwise send it there at once.
+  if (ctx.principal.kind !== "person") {
+    for (const c of changed) await agentHostApproved(ctx, c.index, c.node, ids);
+  }
+}
+
+async function agentHostApproved(ctx: AutoCtx, index: number, n: Node, ids: ReadonlyMap<string, string>): Promise<void> {
+  const input = n.input as Record<string, unknown> | undefined;
+  if (n.key !== "http_request" || !input || typeof input["url"] !== "string") return;
+  const auth = input["auth"] as { handle?: unknown } | undefined;
+  if (!auth || typeof auth.handle !== "string") return;
+  let host: string | null = null;
+  try { host = normalHost(new URL(input["url"]).hostname); } catch { host = null; }
+  const handle = itemOf(auth.handle);
+  const itemId = ids.get(handle);
+  if (host !== null && itemId !== undefined) {
+    if (keyHostApproved(ctx.db as unknown as KeyHostDb, itemId, host)) return;
+    try {
+      const m = ctx.call ? (await ctx.call("vault.items.match", { url: `https://${host}/` })) as { items?: { item?: { id?: unknown } }[] } | null : null;
+      if ((m?.items ?? []).some((x) => x.item?.id === itemId)) return;
+    } catch { /* the matcher could not answer: not approved */ }
+  }
+  const named = auth.handle.split(".")[0] ?? "";
+  raise(ctx, "permission.no_grant", `Step ${index + 1} sends ${/^#[A-Za-z0-9_]{1,80}$/.test(named) ? named : "a key"} to ${host ?? "an address"}, which nobody approved for this key. A person allows the host on the key first.`, { reason: "key_host_unapproved", step: n.id, ...(host ? { host } : {}) });
 }
