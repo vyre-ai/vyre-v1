@@ -4,14 +4,14 @@
 //   source   the list the key's check kept (one GET /models through providers.test when the engine has none kept): never a completion, never the model checks the menu starts
 //   chat     the adapter's chat filter where it has one (OpenAI), and abilities().tools for the rest: no image, speech, embedding or moderation model
 //   order    a model a chat turn already ran on this account ("ran"; a probe's "ok" does not count: it sends no tools), then the provider's balanced tier below (its own order per provider), then the vendor's order (the rule fitModel uses for the Space AI key)
-//   avoid    pro, preview, audio, realtime, search, transcribe and image models, unless nothing else passes
+//   avoid    pro, preview, audio, realtime, search, transcribe, image, tts, whisper, translate and diarize models, unless nothing else passes
 //   policy   only what the Space's AI policy allows; when the key lists chat models but the policy allows none, the turn says so in the policy's words
 //   never    a subscription (its CLI keeps its own default) or OpenRouter (it runs its own default)
 import { ADAPTERS } from "../../agent/src/drivers/api/driver.ts";
 import { blockedBy, PROVIDER_DEFAULT_DRIVERS } from "./handlers/extra/config.ts";
 import { abilities } from "./handlers/extra/models.ts";
 import type { Policy } from "./handlers/extra/config.ts";
-import { markRan, markUnavailable, ranFor, unavailableFor } from "./model-health.ts";
+import { markRan, ranFor, unavailableFor } from "./model-health.ts";
 import { saveTested, savedTested } from "./live-models.ts";
 
 /**
@@ -27,7 +27,7 @@ export const BALANCED_TIER: Readonly<Record<string, { match: RegExp; order: "ven
   xai: { match: /^grok-\d[\d.]*$/i, order: "newest" },
 };
 /** Never the default while anything else passes: costly or not a plain chat model. */
-export const AVOID_DEFAULT = /pro$|-pro-|preview|audio|realtime|search|transcribe|image/i;
+export const AVOID_DEFAULT = /pro$|-pro-|preview|audio|realtime|search|transcribe|image|tts|whisper|translate|diarize/i;
 
 /** Newest first by the version in the id (gpt-4.1 after gpt-5, before gpt-4o: 4.1 is above 4), then by name. */
 const versionOf = (m: string): number[] => (/(\d+(?:\.\d+)*)/.exec(m)?.[1] ?? "").split(".").filter(Boolean).map(Number);
@@ -80,23 +80,14 @@ export async function defaultModelFor(d: DefaultFor, account: { ref: string; dri
   // a model the account refused lately (a turn, a probe, or a default refused below) is not the default
   try { const bad = new Set([...unavailableFor(d.db, account.ref, d.now)].map(bare)); if (bad.size > 0) listed = listed.filter((m) => !bad.has(bare(m))); } catch { /* none marked */ }
   const model = pickDefault(listed, { provider: account.provider, driver: account.driver, confirmed, blocked: (m) => blockedBy(pol, { provider: account.provider, model: policyId(m) }) !== null });
-  if (model) { defaulted.add(`${account.ref}\u0000${bare(model)}`); return { model }; }
+  if (model) return { model };
   const anyChat = pickDefault(listed, { provider: account.provider, driver: account.driver, confirmed, blocked: () => false });
   return anyChat ? { why: "policy" } : {};
 }
 
 /** The model id without a provider prefix ("openai/gpt-5" and "gpt-5" are one model of one account). */
 const bare = (m: string): string => m.replace(/^[a-z][a-z0-9_-]*\//i, "");
-/** account and model pairs this process picked as the default, so a refusal of one is known to be the default's, never a person's pick. */
-const defaulted = new Set<string>();
-
-/**
- * After a chat turn: a completed turn marks its model "ran" for the account; a turn on a model the default picked that the provider refused (provider.bad_request) before any output marks it
- * failed for the account, so the next turn takes the next candidate. A model a person or an agent named is never marked failed here.
- */
-export function afterDefaultTurn(db: Db, turn: { state: string; model: string | null; tokensOut: number; error: { code: string } | null }, ref: string, now: number): void {
-  if (!turn.model) return;
-  if (turn.state === "completed") { markRan(db as never, ref, turn.model, now); return; }
-  const k = `${ref}\u0000${bare(turn.model)}`;
-  if (turn.state === "failed" && turn.error?.code === "provider.bad_request" && turn.tokensOut === 0 && defaulted.has(k)) { markUnavailable(db as never, ref, bare(turn.model), now); defaulted.delete(k); }
+/** After a chat turn: a completed turn marks its model "ran" for the account, the one mark the default's first rule reads. (A failed default is not marked tonight: rc.27 BACKLOG.) */
+export function afterChatTurn(db: Db, turn: { state: string; model: string | null }, ref: string, now: number): void {
+  if (turn.model && turn.state === "completed") markRan(db as never, ref, turn.model, now);
 }

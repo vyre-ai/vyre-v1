@@ -31,7 +31,7 @@ import { withChatSettings } from "./chat-settings.ts";
 import { withSpaceKeyTurns } from "./space-key-turns.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
 import { createModelSwitch } from "./model-switch.ts";
-import { afterDefaultTurn } from "./first-model.ts";
+import { afterChatTurn } from "./first-model.ts";
 import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
 import { skipLocked } from "./locked-account.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
@@ -558,7 +558,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       },
       // memory learns from the turn in the background (learn.ts): scheduled here, never awaited, so the reply is not held for it
       onQuestionsLeft: async (turn, blocks) => { for (const blockId of blocks) { try { await h.call("chat.question.withdraw", { threadId: turn.threadId, blockId }, turn.agentId); } catch { /* it stays in its chat */ } } },
-      onTurnEnd: (turn, account) => { if (account && turn.model) { try { afterDefaultTurn(ctx.db as never, turn, account.ref, now()); } catch { /* a mark that stays only hides a model a little longer */ } } roller.ranOn(turn.id, account); learnAfterTurn(h, turn, account); titleAfterTurn(h, turn, account); return meter(h, turn, account); },
+      onTurnEnd: (turn, account) => { if (account && turn.model) { try { afterChatTurn(ctx.db as never, turn, account.ref, now()); } catch { /* a mark that stays only hides a model a little longer */ } } roller.ranOn(turn.id, account); learnAfterTurn(h, turn, account); titleAfterTurn(h, turn, account); return meter(h, turn, account); },
       onLimits: (account, reading) => recordAccountLimits(ctx.db, account.ref, reading, now()),
       // the answer check (gap 6): an answer built on something not everyone in the chat may open goes to the asker privately
       ...(h.mayAll ? {

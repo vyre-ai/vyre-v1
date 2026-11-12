@@ -3,8 +3,8 @@
 // pro, preview, audio, realtime, search, transcribe or image model unless nothing else passes; and only what the Space's AI policy allows. Never for a subscription or OpenRouter.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BALANCED_TIER, afterDefaultTurn, defaultModelFor, pickDefault } from "../first-model.ts";
-import { confirmedFor, markConfirmed, markRan, ranFor, unavailableFor } from "../model-health.ts";
+import { BALANCED_TIER, afterChatTurn, defaultModelFor, pickDefault } from "../first-model.ts";
+import { confirmedFor, markConfirmed, markRan, ranFor } from "../model-health.ts";
 import { harness } from "../fixtures/harness.ts";
 
 const none = new Set<string>();
@@ -79,18 +79,28 @@ test("only a model a chat turn ran on wins over the table: a model the menu's ch
   assert.equal(ranFor(h.ctx.db as never, "#OA", 10_000).has("gpt-5.6-luna"), false);
 });
 
-test("safety net: a default model refused with provider.bad_request before any output is marked failed for the account, and the next turn takes the next candidate; a named model is never marked", async () => {
+test("a completed chat turn marks its model ran; a failed one marks nothing", () => {
   const h = harness();
   const db = h.ctx.db as never;
-  const d = { db, now: 10_000, call: async () => { throw new Error("no call expected"); }, policy: { allowedModels: [], allowedProviders: [], labelProviders: {} } };
-  const acct = { ref: "#OA", driver: "openai", provider: "openai", kind: "api_key", models: ["gpt-5", "gpt-4.1", "gpt-4o"] };
-  assert.deepEqual(await defaultModelFor(d, acct), { model: "gpt-5" });
-  afterDefaultTurn(db, { state: "failed", model: "gpt-5", tokensOut: 0, error: { code: "provider.bad_request", message: "no" } }, "#OA", 10_100);
-  assert.ok(unavailableFor(db, "#OA", 10_200).has("gpt-5"));
-  assert.deepEqual(await defaultModelFor({ ...d, now: 10_200 }, acct), { model: "gpt-4.1" });
-  // a turn on a model nobody defaulted (a person's pick) that fails the same way leaves no mark; a completed turn marks the model ran
-  afterDefaultTurn(db, { state: "failed", model: "gpt-4o", tokensOut: 0, error: { code: "provider.bad_request", message: "no" } }, "#OA", 10_300);
-  assert.equal(unavailableFor(db, "#OA", 10_400).has("gpt-4o"), false);
-  afterDefaultTurn(db, { state: "completed", model: "gpt-4.1", tokensOut: 12, error: null }, "#OA", 10_500);
-  assert.ok(ranFor(db, "#OA", 10_600).has("gpt-4.1"));
+  afterChatTurn(db, { state: "failed", model: "gpt-5" }, "#OA", 1_000);
+  afterChatTurn(db, { state: "completed", model: "gpt-4.1" }, "#OA", 1_000);
+  assert.deepEqual([...ranFor(db, "#OA", 2_000)], ["gpt-4.1"]);
+});
+
+// the real OpenAI key at the gate, 13 Nov 2026 (f-gate, engine_model_cache, vendor order; the gpt- ids of its 96)
+const REAL_OPENAI = "gpt-live-transcribe, gpt-5.6-luna, gpt-realtime-2, gpt-5-search-api, gpt-5.5-2026-04-23, gpt-4o-mini-transcribe-2025-12-15, gpt-5-pro-2025-10-06, gpt-5.6-sol, gpt-5.4-pro, gpt-realtime-mini-2025-12-15, gpt-4o-mini-tts, gpt-realtime-2.1-mini, gpt-realtime-2025-08-28, gpt-5.4, gpt-5.2-2025-12-11, gpt-5.4-2026-03-05, gpt-5-nano, gpt-5.4-mini, gpt-5.4-nano, gpt-audio-mini-2025-12-15, gpt-5-mini, gpt-5-mini-2025-08-07, gpt-4o-2024-11-20, gpt-5.1, gpt-5-pro, gpt-realtime-whisper, gpt-realtime, gpt-realtime-1.5, gpt-5.2-pro, gpt-5.5-pro, gpt-4o-mini-transcribe-2025-03-20, gpt-audio-2025-08-28, gpt-audio-mini, gpt-4.1-mini-2025-04-14, gpt-5.4-pro-2026-03-05, gpt-realtime-translate, gpt-4o-2024-08-06, gpt-4o-transcribe-diarize, gpt-5.1-2025-11-13, gpt-image-2-2026-04-21, gpt-4o-mini-transcribe, gpt-5, gpt-transcribe, gpt-5-nano-2025-08-07, gpt-4o-transcribe, gpt-5.4-mini-2026-03-17, gpt-6-luna, gpt-6-sol, gpt-6.1-terra, gpt-image-2.5-flare, gpt-5-2025-08-07, gpt-5.2-pro-2025-12-11, gpt-5.5-pro-2026-04-23, gpt-6.1-sol, gpt-image-1.5, gpt-audio-1.5, gpt-image-2.6-flare, gpt-4.1-mini, gpt-4o-mini, gpt-4o-mini-tts-2025-12-15, gpt-audio, gpt-5.3-codex, gpt-5-search-api-2025-10-14, gpt-4.1-2025-04-14, gpt-4o-mini-2024-07-18, gpt-image-2, gpt-realtime-2.1, gpt-4.1, gpt-5.5, gpt-image-2.6-sunburst, gpt-image-2.5-sunburst-2026-09-08, gpt-realtime-mini, gpt-image-1-mini, gpt-5.6-terra, gpt-4o, gpt-4o-mini-tts-2025-03-20, gpt-5.2, gpt-5.4-nano-2026-03-17, gpt-image-2.5-sunburst, gpt-image-2.5-flare-2026-09-08, gpt-6-astra, gpt-live-1".split(", ");
+const plainFlagship = /^gpt-\d[\d.]*o?$/;
+
+test("the real OpenAI key's list: the default is gpt-5.5, the newest plain flagship; never an id with a suffix after the version while a plain one passes", () => {
+  assert.equal(REAL_OPENAI.length, 82);
+  assert.equal(pickDefault(REAL_OPENAI, { provider: "openai", confirmed: none, blocked: open }), "gpt-5.5");
+  // whatever the policy leaves, the pick is a plain id while one is allowed
+  for (const allowed of [["gpt-4.1", "gpt-5.6-luna"], ["gpt-6-luna", "gpt-4o", "gpt-5.4-mini"], ["gpt-5.5", "gpt-5.4"]]) {
+    const pick = pickDefault(REAL_OPENAI, { provider: "openai", confirmed: none, blocked: (m) => !allowed.includes(m) });
+    assert.ok(pick !== undefined && plainFlagship.test(pick), `${allowed.join(",")} gave ${pick}`);
+  }
+  // the policy allowing only the top two plain flagships takes the newer
+  assert.equal(pickDefault(REAL_OPENAI, { provider: "openai", confirmed: none, blocked: (m) => !["gpt-5.5", "gpt-5.4"].includes(m) }), "gpt-5.5");
+  // a speech, realtime, image or transcribe model is never the default while a chat model passes
+  assert.equal(pickDefault(REAL_OPENAI, { provider: "openai", confirmed: none, blocked: (m) => !["gpt-4o-mini-tts", "gpt-realtime-whisper", "gpt-4.1-mini"].includes(m) }), "gpt-4.1-mini");
 });
