@@ -44,7 +44,7 @@ const recorder: OpenSession = async (spec) => {
         toolRuns.push({ threadId: spec.threadId, asker: input.asker, tool, ok: r.ok, content: JSON.stringify(r.content) });
       }
       if (said.includes("WRITE-NOTE") && work.folderId) yield* use("files_create", { folderId: work.folderId, name: "Code notes.md", content: { text: `What I made about the code: ${SECRET}` }, idempotencyKey: `note-${spec.threadId}` });
-      if (said.includes("SEND-FILE") && work.fileId) yield* use("files_read", { fileId: work.fileId, as: "text" });
+      if (said.includes("SEND-FILE") && work.fileId) { yield* use("files_read", { fileId: work.fileId, as: "text" }); yield* use("search_query", { q: "Code notes" }); yield* use("files_list", { section: "space", folder: work.folderId }); }
       yield { type: "text", text: "Noted." };
       yield { type: "done" };
     },
@@ -143,6 +143,9 @@ test("an agent made in an invite-only channel's thread: what a never-member can 
     await ok(d, d.token, "files.delete", { fileId: gone });
     const has = (r: { data: unknown }): boolean => JSON.stringify(r.data).includes(SECRET);
     const names = (r: { data: unknown }): boolean => /Code notes|rivera\.pdf|Old draft/.test(JSON.stringify(r.data));
+    // search: wait for the index (the owner, the agent's manager, finds the note), then ask as Carol and Ana
+    const indexed = await waitFor(async () => { const r = await api(d, d.token, "search.query", { q: "Code notes" }); return /Code notes/.test(JSON.stringify(r.data)) ? true : null; }, 20_000).catch(() => false);
+    note("search index: the owner finds the note", String(indexed));
     // (2) every door to those files, as Carol and, as the control, Ana
     const doors: Array<[string, string, Record<string, unknown>, (r: { status: number; data: unknown }) => boolean]> = [
       ["files.get by id", "files.get", { fileId }, (r) => r.status === 200],
@@ -150,6 +153,9 @@ test("an agent made in an invite-only channel's thread: what a never-member can 
       ["files.read of a download (Downloads under the folder)", "files.read", { fileId: dlFile, as: "text" }, has],
       ["files.list of the folder (section space, folder)", "files.list", { section: "space", folder: folderId }, names],
       ["files.list deep over the Space", "files.list", { section: "space", deep: true, q: "Code" }, names],
+      ["the right pane's agent folder (files.list as the pane calls it)", "files.list", { folder: folderId }, names],
+      ["files.share_external (a link for outside the Space)", "files.share_external", { fileId, idempotencyKey: `ext-${Date.now()}-${Math.random()}` }, (r) => r.status === 200],
+      ["files.external_links", "files.external_links", { fileId }, (r) => r.status === 200],
       ["files.folder.get of the folder", "files.folder.get", { folderId }, (r) => r.status === 200],
       ["files.folder.search in the folder", "files.folder.search", { folderId, q: "Code" }, names],
       ["files.tree (the Agents root)", "files.tree", {}, (r) => JSON.stringify(r.data).includes(folderId)],
@@ -174,6 +180,16 @@ test("an agent made in an invite-only channel's thread: what a never-member can 
     };
     const carolSees = await reads(carol.token);
     const anaSees = await reads(ana.token);
+    // what Carol's refusal says, beside the answer for a file that does not exist: neither may name the file or carry its content
+    const ghost = `fil_${"0".repeat(32)}`;
+    for (const cap of ["files.get", "files.read"] as const) {
+      const real = await api(d, carol.token, cap, { fileId, as: "text" });
+      const none = await api(d, carol.token, cap, { fileId: ghost, as: "text" });
+      const code = (r: { data: unknown }): string => String((r.data as { error?: { code?: string } }).error?.code ?? "");
+      note(`(2) ${cap} refused, beside a file that does not exist`, `real ${real.status} ${code(real)}; none ${none.status} ${code(none)}; names the file: ${/Code notes/.test(JSON.stringify(real.data))}; holds the fact: ${has(real)}`);
+      assert.equal(/Code notes/.test(JSON.stringify(real.data)) || has(real), false, `${cap}: the refusal says nothing of the file`);
+      assert.notEqual(real.status, 200, `${cap}: refused`);
+    }
     for (const [door] of doors) note(`(2) ${door}`, `Carol ${carolSees.get(door)}; Ana ${anaSees.get(door)}; holds the fact: ${carolSees.get(door)!.startsWith("OPEN")}`);
     // the owner, the agent's manager, lists its folder (the measurement before passed folderId, which files.list does not take)
     const ownerList = await api(d, d.token, "files.list", { section: "space", folder: folderId });
@@ -187,6 +203,11 @@ test("an agent made in an invite-only channel's thread: what a never-member can 
       const sent = await waitFor(async () => toolRuns.slice(before).find((r) => r.tool === "files_read") ?? null, 30_000);
       note("(4) the agent's files_read in Carol's turn", `ok ${sent.ok}; asker ${sent.asker === carol.personId ? "Carol" : sent.asker}; holds the fact: ${sent.content.includes(SECRET)}; ${sent.content.replaceAll(SECRET, "<fact>").slice(0, 200)}`);
       assert.equal(sent.content.includes(SECRET), false, "the agent cannot read T's file for Carol");
+      for (const tool of ["search_query", "files_list"]) {
+        const r = await waitFor(async () => toolRuns.slice(before).find((x) => x.tool === tool) ?? null, 30_000);
+        note(`(4) the agent's ${tool} in Carol's turn`, `ok ${r.ok}; finds the note: ${/Code notes/.test(r.content)}; holds the fact: ${r.content.includes(SECRET)}`);
+        assert.equal(/Code notes/.test(r.content) || r.content.includes(SECRET), false, `the agent's ${tool} gives Carol nothing of T's folder`);
+      }
     } else note("(4) the agent's files_read in Carol's turn", `chat.start ${cs.status}`);
     // a device already synced: Carol's computer pulled the folder while it was open to the Space (as before this fix). Closing it again (the chat's audience, made invite-only) hides it in the
     // next pull, the row the app wipes
