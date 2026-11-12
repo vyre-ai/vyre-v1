@@ -364,7 +364,7 @@ const noModelLine = (index: number): string => `Step ${index + 1} has no model. 
 export async function aiModelIssues(ctx: AutoCtx, kind: Automation["kind"], def: Definition): Promise<Issue[]> {
   if (!ctx.call) return [];
   const out: Issue[] = [];
-  let spaceKeyModels: number | null = null;
+  let spaceKey: { providerId?: string; models?: unknown[] } | null = null;
   for (const [index, n] of def.nodes.entries()) {
     if (n.key !== "ai") continue;
     const cfg = { ...(n.input ?? {}), ...(n.ai ?? {}) } as Record<string, unknown>;
@@ -375,13 +375,17 @@ export async function aiModelIssues(ctx: AutoCtx, kind: Automation["kind"], def:
       if (!got?.agent) continue;   // a missing agent is refused by its own line (agentStepIssues)
     }
     if (kind === "space") {
-      spaceKeyModels ??= ((await ctx.call("providers.space_key.get", {}).catch(() => null)) as { models?: unknown[] } | null)?.models?.length ?? 0;
-      if (spaceKeyModels > 0) continue;
-      // a Space account that lists its models: the one the step or the Automation names, else any kept for automations (Automatic)
+      // the Space AI key when the step pays with it (named, or Automatic), else a Space account that keeps the list of models it serves
+      spaceKey ??= ((await ctx.call("providers.space_key.get", {}).catch(() => null)) as { providerId?: string; models?: unknown[] } | null) ?? {};
+      const keyModels = (spaceKey.models?.length ?? 0) > 0;
       const named = typeof cfg["keyId"] === "string" && cfg["keyId"] !== "" ? cfg["keyId"] : def.ai?.keyId && def.ai.keyId !== "" ? def.ai.keyId : undefined;
+      if (named === undefined && keyModels) continue;
       const accounts = (await providersOf(ctx, kind, named !== undefined)) ?? [];
-      const fits = (p: AccountLite): boolean => !p.mine && (p.models?.length ?? 0) > 0;
-      if (named ? accounts.some((p) => refOf(p).includes(named) && fits(p)) : accounts.some((p) => fits(p) && paysForAutomations(p))) continue;
+      const lists = (p: AccountLite): boolean => !p.mine && (p.models?.length ?? 0) > 0;
+      const isSpaceKey = (p: AccountLite): boolean => spaceKey?.providerId !== undefined && p.providerId === spaceKey.providerId;
+      if (named
+        ? accounts.some((p) => refOf(p).includes(named) && (lists(p) || (isSpaceKey(p) && keyModels))) || (named === spaceKey?.providerId && keyModels)
+        : accounts.some((p) => lists(p) && paysForAutomations(p))) continue;
     }
     out.push(issue("error", noModelLine(index), n.id));
   }

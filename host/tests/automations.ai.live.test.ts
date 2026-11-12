@@ -189,21 +189,29 @@ test("a Personal AI step with no account of its own is refused when turned on, a
   } finally { await w.stop(); }
 });
 
-test("a Space AI step runs as its service on a Space-shared key, and refuses a key that belongs to one person", async () => {
+test("a Space AI step runs as its service on the Space AI key; a shared key with no model list is refused; a key that belongs to one person is refused", async () => {
   const w = await world();
   try {
     await unlock(w.d);
     const folder = await ok(w.d, "vault.folders.create", { name: "AI keys", scope: "shared", idempotencyKey: "ai-folder" });
     const team = await ok(w.d, "providers.add", { idempotencyKey: "ai-team", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "shared", name: "Team OpenAI", folderId: folder.folder.id });
-    const handle = String(team.provider.id);   // the place names a key by its provider id
     const mine = await ok(w.d, "providers.add", { idempotencyKey: "ai-own", providerKey: "openai", connection: "api_key", apiKey: `${KEY}-own`, scope: "mine", name: "My OpenAI" });
     const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-space", name: "Team answer" });
     const id = String(made.automation.id);
     const serviceId = `svc_${id.slice(4)}`;
-    await ok(w.d, "automations.update", { automationId: id, definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { prompt: "Say hi" }, ai: { keyId: handle } }] } });
+    // a Space-shared key whose model list is not kept is no model source: refused at turn-on in the plain words (decided 12 Nov, not a regression)
+    await ok(w.d, "automations.update", { automationId: id, definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { prompt: "Say hi" }, ai: { keyId: String(team.provider.id) } }] } });
     await ok(w.d, "automations.promote", { automationId: id, confirm: true });
+    const noList = await call(w.d, "automations.set_enabled", { automationId: id, enabled: true });
+    assert.equal(noList.status, 422, JSON.stringify(noList.data));
+    assert.match(JSON.stringify(noList.data), /Step 1 has no model\. Give it an agent that has a model, or set a model on its agent\./);
+    // the team key goes; the Space AI key: checked with the provider at once, which keeps its model list
+    await ok(w.d, "providers.remove", { providerId: String(team.provider.id) });
+    const sk = await ok(w.d, "providers.space_key.set", { idempotencyKey: "ai-space-key", providerKey: "openai", apiKey: KEY });
+    assert.ok((sk.models as string[]).length > 0, JSON.stringify(sk));
+    const handle = String(sk.providerId);
+    await ok(w.d, "automations.update", { automationId: id, definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { prompt: "Say hi" }, ai: { keyId: handle } }] } });
     await ok(w.d, "access.share", { idempotencyKey: "ai-share-space", resource: { type: "space", id: "spc_core" }, subject: { kind: "service", id: serviceId }, level: "view" });
-    await ok(w.d, "access.share", { idempotencyKey: "ai-share-key", resource: { type: "vault_item", id: String(team.provider.itemId) }, subject: { kind: "service", id: serviceId }, level: "use" });
     await ok(w.d, "automations.set_enabled", { automationId: id, enabled: true });
     w.v.script.push({ text: "Hi from the team key." });
     const runId = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-space-run" })).runId);
