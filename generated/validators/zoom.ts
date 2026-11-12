@@ -85,13 +85,13 @@ if ("status" in o71) lf(o71["status"], p + '/' + i70 + "/status", e, L1);
 
 function d_s_3bf726dac3(v: unknown, p: string, e: string[]): void {
 {
-const x265 = v;
-const g265 = typeOf(x265);
-const b265: string[] = []; lf(x265, p, b265, L0); if (b265.length) e.push(...b265);
-if (g265 === "object") {
-if (g265 === 'object') { const o265 = x265 as Record<string, unknown>;
-if (!("meeting" in o265)) e.push(p + "/meeting" + ': required');
-if ("meeting" in o265) d_s_0a656f2423(o265["meeting"], p + "/meeting", e);
+const x270 = v;
+const g270 = typeOf(x270);
+const b270: string[] = []; lf(x270, p, b270, L0); if (b270.length) e.push(...b270);
+if (g270 === "object") {
+if (g270 === 'object') { const o270 = x270 as Record<string, unknown>;
+if (!("meeting" in o270)) e.push(p + "/meeting" + ': required');
+if ("meeting" in o270) d_s_0a656f2423(o270["meeting"], p + "/meeting", e);
 }
 }
 }

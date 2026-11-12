@@ -778,6 +778,7 @@ export type AccessPrincipalsGetOut = {
     name: string;
     owner?: string;
     private?: boolean;
+    assistant?: boolean;
     agentName?: string;
     status: "invited" | "active" | "suspended" | "removed";
     roles: Array<string>;
@@ -800,6 +801,7 @@ export type AccessPrincipalsListOut = {
       name: string;
       owner?: string;
       private?: boolean;
+      assistant?: boolean;
       agentName?: string;
       status: "invited" | "active" | "suspended" | "removed";
       roles: Array<string>;
@@ -6406,6 +6408,7 @@ export type ChannelsMembersAddIn = {
   channelId: string;
   personIds: Array<string>;
   level?: "view" | "use" | "edit" | "manage";
+  mentionedIn?: string;
 };
 export type ChannelsMembersAddOut = {
   channel: {
@@ -6830,6 +6833,10 @@ export type ChatEditOut = {
     editedAt?: number;
     createdAt: number;
     enc?: number;
+    mentions?: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
   };
 };
 export type ChatFlowCardIn = {
@@ -7150,6 +7157,10 @@ export type ChatHistoryPageOut = {
       editedAt?: number;
       createdAt: number;
       enc?: number;
+      mentions?: Array<{
+          kind: "person" | "agent";
+          id: string;
+        }>;
     }>;
   hasMore: boolean;
   next?: number;
@@ -7262,6 +7273,10 @@ export type ChatMessageGetOut = {
     editedAt?: number;
     createdAt: number;
     enc?: number;
+    mentions?: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
   };
 };
 export type ChatMessagePersonIn = {
@@ -7328,6 +7343,10 @@ export type ChatMessagesListOut = {
       editedAt?: number;
       createdAt: number;
       enc?: number;
+      mentions?: Array<{
+          kind: "person" | "agent";
+          id: string;
+        }>;
     }>;
   hasMore: boolean;
 };
@@ -7521,6 +7540,10 @@ export type ChatPinsListOut = {
       editedAt?: number;
       createdAt: number;
       enc?: number;
+      mentions?: Array<{
+          kind: "person" | "agent";
+          id: string;
+        }>;
     }>;
 };
 export type ChatPlanProposeIn = {
@@ -7637,6 +7660,10 @@ export type ChatPostOut = {
     editedAt?: number;
     createdAt: number;
     enc?: number;
+    mentions?: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
   };
 };
 export type ChatQuestionAskIn = {
@@ -42605,6 +42632,7 @@ export type ThreadsMembersAddIn = {
   threadId: string;
   personId: string;
   fromStart?: boolean;
+  mentionedIn?: string;
 };
 export type ThreadsMembersAddOut = {
   thread: {

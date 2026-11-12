@@ -9781,7 +9781,7 @@
       "blocks": [],
       "cap": "channels.members.add",
       "deferred": false,
-      "description": "Add people to a channel",
+      "description": "Add people to a channel. With mentionedIn (the line under a message that mentioned them), the message must be in the channel and mention each of them",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -9799,6 +9799,13 @@
               "edit",
               "manage"
             ],
+            "type": "string"
+          },
+          "mentionedIn": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
             "type": "string"
           },
           "personIds": {
@@ -67373,6 +67380,13 @@
           "fromStart": {
             "description": "The newcomer reads the messages from before they were added. Default: false in a private chat, true in a goal chat and a channel.",
             "type": "boolean"
+          },
+          "mentionedIn": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
           },
           "personId": {
             "examples": [
