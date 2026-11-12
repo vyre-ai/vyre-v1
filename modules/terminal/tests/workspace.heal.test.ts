@@ -932,3 +932,58 @@ test("pools used up by old networks of one workspace: the module removes one tha
   assert.equal(dk.box(workspaceName(OLD)).config["HostConfig"]["NetworkMode"], "vyre-workspaces");
   m.close();
 });
+
+// ---- third look T1, T2, nit: Trash volumes ---------------------------------------------------------------------------------------------------------------------
+
+test("T1: the Trash pass removes the volumes through the fleet although the agent.deleted cleanup already removed the container; a machine that does not answer keeps the row for the next pass", async () => {
+  const { createWorkspaceFleet } = await import("../fleet.ts");
+  const dk = engine();
+  const space = manager(dk);
+  const fleet = createWorkspaceFleet({ space, node: () => { throw new Error("no servers"); }, place: async () => null });
+  await fleet.ensure(AGENT);
+  const removedVols = (): string[] => dk.ops("volume_remove").map((x) => x.name as string);
+  await fleet.remove(AGENT, { keepVolumes: true });   // agent.deleted
+  assert.equal(dk.boxes.has(NAME), false);
+  assert.deepEqual(removedVols(), [], "kept while in Trash");
+  await fleet.remove(AGENT);   // the pass, past the retention: no container anywhere now
+  assert.deepEqual(removedVols().sort(), [`${NAME}-files`, `${NAME}-home`], "both volumes removed");
+  fleet.close();
+  // a server that holds workspaces and does not answer: the removal throws, so the pass keeps the row
+  const down = createWorkspaceFleet({ space: manager(engine()), node: () => ({ ...manager(engine()), remove: async () => { throw new Error("the server did not answer"); } }) as WorkspaceManager, place: async () => "nod_1" });
+  await down.ensure("agt_far").catch(() => undefined);
+  await assert.rejects(() => down.remove("agt_far"), /did not answer/);
+  down.close();
+});
+
+test("T2: an agent that is not in Trash never loses its volumes and is never marked gone, in either order (pass before the restore consumer; a retried delete after the restore)", async () => {
+  const { onAgentGone, forgetExpiredWorkspaces } = await import("../handlers/sessions.ts");
+  reset();
+  const hn = harness();
+  const ctx: TermCtx = { ...hn.ctx, call: (async (cap: string) => (cap === "governance.retention.get" ? { kinds: [{ key: "trash", value: "7d" }] } : undefined)) as never };
+  const trash = new Set<string>(["agt_back"]);
+  const inTrash = (id: string): boolean => trash.has(id);
+  const removed: string[] = [];
+  const remove = async (id: string): Promise<void> => { removed.push(id); };
+  // (a) deleted, restored near the end; the pass runs before agent.restored is consumed
+  await onAgentGone(ctx, { payload: { agentId: "agt_back" } }, null, inTrash);
+  hn.advance(8 * 86_400_000);
+  trash.delete("agt_back");   // restored in the agents table; the terminal's consumer has not run yet
+  assert.deepEqual(await forgetExpiredWorkspaces(ctx, remove, inTrash), [], "not removed");
+  assert.deepEqual(removed, []);
+  assert.equal((hn.ctx.db.all("SELECT 1 FROM terminal_workspace_gone WHERE agent_id = 'agt_back'") as unknown[]).length, 0, "and its row is let go");
+  // (b) agent.deleted delivered (retried) after the restore: it is not in Trash, so nothing is closed, removed or marked
+  const gone: string[] = [];
+  assert.deepEqual(await onAgentGone(ctx, { payload: { agentId: "agt_back" } }, async (id) => { gone.push(id); }, inTrash), []);
+  assert.deepEqual(gone, [], "its workspace is not removed");
+  assert.equal((hn.ctx.db.all("SELECT 1 FROM terminal_workspace_gone WHERE agent_id = 'agt_back'") as unknown[]).length, 0, "no Trash clock");
+});
+
+test("nit: a Trash retention under one day counts as governance's default, never as remove at once", async () => {
+  const { trashKeepMs, TRASH_KEEP_MS } = await import("../handlers/sessions.ts");
+  reset();
+  const hn = harness();
+  for (const v of ["0d", "0w", "0m", "0y"]) {
+    const ctx: TermCtx = { ...hn.ctx, call: (async () => ({ kinds: [{ key: "trash", value: v }] })) as never };
+    assert.equal(await trashKeepMs(ctx), TRASH_KEEP_MS, v);
+  }
+});

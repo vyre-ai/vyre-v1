@@ -118,9 +118,16 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
     async list() { const rows: WorkspaceRow[] = []; for (const m of all()) rows.push(...(await m.list().catch(() => []))); return rows; },
     async find(session) { for (const m of all()) { const id = await m.find(session).catch(() => null); if (id !== null) { homes.set(id, m); return id; } } return null; },
     async remove(agentId, x) {
-      // only where it is: an agent with no workspace anywhere has nothing to take away, and none is made or placed for it
-      for (const m of await where(agentId)) await m.remove(agentId, x);
+      // keeping the volumes (agent.deleted): only where its container is; nothing is made or placed for it
+      if (x?.keepVolumes === true) { for (const m of await where(agentId)) await m.remove(agentId, x); homes.delete(agentId); return; }
+      // the volumes too (the Trash pass, third look T1): the container went at agent.deleted, so it is asked of every machine, and of the server it was placed on; a volume that is not there
+      // answers 404, which is fine. Any machine that does not answer throws, so the pass keeps the agent and tries again.
+      const placed = await o.place(agentId).catch(() => null);
+      const ms = new Set<WorkspaceManager>([...all(), ...(placed !== null ? [nodeOf(placed)] : [])]);
+      const failed: unknown[] = [];
+      for (const m of ms) await m.remove(agentId, x).catch((e: unknown) => { failed.push(e); });
       homes.delete(agentId);
+      if (failed.length > 0) throw failed[0];
     },
     async health() {
       const hs = await Promise.all(all().map((m) => m.health().catch(() => ({ ok: false }))));

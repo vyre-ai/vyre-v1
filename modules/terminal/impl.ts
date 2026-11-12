@@ -570,6 +570,8 @@ export interface TerminalHostSeam {
 
 /** What the daemon hands over for agent workspaces (host/src/seams/terminal-host.ts): configuration only. The module builds the Docker managers from it, as agent computers are built. */
 export interface WorkspaceConfig extends Pick<WorkspaceOptions, "image" | "limits" | "idleMs" | "home" | "projectsOf" | "admit" | "capacity" | "log" | "owner" | "ownsAgent"> {
+  /** Is this agent in Trash now (agents_agent.deletedAt)? Read before Trash volumes go and when agent.deleted is consumed, so a restored agent never loses them (third look T2). */
+  inTrash?: (agentId: string) => boolean | undefined;
   /** The Docker Engine socket of this machine. With no socket and no runner the Space has no runtime of its own, and its workspaces go on servers that joined. */
   socketPath?: string;
   /** A Team server: the container runner's socket and its token (read again on each call). vyred holds no Docker socket there. */
@@ -684,6 +686,7 @@ export function createLocalHost(o: Omit<TerminalHostSeam, "place" | "workspaces"
 
 /** The daemon's half: this machine's sessions and where turns run. Null on shutdown. */
 let workspaceManager: WorkspaceManager | null = null;
+let inTrashCheck: ((agentId: string) => boolean | undefined) | null = null;
 /** The workspaces of this machine, for the host's Computer tab and tests: null when there are none. */
 export const boundWorkspaces = (): WorkspaceManager | null => workspaceManager;
 
@@ -691,6 +694,7 @@ export function setTerminalHost(seam: TerminalHostSeam | null): void {
   workspaceManager?.close();
   const fleet = seam?.workspaces ? buildWorkspaceFleet(seam.workspaces) : null;
   workspaceManager = fleet;
+  inTrashCheck = seam?.workspaces?.inTrash ?? null;
   bindMachineHost(seam === null ? null : createLocalHost(seam, workspaceManager ?? undefined));
   bindMachinePlace(seam?.place ?? null);
   bindMachineValues(seam?.values ?? null);
@@ -719,7 +723,7 @@ export const periodic = {
   /** Hourly: the home and Files volumes of an agent in Trash longer than the Space's Trash retention are removed (12 Nov, the Space browser's rule for its profiles). */
   "terminal.trash_volumes": {
     everyMs: 60 * 60_000,
-    run: (ctx: TermCtx): Promise<string[]> => forgetExpiredWorkspaces(ctx, workspaceManager ? (agentId) => (workspaceManager as WorkspaceManager).remove(agentId) : null),
+    run: (ctx: TermCtx): Promise<string[]> => forgetExpiredWorkspaces(ctx, workspaceManager ? (agentId) => (workspaceManager as WorkspaceManager).remove(agentId) : null, inTrashCheck),
   },
 };
 
@@ -740,7 +744,7 @@ export const consumers = {
   /** An agent went to Trash (deleted, or the Assistant of a person removed from the Space): its sessions close and its workspace's container and room go; what it kept stays (handlers/sessions.ts onAgentGone). */
   "terminal.agent_gone": {
     on: ["agent.deleted"],
-    run: (ctx: TermCtx, event: { payload: { agentId?: unknown } }): Promise<string[]> => onAgentGone(ctx, event, workspaceManager ? (agentId) => (workspaceManager as WorkspaceManager).remove(agentId, { keepVolumes: true }) : null),
+    run: (ctx: TermCtx, event: { payload: { agentId?: unknown } }): Promise<string[]> => onAgentGone(ctx, event, workspaceManager ? (agentId) => (workspaceManager as WorkspaceManager).remove(agentId, { keepVolumes: true }) : null, inTrashCheck),
   },
   /** An agent came back from Trash: its workspace may be made again, over the volumes it kept. */
   "terminal.agent_restored": {

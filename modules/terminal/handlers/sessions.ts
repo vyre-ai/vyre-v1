@@ -762,10 +762,15 @@ export async function isDangerCall(_ctx: unknown, input: unknown): Promise<boole
  * host is given back; its home and Files volumes stay, since an agent in Trash can be restored and they hold what it made (the next command after a restore makes the workspace again over them).
  * Safe to run twice. `remove` is the machine's (the workspace fleet), absent where this host has no workspaces.
  */
-export async function onAgentGone(ctx: TermCtx, event: { payload: { agentId?: unknown } }, remove: ((agentId: string) => Promise<void>) | null): Promise<string[]> {
+/** Is this agent in Trash now (agents_agent.deletedAt, bound by the daemon)? undefined when it cannot be told. */
+export type InTrash = (agentId: string) => boolean | undefined;
+
+export async function onAgentGone(ctx: TermCtx, event: { payload: { agentId?: unknown } }, remove: ((agentId: string) => Promise<void>) | null, inTrash?: InTrash | null): Promise<string[]> {
   ensure(ctx.db);
   const agentId = event.payload.agentId;
   if (typeof agentId !== "string" || !/^agt_[A-Za-z0-9_-]+$/.test(agentId)) return [];
+  // a delete delivered (or retried) after the agent was restored: it is not in Trash, so nothing is closed, removed or marked (third look T2)
+  if (inTrash?.(agentId) === false) return [];
   const open = (ctx.db.all("SELECT terminal_id FROM terminal_sessions WHERE host = 'agent_computer' AND agent_id = ? AND closed_at IS NULL", agentId) as Row[]).map((r) => String(r["terminal_id"]));
   const at = ctx.now();
   for (const id of open) {
@@ -808,13 +813,14 @@ export async function trashKeepMs(ctx: TermCtx): Promise<number | null> {
     const out = (await ctx.call?.("governance.retention.get", {})) as { kinds?: Array<{ key?: string; value?: string }> } | undefined;
     const v = out?.kinds?.find((k) => k.key === "trash")?.value;
     const ms = typeof v === "string" ? retentionMs(v) : undefined;
-    if (ms !== undefined) return ms;
+    // under a day ("0d") would remove at the next hourly pass: governance's default instead (third look nit)
+    if (ms === null || (ms !== undefined && ms >= 86_400_000)) return ms;
   } catch { /* governance is not running here (a Personal Space has no retention settings): its default */ }
   return TRASH_KEEP_MS;
 }
 
 /** The periodic pass: the home and Files volumes of agents in Trash longer than Trash keeps things are removed. Returns the agents whose volumes went. */
-export async function forgetExpiredWorkspaces(ctx: TermCtx, remove: ((agentId: string) => Promise<void>) | null): Promise<string[]> {
+export async function forgetExpiredWorkspaces(ctx: TermCtx, remove: ((agentId: string) => Promise<void>) | null, inTrash?: InTrash | null): Promise<string[]> {
   ensure(ctx.db);
   if (!remove || (ctx.db.all("SELECT 1 FROM terminal_workspace_gone LIMIT 1") as Row[]).length === 0) return [];
   const keep = await trashKeepMs(ctx);
@@ -822,6 +828,10 @@ export async function forgetExpiredWorkspaces(ctx: TermCtx, remove: ((agentId: s
   const due = (ctx.db.all("SELECT agent_id FROM terminal_workspace_gone WHERE deleted_at <= ?", ctx.now() - keep) as Row[]).map((r) => String(r["agent_id"]));
   const done: string[] = [];
   for (const id of due) {
+    // read right before removing: one restored since (its agent.restored not consumed yet) keeps its volumes, and its row goes; one that cannot be told is kept for the next pass (third look T2)
+    const t = inTrash ? inTrash(id) : true;
+    if (t === false) { ctx.db.run("DELETE FROM terminal_workspace_gone WHERE agent_id = ?", id); continue; }
+    if (t === undefined) continue;
     try { await remove(id); ctx.db.run("DELETE FROM terminal_workspace_gone WHERE agent_id = ?", id); done.push(id); }
     catch (e) { ctx.log.warn("terminal: the workspace volumes of an agent in Trash could not be removed; tried again later", { agentId: id, reason: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); }
   }
