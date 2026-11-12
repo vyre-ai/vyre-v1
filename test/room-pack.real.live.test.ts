@@ -8,6 +8,8 @@ import { boot, hostLog, seededDir, waitFor } from "./support/live.ts";
 import { api, door, join } from "./member-key-kit.ts";
 
 const KEY = process.env["OPENCODE_API_KEY"];
+// scripts/test-run.ts sets VYRE_TEST_KEY_CHECK=accept for live files (the key probe then lists no models); this file talks to the real provider, so it asks for the real answer (gate run, 12 Nov 2026: without it "the account lists a model" failed).
+if (KEY) process.env["VYRE_TEST_KEY_CHECK"] = "real";
 
 test("real model: time to first visible text in a seeded 300-message room, with and without the pack, and one real digest", { skip: !KEY && "OPENCODE_API_KEY is not set", timeout: 1_700_000 }, async () => {
   let phase = "pre-join";

@@ -1,0 +1,1 @@
+- A numbered list in a reply keeps every number on one line: items 100 and up no longer break into "10" over "0.", and 10 to 99 have room before the text.

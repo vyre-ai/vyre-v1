@@ -22,6 +22,8 @@ const git = (cwd: string, ...args: string[]): string => {
   return r.stdout;
 };
 const PASSWORD = "crew journey password 7731";
+// the slow runner sets VYRE_TEST_KEY_CHECK=accept for live files; with a real key this file talks to the real provider and asks for its real answer
+if (process.env["OPENCODE_API_KEY"]) process.env["VYRE_TEST_KEY_CHECK"] = "real";
 
 test("REAL MODEL: helpers are one row each, the lead answers once, a helper chat shows its brief, and no tool names reach the person", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];

@@ -99,14 +99,22 @@ function withCaret(items: readonly Inline[]): readonly Inline[] {
   return [...items, { t: "text", v: CARET }];
 }
 
+/** The marker column of a list: a bullet is narrow; a numbered list is as wide as its widest number and its dot ("100." must not wrap onto two lines). */
+export function listMarkerWidth(kind: "ul" | "ol", start: number, count: number): number {
+  if (kind === "ul") return 22;
+  const chars = String(Math.max(start, start + count - 1)).length + 1;
+  return Math.max(22, Math.ceil(chars * 8.4) + 4);
+}
+
 function listItems(block: Extract<Block, { kind: "ul" | "ol" }>, caret: boolean, onLink?: (href: string) => void, renderLink?: RenderLink): ReactNode {
   const out: ReactNode[] = [];
+  const width = listMarkerWidth(block.kind, block.start, block.items.length);
   for (let i = 0; i < block.items.length; i++) {
     out.push(
       <View key={i} style={styles.item}>
         {block.checks && block.checks[i] !== null && block.checks[i] !== undefined
           ? <CheckBox id={block.key} index={i} initial={block.checks[i] === true} />
-          : <Text style={styles.marker}>{block.kind === "ul" ? "\u2022" : `${block.start + i}.`}</Text>}
+          : <Text style={[styles.marker, { width }]}>{block.kind === "ul" ? "\u2022" : `${block.start + i}.`}</Text>}
         <Text style={styles.itemText}>{inlineNodes(caret && i === block.items.length - 1 ? withCaret(block.items[i] ?? []) : (block.items[i] ?? []), onLink, renderLink)}</Text>
       </View>,
     );
