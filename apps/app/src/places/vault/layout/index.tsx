@@ -159,6 +159,8 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
 
   // on a wide window the first row is open, as in the prototype; on a phone nothing is open until a row is chosen
   const effectiveId = selectedId && visible.some((i) => i.id === selectedId) ? selectedId : twoPane ? (visible[0]?.id ?? null) : null;
+  // the first row, once shown, is the open item: a list that re-sorts (another item was just used) never swaps what the person is looking at
+  useEffect(() => { if (twoPane && effectiveId !== null && effectiveId !== selectedId) setSelectedId(effectiveId); }, [twoPane, effectiveId, selectedId]);
   const showDetail = twoPane || (detailOpen && effectiveId !== null);
 
   const select = useCallback((s: Selection) => {

@@ -9,7 +9,7 @@ import { allAutomations, emitAuto, saveVersion, touch } from "../projections.ts"
 import type { AutoCtx, Automation } from "../projections.ts";
 import { applyScheduleChoice, planSchedule, scheduleRequestKey } from "./schedule.ts";
 import type { AutomationSchedule, ChoiceLimits, MissedPolicy, OverlapPolicy, ScheduleChoiceKey, SchedulePlan } from "./schedule.ts";
-import { armState, claimStarted, claimedTickIds, lastClaimedAt, readState, saveCursor, savePaused, saveRequestOpen } from "./state.ts";
+import { armState, claimStarted, claimedTickIds, lastClaimedAt, previousTickAt, readState, saveCursor, savePaused, saveRequestOpen } from "./state.ts";
 
 export const SCHEDULE_EVERY_MS = 60_000;
 const PAUSE_REASON = "Schedule backlog is over its cap";
@@ -134,6 +134,9 @@ async function fireTick(ctx: AutoCtx, automation: Automation, tick: { tickId: st
     missed: ctx.now() - tick.fireAt > 60_000,
     tickId: tick.tickId,
   };
+  // what is new since the previous scheduled Run (the first Run: since the schedule was turned on), for a list step that asks only for that
+  const previous = previousTickAt(ctx.db, automation.id);
+  if (previous !== undefined && previous < tick.fireAt) payload["previousScheduledFor"] = previous;
   if (cron !== undefined) payload["cron"] = cron;
   const out = await fire(ctx, {
     automationId: automation.id,

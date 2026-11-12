@@ -9,6 +9,8 @@ import { useMissing } from "../hash/useMissing.ts";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { scrubAskContext } from "../../places/automations/ask/bundle.ts";
+import { reach } from "../reach/reach.ts";
+import { useViewer } from "../reach/viewer.ts";
 import { BUILD_CONNECTOR_OPENING, connectorOpening } from "../../places/vault/itemenv/automations.ts";
 import { openAsk } from "./ask.ts";
 import { AutomationsDataProvider } from "../../places/automations/canvas/data.tsx";
@@ -34,7 +36,7 @@ import { GATE, allows, useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export function automationsData(rt: ShellRuntime, nav: AutomationsData["nav"], keys: readonly KeyChoice[] = [], keysStatus?: KeysStatus, accounts?: readonly AccountOption[], lastPicks?: Readonly<Record<string, string>>): AutomationsData {
-  return { screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name }, spaceName: rt.space.name, name: nameOf(rt), keys, ...(keysStatus ? { keysStatus } : {}), ...(accounts ? { accounts } : {}), ...(lastPicks ? { lastPicks } : {}), nav, clock: () => ({ now: rt.clock().now }), canSpace: allows(rt, GATE.spaceAutomations) };
+  return { ...(rt.space.kind === "personal" ? { personalSpace: true } : {}), screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name }, spaceName: rt.space.name, name: nameOf(rt), keys, ...(keysStatus ? { keysStatus } : {}), ...(accounts ? { accounts } : {}), ...(lastPicks ? { lastPicks } : {}), nav, clock: () => ({ now: rt.clock().now }), canSpace: allows(rt, GATE.spaceAutomations) };
 }
 
 /** The tab hash names the Watching view. */
@@ -102,6 +104,10 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     });
     return () => { live = false; };
   }, [rt, connectVersion]);
+  const viewer = useViewer(rt);
+  const addressReach = viewer === null ? null : reach({ kind: "console", page: "network" }, viewer);
+  const addressDoor = addressReach !== null && addressReach.to === "open" ? addressReach.target : null;
+  const addressScreen = addressDoor?.screen ?? null;
   const data = useMemo(() => automationsData(rt, {
     openAutomation: (id) => { setView("automations"); setStep(null); setOpenId(id); opened({ subject: { type: "automation", id } }); },
     openJourney: (id) => { setViewRaw("automations"); setOverlay({ kind: "journey", id }); },
@@ -132,6 +138,8 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     },
     openKeys: () => rt.open({ screen: "vault.providers" }),
     buildConnector: () => { openAskPane({ thing: null, first: BUILD_CONNECTOR_OPENING }, "automations"); },
+    // the public address is set in Console; only a person who can open that page gets the door (reach)
+    ...(addressScreen ? { openAddress: () => rt.open({ screen: addressScreen, args: addressDoor?.args ?? {} }) } : {}),
     setUpConnector: async (offer) => {
       // the offer holds an item id and a name; the handle comes from the Vault, which never sends a value
       const got = (await rt.call("vault.item.get", { itemId: offer.itemId })) as { item?: { handle?: string; name?: string } } | null;
@@ -139,7 +147,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       if (!handle) throw new Error("Vyre could not find that Vault item. It may have moved to Trash.");
       openAsk(rt, "assistant", { kind: "vault_item", id: offer.itemId, title: offer.appName }, undefined, connectorOpening({ name: got?.item?.name ?? offer.appName, handle }));
     },
-  }, keys, keysStatus, accounts, lastPicks), [rt, opened, keys, keysStatus, accounts, lastPicks]);
+  }, keys, keysStatus, accounts, lastPicks), [rt, opened, keys, keysStatus, accounts, lastPicks, addressScreen]);
   const directory = useDirectory(rt);
   const extras = useMemo(() => configExtras(directory, {
     openAutomation: (id) => data.nav.openAutomation(id),

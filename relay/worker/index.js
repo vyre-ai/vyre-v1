@@ -37,7 +37,7 @@
 import { onGithub } from "./github.js";
 export { GithubLinks } from "./github.js";
 export { HostSlot, PUBLIC } from "./phone.js";
-import { gatewayOf, onHost, passthrough, hostControl, PUBLIC } from "./phone.js";
+import { gatewayOf, onHost, passthrough, hostControl, PUBLIC, HOOKS } from "./phone.js";
 export const BOX_AUTH_TAG = "vyre-relay-box-v1";
 /** What this relay does that a box may rely on, told in `ready` (an older relay says nothing): `registered` answers every ticket registration with 200 or 409. */
 /** Sign in by name: how long a box's watch on a name lasts without renewal, and how often one name may be asked about. */
@@ -694,13 +694,25 @@ export class RouteRelay {
     const ip = String(head.ip || "");
     const seen = w.ips.get(ip) || 0;
     if (w.n >= PUBLIC.perMinute || seen >= PUBLIC.ipPerMinute) return new Response(null, { status: 429, headers: { "retry-after": "60" } });
+    // a web request trigger has its own minute, in two counts. ACCEPTED requests (the box answered 200): 120 for the Space, 30 for one hook, 20 for one address on one hook, so a busy
+    // sender on a shared address is limited only on its own hook. REFUSED requests (any other answer): 20 for one address across the Space, so a stranger spraying ids or secrets stops after
+    // 20 (a 429 for that Space until the minute ends, the same answer for every id) and never spends the accepted budget.
+    // Memory: every map is cleared each minute; the accepted maps gain an entry only on a 200 (at most 120), the refusal maps only on a request let through (at most PUBLIC.perMinute, 600).
+    const hook = typeof head.hook === "string" ? head.hook : null;
+    if (hook) {
+      if (!w.hooks) w.hooks = { n: 0, per: new Map(), pair: new Map(), refused: new Map() };
+      const h = w.hooks, pk = `${ip}|${hook}`;
+      const over = h.n >= HOOKS.perMinute || (h.per.get(hook) || 0) >= HOOKS.perHookPerMinute || (h.pair.get(pk) || 0) >= HOOKS.perVisitorPerMinute
+        || (h.refused.get(ip) || 0) >= HOOKS.refusedPerVisitor;
+      if (over) return new Response(null, { status: 429, headers: { "retry-after": "60" } });
+    }
     w.n++;
     w.ips.set(ip, seen + 1);
     if (!this.publicOpen) this.publicOpen = new Map();
     if (this.publicOpen.size >= PUBLIC.concurrent) return new Response(null, { status: 503, headers: { "retry-after": "5" } });
     const body = new Uint8Array(await request.arrayBuffer());
     const id = b64url(random(9));
-    return new Promise(resolve => {
+    const answered = new Promise(resolve => {
       const flow = new TransformStream();
       const writer = flow.writable.getWriter();
       const entry = { resolve, writer, readable: flow.readable, answered: false, size: 0, timer: /** @type {any} */ (null) };
@@ -711,6 +723,12 @@ export class RouteRelay {
         this.json(control, { t: "p.body", id, b: bytesToB64(body.subarray(at, at + PUBLIC.chunk)), end: at + PUBLIC.chunk >= body.length });
       }
     });
+    if (!hook) return answered;
+    const res = /** @type {Response} */ (await answered);
+    const h = w.hooks, pk = `${ip}|${hook}`;
+    if (res.status === 200) { h.n++; h.per.set(hook, (h.per.get(hook) || 0) + 1); h.pair.set(pk, (h.pair.get(pk) || 0) + 1); }
+    else if (res.status !== 429) h.refused.set(ip, (h.refused.get(ip) || 0) + 1);
+    return res;
   }
 
   /** Close one open visitor request: an answer not yet started becomes `status`, one already streaming is cut. @param {string} id @param {number} status */

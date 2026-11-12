@@ -11,7 +11,7 @@ Plug an account into a connector; secrets are named Vault items, never values. Y
 | Grant level | edit |
 | Risk | medium |
 | Resource | connection (create under /connector) |
-| Gate | none |
+| Gate | send when automations.bind_hosts_unapproved(input) |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
@@ -62,6 +62,7 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
+- permission.needs_approval
 - permission.no_grant
 - permission.role_lacks_permission
 - validation.bad_input

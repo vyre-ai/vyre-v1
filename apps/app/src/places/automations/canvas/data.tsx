@@ -29,6 +29,8 @@ export interface AutomationsNav {
   /** The step picker's last row: starts a session that builds a connector for an app. Without it the row is not drawn. */
   buildConnector?(): void;
   setUpConnector?(offer: { itemId: string; appName: string }): Promise<void> | void;
+  /** Where this Space's public address is set, for a person who can open it there (never drawn for anyone else). */
+  openAddress?(): void;
 }
 
 export interface AutomationsData {
@@ -52,6 +54,8 @@ export interface AutomationsData {
   clock(): { now: number };
   /** May this person make and change Space Automations (automations.space)? False: Space ones open read-only with Ask an admin, and nothing offers to promote. Absent: yes. */
   canSpace?: boolean;
+  /** A Personal Space: there are no Space Automations, so nothing that needs one (a web request trigger) is offered. */
+  personalSpace?: boolean;
 }
 
 const Ctx = createContext<AutomationsData | null>(null);

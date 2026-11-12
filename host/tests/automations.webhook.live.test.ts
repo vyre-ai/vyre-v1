@@ -140,3 +140,20 @@ test("a real POST to the webhook URL starts exactly one run, a wrong secret star
     assert.equal((await hook(d, fresh, { body: "{}", key: "evt-5" })).status, 404);
   } finally { await d.stop(); }
 });
+
+test("with the Space's own public address, the web request address is a whole address a person can paste, and a POST to it starts the Run", async () => {
+  const dir = seededDir();
+  const d = await boot(dir, { config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "https://space.fresh.example"], {}, "1.2.3") });
+  try {
+    const made = await ok(d, "/v1/automations/create", { idempotencyKey: "hook-addr", name: "hooked-addr" });
+    const id = String((made["automation"] as { id?: string } | undefined)?.id ?? made["automationId"]);
+    await ok(d, "/v1/automations/update", { automationId: id, definition: { triggers: [{ key: "webhook" }], nodes: [{ id: "n", key: "records.create", input: { type: "note_board", fields: { title: "From the shown address" } } }] } });
+    const shown = String((await ok(d, "/v1/automations/webhook_url/get", { automationId: id }))["url"]);
+    assert.match(shown, /^https:\/\/space\.fresh\.example\/hooks\/automation\/aut_[a-z0-9]+\/[A-Za-z0-9_-]+$/, `the shown address is whole: ${shown}`);
+    await ok(d, "/v1/automations/set_enabled", { automationId: id, enabled: true });
+    // the public address points at this daemon: the same path, posted here, is what an app outside reaches
+    const res = await hook(d, d.url + new URL(shown).pathname, { body: JSON.stringify({ order: 1 }), key: "addr-1" });
+    assert.equal(res.status, 200, await res.text());
+    await until("the Run from the shown address", 10_000, async () => (await countOf(d, "From the shown address")) === 1 ? true : undefined);
+  } finally { await d.stop(); }
+});

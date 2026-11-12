@@ -48,6 +48,13 @@ export function harness(o: HarnessOptions = {}) {
   const runs: FakeRun[] = [];
   const byKey = new Map<string, string>();
   const calleeMap: Record<string, Callee> = { ...(o.calls ?? {}) };
+  /** Every Vault handle a test has sent in an input (the item part, #Name). */
+  const named = new Set<string>();
+  const nameHandles = (v: unknown): void => {
+    if (typeof v === "string") { for (const m of v.match(/#[A-Za-z_][A-Za-z0-9_]*/g) ?? []) named.add(m); return; }
+    if (Array.isArray(v)) { for (const x of v) nameHandles(x); return; }
+    if (v && typeof v === "object") for (const x of Object.values(v)) nameHandles(x);
+  };
   const authorize: Authorize = o.authorize ?? (() => false);
   const emitsOf = (cap: string | null): Set<string> => (cap === null
     ? new Set(registry.events.filter((e) => e.name.startsWith("automation.")).map((e) => e.name))
@@ -91,6 +98,11 @@ export function harness(o: HarnessOptions = {}) {
       },
       async call(c, input) {
         calls.push({ cap: c, input });
+        // the Vault, unless a test brings its own: the people of a unit test may use the keys that test names (a test about refusing a key passes its own vault.items.list)
+        if (c === "vault.items.list" && !calleeMap[c]) {
+          const kind = (input as { kind?: unknown } | null)?.kind;
+          return { items: kind !== undefined && kind !== "api_key" ? [] : [...named].map((h, i) => ({ id: `vit_named${i}`, handle: h, kind: "api_key", yourLevel: "use" })) };
+        }
         const f = calleeMap[c] ?? fakeRuns[c];
         if (!f) throw new Error(`unexpected call to ${c}`);
         return f(input, who);
@@ -101,6 +113,7 @@ export function harness(o: HarnessOptions = {}) {
 
   let keys = 0;
   async function call(cap: string, raw0: unknown, who: Caller): Promise<any> {   // eslint-disable-line @typescript-eslint/no-explicit-any
+    nameHandles(raw0);
     const input = IDEM_KEYED.has(cap) && !(raw0 as { idempotencyKey?: unknown }).idempotencyKey ? { ...(raw0 as object), idempotencyKey: `key_${++keys}` } : raw0;
     const bad = validateInput(cap, 1, input);
     if (bad.length) throw new Error(`${cap} input is invalid: ${bad.join("; ")}`);

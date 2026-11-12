@@ -42,3 +42,11 @@ test("without the builder permission an admin allows it in one tap and anyone el
   assert.deepEqual(gateFor({ ...base, builder: null }), { state: "ready" });
   assert.deepEqual(gateFor({ ...base, accounts: [], builder: { allowed: false, canGrant: true } }), { state: "no_ai" }, "an AI account comes first");
 });
+
+test("the app name drops a trailing key word: Notely API key is Notely", () => {
+  assert.equal(appNameOf("Notely API key"), "Notely");
+  assert.equal(appNameOf("OpenCode Go key"), "OpenCode Go");
+  assert.equal(appNameOf("Acme access token"), "Acme");
+  assert.equal(appNameOf("Stripe webhooks"), "Stripe webhooks");
+  assert.equal(appNameOf("API key"), "API key", "a name that is only the key word stays");
+});

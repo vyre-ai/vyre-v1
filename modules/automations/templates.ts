@@ -63,10 +63,10 @@ export const TEMPLATES: readonly Template[] = [
   },
   {
     key: "webhook_to_record",
-    title: "Retry-safe webhook to record",
+    title: "Retry-safe web request to record",
     summary: "Turn a posted request into a record. A failed write is tried again and never makes a second record.",
-    starts: "A webhook is received",
-    setUp: ["Choose the record type", "Match the fields to what the sender posts", "Copy the webhook address from the settings tab"],
+    starts: "A web request arrives",
+    setUp: ["Choose the record type", "Match the fields to what the sender posts", "Copy the address from the web request trigger"],
     definition: {
       triggers: [{ key: "webhook" }],
       nodes: [

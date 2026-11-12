@@ -10,7 +10,12 @@ import type { ChoiceLimits, ScheduleChoiceKey } from "./schedule/schedule.ts";
 import { registry } from "../../generated/registry.ts";
 
 export { handlers };
-export const hostSeams = { setDocumentNetwork, setConnectorReadSender, setHttpStepHost };
+/** The Gate's condition for automations.try_read (host/src/daemon/gate-hook.ts): the host a test read would send a key to, and whether a person approved that host for the item. */
+export { keyHostApproved } from "./key-hosts.ts";
+import { setKeyRefResolver, setKeyUsableBy, setPublicBase } from "./key-ref-port.ts";
+import { backfillStepHosts } from "./key-steps.ts";
+
+export const hostSeams = { setDocumentNetwork, setConnectorReadSender, setHttpStepHost, setKeyRefResolver, setKeyUsableBy, setPublicBase };
 export { accessDiff, canView, structuralIssues, validateDefinition, webhookSecretMatches } from "./handlers/defs.ts";
 import { acceptHook, adoptRun, consumeEvent, loadRunPlan, startRun } from "./handlers/triggers.ts";
 export { consumeEvent, dropReason, fireOne, loadRunPlan, matches, startRun, triggerPayload } from "./handlers/triggers.ts";
@@ -74,6 +79,8 @@ export const periodic = {
   "automations.schedule_tick": { everyMs: SCHEDULE_EVERY_MS, run: (ctx: Ctx) => runDueSchedules(ctx as AutoCtx) },
   "automations.watches_tick": { everyMs: 60_000, run: (ctx: Ctx) => watchesTick(ctx as unknown as AutoCtx) },
   "automations.grants_backfill": { everyMs: SCHEDULE_EVERY_MS, run: (ctx: Ctx) => backfillGrants(ctx as unknown as AutoCtx) },
+  /** Once after the update: every key-bearing step's host is approved for its key, so nothing that worked before stops (key-steps.ts). */
+  "automations.key_hosts_backfill": { everyMs: SCHEDULE_EVERY_MS, immediate: true, run: (ctx: Ctx) => backfillStepHosts(ctx as unknown as AutoCtx) },
 };
 export const hostCalls = {
   /** The inbound webhook route asks this: does the URL belong to a live, turned-on automation, and if so start its Run. Null is the one answer to every refusal. */

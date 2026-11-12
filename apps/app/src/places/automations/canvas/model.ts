@@ -57,7 +57,7 @@ export const STEP_PALETTE: readonly { key: string; title: string; group: string;
 export const TRIGGER_PALETTE: readonly { key: string; title: string; icon: IconKey }[] = [
   { key: "record_change", title: "A record changes", icon: "bolt" },
   { key: "schedule", title: "On a schedule", icon: "clock" },
-  { key: "webhook", title: "A webhook is received", icon: "hook" },
+  { key: "webhook", title: "A web request arrives", icon: "hook" },
   { key: "form_submit", title: "A form is submitted", icon: "inbox" },
   { key: "email_received", title: "An email is received", icon: "mail" },
   { key: "chat_message", title: "A chat message is posted", icon: "chat" },
@@ -535,7 +535,7 @@ export function check(def: Definition, kind: "personal" | "space" = "space", o: 
   const out: Issue[] = [];
   const by = new Map(def.nodes.map((n) => [n.id, n] as const));
   if (def.triggers.length === 0) out.push({ severity: "error", message: "Add a trigger so something starts this Automation" });
-  for (const t of def.triggers) if (kind === "personal" && t.key === "webhook") out.push({ nodeId: "trigger", severity: "error", message: "A webhook needs a Team Space; a Personal Automation cannot use it" });
+  for (const t of def.triggers) if (kind === "personal" && t.key === "webhook") out.push({ nodeId: "trigger", severity: "error", message: "A web request trigger works only on a Space Automation in a Team Space" });
   for (const t of def.triggers) {
     const miss = triggerMissing(t);
     if (miss.length === 0) continue;
@@ -865,4 +865,9 @@ export function describeTrigger(t: DefTrigger, names: RefNames = {}, zone?: stri
 /** Whether a person can start it themselves (a Run by hand trigger): the editor offers Run now only then. */
 export function startsByHand(def: Definition): boolean {
   return def.triggers.some((t) => t.key === "manual");
+}
+
+/** The banner offers "Move to Space" for a web request trigger on a Personal Automation, only in a Team Space and only to someone who may make Space Automations. */
+export function offersMoveToSpace(kind: "personal" | "space", def: Definition, firstError: Issue | undefined, o: { personalSpace?: boolean; canSpace?: boolean }): boolean {
+  return kind === "personal" && o.personalSpace !== true && o.canSpace !== false && firstError?.nodeId === "trigger" && def.triggers.some((t) => t.key === "webhook") && /web request/.test(firstError.message);
 }

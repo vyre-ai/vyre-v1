@@ -113,3 +113,55 @@ test("one scheduler tick starts one Run, and the same fire does not start a seco
     assert.deepEqual(await runIds(d, id), started, "a repeated tick for the same fire does not start a second Run");
   } finally { await d.stop(); }
 });
+
+test("a scheduled Run carries the previous Run's time; the first one the time the schedule was turned on, never earlier", async () => {
+  clock = Date.now();
+  const d = await boot(seededDir());
+  try {
+    await onlyScheduleJob(d);
+    const made = await ok(d, "/v1/automations/create", {
+      idempotencyKey: "sched-since", name: "since",
+      definition: {
+        triggers: [{ key: "schedule", config: { cron: "* * * * *", timezone: "UTC", missed: "skip" } }],
+        nodes: [{ id: "note", key: "records.create", input: { type: "note_board", fields: { title: "since {{trigger.previousScheduledFor}}" } } }],
+      },
+    });
+    const id = String((made["automation"] as { id?: string }).id);
+    await ok(d, "/v1/automations/set_enabled", { automationId: id, enabled: true });
+    clock += MINUTE;
+    await d.scheduler.tick();   // arms the schedule: this is when it was turned on, as far as the schedule knows
+    const armedAt = clock;
+    const sinceOf = async (runId: string): Promise<number> => {
+      for (let i = 0; i < 60; i++) {
+        const st = ((await ok(d, "/v1/runs/get", { runId }))["run"] as { status?: string }).status;
+        if (st === "succeeded" || st === "failed") break;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      const io = await ok(d, "/v1/runs/step_io", { runId, step: "note" });
+      const recordId = String((io["output"] as { recordId?: unknown } | undefined)?.recordId ?? "");
+      const rec = await ok(d, "/v1/records/get", { type: "note_board", recordId });
+      const title = String(((rec["record"] as { fields?: { title?: unknown } } | undefined)?.fields?.title) ?? "");
+      const m = /since (\d+)/.exec(title);
+      assert.ok(m, `the step got the previous time: ${JSON.stringify(rec).slice(0, 300)}`);
+      return Number(m![1]);
+    };
+    const fire = async (): Promise<string> => {
+      const before = await runIds(d, id);
+      const cursor = clock;
+      const boundary = Math.floor(cursor / MINUTE) * MINUTE + MINUTE;
+      clock = Math.max(cursor + MINUTE, boundary + 30_000);
+      await d.scheduler.tick();
+      let after = await runIds(d, id);
+      for (let i = 0; i < 50 && after.filter((r) => !before.includes(r)).length === 0; i++) { await new Promise((r) => setTimeout(r, 100)); after = await runIds(d, id); }
+      const fresh = after.filter((r) => !before.includes(r));
+      assert.equal(fresh.length, 1, `one Run per tick: ${JSON.stringify(after)}`);
+      return fresh[0]!;
+    };
+    const first = await fire();
+    const firstTick = Math.floor(clock / MINUTE) * MINUTE;
+    const firstSince = await sinceOf(first);
+    assert.equal(firstSince, armedAt, "the first Run asks for what is new since the schedule was turned on, not the app's whole history");
+    const second = await fire();
+    assert.equal(await sinceOf(second), firstTick, "the second Run asks only for what is new since the first");
+  } finally { await d.stop(); }
+});

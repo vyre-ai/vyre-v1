@@ -53,6 +53,14 @@ const RESPONSE_KEEP = new Set(["accept-ranges", "cache-control", "content-dispos
  * no Cookie, no Set-Cookie, and only the paths below. A browser's sign-in to Vyre never comes this way: the page on this door takes no password.
  */
 export const DOOR = /^\/(?:mcp|oauth\/(?:authorize|register|token|wait)|\.well-known\/oauth-(?:protected-resource(?:\/mcp)?|authorization-server))$/;
+/**
+ * A web request trigger: POST /hooks/automation/<id>/<secret> and that exact shape only (host/src/seams/relay.ts HOOK and host/src/routes/webhooks.ts AUTOMATION_PATH say the same). It is a new way in
+ * from the internet, so it is narrow: POST only, no query, a body of 1 MB at most, only content-type and an idempotency key reach the box, and a Space takes 120 a minute, one hook 30 and one visitor 20 on one hook
+ * (the route object counts them, alongside the per-visitor limit every public request has). A rate limit answers 429 with Retry-After (it says nothing about whether an id or secret is valid,
+ * and some senders turn an endpoint off after repeated 404s); every other refusal is the same bare 404, and the path, which carries the secret, is never logged.
+ */
+export const HOOK = /^\/hooks\/automation\/(aut_[a-z0-9]{1,64})\/[A-Za-z0-9_-]{8,200}$/;
+export const HOOKS = Object.freeze({ maxBody: 1 << 20, perMinute: 120, perHookPerMinute: 30, perVisitorPerMinute: 20, refusedPerVisitor: 20 });
 const DOOR_KEEP = new Set([...REQUEST_KEEP, "mcp-session-id", "mcp-protocol-version", "origin", "last-event-id"]);
 const DOOR_BACK = new Set([...RESPONSE_KEEP, "www-authenticate", "mcp-session-id", "location", "allow", "x-frame-options", "x-content-type-options", "x-robots-tag", "referrer-policy", "cross-origin-opener-policy", "access-control-allow-origin", "access-control-allow-methods", "access-control-allow-headers", "access-control-max-age"]);
 
@@ -380,6 +388,31 @@ async function onPublic(request, env, name, info, online, artifact = false) {
   return done(new Response(request.method === "HEAD" ? null : res.body, { status: res.status, headers: publicHeaders(res.headers, url, artifact) }));
 }
 
+/** One web request trigger through the relay. @param {Request} request @param {any} env @param {string} name @param {any} info @param {() => Promise<boolean>} online */
+export async function onHook(request, env, name, info, online) {
+  const url = new URL(request.url);
+  const notFound = () => new Response(null, { status: 404, headers: { "cache-control": "no-store", "x-robots-tag": "noindex" } });
+  const done = (/** @type {Response} */ res) => { console.log(JSON.stringify({ p: url.hostname, hook: true, status: res.status })); return res; };
+  const m = HOOK.exec(url.pathname);
+  if (!m || url.search !== "" || request.method !== "POST" || publicBlocked(env, name, "hooks")) return done(notFound());
+  if (Number(request.headers.get("content-length") || 0) > HOOKS.maxBody) return done(notFound());
+  const body = new Uint8Array(await request.arrayBuffer());
+  if (body.length > HOOKS.maxBody) return done(notFound());
+  if (!(await online())) return done(notFound());
+  /** @type {Record<string, string>} */
+  const headers = {};
+  const type = request.headers.get("content-type");
+  if (type && type.length <= 200) headers["content-type"] = type;
+  const key = request.headers.get("idempotency-key");
+  if (key && key.length <= 200 && /^[\x21-\x7e]+$/.test(key)) headers["idempotency-key"] = key;
+  const head = { method: "POST", path: url.pathname, ip: request.headers.get("cf-connecting-ip") || "", headers, hook: m[1] };
+  let res;
+  try { res = await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/p", { method: "POST", headers: { "x-vyre-p": JSON.stringify(head) }, body }); } catch { return done(notFound()); }
+  if (res.status === 429) return done(new Response(null, { status: 429, headers: { "retry-after": "60", "cache-control": "no-store" } }));
+  if (res.status !== 200) return done(notFound());
+  return done(new Response('{"accepted":true}', { status: 200, headers: { "content-type": "application/json", "cache-control": "no-store", "x-content-type-options": "nosniff" } }));
+}
+
 /** What the box may see of a request on the door. @param {Request} request @param {URL} url */
 export function doorHead(request, url) {
   /** @type {Record<string, string>} */
@@ -484,6 +517,7 @@ export async function onHost(request, env, name, artifact = false) {
   const online = async () => (await all()).some(x => x.online);
   // the artifact host answers its own two kinds of path and nothing else: never the app, the door or /p/
   if (artifact) return ARTIFACT_HOST.test(url.pathname) ? onPublic(request, env, name, info, online, true) : new Response(null, { status: 404, headers: { "cache-control": "no-store", "x-robots-tag": "noindex" } });
+  if (url.pathname.startsWith("/hooks/")) return onHook(request, env, name, info, online);
   if (url.pathname === "/p" || url.pathname.startsWith("/p/")) return onPublic(request, env, name, info, online);
   if (DOOR.test(url.pathname)) return onDoor(request, env, name, info, online);
   // an artifact's plain address: the app opens it for whoever is signed in
@@ -491,7 +525,7 @@ export async function onHost(request, env, name, artifact = false) {
   if (plain && request.method === "GET") return new Response(null, { status: 302, headers: { location: `/#subject=artifact:${plain[1]}`, "cache-control": "no-store" } });
   if (url.pathname === "/__vyre/info.json") {
     const s = await all();
-    return json(200, { name, label: info.label || "", route: info.route, relay: relayWss, online: await online(), ...(members.length ? { computers: routes.map((r, i) => ({ label: r.label, online: Boolean(s[i]?.online), seenAt: s[i]?.seenAt ?? null })) } : {}) });
+    return json(200, { name, label: info.label || "", route: info.route, relay: relayWss, online: await online(), hooks: true, ...(members.length ? { computers: routes.map((r, i) => ({ label: r.label, online: Boolean(s[i]?.online), seenAt: s[i]?.seenAt ?? null })) } : {}) });
   }
   if (url.pathname.startsWith("/__vyre/")) {
     if (!env.ASSETS || (request.method !== "GET" && request.method !== "HEAD")) return new Response(null, { status: 404, headers: { "x-vyre-gateway": "no-assets" } });

@@ -42,8 +42,10 @@ type Out = {
           steps: Array<{
               nodeId: string;
               title: string;
+              blocked?: string;
             }>;
         }>;
+      hidden?: number;
     }>;
 };
 ```
@@ -73,13 +75,15 @@ type Out = {
             "status": "example",
             "steps": [
               {
+                "blocked": "example",
                 "nodeId": "example",
                 "title": "example"
               }
             ]
           }
         ],
-        "handle": "#Dana_Lawmatics"
+        "handle": "#Dana_Lawmatics",
+        "hidden": 1
       }
     ]
   }

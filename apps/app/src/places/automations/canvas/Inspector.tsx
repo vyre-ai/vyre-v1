@@ -28,7 +28,7 @@ import { Glyph } from "./icons.tsx";
 import { ERROR_MODES, groupOfKey, iconOfKey, kindOfKey, setBranch, subtitleOf, titleOfKey, updateStep, triggerMeta } from "./model.ts";
 import { SchemaForm } from "./SchemaForm.tsx";
 import { TriggerForm, usePersonZone } from "./TriggerForm.tsx";
-import { controlsFor, humanize } from "./form-model.ts";
+import { controlsFor, humanize, specOf } from "./form-model.ts";
 import type { IconKey } from "./model.ts";
 import type { DefNode, DefTrigger, Definition, Issue, KeyChoice } from "./model.ts";
 import { LiveStepForm } from "./steps/LiveStepForm.tsx";
@@ -38,7 +38,9 @@ import { IconButton, pointer, s as ps, webOnly } from "./parts.tsx";
 
 const show = (v: unknown): string => (typeof v === "string" ? v : v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
 
-export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onChange, onClose, onDelete, onRemoveTrigger, testID = "inspector", embedded = false, layout, initialAdvanced = false, mode = "basic", onMode, section = "configure", onSection, samples = {}, version = 0, onStoreSample, onAsk, keysStatus, accounts = [], inputSchema, lastPicks, kind: automationKind = "personal", runId, runLog }: {
+export function Inspector({ automationId, def, node, trigger, triggerIndex, issues, keys, onChange, onClose, onDelete, onRemoveTrigger, testID = "inspector", embedded = false, layout, initialAdvanced = false, mode = "basic", onMode, section = "configure", onSection, samples = {}, version = 0, onStoreSample, onAsk, keysStatus, accounts = [], inputSchema, lastPicks, kind: automationKind = "personal", runId, runLog }: {
+  /** The Automation this panel edits: the web request trigger shows its address. */
+  automationId?: string;
   def: Definition;
   node: DefNode | null;
   trigger: DefTrigger | null;
@@ -151,7 +153,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
           {section === "test" ? <Text testID="trigger-test-note" style={i.hint}>A trigger is tested with the whole Automation. Press Test at the top: it runs every step with sample data, and what each step returns shows on the Data tab.</Text> : null}
           {section === "configure" ? (
             <MapTargetContext.Provider value={{ set: setMapTarget }}>
-              {trigger && triggerIndex !== null ? <TriggerForm trigger={trigger} onChange={editTrigger} openMenu={openMenu} zone={zone} /> : null}
+              {trigger && triggerIndex !== null ? <TriggerForm trigger={trigger} onChange={editTrigger} openMenu={openMenu} zone={zone} {...(automationId ? { automationId } : {})} /> : null}
               {trigger && advanced ? (
                 <Field
                   label="Advanced · trigger as JSON" mono rows={6} testID="field-trigger-json" value={JSON.stringify({ ...(trigger.config ? { config: trigger.config } : {}), ...(trigger.filter !== undefined ? { filter: trigger.filter } : {}) }, null, 2)}
@@ -166,7 +168,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
                 />
               ) : null}
               {jsonError ? <Text style={i.hint}>{jsonError}</Text> : null}
-              <Text testID="plain-language" style={i.hint}>{trigger ? (def.triggers.length > 1 ? `This is trigger ${(triggerIndex ?? 0) + 1} of ${def.triggers.length}. Any one of them starts a run.` : "This starts a run.") : "Every trigger is listed on the card. Any one starts a run."}</Text>
+              <Text testID="plain-language" style={i.hint}>{trigger ? (def.triggers.length > 1 ? `This is trigger ${(triggerIndex ?? 0) + 1} of ${def.triggers.length}. Any one of them starts a run.` : specOf(trigger.key).note ? "" : "This starts a run.") : "Every trigger is listed on the card. Any one starts a run."}</Text>
               <Problems list={mine} />
               {trigger && triggerIndex !== null && onRemoveTrigger ? (
                 <Pressable accessibilityRole="button" accessibilityLabel="Remove this trigger" testID="remove-trigger" onPress={() => onRemoveTrigger(triggerIndex)} style={[i.del, pointer]}>

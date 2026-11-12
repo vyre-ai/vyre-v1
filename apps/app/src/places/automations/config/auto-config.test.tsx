@@ -191,7 +191,7 @@ test("the Promote sheet shows the access diff: what stops running on yours, what
   const preview = await previewOf(s, "aut_brief");
   const a = s.replica.rows("automations").find((r) => r.id === "aut_brief") as never;
   const out = page(s, <PromoteSheet automation={a} preview={preview} onClose={() => undefined} />);
-  assert.ok(has(out, "Promote “My morning briefing” to the Space") && has(out, "This is the access it will run on. Confirm the changes."));
+  assert.ok(has(out, "Promote “My morning briefing” to the Space") && has(out, "Teammates who can open Automations will see it. This is the access it will run on."));
   assert.ok(has(out, "It becomes a Service") && has(out, "Agent steps run on a shared API key, never a subscription."));
   const order = ["Stops running on your access", "Will run on access given to it"].map((t) => at(out, `>${t}<`));
   assert.deepEqual([...order].sort((x, y) => x - y), order);

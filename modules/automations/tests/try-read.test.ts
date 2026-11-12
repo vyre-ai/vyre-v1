@@ -1,6 +1,7 @@
 // One planned connector read. The key value stays out of the send and the reply.
-import test, { afterEach } from "node:test";
+import test, { afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { setDocumentNetwork } from "../document-network.ts";
 import { setConnectorReadSender, tryConnectorRead } from "../handlers/try-read.ts";
 import type { AutoCtx } from "../projections.ts";
 
@@ -34,7 +35,9 @@ function assertNoSentinel(value: unknown): void {
   assert.equal(JSON.stringify(value).includes(SENTINEL), false);
 }
 
-afterEach(() => setConnectorReadSender(null));
+// names resolve without the outside DNS: every app host to one public address, private.example to a private one
+beforeEach(() => setDocumentNetwork({ lookup: async (h: string) => (h === "private.example" ? ["10.1.2.3"] : ["93.184.216.34"]), fetch: (async () => { throw new Error("not used"); }) as typeof fetch }));
+afterEach(() => { setConnectorReadSender(null); setDocumentNetwork(null); });
 
 test("GET sends only the plan and a 204 is tested", async () => {
   let seen: unknown;
@@ -52,7 +55,7 @@ test("GET sends only the plan and a 204 is tested", async () => {
   assertNoSentinel(out);
 });
 
-test("a 500 stays a draft", async () => {
+test("a 500 stays a draft and says the app had a problem", async () => {
   let seen: unknown;
   setConnectorReadSender(async (plan) => {
     seen = plan;
@@ -60,7 +63,7 @@ test("a 500 stays a draft", async () => {
   });
   const out = await tryConnectorRead(ctx, readInput());
   assert.deepEqual(seen, PLAN);
-  assert.deepEqual(out, { level: "draft", reason: "The read did not succeed.", status: 500 });
+  assert.deepEqual(out, { level: "draft", reason: "The app had a problem (500). Try again later.", status: 500 });
   assertNoSentinel(seen);
   assertNoSentinel(out);
 });
@@ -87,6 +90,28 @@ test("a host outside domains does not send", async () => {
   assert.equal(calls, 0);
   assert.deepEqual(out, { level: "draft", reason: "That host is not in the document." });
   assertNoSentinel(out);
+});
+
+test("a host that resolves to a private address does not send", async () => {
+  let calls = 0;
+  setConnectorReadSender(async () => { calls += 1; return { status: 200 }; });
+  const out = await tryConnectorRead(ctx, readInput({ domains: ["private.example"] }));
+  assert.equal(calls, 0);
+  assert.deepEqual(out, { level: "draft", reason: "That address is not a public host." });
+});
+
+test("each failed read has its own line", async () => {
+  const cases: [{ status: number; failed?: "vault" | "network" }, RegExp][] = [
+    [{ status: 401 }, /refused the key \(401\)/], [{ status: 403 }, /refused the key \(403\)/], [{ status: 404 }, /Nothing at that address \(404\)/],
+    [{ status: 429 }, /slow down/], [{ status: 0, failed: "network" }, /did not answer/], [{ status: 0, failed: "vault" }, /did not give this read the key vit_stripe/],
+  ];
+  for (const [reply, line] of cases) {
+    setConnectorReadSender(async () => reply);
+    const out = await tryConnectorRead(ctx, readInput());
+    assert.equal(out.level, "draft");
+    assert.match(String(out.reason), line);
+    assertNoSentinel(out);
+  }
 });
 
 test("a successful read records tested and does not store the key", async () => {
