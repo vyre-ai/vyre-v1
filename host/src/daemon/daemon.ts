@@ -90,6 +90,11 @@ export function createMadeFilesAnnouncer(a: { db: { all(sql: string, ...args: un
   };
 }
 
+/** An agent's own reports on its own task: what an outside-started Automation Run may do in Ask first without a card (ownTaskReport). */
+const OWN_TASK_REPORTS: ReadonlySet<string> = new Set(["tasks.submit", "tasks.ask", "tasks.block", "tasks.working_notes.set", "chat.post"]);
+/** Triggers whose payload a stranger can write (steps-core brief.ts, the engine's task baton). */
+const OUTSIDE_TRIGGER_KEYS: ReadonlySet<string> = new Set(["email_received", "webhook", "form_submit"]);
+
 export function createAgentHomeCaller(a: { db: { all(sql: string, ...args: unknown[]): unknown[] }; spaceId: string; invoke: Invoke }) {
   return async (agentId: string, cap: string, input: unknown): Promise<unknown> => {
     const owner = a.db.all("SELECT ownerId FROM agents_agent WHERE id = ? AND deletedAt IS NULL", agentId)[0] as { ownerId?: string } | undefined;
@@ -1042,6 +1047,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       let previews: ReturnType<typeof createViewAs> | null = null;
       let invokeRef: Invoke = () => Promise.reject(new Error("the invoke pipeline is not ready"));
       const firstCapOf = new Map<string, (typeof registryCaps)[number] | undefined>();
+      /** The task a thread is about, when an Automation's Run made it: its automation, the trigger kind, and whether a stranger could have started it (email, form, webhook). */
+      const automationTaskOfThread = async (threadId: string): Promise<{ taskId: string; automationId: string; trigger: string; outside: boolean } | null> => {
+        try {
+          // read as the server itself (capabilities, not host calls)
+          const read = async (cap: string, input: Record<string, unknown>): Promise<unknown> => {
+            const r = await invokeRef(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "seam" });
+            return r.status === "ok" ? r.output : null;
+          };
+          const th = ((await read("threads.get", { threadId })) as { thread?: { scopeType?: string; scopeId?: string } } | null)?.thread;
+          if (th?.scopeType !== "task" || typeof th.scopeId !== "string") return null;
+          const t = ((await read("tasks.get", { taskId: th.scopeId })) as { task?: { createdBy?: string; workingNotes?: Record<string, string> } } | null)?.task;
+          const automationId = t?.workingNotes?.["automation.id"], trigger = t?.workingNotes?.["automation.trigger"] ?? "";
+          if (typeof automationId !== "string" || !/^aut_[a-z0-9]+$/.test(automationId) || t?.createdBy !== `svc_${automationId.slice(4)}`) return null;
+          return { taskId: th.scopeId, automationId, trigger, outside: OUTSIDE_TRIGGER_KEYS.has(trigger) };
+        } catch { return null; }
+      };
       const hookRunner = createHookRunner({
         space, now, db,
         // a hooks override stands in for the module hooks, except the access module's: authorize reads its snapshot (ruling 70), so its host calls are never replaced
@@ -1314,6 +1335,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         } },
         resolveItem: (type, kind, value, person) => resolveVaultItem(db!, type, kind, value, person),
         // a Vault item this person cannot see: another person's Mine item (hidden even from an admin, as the Vault hides it), or one they may not use
+        // an agent's own report on the task it holds, in a task thread an Automation's outside-started Run made (submit, ask, block, its notes, a post in that thread): it acts on nothing
+        // outside the task, so Ask first does not stop it there (lead 12 Nov, pass 2: an outside-started Run must be able to finish); every other write in that thread still asks
+        ownTaskReport: async (cap, input, seed) => {
+          if (seed.principal.kind !== "agent" || !seed.thread || !OWN_TASK_REPORTS.has(cap.name)) return false;
+          const at = await automationTaskOfThread(seed.thread);
+          if (at === null || !at.outside) return false;
+          const i = (input ?? {}) as { taskId?: unknown; threadId?: unknown };
+          return cap.name === "chat.post" ? i.threadId === seed.thread : i.taskId === at.taskId;
+        },
         vaultHidden: (itemId, person) => {
           try {
             const r = db!.all(`SELECT "scope", "owner" FROM vault_meta WHERE "id" = ? AND "deleted_at" IS NULL`, itemId)[0] as { scope?: string; owner?: string } | undefined;

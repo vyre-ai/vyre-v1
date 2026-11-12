@@ -286,7 +286,7 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.notes && typeof input.notes === "object") {
     // notes the task starts with: a brief, a checklist, a schema. The two reserved keys belong to a held act and are never taken from here.
     const notes: Record<string, string> = {};
-    for (const [k, v] of Object.entries(input.notes as Record<string, unknown>).slice(0, MAX_START_NOTES)) if (!(k in RESERVED_NOTES) && !k.startsWith("gate.") && typeof v === "string" && (k !== BATON_OWNER || mayNameBatonOwner(ctx, v)) && (k !== BATON_WAITING || isTrustedService(ctx.principal)) && k !== BATON_ACTING_FOR) notes[k] = v.slice(0, MAX_NOTE_CHARS);
+    for (const [k, v] of Object.entries(input.notes as Record<string, unknown>).slice(0, MAX_START_NOTES)) if (!(k in RESERVED_NOTES) && !k.startsWith("gate.") && typeof v === "string" && (k !== BATON_OWNER || mayNameBatonOwner(ctx, v)) && (k !== BATON_WAITING || isTrustedService(ctx.principal)) && k !== BATON_ACTING_FOR && (!k.startsWith(AUTOMATION_NOTES) || ctx.principal.kind === "service")) notes[k] = v.slice(0, MAX_NOTE_CHARS);
     t.workingNotes = notes;
   }
   // an agent's task records the person the agent was acting for when it made it, from the session and never from the input: the turns this task wakes act for that person (lead 12 Nov)
@@ -572,6 +572,8 @@ export const RESERVED_NOTES = { decision_id: "decisionId", payload_hash: "payloa
 
 /** The working note that names the person an agent's turns on a task act for (the engine's task baton reads it). */
 export const BATON_OWNER = "baton.owner";
+/** The notes a Run's step writes on a task it makes (automation.id, automation.trigger): set at create by a service, never after. */
+export const AUTOMATION_NOTES = "automation.";
 /** The person an agent was acting for when it made the task (set by tasks.create from the session only). */
 export const BATON_ACTING_FOR = "baton.acting_for";
 /** The server's line on a task that waits for a person's yes (the engine's task baton writes it). */
@@ -624,6 +626,8 @@ export async function notesSet(ctx: TasksCtx, input: In): Promise<unknown> {
   if (key === BATON_OWNER && !mayNameBatonOwner(ctx, value)) raise(ctx, "validation.field_locked", "Only a person can start this work as themselves.", { field: key });
   if (key === BATON_WAITING && !isTrustedService(ctx.principal)) raise(ctx, "validation.field_locked", "Only the server says that.", { field: key });
   if (key === BATON_ACTING_FOR) raise(ctx, "validation.field_locked", "That is set when the task is made, and never changed.", { field: key });
+  // which Automation and trigger made the task: written by the Run's step when it makes the task, never changed after (an agent that rewrote the trigger would leave the outside-content rules)
+  if (key.startsWith(AUTOMATION_NOTES) && !isTrustedService(ctx.principal)) raise(ctx, "validation.field_locked", "That is set when the task is made, and never changed.", { field: key });
   // a writer that names the value it started from is refused when someone changed the note meanwhile: nothing is overwritten, and the refusal says what the note holds now and who changed it.
   // An agent that names none may only append (the note was empty, or its new value starts with what it holds): anything else could erase what a person saved after the agent read it. A list note
   // (Done means, the ticks) an agent changed from a stale read is merged, as the page does for people: both changes stay.
@@ -669,6 +673,8 @@ export async function notesDelete(ctx: TasksCtx, input: In): Promise<unknown> {
   if (key in RESERVED_NOTES || key.startsWith("gate.")) raise(ctx, "validation.field_locked", "That value is never removed.", { field: key });
   // whom an agent's turns act for, and the line that says nobody yet, are guarded as their writes are: an agent cannot drop its starter to fall back to someone else (review 12 Nov, 6)
   if (key === BATON_ACTING_FOR) raise(ctx, "validation.field_locked", "That is set when the task is made, and never changed.", { field: key });
+  // which Automation and trigger made the task: written by the Run's step when it makes the task, never changed after (an agent that rewrote the trigger would leave the outside-content rules)
+  if (key.startsWith(AUTOMATION_NOTES) && !isTrustedService(ctx.principal)) raise(ctx, "validation.field_locked", "That is set when the task is made, and never changed.", { field: key });
   if (key === BATON_OWNER && !isTrustedService(ctx.principal) && !(ctx.principal.kind === "person" && ctx.actingFor === undefined && t.workingNotes[BATON_OWNER] === ctx.principal.id)) raise(ctx, "validation.field_locked", "Only the person it names, or the server, removes that.", { field: key });
   if (key === BATON_WAITING && !isTrustedService(ctx.principal)) raise(ctx, "validation.field_locked", "Only the server removes that.", { field: key });
   if (key in t.workingNotes) {

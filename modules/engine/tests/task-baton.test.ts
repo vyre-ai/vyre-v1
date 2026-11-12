@@ -181,3 +181,14 @@ test("a task an agent made runs for the person it was acting for; with nobody on
   assert.equal(b.provider.specs.length, 0, "not the agent's owner");
   assert.equal(b.h.called.find((c) => c.cap === "tasks.working_notes.set")?.input.value, WAITING_LINE_AGENT);
 });
+
+test("the person who started a waiting automation task is asked again at the wake: once they cannot give the agent work, it waits (pass 2)", async () => {
+  const mk = () => task({ createdBy: "svc_0123456789abcdef0123456789abcdef", source: { kind: "run", id: "run_1" }, workingNotes: { "baton.owner": BOSS } });
+  const yes = scene({ tsk_t1: mk() }, { "agents.outside.usable": () => ({ usable: true }) });
+  assert.deepEqual(await yes.run("task.created", "tsk_t1"), [DOER]);
+  const no = scene({ tsk_t1: mk() }, { "agents.outside.usable": () => ({ usable: false }) });
+  assert.deepEqual(await no.run("task.created", "tsk_t1"), [], "not woken for someone who can no longer give it work");
+  assert.equal(no.provider.specs.length, 0);
+  assert.match(String(no.h.called.find((c) => c.cap === "tasks.working_notes.set")?.input.value), /can no longer give this agent work/);
+  assert.equal(no.h.called.find((c) => c.cap === "agents.outside.usable")?.input.as, BOSS, "asked as the starter");
+});

@@ -249,3 +249,17 @@ test("an ask is taken back by the next message only when the agent has replied s
   await askFor("msg_4", [], h.now());                                     // the agent replied after message 3: it is taken back
   assert.equal(await granted(take(h, ["lee@acme.test"])), false);
 });
+
+test("in the task thread of an Automation's outside-started Run only the person the work acts for clears the outside-content mark by speaking; anyone else's message leaves it (pass 2)", async () => {
+  const h = harness();
+  const taints = (): Array<{ cleared_at: number | null }> => h.db.all("SELECT cleared_at FROM gate_taint WHERE thread_id = 'thr_task'") as never;
+  await h.call("gate.taint.mark", { threads: ["thr_task"], source: `automation:aut_0123456789abcdef0123456789abcdef:${alice.id}` }, gate);
+  await ask(h, "msg_b", [], "thr_task", bob);
+  assert.equal(taints()[0]?.cleared_at, null, "Bob spoke: the stranger's words still drive a turn that acts for Alice");
+  await ask(h, "msg_a", [], "thr_task", alice);
+  assert.notEqual(taints()[0]?.cleared_at, null, "Alice, whom it acts for, spoke: cleared");
+  // any other mark is cleared by any person speaking, as before
+  await h.call("gate.taint.mark", { threads: ["thr_chat2"], source: "automations.read_link" }, gate);
+  await ask(h, "msg_c", [], "thr_chat2", bob);
+  assert.notEqual((h.db.all("SELECT cleared_at FROM gate_taint WHERE thread_id = 'thr_chat2'")[0] as { cleared_at: number | null }).cleared_at, null);
+});

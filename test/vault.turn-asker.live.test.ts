@@ -252,3 +252,50 @@ test("(e) a webhook body that says 'delete the Q3 folder' does not delete it: th
     assert.equal(still.data.folder?.deletedAt ?? null, null, "not in the Trash either");
   } finally { clearInterval(pumping); await d.stop(); }
 });
+
+/** A model that does its work and hands it in on its own task (task_submit), with nothing risky. */
+function reports(): { open: OpenSession; results: string[] } {
+  const results: string[] = [];
+  const open: OpenSession = async () => {
+    const waiting = new Map<string, (r: { ok: boolean; content: unknown }) => void>();
+    return {
+      warm: true,
+      async *send(input: TurnInput): AsyncGenerator<DriverEvent> {
+        const section = input.context?.sections.find((x) => x.id === "task")?.text ?? "";
+        const taskId = /taskId (tsk_[a-z0-9]+)/.exec(section)?.[1];
+        if (!taskId || !/it is your turn/.test(section)) { yield { type: "text", text: "Nothing for me." }; yield { type: "done" }; return; }
+        const r = new Promise<{ ok: boolean; content: unknown }>((resolve) => waiting.set("s1", resolve));
+        yield { type: "tool_call", id: "s1", name: "task_submit", input: { taskId, outputs: { note: "For sales" }, summary: "It is for sales" } };
+        results.push(JSON.stringify(await r).slice(0, 400));
+        yield { type: "text", text: "Handed in." }; yield { type: "done" };
+      },
+      sendToolResult(callId: string, result: { ok: boolean; content: unknown }) { waiting.get(callId)?.(result); },
+      inject() {}, async cancel() {}, async close() {},
+    } as EngineSession;
+  };
+  return { open, results };
+}
+
+test("(f) a normal webhook Run, with nothing risky, finishes on its own: the agent hands in its own task in Ask first with no card (pass 2, 1a)", async () => {
+  const m = reports();
+  const session = (h: Record<string, string | undefined>) => { const id = String(h["authorization"] ?? "").replace(/^Bearer /, ""); return { space: "spc_core", principal: { kind: "person", id: PEOPLE.includes(id) ? id : "usr_olivia" }, device: "mac" }; };
+  const d = await boot(seededDir(), m.open, undefined, { providerFetch, session } as never);
+  const pumping = setInterval(() => void d.hooks?.pump?.(), 100);
+  try {
+    await connect(d);
+    const keyFolder = (await ok(d, "vault.folders.create", { name: "Team AI", scope: "shared" })).folder.id as string;
+    const team = await ok(d, "providers.add", { providerKey: "openai", connection: "api_key", apiKey: "sk-test-turnasker-0123456789", scope: "shared", name: "Team OpenAI", folderId: keyFolder });   // secret-scan: fake
+    const w = { d, keyId: String(team.provider.id), keyItem: String(team.provider.itemId), stop: async () => undefined } as World;
+    const agent = await newAgent(d, "Intake Desk");
+    const hooked = await spaceAutomation(w, { key: "webhook" }, agent.id);
+    const hook = (await ok(d, "automations.webhook_url.get", { automationId: hooked })) as { url?: string };
+    const r = await fetch(`${d.url}${new URL(String(hook.url), d.url).pathname}`, { method: "POST", body: JSON.stringify({ text: "A new lead wrote in." }), headers: { "content-type": "application/json", "idempotency-key": "hook-f" } });
+    assert.ok(r.status < 300, `webhook: ${r.status}`);
+    const run = await waitFor(async () => runOf(d, hooked) ?? null, 30_000, () => hostLog(d));
+    await waitFor(async () => (String((await ok(d, "runs.get", { runId: run.run_id })).run.status) === "succeeded" ? true : null), 60_000, () => `submit: ${m.results.join(" / ")} holds: ${JSON.stringify(d.db!.all("SELECT cap_name, state, thread_id FROM gate_holds"))} notes: ${JSON.stringify(d.db!.all(`SELECT working_notes FROM tasks_meta`)).slice(0, 600)} log: ${JSON.stringify(d.db!.all("SELECT 1")).slice(0,10)} ${hostLog(d)}`);
+    assert.equal(m.results.length, 1, "handed in once");
+    assert.match(m.results[0]!, /"ok":true/, "the hand-in went through without a card");
+    const cards = JSON.stringify(await okAs(d, "usr_olivia", "tasks.needs_you", {}));
+    assert.equal(/Started by the automation/.test(cards), false, `no card: ${cards.slice(0, 600)}`);
+  } finally { clearInterval(pumping); await d.stop(); }
+});

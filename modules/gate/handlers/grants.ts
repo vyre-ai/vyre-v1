@@ -194,7 +194,9 @@ export async function grantsAsk(ctx: GateCtx, input: In): Promise<unknown> {
   const person = ctx.principal.id, now = ctx.now();
   // an older ask is taken back when this message arrives, unless the agent has not replied since it: every message the person sends between two replies is one ask
   ctx.db.run("UPDATE gate_grants SET expires_at = ? WHERE kind = 'turn' AND person = ? AND thread_id = ? AND used_at IS NULL AND message_id <> ? AND created_at <= ?", now, person, input.threadId, input.messageId, input.since ?? now);
-  ctx.db.run("UPDATE gate_taint SET cleared_at = ? WHERE thread_id = ? AND cleared_at IS NULL", now, input.threadId);
+  // the person spoke, so what an outside page said no longer drives the turn. In a task thread an Automation's outside-started Run made, only the person the work acts for clears it: anyone
+  // else who types there has not taken the stranger's words off the turn that acts with that person's access (lead 12 Nov, pass 2, 2). The mark reads "automation:<id>:<person>".
+  ctx.db.run("UPDATE gate_taint SET cleared_at = ? WHERE thread_id = ? AND cleared_at IS NULL AND (source NOT LIKE 'automation:%' OR source LIKE ?)", now, input.threadId, `automation:%:${person}`);
   for (const a of input.asked as { act: string; target: string }[]) {
     ctx.db.run("INSERT OR IGNORE INTO gate_grants (id, kind, person, act, target, thread_id, message_id, expires_at, created_at) VALUES (?, 'turn', ?, ?, ?, ?, ?, ?, ?)", newGrantId(), person, a.act, a.target, input.threadId, input.messageId, now + TURN_MS, now);
   }

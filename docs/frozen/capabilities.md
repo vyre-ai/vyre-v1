@@ -58,3 +58,16 @@ Signed: lead, 12 Nov 2026 (all of the above: slots, browser_full, reopened and n
 Added on the reviewer's seventh look and signed below: `computers.browser.take_over@1` gains an optional output `note`, one line for the pane when the browser was reopened since the person last saw it and its page was reloaded; and acts on the page (`click`, `act`, `type`, `fill`, `send`, `api`, `eval`) may now be refused with the reason `browser_reopened` until the agent has seen the reloaded page.
 
 Signed: lead, 12 Nov 2026 (the optional note on computers.browser.take_over, and the browser_reopened refusal on acts)
+
+## 12 Nov 2026: an Automation's runs-as person, and its read (lane f-vaultuse)
+
+Changed contracts, all in `manifests/automations.ts`; no version moved, because every change is an optional output field, a new read, a new event, or an event a write may now also emit:
+
+- The automation row (every capability that returns one: `automations.get@1`, `list`, `create`, `update`, `set_enabled`, `promote`, `restore_version`, `move`, `make_personal_copy`, `undelete`, `set_owner`, `templates.use`, `packages.import`) gains an optional `runsAs`: for a Space automation, the person whose yes its agent work runs on (who last turned it on, published a change to it while on, restored a version while on, or put it on the Space, by their own press); absent when nobody has.
+- New read `automations.runs_as.get@1` `{ automationId, agentId?, runId? }` -> `{ kind, runsAs?, name?, trigger?, ok, reason?: nobody | not_active | assistant, line? }`, level view on the automation: whose yes the automation's agent work runs on now, and why not when it cannot.
+- New event `automation.runs_as_changed` `{ automationId, from, to, by, why: on | save | restore | promote | cleared }`, retention audit.
+- `automations.update@1`, `automations.set_enabled@1`, `automations.restore_version@1` and `automations.promote@1` may now also emit `automation.runs_as_changed`, when the call moves the runs-as person.
+
+The fix that lets an outside-started Run finish (an agent's own reports on its own task in Ask first) changed no contract: it is a host rule in the invoke pipeline.
+
+Signed: lead, 12 Nov 2026

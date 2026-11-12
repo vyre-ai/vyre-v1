@@ -452,3 +452,21 @@ test("a Space automation's AI account: Automatic needs a Space account kept for 
   const gone = liveHarness({ providers: [kept] });
   await assert.rejects(turnOn(gone, await spaceDraft(gone, { ai: { keyId: "#Team_Key", backupKeyId: "#Missing" } })), (e) => { assert.match(messageOf(e), /#Missing is not in the Vault/); return true; });
 });
+
+test("an agent's press on a live Space automation clears whom it runs as, and its accountable owner is told, once (review 12 Nov, pass 2)", async () => {
+  const h = harness({ authorize: () => false });
+  h.callee("vault.items.list", () => ({ items: [sub] }));
+  const told: Array<{ to?: string; title?: string }> = [];
+  h.callee("tasks.create", (i: { assigned?: { id?: string }; title?: string }) => { told.push({ to: i.assigned?.id, title: i.title }); return { task: { id: `tsk_${told.length}` } }; });
+  h.callee("audit.append", () => ({ auditId: "aud_1" }));
+  h.callee("access.principals.get", (i: { principal: { id: string } }) => ({ principal: { name: i.principal.id === alice.id ? "Alice" : "Bob" } }));
+  const id = (await h.call("automations.create", promotable(), alice)).automation.id as string;
+  const r = await h.call("automations.promote", { automationId: id, confirm: true, ownerId: bob.id, replaceKeys: [{ stepId: "ask", keyId: "vit_shared1" }] }, alice);
+  assert.equal(r.automation.runsAs, alice.id, "the person who put it on the Space");
+  h.db.run("UPDATE automations_defs SET status = 'on' WHERE id = ?", id);
+  // an agent working for Bob, who owns it, presses On again: that is not a person's own press
+  await h.call("automations.set_enabled", { automationId: id, enabled: true }, { kind: "agent", id: "agt_helper", actingFor: bob.id } as never);
+  const after = (await h.call("automations.get", { automationId: id }, alice)).automation;
+  assert.equal(after.runsAs, undefined, "an agent's change carries nobody's yes");
+  assert.deepEqual(told.filter((t) => t.to === bob.id).map((t) => t.title), [`${after.name} now runs as nobody, since a change no person pressed. Its agent work waits until someone turns it on again.`], "the accountable owner is told, once");
+});

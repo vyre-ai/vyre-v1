@@ -33,8 +33,21 @@ async function askerOf(ctx: GateCtx, p: PrincipalRef, actingFor: string | undefi
   return undefined;
 }
 
-/** The taint source the engine's task baton writes for an Automation turn from outside: "automation:<name> (<trigger>)". */
-export const AUTOMATION_TAINT = "automation:";
+const TRIGGER_WORDS: Record<string, string> = { email_received: "email", webhook: "webhook", form_submit: "form" };
+
+/** "Started by the automation <name> (<trigger>)" for a thread that is the task thread of an Automation's outside-started Run, else "". */
+async function automationStartLine(ctx: GateCtx, threadId: string): Promise<string> {
+  if (!ctx.call) return "";
+  try {
+    const th = ((await ctx.call("threads.get", { threadId })) as { thread?: { scopeType?: string; scopeId?: string } } | null)?.thread;
+    if (th?.scopeType !== "task" || typeof th.scopeId !== "string") return "";
+    const t = ((await ctx.call("tasks.get", { taskId: th.scopeId })) as { task?: { createdBy?: string; workingNotes?: Record<string, string> } } | null)?.task;
+    const automationId = t?.workingNotes?.["automation.id"], trigger = t?.workingNotes?.["automation.trigger"] ?? "";
+    if (typeof automationId !== "string" || t?.createdBy !== `svc_${automationId.slice(4)}` || !(trigger in TRIGGER_WORDS)) return "";
+    const name = ((await ctx.call("automations.get", { automationId })) as { automation?: { name?: string } } | null)?.automation?.name ?? "an automation";
+    return `Started by the automation ${name} (${TRIGGER_WORDS[trigger]})`;
+  } catch { return ""; }
+}
 /** Open asks one agent may have waiting for one person (lead ruling, 3 Nov). */
 export const MAX_OPEN_ASKS = 5;
 
@@ -108,15 +121,9 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   const names = agentSays ? await holdNamesOf(ctx, input.capName, input.input) : {};
   const sentence = agentSays ? cut(holdSentence(agentSays, input.capName, input.input, names), 120) : "";
   const summary = ask ? cut(`${agentName} asks you to: ${ask.what}`, 120) : sentence || summaryLine(a, input.capName, input.input);
-  // a turn an Automation started from outside (its task thread is marked by the engine's task baton): the card says which Automation and what set it off (review 12 Nov, 3)
-  let startedBy = "";
-  if (typeof input.threadId === "string") {
-    try {
-      const src = (ctx.db.all("SELECT source FROM gate_taint WHERE thread_id = ? AND cleared_at IS NULL", input.threadId)[0] as { source?: string } | undefined)?.source ?? "";
-      if (src.startsWith(AUTOMATION_TAINT)) startedBy = `Started by the automation ${src.slice(AUTOMATION_TAINT.length)}`;
-    } catch { /* no mark: nothing to add */ }
-  }
-
+  // a turn in the task thread of an Automation's outside-started Run: the card says which Automation and what set it off, read from the task (its automation and trigger, written when the
+  // Run's step made it), so a message typed in the thread never takes the line away (lead 12 Nov, pass 2, 2)
+  const startedBy = typeof input.threadId === "string" ? await automationStartLine(ctx, input.threadId) : "";
   const hold: Hold = {
     id, act: a.key, capName: input.capName, capVersion: input.capVersion, input: input.input ?? null, inputHash: await sha(input.input ?? null), payloadHash: input.payloadHash,
     principal, decisionId: input.decisionId, taskId: "", state: "held", summary, approver, rule, createdAt: now, expiresAt, backstopAt, possiblySent: false,

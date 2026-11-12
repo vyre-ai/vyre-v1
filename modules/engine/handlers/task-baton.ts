@@ -37,7 +37,6 @@ const isAgentId = (id: unknown): id is string => typeof id === "string" && id.st
 export const WAITING_NOTE = "baton.waiting";
 /** Triggers whose payload a stranger can write (steps-core brief.ts marks the same as outside content). */
 const OUTSIDE_TRIGGERS: ReadonlySet<string> = new Set(["email_received", "webhook", "form_submit"]);
-const OUTSIDE_TRIGGER_NAMES: Record<string, string> = { email_received: "email", webhook: "webhook", form_submit: "form" };
 export const WAITING_LINE = "This came from an automation and has nobody's permission to act yet. Open it to run it as yourself.";
 export const WAITING_LINE_CHANGED = "The automation that made this now runs as someone else, so this work waits for a person. Open it to run it as yourself.";
 export const WAITING_LINE_AGENT = "An agent made this task, and no person's permission to act on it is on record. Open it to run it as yourself.";
@@ -113,6 +112,13 @@ export async function askerFor(host: BatonHost, t: BatonTask): Promise<{ asker?:
 }
 
 export interface AutomationAsker { automationId: string; asker?: string; trigger?: string; line?: string }
+
+/** The Automation and trigger of a task its own Run's step made (the note binds only when that Automation's service made it), or null. */
+function automationMade(t: BatonTask): { automationId: string; trigger: string } | null {
+  const automationId = t.workingNotes["automation.id"];
+  if (typeof automationId !== "string" || !/^aut_[a-z0-9]+$/.test(automationId) || t.createdBy !== `svc_${automationId.slice(4)}`) return null;
+  return { automationId, trigger: t.workingNotes["automation.trigger"] ?? "" };
+}
 
 /** A task a service made (an Automation's step, a form, a timer): its asker is decided again at every wake, never carried from an earlier one. */
 const serviceMade = (t: BatonTask): boolean => !isPerson(t.createdBy) && !isAgentId(t.createdBy);
@@ -316,16 +322,15 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
       detail: { trigger: who.automation.trigger ?? null, taskId: task.id, agentIds: targets, runId: task.source?.id ?? null, role: holder.role } })
       .catch((e: unknown) => host.log?.("the automation's act could not be audited", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
     if (task.workingNotes[WAITING_NOTE] !== undefined) await host.call("tasks.working_notes.delete", { taskId: task.id, key: WAITING_NOTE, idempotencyKey: `baton-waiting-off:${task.id}:${sig}` }).catch(() => undefined);
-    // set off from outside (an email, a form, a webhook): a stranger's words are in the brief, so the thread is marked as holding outside content and runs in Ask first, so nothing they asked for
-    // just happens inside Vyre with the runs-as person's access; a hold card from it names the automation and the trigger (review 12 Nov, 3)
-    const trigger = who.automation.trigger;
-    if (trigger !== undefined && OUTSIDE_TRIGGERS.has(trigger)) {
-      const name = ((await host.call("automations.get", { automationId: who.automation.automationId }).catch(() => null)) as { automation?: { name?: string } } | null)?.automation?.name ?? "an automation";
-      await host.call("gate.taint.mark", { threads: [threadId], source: `automation:${name} (${OUTSIDE_TRIGGER_NAMES[trigger] ?? trigger})` })
-        .catch((e: unknown) => host.log?.("an automation's thread could not be marked as outside content", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
-      await host.call("threads.set_mode", { threadId, mode: "ask", idempotencyKey: `baton-ask:${task.id}` }, asker)
-        .catch((e: unknown) => host.log?.("an automation's thread could not be set to Ask first", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
-    }
+  }
+  // a task an Automation's Run made from outside (an email, a form, a webhook) carries a stranger's words in its brief: its thread is marked as holding outside content for the person the turn
+  // acts for (only they clear it by speaking, gate grants.ts) and runs in Ask first, whoever that person is: the runs-as person, or someone who started or was handed the task (pass 2, 2)
+  const made = automationMade(task);
+  if (made !== null && OUTSIDE_TRIGGERS.has(made.trigger)) {
+    await host.call("gate.taint.mark", { threads: [threadId], source: `automation:${made.automationId}:${asker}` })
+      .catch((e: unknown) => host.log?.("an automation's thread could not be marked as outside content", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
+    await host.call("threads.set_mode", { threadId, mode: "ask", idempotencyKey: `baton-ask:${task.id}:${asker}` }, asker)
+      .catch((e: unknown) => host.log?.("an automation's thread could not be set to Ask first", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
   }
   const woken: string[] = [];
   let outside = false;
@@ -469,6 +474,8 @@ export async function sweepBaton(ctx: Pick<EngineCtx, "db">, host: BatonHost, en
     if (now - row.turnEndedAt < nudgeMinutesOf(task) * MINUTE) continue;
     // an outside agent never ends a turn here: the first time its clock runs out it is reminded and its queue gets the task again; the second time a person gets it
     if (row.nudgedAt === undefined && row.woken.length > 0 && await runsOutside(host, row.woken[0]!)) {
+      // the person it was queued for must still hold, as at any other wake (pass 2)
+      if ((await stillAsker(host, task, row.asker)) === undefined) { saveBaton(ctx.db, { ...row, nudgedAt: now, turnEndedAt: now }); continue; }
       try {
         await host.call("chat.post", { threadId: row.threadId, body: `Still waiting on this. Finish with exactly one call: ${finishOf(task, holder.role)}.`, idempotencyKey: `baton-nudge:${row.taskId}:${row.sig}` });
         for (const agentId of row.woken) await host.call("agents.outside.enqueue", { agentId, kind: "task", threadId: row.threadId, taskId: task.id, asker: row.asker, title: task.title, text: `Still waiting: ${task.title}` }).catch(() => null);
@@ -489,7 +496,12 @@ async function escalate(ctx: Pick<EngineCtx, "db">, host: BatonHost, task: Baton
   try { const named = JSON.parse(task.workingNotes["baton.escalate_to"] ?? "null") as Who | null; if (named && typeof named.id === "string" && typeof named.kind === "string") to = named; } catch { /* the asker */ }
   const asker = serviceMade(task) ? (await askerFor(host, task)).asker : row.asker ?? (await askerOf(host, task));
   if (!to && asker) to = { kind: "person", id: asker };
-  if (!to) { host.log?.("a stopped agent task has nobody to escalate to", { taskId: task.id }); return false; }
+  if (!to) {
+    host.log?.("a stopped agent task has nobody to escalate to", { taskId: task.id });
+    // a task a service made whose person no longer holds: it says so on its page, so someone can start it (pass 2)
+    if (serviceMade(task)) await writeWaiting(host, task, (await askerFor(host, task)).line ?? (task.source?.kind === "run" ? WAITING_LINE : WAITING_LINE_OTHER));
+    return false;
+  }
   const minutes = nudgeMinutesOf(task);
   try {
     await host.call("tasks.create", {

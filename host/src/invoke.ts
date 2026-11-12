@@ -188,6 +188,8 @@ export interface InvokeDeps {
   /** vault name or handle to item id, for `resolve` bindings; `person`: whose items come first (their own, then the ones they may see), so a hidden item never shadows a visible one */
   resolveItem?(type: string, kind: "name" | "handle", value: string, person?: string): string | null;
   /** Is this Vault item hidden from this person (another person's Mine item, or one they may not use)? A name or handle that resolves to one reads as one that does not exist. */
+  /** An agent's own report on its own task in an outside-started Automation Run's thread (submit, ask, block, its notes, a post there): Ask first does not park it. */
+  ownTaskReport?(c: CapabilityDef, input: unknown, seed: CtxSeed): Promise<boolean>;
   /** Why a Vault item is not this person's to see: "mine" (another person's Mine item, hidden always), "other" (the person alone may not use it), or false. */
   vaultHidden?(itemId: string, person: string): "mine" | "other" | false;
   /** spend so far per meter, for the spend policies */
@@ -416,6 +418,16 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         class: cls, cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: d.decisionId, reason,
         resource, traceId, spanId: trace.spanId, at: t, risk: c.risk,
       });
+      // first, before any ask-the-person step, so no path answers a hidden item differently from a missing one (pass 2): a Vault item named by name or handle that the person cannot see answers exactly as a name that names nothing, whatever authorize said (an admin's yes on another person's Mine item
+      // included: the Vault hides those too), so nobody can probe which items exist. The refusal is in the audit, for admins; nothing more comes back.
+      const named = c.resource !== undefined && "resolve" in c.resource && Boolean((c.resource as { resolve?: unknown }).resolve) && resource !== null && resource.type === "vault_item" && resource.id !== null;
+      // another person's Mine item is hidden always; any other item only when the real decision (the agent and whom it acts for) is no, since a key approved for an agent through a key
+      // request needs no access of the person's own (kernel throughAgent; review 12 Nov, 1)
+      const hidden = named && vaultPerson !== undefined ? deps.vaultHidden?.(resource!.id as string, vaultPerson) : undefined;
+      if (hidden === "mine" || (hidden === "other" && d.effect === "deny")) {
+        await deps.audit?.(audit("deny", "vault_item_hidden"));
+        throw fail("validation.bad_input", traceId, { message: NO_SUCH_ITEM, details: { errors: [`${(c.resource as { id: string }).id}: no such item`], cap: c.name } });
+      }
       // Ask the person: an outside agent stopped at what only a person does, or at a role its person holds, asks that person instead of hitting a wall. The person's own access decides, alone,
       // as it will again when the call runs on their yes; nothing here lets the agent itself past anything.
       const mustAsk = seed.askPerson === "always" && depth === 0 && seed.approval === undefined;
@@ -444,16 +456,6 @@ export function createInvoke(deps: InvokeDeps): Invoke {
           return stepsFour(c, input, asPerson, trace, depth, true);
         }
         return park(c, input, seed, traceId, pd.decisionId, c.gate?.act && c.gate.act !== "none" ? c.gate.act : "approve", audit("hold", "asks_person"), "person");
-      }
-      // a Vault item named by name or handle that the person cannot see answers exactly as a name that names nothing, whatever authorize said (an admin's yes on another person's Mine item
-      // included: the Vault hides those too), so nobody can probe which items exist. The refusal is in the audit, for admins; nothing more comes back.
-      const named = c.resource !== undefined && "resolve" in c.resource && Boolean((c.resource as { resolve?: unknown }).resolve) && resource !== null && resource.type === "vault_item" && resource.id !== null;
-      // another person's Mine item is hidden always; any other item only when the real decision (the agent and whom it acts for) is no, since a key approved for an agent through a key
-      // request needs no access of the person's own (kernel throughAgent; review 12 Nov, 1)
-      const hidden = named && vaultPerson !== undefined ? deps.vaultHidden?.(resource!.id as string, vaultPerson) : undefined;
-      if (hidden === "mine" || (hidden === "other" && d.effect === "deny")) {
-        await deps.audit?.(audit("deny", "vault_item_hidden"));
-        throw fail("validation.bad_input", traceId, { message: NO_SUCH_ITEM, details: { errors: [`${(c.resource as { id: string }).id}: no such item`], cap: c.name } });
       }
       if (d.effect === "deny") {
         await deps.audit?.(audit("deny", d.reason));
@@ -493,7 +495,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     // Ask first (chat mode): the Gate parks any call that is not read-only, once, at the top of the call. The approval token of the resume path skips it, as it skips the capability's own Gate.
     if (seed.chatMode === "plan" && seed.askable === true && !approved && depth === 0) throw fail("permission.plan_mode", traceId, { details: { cap: c.name } });
     if ((seed.askFirst === true || (seed.askable === true && seed.chatMode === "ask")) && !approved && depth === 0 && c.effects !== "read") {
-      if (seed.mustAsk === true || !(await deps.gate?.allowed?.(c, input, seed))) return park(c, input, seed, traceId, did(), c.gate?.act ?? "approve", null);
+      const ownReport = seed.mustAsk !== true && (await deps.ownTaskReport?.(c, input, seed).catch(() => false)) === true;
+      if (!ownReport && (seed.mustAsk === true || !(await deps.gate?.allowed?.(c, input, seed)))) return park(c, input, seed, traceId, did(), c.gate?.act ?? "approve", null);
     }
 
     // the read gate, before: an agent may not copy, move or send a file out of its Redacted or Not available folder (Redaction for AI)
