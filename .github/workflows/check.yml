@@ -153,6 +153,8 @@ jobs:
         run: '[ -x tools/gen/node_modules/.bin/tsc ] || bash tools/gen/check.sh'
       - name: Typecheck ratchet (the count may only fall)
         run: node scripts/typecheck-ratchet.ts
+      - name: Typecheck ratchet for modules, host and packages/contracts (the count may only fall; nothing typechecked them before 12 Nov)
+        run: node scripts/typecheck-ratchet.ts --project tsconfig.typecheck.server.json --baseline scripts/typecheck-baseline.server.json
   images-docker:
     # Ruling 31 and P-L8_HEAVY: when images/ or a heavy test changes, run the tests the 20 s shard cannot: the vyred image boots in Docker, the site builders
     # build and serve samples on real Docker, and a pinned Documenso container takes an envelope from create to completed. VYRE_HEAVY_DOCKER=1 turns the

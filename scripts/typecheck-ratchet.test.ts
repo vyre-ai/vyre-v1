@@ -32,3 +32,9 @@ test("on a CI runner a ratchet that cannot count fails; elsewhere it says it ski
     assert.match(local.stdout, /typecheck ratchet skipped/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("the server ratchet is chosen by --project and --baseline; the app's stays the default, and only it needs react-native", async () => {
+  const { targetOf } = await import("./typecheck-ratchet.ts");
+  assert.deepEqual(targetOf([]), { project: "tsconfig.typecheck.json", baseline: "scripts/typecheck-baseline.json", needsReactNative: true });
+  assert.deepEqual(targetOf(["--project", "tsconfig.typecheck.server.json", "--baseline", "scripts/typecheck-baseline.server.json"]), { project: "tsconfig.typecheck.server.json", baseline: "scripts/typecheck-baseline.server.json", needsReactNative: false });
+});

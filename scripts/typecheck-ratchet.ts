@@ -1,4 +1,5 @@
-// Typecheck ratchet for apps/app and ui: tsc over tsconfig.typecheck.json, the errors counted and compared with the checked-in count (scripts/typecheck-baseline.json).
+// Typecheck ratchet for apps/app and ui: tsc over tsconfig.typecheck.json, the errors counted and compared with the checked-in count (scripts/typecheck-baseline.json). With
+// `--project tsconfig.typecheck.server.json --baseline scripts/typecheck-baseline.server.json` the same ratchet over modules/, host/ and packages/contracts, which nothing typechecked before 12 Nov.
 // More errors than the baseline fail; fewer pass and say so, and `--update` writes the lower count (it refuses to raise it). So new errors cannot land and the count only falls.
 // Module-not-found errors (TS2307, TS7016) are not counted: they say what the machine has installed, not what the code says. Without react-native installed the check is skipped.
 import fs from "node:fs";
@@ -27,15 +28,23 @@ export function judge(count: number, baseline: number): { ok: boolean; lower: bo
 /** A CI runner, where a ratchet that cannot count must fail rather than pass. */
 export const inCi = (env: Record<string, string | undefined> = process.env): boolean => env["GITHUB_ACTIONS"] === "true" || env["CI"] === "true";
 
+/** The tsconfig and the baseline a run counts against: the app's by default, or the ones named by --project and --baseline. */
+export function targetOf(argv: readonly string[]): { project: string; baseline: string; needsReactNative: boolean } {
+  const at = (flag: string): string | undefined => { const i = argv.indexOf(flag); return i >= 0 ? argv[i + 1] : undefined; };
+  const project = at("--project") ?? "tsconfig.typecheck.json";
+  return { project, baseline: at("--baseline") ?? "scripts/typecheck-baseline.json", needsReactNative: project === "tsconfig.typecheck.json" };
+}
+
 function main(): void {
   const root = process.cwd();
-  const baselineFile = path.join(root, "scripts/typecheck-baseline.json");
+  const target = targetOf(process.argv.slice(2));
+  const baselineFile = path.join(root, target.baseline);
   // On a CI runner a skip is a failure: the gates step read "skipped" on every push until 5 Nov while the count drifted to 313, so it passed without counting.
   const skip = (why: string): void => { console.log(`typecheck ratchet ${inCi() ? "cannot run" : "skipped"}: ${why}`); if (inCi()) process.exit(1); };
-  if (!fs.existsSync(path.join(root, "node_modules/react-native/package.json"))) return skip("react-native is not installed here");
+  if (target.needsReactNative && !fs.existsSync(path.join(root, "node_modules/react-native/package.json"))) return skip("react-native is not installed here");
   const tsc = [process.env["TSC"] ?? "", path.join(root, "node_modules/.bin/tsc"), path.join(root, "tools/gen/node_modules/.bin/tsc")].find((p) => p !== "" && fs.existsSync(p));
   if (!tsc) return skip("no tsc installed here");
-  const r = spawnSync(tsc, ["-p", "tsconfig.typecheck.json"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
+  const r = spawnSync(tsc, ["-p", target.project], { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
   const count = countErrors(`${r.stdout}\n${r.stderr}`);
   const baseline = (JSON.parse(fs.readFileSync(baselineFile, "utf8")) as { count: number }).count;
   const v = judge(count, baseline);
