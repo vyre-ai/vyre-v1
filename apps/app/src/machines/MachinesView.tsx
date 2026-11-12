@@ -16,7 +16,7 @@ import { Chart } from "./Chart.tsx";
 import { Button } from "../console/pages/shared.tsx";
 import { AddServerSheet, copyText, useAddServer } from "./AddServer.tsx";
 import type { AddScope } from "./AddServer.tsx";
-import { ENGINE_NAMES, PRIVATE_NOTE, RANGES, RANGE_NOTE, canNames, chartsFor, displayName, fmtBytes, kindLine, loadCells, orderLines, ordered, plural, runsLines, statusOf, strip } from "./model.ts";
+import { ENGINE_NAMES, PRIVATE_NOTE, browserSlotsLine, RANGES, RANGE_NOTE, canNames, chartsFor, displayName, fmtBytes, kindLine, loadCells, orderLines, ordered, plural, runsLines, statusOf, strip } from "./model.ts";
 import type { MachineOut, MachineRow, MachinesOut, Range } from "./model.ts";
 import { fixMachine, loadMachine, loadMachines, pinMachine, setMachine } from "./api.ts";
 
@@ -155,6 +155,7 @@ export function MachineList({ data, who, narrow, now, onOpen, onAdd, onApprove, 
         {/* ui-rows-lint: not a list (a table of machines: one row per machine with Status, CPU, Memory, Disk, Running, Can run and Room left cells under shared column headings, hover painted across the full row) */}
         {ms.map((m) => <MachineRowView key={m.serverId} m={m} who={who} narrow={narrow} now={now} onOpen={() => onOpen(m.serverId)} onMenu={(x, y) => rowMenu(m, x, y)} />)}
       </Block>
+      {scope === "space" && browserSlotsLine(data.browserSlots) ? <Text style={s.foot} testID="machines-browser-slots">{browserSlotsLine(data.browserSlots)}</Text> : null}
       {menu.element}
       {menuNote ? <Text accessibilityRole="alert" style={s.note} testID="machine-menu-note">{menuNote}</Text> : null}
       {extra}
