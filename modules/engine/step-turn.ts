@@ -14,6 +14,7 @@ import { isPaused, limitReached, recordStepUsage } from "./handlers/spend.ts";
 import { ensure, raise, stepOpenOf } from "./projections.ts";
 import type { EngineCtx } from "./projections.ts";
 import { providerOfDriver } from "./runtime.ts";
+import { PROVIDER_DEFAULT_DRIVERS, PROVIDER_DEFAULT_WORDS, providerDefaultBlocked } from "./handlers/extra/config.ts";
 import { fitModel } from "./space-key-turns.ts";
 
 export interface StepTurnIn {
@@ -42,7 +43,7 @@ let msPerMinute = 60_000;
 export function setMinuteForTests(ms: number): void { msPerMinute = ms; }
 
 interface AgentOut { agent: { agentId: string; name: string; role?: string; model?: string; accountPolicy: "asker" | "key"; accountKey?: string; status?: string } }
-interface PolicyOut { allowedAccounts: "any" | "company" }
+interface PolicyOut { allowedAccounts: "any" | "company"; allowedModels?: string[]; allowedProviders?: string[] }
 interface FactsOut { facts?: Array<{ text?: string; layer?: string }> }
 
 const codeOfDriver = (code: string): { code: string; retryable: boolean } => {
@@ -173,6 +174,12 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
   const stepModel = paid.row.spaceKey === true
     ? fitModel(withAgent?.agent.model, await (ctx.call("providers.space_key.get", {}) as Promise<{ models?: string[] }>).then((r) => r.models ?? [], () => [] as string[]))
     : withAgent?.agent.model;
+  // no model named, on a provider that runs its own default (OpenRouter): the Space policy is checked first, before anything is sent (one rule with chat: config.ts providerDefaultBlocked)
+  if (!stepModel && PROVIDER_DEFAULT_DRIVERS.has(paid.row.driver)) {
+    const limits = (await ctx.call("engine.policy.get", {})) as PolicyOut;
+    const why = providerDefaultBlocked({ allowedModels: limits.allowedModels ?? [], allowedProviders: limits.allowedProviders ?? [] }, paid.row.driver);
+    if (why !== null) raise(ctx as never, "permission.provider_label", PROVIDER_DEFAULT_WORDS, { reason: why });
+  }
   const agent: EngineAgent = { id: agentKey, ...(withAgent ? { name: withAgent.agent.name } : {}), mode: "lead", ...(stepModel ? { model: stepModel } : {}) };
   const slug = hex(input.idempotencyKey);
   const threadId = `thr_step${slug}`;

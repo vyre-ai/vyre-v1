@@ -217,3 +217,14 @@ test("account.resolve: a backup that pays because the account ahead hit its cap 
   const r = await accountResolve(fake(routes([mine, team], { "agents.get": () => ({ agent: { accountPolicy: "key", accountKey: "#Team_Credits" } }), "engine.defaults.get": () => ({ fallback: [] }) })).ctx, { threadId: "thr_1", agentId: "agt_1" });
   assert.deepEqual([r.accountRef, r.cappedFrom, r.fellBack], ["#Other_Team", "#Team_Credits", true]);
 });
+
+test("account.resolve: a turn with no model on OpenRouter runs on OpenRouter's own default, unless the Space's AI policy limits models or excludes OpenRouter: then it is refused before anything is sent", async () => {
+  const noModel = { "threads.get": () => ({ thread: { starter: "usr_dana", agents: [{ agentId: "agt_1" }] } }), "agents.get": () => ({ agent: { accountPolicy: "asker" } }), "engine.defaults.get": () => ({ fallback: [] }) };
+  const router = [prov({ id: "prv_1", handle: "#Dana_Router", providerKey: "openrouter", engine: "openrouter" })];
+  const free = await accountResolve(fake(routes(router, { ...noModel, "engine.policy.get": () => ({ allowedAccounts: "any", allowedModels: [], allowedProviders: [] }) })).ctx, { threadId: "thr_1", agentId: "agt_1" });
+  assert.deepEqual([free.allowed, free.model], [true, undefined], "no policy: it runs on the provider's default");
+  for (const policy of [{ allowedModels: ["anthropic/claude-sonnet-5-5"], allowedProviders: [] }, { allowedModels: [], allowedProviders: ["anthropic"] }]) {
+    await assert.rejects(() => accountResolve(fake(routes(router, { ...noModel, "engine.policy.get": () => ({ allowedAccounts: "any", ...policy }) })).ctx, { threadId: "thr_1", agentId: "agt_1" }),
+      (e: unknown) => (e as { error?: { code?: string; details?: { reason?: string } } }).error?.code === "permission.provider_label" && (e as { error: { details: { reason?: string } } }).error.details.reason === "policy_model", JSON.stringify(policy));
+  }
+});

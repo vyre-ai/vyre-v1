@@ -16,7 +16,7 @@ const team = (over: Partial<Prov> = {}): Prov => key({ id: "prv_t", handle: "#Te
 const sub = (over: Partial<Prov> = {}): Prov => key({ id: "prv_s", handle: "#My_Claude", itemId: "vit_c", name: "My Claude", providerKey: "claude-code", connection: "subscription", engine: "claude-code", spaceMayUse: true, ...over });
 const answer: DriverEvent[] = [{ type: "text", text: "Hello " }, { type: "text", text: "there." }, { type: "usage", inputTokens: 40, outputTokens: 7 }, { type: "done" }];
 
-function scene(o: { principal?: Harness["ctx"]["principal"]; providers?: Prov[]; script?: readonly DriverEvent[]; agent?: Record<string, unknown>; facts?: string[]; policy?: "any" | "company" } = {}) {
+function scene(o: { principal?: Harness["ctx"]["principal"]; providers?: Prov[]; script?: readonly DriverEvent[]; agent?: Record<string, unknown>; facts?: string[]; policy?: "any" | "company"; limits?: { allowedModels?: string[]; allowedProviders?: string[] } } = {}) {
   const h = harness({ principal: o.principal ?? { kind: "person", id: "usr_dana" } });
   const provider = scriptedProvider({ script: o.script ?? answer });
   bindStepOpen(provider.openSession);
@@ -25,7 +25,7 @@ function scene(o: { principal?: Harness["ctx"]["principal"]; providers?: Prov[];
   h.ctx.call = async (cap: string, input: unknown): Promise<unknown> => {
     seen.push(cap);
     if (cap === "providers.list") return { providers: o.providers ?? [key()] };
-    if (cap === "engine.policy.get") return { allowedAccounts: o.policy ?? "any" };
+    if (cap === "engine.policy.get") return { allowedAccounts: o.policy ?? "any", allowedModels: o.limits?.allowedModels ?? [], allowedProviders: o.limits?.allowedProviders ?? [] };
     if (cap === "agents.get") return { agent: { agentId: "agt_intake", name: "Intake", role: "You answer intake questions.", model: "claude-sonnet-5-5", accountPolicy: "asker", status: "awake", ...(o.agent ?? {}) } };
     if (cap === "memory.facts.list") return { facts: (o.facts ?? []).map((text) => ({ text })) };
     return base(cap, input);
@@ -238,4 +238,17 @@ test("an account that needs a model and gets none: the step fails in its own wor
     assert.notEqual(err?.retryable, true);
     return true;
   });
+});
+
+test("an agent-less step on OpenRouter runs on OpenRouter's own default; a Space policy that limits models or excludes OpenRouter refuses it before anything is sent", async () => {
+  const router = key({ handle: "#Mine_Router", providerKey: "openrouter", engine: "openrouter" });
+  const free = scene({ providers: [router], agent: { model: undefined } });
+  await run(free.h);
+  assert.equal(free.provider.specs.length, 1);
+  assert.equal(free.provider.specs[0]!.agent.model, undefined, "no model is named: OpenRouter picks its own");
+  for (const limits of [{ allowedModels: ["anthropic/claude-sonnet-5-5"] }, { allowedProviders: ["anthropic"] }]) {
+    const s = scene({ providers: [router], agent: { model: undefined }, limits });
+    await assert.rejects(() => run(s.h), (e: unknown) => (e as { error?: { code?: string; details?: { reason?: string } } }).error?.code === "permission.provider_label" && (e as { error: { details: { reason?: string } } }).error.details.reason === "policy_model", JSON.stringify(limits));
+    assert.equal(s.provider.specs.length, 0, "nothing was sent");
+  }
 });

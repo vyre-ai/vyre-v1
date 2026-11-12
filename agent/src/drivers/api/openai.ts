@@ -114,6 +114,8 @@ function decoder(): StreamDecoder {
         out.push(...flush());
         out.push({ type: "stop", reason: reason === "tool_calls" || reason === "function_call" ? "tool_use" : reason === "length" ? "length" : reason === "content_filter" ? "filtered" : reason === "stop" ? "end" : "other" });
       }
+      // the model the provider says it ran: what a turn on OpenRouter's own default records
+      if (typeof j["model"] === "string" && j["model"] !== "") out.push({ type: "usage", usage: { model: j["model"] as string } });
       const u = j["usage"] as Record<string, any> | undefined;
       if (u) {
         const usage: Partial<Usage> = {};
@@ -135,6 +137,7 @@ function decoder(): StreamDecoder {
 
 export function openaiCompatible(o: CompatOptions): ProviderAdapter {
   return {
+    ...(o.router ? { defaultsModel: true } : {}),
     id: o.id,
     defaultBase: o.base,
     defaultMaxOutput: o.defaultMaxOutput,
@@ -153,7 +156,8 @@ export function openaiCompatible(o: CompatOptions): ProviderAdapter {
           ...(o.opencode ? { "user-agent": vyreUserAgent(), [OPENCODE_SESSION]: req.conversation ?? req.prefixHash } : {}),
         },
         body: {
-          model: req.model, stream: true, stream_options: { include_usage: true },
+          // OpenRouter runs a request that names no model on the account's default: the field is left out, never sent empty
+          ...(req.model !== "" || !o.router ? { model: req.model } : {}), stream: true, stream_options: { include_usage: true },
           [o.tokenField]: req.maxOutputTokens,
           ...(o.cacheKey ? { prompt_cache_key: req.prefixHash } : {}),
           ...(o.router ? { usage: { include: true }, provider: { data_collection: "deny" } } : {}),

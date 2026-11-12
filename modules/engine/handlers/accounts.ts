@@ -10,6 +10,8 @@ import { costTier } from "../../../agent/src/accounts/cost.ts";
 import { savedTested } from "../live-models.ts";
 import { unavailableFor } from "../model-health.ts";
 import { applyRememberedPick, stateOf } from "./control.ts";
+import { raise } from "../projections.ts";
+import { PROVIDER_DEFAULT_DRIVERS, PROVIDER_DEFAULT_WORDS, providerDefaultBlocked } from "./extra/config.ts";
 
 interface ProviderRow {
   id: string; providerKey: string; name: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; handle?: string; itemId: string;
@@ -25,7 +27,7 @@ interface ProviderRow {
 }
 interface ThreadOut { thread: { label?: string; starter: string; agents: Array<{ agentId: string; accountRef?: string; provider?: string; model?: string }> } }
 interface AgentOut { agent: { accountPolicy: "asker" | "key"; accountKey?: string; workKey?: string; accountFallback?: string[]; model?: string } }
-interface PolicyOut { allowedAccounts: "any" | "company" }
+interface PolicyOut { allowedAccounts: "any" | "company"; allowedModels?: string[]; allowedProviders?: string[] }
 interface DefaultsOut { fallback: Array<{ accountRef?: string }> }
 interface PlacementOut { placement: "host" | "device" | "wait" }
 
@@ -173,6 +175,12 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
     // a thread with Restricted data runs only on an account that keeps nothing: every other account is passed over
     ...((input.unavailable?.length || t.thread.label === "restricted") ? { unavailable: [...(input.unavailable ?? []).map(c), ...(t.thread.label === "restricted" ? accounts.rows.filter((r) => r.keepsNothing !== true).map((r) => r.ref) : [])] } : {}),
   });
+  // nothing names a model, and the paying key's provider runs on its own default (OpenRouter): the Space policy is checked first, since the model is not known before the turn runs
+  const payingRow = res.allowed && res.accountRef ? accounts.rows.find((r) => r.ref === res.accountRef) : undefined;
+  if (model === undefined && payingRow && PROVIDER_DEFAULT_DRIVERS.has(payingRow.driver)) {
+    const why = providerDefaultBlocked({ allowedModels: policy.allowedModels ?? [], allowedProviders: policy.allowedProviders ?? [] }, payingRow.driver);   // the driver is the provider id for these
+    if (why !== null) raise(ctx as never, "permission.provider_label", PROVIDER_DEFAULT_WORDS, { reason: why });
+  }
   // the Vault item behind the account, so the turn worker can meter usage against it (record_usage itemId)
   const itemId = res.accountRef ? accounts.itemByRef.get(res.accountRef) : undefined;
   // an account ahead of this one was passed over: what pays is a fallback, whatever the reason word says

@@ -140,7 +140,13 @@ export function fakeProvider(): Provider {
     const key = keyOf(headers);
     seen.push({ url, key: key === "" ? "none" : sha12(key) });
     if (url.endsWith("/models")) return new Response(JSON.stringify({ data: [{ id: "matrix-model" }] }), { headers: { "content-type": "application/json" } });
-    if (url.endsWith("/chat/completions")) return sse(`key=${key === "" ? "none" : sha12(key)} ran-on=space`);
+    if (url.endsWith("/chat/completions")) {
+      // as OpenRouter does: a request that names no model runs on the account's default; a model field that is there but empty is refused ("`model` must be a non-empty string")
+      let body: { model?: unknown } = {};
+      try { body = JSON.parse(String(init?.body ?? "{}")) as { model?: unknown }; } catch { /* no body */ }
+      if ("model" in body && (typeof body.model !== "string" || body.model === "")) return new Response(JSON.stringify({ error: { message: "`model` must be a non-empty string" } }), { status: 400, headers: { "content-type": "application/json" } });
+      return sse(`key=${key === "" ? "none" : sha12(key)} ran-on=space`);
+    }
     return new Response("{}", { status: 404, headers: { "content-type": "application/json" } });
   }) as typeof fetch;
   const network: Provider["network"] = {

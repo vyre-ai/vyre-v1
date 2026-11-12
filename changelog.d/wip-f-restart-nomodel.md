@@ -1,0 +1,3 @@
+- On OpenRouter, a chat, an AI step or a background job whose agent names no model runs on your OpenRouter default model again, as it did before rc.26. The model it ran shows under the reply.
+- If your Space allows only certain AI models, or excludes OpenRouter, such a turn is stopped before anything is sent, with a note to pick a model.
+- Hook checks and room digests use the model their chat runs on, instead of none.

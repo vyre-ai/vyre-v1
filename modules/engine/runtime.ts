@@ -8,6 +8,7 @@ import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { SessionSpec, AccountQuery, EngineEvent, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
 import { open } from "./handlers/control.ts";
+import { PROVIDER_DEFAULT_WORDS } from "./handlers/extra/config.ts";
 import { BRIDGE_PREFIX, bindBridge, createBridge } from "./handlers/bridge.ts";
 import { screenAnswer, settleAnswer } from "./answer-audience.ts";
 import { ANSWER_HELD } from "../../agent/src/turn-engine/engine.ts";
@@ -190,7 +191,13 @@ export function sandboxPlan(): Promise<SandboxPlan> {
 }
 
 export async function resolveOne(h: Pick<EngineHostSeam, "call" | "log">, q: AccountQuery): Promise<ResolvedAccount | null> {
-  const res = (await h.call("engine.account.resolve", { threadId: q.threadId, agentId: q.agentId, askerId: q.askerId, ...(q.stepKey ? { stepKey: q.stepKey } : {}), ...(q.unavailable?.length ? { unavailable: [...q.unavailable] } : {}), ...(q.kind ? { kind: q.kind } : {}) }, q.askerId)) as ResolveOut;
+  // a refusal by the Space's AI policy (a provider-default turn where the policy limits models or the provider) reaches the turn as an engine.* code, so the chat shows the policy's words
+  // with a model to pick, not "Your AI account could not be reached"; the host's error carries its code under .error
+  const res = (await h.call("engine.account.resolve", { threadId: q.threadId, agentId: q.agentId, askerId: q.askerId, ...(q.stepKey ? { stepKey: q.stepKey } : {}), ...(q.unavailable?.length ? { unavailable: [...q.unavailable] } : {}), ...(q.kind ? { kind: q.kind } : {}) }, q.askerId).catch((e: unknown) => {
+    const err = (e as { error?: { code?: unknown; details?: { reason?: unknown } } } | null)?.error;
+    if (err?.code === "permission.provider_label" && err.details?.reason === "policy_model") throw Object.assign(new Error(PROVIDER_DEFAULT_WORDS), { code: "engine.policy_model" });
+    throw e;
+  })) as ResolveOut;
   if (res.why === "no_model") throw Object.assign(new Error(noModelWords(res.model ?? null, res.servedModels ?? [])), { code: "engine.model_unavailable" });
   if (!res.allowed || !res.accountRef || !res.payer) {
     h.log?.("no account can pay for this turn", { threadId: q.threadId, agentId: q.agentId, asker: q.askerId, allowed: res.allowed, reason: res.reason, accountRef: res.accountRef ?? null });

@@ -234,7 +234,7 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
   async function* send(input: TurnInput): AsyncGenerator<DriverEvent> {
     sends += 1;
     // no model: a provider answers 400 "`model` must be a non-empty string", which reads as a refusal. Nothing is sent; the turn says how to pick one.
-    if (model === "") { yield { type: "error", status: 0, code: "engine.no_model", message: NO_MODEL_LINE }; return; }
+    if (model === "" && deps.adapter.defaultsModel !== true) { yield { type: "error", status: 0, code: "engine.no_model", message: NO_MODEL_LINE }; return; }
     const ac = new AbortController();
     abort = ac;
     results.clear();
@@ -276,6 +276,8 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
             type: "usage", inputTokens: inTokens, outputTokens: u.outputTokens, contextTokens: inTokens,
             ...(told.has("cacheReadTokens") ? { cacheReadTokens: u.cacheReadTokens } : {}), ...(told.has("cacheWriteTokens") ? { cacheWriteTokens: u.cacheWriteTokens } : {}),
             ...(u.reasoningTokens !== undefined ? { reasoningTokens: u.reasoningTokens } : {}), ...(u.costUsd !== undefined ? { costUsd: u.costUsd } : {}),
+            // a request that named no model ran on the provider's default: its label is the model the provider reported, else the provider's name, never blank
+            ...(model === "" ? { model: u.model ?? deps.adapter.id } : {}),
           };
         }
         if (stop === "filtered" && text === "" && pending.length === 0) { yield { type: "error", code: "provider.filtered", message: "The provider declined to answer." }; return; }

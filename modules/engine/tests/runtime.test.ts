@@ -498,3 +498,32 @@ test("a stopped turn a dead host left, closed by the sweep while another reply r
   await engine.idle("thr_live");
   hostSeams.setEngineHost(null);
 });
+
+test("a turn the Space's AI policy refuses (no model named, on a provider that picks its own) fails with the policy's words and a model to pick, and never parks the agent", async () => {
+  bindEngine(null);
+  const h = harness({ threads: THREADS });
+  const p = scriptedProvider({ script: say });
+  const f: Fake = { calls: [], haveKey: true, accountsDown: false };
+  let policyOn = true;
+  const base = hostFor(p, f);
+  hostSeams.setEngineHost({
+    ...base,
+    async call(cap, input, as) {
+      // the resolver refuses as the real one does: a HostError, the code under .error
+      if (cap === "engine.account.resolve" && policyOn) throw Object.assign(new Error("refused"), { error: { code: "permission.provider_label", message: "x", details: { reason: "policy_model" } } });
+      return base.call(cap, input, as);
+    },
+  });
+  const engine = (await ensureRuntime(h.ctx))!;
+  engine.openThread({ id: "thr_pol", kind: "chat", starter: "usr_dana", agents: [{ id: "agt_intake", mode: "lead" }] });
+  for (let i = 0; i < 4; i++) { engine.receive({ threadId: "thr_pol", author: { kind: "person", id: "usr_dana" }, body: `try ${i}` }); await engine.idle("thr_pol"); }
+  const failed = engine.turns("thr_pol");
+  assert.deepEqual(failed.map((t) => t.error?.code), ["engine.policy_model", "engine.policy_model", "engine.policy_model", "engine.policy_model"], "each message ran and said so; none was held back");
+  assert.match(failed[0]!.error?.message ?? "", /only allows certain AI models/);
+  assert.equal(p.sessions.length, 0, "nothing was sent");
+  policyOn = false;
+  engine.receive({ threadId: "thr_pol", author: { kind: "person", id: "usr_dana" }, body: "now" });
+  await engine.idle("thr_pol");
+  assert.equal(engine.turns("thr_pol").at(-1)?.state, "completed", "the agent was never parked");
+  hostSeams.setEngineHost(null);
+});

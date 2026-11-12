@@ -103,7 +103,11 @@ export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: 
       if (!make) return { ok: false, models: [], detail: "This provider cannot be tested from here." };
       if (!p.apiKey) return { ok: false, models: [], detail: "There is no key to test." };
       // Tests only (scripts/test-run.ts sets it): a fixture key is checked against no real provider, which would refuse it. A key with "invalid" in it is refused, as a real provider refuses a bad one.
-      if (process.env["VYRE_TEST_KEY_CHECK"] === "accept") return /invalid/i.test(p.apiKey) ? { ok: false, models: [], detail: "The provider did not accept this key.", refused: true } : { ok: true, models: [] };
+      // It lists what a real check of that provider lists: one stand-in model ("<provider>-test-model") where the provider's check lists models, none for OpenRouter, whose check (/auth/key)
+      // lists none. Tests only. Every key's probe models become its account row's models, which the resolver reads (whether a named model fits, the strict no_model refusal, modelFallback.to):
+      // so in tests a shared non-OpenRouter key serves only "<provider>-test-model", and a team turn that names another model on such a key takes the fallback path to it. The Space AI key's
+      // fitModel reads the same list. It is test-only and the suites are green on it.
+      if (process.env["VYRE_TEST_KEY_CHECK"] === "accept") return /invalid/i.test(p.apiKey) ? { ok: false, models: [], detail: "The provider did not accept this key.", refused: true } : { ok: true, models: p.providerKey === "openrouter" ? [] : [`${p.providerKey}-test-model`] };
       ({ url, headers, pick } = make(p.apiKey));
     }
     try {
