@@ -56,6 +56,13 @@ const SYSTEM = { kind: "service", id: "svc_host" } as const;
 const TRACE_ID = /^[0-9a-f]{32}$/;
 
 /** The code of a failed invoke (a HostError carries the shaped error), or null for anything else. */
+/** The reason a refusal carries in its details, when it has one. */
+function reasonOf(e: unknown): string | null {
+  const x = e as { details?: { reason?: unknown }; error?: { details?: { reason?: unknown } } } | null;
+  const r = x?.error?.details?.reason ?? x?.details?.reason;
+  return typeof r === "string" ? r : null;
+}
+
 function codeOf(e: unknown): string | null {
   const x = e as { error?: { code?: unknown }; code?: unknown } | null;
   const c = x?.error?.code ?? x?.code;
@@ -120,7 +127,14 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
   };
 
   const lookupOnce = async (handle: string, who: Who): Promise<VaultLookup> => {
-    const got = await useOnce(handle, who);
+    // the turn's own account: the Space AI key is tried before saying the person's sign-in is gone, since a member cannot use that key by name (it reads as no such item to them) but
+    // runs on it through providers.space_key.use (rc.26 tag blocker, 12 Nov)
+    let got: VaultLookup;
+    try { got = await useOnce(handle, who); }
+    catch (e) {
+      if (who.account === true && HANDLE.test(handle) && codeOf(e) === "engine.signin_missing") { const space = await spaceKeyOnce(handle, who); if (space) return space; }
+      throw e;
+    }
     if (got.kind !== "value" && who.account === true && HANDLE.test(handle)) return (await spaceKeyOnce(handle, who)) ?? got;
     return got;
   };
@@ -161,9 +175,11 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
         } catch (e) {
           const code = codeOf(e);
           if (code === "permission.provider_label") return { kind: "denied", reason: "provider_label" };
-          if (code !== null && code.startsWith("permission.")) return { kind: "denied", reason: "no_access" };
+          // a name the Vault has nothing under that this person may use (gone, or not theirs: the two read alike) is the "no such item" case below, not "no access"
+          const noSuchItem = code === "permission.not_found" && reasonOf(e) === "no_such_item";
+          if (code !== null && code.startsWith("permission.") && !noSuchItem) return { kind: "denied", reason: "no_access" };
           // Not the same as "no account": the item is gone, or it has no such field. Say which, in plain words, and log the field NAME (never a value) so the next one explains itself.
-          if (code === "validation.not_found" || code === "validation.bad_input") {
+          if (code === "validation.not_found" || code === "validation.bad_input" || noSuchItem) {
             // the plain words go to the log with the field NAME, never to the caller: a refusal looks the same to the one asking, so nothing is leaked and nothing changes for them
             d.log?.("the vault could not give the account its key", { code, handle: item, field: field ?? null, why: whyUnusable(e, code) });
             // the turn's own account has no usable sign-in in the Vault (the item is gone, or has no such field): the person signs in again. Said once, as itself: never "locked", never tried again for every message.
