@@ -230,3 +230,10 @@ export function collect<T, U>(list: readonly T[], fn: (item: T, index: number) =
 export function workKeyNote(a: Pick<AgentRow, "workKey">, accounts: readonly AccountChoice[]): string {
   return a.workKey ? `Its own work runs on ${accountName(accounts, a.workKey)}, where the Space keeps it for this agent` : "Its own work runs on the cheapest Space AI account kept for it. In a chat, the person's own account comes first";
 }
+
+/** The Settings row for an agent's computer: what the Computer tab knows. A bound workspace and Space browser say so; an older desktop alone is named as it is; when neither is known here the row is neutral, never a claim. */
+export function computerRowNote(bound: boolean, hasOlderDesktop: boolean): string {
+  if (bound) return "A terminal and a browser of its own";
+  if (hasOlderDesktop) return "Has an older desktop";
+  return "Its terminal and browser are on the Computer tab";
+}
