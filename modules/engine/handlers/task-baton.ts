@@ -226,7 +226,7 @@ export async function openThread(db: Db, host: BatonHost, engine: TurnEngine, th
 /** The agent that holds the baton may use the task: its own grant, because an agent's reach is the least of its own and the person's. The task exists in access only once the call that made it has committed, which is why this is done here, as the person who asked (they own it; the server itself may not share). */
 async function shareTask(host: BatonHost, taskId: string, agentId: string, asker: string): Promise<void> {
   try {
-    await host.call("access.share", { resource: { type: "task", id: taskId }, subject: { kind: "agent", id: agentId }, level: "use", source: `baton:${taskId}`, idempotencyKey: `baton-share:${taskId}:${agentId}` }, asker);
+    await host.call("access.share", { resource: { type: "task", id: taskId }, subject: { kind: "agent", id: agentId }, level: "use", source: `baton:${taskId}`, idempotencyKey: `baton-share:${taskId}:${agentId}:${globalThis.crypto.randomUUID()}` }, asker);
   } catch (e) { host.log?.("an agent could not be given its task", { taskId, agentId, error: e instanceof Error ? e.message : String(e) }); }
 }
 

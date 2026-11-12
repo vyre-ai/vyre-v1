@@ -61,14 +61,14 @@ test("keys are only ever returned to their owner", async () => {
   await assert.rejects(handlers["identity.keys_get"](agent, {}), (e) => codeOf(e) === "auth.unauthenticated");
 });
 
-test("sessions expire after 30 days", async () => {
+// Lead decision, 12 Nov 2026 (owner rule: a Space stays signed in): a session is never ended by its age. This test asserted expiry after 30 days; that expiry was enforced only here, never where
+// requests come in (host/src/daemon/session.ts), so it now asserts the rule every reader follows. Sessions end by sign-out, revoke, suspend, remove and password change.
+test("a session's age never ends it: it still resolves past its 30-day mark", async () => {
   const h = await world();
   const { out } = await signedIn(h);
   assert.ok(sessionOfToken(h.anon, out.session!.token));
-  h.advance(30 * 24 * 3_600_000 - 1);
+  h.advance(30 * 24 * 3_600_000 + 1);
   assert.ok(sessionOfToken(h.anon, out.session!.token));
-  h.advance(2);
-  assert.equal(sessionOfToken(h.anon, out.session!.token), undefined);
 });
 
 test("change password re-wraps keys, signs out the other devices, and keeps this one", async () => {

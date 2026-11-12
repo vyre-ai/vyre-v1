@@ -11,6 +11,8 @@ import { closePlaceholderQuestions } from "./handlers/placeholders.ts";
 import { NOTIFY_EVENTS, notify } from "./handlers/notify.ts";
 import type { NotifyEvent } from "./handlers/notify.ts";
 
+import { convergeAllHomes } from "./handlers/owned.ts";
+
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 
 /** Every Team Space has #vyre (owner D22): made at the first start, and in an older Space that has neither #vyre nor #general. Hourly after that, which costs one read when it exists. */
@@ -20,6 +22,8 @@ export const periodic = {
   /** Once, on update: question cards an agent threw in as a test close, and their tasks leave Needs you. */
   "chat.placeholder_cleanup": { everyMs: 86_400_000, immediate: true, run: (ctx: ChatCtx) => { closePlaceholderQuestions(ctx); } },
   "chat.agent_dm_due": { everyMs: 30_000, run: (ctx: ChatCtx) => sendDue(ctx) },
+  /** At start and daily: the agents chats made, and their files folders, in line with who reads their chats (a folder made before folders followed their chats is closed now). */
+  "chat.agent_homes": { everyMs: 86_400_000, immediate: true, run: (ctx: ChatCtx) => convergeAllHomes(ctx) },
 };
 
 export const consumers = {
