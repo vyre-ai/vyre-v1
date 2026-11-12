@@ -223,10 +223,8 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       const running = await o.api.containerRunning(name);
       // without raw Engine access nothing can be compared: a running container is used as it is
       if (running && (current || !o.http || Date.now() < recheckAt)) { if (subnet === null) await learnNetwork(); return; }
-      const net = await makeNetwork();
-      const config = browserContainerConfig(o, net);
-      const wrong = reviewComputerConfig(config);
-      if (wrong.length > 0) throw new ToolError("unavailable", `The Space browser's container config is outside its profile: ${wrong.join(", ")}`);
+      // the image first (it does not depend on the network): a server without it makes nothing
+      const config = browserContainerConfig(o);
       if (!(await o.api.imageExists(config.Image))) {
         // a server that has never run one fetches the image itself (the runner allows only this image)
         let why = "";
@@ -240,7 +238,11 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
         }
         if (!(await o.api.imageExists(config.Image))) throw new ToolError("unavailable", `The Space browser image ${config.Image} is not on this server${why ? ` and could not be fetched (${why.slice(0, 80)})` : ""}. Update the server to fetch it.`);
       }
-      const release = await releaseOf(config, net);
+      const net = await makeNetwork();
+      const full = browserContainerConfig(o, net);
+      const wrong = reviewComputerConfig(full);
+      if (wrong.length > 0) throw new ToolError("unavailable", `The Space browser's container config is outside its profile: ${wrong.join(", ")}`);
+      const release = await releaseOf(full, net);
       if (release === "other") {
         if (running && !(await quietNow())) {
           log("the container is of an earlier release; it is replaced as soon as no agent is using its browser and nobody has the controls");
@@ -254,7 +256,7 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       } else if (release === "same" && running) { current = true; return; }
       // unknown: the running container is used as it is and looked at again later, never replaced on an error
       else if (release === null && running && o.http) { recheckAt = Date.now() + (o.recheckMs ?? 30_000); if (subnet === null) await learnNetwork(); return; }
-      try { await o.api.containerCreate(name, config); } catch (e) { if (!/already in use|409|conflict/i.test(e instanceof Error ? e.message : "")) throw e; }
+      try { await o.api.containerCreate(name, full); } catch (e) { if (!/already in use|409|conflict/i.test(e instanceof Error ? e.message : "")) throw e; }
       await o.api.containerStart(name);
       const deadline = Date.now() + (o.startTimeoutMs ?? 30_000);
       for (;;) {
