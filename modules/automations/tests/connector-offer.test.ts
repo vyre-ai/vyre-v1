@@ -116,3 +116,9 @@ test("a pasted key in the name or field keys is not copied into any return value
   for (const value of [opened, declined, accepted, again, spaced, fieldsOnly, blank]) assertNoSentinel(value);
   assert.equal(JSON.stringify(opened.offer).includes("fieldKeys"), false);
 });
+
+test("the offer names the app, not the key: Notely API key is offered as Notely", () => {
+  const out = offerForSavedItem({}, { itemId: "vit_notely", name: "Notely API key", fieldKeys: [] });
+  assert.equal(out.offer?.appName, "Notely");
+  assert.equal(out.offer?.text, "Set up Notely for Automations?");
+});

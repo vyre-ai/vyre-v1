@@ -7,13 +7,17 @@ export const offersAutomations = (kind: ItemKind): boolean => OFFERS.has(kind);
 
 const SAFE_APP = "this app";
 const SECRET_SHAPE = /(sk|pk|rk|ghp|gho|xox[abprs]|eyJ|AKIA|AIza)[-_A-Za-z0-9]{8,}/;
+const KEY_WORD = /\s+(?:api[\s_-]*keys?|api[\s_-]*tokens?|access[\s_-]*tokens?|keys?|tokens?|secrets?|credentials?)$/i;
 
 /** The item name as an app name. A name that looks like a pasted key is not repeated. */
 export function appNameOf(name: string): string {
   const trimmed = name.trim().replace(/\s+/g, " ");
   if (trimmed === "") return SAFE_APP;
   if (SECRET_SHAPE.test(trimmed.replace(/\s+/g, ""))) return SAFE_APP;
-  return trimmed.length > 60 ? `${trimmed.slice(0, 60).trim()}` : trimmed;
+  // "Notely API key" names the key; the app is Notely. A name that is only the key word stays as it is.
+  const cut = trimmed.replace(KEY_WORD, "").trim();
+  const app = cut === "" || /^(?:api|access)$/i.test(cut) ? trimmed : cut;
+  return app.length > 60 ? `${app.slice(0, 60).trim()}` : app;
 }
 
 /** The first message of the session. The skill carries the how; this carries only who and which handle. */

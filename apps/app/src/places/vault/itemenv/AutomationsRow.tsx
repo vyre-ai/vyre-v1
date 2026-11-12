@@ -23,8 +23,21 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
   const [builder, setBuilder] = useState<BuilderStatus | null>(null);
   const [asked, setAsked] = useState(false);
   const [pending, setPending] = useState<PendingSlot[]>([]);
+  // an AI account's API key is saved as a key item, but it is the person's AI, not an app to connect: it offers no connector
+  const [aiKey, setAiKey] = useState<boolean | null>(null);
   const assistant = data.assistantId;
-  const offers = offersAutomations(item.kind);
+  const offers = offersAutomations(item.kind) && aiKey === false;
+  useEffect(() => {
+    if (!offersAutomations(item.kind)) return undefined;
+    let live = true;
+    void (async () => {
+      try {
+        const out = (await data.call("providers.list", {})) as { providers?: { itemId?: unknown }[] } | null;
+        if (live) setAiKey((out?.providers ?? []).some((p) => p.itemId === item.id));
+      } catch { if (live) setAiKey(false); }
+    })();
+    return () => { live = false; };
+  }, [data, item.id, item.kind]);
   useEffect(() => {
     let live = true;
     void (async () => {

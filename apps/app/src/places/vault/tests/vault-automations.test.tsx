@@ -158,3 +158,23 @@ test("a pending connection built on this key asks for its missing secret inline:
   assert.deepEqual(set.input, { connectionId: "con_r", slot: "Resend_Webhook", handle: "#Northwind_Resend_Webhook.secret" });
   assert.equal(JSON.stringify(calls.filter((c) => c.cap !== "vault.item.put")).includes("whsec_fake"), false, "no other call carries it");
 });
+
+test("an AI account's key is not an app: its item has no Add to Automations", async () => {
+  const v = createSampleVault();
+  const ai = await open(v, "vit_opencode");
+  await settle();
+  assert.equal(textOf(ai).includes("Add to Automations"), false, "the AI account's key offers no connector");
+  const app = await open(v, "vit_ghl");
+  await settle();
+  assert.equal(textOf(app).includes("Add to Automations"), true, "an app key still offers one");
+});
+
+test("Move to Trash names the Automations that use the item", async () => {
+  const v = createSampleVault();
+  // the Delete key in the list asks this item to confirm its move to Trash
+  const root = await mount(createRoot, <Wrap data={v.data}><ItemEnv itemId="vit_ghl" askDelete={1} onEdit={() => undefined} onGone={() => undefined} onNote={() => undefined} /></Wrap>);
+  await settle();
+  const confirm = find(root, "item-confirm-delete");
+  assert.ok(confirm, "the confirm shows");
+  assert.match(textOf(confirm), /New lead to GoHighLevel/, `the confirm names the Automation: ${textOf(confirm)}`);
+});

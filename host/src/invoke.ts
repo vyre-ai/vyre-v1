@@ -386,7 +386,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       try { resource = resolveResource(c, input, seed.space, deps.resolveItem); }
       catch (e) {
         // a Vault name or handle that names nothing the caller may use reads the same as one that does not exist, in words a person or an agent can act on
-        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...(e.message === "no such item" ? { message: "There is no Vault item by that name that you can use. Check the name, or ask for the key." } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
+        // the line names the handle the caller wrote (their own input, never a value), so a failed Run says which key to bring back
+        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...(e.message === "no such item" ? { message: missingItemLine(input, e.pointer) } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
         throw e;
       }
       if (resource && deps.ensureResource) await deps.ensureResource(resource);
@@ -640,3 +641,17 @@ export function withoutPersonalWords(v: unknown): unknown {
   return out;
 }
 const isPersonPage = (p: unknown): boolean => p !== null && typeof p === "object" && (p as { layer?: unknown }).layer === "person";
+
+/** The person's line for a Vault name that names nothing they may use. The name is read back from the input at the pointer the binder gave, only when it is shaped like a handle. */
+export function missingItemLine(input: unknown, pointer: string): string {
+  let at: unknown = input;
+  for (const part of pointer.split("/").slice(1)) {
+    const k = part.replace(/~1/g, "/").replace(/~0/g, "~");
+    at = at !== null && typeof at === "object" ? (at as Record<string, unknown>)[k] : undefined;
+  }
+  const name = typeof at === "string" ? at.trim().split(".")[0] ?? "" : "";
+  return /^#[A-Za-z0-9_]{1,80}$/.test(name)
+    ? `There is no Vault item ${name} that you can use. Check it is still in the Vault, or ask for the key.`
+    : "There is no Vault item by that name that you can use. Check the name, or ask for the key.";
+}
+

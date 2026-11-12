@@ -37,7 +37,8 @@ const boot = (dir: string, seamFetch?: SeamFetch): Promise<Daemon> => startDaemo
     },
   }),
   fetch: caddyFetch,
-  seams: { vaultSinks: { env: () => undefined }, ...(seamFetch ? { fetch: seamFetch } : {}) },
+  // names resolve without the outside DNS (a safe read checks its host is public first)
+  seams: { vaultSinks: { env: () => undefined }, ...(seamFetch ? { fetch: seamFetch } : {}), drivers: { setDocumentNetwork: () => ({ lookup: async () => ["93.184.216.34"], fetch: async () => { throw new Error("not used"); } }) } },
   session: (h) => {
     const token = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
     if (token === OWNER) return { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "exec-live" };

@@ -1,0 +1,6 @@
+- Building a connector: the one test read now refuses a private, loopback or cloud metadata address (also a name that resolves to one) before the Vault key is put on the request.
+- Building a connector: a test read that fails now says why in one line (the app refused the key, nothing at that address, the app did not answer, the app had a problem, or the Vault did not give the key), with what to check next.
+- Automations no longer offers to set up an AI account's own key as a connector, and a Vault item that is an AI account's key no longer shows Add to Automations. An offer for an item that was deleted or that you cannot see is no longer listed.
+- A Run whose Vault item is gone now names the item in its error ("There is no Vault item #Acme that you can use"), so you know which key to bring back.
+- An item named like "Notely API key" is offered and built as the app Notely, in Add to Automations, Sync to Records and the setup offer.
+- Vault: the open item stays open when another item is used and the list re-sorts; before, the detail jumped to whichever item moved to the top.

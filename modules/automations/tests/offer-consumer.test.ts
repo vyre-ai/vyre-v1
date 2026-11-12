@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { harness } from "../fixtures/db.ts";
 import { alice } from "../fixtures/seed.ts";
 import { consumers } from "../impl.ts";
+import { connectorOffers } from "../handlers/connector-offer.ts";
 import { listOpenOffers } from "../offer-store.ts";
 import type { OfferDb } from "../offer-store.ts";
 
@@ -27,4 +28,22 @@ test("an offer for a Mine item is for the person who saved it; an offer for a sh
   const ids = (viewer?: string): string[] => listOpenOffers(ctx.db as OfferDb, viewer).map((o) => o.itemId).sort();
   assert.deepEqual(ids("usr_alice"), ["vit_mine", "vit_shared"]);
   assert.deepEqual(ids("usr_bob"), ["vit_shared"], "another person does not see a Mine offer");
+});
+
+test("the offers list leaves out an AI account's key and an item that is gone or not visible", async () => {
+  const h = harness();
+  const ctx = h.ctxFor(null, alice);
+  const run = consumers["automations.connector_offer"].run;
+  // an AI account added with an API key is saved as an api_key item, so the event alone cannot tell it apart
+  for (const id of ["vit_acme", "vit_openai", "vit_gone"]) run(ctx as never, { payload: { itemId: id, kind: "api_key", name: `Name ${id}` } });
+  const calls: string[] = [];
+  const withCall = { ...ctx, call: async (cap: string) => {
+    calls.push(cap);
+    if (cap === "providers.list") return { providers: [{ id: "prv_1", itemId: "vit_openai" }] };
+    if (cap === "vault.items.list") return { items: [{ id: "vit_acme" }, { id: "vit_openai" }] };
+    throw new Error(`unexpected ${cap}`);
+  } };
+  const out = await connectorOffers(withCall as never);
+  assert.deepEqual(out.offers.map((o) => o.itemId), ["vit_acme"]);
+  assert.deepEqual(calls.sort(), ["providers.list", "vault.items.list"]);
 });

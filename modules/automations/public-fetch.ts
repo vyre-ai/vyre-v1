@@ -77,6 +77,12 @@ async function vet(raw: string, lookup: Lookup): Promise<{ ok: true; url: URL; a
   return { ok: true, url: target.url, addresses: ips };
 }
 
+/** The same check every fetch here makes, for a caller that sends through its own door (a connector's safe read): https, no credentials, and a host that resolves only to public addresses. */
+export async function vetPublic(raw: string, lookup: Lookup): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const v = await vet(raw, lookup);
+  return v.ok ? { ok: true } : { ok: false, reason: v.reason };
+}
+
 async function readCapped(response: Response, cap = CAP): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
   const declared = Number(response.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > cap) return { ok: false, reason: TOO_LARGE };
