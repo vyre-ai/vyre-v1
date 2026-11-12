@@ -39,7 +39,8 @@ test("a full host queues the claim with the plain line, and a release that opens
   assert.deepEqual(await workspaceClaim(h.ctx, { agentId: "agt_a" }), { state: "running" });
   const b = await workspaceClaim(h.ctx, { agentId: "agt_b" });
   assert.equal(b.state, "waiting");
-  assert.match(b.line ?? "", /^Waiting for room on the Space server\. Add a compute server in Console > Computers to run more\.$/);
+  // the workspace's own line (lead, 12 Nov: a compute server cannot help a workspace on a Space server with Docker)
+  assert.match(b.line ?? "", /^Waiting for room on the Space server\. The workspace starts by itself when there is room\.$/);
   assert.deepEqual(await workspaceWaiting(h.ctx, { agentId: "agt_b" }), { line: b.line });
   assert.deepEqual(await workspaceWaiting(h.ctx, { agentId: "agt_a" }), { line: null });
   assert.deepEqual(started, []);

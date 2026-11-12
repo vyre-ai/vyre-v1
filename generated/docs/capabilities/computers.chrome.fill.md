@@ -39,6 +39,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
   filled: number;
 };
@@ -73,7 +75,9 @@ type Out = {
   },
   "output": {
     "filled": 1,
-    "ok": true
+    "note": "example",
+    "ok": true,
+    "reopened": true
   }
 }
 ```
