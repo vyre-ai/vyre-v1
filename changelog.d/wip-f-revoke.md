@@ -19,3 +19,8 @@
 - Leaving or being taken out of that chat takes its agent's files away at once. Making the channel public opens them to the Space, and making it invite-only again closes them. Someone added to the channel gets them.
 - Agents made in private chats before this update have their files closed the same way when the server starts.
 - When the server closes the files of an agent made in a private chat, the chat's people get them first, so an update stopped half way never locks them out.
+- A teammate an Assistant adds to a project, and the first members of a project an Assistant makes, are now in the project's chat too. If Vyre cannot put them there, it says so instead of reporting success.
+- An agent made in a chat always belongs to that one chat, and its files stay as private as that chat, even when the same request is sent again from another chat.
+- Files an agent keeps in its own folder belong to the agent. Someone who leaves the private chat it works for no longer opens the notes it wrote for them.
+- The first preview of a new file (its text, picture or pages) no longer fails with "Something went wrong".
+- A person who accepts an invite has their role and groups the moment the join finishes, even when the server is busy. A role that could not be given at once is no longer left for an admin when nothing stands in its way.

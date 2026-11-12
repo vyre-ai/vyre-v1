@@ -58,6 +58,8 @@ test("who may close a folder: whoever manages it, and the host's sweep; a member
   await assert.rejects(() => audienceSet(as({ kind: "person", id: "usr_cy" }), { resource: { type: "folder", id: HOME }, audience: "added" }), (e: unknown) => /permission/.test(JSON.stringify(e)));
   const r = await audienceSet(as({ kind: "service", id: "svc_host" } as never), { resource: { type: "folder", id: HOME }, audience: "added" });
   assert.equal(r.audience, "added");
+  // any other folder: the host is a caller like anyone, and holds no Manage on it
+  await assert.rejects(() => audienceSet(as({ kind: "service", id: "svc_host" } as never), { resource: { type: "folder", id: OTHER }, audience: "added" }), (e: unknown) => /permission/.test(JSON.stringify(e)), "the host may not close a folder that is not a chat's own agent's");
 });
 
 test("the host writes a chat's grant on that chat's agent and on the agent's own folder, and nowhere else", async () => {

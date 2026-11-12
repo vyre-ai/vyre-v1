@@ -19,7 +19,7 @@ Extracted text of a PDF, Office, image-free or plain file, for the viewer, searc
 | HTTP | POST /v1/previews/text |
 | MCP tool | previews_text (files) |
 | CLI | none |
-| Emits | none |
+| Emits | preview.ready, preview.failed |
 
 ## Input
 

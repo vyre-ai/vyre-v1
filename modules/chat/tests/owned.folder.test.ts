@@ -20,11 +20,13 @@ function world(o: { audienceFails?: boolean } = {}) {
   const audience = new Map<string, string>();
   const deleted: string[] = [];
   let made = 0;
+  const byKey = new Map<string, string>();
   const hn = baseHarness({
     calls: {
       "agents.get": (i) => ({ agent: { agentId: i["agentId"], name: String(i["agentId"]), runtime: "vyre", folderId: `fld_${String(i["agentId"])}` } }),
       "access.principals.get": () => ({ principal: { name: "Someone" } }),
-      "agents.create": () => ({ agent: { agentId: `agt_made${++made}` } }),
+      // a replayed key answers the agent that key made, as the agents module's key cache does
+      "agents.create": (i) => { const k = String(i["idempotencyKey"] ?? ""); const had = byKey.get(k); if (had) return { agent: { agentId: had } }; const id = `agt_made${++made}`; if (k) byKey.set(k, id); return { agent: { agentId: id } }; },
       "agents.delete": (i) => { deleted.push(String(i["agentId"])); return { deleted: true }; },
       "engine.set_mode": (i) => ({ mode: i["mode"], leadAgentId: null }),
       "engine.stop_all": () => ({ stopped: 0 }),
@@ -178,4 +180,41 @@ test("a Space-wide agent added to an invite-only channel is not touched: its fol
   await (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run(w.hn.ctx);
   assert.equal(w.audience.has(`fld_${INTAKE}`), false, "no audience is set on a Space agent's folder");
   assert.equal(w.grants.some((g) => g.resource.id === `fld_${INTAKE}`), false, "and no one is given it");
+});
+
+test("the same key sent to make an agent in two chats makes two agents: one chat's own agent never becomes another chat's", async () => {
+  const w = world();
+  const priv = (await h["chat.start"]!(w.hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread.threadId as string;
+  const open = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
+  const a = (await h["threads.agent.create"]!(w.hn.ctx, { threadId: priv, name: "Mine", idempotencyKey: "same" })).agentId as string;
+  const b = (await h["threads.agent.create"]!(w.hn.ctx, { threadId: open.mainThreadId, name: "Mine", idempotencyKey: "same" }).catch(() => ({ agentId: "" }))).agentId as string;
+  assert.notEqual(b, a, "the open channel did not get the private chat's agent");
+  assert.equal(w.hn.rows(`SELECT * FROM chat_thread_agent WHERE "agentId" = ? AND "owned" = 1 AND "deleted_at" IS NULL`, a).length, 1, "the private chat's agent has one home");
+  assert.equal(w.audience.get(`fld_${a}`), "added", "and its folder stays closed");
+});
+
+test("an agent with two homes (an older build): its folder is as private as its most private home, whichever row the sweep meets last", async () => {
+  const sweep = (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run;
+  const secondHome = (w: ReturnType<typeof world>, thread: string, agentId: string) =>
+    w.hn.ctx.db.run(`INSERT INTO chat_thread_agent (id, thread, agentId, mode, addedBy, version, updated_at, owned) VALUES (?, ?, ?, 'listen', ?, 1, 1, 1)`, `tha_second_${thread}`, thread, agentId, DANA);
+  // the private home first, the open one last
+  {
+    const w = world();
+    const { a } = await inviteThread(w);
+    const open = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
+    secondHome(w, open.mainThreadId, a);
+    await sweep(w.hn.ctx);
+    assert.equal(w.audience.get(`fld_${a}`), "added", "open home last: still closed");
+    assert.equal(w.grants.some((g) => g.resource.id === `fld_${a}` && g.subject.kind === "group"), false);
+  }
+  // the open home first, the private one last
+  {
+    const w = world();
+    const open = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
+    const a = (await h["threads.agent.create"]!(w.hn.ctx, { threadId: open.mainThreadId, name: "Open first", idempotencyKey: key() })).agentId as string;
+    const { t } = await inviteThread(w);
+    secondHome(w, t.id, a);
+    await sweep(w.hn.ctx);
+    assert.equal(w.audience.get(`fld_${a}`), "added", "private home last: closed");
+  }
 });

@@ -79,8 +79,9 @@ async function applyRoleNow(ctx: ProjectsCtx, p: Project, principal: string, rol
     await shareRole(ctx, p, r, member, role);
   }
   // the project's channel is invite-only: a grant lets a person read it, but they are only IN it (and the Chat tab opens it, channels.get answers) once they are added
-  if (kind === "person" && p.channelId && !ownPersonal) await tolerant(ctx, "channels.members.add", { channelId: p.channelId, personIds: [principal] }, null);
-  if (kind === "agent" && p.channelId) await tolerant(ctx, "channels.agents.add", { channelId: p.channelId, agentId: principal, mode: role === "lead" ? "lead" : "listen" }, null);
+  // into the project's own channel: a refusal is said, never swallowed (a member or teammate silently missing from the channel). Only a channel that is gone is let pass
+  if (kind === "person" && p.channelId && !ownPersonal) await intoChannel(ctx, "channels.members.add", { channelId: p.channelId, personIds: [principal] });
+  if (kind === "agent" && p.channelId) await intoChannel(ctx, "channels.agents.add", { channelId: p.channelId, agentId: principal, mode: role === "lead" ? "lead" : "listen" });
   saveMember(ctx.db, p.projectId, member);
   if (role === "lead") await writeRecord(ctx, p, { lead: principal });
   // projects.create and projects.from_channel declare project.created, not project.member_set: the first people on a project are part of its creation
@@ -613,4 +614,13 @@ export async function sharedView(ctx: ProjectsCtx, input: In): Promise<unknown> 
     milestones: next.map((t) => clean({ title: t.title, due: t.due, status: t.status })),
     expiresAt: typeof row.expiresAt === "number" ? row.expiresAt : undefined,
   });
+}
+
+/** A call that puts someone in the project's own channel: a refusal is thrown, so the role change does not report success with the person or agent missing from the channel; a channel that is gone is let pass. */
+async function intoChannel(ctx: ProjectsCtx, cap: string, input: Record<string, unknown>): Promise<void> {
+  if (!ctx.call) return;
+  try { await ctx.call(cap, input); } catch (e) {
+    if (codeOf(e) === "validation.not_found") { ctx.log.warn("projects: the project's channel is gone", { cap }); return; }
+    throw e;
+  }
 }

@@ -302,18 +302,20 @@ async function drainOne(ctx: MembersCtx, personId: string, opts: { periodic?: bo
         try { if (holds(s, await areaState(ctx, j.person_id, s))) { s.state = "done"; delete s.error; } } catch { /* read again next time */ }
         continue;
       }
-      if (s.seen === undefined) { drop(ctx, j.person_id, s, "what the Space held when it failed could not be read", NEEDS_YOU_UNREAD); continue; }   // cannot tell: never give
-      // a role or a group given and taken back leaves the person's roles and groups as they were, so the retry asks the audit log, at this moment, whether a person changed this one role or
-      // group of theirs since the step first failed (every access.roles.* and access.groups.* call is audited in its own commit, with the person, the role or the group as targets)
       const colon = s.k.indexOf(":");
       const area = s.k.startsWith("role:") ? "role" : s.k.startsWith("group:") ? "group" : null;
+      // cannot tell what the Space held when it failed: never give. A role or a group is the exception: the audit log below answers whether anyone changed it since, which is the question
+      // (a step that failed because the access module did not know the new person yet has nothing to read at that moment, and must still be given once it does)
+      if (s.seen === undefined && !area) { drop(ctx, j.person_id, s, "what the Space held when it failed could not be read", NEEDS_YOU_UNREAD); continue; }
+      // a role or a group given and taken back leaves the person's roles and groups as they were, so the retry asks the audit log, at this moment, whether a person changed this one role or
+      // group of theirs since the step first failed (every access.roles.* and access.groups.* call is audited in its own commit, with the person, the role or the group as targets)
       if (area) {
         let changed: boolean;
         try { changed = await changedSince(ctx, j.person_id, area, s.k.slice(colon + 1), s.failedAt ?? j.joined_at); }
         catch { drop(ctx, j.person_id, s, "whether someone changed it since could not be read", NEEDS_YOU_UNREAD); continue; }
         if (changed) { drop(ctx, j.person_id, s, `someone changed this ${area} of theirs after the step failed`); continue; }
       }
-      if (s.seen !== null) {
+      if (s.seen !== null && s.seen !== undefined) {
         let now: string | null;
         try { now = await areaState(ctx, j.person_id, s); } catch { continue; }   // cannot tell what the Space holds now: the step waits, it never gives anything unchecked
         if (now !== s.seen) { drop(ctx, j.person_id, s, "someone changed it after the join"); continue; }

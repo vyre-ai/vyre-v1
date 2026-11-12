@@ -94,11 +94,21 @@ async function folderOf(ctx: ChatCtx, agentId: string): Promise<string | undefin
   try { return ((await ctx.call("agents.get", { agentId })) as { agent?: { folderId?: string } }).agent?.folderId; } catch { return undefined; }
 }
 
-/** Set the agent's folder to follow its chat now: closed to the Space when the chat is, open to the Space when it is not. Throws when it cannot: a folder left open would be a leak. */
+/** The chats that made this agent (its homes). One, unless an older build gave it a second. */
+export function homesOf(ctx: ChatCtx, agentId: string): string[] {
+  ensure(ctx.db);
+  return (ctx.db.all(`SELECT "thread" FROM chat_thread_agent WHERE "agentId" = ? AND "owned" = 1 AND "deleted_at" IS NULL`, agentId) as Row[]).map((r) => String(r["thread"]));
+}
+
+/**
+ * Set the agent's folder to follow its chat now: closed to the Space when the chat is, open to the Space when it is not. With more than one home the folder is as private as its most private
+ * home: closed when any of them is. Throws when it cannot: a folder left open would be a leak.
+ */
 export async function followHome(ctx: ChatCtx, threadId: string, agentId: string): Promise<void> {
   const folderId = await folderOf(ctx, agentId);
   if (!folderId || !ctx.call) return;
-  await ctx.call("access.audience_set", { resource: { type: "folder", id: folderId }, audience: homeIsClosed(ctx, threadId) ? "added" : "space" });
+  const closed = [...new Set([threadId, ...homesOf(ctx, agentId)])].some((h) => homeIsClosed(ctx, h));
+  await ctx.call("access.audience_set", { resource: { type: "folder", id: folderId }, audience: closed ? "added" : "space" });
 }
 
 // A person's grants from chats are written and taken back in one queue per person (lib/one-at-a-time.ts): a grant still being written for a newcomer can never land after the same person was

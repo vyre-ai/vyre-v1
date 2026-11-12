@@ -13,7 +13,7 @@ import type { ChatCtx, ThreadRec } from "../projections.ts";
 import { agentMayChange, load, out } from "./g24a.ts";
 import { readFloor } from "./floor.ts";
 import { deliver, mayGovernChannel, rootOf } from "./post.ts";
-import { followHome, grantsOf, revokeGrants, shareOwnedWithReaders, sourceOf, trashOwned } from "./owned.ts";
+import { followHome, grantsOf, homesOf, revokeGrants, shareOwnedWithReaders, sourceOf, trashOwned } from "./owned.ts";
 import type { Granted } from "./owned.ts";
 
 type Row = Record<string, unknown>;
@@ -117,15 +117,16 @@ export async function agentCreate(ctx: ChatCtx, input: { threadId: string; name:
   const brief = input.brief?.replace(/\s+/g, " ").trim();
   const key = input.idempotencyKey ?? ctx.trace.traceId;
   const made = (await ctx.call("agents.create", {
-    name: input.name, ...(brief ? { role: brief.slice(0, 200) } : {}), ...(input.model ? { model: input.model } : {}), computer: false, threadId: t.id, idempotencyKey: `${key}:agent`,
-  }, { idempotencyKey: `${key}:agent` })) as { agent: { agentId: string } };
+    name: input.name, ...(brief ? { role: brief.slice(0, 200) } : {}), ...(input.model ? { model: input.model } : {}), computer: false, threadId: t.id, idempotencyKey: `${t.id}:${key}:agent`,
+  }, { idempotencyKey: `${t.id}:${key}:agent` })) as { agent: { agentId: string } };
+  // keyed on the thread too: the same key sent for another chat must make that chat its own agent, never hand back (and so give a second home to) the agent of the first one
   const agentId = made.agent.agentId;
+  // an agent is the own agent of one chat: one that another chat already made is never made this chat's too
+  if (homesOf(ctx, agentId).some((h) => h !== t.id)) raise(ctx, "validation.precondition_failed", "That agent belongs to another chat. Make a new one here.");
   const mode: SetMode = input.mode ?? "listen";
   try {
     if (mode === "lead") demoteLead(ctx, t.id, agentId);
     addAgent(ctx, t.id, { agentId, mode: mode === "lead" ? "lead" : "listen", addedBy: askerOf(ctx), owned: true, quiet: mode === "quiet" });
-    // its files folder follows this chat: closed to the Space when the chat is (owned.ts followHome); an agent whose folder would stay open is not made
-    await followHome(ctx, t.id, agentId);
   } catch (e) {
     await trashOwned(ctx, [agentId]);
     throw e;
@@ -137,6 +138,9 @@ export async function agentCreate(ctx: ChatCtx, input: { threadId: string; name:
     ? [{ kind: "group" as const, id: "space" }]
     : [...new Set([...(root.starter?.startsWith("usr_") ? [root.starter] : []), ...membersOf(ctx.db, root.id).filter((p) => p.startsWith("usr_"))])].map((id) => ({ kind: "person" as const, id }));
   await shareOwnedWithReaders(ctx, t.id, agentId, readers, (person) => person === root.starter || isMember(ctx.db, root.id, person));
+  // its files folder follows this chat: closed to the Space when the chat is (owned.ts followHome), once the agent carries this chat's grants (access lets the host set a folder's audience only
+  // for a chat's own agent). The folder is new and empty until then. An agent whose folder would stay open is not made
+  try { await followHome(ctx, t.id, agentId); } catch (e) { await trashOwned(ctx, [agentId]); throw e; }
   ctx.emit("agent.engaged", t.id, { threadId: t.id, agentId, mode: mode === "lead" ? "lead" : "listen", by: askerOf(ctx) });
   ctx.emit("thread.updated", t.id, { threadId: t.id, fields: ["agents"] });
   if (mode === "lead") await tellEngine(ctx, t.id, agentId, "lead");

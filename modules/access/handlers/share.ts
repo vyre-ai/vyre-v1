@@ -527,6 +527,13 @@ function hostWritesChatGrant(store: AccessStore, res: ResourceRec, source: strin
   return [...store.grants.values()].some((g) => g.resource.id === res.id && g.subject.kind === "agent" && g.id === `gnt_${g.subject.id.replace(/^agt_/, "")}home` && carries(g.subject.id));
 }
 
+/** A folder the host may open or close without Manage: the files folder of an agent a chat made (it holds that agent's home grant, and the agent carries a grant of a chat). */
+function hostMayCloseFolder(store: AccessStore, res: ResourceRec): boolean {
+  if (res.type !== "folder") return false;
+  return [...store.grants.values()].some((g) => g.resource.id === res.id && g.subject.kind === "agent" && g.id === `gnt_${g.subject.id.replace(/^agt_/, "")}home`
+    && [...store.grants.values()].some((x) => x.resource.type === "agent" && x.resource.id === g.subject.id && x.source?.startsWith("chat:") === true));
+}
+
 /**
  * The host writing a project's roles is not a person delegating (a Space admin without Manage on the project changes a role through projects.members.set, which checked the right; the host then writes
  * the grants). It is only that for the project's own things: the grant carries source project:<id>, and the resource is project <id> itself, or one that already carries a grant of that same source
@@ -844,8 +851,8 @@ export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef;
   const folder = res.type === "folder";
   if (!RECORDS.has(res.type) && !folder) raise(trace, "validation.bad_input", "who it is open to is set on a record type, a record or a folder");
   if (folder && (input.audience === "me" || input.exporters !== undefined || input.outside !== undefined)) raise(trace, "validation.bad_input", "a folder is open to the Space or only to people added");
-  // the host's own sweep brings old agent folders in line with their chats
-  if (!(folder && isHostService(ctx.principal))) must(ctx, store, res, "manage", "changing who it is open to");
+  // the host's own sweep brings old agent folders in line with their chats: without Manage only on the files folder of a chat's own agent (hostMayCloseFolder), never on any other folder
+  if (!(folder && isHostService(ctx.principal) && hostMayCloseFolder(store, res))) must(ctx, store, res, "manage", "changing who it is open to");
   if ((input.exporters !== undefined || input.outside !== undefined) && res.type !== "record_type") raise(trace, "validation.bad_input", "who may export and links outside the Space are set on the record type");
   const wasFresh = isFresh(ctx, store, ss);
   const row: Record<string, unknown> = { ...(res.row ?? {}) };

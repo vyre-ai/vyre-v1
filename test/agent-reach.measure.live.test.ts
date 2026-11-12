@@ -203,6 +203,11 @@ test("an agent made in an invite-only channel's thread: what a never-member can 
       const sent = await waitFor(async () => toolRuns.slice(before).find((r) => r.tool === "files_read") ?? null, 30_000);
       note("(4) the agent's files_read in Carol's turn", `ok ${sent.ok}; asker ${sent.asker === carol.personId ? "Carol" : sent.asker}; holds the fact: ${sent.content.includes(SECRET)}; ${sent.content.replaceAll(SECRET, "<fact>").slice(0, 200)}`);
       assert.equal(sent.content.includes(SECRET), false, "the agent cannot read T's file for Carol");
+      const wroteFor = toolRuns.length;
+      await ok(d, carol.token, "chat.post", { threadId: (cs.data as { thread: { threadId: string } }).thread.threadId, body: "WRITE-NOTE: keep this for me", mentions: [{ kind: "agent", id: agentId }] });
+      const hers = await waitFor(async () => toolRuns.slice(wroteFor).find((x) => x.tool === "files_create") ?? null, 30_000);
+      note("(4) the agent's files_create into its folder in Carol's turn", `ok ${hers.ok}; ${hers.content.slice(0, 120)}`);
+      assert.equal(hers.ok, false, "the agent cannot write into the closed folder for Carol");
       for (const tool of ["search_query", "files_list"]) {
         const r = await waitFor(async () => toolRuns.slice(before).find((x) => x.tool === tool) ?? null, 30_000);
         note(`(4) the agent's ${tool} in Carol's turn`, `ok ${r.ok}; finds the note: ${/Code notes/.test(r.content)}; holds the fact: ${r.content.includes(SECRET)}`);
@@ -243,14 +248,14 @@ test("an agent made in an invite-only channel's thread: what a never-member can 
     note("audience: #legal archived", `Carol ${archivedCarol.status}, holds the fact: ${has(archivedCarol)}; Ana ${archivedAna.status}`);
     assert.equal(has(archivedCarol), false, "archived, the folder stays closed to Carol");
     await ok(d, d.token, "channels.unarchive", { channelId: ch.channelId });
-    // leaving: Ana leaves #legal and loses the folder in the same call. A file the agent wrote in a turn she asked for is hers (an agent's file is owned by the person it acted for), so the
-    // door is the folder and the files others made in it
+    // leaving: Ana leaves #legal and loses the folder in the same call, the note the agent wrote in a turn she asked for included: a file an agent makes in its own folder is the agent's
     await ok(d, ana.token, "channels.leave", { channelId: ch.channelId });
     const anaList = await api(d, ana.token, "files.list", { section: "space", folder: folderId });
     const anaDl = await api(d, ana.token, "files.read", { fileId: dlFile, as: "text" });
     const anaOwn = await api(d, ana.token, "files.read", { fileId, as: "text" });
     note("Ana leaves #legal: the folder", `files.list ${anaList.status}, lists files others made in it: ${/rivera\.pdf|While public/.test(JSON.stringify(anaList.data))}; a download in it ${anaDl.status}, holds the fact: ${has(anaDl)}`);
-    note("Ana leaves #legal: the note the agent wrote in her turn (she owns it)", `files.read ${anaOwn.status}`);
+    note("Ana leaves #legal: the note the agent wrote in her turn", `files.read ${anaOwn.status}; holds the fact: ${has(anaOwn)}`);
+    assert.equal(has(anaOwn), false, "the agent's note is the agent's: Ana, out of the chat, no longer reads it");
     assert.equal(has(anaDl), false, "leaving the home chat takes the folder in the same call");
     assert.equal(/rivera\.pdf|While public/.test(JSON.stringify(anaList.data)), false, "and its listing");
     for (const [door] of doors) assert.doesNotMatch(carolSees.get(door)!, /^OPEN/, `Carol, never in #legal: ${door}`);
