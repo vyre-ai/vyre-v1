@@ -141,7 +141,7 @@ test("the gateway: the shell while the box is online, '<nickname> is asleep' whi
   assert.match(csp, /connect-src 'self' wss:\/\/relay\.vyre\.run/);
   assert.equal(shell.headers.get("cache-control"), "no-store");
   const info = await (await rt.fetch("https://alex-phone.vyre.run/__vyre/info.json")).json();
-  assert.deepEqual(info, { name: "alex-phone", label: "Home <laptop>", route: a.route, relay: "wss://relay.vyre.run", online: true });
+  assert.deepEqual(info, { name: "alex-phone", label: "Home <laptop>", route: a.route, relay: "wss://relay.vyre.run", online: true, hooks: true });
   // assets: found, the service worker may scope the origin, a missing file is a plain 404, and a write is refused
   assert.equal(await (await rt.fetch("https://alex-phone.vyre.run/__vyre/boot.js")).text(), "boot()");
   const sw = await rt.fetch("https://alex-phone.vyre.run/__vyre/sw.js");
@@ -459,4 +459,61 @@ test("/health says ok and the version stamped at deploy (RELAY_VERSION), or dev 
   assert.deepEqual(await (await rt.fetch("https://relay.vyre.run/health")).json(), { ok: true, version: "dev" });
   const stamped = await worker.fetch(new Request("https://relay.vyre.run/health"), { RELAY_VERSION: "1.4.1" });
   assert.deepEqual(await stamped.json(), { ok: true, version: "1.4.1" });
+});
+
+// ---- a web request trigger: POST /hooks/automation/<id>/<secret> reaches the box, that exact shape only, and every refusal is the same bare 404
+
+test("/hooks/: only a POST of the exact shape reaches the box, with only content-type and an idempotency key; every refusal is a bare 404; the secret is never logged", async t => {
+  const rt = world(t);
+  const SECRET = "s3cr3tHookValue_Zx81";
+  const lines = [];
+  const log = console.log;
+  console.log = (...a) => { lines.push(a.join(" ")); };
+  t.after(() => { console.log = log; });
+  let answer = 200;
+  const { asked } = await publicBox(t, rt, "harbor", (m, body, ws) => reply(ws, m, answer, { "content-type": "application/json", "set-cookie": "x=1" }, `{"accepted":true,"got":${body.length}}`));
+  const hook = `https://harbor.vyre.run/hooks/automation/aut_abc123/${SECRET}`;
+  const ok = await call(rt, hook, { method: "POST", body: '{"a":1}', headers: { "content-type": "application/json", "idempotency-key": "evt-1", cookie: "a=1", authorization: "Bearer z", "x-forwarded-for": "10.0.0.1", "cf-connecting-ip": "203.0.113.9" } });
+  assert.equal(ok.status, 200);
+  assert.equal(await ok.text(), '{"accepted":true}', "the box's own body does not leave; the answer is fixed");
+  assert.equal(ok.headers.get("set-cookie"), null);
+  assert.equal(asked.length, 1);
+  assert.equal(asked[0].path, `/hooks/automation/aut_abc123/${SECRET}`);
+  assert.deepEqual(asked[0].headers, { "content-type": "application/json", "idempotency-key": "evt-1" }, "no cookie, no authorization, no forwarded-for");
+  assert.equal(asked[0].ip, "203.0.113.9");
+  const bare = async (url, init) => { const r = await call(rt, url, init); assert.equal(r.status, 404, `${init?.method ?? "GET"} ${url}`); assert.equal(await r.text(), ""); };
+  await bare(hook);   // GET
+  await bare(hook, { method: "PUT", body: "x" });
+  await bare(`${hook}?x=1`, { method: "POST", body: "x" });
+  await bare(`https://harbor.vyre.run/hooks/automation/aut_abc123/short`, { method: "POST", body: "x" });
+  await bare(`https://harbor.vyre.run/hooks/automation/aut_abc123/${SECRET}/more`, { method: "POST", body: "x" });
+  await bare(`https://harbor.vyre.run/hooks/stripe`, { method: "POST", body: "x" });
+  await bare(`https://harbor.vyre.run/hooks/automation/AUT_abc/${SECRET}`, { method: "POST", body: "x" });
+  await bare(hook, { method: "POST", body: new Uint8Array((1 << 20) + 1) });
+  assert.equal(asked.length, 1, "none of those reached the box");
+  // the box says no (no such hook, paused, rotated): the same bare 404
+  for (const status of [404, 401, 429, 500]) { answer = status; await bare(hook, { method: "POST", body: "{}" }); }
+  answer = 200;
+  assert.ok(lines.length > 0, "requests are logged");
+  assert.ok(lines.every((l) => !l.includes(SECRET) && !l.includes("/hooks/automation")), `no log line carries the path: ${lines.join("\n")}`);
+});
+
+test("/hooks/: a Space takes 120 a minute and one hook 30; past that, the same bare 404 and nothing reaches the box", async t => {
+  const rt = world(t);
+  const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, {}, "{}"));
+  const post = (id, i) => call(rt, `https://harbor.vyre.run/hooks/automation/${id}/secretvalue${i}xx`, { method: "POST", body: "{}", headers: { "cf-connecting-ip": `198.51.100.${i % 250}` } });
+  let ok = 0;
+  for (let i = 0; i < 40; i++) if ((await post("aut_one", i)).status === 200) ok++;
+  assert.equal(ok, 30, "one hook: 30 a minute");
+  for (let i = 0; i < 120; i++) await post(`aut_h${i % 10}`, i);
+  assert.equal(asked.length, 120, "the Space: 120 a minute, whatever the hook");
+  assert.equal((await post("aut_new", 999)).status, 404);
+  assert.equal(asked.length, 120);
+});
+
+test("info.json says the relay carries web request triggers, so the box can tell its card the truth", async t => {
+  const rt = world(t);
+  await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, {}, "{}"));
+  const j = await (await call(rt, "https://harbor.vyre.run/__vyre/info.json")).json();
+  assert.equal(j.hooks, true);
 });

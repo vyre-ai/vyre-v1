@@ -73,6 +73,9 @@ test("an agent's test read sends a Vault key only to a host a person approved fo
     assert.equal(seen.length, 0, `nothing went out: ${JSON.stringify(seen)}`);
     const holds = (await post(OWNER, "/v1/gate/holds/list", { states: ["held"] })).data["holds"] as { capName?: string }[] | undefined;
     assert.ok((holds ?? []).some((h) => h.capName === "automations.try_read"), `a hold waits for a person: ${JSON.stringify(holds)}`);
+    // the held row keeps the item the hold resolved, by id: the send after a yes uses that item or refuses
+    const heldInput = (d.db!.all(`SELECT input FROM gate_holds WHERE cap_name = ?`, "automations.try_read") as { input: string }[]).map((r) => (JSON.parse(r.input) as { vaultItemId?: string }).vaultItemId);
+    assert.deepEqual(heldInput, [`${plainId}.api_key`], `the hold stores the item id, not the handle: ${JSON.stringify(heldInput)}`);
 
     console.log(`MATCH ${(await post(OWNER, "/v1/vault/items/match", { url: "https://api.notely.example/" })).text.slice(0, 200)}`);
     // 2. the item's own saved address (its exact host) needs no approval

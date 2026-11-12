@@ -242,8 +242,10 @@ export function moduleWhens(
     const ref = resolveKeyRef(h, (input as { vaultItemId?: unknown } | null)?.vaultItemId, asker);
     if (ref === null) return true;
     if ((approved as (d: unknown, id: string, host: string) => boolean)(h, ref.id, host)) return false;
-    if (!asker || !callAs) return true;
-    return !(await ownAddress(callAs, asker, ref.id, host));
+    const hold = !asker || !callAs ? true : !(await ownAddress(callAs, asker, ref.id, host));
+    // the held row keeps the item this hold resolved, not the handle: the send after a yes uses that item, or refuses if the handle now leads elsewhere (a newer Mine item)
+    if (hold && input && typeof input === "object") (input as { vaultItemId?: unknown }).vaultItemId = `${ref.id}${ref.field ? `.${ref.field}` : ""}`;
+    return hold;
   };
   // Binding a Vault key to a connector (connections.create, connections.set_secret) sends that key to the connector's domains from then on. An agent's binding waits for a person unless every one of
   // those domains is approved for every key it binds; anything this cannot read (the connector, a domain, a key) holds. A person's own binding is theirs, and records the domains for the key.

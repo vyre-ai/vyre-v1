@@ -127,6 +127,7 @@ import { createModelFiles } from "../seams/memory-meaning.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { createTelemetryRecorder } from "../seams/telemetry.ts";
 import { connectorReadSender } from "../seams/connector-read.ts";
+import { createRelayHooksCheck } from "../seams/relay-hooks.ts";
 import { adoptPersonBindings, handleOfItem, keyHostListed, resolveKeyRef } from "../seams/key-ref.ts";
 import type { KeyHostCheck } from "../seams/connectors.ts";
 import { documentPin } from "../seams/document-pin.ts";
@@ -590,6 +591,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     try { return (db?.all("SELECT state FROM network_phone WHERE id = 1")[0] as { state?: string } | undefined)?.state === "claimed"; } catch { return false; }
   };
   // every public link starts here: the address this Space was given, else the phone name it holds at the relay
+  const relayCarriesHooks = createRelayHooksCheck(fetchFn);
   const publicOrigin = (): { origin: string; relay: boolean } | null => {
     let claimed: { name?: string; state?: string } | undefined;
     try { claimed = db?.all("SELECT name, state FROM network_phone WHERE id = 1")[0] as typeof claimed; } catch { /* the table comes with the network module */ }
@@ -2265,7 +2267,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           return ids;
         },
         // the web request trigger's address: the Space's own public address. A relay (vyre.run) name is not given: the relay carries only /p/* (forms and sites), never /hooks/
-        setPublicBase: () => () => { const p = publicOrigin(); return p && !p.relay ? p.origin : null; },
+        // the Space's own address carries web requests; a vyre.run name does only once the relay says it does (asked, cached)
+        setPublicBase: () => () => { const p = publicOrigin(); return p && (!p.relay || relayCarriesHooks(p.origin)) ? p.origin : null; },
         // the HTTP request step's key: the Vault fills the handle for one call through the same per-execution port connectors use (access is checked by vault.fill as the Run's principal)
         // Run code runs in bubblewrap under the data directory; where bwrap is missing the step is refused, never run in the daemon
         setCodeHost: () => ({ dataDir: paths.root }),

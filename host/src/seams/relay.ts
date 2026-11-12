@@ -353,9 +353,31 @@ const DOOR = /^\/(?:mcp|oauth\/(?:authorize|register|token|wait)|\.well-known\/o
 
 export const doorPath = (p: string): boolean => DOOR.test(p) && p.length <= 4096;
 
+/**
+ * A web request trigger through the relay: POST /hooks/automation/<id>/<secret>, that exact shape and nothing near it (no query, no other /hooks path). The same pattern as relay/worker/phone.js HOOK
+ * and host/src/routes/webhooks.ts AUTOMATION_PATH. Limits on this side, before the daemon's own route: a body of 1 MB at most, 120 a minute for the Space and 30 a minute for one hook (the route then
+ * holds its own 60 a minute per hook). Every refusal is the bare 404 the route gives for a hook that does not exist, and the path (it carries the secret) is never logged here.
+ */
+const HOOK = /^\/hooks\/automation\/aut_[a-z0-9]{1,64}\/[A-Za-z0-9_-]{8,200}$/;
+export const hookPath = (p: string): boolean => HOOK.test(p);
+export const RELAY_HOOKS = Object.freeze({ maxBody: 1024 * 1024, perMinute: 120, perHookPerMinute: 30 });
+const hookWindow = { at: 0, n: 0, per: new Map<string, number>() };
+/** Count one relayed hook; false when the Space's or the hook's minute is used up. */
+export function takeRelayHook(id: string, now = Date.now()): boolean {
+  if (now - hookWindow.at >= 60_000) { hookWindow.at = now; hookWindow.n = 0; hookWindow.per.clear(); }
+  const one = hookWindow.per.get(id) ?? 0;
+  if (hookWindow.n >= RELAY_HOOKS.perMinute || one >= RELAY_HOOKS.perHookPerMinute) return false;
+  hookWindow.n += 1;
+  hookWindow.per.set(id, one + 1);
+  if (hookWindow.per.size > 10_000) hookWindow.per.delete(hookWindow.per.keys().next().value as string);
+  return true;
+}
+/** For tests: a fresh minute. */
+export function resetRelayHooks(): void { hookWindow.at = 0; hookWindow.n = 0; hookWindow.per.clear(); }
+
 /** Only the public path and the door for outside agents, in plain form, ever leave this function for the gateway: never a session, and never another address on the daemon. */
 export function publicPathOk(p: string): boolean {
-  if (doorPath(p)) return true;
+  if (doorPath(p) || hookPath(p)) return true;
   if (!/^\/p(\/|$)/.test(p) || p.length > 4096) return false;
   const bare = p.split("?")[0] as string;
   return !/(^|\/)(\.|%2e){1,2}(\/|$)/i.test(bare) && !/%2f|%5c|\\/i.test(bare);
@@ -374,6 +396,7 @@ export function artifactPathOk(p: string): boolean {
 /** One visitor request: to the daemon's own gateway on loopback, with no Cookie and no Authorization whatever the relay sent (an outside agent's token on /mcp alone is the exception: it is that request's whole point), and the answer back over the control socket. */
 export function servePublic(send: (m: unknown) => void, m: { id: string; method: string; path: string; ip: string; headers: unknown; /** the artifact host's request: its own paths, with its own cookie going in and its Set-Cookie coming out, and its host name */ a?: unknown; host?: unknown }, body: Uint8Array, localPort: number): void {
   const fail = (status: number): void => { send({ t: "p.res", id: m.id, status, headers: {} }); send({ t: "p.end", id: m.id }); };
+  if (typeof m.path === "string" && m.path.startsWith("/hooks/")) { serveHook(send, m, body, localPort); return; }
   const door = doorPath(m.path);
   // the artifact host is a different origin from the app: only its own request carries a cookie, and only for its own paths; every other request is cookie-free as ever
   const art = m.a === true && typeof m.host === "string" && /^[a-z0-9.-]{3,253}$/.test(m.host);
@@ -394,6 +417,36 @@ export function servePublic(send: (m: unknown) => void, m: { id: string; method:
   });
   req.on("timeout", () => req.destroy(new Error("timed out")));
   req.on("error", () => send({ t: "p.err", id: m.id }));
+  req.end(body.length ? Buffer.from(body) : undefined);
+}
+
+/** A relayed web request trigger (see HOOK): only POST, only the exact shape, only content-type and an idempotency key go in, no visitor header of any kind; only a 200 comes back as it is,
+ *  everything else is the same bare 404. */
+function serveHook(send: (m: unknown) => void, m: { id: string; method: string; path: string; headers: unknown }, body: Uint8Array, localPort: number): void {
+  const notFound = (): void => { send({ t: "p.res", id: m.id, status: 404, headers: {} }); send({ t: "p.end", id: m.id }); };
+  if (m.method !== "POST" || !hookPath(m.path) || body.length > RELAY_HOOKS.maxBody) { notFound(); return; }
+  const id = m.path.split("/")[3] as string;
+  if (!takeRelayHook(id)) { notFound(); return; }
+  const given = (typeof m.headers === "object" && m.headers !== null ? m.headers : {}) as Record<string, unknown>;
+  const headers: Record<string, string> = { "x-vyre-via": "relay", "content-length": String(body.length) };
+  const type = given["content-type"];
+  if (typeof type === "string" && type.length <= 200) headers["content-type"] = type;
+  const key = given["idempotency-key"];
+  if (typeof key === "string" && key.length <= 200 && /^[\x21-\x7e]+$/.test(key)) headers["idempotency-key"] = key;
+  const req = http.request({ host: "127.0.0.1", port: localPort, method: "POST", path: m.path, headers, timeout: PUBLIC_MS }, (res) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    res.on("data", (c: Buffer) => { size += c.length; if (size <= 4096) chunks.push(c); });
+    res.on("end", () => {
+      if (res.statusCode !== 200) { notFound(); return; }
+      send({ t: "p.res", id: m.id, status: 200, headers: { "content-type": "application/json" } });
+      send({ t: "p.data", id: m.id, b: Buffer.from('{"accepted":true}').toString("base64") });
+      send({ t: "p.end", id: m.id });
+    });
+    res.on("error", () => notFound());
+  });
+  req.on("timeout", () => req.destroy(new Error("timed out")));
+  req.on("error", () => notFound());
   req.end(body.length ? Buffer.from(body) : undefined);
 }
 

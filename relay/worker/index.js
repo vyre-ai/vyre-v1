@@ -37,7 +37,7 @@
 import { onGithub } from "./github.js";
 export { GithubLinks } from "./github.js";
 export { HostSlot, PUBLIC } from "./phone.js";
-import { gatewayOf, onHost, passthrough, hostControl, PUBLIC } from "./phone.js";
+import { gatewayOf, onHost, passthrough, hostControl, PUBLIC, HOOKS } from "./phone.js";
 export const BOX_AUTH_TAG = "vyre-relay-box-v1";
 /** What this relay does that a box may rely on, told in `ready` (an older relay says nothing): `registered` answers every ticket registration with 200 or 409. */
 /** Sign in by name: how long a box's watch on a name lasts without renewal, and how often one name may be asked about. */
@@ -694,6 +694,14 @@ export class RouteRelay {
     const ip = String(head.ip || "");
     const seen = w.ips.get(ip) || 0;
     if (w.n >= PUBLIC.perMinute || seen >= PUBLIC.ipPerMinute) return new Response(null, { status: 429, headers: { "retry-after": "60" } });
+    // a web request trigger has its own minute too: for the Space, and for one hook
+    if (typeof head.hook === "string") {
+      if (!w.hooks) w.hooks = { n: 0, per: new Map() };
+      const one = w.hooks.per.get(head.hook) || 0;
+      if (w.hooks.n >= HOOKS.perMinute || one >= HOOKS.perHookPerMinute) return new Response(null, { status: 429 });
+      w.hooks.n++;
+      w.hooks.per.set(head.hook, one + 1);
+    }
     w.n++;
     w.ips.set(ip, seen + 1);
     if (!this.publicOpen) this.publicOpen = new Map();
