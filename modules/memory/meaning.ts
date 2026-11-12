@@ -27,8 +27,6 @@ export interface Embedder {
 const seams: { local: Embedder | null; key: Embedder | null } = { local: null, key: null };
 /** Bind the local model (the host) or the memory key's provider (key resolution). null unbinds. */
 export function setEmbedder(kind: "local" | "key", e: Embedder | null): void { seams[kind] = e; }
-/** The local model the host bound (null until it does): search by meaning uses the same one (f-wire, 12 Nov). Never the memory key's provider, which an AI account pays for. */
-export const localEmbedder = (): Embedder | null => seams.local;
 
 export interface MeaningHost {
   /** A ready-made embedder (tests, or a host that runs its own). */

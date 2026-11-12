@@ -17,7 +17,7 @@ export const handlers: Record<string, Handler> = table as unknown as Record<stri
 export { setCaptureExtractor, heuristicExtract };
 export type { Candidate, CaptureMessage, Extractor };
 export { ensure } from "./projections.ts";
-export { setEmbedder, configureMeaning, localEmbedder } from "./meaning.ts";
+export { setEmbedder, configureMeaning } from "./meaning.ts";
 export type { Embedder, MeaningHost } from "./meaning.ts";
 export { setUpkeepModel } from "./handlers/upkeep.ts";
 export { setLearnSeams, shouldLearn } from "./handlers/learn.ts";

@@ -1,7 +1,7 @@
 // The index side of the search module (spec b11; ARCH 4.3 consumers search.fts and search.vectors): the sources that turn an entity row into a document, search.index.apply, the embeddings
 // consumer, the rebuild, the stats and the health probe, and the two small writes Recent needs. The handler table at the bottom holds all ten capabilities of manifests/search.ts.
 // Private content never reaches the index: a source answers `e2e` (the name of the row's encryption label, not a claim about the chat) for a private chat, a Restricted row or a sealed message, and apply then removes whatever was there.
-import { askerOf, ensure, mintId, num, putDoc, removeDoc, rowsOf, str, vectorsOf, writeVector, sourceFor, embedActive, boundModel, activeOf } from "../projections.ts";
+import { askerOf, embed, ensure, mintId, num, putDoc, removeDoc, rowsOf, str, vectorsOf, writeVector, sourceFor } from "../projections.ts";
 import type { IndexDoc, Resolved, SearchCtx, Source } from "../projections.ts";
 import { ask } from "./ask.ts";
 import { actionsList, query, recentList, related, resolveItem } from "./query.ts";
@@ -220,10 +220,7 @@ export async function embedRun(ctx: SearchCtx, input: { limit?: number }): Promi
   const limit = input.limit ?? 100;
   const batch = rowsOf(ctx.db, "SELECT n, title, body FROM search_docs WHERE embedded = 0 ORDER BY n DESC LIMIT ?", limit);
   if (batch.length > 0) {
-    // the stored generation's model: the stand-in, or the real one once it has re-embedded everything; a model that is not here right now leaves the documents waiting, never a mixed index
-    let vecs: Float32Array[];
-    try { vecs = await embedActive(ctx.db, batch.map((r) => `${str(r["title"])}\n${str(r["body"]).slice(0, EMBED_CHARS)}`)); }
-    catch { return { embedded: 0, pending: num(rowsOf(ctx.db, "SELECT count(*) AS c FROM search_docs WHERE embedded = 0")[0]?.["c"]) }; }
+    const vecs = await embed(batch.map((r) => `${str(r["title"])}\n${str(r["body"]).slice(0, EMBED_CHARS)}`));
     for (let i = 0; i < batch.length; i++) {
       const n = num(batch[i]!["n"]);
       writeVector(ctx.db, ctx.space, n, vecs[i]!);
@@ -310,7 +307,7 @@ export async function indexStats(ctx: SearchCtx): Promise<{ documents: number; v
   const last = rowsOf(ctx.db, "SELECT v FROM search_meta WHERE k = 'last_rebuild_at'")[0];
   return {
     documents: c("SELECT count(*) AS c FROM search_docs"),
-    vectors: c(`SELECT count(*) AS c FROM ${activeOf(ctx.db).table}`),
+    vectors: c("SELECT count(*) AS c FROM search_vectors"),
     // rows the indexer could not read yet are the lag: each is waiting for a retry
     ftsLagSeq: c("SELECT count(*) AS c FROM search_failed"),
     vectorBacklog: c("SELECT count(*) AS c FROM search_docs WHERE embedded = 0"),
@@ -334,10 +331,6 @@ export async function health(ctx: SearchCtx): Promise<{ state: "healthy" | "degr
   if (s.ftsLagSeq > 0) return { state: "degraded", detail: `${s.ftsLagSeq} rows could not be read and wait for a retry`, latencyMs };
   if (latencyMs > SLOW_MS) return { state: "degraded", detail: `A probe query took ${latencyMs} ms (the budget is ${SLOW_MS} ms)`, latencyMs };
   if (s.vectorBacklog > 1000) return { state: "degraded", detail: `${s.vectorBacklog} documents wait for their vectors`, latencyMs };
-  // the model the host bound for search by meaning could not start: search works on words and the word-hash vectors, and admins are told once
-  const m = boundModel();
-  const ms = m?.status();
-  if (m && ms && (ms.state === "failed" || ms.state === "not_set_up")) return { state: "degraded", detail: `Search by meaning is not available on this server${ms.detail ? `: ${ms.detail}` : ""}. Search works on words.`, latencyMs };
   return { state: "healthy", latencyMs };
 }
 

@@ -62,6 +62,6 @@ test("a booted Personal Space daemon binds the Space kind on terminal and comput
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
   try {
-    assert.deepEqual([...(d.boundPorts ?? [])].sort(), ["computers.bindTeam", "engine.bindSandboxStopper", "search.setModel", "terminal.bindTeam"], "search by meaning is on the local model memory loads (f-wire, 12 Nov)");
+    assert.deepEqual([...(d.boundPorts ?? [])].sort(), ["computers.bindTeam", "engine.bindSandboxStopper", "terminal.bindTeam"]);
   } finally { await d.stop(); }
 });

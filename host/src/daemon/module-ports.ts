@@ -7,8 +7,6 @@ export interface SpacePortDeps {
   team: boolean;
   /** Stop what runs on this server on a person's subscription: their idle engine sessions close now, a turn already running ends as it would. False when this server runs no engine. */
   stopSandbox(person: string): Promise<boolean>;
-  /** A turn is running on this server: background work (the search re-embed) waits. */
-  busy?: () => boolean;
 }
 
 type Ns = Record<string, unknown>;
@@ -31,18 +29,6 @@ function apply(modules: ReadonlyMap<string, Ns>, d: SpacePortDeps): string[] {
   }
   const bindSandboxStopper = fn(modules.get("engine"), "bindSandboxStopper") as ((f: ((person: string) => Promise<boolean>) | null) => void) | null;
   if (bindSandboxStopper) { bindSandboxStopper((person) => d.stopSandbox(person)); bound.push("engine.bindSandboxStopper"); }
-  // search by meaning on the local model memory already loads (no AI account pays): search keeps the word-hash stand-in until the model is ready and has re-embedded everything
-  const setModel = fn(modules.get("search"), "setModel") as ((m: unknown) => void) | null;
-  const local = fn(modules.get("memory"), "localEmbedder") as (() => { name: string; status(): { state: string; detail?: string }; embed(t: string[]): Promise<Float32Array[]> } | null) | null;
-  if (setModel && local) {
-    setModel({
-      get name() { return local()?.name ?? "local"; },
-      status: () => local()?.status() ?? { state: "not_set_up", detail: "the local model is not set up on this server" },
-      embed: (t: string[]) => { const e = local(); return e ? e.embed(t) : Promise.reject(new Error("the local model is not set up")); },
-      ...(d.busy ? { busy: d.busy } : {}),
-    });
-    bound.push("search.setModel");
-  }
   return bound;
 }
 
@@ -58,5 +44,4 @@ export function unbindSpacePorts(modules: ReadonlyMap<string, Ns>, d?: SpacePort
 function reset(modules: ReadonlyMap<string, Ns>): void {
   for (const id of ["terminal", "computers"]) (fn(modules.get(id), "bindTeam") as ((f: null) => void) | null)?.(null);
   (fn(modules.get("engine"), "bindSandboxStopper") as ((f: null) => void) | null)?.(null);
-  (fn(modules.get("search"), "setModel") as ((m: null) => void) | null)?.(null);
 }
