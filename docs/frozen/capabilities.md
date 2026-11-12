@@ -36,6 +36,12 @@ Nothing blocks the freeze. The sample read cleanly: summaries match the declared
 
 Signed: lead, 12 Nov 2026
 
+## 12 Nov 2026: access.grants.update may emit grant.revoked, and access.unshare may emit grant.updated (lane f-revoke)
+
+12 Nov 2026: access.grants.update may emit grant.revoked and access.unshare may emit grant.updated, because a record share's folder copy follows in the same call (lane f-revoke). Lowering a share on a record drops its copy on the record's folder when the person keeps no level there (`grant.revoked`), and taking one of several record shares away lowers the copy to what is left (`grant.updated`). Nothing else in either contract changed: same input, output, level, permission and errors; the events carry their own declared payloads.
+
+Signed: lead, 12 Nov 2026
+
 ## 12 Nov 2026: the Space browser's slots, reopen notice and member takeover (lane f-sbrowser)
 
 Changed contracts, all in `manifests/computers.ts`; no capability was added or removed, and no version moved, because every change is an optional output field or a looser permission the handler still checks:
