@@ -270,11 +270,13 @@ export function formatSize(bytes: number): string {
 }
 
 /** Folders first, then files, each by name. The files list is already the folder's own rows. */
+/** One level of the agent's folder. Names that start with a dot (.index, .vyre) are Vyre's own bookkeeping and stay out, as Files keeps hidden files out until asked (owner walk, 12 Nov). */
 export function folderEntries(folders: readonly FolderRow[], files: readonly FileRow[], folderId: string): { folders: FolderRow[]; files: FileRow[] } {
   const byName = (a: { name: string }, b: { name: string }): number => a.name.localeCompare(b.name);
+  const shown = (name: string): boolean => !name.startsWith(".");
   return {
-    folders: folders.filter((f) => f.parentId === folderId).sort(byName),
-    files: files.filter((f) => f.folderId === folderId && f.deletedAt === undefined).sort(byName),
+    folders: folders.filter((f) => f.parentId === folderId && shown(f.name)).sort(byName),
+    files: files.filter((f) => f.folderId === folderId && f.deletedAt === undefined && shown(f.name)).sort(byName),
   };
 }
 

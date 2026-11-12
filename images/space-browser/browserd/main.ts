@@ -160,14 +160,17 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       // the face is drawn once by the host and kept with the profile, so the start page fetches nothing
       if (typeof a["faceSvg"] === "string" && a["faceSvg"].startsWith("<svg") && a["faceSvg"].length < 60_000) { mkdirSync(manager.get(pid).dir, { recursive: true }); writeFileSync(`${manager.get(pid).dir}/face.svg`, a["faceSvg"]); }
       if (typeof a["spaceId"] === "string" && /^[A-Za-z0-9_-]{3,80}$/.test(a["spaceId"])) manager.get(pid).spaceId = a["spaceId"];
-      if (typeof a["fillUrl"] === "string" && typeof a["fillToken"] === "string") manager.get(pid).vault.setFiller(a["fillUrl"], a["fillToken"], pid);
-      // Vyre for Chrome in the profile is paired with the Space as this agent as soon as the Space and the Vault channel are known
-      if (manager.get(pid).spaceId && manager.get(pid).vault.hasChannel()) bridges?.pair(pid);
-      // a person holds it as the Space's table has it: browserd holds it too (a restarted browserd learns it here). "Nobody" never releases one here: a call can carry a reading older than a takeover
-      // that came after it; releasing is for give back and the Space's periodic pass, each with the time of its own reading
-      if (typeof a["hold"] === "string" && a["hold"] !== "") manager.setHold(pid, a["hold"]);
-      const args = (typeof a["args"] === "object" && a["args"] !== null ? a["args"] : {}) as Args;
-      return manager.tool({ profileId: checkProfileId(a["profileId"]), tool: text(a, "tool"), args, timeoutMs: typeof a["timeoutMs"] === "number" ? a["timeoutMs"] : 30_000, ...(a["by"] === "person" ? { by: "person" } : {}) });
+      // the channel is this call's, as the person whose turn it is: in while the call runs, gone when it ends, so no fill outlives the turn and two people's calls never share one (sbrowser audit bug 5)
+      const channel = typeof a["fillUrl"] === "string" && typeof a["fillToken"] === "string" ? manager.get(pid).vault.enter(a["fillUrl"], a["fillToken"], pid) : null;
+      try {
+        // a person holds it as the Space's table has it: browserd holds it too (a restarted browserd learns it here). "Nobody" never releases one here: a call can carry a reading older than a takeover
+        // that came after it; releasing is for give back and the Space's periodic pass, each with the time of its own reading
+        if (typeof a["hold"] === "string" && a["hold"] !== "") manager.setHold(pid, a["hold"]);
+        // Vyre for Chrome in the profile is paired with the Space as this agent as soon as the Space and the Vault channel are known
+        if (manager.get(pid).spaceId && manager.get(pid).vault.hasChannel()) bridges?.pair(pid);
+        const args = (typeof a["args"] === "object" && a["args"] !== null ? a["args"] : {}) as Args;
+        return await manager.tool({ profileId: checkProfileId(a["profileId"]), tool: text(a, "tool"), args, timeoutMs: typeof a["timeoutMs"] === "number" ? a["timeoutMs"] : 30_000, ...(a["by"] === "person" ? { by: "person" } : {}), ...(channel ? { channel } : {}) });
+      } finally { channel?.leave(); }
     }
     case "downloads": return { downloads: manager.downloads(checkProfileId(a["profileId"])) };
     case "profile_used": return { used: manager.used(checkProfileId(a["profileId"])) };

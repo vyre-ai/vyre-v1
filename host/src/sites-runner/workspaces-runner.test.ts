@@ -192,7 +192,8 @@ test("the workspace image: read, pulled and created from only for the two reposi
     assert.equal((await w.call("GET", `/v1.47/images/${encodeURIComponent(img)}/json`)).status, 200, img);
     const from = img.includes("@") ? img : img.slice(0, img.lastIndexOf(":"));
     const q = img.includes("@") ? `fromImage=${encodeURIComponent(from)}` : `fromImage=${encodeURIComponent(from)}&tag=${img.slice(img.lastIndexOf(":") + 1)}`;
-    assert.equal((await w.call("POST", `/v1.47/images/create?${q}`)).status, 200, `pull ${img}`);
+    // a bare vyre/... name runs when it is already here and is never fetched: Docker would look for it on Docker Hub, which is not Vyre's
+    assert.equal((await w.call("POST", `/v1.47/images/create?${q}`)).status, img.startsWith("vyre/") ? 403 : 200, `pull ${img}`);
     assert.equal((await w.call("POST", `/v1.47/containers/create?name=${name(A)}`, good(A, { Image: img }))).status, 201, `create from ${img}`);
   }
   for (const img of [`evil/agent-workspace@${digest}`, "ghcr.io/evil/agent-workspace:1", "ghcr.io/vyre-ai/agent-workspace@sha256:abc", "alpine:latest"]) {

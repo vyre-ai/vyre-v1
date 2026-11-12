@@ -53,8 +53,61 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/release/cli.ts reuse "${{ github.sha }}"
-  package:
+  agent-images:
+    # The agent workspace and the Space browser images, for both platforms (linux/amd64 and linux/arm64) like the server image, so a Mac with Apple silicon runs them natively. The second
+    # platform is built under emulation, which is slow the first time, so these builds have a job and a cap of their own instead of sharing `package`'s 20 minutes. `package` waits for this
+    # job and writes its two digests into images.lock. A practice run builds and proves the images for this runner's platform and pushes nothing, so it hands over no digest.
     needs: guard
+    runs-on: [self-hosted, linux, v1, buildx]
+    timeout-minutes: 30
+    permissions: { contents: read, packages: write }
+    env:
+      VERSION: ${{ needs.guard.outputs.version }}
+      DRYRUN: ${{ needs.guard.outputs.dryrun }}
+    outputs:
+      browser: ${{ steps.browser.outputs.image }}
+      workspace: ${{ steps.workspace.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps
+      - name: Space browser image with Vyre for Chrome baked in, and the proof it is in there
+        id: browser
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/release/cli.ts stage-chrome
+          node scripts/release/cli.ts stage-bridge
+          img="ghcr.io/vyre-ai/vyre-browser:$VERSION"   # the registry copy of images/space-browser (the ghcr name space-browser is held by an unlinked package)
+          docker build -f images/space-browser/Dockerfile -t "$img" images
+          node scripts/release/cli.ts image-has-chrome "$img"
+          if [ "$DRYRUN" != true ]; then
+            bash scripts/release/retry.sh 3 10 bash -c 'echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin'
+            # Both platforms, like the server image: a Mac with Apple silicon (a Mac mini as the Space server, or the desktop app with Docker) runs the arm64 one natively.
+            # The amd64-only image ran there under emulation, where Chromium is slow and unstable. The digest written to images.lock is the index, so each computer pulls its own platform.
+            bash scripts/release/retry.sh 2 30 docker buildx build --platform linux/amd64,linux/arm64 -f images/space-browser/Dockerfile -t "$img" --push --metadata-file browser-image.json images
+            digest=$(jq -r '."containerimage.digest"' browser-image.json)
+            case "$digest" in sha256:*) ;; *) echo "no image digest in the build metadata"; exit 1 ;; esac
+            echo "image=ghcr.io/vyre-ai/vyre-browser@$digest" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Agent workspace image (shell, tmux, git, node, python; no desktop)
+        id: workspace
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          img="ghcr.io/vyre-ai/agent-workspace:$VERSION"
+          docker build -t "$img" images/agent-workspace
+          # the proof it holds what an agent's terminal needs: tmux, git, node and python, and a user that is not root
+          docker run --rm --entrypoint sh "$img" -c 'tmux -V && git --version && node --version && python3 --version && test "$(id -u)" != 0'
+          if [ "$DRYRUN" != true ]; then
+            bash scripts/release/retry.sh 3 10 bash -c 'echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin'
+            # both platforms, for the same reason as the Space browser image above
+            bash scripts/release/retry.sh 2 30 docker buildx build --platform linux/amd64,linux/arm64 -t "$img" --push --metadata-file workspace-image.json images/agent-workspace
+            digest=$(jq -r '."containerimage.digest"' workspace-image.json)
+            case "$digest" in sha256:*) ;; *) echo "no image digest in the build metadata"; exit 1 ;; esac
+            echo "image=ghcr.io/vyre-ai/agent-workspace@$digest" >> "$GITHUB_OUTPUT"
+          fi
+  package:
+    needs: [guard, agent-images]
     # the multi-arch image build needs docker buildx and qemu: one host serves the `buildx` label (vyre-ci-7)
     runs-on: [self-hosted, linux, v1, buildx]
     timeout-minutes: 20
@@ -62,6 +115,9 @@ jobs:
     env:
       VERSION: ${{ needs.guard.outputs.version }}
       DRYRUN: ${{ needs.guard.outputs.dryrun }}
+      # built and pushed for both platforms by agent-images; empty in a practice run, and `pack` then leaves the line out of images.lock
+      VYRE_BROWSER_IMAGE: ${{ needs.agent-images.outputs.browser }}
+      VYRE_WORKSPACE_IMAGE: ${{ needs.agent-images.outputs.workspace }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/deps
@@ -96,33 +152,6 @@ jobs:
             bash scripts/release/retry.sh 3 10 bash -c 'echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin'
             bash scripts/release/retry.sh 3 20 docker push "$img"
             echo "VYRE_AGENT_IMAGE=$(docker inspect --format '{{index .RepoDigests 0}}' "$img")" >> "$GITHUB_ENV"
-          fi
-      - name: Space browser image with Vyre for Chrome baked in, and the proof it is in there
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          node scripts/release/cli.ts stage-chrome
-          node scripts/release/cli.ts stage-bridge
-          img="ghcr.io/vyre-ai/vyre-browser:$VERSION"   # the registry copy of images/space-browser (the ghcr name space-browser is held by an unlinked package)
-          docker build -f images/space-browser/Dockerfile -t "$img" images
-          node scripts/release/cli.ts image-has-chrome "$img"
-          if [ "$DRYRUN" != true ]; then
-            bash scripts/release/retry.sh 3 10 bash -c 'echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin'
-            bash scripts/release/retry.sh 3 20 docker push "$img"
-            echo "VYRE_BROWSER_IMAGE=$(docker inspect --format '{{index .RepoDigests 0}}' "$img")" >> "$GITHUB_ENV"
-          fi
-      - name: Agent workspace image (shell, tmux, git, node, python; no desktop)
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          img="ghcr.io/vyre-ai/agent-workspace:$VERSION"
-          docker build -t "$img" images/agent-workspace
-          # the proof it holds what an agent's terminal needs: tmux, git, node and python, and a user that is not root
-          docker run --rm --entrypoint sh "$img" -c 'tmux -V && git --version && node --version && python3 --version && test "$(id -u)" != 0'
-          if [ "$DRYRUN" != true ]; then
-            bash scripts/release/retry.sh 3 10 bash -c 'echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin'
-            bash scripts/release/retry.sh 3 20 docker push "$img"
-            echo "VYRE_WORKSPACE_IMAGE=$(docker inspect --format '{{index .RepoDigests 0}}' "$img")" >> "$GITHUB_ENV"
           fi
       - name: Pack the server, the app web export, the Chrome extension and the Kits; write releases.json
         env:

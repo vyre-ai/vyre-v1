@@ -49,6 +49,11 @@ type Out = {
       failed: number;
       ranAutomations: boolean;
       errorsFileId?: string;
+      errors?: Array<{
+          row: number;
+          column?: string;
+          message: string;
+        }>;
     }>;
   next?: string;
   total?: number;
@@ -79,6 +84,13 @@ type Out = {
         "at": 1760000000000,
         "by": "example",
         "created": 1,
+        "errors": [
+          {
+            "column": "example",
+            "message": "example",
+            "row": 1
+          }
+        ],
         "errorsFileId": "fil_a1b2c3",
         "failed": 1,
         "importId": "imp_a1b2c3",

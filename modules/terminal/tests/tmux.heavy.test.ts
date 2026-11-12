@@ -10,9 +10,9 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createTmuxHost, handlers, openFrames } from "../impl.ts";
+import { createTmuxHost, handlers, openFrames, shellAtPrompt } from "../impl.ts";
 import type { Exec, ExecResult } from "../impl.ts";
-import { bindHost, bindTeam, bindValues, scrubberFor, spellingsFor } from "../projections.ts";
+import { bindHost, bindKit, bindTeam, bindValues, scrubberFor, spellingsFor } from "../projections.ts";
 import { fakeValues, harness, reset } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -25,9 +25,11 @@ const work = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-tmux-he
 const ENV: NodeJS.ProcessEnv = { PATH: process.env["PATH"] ?? "/usr/local/bin:/usr/bin:/bin", HOME: work, TERM: "xterm-256color", SHELL: "/bin/bash", LANG: "C.UTF-8", PS1: "$ " };
 const TMUX = ["-L", SOCK, "-f", "/dev/null"];
 
-function runTmux(args: readonly string[]): Promise<ExecResult> {
+function runTmux(args: readonly string[], stdin?: string): Promise<ExecResult> {
   return new Promise((resolve) => {
-    const p = spawn("tmux", [...TMUX, ...args], { env: ENV, stdio: ["ignore", "pipe", "pipe"] });
+    const p = spawn("tmux", [...TMUX, ...args], { env: ENV, stdio: ["pipe", "pipe", "pipe"] });
+    p.stdin.on("error", () => undefined);
+    p.stdin.end(stdin ?? "");
     let stdout = "", stderr = "";
     p.stdout.on("data", (d) => (stdout += d));
     p.stderr.on("data", (d) => (stderr += d));
@@ -35,7 +37,13 @@ function runTmux(args: readonly string[]): Promise<ExecResult> {
     p.on("close", (code) => resolve({ code: code ?? 1, stdout, stderr }));
   });
 }
-const exec: Exec = (argv) => runTmux(argv.slice(1));
+/** tmux on the test's own server; anything else (ps, for the prompt check) as it is. */
+const exec: Exec = (argv, x) => (argv[0] === "tmux" ? runTmux(argv.slice(1), x?.stdin) : new Promise((resolve) => {
+  const p = spawn(argv[0] as string, argv.slice(1), { env: ENV, stdio: ["ignore", "pipe", "pipe"] });
+  let stdout = "", stderr = "";
+  p.stdout.on("data", (d) => (stdout += d)); p.stderr.on("data", (d) => (stderr += d));
+  p.on("error", (e) => resolve({ code: 127, stdout, stderr: e.message })); p.on("close", (code) => resolve({ code: code ?? 1, stdout, stderr }));
+}));
 
 /** A control-mode client, as the live relay uses: `tmux -C attach`, one line at a time. */
 function control(session: string, onLine: (line: string) => void): () => void {
@@ -199,7 +207,7 @@ test("tmux: a Vault value filled into a command is removed from the result, the 
 
     // The terminal itself held it: this is what makes the scrub mean something.
     const raw = (await runTmux(["capture-pane", "-p", "-J", "-t", session, "-S", "-500"])).stdout;
-    assert.ok(raw.includes(SECRET), "the typed line, on the real screen, holds the value");
+    assert.ok(raw.includes(SECRET), "the command printed it on the real screen");
 
     const read = await h["terminal.read"]!(person, { terminalId, lines: 200 });
     assert.equal(read.text.includes(SECRET), false, "the scrollback a person reads");
@@ -225,4 +233,210 @@ test("tmux: a Vault value filled into a command is removed from the result, the 
     const screenAfter = (await runTmux(["capture-pane", "-p", "-J", "-t", session, "-S", "-500"])).stdout;
     assert.ok(screenAfter.includes(SECRET), "and the shell did receive the value, in pieces");
   } finally { reset(); }
+});
+
+test("tmux (W6): a person's value used through a team agent is never typed, never in history, and another person asking the same agent for history, env, the first tab's scrollback or the shell's /proc gets nothing", { skip }, async () => {
+  const SECRET = `sk-live-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+  // a value that would run as shell if it were pasted into the line
+  const EVIL = "a$b;touch $HOME/vyre-pwned;'q\"x";
+  reset();
+  bindHost(host);
+  bindTeam(() => true);
+  bindValues(fakeValues({ "#Dana_Api.key": SECRET, "#Db.password": EVIL }));
+  const hn = harness();
+  const dana = hn.as(AGENT, "usr_dana", "run_a");
+  const omar = hn.as(AGENT, "usr_omar", "run_b");
+  try {
+    // Dana's turn: the value in env, and a handle inside the command line itself
+    const a = await h["terminal.run"]!(dana, { session: "dana", command: 'printf %s "$K" | wc -c; printf %s #Db.password | wc -c; echo "seen=$K"', env: { K: "#Dana_Api.key" }, idempotencyKey: "w6-a" });
+    assert.equal(a.exitCode, 0, a.output);
+    const counts = a.output.split("\n").map((l: string) => l.trim());
+    assert.deepEqual(counts.slice(0, 2), [String(SECRET.length), String(Buffer.byteLength(EVIL))], "both values reached the command exactly");
+    assert.equal(fs.existsSync(path.join(work, "vyre-pwned")), false, "the value did not run as shell");
+    const sessA = `vyre-${a.terminalId}`;
+    const pane = (await tmuxOut("display-message", "-p", "-t", sessA, "#{pane_pid}"));
+
+    // nothing typed holds a value: the raw screen shows the line, which names variables only (the command's own echo is the only place the value is)
+    const raw = (await runTmux(["capture-pane", "-p", "-J", "-t", sessA, "-S", "-"])).stdout;
+    const typedLine = raw.split("\n").find((l) => l.includes("__VYRE_BEG_") && l.includes("printf"));
+    assert.ok(typedLine, raw.replaceAll(SECRET, "<S>"));
+    assert.equal(typedLine!.includes(SECRET) || typedLine!.includes(EVIL), false, "the typed line holds no value");
+    assert.equal((await runTmux(["list-buffers"])).stdout.includes("vyre-env"), false, "the values' buffer is gone");
+
+    // Omar's turn, same agent, another tab of the same workspace
+    const asks = [
+      "history",
+      `tmux capture-pane -p -J -t ${sessA} -S -`,
+      `cat /proc/${pane}/environ | tr '\\0' '\\n'`,
+      "env",
+      "tmux list-buffers; tmux save-buffer - 2>/dev/null; true",
+    ];
+    for (const [i, command] of asks.entries()) {
+      const r = await h["terminal.run"]!(omar, { session: "omar", command, idempotencyKey: `w6-b${i}` });
+      assert.equal(r.output.includes(SECRET) || r.output.includes(EVIL), false, `Omar's ${command}: ${r.output.replaceAll(SECRET, "<S>").replaceAll(EVIL, "<E>").slice(-400)}`);
+    }
+    const scrolled = await h["terminal.run"]!(omar, { session: "omar", command: `tmux capture-pane -p -J -t ${sessA} -S -`, idempotencyKey: "w6-b9" });
+    assert.match(scrolled.output, /seen=\[#Dana_Api\.key\]/, "the first tab's output, scrubbed");
+
+    // Dana's tab closes: bash writes its history on the hangup. No agent line is in it, so no value either.
+    await h["terminal.close"]!(hn.ctx, { terminalId: a.terminalId });
+    await until("the first tab to end", async () => (await runTmux(["has-session", "-t", sessA])).code !== 0);
+    await sleep(300);
+    const histFile = path.join(work, ".bash_history");
+    const hist = fs.existsSync(histFile) ? fs.readFileSync(histFile, "utf8") : "";
+    assert.equal(hist.includes(SECRET) || hist.includes(EVIL) || hist.includes("__VYRE_BEG_"), false, `history on disk: ${hist.replaceAll(SECRET, "<S>").slice(-400)}`);
+    const later = await h["terminal.run"]!(omar, { session: "omar", command: "cat ~/.bash_history 2>/dev/null; true", idempotencyKey: "w6-c" });
+    assert.equal(later.output.includes(SECRET), false);
+  } finally { reset(); }
+});
+
+test("tmux (review 3, 5): a values buffer an earlier daemon left is removed, a busy tab is refused, a tab with set -x on shows no value, and the window in which a buffer exists is measured", { skip }, async (t) => {
+  const PART = `vq${Math.random().toString(36).slice(2, 10)}`;
+  const VALUE = `it's ${PART}\nsecond "line" $(id)`;
+  await open("trm_hv7");
+  // a daemon that died between load and delete left this
+  await runTmux(["load-buffer", "-b", "vyre-env-0-leftover", "-"], "export K='left-behind-value'\n");
+  const r1 = await host.run("trm_hv7", { command: 'printf %s "$K" | wc -c', env: { K: VALUE }, timeoutMs: 8000 });
+  assert.equal(r1.output.trim(), String(Buffer.byteLength(VALUE)));
+  assert.equal((await runTmux(["list-buffers", "-F", "#{buffer_name}"])).stdout.includes("vyre-env-"), false, "no values buffer is left, the old one included");
+
+  // xtrace and verbose on in the tab: the run's subshell turns them off before it touches a value
+  await host.input("trm_hv7", "set -xv\r");
+  await sleep(200);
+  const r2 = await host.run("trm_hv7", { command: 'printf %s "$K" | wc -c', env: { K: VALUE }, timeoutMs: 8000 });
+  assert.equal(r2.output.includes(PART), false, r2.output);
+  const raw = (await runTmux(["capture-pane", "-p", "-J", "-t", "vyre-trm_hv7", "-S", "-"])).stdout;
+  assert.equal(raw.includes(PART), false, `the screen, with set -xv on: ${raw.slice(-600)}`);
+  await host.input("trm_hv7", "set +xv\r");
+
+  // the window: a watcher asks the tmux server for its buffers as fast as it can while a run hands over its values
+  const seen = path.join(work, "seen.txt");
+  const watcher = spawn("bash", ["-c", `while :; do tmux -L ${SOCK} list-buffers -F '#{buffer_name}' 2>/dev/null | grep -q vyre-env- && date +%s%N >> ${seen}; done`], { env: ENV, stdio: "ignore" });
+  try {
+    for (let i = 0; i < 10; i++) await host.run("trm_hv7", { command: "true", env: { K: VALUE }, timeoutMs: 8000 });
+  } finally { watcher.kill("SIGKILL"); }
+  const stamps = fs.existsSync(seen) ? fs.readFileSync(seen, "utf8").trim().split("\n").filter(Boolean).map((x) => Number(BigInt(x) / 1_000_000n)) : [];
+  // runs of stamps less than 30 ms apart are one window
+  const windows: number[] = [];
+  for (let i = 0, start = 0; i < stamps.length; i++) if (i === stamps.length - 1 || stamps[i + 1]! - stamps[i]! > 30) { windows.push(stamps[i]! - stamps[start]!); start = i + 1; }
+  t.diagnostic(`values buffer seen by a polling watcher in ${windows.length} of 10 runs; longest window seen ${windows.length ? Math.max(...windows) : 0} ms`);
+  assert.equal((await runTmux(["list-buffers", "-F", "#{buffer_name}"])).stdout.includes("vyre-env-"), false);
+
+  // a tab that runs something: no values are loaded and nothing is typed into the program
+  await host.input("trm_hv7", "sleep 30\r");
+  await until("sleep to run", async () => (await host.status(["trm_hv7"]))[0]?.state === "running");
+  await assert.rejects(() => host.run("trm_hv7", { command: "true", env: { K: VALUE }, timeoutMs: 3000 }), /still running something/);
+  assert.equal((await runTmux(["list-buffers", "-F", "#{buffer_name}"])).stdout.includes("vyre-env-"), false);
+  await host.interrupt("trm_hv7");
+});
+
+test("tmux (review 10): in real bash, every form the reader accepts hands the command the value exactly, a glob character included, and never runs it", { skip }, async () => {
+  const EVIL = "a*b?[c]$d;touch $HOME/vyre-pwned-10";
+  reset();
+  bindHost(host);
+  bindTeam(() => true);
+  bindValues(fakeValues({ "#Db.password": EVIL }));
+  const hn = harness();
+  const agent = hn.as(AGENT, "usr_dana", "run_10");
+  try {
+    fs.writeFileSync(path.join(work, "abxc"), "");   // a file a glob of the value would match
+    const forms = [
+      "printf %s #Db.password | wc -c",
+      "cat <<< #Db.password | head -c -1 | wc -c",
+      "echo $((2<<1)) >/dev/null; printf %s #Db.password | wc -c",
+      "(( n = 1 )) && printf %s #Db.password | wc -c",
+      `x="$(printf %s #Db.password)"; printf %s "$x" | wc -c`,
+      `printf %s 'pw=#Db.password' | wc -c`,
+      "cat <<EOF | head -c -1 | wc -c\n#Db.password\nEOF",
+    ];
+    const want = [EVIL.length, EVIL.length, EVIL.length, EVIL.length, EVIL.length, EVIL.length + 3, EVIL.length];
+    for (const [i, command] of forms.entries()) {
+      const r = await h["terminal.run"]!(agent, { session: "forms", command, idempotencyKey: `f10-${i}` });
+      assert.equal(r.output.trim(), String(want[i]), `${command}: ${r.output}`);
+    }
+    assert.equal(fs.existsSync(path.join(work, "vyre-pwned-10")), false, "the value never ran");
+  } finally { reset(); }
+});
+
+test("tmux (review 6): a multi-line value a command prints reaches the live view with the terminal's CRLF line ends, and is scrubbed there too", { skip }, async () => {
+  const LINE2 = `pem${Math.random().toString(36).slice(2, 12)}`;
+  const PEM = `-----BEGIN KEY-----\n${LINE2}${LINE2}\n-----END KEY-----`;
+  reset();
+  bindHost(host);
+  bindTeam(() => true);
+  bindValues(fakeValues({ "#Dana_Pem.key": PEM }));
+  bindKit(null);   // the real scrubber (lib/vault-use), as a daemon has it
+  const hn = harness();
+  const agent = hn.as(AGENT, "usr_dana", "run_6");
+  try {
+    const opened = await h["terminal.open"]!(hn.ctx, { host: "agent_computer", agentId: "agt_intake", name: "pem", idempotencyKey: "hv6-open" });
+    const terminalId = opened.terminal.terminalId as string;
+    await h["terminal.run"]!(agent, { terminalId, command: "true", env: { K: "#Dana_Pem.key" }, idempotencyKey: "hv6-0" });
+    const att = await h["terminal.attach"]!(hn.ctx, { terminalId });
+    const got: string[] = [];
+    const raw: string[] = [];
+    const stopRaw = host.stream!(terminalId, (f) => raw.push(f));
+    const live = await openFrames(hn.db, att.ticket, hn.clock.t, (t) => got.push(t));
+    await sleep(300);
+    await h["terminal.run"]!(agent, { terminalId, command: 'printf "%s\\n" "$K"', env: { K: "#Dana_Pem.key" }, idempotencyKey: "hv6-1" });
+    await until("the printed key in the stream", () => got.join("").includes("[#Dana_Pem.key]") || raw.join("").includes(LINE2));
+    await sleep(300);
+    assert.ok(raw.join("").includes(`${LINE2}${LINE2}\r\n`), "the terminal sent it with CRLF line ends");
+    assert.equal(got.join("").includes(LINE2), false, `the live view: ${JSON.stringify(got.join("").slice(-300))}`);
+    live!.close(); stopRaw();
+  } finally { reset(); }
+});
+
+test("tmux (review 3a): shellAtPrompt is true only when the tab's shell owns its terminal, and a run with values is refused in a tab where a shell script runs", { skip }, async () => {
+  await open("trm_hv8");
+  const s = "vyre-trm_hv8";
+  const script = path.join(work, "deploy.sh");
+  fs.writeFileSync(script, "#!/bin/bash\nsleep 30\n", { mode: 0o755 });
+  const reader = path.join(work, "ask.sh");
+  fs.writeFileSync(reader, "#!/bin/bash\nread -r answer\necho got $answer\n", { mode: 0o755 });
+  const atPrompt = (): Promise<boolean> => shellAtPrompt(exec, s);
+  const settle = (): Promise<void> => sleep(400);
+  const cases: Array<[string, string, boolean]> = [
+    ["an idle prompt", "", true],
+    ["sleep", "sleep 30", false],
+    ["a bash script", script, false],
+    ["sh -c with two commands", "sh -c 'sleep 30; echo done'", false],
+    ["a loop", "while true; do sleep 1; done", false],
+    ["a script blocked on read", reader, false],
+    ["vim", "vim -u NONE -N", false],
+    ["a background job with the prompt back", "sleep 30 &", true],
+  ];
+  for (const [what, line, want] of cases) {
+    if (line !== "") { await host.input("trm_hv8", `${line}\r`); await settle(); }
+    assert.equal(await atPrompt(), want, what);
+    // a run that carries values is refused wherever the shell does not own the terminal (the old name check let every shell script through)
+    if (!want) await assert.rejects(() => host.run("trm_hv8", { command: "true", env: { K: "value-for-3a" }, timeoutMs: 3000 }), /still running something/, what);
+    assert.equal((await runTmux(["list-buffers", "-F", "#{buffer_name}"])).stdout.includes("vyre-env-"), false, `${what}: no values buffer`);
+    // back to the prompt for the next case
+    if (line.startsWith("vim")) { await runTmux(["send-keys", "-t", s, "Escape"]); await runTmux(["send-keys", "-t", s, "-l", ":qa!"]); await runTmux(["send-keys", "-t", s, "Enter"]); }
+    else if (line !== "" && !line.endsWith("&")) await host.interrupt("trm_hv8");
+    await settle();
+  }
+  assert.equal(await atPrompt(), true, "and true again at the prompt");
+});
+
+test("tmux (third look F2): shellAtPrompt says no for a program a shell exec'd into, and for a construct a person left open at the prompt", { skip }, async () => {
+  const atPrompt = (s: string): Promise<boolean> => shellAtPrompt(exec, s);
+  const settle = (): Promise<void> => sleep(400);
+  // exec replaces the shell under the same pid and process group: the terminal's owner is still that pid
+  await open("trm_hv9");
+  await host.input("trm_hv9", "exec python3 -q\r"); await settle();
+  assert.equal(await atPrompt("vyre-trm_hv9"), false, "exec python3");
+  await host.close("trm_hv9");
+  // a person typed the start of something and left it: the shell waits for the rest on a continuation line
+  const left: Array<[string, string]> = [["an open (", "(echo a\r"], ["an open quote", "echo 'abc\r"], ["a here-document", "cat <<EOF\r"]];
+  for (const [i, [what, line]] of left.entries()) {
+    const id = `trm_hva${i}`;
+    await open(id);
+    await settle();
+    assert.equal(await atPrompt(`vyre-${id}`), true, `${what}: at the prompt before`);
+    await host.input(id, line); await settle();
+    assert.equal(await atPrompt(`vyre-${id}`), false, what);
+    await host.close(id);
+  }
 });

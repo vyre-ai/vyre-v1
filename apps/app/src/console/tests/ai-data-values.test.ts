@@ -55,3 +55,16 @@ test("retention accepts declared durations and rejects ambiguous policy text", (
   for (const value of ["30d", "12w", "2m", "1y", "forever", "per_policy"]) assert.equal(retentionValue(value), value);
   for (const value of ["30 days", "0.5y", "", "never"]) assert.throws(() => retentionValue(value));
 });
+
+test("Keep and delete says every rule in words: no raw token of the rule's grammar reaches the screen (owner walk, 12 Nov)", async () => {
+  const { retentionWords } = await import("../pages/ai-data-values.ts");
+  // every default modules/governance/projections.ts DEFS gives a kind, as the server sends them
+  const DEFS = ["1y", "2y", "30d", "30d+daily90d+monthly", "90d", "forever", "per_policy"].map((d) => ({ key: d, default: d }));
+  const raw = /per_policy|forever\b|\d+[dwmy]\b|\+|daily\d|_/;
+  for (const def of DEFS) assert.doesNotMatch(retentionWords(def.default), raw, `${def.key}: ${def.default}`);
+  for (const v of ["30d", "12w", "2m", "1y", "forever", "per_policy", "30d+daily90d+monthly", "7d+weekly1y", "nonsense"]) assert.doesNotMatch(retentionWords(v), raw, v);
+  assert.equal(retentionWords("30d+daily90d+monthly"), "All for 30 days, then daily for 90 days, then monthly");
+  assert.equal(retentionWords("per_policy"), "By its own schedule");
+  assert.equal(retentionWords("1y"), "1 year");
+  assert.equal(retentionWords("forever"), "Forever");
+});

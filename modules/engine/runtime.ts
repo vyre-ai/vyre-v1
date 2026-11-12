@@ -69,7 +69,7 @@ import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
 import type { EngineSessionPorts } from "./session.ts";
 import type { PostAs } from "./handlers/bridge.ts";
-import { bindEngine, bindOpener, bindStepOpen, mintEngineId, setEngineStopping, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
+import { bindEngine, bindOpener, bindStepOpen, keepForRestart, mintEngineId, setEngineStopping, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
 import type { Db, EngineCtx } from "./projections.ts";
 
 export interface EngineHostSeam {
@@ -160,7 +160,7 @@ export function setEngineHost(h: EngineHostSeam | null): void {
     old.retire = () => { const done = close().catch(() => undefined); old.closing?.(done); return done; };
   }
   closeOpener = null;
-  if (h === null) { if (host !== null) setEngineStopping(true); } else setEngineStopping(false);
+  if (h === null) { if (host !== null) setEngineStopping(true, host.ours); } else setEngineStopping(false);
   host = h;
   building = null;
   bindRelay(h?.nodes ?? null);
@@ -729,9 +729,11 @@ export async function wakeAfterUnblock(ctx: EngineCtx, taskId: string): Promise<
   const row = (ctx.db.all("SELECT thread_id, agent_id, asker, paid_ref FROM engine_unblock WHERE task_id = ?", taskId) as Array<{ thread_id: string; agent_id: string; asker: string; paid_ref: string | null }>)[0];
   if (!row) return false;
   const asker = row.asker;
+  // the engine first: while the server stops, the event is kept with its row, so the next start wakes the agent (deleting the row first lost both)
+  const engine = await ensureRuntime(ctx);
+  if (!engine) keepForRestart(ctx);
   ctx.db.run("DELETE FROM engine_unblock WHERE task_id = ?", taskId);
   if (row.paid_ref) ctx.db.run("INSERT OR REPLACE INTO engine_paid_ok (thread_id, agent_id, ref, by_person, at) VALUES (?, ?, ?, ?, ?)", row.thread_id, row.agent_id, row.paid_ref, asker, ctx.now());
-  const engine = await ensureRuntime(ctx);
   if (!engine) return false;
   await open(ctx, row.thread_id, asPerson(ctx.db, row.thread_id, asker));
   engine.wake(row.thread_id, row.agent_id);

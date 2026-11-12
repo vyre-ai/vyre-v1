@@ -9,7 +9,7 @@ import { forgetProvider } from "./model-health.ts";
 import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { EngineOptions, TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { bindEngine, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
+import { bindEngine, keepForRestart, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
 import type { Db } from "./projections.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { bridgeConsumers } from "./handlers/bridge.ts";
@@ -40,6 +40,8 @@ export { nodeCliLauncher, nodeCliReport } from "./node-cli.ts";
 export const hostSeams = { setEngineHost };
 /** The warm pool the Machines page can empty (host/src/daemon/machine-fix.ts). */
 export { openerOf } from "./projections.ts";
+// the host binds how a person's sessions on this server stop when they turn subscription sharing off (host/src/daemon/module-ports.ts)
+export { bindSandboxStopper } from "./handlers/extra/config.ts";
 
 /** The runtime is built at boot, not at the first message, and recovers threads a dead host left mid-turn. */
 export const periodic = {
@@ -76,8 +78,17 @@ export const periodic = {
 const withRuntime = <C extends Record<string, { run: (ctx: EngineCtx, event: never) => Promise<unknown> }>>(consumers: C): C => Object.fromEntries(
   Object.entries(consumers).map(([name, c]) => [name, { ...c, run: async (ctx: EngineCtx, event: never): Promise<unknown> => { await ensureRuntime(ctx); return c.run(ctx, event); } }]),
 ) as C;
+/**
+ * Every engine consumer, while the server is stopping its engine: the event is kept for the next start before the consumer does anything (keepForRestart throws the host's kept error, which the hook
+ * runner does not count as a try). The host moves a consumer's cursor past any event it answers, so a consumer that answered "no engine" here lost the event for good: a goal's wake-up that arrived
+ * while the server shut down was never run (its wake stayed "sent" until the goal's 45-minute retry), a baton, a routine run, an approved hold. Each consumer also keeps the event where it finds no
+ * engine further in (the engine can stop while it runs), always before its first side effect, so the next start delivers it once, in order.
+ */
+const keptWhileStopping = <C extends Record<string, { run: (ctx: EngineCtx, event: never) => unknown }>>(consumers: C): C => Object.fromEntries(
+  Object.entries(consumers).map(([name, c]) => [name, { ...c, run: async (ctx: EngineCtx, event: never): Promise<unknown> => { keepForRestart(ctx); return c.run(ctx, event); } }]),
+) as C;
 
-export const consumers = {
+export const consumers = keptWhileStopping({
   ...withRuntime(bridgeConsumers),
   ...withRuntime(gateResumeConsumers),
   ...captureConsumers,
@@ -86,6 +97,7 @@ export const consumers = {
     on: ["agent.deleted", "agent.paused", "agent.resumed"],
     run: async (ctx: EngineCtx, event: { name: string; payload: { agentId: string } }): Promise<string[]> => {
       const engine = await ensureRuntime(ctx);
+      if (!engine) keepForRestart(ctx);
       const id = event.payload.agentId;
       if (event.name === "agent.deleted") return stopAgent(ctx, engine, id, "stopped");
       if (event.name === "agent.paused") return stopAgent(ctx, engine, id, "paused");
@@ -103,6 +115,7 @@ export const consumers = {
     run: async (ctx: EngineCtx, event: { payload: { threadId: string; kind?: string; starter?: string } }): Promise<void> => {
       const p = event.payload;
       const h = engineHost();
+      if (!h) keepForRestart(ctx);
       if (!h || (p.kind !== "chat" && p.kind !== "ask") || !p.starter?.startsWith("usr_")) return;
       await ensureRuntime(ctx);
       const t = (await h.call("threads.get", { threadId: p.threadId }, p.starter).catch(() => null)) as { thread?: { agents?: Array<{ agentId: string; mode?: string; model?: string }> } } | null;
@@ -116,19 +129,19 @@ export const consumers = {
   /** A person left: nothing goes on running on their word or their account. */
   "engine.person_left": {
     on: ["member.removed"],
-    run: async (ctx: EngineCtx, event: { payload: { personId: string } }): Promise<string[]> => stopPerson(ctx, await ensureRuntime(ctx), event.payload.personId),
+    run: async (ctx: EngineCtx, event: { payload: { personId: string } }): Promise<string[]> => { const engine = await ensureRuntime(ctx); if (!engine) keepForRestart(ctx); return stopPerson(ctx, engine, event.payload.personId); },
   },
   /** The owner of a chat changed: its next turn runs for them. */
   "engine.thread_owner": {
     on: ["thread.updated"],
-    run: async (ctx: EngineCtx, event: { payload: { threadId: string; starter?: string } }): Promise<void> => { if (event.payload.starter) ownerChanged(await ensureRuntime(ctx), event.payload.threadId, event.payload.starter); },
+    run: async (ctx: EngineCtx, event: { payload: { threadId: string; starter?: string } }): Promise<void> => { if (!event.payload.starter) return; const engine = await ensureRuntime(ctx); if (!engine) keepForRestart(ctx); ownerChanged(engine, event.payload.threadId, event.payload.starter); },
   },
   /** A person or an agent joined a group: say who an agent there could not answer (group-account.ts). */
   "engine.group_account": {
     on: ["channel.member_added", "channel.agent_added"],
-    run: async (_ctx: EngineCtx, event: { payload: { threadId?: string; channelId?: string; personId?: string } }): Promise<string[]> => {
+    run: async (ctx: EngineCtx, event: { payload: { threadId?: string; channelId?: string; personId?: string } }): Promise<string[]> => {
       const h = engineHost();
-      if (!h) return [];
+      if (!h) { keepForRestart(ctx); return []; }
       const p = event.payload;
       const threadId = p.threadId ?? (p.channelId ? ((await h.call("channels.get", { channelId: p.channelId })) as { channel: { mainThreadId: string } }).channel.mainThreadId : undefined);
       return threadId ? checkGroupAccount(h, threadId, p.personId ? [p.personId] : undefined) : [];
@@ -154,7 +167,7 @@ export const consumers = {
     run: async (ctx: EngineCtx, event: Parameters<typeof onTaskEvent>[3]): Promise<string[]> => {
       const engine = await ensureRuntime(ctx);
       const host = engineHost();
-      if (!engine || !host) return [];
+      if (!engine || !host) { keepForRestart(ctx); return []; }
       return onTaskEvent(ctx, { call: host.call, now: () => ctx.now(), ...(host.log ? { log: host.log } : {}) }, engine, event);
     },
   },
@@ -164,7 +177,7 @@ export const consumers = {
     run: async (ctx: EngineCtx, event: RoutineRunEvent): Promise<string[]> => {
       const engine = await ensureRuntime(ctx);
       const host = engineHost();
-      if (!engine || !host) return [];
+      if (!engine || !host) { keepForRestart(ctx); return []; }
       return onRoutineRun(ctx, { call: host.call, ...(host.log ? { log: host.log } : {}) }, engine, async (threadId, person) => { await openAs(ctx, threadId, person); }, event);
     },
   },
@@ -174,7 +187,7 @@ export const consumers = {
     run: async (ctx: EngineCtx, event: Parameters<typeof onGoalEvent>[3]): Promise<string[]> => {
       const engine = await ensureRuntime(ctx);
       const host = engineHost();
-      if (!engine || !host) return [];
+      if (!engine || !host) { keepForRestart(ctx); return []; }
       return onGoalEvent(ctx, { call: host.call, now: () => ctx.now(), ...(host.log ? { log: host.log } : {}) }, engine, event);
     },
   },
@@ -184,6 +197,7 @@ export const consumers = {
     run: async (ctx: EngineCtx, event: { name: string; payload: { requestId: string; name?: string; handle?: string; note?: string; threadId?: string; agentId?: string; asker?: string } }): Promise<string[]> => {
       const p = event.payload;
       const host = engineHost();
+      if (!host) keepForRestart(ctx);
       if (!host || !p.threadId || !p.agentId || !p.asker) return [];
       await ensureRuntime(ctx);
       const key = (p.name ?? "").replace(/_+/g, " ").replace(/\s+key$/i, "").trim();
@@ -200,6 +214,7 @@ export const consumers = {
     run: async (ctx: EngineCtx, event: { name: string; payload: { requestId: string; requester: string; note?: string; threadId?: string; agentId?: string } }): Promise<string[]> => {
       const p = event.payload;
       const host = engineHost();
+      if (!host) keepForRestart(ctx);
       if (!host || !p.threadId || !p.agentId) return [];
       await ensureRuntime(ctx);
       const text = event.name === "access.granted" ? "My access came through. Carry on." : `My access was declined${p.note ? `: ${p.note}` : "."}`;
@@ -221,10 +236,11 @@ export const consumers = {
       const host = engineHost();
       const agentId = p.agentId ?? (p.askedBy?.kind === "agent" ? p.askedBy.id : undefined);
       const person = p.actingFor?.startsWith("usr_") ? p.actingFor : p.askedBy?.kind === "agent" && p.by?.startsWith("usr_") ? p.by : undefined;
+      if (!host) keepForRestart(ctx);
       if (!host || !p.taskId || !p.holdId || !p.threadId?.startsWith("thr_") || !agentId || !person) return [];
       try { if (ctx.db.all("SELECT 1 AS x FROM engine_waits WHERE task_id = ?", p.taskId).length > 0) return []; } catch { /* no parked turns yet */ }
       const engine = await ensureRuntime(ctx);
-      if (!engine) return [];
+      if (!engine) { keepForRestart(ctx); return []; }
       const approved = event.name === "gate.approved";
       let by = "a person";
       try { const n = ((await host.call("access.principals.get", { principal: { kind: "person", id: p.by ?? person } })) as { principal?: { name?: unknown } }).principal?.name; if (typeof n === "string" && n.trim() !== "") by = n.trim(); } catch { /* a person all the same */ }
@@ -248,6 +264,7 @@ export const consumers = {
     on: ["file.redact_requested"],
     run: async (ctx: EngineCtx, event: { payload: { requestId: string; fileId: string; name: string; agentId?: string; actingFor?: string; threadId?: string } }): Promise<string[]> => {
       const p = event.payload, host = engineHost();
+      if (!host) keepForRestart(ctx);
       if (!host?.postAs || !p.threadId?.startsWith("thr_") || !p.agentId || !p.actingFor?.startsWith("usr_")) return [];
       await Promise.resolve(host.postAs(p.agentId, {
         actingFor: p.actingFor, threadId: p.threadId, body: "", mentions: [], clientId: BRIDGE_PREFIX + mintEngineId("b", ctx.now()).slice(2),
@@ -261,9 +278,10 @@ export const consumers = {
     on: ["file.redact_ready"],
     run: async (ctx: EngineCtx, event: { payload: { requestId: string; fileId: string; name: string; by: string; agentId?: string; actingFor?: string; threadId?: string } }): Promise<string[]> => {
       const p = event.payload, host = engineHost();
+      if (!host) keepForRestart(ctx);
       if (!host || !p.threadId?.startsWith("thr_") || !p.agentId || !p.actingFor?.startsWith("usr_")) return [];
       const engine = await ensureRuntime(ctx);
-      if (!engine) return [];
+      if (!engine) { keepForRestart(ctx); return []; }
       let by = "a person";
       try { const n = ((await host.call("access.principals.get", { principal: { kind: "person", id: p.by } })) as { principal?: { name?: unknown } }).principal?.name; if (typeof n === "string" && n.trim() !== "") by = n.trim(); } catch { /* a name is a courtesy */ }
       queueHeldNote(p.threadId, p.agentId, `${by} reviewed ${p.name} (file ${p.fileId}). Read it again now: you get the redacted version, with [REDACTED] where a part is hidden. Do not guess what a redacted part says; if you need it, say so and ask ${by} to un-redact it.`);
@@ -280,7 +298,7 @@ export const consumers = {
     on: ["task.completed"],
     run: async (ctx: EngineCtx, event: { payload: { taskId: string } }): Promise<string[]> => ((await wakeAfterUnblock(ctx, event.payload.taskId)) ? [event.payload.taskId] : []),
   },
-};
+});
 
 export interface RuntimeOptions extends Omit<EngineOptions, "queue" | "leases" | "messages" | "waits" | "newId"> {
   db: Db;
