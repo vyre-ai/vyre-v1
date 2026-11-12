@@ -60,6 +60,9 @@ export async function reviewsStart(ctx: ReviewCtx, input: { scope?: string[]; id
   const live = [...store.grants.values()]
     .filter((g) => (g.conditions.expiresAt === undefined || g.conditions.expiresAt > now) && g.conditions.exception === undefined)
     .filter((g) => !input.scope || input.scope.length === 0 || input.scope.includes(g.resource.type))
+    // the grants the host keeps for an agent (its hold on its own folder, its owner's Manage there, its Space role grants) are not shares anyone gave: a review that removed one would leave
+    // an agent without its folder or a person without their Assistant's home, and the host does not write a removed one again
+    .filter((g) => !agentKept(store, g))
     .sort((a, b) => (a.id < b.id ? -1 : 1));
   const id = nid("rvw");
   const byReviewer = new Map<string, GrantRec[]>();
@@ -130,6 +133,20 @@ async function finishCard(ctx: ReviewCtx, taskId: string, note: string): Promise
   } catch (e) {
     ctx.log.warn("access review card did not close", { taskId, error: e instanceof Error ? e.message : String(e) });
   }
+}
+
+/**
+ * A grant the host writes and keeps for an agent, matched exactly (lead, 12 Nov 2026): the agent's own Edit on its home folder (id agentGrantId(agent, "home"), subject the agent) and its owner's
+ * Manage there (id agentGrantId(agent, "owner"), subject the agent's owner). The ids are recomputed for that agent (host/src/gateway/principals.ts agentGrantId: gnt_ + the agent id without agt_
+ * + the purpose), never read from the shape of the text, so a share a person made on an agent's folder is reviewed like any other.
+ */
+function agentKept(store: AccessStore, g: GrantRec): boolean {
+  const kept = (agentId: string, purpose: "home" | "owner"): string => `gnt_${agentId.slice(4)}${purpose}`;
+  if (g.subject.kind === "agent") return store.principals.get(g.subject.id)?.kind === "agent" && g.id === kept(g.subject.id, "home");
+  if (g.subject.kind !== "person" || !g.id.endsWith("owner")) return false;
+  const agentId = `agt_${g.id.slice(4, -"owner".length)}`;
+  const a = store.principals.get(agentId);
+  return a?.kind === "agent" && a.owner === g.subject.id && g.id === kept(agentId, "owner");
 }
 
 export async function reviewsDecide(ctx: ReviewCtx, input: { reviewId: string; grantId: string; decision: "keep" | "remove" }) {
