@@ -83,6 +83,8 @@ test("each capability that takes access away answers only once the next request 
     const folderOpens = (who: string) => async () => (await call("files.folder.get", { folderId: folder.id }, who)).status === 200;
 
     let walkChannel: { channelId: string; mainThreadId: string } | undefined;
+    let walkFileId = "";
+    const walkFile = () => ({ type: "file", id: walkFileId || "fil_none" });
     let walkAgent = "";
     let walkLeave: { channelId: string; mainThreadId: string } | undefined;
     let walkLeaveAgent = "";
@@ -238,6 +240,17 @@ test("each capability that takes access away answers only once the next request 
           const inChannel = ((await ok("channels.get", { channelId: walkLead!.channelId }, "usr_olivia")).channel as { members: Array<{ id: string }> }).members.some((m) => m.id === "usr_sana");
           return members.some((m) => m.principal === "usr_sana") || inChannel || !members.some((m) => m.principal === "usr_olivia" && m.role === "lead");
         },
+      },
+      {
+        name: "a file share lowered from Edit to View through files.share, over an Edit given without a source (files.share)",
+        before: async () => (await mine("usr_noah", walkFile())) === "edit",
+        give: async () => {
+          const f = (await ok("files.create", { folderId: folder.id, name: "Walk lowering.txt", content: { text: "lower me" } }, "usr_olivia")).file as { fileId?: string; id?: string };
+          walkFileId = (f.fileId ?? f.id)!;
+          await ok("access.share", { resource: walkFile(), subject: person("usr_noah"), level: "edit" }, "usr_olivia");   // a share made before files.share had a source, or from the Console
+          return async () => (await mine("usr_noah", walkFile())) === "edit";
+        },
+        take: async () => { await ok("files.share", { fileId: walkFileId, subject: person("usr_noah"), level: "view" }, "usr_olivia"); },
       },
       {
         name: "Space member suspended (members.suspend)",
