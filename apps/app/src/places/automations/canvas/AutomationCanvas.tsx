@@ -520,6 +520,7 @@ function CanvasBody({ a, canEdit, tab, setTab, failedRuns, versions, tabBodies, 
   const stack = frame.compact;
   const inspectorPane = inspect && activeStep ? (
     <Inspector
+      automationId={a.id}
       embedded={!stack}
       layout={studioLayout}
       mode={mode}

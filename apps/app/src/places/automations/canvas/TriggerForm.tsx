@@ -10,7 +10,7 @@ import { fieldsOfTrigger, specOf, triggerText, triggerValue, writeTriggerField }
 import type { TriggerField } from "./form-model.ts";
 import { Glyph } from "./icons.tsx";
 import type { DefTrigger } from "./model.ts";
-import { pointer } from "./parts.tsx";
+import { TextButton, pointer } from "./parts.tsx";
 import {
   DAY_SHORT, EVERY_CHOICES, configFromDraft, cronFromDraft, deviceTimeZone, draftProblem, nextRuns, runWords, scheduleOf, scheduleWords, timeParts, validTimeZone,
 } from "./schedule.ts";
@@ -194,7 +194,31 @@ function PickInner({ field, value, onText, openMenu }: { field: TriggerField; va
   );
 }
 
-export function TriggerForm({ trigger, onChange, openMenu, zone, now }: { trigger: DefTrigger; onChange(next: DefTrigger): void; openMenu: OpenMenu; zone: string; now?: number }): ReactElement {
+/** The web request trigger's address, on the card where it is set up, with Copy: the person pastes it into the app that calls it. Nothing shows until the server names it. */
+function WebhookAddress({ automationId }: { automationId: string }): ReactElement | null {
+  const data = useOptionalAutomationsData();
+  const [url, setUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!data) return undefined;
+    let live = true;
+    data.call("automations.webhook_url.get", { automationId }).then((o) => { const u = (o as { url?: unknown } | null)?.url; if (live) setUrl(typeof u === "string" && u !== "" ? u : null); }, () => undefined);
+    return () => { live = false; };
+  }, [data, automationId]);
+  if (!url) return null;
+  const copy = (): void => {
+    const clip = (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator?.clipboard;
+    void clip?.writeText?.(url)?.then(() => setCopied(true), () => undefined);
+  };
+  return (
+    <View style={s.hook} testID="trigger-webhook">
+      <Text selectable numberOfLines={2} style={s.hookUrl}>{url}</Text>
+      <View style={s.hookCopy}><TextButton label={copied ? "Copied" : "Copy"} onPress={copy} testID="trigger-webhook-copy" /></View>
+    </View>
+  );
+}
+
+export function TriggerForm({ trigger, onChange, openMenu, zone, now, automationId }: { trigger: DefTrigger; onChange(next: DefTrigger): void; openMenu: OpenMenu; zone: string; now?: number; automationId?: string }): ReactElement {
   const [problem, setProblem] = useState<{ name: string; message: string } | null>(null);
   const note = specOf(trigger.key).note;
   const write = (field: TriggerField, text: string): void => {
@@ -239,6 +263,7 @@ export function TriggerForm({ trigger, onChange, openMenu, zone, now }: { trigge
       {name ? render(name) : null}
       {trigger.key === "schedule" ? <SchedulePicker trigger={trigger} onChange={onChange} openMenu={openMenu} zone={zone} {...(now !== undefined ? { now } : {})} /> : null}
       {rest.map(render)}
+      {trigger.key === "webhook" && automationId ? <WebhookAddress automationId={automationId} /> : null}
       {note ? <Hint testID="trigger-note">{note}</Hint> : null}
     </View>
   );
@@ -246,6 +271,9 @@ export function TriggerForm({ trigger, onChange, openMenu, zone, now }: { trigge
 
 const s = StyleSheet.create({
   wrap: { gap: 12 },
+  hook: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--field)" as string, borderWidth: 1, borderColor: "var(--field-line)" as string },
+  hookCopy: { flexShrink: 0 },
+  hookUrl: { flex: 1, minWidth: 0, fontSize: 12, color: "var(--ink-2)" as string, ...({ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", wordBreak: "break-all" } as object) },
   group: { gap: 4 },
   field: { gap: 4 },
   label: { fontSize: 11.5, color: "var(--ink-3)" as string },

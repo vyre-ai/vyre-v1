@@ -99,7 +99,7 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
     <View style={s.wrap} testID="item-automations">
       <View style={s.head}>
         <Text accessibilityRole="header" aria-level={2} style={s.h2}>Automations</Text>
-        <View style={{ flex: 1 }} />
+        <View style={{ flexGrow: 1 }} />
         {offers && data.nav.syncToRecords ? <Btn label="Sync to Records" icon="sync" disabled={gate.state !== "ready"} onPress={toRecords} testID="item-sync-records" /> : null}
         {offers && data.nav.addToAutomations ? <Btn label="Add to Automations" icon="wand" primary={gate.state === "ready"} disabled={gate.state !== "ready"} onPress={start} testID="item-add-automations" /> : null}
       </View>
@@ -130,7 +130,8 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
 
 const s = StyleSheet.create({
   wrap: { marginBottom: 18 },
-  head: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
+  // on a phone the two buttons go under the heading rather than past the edge
+  head: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 4, rowGap: 6, marginBottom: 6 },
   h2: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   notice: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, padding: 10, borderRadius: 10, marginBottom: 8, backgroundColor: "var(--accent-wash)" as string },
   noticeText: { flex: 1, minWidth: 180, fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string },

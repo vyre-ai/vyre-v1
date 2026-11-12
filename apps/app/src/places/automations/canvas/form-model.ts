@@ -197,7 +197,7 @@ export const TRIGGER_SPECS: Record<string, TriggerSpec> = {
     f("where", "Only when values match", { kind: "json", placeholder: '{"status":"new"}', help: "Optional. Field values the record must have." }),
   ] },
   schedule: { fields: [] },
-  webhook: { fields: [], note: "Starts when something sends a request to this Automation's address. The address is on the Settings tab once it is on." },
+  webhook: { fields: [], note: "Starts when something sends a request to this address, once the Automation is on." },
   form_submit: { fields: [f("formId", "Form", { kind: "pick", from: "forms", help: "Leave empty for any form." })] },
   email_received: { fields: [f("mailboxId", "Mailbox", { placeholder: "mbx_...", help: "Leave empty for any mailbox." }), f("from", "From", { placeholder: "name@example.com", help: "Leave empty for anyone." })] },
   chat_message: { fields: [f("threadId", "Chat", { placeholder: "thr_...", help: "Leave empty for any chat." })] },

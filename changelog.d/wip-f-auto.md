@@ -4,3 +4,5 @@
 - A Run whose Vault item is gone now names the item in its error ("There is no Vault item #Acme that you can use"), so you know which key to bring back.
 - An item named like "Notely API key" is offered and built as the app Notely, in Add to Automations, Sync to Records and the setup offer.
 - Vault: the open item stays open when another item is used and the list re-sorts; before, the detail jumped to whichever item moved to the top.
+- Automations: a web request trigger shows its address on the trigger card, with Copy, so you can paste it into the app that calls it without going to the Settings tab.
+- Vault on a phone: the Automations buttons on an item (Sync to Records, Add to Automations) wrap under the heading instead of running past the edge.
