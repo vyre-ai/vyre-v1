@@ -14,10 +14,10 @@ import type { BrowserData, BrowserView, WorkspaceData, WorkspaceView } from "../
 export const title = "Computer tab: Terminal and Browser";
 
 // A page the browser might be showing, as the picture the stream would carry (MJPEG frames are JPEGs; an SVG data address stands in so the shot needs no browser service).
-const PAGE = "data:image/svg+xml;base64," + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800"><rect width="1280" height="800" fill="#f7f7fa"/><rect width="1280" height="64" fill="#fff"/><rect x="40" y="20" width="160" height="24" rx="6" fill="#d9d8e6"/><rect x="1060" y="18" width="180" height="28" rx="14" fill="#5b57d6"/><text x="80" y="170" font-family="Helvetica" font-size="44" font-weight="700" fill="#1c1b29">New matter intake</text><rect x="80" y="220" width="520" height="56" rx="8" fill="#fff" stroke="#cfcedb"/><text x="100" y="256" font-family="Helvetica" font-size="24" fill="#1c1b29">Northwind Holdings LLC</text><rect x="80" y="310" width="520" height="56" rx="8" fill="#fff" stroke="#cfcedb"/><text x="100" y="346" font-family="Helvetica" font-size="24" fill="#8a89a0">Contact email</text><rect x="80" y="400" width="520" height="140" rx="8" fill="#fff" stroke="#cfcedb"/><rect x="80" y="580" width="200" height="56" rx="10" fill="#5b57d6"/><text x="118" y="616" font-family="Helvetica" font-size="24" fill="#fff">Create matter</text><rect x="700" y="220" width="480" height="420" rx="12" fill="#ececf4"/></svg>`);
+const PAGE = "data:image/svg+xml;base64," + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800"><rect width="1280" height="800" fill="#f7f7fa"/><rect width="1280" height="64" fill="#fff"/><rect x="40" y="20" width="160" height="24" rx="6" fill="#d9d8e6"/><rect x="1060" y="18" width="180" height="28" rx="14" fill="#5b57d6"/><text x="80" y="170" font-family="Helvetica" font-size="44" font-weight="700" fill="#1c1b29">New request form</text><rect x="80" y="220" width="520" height="56" rx="8" fill="#fff" stroke="#cfcedb"/><text x="100" y="256" font-family="Helvetica" font-size="24" fill="#1c1b29">Northwind Holdings LLC</text><rect x="80" y="310" width="520" height="56" rx="8" fill="#fff" stroke="#cfcedb"/><text x="100" y="346" font-family="Helvetica" font-size="24" fill="#8a89a0">Contact email</text><rect x="80" y="400" width="520" height="140" rx="8" fill="#fff" stroke="#cfcedb"/><rect x="80" y="580" width="200" height="56" rx="10" fill="#5b57d6"/><text x="118" y="616" font-family="Helvetica" font-size="24" fill="#fff">Submit</text><rect x="700" y="220" width="480" height="420" rx="12" fill="#ececf4"/></svg>`);
 const LINE = "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.";
 const SITES = [
-  { site: "app.clio.com", signedInAs: "intake@northwind.example", since: Date.UTC(2026, 9, 28) },
+  { site: "app.example.com", signedInAs: "intake@northwind.example", since: Date.UTC(2026, 9, 28) },
   { site: "mail.google.com", signedInAs: "dex@northwind.example", since: Date.UTC(2026, 10, 2) },
 ];
 const SESSIONS = [{ name: "main", owner: { kind: "agent" as const }, windows: 2, attached: 0 }, { name: "tests", owner: { kind: "helper" as const, name: "Tess" }, windows: 1, attached: 0 }, { name: "dev server", owner: { kind: "person" as const, name: "Maya" }, windows: 1, attached: 1 }];
@@ -25,7 +25,7 @@ const SESSIONS = [{ name: "main", owner: { kind: "agent" as const }, windows: 2,
 const VIEWS: Record<string, { ws: WorkspaceView | null; br: BrowserView | null }> = {
   running: {
     ws: { state: "running", host: "Northwind server", canAttach: true, sessions: SESSIONS, projects: ["Client portal launch", "Northwind renewal"] },
-    br: { state: "open", host: "Northwind server", tabs: 3, caption: "Reading the intake form on app.clio.com", canTakeOver: true, sites: SITES },
+    br: { state: "open", host: "Northwind server", tabs: 3, caption: "Reading the intake form on app.example.com", canTakeOver: true, sites: SITES },
   },
   asleep: {
     ws: { state: "asleep", host: "Northwind server", canAttach: true, sessions: SESSIONS.slice(0, 1).map((s) => ({ ...s, attached: 0 })), projects: ["Client portal launch"] },
