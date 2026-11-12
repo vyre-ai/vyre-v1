@@ -25,6 +25,29 @@ export function judge(count: number, baseline: number): { ok: boolean; lower: bo
   return { ok: true, lower: false, words: `${count} typecheck errors, as allowed.` };
 }
 
+/**
+ * Did the compiler finish, so its count can be believed (fifth look V5)? A tsc that could not start, was killed (memory) or overflowed the buffer prints fewer error lines and would pass with a
+ * low count. Not finished: a spawn error, a signal, or no error lines with a failing exit. A drop of more than a fifth below the baseline is believed only with --update (a person looks at it).
+ * The baseline itself may not be above the one on the merge base: a raise must not slip in with other changes.
+ */
+export function trustworthy(r: { error?: unknown; signal?: string | null; status: number | null }, count: number, baseline: number, o: { update: boolean; mergeBaseBaseline: number | null }): string | null {
+  if (r.error) return `tsc did not run (${r.error instanceof Error ? r.error.message : String(r.error)})`;
+  if (r.signal) return `tsc was stopped by ${r.signal} before it finished`;
+  if (count === 0 && r.status !== 0) return `tsc exited ${r.status} with no error lines: it did not finish`;
+  if (!o.update && baseline > 0 && count < baseline * 0.8) return `${count} errors is a sudden drop from ${baseline}: check that tsc finished; if the drop is real, run with --update`;
+  if (o.mergeBaseBaseline !== null && baseline > o.mergeBaseBaseline) return `the baseline (${baseline}) is above the one on the merge base (${o.mergeBaseBaseline}); it may only fall`;
+  return null;
+}
+
+/** The baseline as the merge base with origin/main has it, or null when it cannot be read (no git, no such file there yet). */
+export function mergeBaseBaseline(root: string, file: string): number | null {
+  const mb = spawnSync("git", ["merge-base", "origin/main", "HEAD"], { cwd: root, encoding: "utf8" });
+  if (mb.status !== 0) return null;
+  const shown = spawnSync("git", ["show", `${mb.stdout.trim()}:${file}`], { cwd: root, encoding: "utf8" });
+  if (shown.status !== 0) return null;
+  try { const n = (JSON.parse(shown.stdout) as { count?: unknown }).count; return typeof n === "number" ? n : null; } catch { return null; }
+}
+
 /** A CI runner, where a ratchet that cannot count must fail rather than pass. */
 export const inCi = (env: Record<string, string | undefined> = process.env): boolean => env["GITHUB_ACTIONS"] === "true" || env["CI"] === "true";
 
@@ -47,9 +70,12 @@ function main(): void {
   const r = spawnSync(tsc, ["-p", target.project], { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
   const count = countErrors(`${r.stdout}\n${r.stderr}`);
   const baseline = (JSON.parse(fs.readFileSync(baselineFile, "utf8")) as { count: number }).count;
+  const update = process.argv.includes("--update");
+  const why = trustworthy(r, count, baseline, { update, mergeBaseBaseline: mergeBaseBaseline(root, target.baseline) });
+  if (why !== null) { console.log(`typecheck ratchet failed: ${why}`); process.exit(1); }
   const v = judge(count, baseline);
   console.log(v.words);
-  if (process.argv.includes("--update")) {
+  if (update) {
     if (count > baseline) { console.error("refusing to raise the baseline"); process.exit(1); }
     fs.writeFileSync(baselineFile, `${JSON.stringify({ count }, null, 2)}\n`);
     return;

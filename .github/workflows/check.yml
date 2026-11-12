@@ -399,6 +399,9 @@ jobs:
           set -o pipefail
           node --test --test-force-exit --test-timeout=1800000 --test-reporter=spec modules/terminal/tests/workspace.isolation.heavy.test.ts modules/terminal/tests/workspace.trash.heavy.test.ts modules/sites/tests/site-networks.heavy.test.ts modules/terminal/tests/workspace.scale.heavy.test.ts 2>&1 | tee workspace-scale.log
           grep -a -E "SCALE-NUMBERS|SITES-NUMBERS" workspace-scale.log || true
+          # a skip is not a pass: node --test reports skipped tests on its own line
+          grep -a -q -E "^ℹ skipped 0$" workspace-scale.log || { echo "a heavy test was skipped (is Docker or the image missing?)" >&2; exit 1; }
+          grep -a -q -E "^ℹ fail 0$" workspace-scale.log
       - name: Images and containers left behind
         if: always()
         run: |

@@ -1250,3 +1250,27 @@ test("a Files change brings forward only the slowed mirrors whose folder it is i
   assert.ok(count().a > before.a && count().b > before.b, "a folder it cannot place brings every slowed mirror forward, so a drop is never missed");
   m.close();
 });
+
+test("V3: in a workspace at the quick pace a command does not wait for a mirror pass; after a Files change in its folder it waits for one", async () => {
+  let inPass = 0;
+  const home: NonNullable<WorkspaceOptions["home"]> = {
+    sync: () => ({ async pass() { inPass++; await new Promise((r) => setTimeout(r, 300)); return { failed: 0 }; } }),
+    readTar: () => ({ files: new Map(), dirs: new Set(), refused: [], complete: true }),
+    manifest: (id) => `/m/${id}.json`,
+    intervalMs: 3000,
+  };
+  const folders = { agentRoot: () => "fld_a", projectRoot: () => null, ancestors: (f: string) => (f === "fld_a" ? ["fld_a"] : null), ofFile: () => null };
+  const m = manager(engine(), { home, folders });
+  const host = createWorkspaceTerminalHost({ manager: m, sleep: fast });
+  await host.open({ terminalId: "trm_v3", target: { host: "agent_computer", agentId: AGENT }, name: "agent", cols: 80, rows: 24, folders: [] });
+  await new Promise((r) => setTimeout(r, 400));   // the wake's pass is done
+  const timed = async (): Promise<number> => { const t0 = Date.now(); await host.run("trm_v3", { command: "echo hi", env: {}, timeoutMs: 5000 }); return Date.now() - t0; };
+  const before = inPass;
+  const quick = await timed();
+  assert.equal(inPass, before, "no pass for a command at the quick pace");
+  assert.ok(quick < 250, `per-command overhead near zero: ${quick} ms`);
+  m.filesChanged({ folderIds: ["fld_a"] });
+  const after = await timed();
+  assert.ok(inPass > before && after >= 250, `after a change in its folder the command waited for a pass (${after} ms)`);
+  m.close();
+});

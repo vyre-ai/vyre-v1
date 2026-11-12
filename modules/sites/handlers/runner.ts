@@ -180,6 +180,8 @@ export function dockerRunner(link: RunnerLink): Runner {
         if (self && Object.keys(j?.Containers ?? {}).some(isSelf)) await call({ method: "POST", path: `/networks/${name}/disconnect`, json: { Container: self } });
         const gone = await call({ method: "DELETE", path: `/networks/${name}` });
         if (gone.status === 204 || gone.status === 200 || gone.status === 404) info = { status: 404, body: new Uint8Array() };
+        // the delete was refused (a container of the site joined in between): read it again, so the ingress joins it once more below (fifth look V4)
+        else info = await call({ method: "GET", path: `/networks/${name}` });
       }
     }
     if (info.status === 404) {

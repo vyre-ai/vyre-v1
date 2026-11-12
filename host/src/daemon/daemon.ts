@@ -1,3 +1,4 @@
+import { workspaceInTurn } from "./workspace-turns.ts";
 import { ownsSubject } from "./own-subject.ts";
 import { isExportItself, waitForQuiet } from "./export-quiet.ts";
 import { createChoiceSource } from "./forms-choices.ts";
@@ -2101,7 +2102,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               owner: spaceId,
               ownsAgent: (agentId: string) => { try { return db!.all("SELECT 1 FROM agents_agent WHERE id = ?", agentId).length > 0; } catch { return false; } },
               // a turn of this agent running now (started in the last 12 hours, so a row a crash left does not hold a workspace awake forever): making room passes its workspace over (lead, 12 Nov)
-              inTurn: (agentId: string) => { try { return db!.all("SELECT 1 FROM engine_turns WHERE agent_id = ? AND state = 'running' AND started_at > ? LIMIT 1", agentId, Date.now() - 12 * 3_600_000).length > 0; } catch { return undefined; } },
+              inTurn: (agentId: string) => workspaceInTurn(db!, agentId, Date.now()),
               // where the Files mirrors are rooted, read from the tables (one indexed read each): a Files change brings forward only the workspaces whose folder it is in (lead, 12 Nov)
               folders: {
                 agentRoot: (agentId: string) => { try { return (db!.all("SELECT folderId FROM agents_agent WHERE id = ?", agentId)[0] as { folderId?: string | null } | undefined)?.folderId ?? null; } catch { return null; } },

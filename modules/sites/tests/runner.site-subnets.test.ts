@@ -17,6 +17,7 @@ async function standIn(start: Net[] = []) {
   const sock = path.join(dir, "runner.sock");
   const nets = new Map<string, Net>(start.map((n) => [n.Name, n]));
   const calls: string[] = [];
+  const race = { joinOnDelete: "" };   // a container that joins the network just before the DELETE arrives
   const server = http.createServer((q, s) => {
     let b = "";
     q.on("data", (c) => (b += c));
@@ -27,7 +28,7 @@ async function standIn(start: Net[] = []) {
       if (q.method === "GET" && url === "/networks") return send(200, [...nets.values()].map((n) => ({ IPAM: n.IPAM })));
       const one = /^\/networks\/([^/]+)$/.exec(url);
       if (one && q.method === "GET") { const n = nets.get(one[1]!); return n ? send(200, n) : send(404, { message: "network not found" }); }
-      if (one && q.method === "DELETE") { const n = nets.get(one[1]!); if (n && Object.keys(n.Containers).length > 0) return send(403, { message: "has active endpoints" }); nets.delete(one[1]!); s.writeHead(204); s.end(); return; }
+      if (one && q.method === "DELETE") { const n = nets.get(one[1]!); if (n && race.joinOnDelete) n.Containers[race.joinOnDelete] = { Name: "joined" }; if (n && Object.keys(n.Containers).length > 0) return send(403, { message: "has active endpoints" }); nets.delete(one[1]!); s.writeHead(204); s.end(); return; }
       if (q.method === "POST" && url === "/networks/create") {
         const j = JSON.parse(b) as Net;
         if (nets.has(j.Name)) return send(409, { message: "exists" });
@@ -41,7 +42,7 @@ async function standIn(start: Net[] = []) {
     });
   });
   await new Promise<void>((r) => server.listen(sock, r));
-  return { runner: dockerRunner({ socketPath: sock, token: () => "t" }), nets, calls, close: () => { server.close(); fs.rmSync(dir, { recursive: true, force: true }); } };
+  return { runner: dockerRunner({ socketPath: sock, token: () => "t" }), nets, calls, race, close: () => { server.close(); fs.rmSync(dir, { recursive: true, force: true }); } };
 }
 
 test("the allocator gives the first free /28 of 10.213.0.0/16 and passes over any overlap", () => {
@@ -71,4 +72,16 @@ test("an old site network from Docker's pools is made again in the site range on
   assert.equal(w.calls.filter((c) => c === `DELETE /networks/${serving}`).length, 0);
   const moved = await w.runner.network("sit_idle");
   assert.equal(moved.subnet, "10.213.0.0/28", "nothing on it: made again in the site range");
+});
+
+test("V4: a deploy that joins an old network between the ingress leaving and the delete keeps it, and the ingress joins it again", async (t) => {
+  const name = networkName("sit_race");
+  const w = await standIn([{ Name: name, Labels: { "vyre.site": "sit_race" }, IPAM: { Config: [{ Subnet: "172.22.0.0/16" }] }, Containers: {} }]);
+  t.after(w.close);
+  // the DELETE meets a container that joined in between: Docker refuses it
+  w.race.joinOnDelete = "d".repeat(64);
+  const got = await w.runner.network("sit_race");
+  assert.equal(got.subnet, "172.22.0.0/16", "the old network stays");
+  const i = w.calls.indexOf(`DELETE /networks/${name}`);
+  assert.ok(i >= 0 && w.calls.slice(i + 1).includes(`GET /networks/${name}`), "read again after the refused delete, so what joins below sees it as it is");
 });

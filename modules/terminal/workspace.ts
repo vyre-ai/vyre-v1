@@ -381,7 +381,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const mounted = new Map<string, string[]>();
   const chain = new Map<string, Promise<unknown>>();
   let timer: ReturnType<typeof setInterval> | null = null;
-  type Paced = { timer: ReturnType<typeof setTimeout> | null; delay: number; stopped: boolean; tick?: () => void; poked?: boolean };
+  type Paced = { timer: ReturnType<typeof setTimeout> | null; delay: number; stopped: boolean; tick?: () => void; poked?: boolean; dirty?: boolean };
   const homes = new Map<string, { sync: { pass(): Promise<{ failed: number }> } } & Paced>();
   // the projects each awake workspace mounts, who last worked in each project, and its mirror
   const agentProjects = new Map<string, string[]>();
@@ -671,13 +671,16 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     if (!homes.has(agentId) && !(agentProjects.get(agentId) ?? []).length) return true;
     // a slowed mirror always (its last pass may be a minute old), else one whose last pass is older than the quick pace
     const slowed = (x: Paced | undefined): boolean => x !== undefined && x.delay > mirrorBase();
-    const stale = (key: string): boolean => slowed(key.startsWith("h:") ? homes.get(key.slice(2)) : projects.get(key.slice(2))) || now() - (lastPass.get(key) ?? 0) > mirrorBase();
+    // not on age alone: at the quick pace a command would wait for a pass on every command (fifth look V3); a mirror at the quick pace is caught up within its next pass anyway
+    const stale = (key: string): boolean => { const x = key.startsWith("h:") ? homes.get(key.slice(2)) : projects.get(key.slice(2)); return slowed(x) || (x?.dirty ?? false); };
     // a pass already running may have read Files before the drop: it is waited for, then a new one runs
     const after = async (key: string, f: () => Promise<boolean>): Promise<boolean> => { const have = inflight.get(key); if (have) await have.catch(() => false); return f(); };
     const work: Array<Promise<boolean>> = [];
     if (homes.has(agentId) && (stale(`h:${agentId}`) || inflight.has(`h:${agentId}`))) work.push(after(`h:${agentId}`, () => homePass(agentId)));
     for (const pid of agentProjects.get(agentId) ?? []) if (stale(`p:${pid}`) || inflight.has(`p:${pid}`)) work.push(after(`p:${pid}`, () => projectPass(pid)));
     if (work.length === 0) return true;
+    for (const pid of [agentId]) { const h = homes.get(pid); if (h) h.dirty = false; }
+    for (const pid of agentProjects.get(agentId) ?? []) { const p = projects.get(pid); if (p) p.dirty = false; }
     let timer: ReturnType<typeof setTimeout> | undefined;
     const late = new Promise<false>((r) => { timer = setTimeout(() => r(false), ms); timer.unref?.(); });
     try { return await Promise.race([Promise.all(work).then(() => true), late]); } finally { clearTimeout(timer); }
@@ -690,8 +693,9 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const rootOf = new Map<string, string | null>();
   function filesChanged(change: { folderIds?: readonly string[]; fileId?: string } = {}): void {
     const f = o.folders;
-    const slowedHomes = [...homes].filter(([, h]) => h.delay > mirrorBase() && !h.poked);
-    const slowedProjects = [...projects].filter(([, p]) => p.delay > mirrorBase() && !p.poked);
+    // every mirror the change touches is marked (its next command waits for one pass); the slowed ones among them also make that pass soon
+    const slowedHomes = [...homes];
+    const slowedProjects = [...projects];
     if (slowedHomes.length === 0 && slowedProjects.length === 0) return;
     let touched: Set<string> | null = null;
     if (f) {
@@ -703,11 +707,11 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     const root = (key: string, look: () => string | null): string | null => { if (!rootOf.has(key)) rootOf.set(key, look()); return rootOf.get(key) ?? null; };
     for (const [agentId, h] of slowedHomes) {
       const r = f ? root(`h:${agentId}`, () => f.agentRoot(agentId)) : null;
-      if (touched === null || r === null || touched.has(r)) poke(h, mirrorBase());
+      if (touched === null || r === null || touched.has(r)) { h.dirty = true; poke(h, mirrorBase()); }
     }
     for (const [projectId, p] of slowedProjects) {
       const r = f ? root(`p:${projectId}`, () => f.projectRoot(projectId)) : null;
-      if (touched === null || r === null || touched.has(r)) poke(p, mirrorBase());
+      if (touched === null || r === null || touched.has(r)) { p.dirty = true; poke(p, mirrorBase()); }
     }
   }
   /** Before a workspace stops: the project folders it mounts, mirrored once more, when it is the last running workspace on them (while another runs, that one keeps mirroring). */
@@ -732,6 +736,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     x.delay = base;
     const tick = (): void => {
       x.timer = null;
+      x.dirty = false;   // this pass reads Files as it is now: what a change marked is caught up by it
       void pass().catch(() => undefined).finally(() => {
         if (x.stopped || x.timer) return;
         x.delay = now() - activeAt() < ACTIVE_MS ? base : Math.min(MIRROR_MAX_MS, Math.max(base, x.delay * 2));
@@ -746,6 +751,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   /** Back to `base` now: someone works in it again. */
   function nudge(x: Paced | undefined, base: number): void {
     if (!x || x.stopped || !x.timer || !x.tick || x.delay <= base) return;
+    // it had slowed: its last pass may be a minute old, so the command that woke it up waits for one (U2); later commands at the quick pace do not (V3)
+    x.dirty = true;
     clearTimeout(x.timer);
     x.delay = base;
     x.timer = setTimeout(x.tick, base);

@@ -151,6 +151,15 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
       const who = parsed?.Container;
       const labels = typeof who === "string" ? await labelsOf(who) : null;
       if (!labels || labels["vyre.ingress"] !== "1") { say(`refused leaving ${v.network}`); refuse(res, 403, "Refused by the sites runner: only the ingress leaves a site's network."); return; }
+      // never while it serves (fifth look V4): no container of a site may be on the network when the ingress leaves it
+      const inspected = await docker("GET", `/networks/${v.network}`, null, {}, null);
+      let members: string[] = [];
+      try { members = Object.keys((JSON.parse(inspected.body.toString("utf8")) as { Containers?: Record<string, unknown> }).Containers ?? {}); } catch { members = []; }
+      if (inspected.status !== 200) { refuse(res, 403, "Refused by the sites runner: the site's network could not be read."); return; }
+      for (const id of members) {
+        const l = await labelsOf(id);
+        if (l === null || l["vyre.ingress"] !== "1") { say(`refused leaving ${v.network}: in use`); refuse(res, 403, "Refused by the sites runner: a site's container is on that network, so the ingress stays."); return; }
+      }
       const data = Buffer.from(JSON.stringify({ Container: who, Force: false }));
       await docker("POST", url.pathname, data, { "content-type": "application/json", "content-length": data.length }, res);
       return;

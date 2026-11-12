@@ -38,3 +38,44 @@ test("the server ratchet is chosen by --project and --baseline; the app's stays 
   assert.deepEqual(targetOf([]), { project: "tsconfig.typecheck.json", baseline: "scripts/typecheck-baseline.json", needsReactNative: true });
   assert.deepEqual(targetOf(["--project", "tsconfig.typecheck.server.json", "--baseline", "scripts/typecheck-baseline.server.json"]), { project: "tsconfig.typecheck.server.json", baseline: "scripts/typecheck-baseline.server.json", needsReactNative: false });
 });
+
+// ---- fifth look V5: a compiler that did not finish never passes -------------------------------------------------------------------------------------------------
+
+function standIn(body: string, baseline: number): { dir: string; run: (args?: string[]) => ReturnType<typeof spawnSync> } {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ratchet-v5-"));
+  fs.mkdirSync(path.join(dir, "scripts"));
+  fs.writeFileSync(path.join(dir, "scripts/typecheck-baseline.server.json"), JSON.stringify({ count: baseline }));
+  fs.writeFileSync(path.join(dir, "tsc.mjs"), body);
+  fs.writeFileSync(path.join(dir, "tsc"), `#!/bin/sh\nexec "${process.execPath}" "${path.join(dir, "tsc.mjs")}" "$@"\n`, { mode: 0o755 });
+  const run = (args: string[] = []) => spawnSync(process.execPath, [SCRIPT, "--project", "tsconfig.typecheck.server.json", "--baseline", "scripts/typecheck-baseline.server.json", ...args], { cwd: dir, encoding: "utf8", env: { ...process.env, TSC: path.join(dir, "tsc"), GITHUB_ACTIONS: "", CI: "" } });
+  return { dir, run };
+}
+const lines = (n: number): string => Array.from({ length: n }, (_, i) => `a.ts(${i + 1},1): error TS2322: x`).join("\\n");
+
+test("V5: a compiler killed by a signal, one that exits failing with no error lines, and a sudden drop without --update all fail; the same count passes", () => {
+  for (const [what, body, baseline, ok] of [
+    ["killed", `process.stdout.write("${lines(3)}\\n"); process.kill(process.pid, "SIGKILL");`, 100, false],
+    ["exits 2 with nothing", `process.exit(2);`, 100, false],
+    ["a sudden drop", `process.stdout.write("${lines(10)}\\n"); process.exit(2);`, 100, false],
+    ["the same count", `process.stdout.write("${lines(100)}\\n"); process.exit(2);`, 100, true],
+    ["a small fall", `process.stdout.write("${lines(95)}\\n"); process.exit(2);`, 100, true],
+  ] as const) {
+    const s = standIn(body, baseline);
+    try {
+      const r = s.run();
+      assert.equal(r.status === 0, ok, `${what}: ${r.stdout}${r.stderr}`);
+      if (!ok) assert.match(String(r.stdout), /typecheck ratchet failed: /, what);
+    } finally { fs.rmSync(s.dir, { recursive: true, force: true }); }
+  }
+  // a real drop is believed when a person asks for it
+  const s = standIn(`process.stdout.write("${lines(10)}\\n"); process.exit(2);`, 100);
+  try { assert.equal(s.run(["--update"]).status, 0); assert.equal(JSON.parse(fs.readFileSync(path.join(s.dir, "scripts/typecheck-baseline.server.json"), "utf8")).count, 10); }
+  finally { fs.rmSync(s.dir, { recursive: true, force: true }); }
+});
+
+test("V5: a spawn error fails, and a baseline above the merge base's fails", async () => {
+  const { trustworthy } = await import("./typecheck-ratchet.ts");
+  assert.match(trustworthy({ error: new Error("spawn ENOENT"), signal: null, status: null }, 0, 100, { update: false, mergeBaseBaseline: null }) ?? "", /did not run/);
+  assert.match(trustworthy({ signal: null, status: 2 }, 100, 101, { update: false, mergeBaseBaseline: 100 }) ?? "", /above the one on the merge base/);
+  assert.equal(trustworthy({ signal: null, status: 2 }, 100, 100, { update: false, mergeBaseBaseline: 100 }), null);
+});
