@@ -13,7 +13,7 @@ export interface Db {
   run(sql: string, ...args: unknown[]): { changes: number };
 }
 export interface EmitOpts { idempotencyKey?: string; vis?: string; cause?: string }
-export interface CallOpts { idempotencyKey?: string; traceId?: string }
+export interface CallOpts { idempotencyKey?: string; traceId?: string; /** run with the caller's own standing (host CallOpts.asCaller) */ asCaller?: boolean }
 export interface SchedCtx {
   space: string;
   principal: { kind: string; id: string };

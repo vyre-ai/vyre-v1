@@ -237,6 +237,8 @@ test("save: an Automation is saved with its definition and installs through auto
   assert.equal(input.description, "Sends the welcome.");
   assert.deepEqual(input.definition, AUTOMATION.definition);
   assert.equal(input.folderId, "fld_automations");
+  // a template's step is a capability someone chose when they saved it: it runs with the installer's own standing, never as the templates module's code
+  assert.deepEqual(h.callsTo("automations.create")[0]!.opts, { asCaller: true });
   const plain = await h.call("templates.install", { templateId: saved.template.templateId });
   assert.deepEqual(plain, { installed: [{ kind: "automation", id: "aut_new1" }] });
   assert.equal(h.callsTo("automations.create")[1]!.input.folderId, undefined);

@@ -85,7 +85,8 @@ export interface CapOpts {
   tool?: Toolset;                                  // MCP toolset; omitted = no MCP tool
   mcpName?: string;
   deferred?: boolean;
-  agent?: boolean | { planMode: 'allowed' | 'blocked'; blocks?: string[] };
+  /** only: the agent's tool offers only these values for these input fields (the capability itself takes more, from module code) */
+  agent?: boolean | { planMode: 'allowed' | 'blocked'; blocks?: string[]; only?: Record<string, readonly string[]> };
   http?: 'auto' | { method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; path: string };
   cli?: string;
   hook?: boolean;                                  // may be subscribed as an outbound webhook

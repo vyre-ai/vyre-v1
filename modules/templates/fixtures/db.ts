@@ -18,7 +18,7 @@ export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
 export interface Ev { name: string; subject: string; payload: Record<string, unknown>; id: string }
-export interface CallLog { cap: string; input: Record<string, any> }   // eslint-disable-line @typescript-eslint/no-explicit-any
+export interface CallLog { cap: string; input: Record<string, any>; opts?: Record<string, unknown> }   // eslint-disable-line @typescript-eslint/no-explicit-any
 export interface Caller { id: string; kind?: "person" | "agent" | "actor" | "service" }
 type Callee = (input: any) => unknown;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -69,8 +69,8 @@ export function harness(o: HarnessOptions = {}) {
         events.push({ name, subject: subj, payload: payload as Record<string, unknown>, id: mintId("evt", clock) });
         return {} as EventEnvelope<T>;
       },
-      async call(c, input) {
-        calls.push({ cap: c, input: input as CallLog["input"] });
+      async call(c, input, opts?: Record<string, unknown>) {
+        calls.push({ cap: c, input: input as CallLog["input"], ...(opts ? { opts } : {}) });
         const f = callees[c];
         if (!f) throw new Error(`unexpected call to ${c}`);
         return f(input);

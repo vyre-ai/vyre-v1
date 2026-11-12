@@ -64,7 +64,8 @@ async function callerName(ctx: NotifCtx): Promise<string> {
 }
 
 export async function sendOne(ctx: NotifCtx, input: SendIn, handed = false, redo = false, mail: MailState = { down: false }): Promise<{ outcome: Outcome; notificationId?: string; emailFailed?: true }> {
-  const system = isService(ctx) || (ctx.depth ?? 0) > 0 || SYSTEM_ORIGINS.has(ctx.origin ?? "");
+  // module code one level down, or a host job, files system kinds; a call another module only forwarded for someone (ctx.forwarded) is that someone's own send
+  const system = isService(ctx) || (ctx.forwarded !== true && ((ctx.depth ?? 0) > 0 || SYSTEM_ORIGINS.has(ctx.origin ?? "")));
   if (EMAIL_KINDS.has(input.kind) && !isService(ctx)) raise(ctx, "permission.no_grant", "Only Vyre itself sends notices about deleting the Space.", { reason: "system_kind", kind: input.kind });
   if (!system && !SENDABLE_KINDS.has(input.kind)) raise(ctx, "permission.no_grant", "That kind of notice is sent by Vyre itself, not by a person or an agent.", { reason: "system_kind", kind: input.kind });
   if (!system) {
