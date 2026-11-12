@@ -102,7 +102,7 @@ export async function interrupt(ctx: EngineCtx, input: { threadId: string; messa
     throw e;
   }
   const by = actorOf(ctx);
-  for (const c of r.cancelled) ctx.emit("turn.cancelled", input.threadId, { turnId: c.turnId, threadId: input.threadId, agentId: c.agentId, by });
+  for (const c of r.cancelled) ctx.emit("turn.cancelled", input.threadId, { turnId: c.turnId, threadId: input.threadId, agentId: c.agentId, by, pressed: true });
   const queue = engine.queue(input.threadId);
   for (const qseq of r.qseqs) {
     const row = queue.find((q) => q.qseq === qseq);
@@ -118,8 +118,8 @@ async function stopWith(ctx: EngineCtx, threadId: string, o: { agentId?: string;
   const engine = await open(ctx, threadId);
   const r = await engine.stop(threadId, { ...(o.agentId === undefined ? {} : { agentId: o.agentId }), clearQueue: o.all });
   const by = actorOf(ctx);
-  for (const c of r.stopped) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by });
-  for (const c of r.released) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by });
+  for (const c of r.stopped) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by, pressed: true });
+  for (const c of r.released) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by, pressed: true });
   return { stopped: r.stopped.length + r.released.length + r.dropped.length };
 }
 

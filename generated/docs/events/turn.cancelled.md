@@ -22,5 +22,7 @@ type Payload = {
   threadId: string;
   agentId: string;
   by: string;
+  reason?: string;
+  pressed?: boolean;
 };
 ```

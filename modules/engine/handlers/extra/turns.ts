@@ -286,7 +286,7 @@ export async function turnRecord(
   } else if (input.phase === "failed") {
     ctx.emit("turn.failed", threadId, { turnId: input.turnId, threadId, agentId, code: input.code ?? "unknown", message: error?.message ?? "The turn failed." });
   } else {
-    ctx.emit("turn.cancelled", threadId, { turnId: input.turnId, threadId, agentId, by: actorOf(ctx) });
+    ctx.emit("turn.cancelled", threadId, { turnId: input.turnId, threadId, agentId, by: actorOf(ctx), ...(typeof input.reason === "string" && input.reason !== "" ? { reason: input.reason } : {}) });
   }
   return { turn: turnOf(loadTurn(ctx, input.turnId)) };
 }

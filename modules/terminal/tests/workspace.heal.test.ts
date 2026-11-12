@@ -1300,7 +1300,7 @@ test("turn.cancelled interrupts the command that turn started (its agent and thr
   const mine = h["terminal.run"]!(agent, { command: "sleep 120", idempotencyKey: idem() });
   const theirs = h["terminal.run"]!(other, { command: "sleep 121", session: "other", idempotencyKey: idem() });
   await until(() => waits.size === 2, "both commands running");
-  const stop = consumers["terminal.turn_stopped"]!.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by: "usr_dana" } });
+  const stop = consumers["terminal.turn_stopped"]!.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by: "usr_dana", pressed: true } });
   assert.deepEqual(stop, ["1"], "one command interrupted");
   const r = await mine;
   assert.equal(r.exitCode, 130);
@@ -1358,7 +1358,8 @@ test("Stop: only a pressed Stop interrupts (never the host's turn.cancelled on a
   };
   bindHost(host as never);
   const stop = consumers["terminal.turn_stopped"]!;
-  const ev = (by: string, extra: Record<string, unknown> = {}) => ({ payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by, ...extra } });
+  // a person's press is marked pressed; the host's own end record is not (Y1: decided by these facts, not by who `by` names)
+  const ev = (by: string, extra: Record<string, unknown> = {}) => ({ payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by, ...(by.startsWith("usr_") ? { pressed: true } : {}), ...extra } });
   const running = h["terminal.run"]!(agent, { command: "sleep 120", idempotencyKey: idem() });
   await until(() => [...fh.calls].length >= 0 && true, "started");
   await new Promise((x) => setTimeout(x, 30));
@@ -1409,8 +1410,8 @@ test("X1: a cancel committed before a command was asked for (a late second event
   const next = h["terminal.run"]!(agent, { command: "sleep 60", idempotencyKey: idem() });
   await until(() => seen.includes("sleep 60"), "the next turn's command runs");
   const stop = consumers["terminal.turn_stopped"]!;
-  assert.deepEqual(stop.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_old", by: "usr_dana" }, at: cancelAt }), [], "the earlier turn's cancel, delivered late, interrupts nothing");
-  assert.deepEqual(stop.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_new", by: "usr_dana" }, at: hn.ctx.now() }), ["1"], "its own turn's cancel does");
+  assert.deepEqual(stop.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_old", by: "usr_dana", pressed: true }, at: cancelAt }), [], "the earlier turn's cancel, delivered late, interrupts nothing");
+  assert.deepEqual(stop.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_new", by: "usr_dana", pressed: true }, at: hn.ctx.now() }), ["1"], "its own turn's cancel does");
   assert.equal((await next).exitCode, 130);
 });
 
@@ -1423,7 +1424,7 @@ test("X3: a stopped turn's command waiting in its tab's queue leaves the queue a
   await until(() => seen.includes("sleep 60"), "the first runs");
   const queued = h["terminal.run"]!(agent, { command: "rm -rf build", idempotencyKey: idem() });
   await new Promise((x) => setTimeout(x, 30));
-  assert.deepEqual(consumers["terminal.turn_stopped"]!.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by: "usr_dana" }, at: hn.ctx.now() }), ["2"], "both: the running one and the queued one");
+  assert.deepEqual(consumers["terminal.turn_stopped"]!.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by: "usr_dana", pressed: true }, at: hn.ctx.now() }), ["2"], "both: the running one and the queued one");
   await first;
   await queued.catch(() => undefined);
   await new Promise((x) => setTimeout(x, 30));
@@ -1442,6 +1443,29 @@ test("a clean daemon stop or an update (turn.cancelled with reason closing) inte
   void build.then(() => { done = true; });
   await new Promise((x) => setTimeout(x, 30));
   assert.equal(done, false, "the build keeps running");
-  consumers["terminal.turn_stopped"]!.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by: "usr_dana" }, at: hn.ctx.now() });
+  consumers["terminal.turn_stopped"]!.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by: "usr_dana", pressed: true }, at: hn.ctx.now() });
   await build;
+});
+
+test("Y1: a turn's end record runs as its asker, so `by` decides nothing: closing or no reason interrupts nothing; a stop reason does; a press marked pressed does, even as the host", async () => {
+  const { consumers } = await import("../impl.ts");
+  const { agent, hn } = setup();
+  const seen: string[] = [];
+  bindHost(stoppableHost(seen) as never);
+  const stop = consumers["terminal.turn_stopped"]!;
+  const run = (cmd: string) => h["terminal.run"]!(agent, { command: cmd, idempotencyKey: idem() });
+  const at = () => hn.ctx.now();
+  const one = run("make build");
+  await until(() => seen.includes("make build"), "running");
+  // the turn's end record as engine.turn.record writes it: by the asker (a person), with the engine's reason
+  assert.deepEqual(stop.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by: "usr_dana", reason: "closing" }, at: at() }), [], "a daemon stop or update: nothing");
+  assert.deepEqual(stop.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by: "usr_dana", reason: "lease" }, at: at() }), [], "a lost host: nothing");
+  assert.deepEqual(stop.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by: "usr_dana" }, at: at() }), [], "no reason and no press: nothing");
+  assert.deepEqual(stop.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by: "usr_dana", reason: "stop" }, at: at() }), ["1"], "a stop reason on the end record interrupts");
+  await one;
+  // an agent paused, removed or leaving: written as the host, marked pressed
+  const two = run("make test");
+  await until(() => seen.includes("make test"), "running");
+  assert.deepEqual(stop.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_2", by: "svc_host", pressed: true }, at: at() }), ["1"], "a departure, as the host, interrupts");
+  await two;
 });

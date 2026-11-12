@@ -27,6 +27,9 @@ export function filesChangeOf(p: Record<string, unknown>): { folderIds: string[]
 import { STOPPED_LINE } from "./stop-line.ts";
 export { STOPPED_LINE };
 
+/** The reasons a turn's end record carries when work was stopped on purpose: these interrupt the turn's terminal command (closing, lease and anything else never do). */
+const STOP_REASONS = new Set(["stop", "interrupt", "limit", "left", "moved", "run_stopped", "task_cancelled"]);
+
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 export { fetchesOutside, isDangerCall, outwardOf } from "./handlers/index.ts";
 export { mayEnterWorkspace } from "./handlers/sessions.ts";
@@ -816,12 +819,11 @@ export const consumers = {
     run: (_ctx: TermCtx, event: { payload: Record<string, unknown>; at?: number }): string[] => {
       const p = event.payload ?? {};
       const str = (k: string): string | undefined => (typeof p[k] === "string" ? (p[k] as string) : undefined);
-      // a clean daemon stop or an update puts its turns back in the queue and says so with reason "closing" (agent/src/turn-engine/engine.ts:805): what they were running outlives the daemon
-      if (str("reason") === "closing") return [];
-      // only a Stop someone pressed (a person, or an agent stopping its helpers). The same event is written by the host when a daemon stops or updates, when a turn's end is recorded, and when
-      // recovery closes a "stopping" turn after a restart: a workspace outlives the daemon, so those never interrupt what runs in it (lead, 12 Nov). A run with no mark here (it ended, or this
-      // process started after it) is left alone; a second event for the same run finds it already stopped.
-      if (!/^(usr|agt)_/.test(str("by") ?? "")) return [];
+      // Only a Stop: an event written at the press (Stop, Interrupt, an agent paused, removed or leaving: pressed true), or a turn's end record whose reason is one that stops work. A daemon
+      // stopping or updating (reason closing), a lost host (lease), a recovered turn, or an event with neither: nothing is interrupted (eighth look Y1). Decided by these facts, never by who
+      // `by` names (a turn's end record runs as its asker). A run with no mark here (it ended, or this process started after it) is left alone; a second event finds it already stopped.
+      const pressed = p["pressed"] === true;
+      if (!pressed && !STOP_REASONS.has(str("reason") ?? "")) return [];
       // the cancel's commit time: a command asked for after it belongs to a later turn (seventh look X1)
       const n = stopRuns({ ...(str("agentId") ? { agentId: str("agentId") as string } : {}), ...(str("threadId") ? { threadId: str("threadId") as string } : {}), ...(str("runId") ? { runId: str("runId") as string } : {}), ...(typeof event.at === "number" ? { at: event.at } : {}) });
       return n > 0 ? [String(n)] : [];

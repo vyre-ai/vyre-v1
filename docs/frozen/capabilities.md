@@ -58,3 +58,7 @@ Signed: lead, 12 Nov 2026 (all of the above: slots, browser_full, reopened and n
 Added on the reviewer's seventh look and signed below: `computers.browser.take_over@1` gains an optional output `note`, one line for the pane when the browser was reopened since the person last saw it and its page was reloaded; and acts on the page (`click`, `act`, `type`, `fill`, `send`, `api`, `eval`) may now be refused with the reason `browser_reopened` until the agent has seen the reloaded page.
 
 Signed: lead, 12 Nov 2026 (the optional note on computers.browser.take_over, and the browser_reopened refusal on acts)
+
+12 Nov 2026, lane f-term (eighth look Y1): `engine.turn.record@1` gains an optional input `reason`, why a cancelled turn was stopped, as the turn engine says it (stop, interrupt, limit, left, moved; closing when a daemon stops or updates and the turn is run again after the restart; lease when its host was lost); `modules/engine/runtime.ts` report() passes it. The event `turn.cancelled` gains two optional fields: `reason` (on the turn's end record, the same value) and `pressed` (true when written at the press: Stop, Interrupt, a released parked turn, an agent paused, removed or leaving). The terminal module interrupts a turn's running command only for `pressed`, or for a stop reason on the end record; never for closing or lease, and never for an event with neither. Optional additions only: older readers and writers are unchanged.
+
+Signed: lead, 12 Nov 2026 (the optional reason on engine.turn.record and on turn.cancelled, and pressed on turn.cancelled)

@@ -248,6 +248,8 @@ export default defineManifest({
       in: {
         ...threadT, turnId: id.turn, agentId: id.agent, phase: t.enm('started', 'waiting', 'completed', 'failed', 'cancelled'), qseq: t.int(), asker: t.opt(t.str()), engine: t.opt(t.str()), model: t.opt(t.str()), accountRef: t.opt(accountRef),
         tokensIn: t.opt(t.int()), tokensOut: t.opt(t.int()), costMicros: t.opt(t.int()), code: t.opt(t.str()), message: t.opt(t.str()),
+        // a cancelled turn: why the engine stopped it (stop, interrupt, limit, left, moved; closing when a daemon stops or updates; lease when its host was lost)
+        reason: t.opt(t.str()),
         info: t.opt(turnInfoIn),
       },
       out: { turn: turnRow }, emits: ['turn.started', 'turn.completed', 'turn.failed', 'turn.cancelled', 'agent.task_finished'], idem: 'natural', risk: 'low',
@@ -565,7 +567,8 @@ export default defineManifest({
       p: { turnId: id.turn, threadId: id.thread, agentId: id.agent, code: t.str(), message: t.str() }, subject: ['thread', '/threadId'], vis: 'participants',
     }),
     ev('turn.cancelled', 'A turn was cancelled by Stop or Interrupt', {
-      p: { turnId: id.turn, threadId: id.thread, agentId: id.agent, by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants',
+      // pressed: written when Stop, Interrupt or an agent leaving is pressed, while the turn may still be running; reason: on the turn's end record, why the engine stopped it
+      p: { turnId: id.turn, threadId: id.thread, agentId: id.agent, by: t.str(), reason: t.opt(t.str()), pressed: t.opt(t.bool()) }, subject: ['thread', '/threadId'], vis: 'participants',
     }),
     ev('turn.engine_switched', 'The engine of a chat changed (the quiet line in the thread)', {
       p: { threadId: id.thread, agentId: id.agent, from: t.str(), to: t.str(), handoffTurns: t.int(), by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants',

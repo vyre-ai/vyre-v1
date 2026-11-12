@@ -4360,6 +4360,7 @@ if ("tokensOut" in o2902) lf(o2902["tokensOut"], p + "/tokensOut", e, L2);
 if ("costMicros" in o2902) lf(o2902["costMicros"], p + "/costMicros", e, L2);
 if ("code" in o2902) lf(o2902["code"], p + "/code", e, L1);
 if ("message" in o2902) lf(o2902["message"], p + "/message", e, L1);
+if ("reason" in o2902) lf(o2902["reason"], p + "/reason", e, L1);
 if ("info" in o2902) {
 {
 const x2903 = o2902["info"];
@@ -5298,6 +5299,8 @@ if ("turnId" in o7351) lf(o7351["turnId"], p + "/turnId", e, L271);
 if ("threadId" in o7351) lf(o7351["threadId"], p + "/threadId", e, L13);
 if ("agentId" in o7351) lf(o7351["agentId"], p + "/agentId", e, L10);
 if ("by" in o7351) lf(o7351["by"], p + "/by", e, L1);
+if ("reason" in o7351) lf(o7351["reason"], p + "/reason", e, L1);
+if ("pressed" in o7351) lf(o7351["pressed"], p + "/pressed", e, L3);
 }
 }
 }
