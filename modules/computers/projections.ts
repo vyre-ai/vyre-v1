@@ -342,24 +342,27 @@ const REAL_SCRUB: ScrubKit = { createScrubber };
 let scrubKit: ScrubKit = REAL_SCRUB;
 export function bindKit(k: ScrubKit | null): void { scrubKit = k ?? REAL_SCRUB; }
 const secretsByComputer = new Map<string, Secret[]>();
-/** How many times a value was handed to each computer or profile: a call that sees it grow filled something (a tool, or Vyre for Chrome on its own while the call ran). */
-const givenTimes = new Map<string, number>();
+/** Every value the Vault channel handed to each computer or profile, in order: a call reads which were handed out while it ran (a value it typed itself, or one Vyre for Chrome filled on its own). */
+const handedOut = new Map<string, string[]>();
 /**
  * The tabs of each computer or profile that a Vault value was filled into (review 12 Nov, finding 2). No picture of such a tab is kept or handed out while it is open: a text field shows what it holds,
  * a picture cannot be scrubbed, and going back in the tab's history can bring the filled page back, so navigating away does not end it; closing the tab does. "*" is a fill whose tab could not be told:
  * then no tab of it is pictured until the browser forgets it.
  */
 const filledTabs = new Map<string, Set<string>>();
-export function rememberSecrets(computerId: string, secrets: readonly Secret[]): void {
+/** `handedOut`: the Vault channel handed these out (the fill service). A tool's own report of what it typed (`used`) is the same values again and is not a hand-out. */
+export function rememberSecrets(computerId: string, secrets: readonly Secret[], o: { handedOut?: boolean } = {}): void {
   const keep = secrets.filter((x) => x.value.length >= MIN_SECRET_LENGTH);
   if (keep.length === 0) return;
   const cur = secretsByComputer.get(computerId) ?? [];
   for (const x of keep) if (!cur.some((c) => c.handle === x.handle && c.value === x.value)) cur.push(x);
   secretsByComputer.set(computerId, cur);
-  givenTimes.set(computerId, (givenTimes.get(computerId) ?? 0) + 1);
+  if (o.handedOut !== false) { const h = handedOut.get(computerId) ?? []; h.push(...keep.map((x) => x.value)); handedOut.set(computerId, h); }
 }
-export function forgetSecrets(computerId: string): void { secretsByComputer.delete(computerId); givenTimes.delete(computerId); filledTabs.delete(computerId); }
-export const givenCount = (computerId: string): number => givenTimes.get(computerId) ?? 0;
+export function forgetSecrets(computerId: string): void { secretsByComputer.delete(computerId); handedOut.delete(computerId); filledTabs.delete(computerId); }
+/** A mark of where the hand-outs of a computer stand now: what came after it is what a call was given while it ran. */
+export const givenCount = (computerId: string): number => handedOut.get(computerId)?.length ?? 0;
+export const handedSince = (computerId: string, mark: number): readonly string[] => (handedOut.get(computerId) ?? []).slice(mark);
 export function markFilledTab(computerId: string, tabId: string): void { const s = filledTabs.get(computerId) ?? new Set<string>(); s.add(tabId); filledTabs.set(computerId, s); }
 export const filledTabsOf = (computerId: string): ReadonlySet<string> => filledTabs.get(computerId) ?? new Set<string>();
 /**

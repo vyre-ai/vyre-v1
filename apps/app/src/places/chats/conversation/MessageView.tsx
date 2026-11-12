@@ -743,6 +743,10 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
   if (line.type === "screenshot" && line.data.live === true && typeof line.data.computerId === "string" && typeof line.data.fileId === "string" && actions.liveCard) {
     return <LiveCard id={line.id} computerId={line.data.computerId} fileId={line.data.fileId} caption={line.title} cfg={actions.liveCard} />;
   }
+  // the same card for an agent's steps in its Space browser profile: keyed by the agent, with the caption as it comes (it may say why a picture was withheld)
+  if (line.type === "browser_screenshot" && typeof line.data.agentId === "string" && typeof line.data.fileId === "string" && actions.liveCard) {
+    return <LiveCard id={line.id} agentId={line.data.agentId} fileId={line.data.fileId} caption={typeof line.data.caption === "string" && line.data.caption !== "" ? line.data.caption : line.title} cfg={actions.liveCard} />;
+  }
   const head = (
     <>
       <Glyph name={icon} size={15} color={waiting ? "var(--accent)" : "var(--ink-3)"} />

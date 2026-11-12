@@ -7,3 +7,7 @@
 - Turning off "let the Space use my subscription" now stops your idle sessions on the server right away.
 - Settings, Notifications no longer shows switches for kinds Vyre does not send yet (Something is down, Incidents you own, Problem reports, Edits that conflict, A device needs attention, Mentions in a reply); they come back when something sends them.
 - When an AI engine says nothing at all, the chat now always says "Your AI didn't answer in time"; on a busy computer it could say "The engine stopped answering" instead.
+- Admins are told when something is down (a health check, a backup, an update or a certificate) and when a connection, connected folder, source or sync needs a person; an AI incident reaches its owner at once; a failed import or site build tells the person who started it. Settings shows these switches again.
+- An agent's work in its Space browser now shows in the chat as the same live card as its computer (the live page while it works, the picture once done), and the Computer tab's Browser section lists its steps; picking one shows its picture.
+- A runbook set to run on an agent's computer now runs there; it was always refused because the agent was not named. When no computer can run it, the line says so instead of asking for a Team Space.
+- A provider that opens a reply and then says nothing now ends with "Your AI didn't answer in time" at the first-token deadline, instead of "The provider stopped answering" and a retry.

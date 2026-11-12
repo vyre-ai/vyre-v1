@@ -22,10 +22,13 @@ export interface ComputersFillHostDeps {
   nodeSecure?(nodeId: string): boolean;
   log(use: FillUseRecord): void;
   now?: () => number;
+  /** Wraps the Vault lookup (the team-agent rule, team-vault.ts). Omitted: as it is. */
+  gate?<S extends { lookup: ReturnType<typeof createEngineSessionHost>["source"]["lookup"] }>(source: S): S;
 }
 
 export function createComputersFillHost(d: ComputersFillHostDeps) {
-  const session = createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space });
+  const made = createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space });
+  const session = { source: d.gate ? d.gate(made.source) : made.source };
   return {
     // The extension in a Space browser profile asks which Vault items fit a page and for a handle to one, as the agent the profile belongs to, for the person who asked (the module allows only those two capabilities)
     source: {
