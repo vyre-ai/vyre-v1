@@ -3,6 +3,7 @@
 // Now: the first start names the file and the restore command in one line and exits 3; the next start checks that one file once and HOLDS: it stays up, opens nothing else, writes
 // nothing, and answers every request (/healthz included) 503 with the line, so an update rolls back, doctor says why, and the restart policy has nothing to loop on. A restored good file
 // lets the next start go on as usual. Nothing is repaired (logs.db alone is set aside and made anew, by openLogSink).
+// One database per file (this one: modules.db; daemon.damaged-events.test.ts: events.db), so each file stays well under the fast runner's 30 s cap.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -51,15 +52,14 @@ function damage(file: string): void {
 const contents = (dir: string): string => fs.readdirSync(dir).filter((n) => /\.db$/.test(n)).sort().map((n) => `${n}:${createHash("sha256").update(fs.readFileSync(path.join(dir, n))).digest("hex")}`).join("\n");
 const fingerprint = (dir: string): string => fs.readdirSync(dir).filter((n) => /\.db(-wal|-shm)?$/.test(n)).sort().map((n) => { const f = path.join(dir, n); return `${n}:${fs.statSync(f).mtimeMs}:${createHash("sha256").update(fs.readFileSync(f)).digest("hex")}`; }).join("\n");
 
-for (const name of ["modules.db", "events.db"]) {
-  test(`a damaged ${name}: the first start names it and exits 3, the next one holds (up, 503 with the line, writing nothing), and a restored file starts as usual`, { timeout: 180_000 }, async () => {
+for (const name of ["modules.db"]) {
+  test(`a damaged ${name}: the first start names it and exits 3, the next one holds (up, 503 with the line, writing nothing) (a restored file: daemon.damaged-restore.test.ts)`, { timeout: 180_000 }, async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-damaged-"));
     const port = await freePort();
     try {
       const first = start(dir, port, true);
       await first.code;
       assert.match(first.out(), /listening on/, `the first start makes the Space: ${first.err()}`);
-      const good = fs.readFileSync(path.join(dir, name));
       damage(path.join(dir, name));
       // the start that meets it: one line, exit 3
       const fail = start(dir, port);
@@ -84,18 +84,12 @@ for (const name of ["modules.db", "events.db"]) {
       assert.equal(other.status, 503, "every request");
       // after its one check of the damaged file it touches nothing: not a byte, not a timestamp
       const before = fingerprint(dir);
-      await new Promise((r) => setTimeout(r, 3000));
+      await new Promise((r) => setTimeout(r, 1500));
       assert.equal(fingerprint(dir), before, "nothing in the data folder was touched while it held");
       assert.equal(contents(dir), unchanged, "no database changed, from the start of the hold on");
       assert.equal(held.err().trim().split("\n").length, 1, `one line while it holds: ${held.err()}`);
       held.kill("SIGTERM");
       assert.equal(await held.code, 0, "it stops on SIGTERM");
-      // a restore puts the good file back: the next start goes on as usual and the marker is gone
-      fs.writeFileSync(path.join(dir, name), good);
-      const again = start(dir, port, true);
-      await again.code;
-      assert.match(again.out(), /listening on/, again.err());
-      assert.equal(fs.existsSync(holdMarker(dir)), false);
     } finally { fs.rmSync(holdMarker(dir), { force: true }); fs.rmSync(dir, { recursive: true, force: true }); }
   });
 }
