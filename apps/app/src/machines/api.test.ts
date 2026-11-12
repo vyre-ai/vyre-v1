@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fixMachine, loadMachine, loadMachines, pinMachine, setMachine, toAlert, toRow } from "./api.ts";
+import { browserSlotsLine } from "./model.ts";
 
 const GB = 1e9;
 const listRow = (o: Record<string, unknown> = {}) => ({
@@ -72,4 +73,20 @@ test("the confirm of Stop idle sessions says how many will stop, and whose", asy
   assert.equal(stopLine(0, true), "No idle engine sessions are open.");
   assert.match(stopLine(7, true), /^This stops 7 idle engine sessions on the Space server, whoever they belong to\./);
   assert.match(stopLine(1, false), /^This stops 1 idle engine session of yours on this computer\./);
+});
+
+test("the Space browser's slots ride with the list, and say one quiet line (lane f-sbrowser, 12 Nov); none without a Space browser", async () => {
+  const base = async (cap: string): Promise<unknown> => {
+    if (cap === "machines.list") return { machines: [listRow()] };
+    if (cap === "machines.alerts") return { alerts: [] };
+    if (cap === "network.servers") return { servers: [] };
+    throw new Error(cap);
+  };
+  const out = await loadMachines(async (cap) => (cap === "computers.browser.profiles" ? { profiles: [], maxRunning: 24, slots: { running: 24, limit: 24, waiting: 3 } } : base(cap)));
+  assert.deepEqual(out.browserSlots, { running: 24, limit: 24, waiting: 3 });
+  assert.equal(browserSlotsLine(out.browserSlots), "Agent browsers: 24 of 24 in use, 3 waiting.");
+  assert.equal(browserSlotsLine({ running: 7, limit: 24, waiting: 0 }), "Agent browsers: 7 of 24 in use.");
+  const none = await loadMachines(async (cap) => (cap === "computers.browser.profiles" ? { profiles: [], maxRunning: 0 } : base(cap)));
+  assert.equal(none.browserSlots, undefined);
+  assert.equal(browserSlotsLine(none.browserSlots), null, "no Space browser: nothing is said");
 });

@@ -20,7 +20,7 @@ import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
 import { checkGroupAccount } from "./group-account.ts";
 import { closeNoAccountTasks, engineHost, ensureRuntime, openAs, recoverStale, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
 import { onTaskEvent, sweepBaton } from "./handlers/task-baton.ts";
-import { onRoutineRun } from "./handlers/routine-run.ts";
+import { onRoutineRun, onRoutineRunStopped } from "./handlers/routine-run.ts";
 import type { RoutineRunEvent } from "./handlers/routine-run.ts";
 import { onGoalEvent } from "./handlers/goal-wake.ts";
 import { markLostJobs, ownerChanged, resumeAgent, stopAgent, stopPerson } from "./handlers/departures.ts";
@@ -102,6 +102,15 @@ export const consumers = keptWhileStopping({
       if (event.name === "agent.deleted") return stopAgent(ctx, engine, id, "stopped");
       if (event.name === "agent.paused") return stopAgent(ctx, engine, id, "paused");
       return resumeAgent(ctx, engine, id, async (threadId, asker) => { await openAs(ctx, threadId, asker); });
+    },
+  },
+  /** A routine's Run was stopped: the turn it woke stops too, durably (handlers/routine-run.ts onRoutineRunStopped). */
+  "engine.run_stopped": {
+    on: ["run.stopped"],
+    run: async (ctx: EngineCtx, event: { payload: { runId: string } }): Promise<string[]> => {
+      const engine = await ensureRuntime(ctx);
+      if (!engine) return [];
+      return onRoutineRunStopped(ctx, engine, async (threadId, person) => { await openAs(ctx, threadId, person); }, event.payload.runId);
     },
   },
   /** A machine was drained, its limits changed, or it ran out of room or has room again: where a chat runs may differ now, so the per-chat placement words are read again (placement-cache.ts). */

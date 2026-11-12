@@ -38,15 +38,20 @@ test("one Next line under the title: today and tomorrow in lower case, paused an
 });
 
 test("who set a routine: the one credit resolver for every set by, created by and made by line", () => {
-  const names: Record<string, string> = { usr_irfad: "Irfad Imtiaz", usr_maya: "Maya Chen", agt_asst: "Assistant", agt_intake: "Intake" };
+  // invented people; the reader's own directory names their own Assistant "Assistant", and someone else's by its person (the server's one name, lib/words/agent-name)
+  const names: Record<string, string> = { usr_noor: "Noor Haddad", usr_maya: "Maya Chen", agt_asst: "Assistant", agt_intake: "Intake", agt_cli: "Ruby (Codex)" };
   const nameOf = (id: string): string => names[id] ?? "Someone";
-  const ownerOf = (id: string): string | undefined => (id === "agt_asst" ? "usr_irfad" : undefined);
+  const ownerOf = (id: string): string | undefined => (id === "agt_asst" || id === "agt_cli" ? "usr_noor" : undefined);
   const asst = { kind: "agent", id: "agt_asst" };
-  assert.equal(creditLine(asst, { me: "usr_irfad", nameOf, ownerOf, for: "usr_irfad" }), "You, through Assistant", "to its owner");
-  assert.equal(creditLine(asst, { me: "usr_maya", nameOf, ownerOf, for: "usr_irfad" }), "Irfad Imtiaz (Agent)", "to anyone else");
-  assert.equal(creditLine(asst, { me: "usr_maya", nameOf, ownerOf }), "Irfad Imtiaz (Agent)", "the agent's person from the directory when the line does not say");
-  assert.equal(creditLine({ kind: "person", id: "usr_irfad" }, { me: "usr_irfad", nameOf }), "You");
-  assert.equal(creditLine({ kind: "person", id: "usr_irfad" }, { me: "usr_maya", nameOf }), "Irfad Imtiaz");
+  assert.equal(creditLine(asst, { me: "usr_noor", nameOf, ownerOf, for: "usr_noor" }), "You, through Assistant", "to its owner");
+  assert.equal(creditLine(asst, { me: "usr_maya", nameOf, ownerOf, for: "usr_noor" }), "Noor Haddad (Agent)", "an agent of Noor's the directory names as itself is credited to Noor");
+  assert.equal(creditLine(asst, { me: "usr_maya", nameOf, ownerOf }), "Noor Haddad (Agent)", "the agent's person from the directory when the line does not say");
+  // as Maya's directory really names Noor's Assistant: by its one name, never "Noor Haddad (Agent)" (lead, 12 Nov)
+  const mayas = (id: string): string => (id === "agt_asst" ? "Noor’s Assistant" : nameOf(id));
+  assert.equal(creditLine(asst, { me: "usr_maya", nameOf: mayas, ownerOf, for: "usr_noor" }), "Noor’s Assistant");
+  assert.equal(creditLine({ kind: "agent", id: "agt_cli" }, { me: "usr_maya", nameOf: (id) => (id === "agt_cli" ? "Noor Haddad (Agent)" : nameOf(id)), ownerOf }), "Noor Haddad (Agent)", "an outside agent keeps its person's credit");
+  assert.equal(creditLine({ kind: "person", id: "usr_noor" }, { me: "usr_noor", nameOf }), "You");
+  assert.equal(creditLine({ kind: "person", id: "usr_noor" }, { me: "usr_maya", nameOf }), "Noor Haddad");
   assert.equal(creditLine({ kind: "agent", id: "agt_intake" }, { me: "usr_maya", nameOf, ownerOf }), "Intake", "a shared agent goes by its name");
 });
 

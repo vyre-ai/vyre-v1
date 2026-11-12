@@ -47,3 +47,14 @@ test("the Console is found by an owner and opens the Console; a member, who has 
   assert.equal(cardMember.data.local("console", null).some((h) => h.title === "Console"), false, "a member's card has no Console: not offered");
   assert.ok(shellHits({}).every((h) => !/\bid\b|shell:/i.test(`${h.title} ${h.snippet ?? ""}`)), "no result reads like an id");
 });
+
+test("Settings entries come from the Settings model's own page list, and rows inside Settings are found by name (review O6)", async () => {
+  const { PAGES } = await import("../../places/settings/model.ts");
+  const titles = shellHits({}).filter((h) => h.kind === "setting").map((h) => h.title);
+  for (const p of PAGES.filter((x) => x.group === "you" && x.hidden !== true)) assert.ok(titles.includes(p.title), `${p.title} is offered`);
+  const { data, went } = search();
+  const pass = data.local("passkeys", null)[0];
+  assert.equal(pass?.title, "Passkeys", "a row inside Settings is found by its name");
+  data.open(pass!, { newTab: false });
+  assert.deepEqual(went, [{ place: "settings", hash: "page=signin" }]);
+});

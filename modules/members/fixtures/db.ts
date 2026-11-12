@@ -19,6 +19,8 @@ export const MIGRATION = fileURLToPath(new URL("../migrations/0001_members.sql",
 export const JOIN_LINK_MIGRATION = fileURLToPath(new URL("../migrations/0004_join_link.sql", import.meta.url));
 /** The table a guest invited from a chat is scoped by (lane l-addsheet). */
 export const GUEST_MIGRATION = fileURLToPath(new URL("../migrations/0003_guest_scope.sql", import.meta.url));
+/** The earlier codes of an invite, kept when a replayed create hands out a fresh one. */
+export const INVITE_CODES_MIGRATION = fileURLToPath(new URL("../migrations/0005_invite_codes.sql", import.meta.url));
 
 type Cell = string | number | null;
 export type Row = Record<string, Cell>;
@@ -177,7 +179,7 @@ export class FakeMembersDb implements RawDb {
   readonly log: string[] = [];
 
   constructor(migrationPath: string = MIGRATION) {
-    this.tables = parseMigration(readFileSync(migrationPath, "utf8") + (migrationPath === MIGRATION ? "\n" + readFileSync(GUEST_MIGRATION, "utf8") + "\n" + readFileSync(JOIN_LINK_MIGRATION, "utf8") : ""));
+    this.tables = parseMigration(readFileSync(migrationPath, "utf8") + (migrationPath === MIGRATION ? "\n" + readFileSync(GUEST_MIGRATION, "utf8") + "\n" + readFileSync(JOIN_LINK_MIGRATION, "utf8") + "\n" + readFileSync(INVITE_CODES_MIGRATION, "utf8") : ""));
   }
 
   rows(table: string): Row[] { return this.table(table).rows.map((r) => ({ ...r })); }

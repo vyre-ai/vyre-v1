@@ -68,7 +68,7 @@ export async function bootWalk(t: { test: (name: string, fn: () => Promise<void>
     p.on("response", (r) => { const u = new URL(r.url()); if (u.pathname.startsWith("/v1/") && r.status() >= 400) void r.text().then((b) => notes.push(`${who} ${r.status()} ${u.pathname} ${b.slice(0, 160)}`)).catch(() => undefined); });
   };
   watch(page, "owner");
-  let n = 0;
+  let n = 0, joins = 0;
   const w: Walk = {
     web, daemon, browser, context, page, dir, token: "", failures, notes,
     async api(cap, data = {}, as) {
@@ -114,12 +114,13 @@ export async function bootWalk(t: { test: (name: string, fn: () => Promise<void>
     },
     async join(first, last, username, role = "Member") {
       const roles = (await w.api("access.roles.list")).data.roles as { id: string; name: string }[];
-      const inv = (await w.api("members.invites.create", { role: roles.find((r) => r.name === role)!.id, idempotencyKey: `inv-${username}` })).data;
+      // a key of its own for every join: one key used twice in a walk is a replay, and a replay of a used invite answers the first link, whose code is spent ("This invite did not open")
+      const inv = (await w.api("members.invites.create", { role: roles.find((r) => r.name === role)!.id, idempotencyKey: `inv-${username}-${++joins}` })).data;
       const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
       const jp = await ctx.newPage(); watch(jp, username);
       const link = new URL(inv.link as string);
       await jp.goto(web.origin + link.pathname + link.hash);
-      await jp.getByTestId("step-accept").waitFor({ timeout: 20_000 });
+      await jp.getByTestId("step-accept").waitFor({ timeout: 20_000 }).catch(async (e: unknown) => { console.log(`JOIN PAGE (${username}): ${(await jp.locator("body").innerText().catch(() => "")).slice(0, 300)} LINK ${String(inv.link).replace(/[A-Za-z0-9_-]{12,}/g, (x: string) => `${x.slice(0, 3)}…(${x.length})`)} OPENED ${jp.url().replace(/[A-Za-z0-9_-]{12,}/g, (x: string) => `${x.slice(0, 3)}…(${x.length})`)}`); throw e; });
       await jp.getByTestId("web").click(); await jp.getByTestId("first").fill(first); await jp.getByTestId("last").fill(last); await jp.getByTestId("next").click();
       await jp.getByTestId("username").fill(username); await jp.getByTestId("password").fill(PASSWORD); await jp.getByTestId("confirm").fill(PASSWORD); await jp.getByTestId("next").click();
       await jp.getByTestId("device").fill(`${first}'s browser`); await jp.getByTestId("next").click();

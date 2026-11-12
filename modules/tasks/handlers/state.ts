@@ -1,7 +1,7 @@
 // Tasks state machine and the capabilities that change or read a task (ARCH 4.7, spec 2.8, 4.1, 4.2).
 // `tasks.transition` is the only writer of the status field; `tasks.act` (handlers/act.ts) and the Gate reach the same applyMove. The table of 4.7 lives in planMove.
 // Group and role slots: the pipeline authorizes the call at level use on the task, so holders pass; the first Take locks the task to one person (tasks.take).
-import { isSystemCall, isTrustedService } from "../../../lib/trust.ts";
+import { isOwnPress, isSystemCall, isTrustedService } from "../../../lib/trust.ts";
 import {
   actionableByMe, allTasks, clean, emitTask, ensurePrefix, findTask, getTask, historyOf, holds, isOpen, isRequest, listTasks, myWork, needsYou, newTaskId, openIndex,
   out, outFor, page, raise, readPolicy, sameAssignee, touch, visibleTo, whoIs,
@@ -96,7 +96,9 @@ export function checkMove(ctx: TasksCtx, t: Task, to: TaskState, o: { note?: str
   const plan = planMove(t, to);
   if (!plan.ok) raise(ctx, "validation.precondition_failed", plan.why, { reason: "illegal_transition", from: t.state, to });
   const move = plan.move;
-  if (!mayAct(t, move, who)) raise(ctx, "validation.precondition_failed", ctx.principal.kind === "agent" ? "This step belongs to someone else. An agent can do it only for the person it is assigned to, when that person is the one asking." : "Only the person this step belongs to can do that.", { reason: "wrong_actor", action: move.action });
+  // a task an agent holds that waits for a person's yes (nobody asked for it: an Automation's step) is started by a person who may change it, and that person becomes the one it acts for
+  const startsWaiting = move.action === "start" && t.workingNotes[BATON_WAITING] !== undefined && ctx.principal.kind === "person" && mayEdit(ctx, t);
+  if (!startsWaiting && !mayAct(t, move, who)) raise(ctx, "validation.precondition_failed", ctx.principal.kind === "agent" ? "This step belongs to someone else. An agent can do it only for the person it is assigned to, when that person is the one asking." : "Only the person this step belongs to can do that.", { reason: "wrong_actor", action: move.action });
   const note = o.note?.trim();
   if (move.noteRequired && !note) raise(ctx, "validation.precondition_failed", "Add a note so the sender knows what to change.", { reason: "note_required", action: move.action });
   const judging = move.action === "approve_review" || move.action === "approve" || move.action === "send_back" || move.action === "reject";
@@ -124,6 +126,7 @@ export function commitMove(ctx: TasksCtx, t: Task, to: TaskState, c: Checked): A
   if (move.action === "send_back") t.reviewLoops += 1;
   if (move.action === "reopen") { t.reviewLoops = 0; delete t.takenBy; delete t.takenAt; delete t.handledBy; delete t.handledAt; }
   // a group or role task started or handed in by one of its members is theirs, as a Take would make it: the others see who has it
+  if (move.action === "start") stampStarter(ctx, t);
   let took = false;
   if (t.kind === "work" && (move.action === "start" || move.action === "submit") && (t.assigned.kind === "group" || t.assigned.kind === "role") && t.takenBy === undefined && !isTrustedService(whoIs(ctx))) {
     t.takenBy = ctx.actingFor ?? ctx.principal.id; t.takenAt = ctx.now(); took = true;
@@ -283,9 +286,11 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.notes && typeof input.notes === "object") {
     // notes the task starts with: a brief, a checklist, a schema. The two reserved keys belong to a held act and are never taken from here.
     const notes: Record<string, string> = {};
-    for (const [k, v] of Object.entries(input.notes as Record<string, unknown>).slice(0, MAX_START_NOTES)) if (!(k in RESERVED_NOTES) && !k.startsWith("gate.") && typeof v === "string") notes[k] = v.slice(0, MAX_NOTE_CHARS);
+    for (const [k, v] of Object.entries(input.notes as Record<string, unknown>).slice(0, MAX_START_NOTES)) if (!(k in RESERVED_NOTES) && !k.startsWith("gate.") && typeof v === "string" && (k !== BATON_OWNER || mayNameBatonOwner(ctx, v)) && (k !== BATON_WAITING || isTrustedService(ctx.principal)) && k !== BATON_ACTING_FOR && (!k.startsWith(AUTOMATION_NOTES) || ctx.principal.kind === "service")) notes[k] = v.slice(0, MAX_NOTE_CHARS);
     t.workingNotes = notes;
   }
+  // an agent's task records the person the agent was acting for when it made it, from the session and never from the input: the turns this task wakes act for that person (lead 12 Nov)
+  if (ctx.principal.kind === "agent" && isPersonId(ctx.actingFor)) t.workingNotes = { ...t.workingNotes, [BATON_ACTING_FOR]: ctx.actingFor };
   // a request that came from a chat lives in that chat: its feed is the conversation that asked, never a second thread beside it
   if (isRequest(kind) && t.source?.kind === "chat") t.threadId = t.source.id;
   else if (ctx.call) await ensureThread(ctx, t, ctx.thread);
@@ -429,6 +434,7 @@ export async function transition(ctx: TasksCtx, input: In): Promise<unknown> {
   if (t.source?.kind === "gate" && !isTrustedService(who) && t.state === "awaiting_approval" && (input.to === "done" || input.to === "doing")) {
     raise(ctx, "validation.precondition_failed", "Approve or send back a held act from the request itself.", { reason: "use_act" });
   }
+  if (input.to === "doing") await mayStartWaiting(ctx, t);
   const applied = applyMove(ctx, t, input.to as TaskState, { note: input.note, expectedFrom: input.expectedFrom });
   if (applied.took) await syncThread(ctx, t);
   return { task: out(ctx, t) };
@@ -452,6 +458,7 @@ export async function assign(ctx: TasksCtx, input: In): Promise<unknown> {
   if (sameAssignee(from ?? undefined, to ?? undefined)) return { task: out(ctx, t) };
   if (to === null) delete (t as unknown as Record<string, unknown>)[slot]; else t[slot] = to;
   if (slot === "assigned") {
+    stampStarter(ctx, t);
     delete t.takenBy; delete t.takenAt;
     const r = await responsibleFor(ctx, t.assigned);
     if (r !== undefined) t.responsible = r; else delete t.responsible;
@@ -563,6 +570,41 @@ export async function followersRemove(ctx: TasksCtx, input: In): Promise<unknown
 /** Reserved working-note keys. A Gate hold writes its decision id and payload hash once; they land in columns, never in the notes, and are never edited. */
 export const RESERVED_NOTES = { decision_id: "decisionId", payload_hash: "payloadHash" } as const;
 
+/** The working note that names the person an agent's turns on a task act for (the engine's task baton reads it). */
+export const BATON_OWNER = "baton.owner";
+/** The notes a Run's step writes on a task it makes (automation.id, automation.trigger): set at create by a service, never after. */
+export const AUTOMATION_NOTES = "automation.";
+/** The person an agent was acting for when it made the task (set by tasks.create from the session only). */
+export const BATON_ACTING_FOR = "baton.acting_for";
+/** The server's line on a task that waits for a person's yes (the engine's task baton writes it). */
+export const BATON_WAITING = "baton.waiting";
+const isPersonId = (v: unknown): v is string => typeof v === "string" && v.startsWith("usr_");
+
+/** Who may write baton.owner: the server, or a person naming themselves. An agent, an Automation's service or a form never names a person, so nobody's authority is taken without their act. */
+export function mayNameBatonOwner(ctx: TasksCtx, value: string): boolean {
+  if (isTrustedService(ctx.principal)) return true;
+  return ctx.principal.kind === "person" && ctx.actingFor === undefined && value === ctx.principal.id;
+}
+
+/**
+ * A work task an agent holds that no person asked for (a service made it: an Automation's step, a form, a timer) waits, and the person who starts it, or hands it to an agent, by their own press
+ * becomes the one the agent acts for (owner ruling 2 Nov, lead 12 Nov). Nothing changes for a task a person made or already named.
+ */
+export function stampStarter(ctx: TasksCtx, t: Task): void {
+  if (t.kind !== "work" || t.assigned.kind !== "agent") return;
+  if (isPersonId(t.createdBy) || isPersonId(t.workingNotes[BATON_OWNER])) return;
+  if (!isOwnPress(ctx as { principal: { kind: string; id: string }; origin?: string; actingFor?: string })) return;
+  const notes: Record<string, string> = { ...t.workingNotes, [BATON_OWNER]: ctx.principal.id };
+  delete notes[BATON_WAITING];   // the line that said it waits for a person
+  t.workingNotes = notes;
+}
+
+/** A person who starts a waiting task becomes whom the agent acts for: they must be able to give that agent work (Can use), as for assigning it to them (review 12 Nov, 5). */
+export async function mayStartWaiting(ctx: TasksCtx, t: Task): Promise<void> {
+  if (t.workingNotes[BATON_WAITING] === undefined || t.assigned.kind !== "agent") return;
+  await checkOutside(ctx, [t.assigned]);
+}
+
 /**
  * Who may change who decides a Gate hold. A person-only hold (a session using someone's GitHub) is never handed on by anyone but the server; any other hold is not handed on by an agent, for the
  * person it acts for or otherwise. The marker is a note only the server writes.
@@ -580,6 +622,12 @@ export async function notesSet(ctx: TasksCtx, input: In): Promise<unknown> {
   if (key.startsWith("gate.") && (t.source?.kind !== "gate" || String(input.value ?? "") !== "1")) raise(ctx, "validation.field_locked", "Only a held act carries that.", { field: key });
   if (!key.trim()) raise(ctx, "validation.bad_input", "A note needs a key.", { errors: ["/key: required"] });
   const value = String(input.value ?? "");
+  // the person an agent's turns on this task act for: only that person names themselves (or the server does); an agent or an Automation never names anyone (lead 12 Nov)
+  if (key === BATON_OWNER && !mayNameBatonOwner(ctx, value)) raise(ctx, "validation.field_locked", "Only a person can start this work as themselves.", { field: key });
+  if (key === BATON_WAITING && !isTrustedService(ctx.principal)) raise(ctx, "validation.field_locked", "Only the server says that.", { field: key });
+  if (key === BATON_ACTING_FOR) raise(ctx, "validation.field_locked", "That is set when the task is made, and never changed.", { field: key });
+  // which Automation and trigger made the task: written by the Run's step when it makes the task, never changed after (an agent that rewrote the trigger would leave the outside-content rules)
+  if (key.startsWith(AUTOMATION_NOTES) && !isTrustedService(ctx.principal)) raise(ctx, "validation.field_locked", "That is set when the task is made, and never changed.", { field: key });
   // a writer that names the value it started from is refused when someone changed the note meanwhile: nothing is overwritten, and the refusal says what the note holds now and who changed it.
   // An agent that names none may only append (the note was empty, or its new value starts with what it holds): anything else could erase what a person saved after the agent read it. A list note
   // (Done means, the ticks) an agent changed from a stale read is merged, as the page does for people: both changes stay.
@@ -623,6 +671,12 @@ export async function notesDelete(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
   const key = String(input.key ?? "");
   if (key in RESERVED_NOTES || key.startsWith("gate.")) raise(ctx, "validation.field_locked", "That value is never removed.", { field: key });
+  // whom an agent's turns act for, and the line that says nobody yet, are guarded as their writes are: an agent cannot drop its starter to fall back to someone else (review 12 Nov, 6)
+  if (key === BATON_ACTING_FOR) raise(ctx, "validation.field_locked", "That is set when the task is made, and never changed.", { field: key });
+  // which Automation and trigger made the task: written by the Run's step when it makes the task, never changed after (an agent that rewrote the trigger would leave the outside-content rules)
+  if (key.startsWith(AUTOMATION_NOTES) && !isTrustedService(ctx.principal)) raise(ctx, "validation.field_locked", "That is set when the task is made, and never changed.", { field: key });
+  if (key === BATON_OWNER && !isTrustedService(ctx.principal) && !(ctx.principal.kind === "person" && ctx.actingFor === undefined && t.workingNotes[BATON_OWNER] === ctx.principal.id)) raise(ctx, "validation.field_locked", "Only the person it names, or the server, removes that.", { field: key });
+  if (key === BATON_WAITING && !isTrustedService(ctx.principal)) raise(ctx, "validation.field_locked", "Only the server removes that.", { field: key });
   if (key in t.workingNotes) {
     const rest = { ...t.workingNotes }; delete rest[key];
     t.workingNotes = rest;

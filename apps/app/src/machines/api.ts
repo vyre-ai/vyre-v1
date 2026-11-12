@@ -43,9 +43,11 @@ async function waitingOf(call: Call, admin: boolean): Promise<Waiting[]> {
 }
 
 export async function loadMachines(call: Call): Promise<MachinesOut> {
-  const [list, alerts] = await Promise.all([call("machines.list", {}) as Promise<{ machines: ListRow[] }>, (call("machines.alerts", {}) as Promise<{ alerts: ListAlert[] }>).catch(() => ({ alerts: [] as ListAlert[] }))]);
+  const [list, alerts, browser] = await Promise.all([call("machines.list", {}) as Promise<{ machines: ListRow[] }>, (call("machines.alerts", {}) as Promise<{ alerts: ListAlert[] }>).catch(() => ({ alerts: [] as ListAlert[] })),
+    // the Space browser's slots, for one line (absent with no Space browser, or when the read fails: then nothing is said)
+    (Promise.resolve(call("computers.browser.profiles", {})) as Promise<{ slots?: { running: number; limit: number; waiting: number } }>).catch(() => ({} as { slots?: undefined }))]);
   const admin = list.machines.some((m) => !m.mine);
-  return { machines: list.machines.map(toRow), waiting: await waitingOf(call, admin), alerts: alerts.alerts.map(toAlert), admin, now: Date.now() };
+  return { machines: list.machines.map(toRow), waiting: await waitingOf(call, admin), alerts: alerts.alerts.map(toAlert), admin, now: Date.now(), ...(browser?.slots ? { browserSlots: { running: browser.slots.running, limit: browser.slots.limit, waiting: browser.slots.waiting } } : {}) };
 }
 
 const STEP: Record<Range, number> = { "1h": 60_000, "24h": 600_000, "7d": 3_600_000, "30d": 14_400_000 };

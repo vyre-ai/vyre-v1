@@ -49,6 +49,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.restore_version": Handler<"automations.restore_version", X>;
   "automations.retry": Handler<"automations.retry", X>;
   "automations.run": Handler<"automations.run", X>;
+  "automations.runs_as.get": Handler<"automations.runs_as.get", X>;
   "automations.schedule_choose": Handler<"automations.schedule_choose", X>;
   "automations.senders": Handler<"automations.senders", X>;
   "automations.set_enabled": Handler<"automations.set_enabled", X>;

@@ -90,3 +90,17 @@ test("the turn's end finishes the run the way the turn went, with the turn named
   await finishRoutineRun(h.ctx, w.host, { type: "turn.failed", turnId: "trn_2", threadId: "thr_intake", code: "no_account", message: "No AI account" }, () => 2);
   assert.deepEqual(w.calls.find((c) => c.cap === "runs.finish")!.input, { runId: "run_w2", status: "failed", error: { code: "no_account", message: "No AI account", step: "agent turn" } });
 });
+
+test("a routine's Run stopped by its owner stops the turn it woke (queued or running), once; a Run whose turn already ended is left alone", async () => {
+  const { onRoutineRunStopped } = await import("../handlers/routine-run.ts");
+  const h = harness();
+  const w = world(base);
+  const stopped: Array<[string, number, string]> = [];
+  (w.engine as unknown as { stopTurn: (t: string, q: number, why: string) => Promise<string | null> }).stopTurn = async (t, q, why) => { stopped.push([t, q, why]); return "running"; };
+  await onRoutineRun(h.ctx, w.host, w.engine, w.open, { payload: { agentId: ROUTINE.agentId, routineId: ROUTINE.routineId, runId: "run_w1", ownerId: OWNER, requestedBy: "watch:msg_lead1" } });
+  assert.deepEqual(await onRoutineRunStopped(h.ctx, w.engine, w.open, "run_w1"), ["run_w1"]);
+  assert.deepEqual(stopped, [["thr_intake", 1, "stop"]]);
+  assert.deepEqual(w.opened.at(-1), { threadId: "thr_intake", person: OWNER }, "opened as the run's owner on this host first");
+  assert.deepEqual(await onRoutineRunStopped(h.ctx, w.engine, w.open, "run_w1"), [], "once");
+  assert.deepEqual(await onRoutineRunStopped(h.ctx, w.engine, w.open, "run_unknown"), []);
+});

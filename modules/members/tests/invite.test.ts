@@ -190,7 +190,7 @@ test("revoking stops the code, says so once, and refuses an invite that was alre
   await assert.rejects(handlers["members.invites.extend"](a, { inviteId: one.invite.id, expiresInDays: 3 }), (e) => codeOf(e) === "validation.precondition_failed");
 });
 
-test("creating twice with one idempotency key gives the same invite and a fresh code, and only the fresh code works", async () => {
+test("creating twice with one idempotency key gives the same invite and a fresh code, and the code already handed out keeps working (lead, 12 Nov 2026)", async () => {
   const h = harness();
   const first = await invite(h, {}, "same");
   const again = await invite(h, {}, "same");
@@ -198,8 +198,9 @@ test("creating twice with one idempotency key gives the same invite and a fresh 
   assert.notEqual(again.code, first.code);
   assert.equal(h.raw.rows("members_invites").length, 1);
   assert.equal(h.events.filter((e) => e.name === "member.invited").length, 1);
-  await assert.rejects(handlers["members.invites.preview"](h.anon, { code: first.code }), (e) => codeOf(e) === "auth.invalid_code");
+  assert.equal((await handlers["members.invites.preview"](h.anon, { code: first.code })).spaceName, "Maya Studio", "a slow answer and a retry never kill the link already sent");
   assert.equal((await handlers["members.invites.preview"](h.anon, { code: again.code })).spaceName, "Maya Studio");
+  assert.ok(!JSON.stringify(h.raw.rows("members_invite_codes")).includes(first.code.replace("-", "")), "the earlier code is kept only as its hash");
   await handlers["members.invites.revoke"](h.as("usr_admin"), { inviteId: first.invite.id });
   await assert.rejects(invite(h, {}, "same"), (e) => codeOf(e) === "validation.precondition_failed");
 });

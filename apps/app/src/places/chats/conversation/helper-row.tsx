@@ -14,12 +14,13 @@ export function helperRowOf(b: Pick<MessageBlock, "data" | "state">): { title: s
   return { title: s("title") || "Helper", threadId: s("threadId") || s("helperThreadId"), status, found: s("found"), startedAt: typeof d["startedAt"] === "number" ? (d["startedAt"] as number) : null };
 }
 
-export function HelperRow({ block, onOpen }: { block: Pick<MessageBlock, "id" | "data" | "state">; onOpen: (threadId: string) => void }): ReactElement {
+export function HelperRow({ block, onOpen, waiting }: { block: Pick<MessageBlock, "id" | "data" | "state">; onOpen: (threadId: string) => void; /** the helper waits for a person: what for, from the live crew read ("Needs your OK to open harborquotes.com") */ waiting?: string | undefined }): ReactElement {
   const r = helperRowOf(block);
   const [now, setNow] = useState(() => Date.now());
   const live = r.status === "running" && r.startedAt !== null;
   useEffect(() => { if (!live) return undefined; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [live]);
-  const tag = helperTag(r.status, r.startedAt, now);
+  // a helper parked on a person's yes is not working: its row says what it waits for, and the approval card is its message in this chat
+  const tag = waiting !== undefined && r.status === "running" ? "Needs you" : helperTag(r.status, r.startedAt, now);
   return (
     <View testID={`helper-row-${block.id}`} accessibilityRole="summary" style={st.row}>
       <View style={st.head}>
@@ -28,6 +29,7 @@ export function HelperRow({ block, onOpen }: { block: Pick<MessageBlock, "id" | 
         <Text testID={`helper-row-${block.id}-state`} style={[st.tag, r.status === "done" && st.ok, r.status === "failed" && st.bad]}>{tag}</Text>
         <Pressable accessibilityRole="link" accessibilityLabel={`Open ${r.title}`} testID={`helper-row-${block.id}-open`} disabled={r.threadId === ""} onPress={() => onOpen(r.threadId)} style={st.open}><Text style={st.openText}>Open</Text></Pressable>
       </View>
+      {waiting !== undefined && r.status === "running" ? <Text numberOfLines={2} testID={`helper-row-${block.id}-waiting`} style={st.found}>{waiting}</Text> : null}
       {r.found !== "" ? <Text numberOfLines={2} testID={`helper-row-${block.id}-found`} style={st.found}>{r.found}</Text> : null}
     </View>
   );

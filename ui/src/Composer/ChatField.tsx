@@ -40,6 +40,11 @@ export function syncFieldWords(dom: { getAttribute(k: string): string | null; se
   if (dom.getAttribute("aria-label") !== label) dom.setAttribute("aria-label", label);
 }
 
+/** Keeps a made editor's empty words in step with the composer's placeholder and label (the editor itself is made once). */
+export function useFieldWords(ed: { current: { view: { dom: unknown } } | null }, placeholder: string, label: string): void {
+  useEffect(() => { const e = ed.current; if (e) syncFieldWords(e.view.dom as Parameters<typeof syncFieldWords>[0], placeholder, label); }, [ed, placeholder, label]);
+}
+
 /** True where a real browser DOM is there to mount the editor on; a test renderer or a server render is not. */
 export function canMountChatField(): boolean {
   const d = (globalThis as { document?: { createElement?: (t: string) => { classList?: { add?: unknown } } } }).document;
@@ -149,7 +154,7 @@ export function ChatField(p: ChatFieldProps): ReactElement {
   }, []);
 
   // the words in the empty field follow the chat ("Steer Dex…" while it works, "Message Dex…" once it is done): the editor is made once, so its placeholder and name are kept up to date here
-  useEffect(() => { const e = ed.current; if (e) syncFieldWords(e.view.dom, p.placeholder, p.label); }, [p.placeholder, p.label]);
+  useFieldWords(ed, p.placeholder, p.label);
 
   // what the composer holds now (a pick, a clear, a send) and where its mentions are: the field shows it, unless it is what the field itself just said
   const key = JSON.stringify([p.value, p.ranges.map((r) => [r.start, r.end])]);

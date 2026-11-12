@@ -76,6 +76,9 @@ test("the Space menu: your Spaces with the open one checked, then the actions; T
   assert.ok(!labels(spaceMenuEntries({ ...input, openId: "hb" })).includes("Invite People"), "a member cannot invite, so the item is absent");
   // Space Settings: a Team Space's settings are the Console's; a member who has no Console is not offered a door to it (owner walk, 12 Nov)
   assert.ok(!labels(spaceMenuEntries({ ...input, openId: "hb" })).includes("Space Settings"), "a member of a Team Space has no Space Settings to open");
+  // every entry against who may do it (lead, 12 Nov): a member, an owner of a Team Space, the owner of a Personal Space
+  assert.deepEqual(labels(spaceMenuEntries({ ...input, openId: "hb" })).filter((l) => !/^(Northwind|Harbor Studio|Personal)/.test(l)), ["Add a Space", "Set Yourself Away", "Your Profile", "Sign Out"], "a member: nothing they cannot do");
+  assert.ok(labels(spaceMenuEntries({ ...input, openId: "me" })).includes("Add a Server"), "the owner of a Personal Space adds their own server");
   assert.ok(labels(spaceMenuEntries({ ...input, openId: "me" })).includes("Space Settings"), "a Personal Space keeps its Space Settings");
   assert.deepEqual(spaceSettingsTarget({ kind: "team", console: true }), ["console", "screen=console.page&page=space"], "an owner goes to Console > Space, not to Your Profile");
   assert.deepEqual(spaceSettingsTarget({ kind: "personal", console: false }), ["settings", "page=space"]);

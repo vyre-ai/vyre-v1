@@ -108,6 +108,8 @@ export default defineManifest({
       out: { outcome: t.enm('interrupt', 'badge', 'digest', 'dropped_muted', 'capped'), notificationId: t.opt(id.notification) },
       gate: { act: 'none', reason: 'A push carries no content, only the Space name, and is rate limited; it is not an act of speech' },
       emits: ['notification.delivered', 'notification.capped'], rate: { n: 120, perSeconds: 60, scope: 'principal' }, idem: 'natural', audit: 'none', level: 'use', tool: 'meta',
+      // an agent may send only the kinds about it talking to someone (handlers/rules.ts SENDABLE_KINDS); the rest come from Vyre and module code, so its tool does not offer them
+      agent: { planMode: 'blocked', only: { kind: ['dm', 'mention', 'item.shared', 'agent.task_finished'] } },
       errors: ['rate_limit.exceeded'],
     }),
     read('notifications.list', 'My notifications by place and level, newest first', {

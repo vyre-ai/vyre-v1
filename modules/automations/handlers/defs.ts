@@ -9,7 +9,7 @@ import { isTrustedService } from "../../../lib/trust.ts";
 import { registry } from "../../../generated/registry.ts";
 import {
   allAutomations, clean, defaultAlerts, emitAuto, findGroup, getAutomation, isOwner, listGroups, listVersions, markDeleted, markRestored, me, newId, newSecret, out, page,
-  raise, readPolicy, saveAutomation, saveVersion, touch, versionById,
+  noteRunsAs, raise, readPolicy, saveAutomation, saveVersion, touch, versionById,
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
 import { regrant, sendersOf, shareSenders } from "../grants.ts";
@@ -348,7 +348,44 @@ export async function liveStepIssues(ctx: AutoCtx, kind: Automation["kind"], def
     const code = (await supportOf(ctx)).code;
     if (!code.available) for (const n of def.nodes) if (n.key === "code") out.push(issue("error", `Run code cannot be turned on here. ${code.reason ?? "This server has no sandbox."}`, n.id));
   }
-  return [...out, ...(await aiAccountIssues(ctx, kind, def))];
+  return [...out, ...(await aiAccountIssues(ctx, kind, def)), ...(await agentStepIssues(ctx, kind, def))];
+}
+
+/**
+ * The agent an AI step names must be one the person building the Automation could ask (Can use, as for a task), and never someone's Assistant: a Space Automation runs on its own access, so no
+ * person's Assistant, and a Personal one only its owner's own (lead 12 Nov, rule 4). The step checks again when it runs (steps-core ai-step), since the agent may have changed since.
+ */
+export async function agentStepIssues(ctx: AutoCtx, kind: Automation["kind"], def: Definition): Promise<Issue[]> {
+  if (!ctx.call) return [];
+  const out: Issue[] = [];
+  for (const n of def.nodes) {
+    if (n.key !== "ai") continue;
+    const cfg = { ...(n.input ?? {}), ...(n.ai ?? {}) } as Record<string, unknown>;
+    const ids = new Set<string>();
+    if (typeof cfg["agentId"] === "string" && cfg["agentId"] !== "") ids.add(cfg["agentId"]);
+    for (const slot of ["assigned", "reviewer", "approver"]) { const w = cfg[slot] as { kind?: unknown; id?: unknown } | undefined; if (w && w.kind === "agent" && typeof w.id === "string") ids.add(w.id); }
+    for (const agentId of ids) {
+      const line = await agentRefusal(ctx, kind, agentId, me(ctx));
+      if (line) { out.push(issue("error", line, n.id)); break; }
+    }
+  }
+  return out;
+}
+
+/** Why this Automation may not hand work to this agent, in a plain line, or null. Used at save (as the person saving) and at run. */
+export async function agentRefusal(ctx: AutoCtx, kind: Automation["kind"], agentId: string, builder: string | undefined): Promise<string | null> {
+  if (!ctx.call) return null;
+  const got = (await ctx.call("agents.get", { agentId }).catch(() => null)) as { agent?: { kind?: string; ownerId?: string; name?: string } } | null;
+  const a = got?.agent;
+  if (!a) return null;   // a missing agent is found where it matters, as before
+  const name = a.name ?? "That agent";
+  if (a.kind === "assistant" && kind === "space") return `${name} is a person's Assistant. A Space automation cannot give work to anyone's Assistant: choose a team agent.`;
+  if (a.kind === "assistant" && a.ownerId !== builder) return `${name} is someone else's Assistant. Choose your own Assistant or a team agent.`;
+  if (ctx.principal.kind === "person") {
+    const u = (await ctx.call("agents.outside.usable", { agentId }).catch(() => null)) as { usable?: boolean } | null;
+    if (u?.usable === false) return `You cannot give ${name} work. Ask its owner to share it with you with Can use, or choose another agent.`;
+  }
+  return null;
 }
 
 /** Live publish runs admit() on every catalogue step. */
@@ -531,6 +568,8 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
   const def: Definition = input.definition ?? EMPTY;
   checkStructure(ctx, def);
   refuseSecret(ctx, def);
+  const agentIssue = (await agentStepIssues(ctx, "personal", def))[0];
+  if (agentIssue) raise(ctx, "validation.precondition_failed", agentIssue.message, { reason: "agent_not_yours", issues: [agentIssue] });
   if (input.groupId && !findGroup(ctx.db, input.groupId)) raise(ctx, "validation.not_found", "That Group does not exist.", { reason: "no_group" });
   const now = ctx.now();
   const owner = me(ctx);
@@ -550,6 +589,7 @@ const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.str
 
 export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
+  const wasRunsAs = a.runsAs;
   await mustChange(ctx, a);
   if (input.expectedVersion !== undefined && input.expectedVersion !== a.version) {
     raise(ctx, "validation.version_conflict", `This automation is at version ${a.version} now.`, { current: a.version, expected: input.expectedVersion });
@@ -563,6 +603,9 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
     checkStructure(ctx, input.definition);
     refuseSecret(ctx, input.definition);
     const policy = readPolicy(ctx.db);
+    // an agent the saver may not give work to is refused at once, on or off: it is not a draft to finish later but someone else's (lead 12 Nov, rule 4)
+    const agentIssue = (await agentStepIssues(ctx, a.kind, input.definition))[0];
+    if (agentIssue) raise(ctx, "validation.precondition_failed", agentIssue.message, { reason: "agent_not_yours", issues: [agentIssue] });
     const blocking = a.status === "on" ? await blocksGoingLive(ctx, a.kind, input.definition, policy) : validateDefinition(input.definition, policy);
     if (a.status === "on" && hasErrors(blocking)) {
       raise(ctx, "validation.precondition_failed", "Turn the automation off before saving a definition with errors.", { reason: "invalid_definition" });
@@ -572,6 +615,8 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
     a.version += 1;
     fields.push("definition");
     definitionChanged = true;
+    // a change saved to a live automation is published at once: the person who saved it is who it runs as, never the one who turned it on before (lead 12 Nov, (d))
+    if (a.status === "on") noteRunsAs(ctx, a);
   }
   if (fields.length === 0) return { automation: out(a) };
   touch(ctx, a);
@@ -581,14 +626,29 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
     await regrant(ctx, a, "save", before);
   }
   emitAuto(ctx, "automation.updated", a.id, { version: a.version, fields });
+  await runsAsMoved(ctx, a, wasRunsAs, "save");
   return { automation: out(a) };
 }
 
 export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
+  const wasRunsAs = a.runsAs;
   await mustChange(ctx, a);
   if (input.enabled) {
-    if (a.status === "on") { await regrant(ctx, a, "on"); return { automation: out(a) }; }
+    // the person who turns it on is who its agent work runs as (a Space automation): their press is the yes
+    if (a.status === "on") {
+      noteRunsAs(ctx, a);
+      if (a.runsAs !== wasRunsAs) {
+        // a new runs-as person by pressing On again: the agent check runs for them, as on a first turn-on (review 12 Nov, 8)
+        const agentIssue = (await agentStepIssues(ctx, a.kind, a.definition))[0];
+        if (agentIssue) raise(ctx, "validation.precondition_failed", agentIssue.message, { reason: "live_step", issues: [agentIssue] });
+        touch(ctx, a);
+      }
+      await regrant(ctx, a, "on");
+      await runsAsMoved(ctx, a, wasRunsAs, "on");
+      return { automation: out(a) };
+    }
+    noteRunsAs(ctx, a);
     const issues = await blocksGoingLive(ctx, a.kind, a.definition, readPolicy(ctx.db));
     if (hasErrors(issues)) {
       const live = await liveStepIssues(ctx, a.kind, a.definition);
@@ -601,6 +661,7 @@ export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
     touch(ctx, a);
     await regrant(ctx, a, "on");
     emitAuto(ctx, "automation.enabled", a.id, {});
+    await runsAsMoved(ctx, a, wasRunsAs, "on");
   } else {
     if (a.status === "off" || a.status === "draft") return { automation: out(a) };
     a.status = "off";
@@ -652,6 +713,7 @@ export async function versions(ctx: AutoCtx, input: In): Promise<unknown> {
 
 export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
+  const wasRunsAs = a.runsAs;
   await mustChange(ctx, a);
   const v = versionById(ctx.db, a.id, input.versionId);
   if (!v) raise(ctx, "validation.not_found", "That version does not exist.", { reason: "no_version" });
@@ -663,11 +725,13 @@ export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> 
   const before = a.definition;
   a.definition = v.definition;
   a.version += 1;
+  if (a.status === "on") noteRunsAs(ctx, a);   // restoring a version of a live automation publishes it: the person who did is who it runs as
   touch(ctx, a);
   const row = saveVersion(ctx, a, `Restored version ${v.n}`);
   await regrant(ctx, a, "save", before);
   emitAuto(ctx, "automation.version_restored", a.id, { versionId: row.versionId, version: a.version });
   emitAuto(ctx, "automation.updated", a.id, { version: a.version, fields: ["definition"] });
+  await runsAsMoved(ctx, a, wasRunsAs, "restore");
   return { automation: out(a) };
 }
 
@@ -865,6 +929,7 @@ export async function previewPromote(ctx: AutoCtx, input: In): Promise<unknown> 
 
 export async function promote(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
+  const wasRunsAs = a.runsAs;
   if (a.kind === "space") raise(ctx, "validation.precondition_failed", "That automation is already a Space automation.", { reason: "already_space" });
   const diff = await accessDiff(ctx, a);
   const replace = new Map<string, string>();
@@ -873,7 +938,7 @@ export async function promote(ctx: AutoCtx, input: In): Promise<unknown> {
   if (open.length) {
     raise(ctx, "validation.precondition_failed", "Replace the subscription keys with shared API keys before promoting.", { reason: "keys_not_replaced", steps: open.map((k) => k.stepId) });
   }
-  const issues = validateDefinition(a.definition, readPolicy(ctx.db));
+  const issues = [...validateDefinition(a.definition, readPolicy(ctx.db)), ...(await agentStepIssues(ctx, "space", a.definition))];
   if (hasErrors(issues)) raise(ctx, "validation.precondition_failed", issues.find((i) => i.severity === "error")!.message, { reason: "invalid_definition", issues });
   let replaced = 0;
   if (diff.keysToReplace.length) {
@@ -892,6 +957,7 @@ export async function promote(ctx: AutoCtx, input: In): Promise<unknown> {
   }
   a.kind = "space";
   a.ownerId = typeof input.ownerId === "string" && input.ownerId ? input.ownerId : me(ctx);
+  noteRunsAs(ctx, a);   // the person who puts it on the Space is who it runs as until someone else turns it on
   touch(ctx, a);
   if (replaced > 0) { saveVersion(ctx, a, "Promoted to the Space: shared keys"); await regrant(ctx, a, "save", a.definition); }
   ctx.db.run("DELETE FROM automations_access WHERE automation_id = ?", a.id);
@@ -900,6 +966,7 @@ export async function promote(ctx: AutoCtx, input: In): Promise<unknown> {
   for (const v of diff.vaultNames) ctx.db.run("INSERT INTO automations_vault (automation_id, name) VALUES (?, ?)", a.id, v);
   await shareSenders(ctx, a, "on");   // Promote says it will run on the access shown, and the person confirmed it; the service is registered when this call commits
   emitAuto(ctx, "automation.promoted", a.id, { ownerId: a.ownerId, grants: diff.grants.length, keysReplaced: replaced });
+  await runsAsMoved(ctx, a, wasRunsAs, "promote");
   return { automation: out(a), diff };
 }
 
@@ -921,3 +988,50 @@ export async function makePersonalCopy(ctx: AutoCtx, input: In): Promise<unknown
   return { automation: out(copy) };
 }
 
+
+/**
+ * automations.runs_as.get: whose yes a Space automation's agent work runs on, checked now (lead 12 Nov). A Personal automation runs as its owner. A Space one runs as the person who last turned it
+ * on or published a change to it; it has nobody when no person did, when that person is no longer an active member, or when the agent is someone's Assistant or runs on someone's own computer.
+ * Whether that person may still ask the agent is asked by the caller as that person (the engine's task baton does), since only they can answer it.
+ */
+export async function runsAsGet(ctx: AutoCtx, input: In): Promise<unknown> {
+  const a = visible(ctx, getAutomation(ctx, input.automationId));
+  const trigger = typeof input.runId === "string"
+    ? (ctx.db.all("SELECT trigger_key FROM automations_runs WHERE run_id = ? AND automation_id = ?", input.runId, a.id)[0] as { trigger_key?: string } | undefined)?.trigger_key
+    : undefined;
+  const base = clean({ kind: a.kind, trigger });
+  const person = a.kind === "personal" ? a.ownerId : a.runsAs;
+  if (!person) return { ...base, ok: false, reason: "nobody", line: NOBODY_LINE };
+  let name = person;
+  try {
+    const p = ((await ctx.call?.("access.principals.get", { principal: { kind: "person", id: person } })) as { principal?: { name?: string; status?: string; kind?: string } } | undefined)?.principal;
+    if (p?.name) name = p.name;
+    if (p?.kind !== "person" || p.status !== "active") return { ...base, runsAs: person, name, ok: false, reason: "not_active", line: `${name} turned this automation on and is no longer an active member. Open it to run it as yourself.` };
+  } catch { return { ...base, runsAs: person, ok: false, reason: "not_active", line: NOBODY_LINE }; }
+  if (typeof input.agentId === "string" && a.kind === "space") {
+    const ag = ((await ctx.call?.("agents.get", { agentId: input.agentId }).catch(() => null)) as { agent?: { kind?: string; runtime?: string; name?: string } } | null)?.agent;
+    if (ag && (ag.kind === "assistant" || ag.runtime === "outside")) return { ...base, runsAs: person, name, ok: false, reason: "assistant", line: `${ag.name ?? "That agent"} is a person's own agent, which a Space automation never gives work to. Choose a team agent.` };
+  }
+  return { ...base, runsAs: person, name, ok: true };
+}
+export const NOBODY_LINE = "This came from an automation and has nobody's permission to act yet. Open it to run it as yourself.";
+
+/**
+ * The person a Space automation runs as moved (review 12 Nov, 4): the event says so, the audit has a sensitive row (who, from whom, why), and the previous person hears it once in Needs you; when
+ * nobody pressed (an agent's change), the accountable owner does, since its agent work now waits. Nothing happens when it stayed the same. Called after every write of the call.
+ */
+async function runsAsMoved(ctx: AutoCtx, a: Automation, from: string | undefined, how: "on" | "save" | "restore" | "promote"): Promise<void> {
+  if (a.kind !== "space" || a.runsAs === from) return;
+  const why = a.runsAs === undefined ? "cleared" : how;
+  emitAuto(ctx, "automation.runs_as_changed", a.id, { from: from ?? null, to: a.runsAs ?? null, by: ctx.principal.id, why });
+  if (!ctx.call) return;
+  await ctx.call("audit.append", { action: "automation.runs_as_changed", class: "sensitive", resource: { type: "automation", id: a.id }, ...(a.runsAs ? { onBehalfOf: { kind: "person", id: a.runsAs } } : {}), detail: { from: from ?? null, to: a.runsAs ?? null, by: ctx.principal.id, why } })
+    .catch((e: unknown) => ctx.log?.warn("automations: a runs-as change could not be audited", { automationId: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" }));
+  const nameOf = async (id: string): Promise<string> => { try { return ((await ctx.call!("access.principals.get", { principal: { kind: "person", id } })) as { principal?: { name?: string } } | null)?.principal?.name ?? id; } catch { return id; } };
+  const tell = async (to: string, line: string): Promise<void> => {
+    await ctx.call!("tasks.create", { kind: "work", title: line.slice(0, 300), assigned: { kind: "person", id: to }, due: ctx.now(), idempotencyKey: `runs-as:${a.id}:${to}:${a.version}:${ctx.now()}` })
+      .catch((e: unknown) => ctx.log?.warn("automations: the previous runs-as person could not be told", { automationId: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" }));
+  };
+  if (a.runsAs !== undefined && from !== undefined && from.startsWith("usr_")) await tell(from, `${a.name} now runs as ${await nameOf(a.runsAs)}, who ${why === "on" ? "turned it on" : why === "promote" ? "put it on the Space" : "changed it"}. It no longer uses your access.`);
+  if (a.runsAs === undefined && a.ownerId.startsWith("usr_")) await tell(a.ownerId, `${a.name} now runs as nobody, since a change no person pressed. Its agent work waits until someone turns it on again.`);
+}
