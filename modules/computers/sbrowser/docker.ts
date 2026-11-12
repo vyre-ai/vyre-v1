@@ -1,6 +1,7 @@
 // The Docker adapter of the Space browser: one container `vyre-sbrowser` per Space host from images/space-browser, a named volume for the profiles at /data, and browserd inside, which this adapter talks
 // to by running its control program (`docker exec <container> /opt/browserd/ctl <action> '<json>'`, one JSON object on stdout, a refusal is {"code","message"} on stderr with a non-zero exit), the same way
 // the agent computer's host talks to agentd (modules/computers/impl.ts). The container is started on the first browser tool and stays up: it holds nothing while no profile runs a browser.
+import { NOT_FETCHED_REASON, fetchableImage } from "../../../sandbox/src/docker.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../../sandbox/src/docker.ts";
 import { computerSeccomp, reviewComputerConfig, toolErrorOf } from "../impl.ts";
 import { LIMITS } from "../capacity.ts";
@@ -126,6 +127,8 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       if (!(await o.api.imageExists(config.Image))) {
         // a server that has never run one fetches the image itself (the runner allows only this image)
         let why = "";
+        // a local name (vyre/...) is never asked of a registry: Docker would look on Docker Hub, which is not Vyre's (sandbox/src/docker.ts fetchableImage)
+        if (!fetchableImage(config.Image)) throw new ToolError("unavailable", `The Space browser image ${config.Image} is not on this server; ${NOT_FETCHED_REASON}.`);
         if (o.http) {
           const byDigest = config.Image.includes("@");
           const at = config.Image.lastIndexOf(":");

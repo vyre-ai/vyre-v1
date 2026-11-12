@@ -97,3 +97,10 @@ test("Settings and an open Apps page draw their own top bar, so the phone shows 
   assert.equal(ownsHeaderScreen("you", undefined), false);
   assert.equal(ownsHeaderScreen("chats", undefined), false);
 });
+
+test("New project on the phone keeps its request: Records opens on Projects with a new row, not on the last type (owner walk review O3)", () => {
+  const hash = "screen=records.projects&create=true";
+  const e = entryFor("records", hash);
+  assert.equal(e.tab, "records");
+  assert.deepEqual(placeOf(e), { place: "records", hash });
+});

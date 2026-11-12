@@ -39,6 +39,16 @@ export class HostError extends Error {
 }
 export const fail = (code: ErrorCode, traceId: string, o?: ErrOpts): HostError => new HostError(makeError(code, traceId, o));
 
+/**
+ * The reason a consumer gives when the service it hands work to is stopping (internal.unavailable, details.reason): the event is not consumed and not failed. The hook runner keeps its cursor on it,
+ * does not count it as a try (MAX_TRIES ends in a skip), and the next start delivers it again.
+ */
+export const KEPT_FOR_RESTART = "kept_for_restart";
+export const keptForRestart = (traceId: string, message = "The server is stopping, so this event is kept and delivered again when the server is back."): HostError =>
+  fail("internal.unavailable", traceId, { message, details: { reason: KEPT_FOR_RESTART } });
+/** A kept event, whether it reached the caller as the HostError a handler threw or as the shaped error the invoke pipeline threw again. */
+export const isKeptForRestart = (e: unknown): boolean => (e as { error?: { details?: { reason?: unknown } } } | null)?.error?.details?.reason === KEPT_FOR_RESTART;
+
 /** Kernel reason codes (ARCH 4.5.1) to error codes. `not_found` hides existence: permission.not_found, not validation.not_found. */
 const REASON: Record<string, ErrorCode> = {
   no_grant: "permission.no_grant", expired: "permission.expired", revoked: "permission.revoked", not_contained: "permission.not_contained",

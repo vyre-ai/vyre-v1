@@ -135,7 +135,8 @@ export function resetWords(at: number, now: number = Date.now(), zone: string = 
 export function stoppedWords(reason: string): string {
   switch (reason) {
     case "interrupt": return "Stopped because a new message came in while it was working. It answers that one next.";
-    case "stop": return "Stopped because Stop was pressed.";
+    // said once, under the reply where the person is looking: the composer no longer repeats it (owner walk, 12 Nov)
+    case "stop": return "Stopped. The steps so far are kept.";
     case "limit": return "Stopped because it reached a spending or turn limit.";
     case "left": return "Stopped because the person it was working for left.";
     case "moved": return "Stopped because the task was handed to someone else.";

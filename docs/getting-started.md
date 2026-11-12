@@ -2,7 +2,7 @@
 
 This guide takes a team of five from nothing to working. You will set up a server for your team's Space, put the app on each person's computer and phone, and invite everyone. It takes about an hour, most of it waiting for downloads.
 
-Every command and address below is for the current release. Releases live at https://github.com/vyre-ai/vyre-v1/releases. Release candidates (names like `v1.0.0-rc.3`) are marked "pre-release" there and use the beta channel. The newest final release uses the stable channel. Where this guide shows a link under `releases/latest/download/`, a release candidate has to use `releases/download/channel-beta/` instead, and add `--channel beta` to the installer.
+Every command below installs the current release. Releases live at https://github.com/vyre-ai/vyre-v1/releases. Right now every release is a release candidate (names like `v1.0.0-rc.24`, marked "pre-release" there), and those come on the **beta** channel, so the install lines below name it (`channel-beta` in the address and `--channel beta` at the end). When a final release is out, use `releases/latest/download/` in the address and leave `--channel beta` off.
 
 You can start with the app alone. Your computer is a **Personal Space** from the first launch, with no server and no account. The server is for the **Team Space** that your team shares.
 
@@ -17,27 +17,72 @@ You need one server, and the app on each computer.
 
 ## 1. Install the server on Linux
 
-You need a Linux machine you control, with root access, at least 10 GB free, and Docker (the installer adds Docker on Debian and Ubuntu if it is missing).
+You need a Linux machine you control, with root access and at least 10 GB free. The installer adds Docker on Debian and Ubuntu if it is missing (it checks Docker's repository key against the fingerprint Docker publishes). On any other Linux, install Docker Engine and the Compose plugin first.
 
-The machine's data disk has to be encrypted. The installer checks this and stops with the steps to fix it if the disk is not encrypted. On a cloud machine, turn on disk encryption for the volume, or attach an encrypted one. There is no switch to skip this.
+### Choose how people will reach the server
 
-Run this as root:
+There are two ways, and you pick one when you install. You can change it later (see "Changing it later" below).
+
+- **Your own name (`--domain`).** People open `https://vyre.example.com` in any browser, and the Vyre app connects to the same address. This is the way for a team, and the only way for someone who has only a browser. It needs a name you own and two DNS records (below).
+- **Vyre's relay (`--relay`).** The server connects out to Vyre's relay and opens no port to the internet (ports 80 and 443 stay on the machine itself; an update closes them on a server installed earlier). Only the Vyre app (Mac or Windows) can find a server this way, and only through the install line the app shows you (it carries a one-time code). A server installed with `--relay` and no code has no web address a browser can open. <!-- verify: that the relay serves no browser address for a bare server, and what a phone does with a relay-only team -->
+
+### Encrypting the data disk
+
+Vyre keeps your Space's data and its keys on this machine's disk, and backups beside them (in the data folder, so they sit on the same volume). By default the installer refuses to put them on a plain disk, and shows two ways forward. A default cloud server has a plain disk, so you will meet this on your first try.
+
+1. **Use your provider's encrypted volume.** Attach an encrypted volume to the server, mount it (for example at `/mnt/vyre`), and install with `--data-dir /mnt/vyre/data --provider-encrypted`. The installer cannot see a provider's encryption from inside the server, so `--provider-encrypted` is your word that it is on. Vyre records it as your statement, and `vyre-server doctor` and the Console show it as "Not verified: your provider's encryption, as you stated" so it is never mistaken for a volume the server checked. If you later change `--data-dir`, the installer asks the question again. Backups are written inside that data folder, on the same volume. Check with your provider that encryption at rest is on for the volume; what they say about themselves changes, and Vyre cannot check it for you. <!-- verify: which providers encrypt volumes at rest, and by default or on request -->
+   - Google Cloud and Microsoft Azure encrypt their disks at rest by default. <!-- verify -->
+   - Amazon Web Services encrypts a volume when encryption is turned on for it, or for the whole region ("encryption by default"). <!-- verify -->
+   - DigitalOcean encrypts its block storage volumes, not the server's own disk. <!-- verify -->
+2. **Go without: `--allow-plain-disk`.** The installer records your choice. From then on `vyre-server doctor` and the Console's health page say, every time, that the data is not encrypted at rest.
+
+If you would rather encrypt the disk yourself before installing, for example with LUKS, do it first and then install with the data folder on the opened volume. The installer does not make or open encrypted volumes for you. What it checks: that the volume holding the data folder has an encryption layer (`lsblk` shows a `crypt` row), which it reports as "verified here". It cannot see where the key is kept. A key stored on the same disk as the volume it opens protects nothing, so keep the key somewhere else, and plan for how the volume is opened after a restart: Docker starts the server by itself at boot, and a server whose data volume is not mounted yet will not find its data. Backups follow the data: when the installer finds the data folder on a different filesystem than the install folder (`/srv/vyre`), which is the case when you open your volume at the data folder first, it writes backups inside the data folder, so they sit on the encrypted volume too. A server installed before this keeps its backups in `/srv/vyre/backups`, on the plain disk; to move future backups, set `/srv/vyre/backup-dir` to a folder on the encrypted volume. That changes only where new backups go: the backups already in `/srv/vyre/backups` stay on the plain disk until you move them (`mv /srv/vyre/backups/* <the new folder>/`) or delete them, so do one of those too.
+
+On a Mac the same question is answered by FileVault (section 2), with the same `--allow-plain-disk` choice.
+
+### The install line
+
+Run this as root, on the server. With your own name:
 
 ```sh
-curl -fsSL https://github.com/vyre-ai/vyre-v1/releases/latest/download/install.sh | sudo sh -s -- --relay
+curl -fsSL https://github.com/vyre-ai/vyre-v1/releases/download/channel-beta/install.sh | sudo sh -s -- --channel beta --domain vyre.example.com
 ```
 
-`--relay` lets your team reach the server through Vyre's relay, so the machine opens no public port. If you would rather use your own domain, point a DNS record at the machine, open ports 80 and 443, and use `--domain vyre.example.com` instead. Pick one of the two.
+Or, for a server only the Vyre app will use (copy the exact line from the app, which adds its one-time code):
 
-The installer checks the release against Vyre's signature before it installs anything, starts the server, and waits until it reports healthy. When it finishes it tells you so. Check it any time with:
+```sh
+curl -fsSL https://github.com/vyre-ai/vyre-v1/releases/download/channel-beta/install.sh | sudo sh -s -- --channel beta --relay
+```
+
+Add one of the two disk options above (`--provider-encrypted` or `--allow-plain-disk`) if the installer asks for one.
+
+The installer checks the release against Vyre's signature before it installs anything, starts the server, and waits until it reports healthy. Check it any time with:
 
 ```sh
 vyre-server doctor
 ```
 
-The server updates itself once a day. It takes a backup first, checks that the new version is healthy, and goes back to the old version if it is not. `vyre-server update --check` shows what is available, and `vyre-server rollback` goes back one version.
+### A name for your server (`--domain`)
 
-To remove it, run the same line with `--uninstall` in place of `--relay`. Your data and backups stay unless you add `--purge` as well.
+Before people can open `https://vyre.example.com`, three things have to be true. If you have an IT person, send them this list.
+
+1. **An A record for the name.** An A record is a line in your domain's DNS settings (at the company where you bought the domain) that says "this name is this machine". Make `vyre.example.com` point to the server's public IP address, which the installer prints and your cloud provider shows on the server's page.
+2. **A second A record, `a.vyre.example.com`, pointing to the same address.** Artifacts (pages your agents make) open on that name.
+3. **Ports 80 and 443 open to the internet,** in the provider's firewall as well as on the machine. Port 80 is how the certificate is fetched, from Let's Encrypt, and 443 is the site.
+
+When the installer finishes it looks the two names up in public DNS, compares them with the server's own address, and says which one is missing or different (a name that points at a proxy or load balancer in front is fine, and is said so). To learn the server's address it asks two outside services (api.ipify.org, then ifconfig.me); they see the server's address and that it is running curl. The certificate arrives about a minute after the records are right. Nothing else needs doing.
+
+### Changing it later
+
+Run the installer again with the other choice, for example `--domain vyre.example.com` on a server installed with `--relay`. The installer says what changed (`Changing how this server is reached: from ... to ...`), keeps the Space's data, and recreates the server with the new address. People who were signed in at the old address have to open the new one and sign in again, and the Vyre app needs the new address (add the Space again). The old address stops being offered as a way in. The disk choice is remembered between runs, and a re-run never changes it without saying so; to change it, run again with the other disk option. <!-- verify: what happens to signed-in browsers and saved app addresses -->
+
+### Day to day
+
+- `sudo vyre-server claim-link` prints the one-time link that makes you the owner. A server with a name prints a real `https` address. A server with only the relay prints a link that opens on the server itself; the command says what to do.
+- `vyre-server logs` follows the log until you press Ctrl-C. `vyre-server logs --no-follow` prints the last lines and exits.
+- The server updates itself once a day. It backs up first, with the server still running, then stops it only for the switch, checks that the new version is healthy, and goes back to the old version if it is not. `vyre-server update --check` shows what is available, and `vyre-server rollback` goes back one version.
+- `vyre-server backup` writes a backup while the server runs, and says where. **A backup on the same disk as the data is not protection:** if the server or its disk is lost, the backup goes with it. The command prints the one `scp` line that copies it to your own computer. Keep a copy somewhere else.
+- To remove the server, run the same line with `--uninstall` in place of the other options. Your data and backups stay unless you add `--purge`. From a pipe the installer cannot ask you to confirm a purge, so add `--yes`: `... | sudo sh -s -- --uninstall --purge --yes`. A purge says what it removed (the containers and volumes, the data, the backups, the install folder) and what it did not (the Docker images, Docker itself, your DNS records, certificates, copies you made elsewhere). If the data folder is a separate volume's mount point, its contents go and the empty folder stays.
 
 ## 2. Install the server on a Mac
 
@@ -50,7 +95,7 @@ A Mac works as a server if it stays on and awake. You need:
 Run this as yourself, not with sudo:
 
 ```sh
-curl -fsSL https://github.com/vyre-ai/vyre-v1/releases/latest/download/install-mac.sh | sh -s -- --relay
+curl -fsSL https://github.com/vyre-ai/vyre-v1/releases/download/channel-beta/install-mac.sh | sh -s -- --channel beta --relay
 ```
 
 The server starts when you log in, and it updates itself every night at 4. Docker has to be open. A Mac that goes to sleep stops serving, so set it to stay awake when plugged in (System Settings, Battery).
@@ -61,13 +106,14 @@ The command `vyre-server` lands in `~/.local/bin`. If your shell does not find i
 
 ## 3. Open your Space for the first time
 
-The first time the server starts, it prints a one-time link that makes you the owner. It is valid for 24 hours. Read it from the server's log:
+The first time the server starts, it makes a one-time link that makes you the owner. It is valid for 24 hours. On the server, run:
 
 ```sh
-vyre-server logs vyred
+sudo vyre-server claim-link
 ```
 
-Look for the line that starts with "Claim this Space as its owner", copy the link, and press Ctrl-C to stop following the log. If the link starts with `http://0.0.0.0`, replace that start with the address your team will use to reach the server. Install the app on your own computer (next two sections), choose Create a Space, then Team Space, paste the link, and pick your name and password.
+- **With your own name,** the link starts with your address (`https://vyre.example.com/claim/...`). Open it in a browser, or install the app on your own computer (next two sections), choose Create a Space, then Team Space, paste the link, and pick your name and password.
+- **With the relay,** the link opens only on the server itself and starts with `http://0.0.0.0`. That is not an address you can open from another computer. In the Vyre app, add the server from the app (it shows an install line with a one-time code) and carry on there. To reach a web page for your team, install with `--domain` instead.
 
 ## 4. Install the Mac app
 
@@ -95,7 +141,7 @@ The AI tools that run as command lines (Claude Code, Codex, Grok, Gemini CLI) ne
 
 There is no phone app in the first release. The phone uses the web app, added to the home screen so it opens like an app.
 
-1. On the phone, open your Space's address in Safari (iPhone) or Chrome (Android). It is the address your team uses to reach the server.
+1. On the phone, open your Space's address (the `https` name from `--domain`; a team on the relay only: see the relay note in section 1) <!-- verify --> in Safari (iPhone) or Chrome (Android). It is the address your team uses to reach the server.
 2. Sign in.
 3. iPhone: tap Share, then Add to Home Screen. Android: open the browser menu and choose Install app or Add to Home screen.
 
@@ -128,4 +174,4 @@ Each person opens the link. The page shows your Space's name and who invited the
 
 - **The server:** run `vyre-server doctor`. It lists what is down and says how to fix each thing.
 - **The app cannot reach the Space:** check the address, and run `vyre-server status` on the server.
-- **Logs:** `vyre-server logs vyred` (the Space) or `vyre-server logs caddy` (the web front door). Press Ctrl-C to stop following.
+- **Logs:** `vyre-server logs vyred` (the Space) or `vyre-server logs caddy` (the web front door) follow the log until you press Ctrl-C; add `--no-follow` to print the last lines and exit.

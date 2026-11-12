@@ -1,0 +1,1 @@
+- A silent AI engine always shows "Your AI didn't answer in time"; on a busy server it could show "The engine stopped answering." instead.

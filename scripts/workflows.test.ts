@@ -369,7 +369,16 @@ test("release: publish runs hosted, holds no signing key, fetches its artifacts 
   assert.match(pk.text, /^ {4}timeout-minutes: 20$/m, "the cap is not raised");
   assert.doesNotMatch(pk.text.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n"), /^\s*docker push /m, "every push goes through retry.sh");
   assert.match(pk.text, /retry\.sh 2 30 docker buildx bake/);
-  assert.equal((pk.text.match(/retry\.sh 3 20 docker push/g) ?? []).length, 3, "the three image pushes");
+  assert.equal((pk.text.match(/retry\.sh 3 20 docker push/g) ?? []).length, 1, "the agent computer image push");
+  // the agent workspace and Space browser images are built for both platforms in a job of their own (an emulated build does not fit package's 20 minutes), and package waits for it
+  const ai = rel.jobs.find((j) => j.name === "agent-images")!;
+  assert.deepEqual(ai.needs, ["guard"]);
+  assert.deepEqual(pk.needs, ["guard", "agent-images"]);
+  assert.doesNotMatch(ai.text.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n"), /^\s*docker (push|buildx build)/m, "every push goes through retry.sh");
+  assert.equal((ai.text.match(/retry\.sh 2 30 docker buildx build --platform linux\/amd64,linux\/arm64 /g) ?? []).length, 2, "the workspace and the Space browser image, both platforms");
+  assert.match(pk.text, /VYRE_BROWSER_IMAGE: \$\{\{ needs\.agent-images\.outputs\.browser \}\}/);
+  assert.match(pk.text, /VYRE_WORKSPACE_IMAGE: \$\{\{ needs\.agent-images\.outputs\.workspace \}\}/);
+  assert.doesNotMatch(ai.text, /^ {4}if:/m, "never skipped: a release without these images has no agent terminal and no agent browser");
   // the budget job reads the API in pages and falls back to the guard's own clock
   const b = rel.jobs.find((j) => j.name === "budget-tag")!;
   assert.match(b.text, /--fallback-start "\$\{\{ needs\.guard\.outputs\.started \}\}"/);

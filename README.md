@@ -16,10 +16,10 @@ Your computer starts as a **Personal Space** with no server and no account. A **
 
 Downloads are on the [releases page](https://github.com/vyre-ai/vyre-v1/releases). Release candidates are marked pre-release.
 
-The short version, on a Linux server:
+The short version, on a Linux server (every release is a release candidate for now, so this is the beta channel; the getting-started guide says how to reach a server by your own name or through the relay, and what to do about disk encryption):
 
 ```sh
-curl -fsSL https://github.com/vyre-ai/vyre-v1/releases/latest/download/install.sh | sudo sh -s -- --relay
+curl -fsSL https://github.com/vyre-ai/vyre-v1/releases/download/channel-beta/install.sh | sudo sh -s -- --channel beta --domain vyre.example.com
 ```
 
 The installer checks the release against Vyre's signature before it installs anything.

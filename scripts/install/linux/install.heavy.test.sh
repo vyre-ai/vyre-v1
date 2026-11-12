@@ -75,7 +75,7 @@ mkrel() {
   cp "$HERE/vyre-server" "$d/bin/vyre-server"
   cp "$HERE/units/"* "$d/units/"
   if [ "$kind" = good ]; then
-    cmd='["sh","-c","mkdir -p /www && echo ok > /www/healthz && echo \"'"$v"'\" > /data/running-version && exec httpd -f -p 8420 -h /www"]'
+    cmd='["sh","-c","mkdir -p /www && echo ok > /www/healthz && echo \"'"$v"'\" > /data/running-version && { [ -s /data/events.db ] || echo stand-in > /data/events.db; } && exec httpd -f -p 8420 -h /www"]'
     hc='["CMD","wget","-q","-O","-","http://127.0.0.1:8420/healthz"]'
   else
     cmd='["sh","-c","exec sleep 3600"]'
@@ -149,7 +149,7 @@ mkrel 1.0.0 good; publish 1.0.0
 t_refuse_plain_disk() {
   expect_status 3 envrun plain plain sh "$HERE/install.sh" --yes
   grep -q "not on an encrypted volume" "$W/cmd.out"
-  grep -q "luksFormat" "$W/cmd.out"
+  grep -q -e "--provider-encrypted" -e "--allow-plain-disk" "$W/cmd.out"
   [ ! -e "$W/srv" ]
 }
 t_dry_run() {

@@ -41,6 +41,26 @@ export function retentionValue(raw: string): string {
   return value;
 }
 
+const UNIT: Readonly<Record<string, readonly [string, string]>> = { d: ["day", "days"], w: ["week", "weeks"], m: ["month", "months"], y: ["year", "years"] };
+const span = (t: string): string | null => { const m = /^(\d+)([dwmy])$/.exec(t); if (!m) return null; const n = Number(m[1]); const u = UNIT[m[2]!]!; return `${n} ${n === 1 ? u[0] : u[1]}`; };
+
+/** A keep rule in words (owner walk, 12 Nov: Keep and delete showed "per_policy" and "30d+daily90d+monthly"): "Forever", "30 days", "By its own schedule", "All for 30 days, then daily for 90 days, then monthly". */
+export function retentionWords(raw: string): string {
+  const value = raw.trim();
+  if (value === "forever") return "Forever";
+  if (value === "per_policy") return "By its own schedule";
+  const parts = value.split("+").map((t, i) => {
+    const plain = span(t);
+    if (plain) return i === 0 ? (value.includes("+") ? `all for ${plain}` : plain) : `then all for ${plain}`;
+    const m = /^(daily|weekly|monthly|yearly)(\d+[dwmy])?$/.exec(t);
+    if (m) return `${i === 0 ? "" : "then "}${m[1]}${m[2] ? ` for ${span(m[2])}` : ""}`;
+    return null;
+  });
+  if (parts.some((p) => p === null) || parts.length === 0) return "A custom rule";
+  const out = parts.join(", ");
+  return out.charAt(0).toUpperCase() + out.slice(1);
+}
+
 export function policySelection(mode: "all" | "selected", values: readonly string[]): string[] {
   if (mode === "all") return [];
   const unique = [...new Set(values)];

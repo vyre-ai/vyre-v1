@@ -96,6 +96,7 @@ import { withGateNesting } from "./gate-nesting.ts";
 import { FILL_PATH, createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
 import { createComputersHost } from "../seams/computers-host.ts";
+import { releaseImage } from "../seams/release-images.ts";
 import { createTerminalHostSeam } from "../seams/terminal-host.ts";
 import { createEngineSessionHost } from "../seams/engine-session.ts";
 import { gateTeamAgents } from "../seams/team-vault.ts";
@@ -214,6 +215,7 @@ import type { ChromeBridge } from "../bridge/chrome.ts";
 import { coerceQuery } from "./query.ts";
 import type { PropSchema } from "./query.ts";
 import { openDb, readLogMeta } from "./sqlite.ts";
+import { bindSpacePorts, unbindSpacePorts } from "./module-ports.ts";
 import type { HostDb } from "./sqlite.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -400,6 +402,8 @@ export interface Daemon {
   seams: WiredSeams | null;
   /** the module consumers and periodic jobs, space role only */
   hooks: HookRunner | null;
+  /** the module ports the daemon bound at boot (`<module>.<port>`, host/src/daemon/module-ports.ts), space role only */
+  boundPorts: readonly string[];
   /** the module projections (events.webhooks_out), space role only */
   projections: ProjectionRunner | null;
   sink: LogSink;
@@ -490,6 +494,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let queue: ScheduleQueue | null = null;
   let seams: WiredSeams | null = null;
   let hooks: HookRunner | null = null;
+  let boundPorts: string[] = [];
   /** False until the module seams are wired at boot. A consumer that hands work to a host half (the engine bridge) finds none before that and would skip the event, and the host moves past a skipped event. */
   let consumersReady = false;
   // large files go to the Files module in process: the slot's one-time token from files.upload_url is the only authority, and no session or bearer is involved
@@ -1004,6 +1009,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // the first capability of each module, looked up once (a search of every capability on every module call was a fifteenth of a write)
         capOf: (m) => { if (!firstCapOf.has(m)) firstCapOf.set(m, registryCaps.find((c) => (c as { module?: string }).module === m)); return firstCapOf.get(m); },
         warn: (msg, attrs) => sink.log({ space: space!, level: 30, msg, place: "hooks", ...(attrs ? { attrs } : {}) }),
+        info: (msg, attrs) => sink.log({ space: space!, level: 20, msg, place: "hooks", ...(attrs ? { attrs } : {}) }),
       });
       hooks = hookRunner;
       // each reopen of a person's key from the server's wrap is an audit row for them, as a fresh provider sign-in's is
@@ -1027,6 +1033,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const pool = (): { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number } | undefined => (loaded.moduleExports.get("engine") as { openerOf?: () => { pool: { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number } } | null } | undefined)?.openerOf?.()?.pool;
       closeIdleSessions = async (person) => (await pool()?.closeIdle?.(person)) ?? 0;
       idleSessions = (person) => pool()?.idleCount?.(person) ?? 0;
+      // the Space kind for terminal and computers (unbound they assume a Team Space) and how a person's sessions here stop when they turn subscription sharing off (modules/engine extra/config.ts)
+      boundPorts = bindSpacePorts(loaded.moduleExports, {
+        team: cfg.spaceKind !== "personal",
+        stopSandbox: async (person) => { const p = pool(); if (!p?.closeIdle) return false; await p.closeIdle(person); return true; },
+      });
+      closers.push(() => unbindSpacePorts(loaded.moduleExports));
       // Machines (lane l-machines): a machine's report goes to the module; the Space server reads itself every 30 s; the module asks the host how many turns a connected machine runs, for the Doctor and for the Fixes
       machinesSync = () => { void hookRunner.call("machines.sync", {}).catch(() => undefined); };
       machinesIngest = (from, r) => {
@@ -1042,7 +1054,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           turns: (id: string) => (id === "space" ? Math.max(0, engineTurns - computeStream.running()) : computeStream.connected(id) ? computeStream.running(id) : undefined),
           own: async () => ({ name: reporter.name(), report: (o.machineReport ?? ((r: Report) => r))(reporter.report()) }),
           idle: (_id: string, person?: string) => idleSessions(person),
-          findings: async () => (await runDoctor({ dataDir: paths.root, role: "space" })).findings,
+          findings: async () => (await runDoctor({ dataDir: paths.root, role: "space", ...(cfg.diskChoice ? { diskChoice: cfg.diskChoice } : {}), ...(cfg.dockerRoot ? { dockerRoot: cfg.dockerRoot } : {}) })).findings,
           fix: async (id: string, fix: string, service?: string, person?: string) => {
             if (!isFix(fix)) throw new Error(`unknown fix ${fix}`);
             // a member's own computer or server: its idle sessions are the owner's, held by the Space's pool, and only theirs stop; nothing of anyone else's
@@ -1353,6 +1365,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           recent.push(...events);
           if (recent.length > RING) recent.splice(0, recent.length - RING);
           hub?.publish(spaceId, events);
+          // a session that ended, or a person who can no longer act: their open sockets close now, so no more events or answers reach them (every call frame is also checked, ws.ts `live`)
+          for (const e of events) {
+            const p = (e.payload ?? {}) as { sessionId?: unknown; principalId?: unknown; personId?: unknown };
+            if (e.type === "session.revoked" && typeof p.sessionId === "string") hub?.endSessions?.({ sessionId: p.sessionId });
+            else if (e.type === "principal.suspended" && typeof p.principalId === "string") hub?.endSessions?.({ person: p.principalId });
+            else if (e.type === "member.removed" && typeof p.personId === "string") hub?.endSessions?.({ person: p.personId });
+          }
           // someone left a chat or lost a grant: whoever was watching a reply being written is asked about again before the next piece reaches them
           if (events.some((e) => READER_LOSS.test(e.type))) engineSeam?.forgetReaders?.();
           // a computer removed from the Space loses its live-view socket this instant
@@ -1853,7 +1872,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // identity opens a device session at sign-in: the token is minted here for that devices session, and ending a session stops it at the gateway (P-SEC_05)
         setSessionTokens: () => ({
           mint: (sessionId: string) => issueSessionToken(db!, sessionId, now),
-          end: (sessionId: string) => { db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId); },
+          end: (sessionId: string) => { db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId); hub?.endSessions?.({ sessionId }); },
         }),
         // sites are routes: an address pointing at a port on a computer, or at a folder in Files. Site code never runs here; only its bytes pass
         configureRoutes: () => {
@@ -1975,6 +1994,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         setComputerHost: () => createComputersHost({
           dataDir: paths.root,
+          version: cfg.version,
           ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
           // On a Team server vyred holds no Docker socket: agent computers are made and run through the runner beside it (the same one that runs sites), which refuses anything else
           ...(o.computersSocketPath === undefined && computersRunnerSocket() ? { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken, ...(ingressContainer() ? { ingress: ingressContainer() as string } : {}) } } : {}),
@@ -2012,7 +2032,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                   return mine.find((c) => c.enrollment === "approved" && c.facts?.docker === true && computeStream.connected(c.serverId))?.serverId ?? null;
                 },
               },
-              ...(cfg.spaceKind === "personal" && !process.env["VYRE_WORKSPACE_IMAGE"] ? { image: `ghcr.io/vyre-ai/agent-workspace:${cfg.version}` } : {}),
+              // the setting when it names an image, else this release's own image on ghcr.io/vyre-ai (seams/release-images.ts): never a bare vyre/... name, which Docker would look for on Docker Hub
+              image: releaseImage("agent-workspace", cfg.version, process.env["VYRE_WORKSPACE_IMAGE"]),
               ...(o.workspaceIdleMs !== undefined ? { idleMs: o.workspaceIdleMs } : {}),
               projectsOf: (agentId: string) => (db!.all("SELECT projectId FROM projects_member WHERE principal = ? AND kind = 'agent'", agentId) as Array<{ projectId?: string }>).map((r) => String(r.projectId)),
               // ~/Vyre in the workspace mirrors the agent's folder in Files: the computers module's home sync, run as the agent principal like any other writer (access, review rules and the scrubber apply)
@@ -2413,6 +2434,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const ticket = url.searchParams.get("ticket");
           return identify(bearer(h["authorization"]) ?? (ticket === null ? null : liveTickets.spend(ticket)));
         },
+        // the same test identify makes for every HTTP request, made again for every call on an open socket: the session row and its device, and the person still active in the snapshot
+        live: (s) => s.principal.kind !== "person" || (s.sessionId === undefined ? s.device === ADMIN_DEVICE : sessionLive(db!, s.sessionId) && access.snap.principal(s.principal.id)?.status === "active"),
         invoke, sink,
         eventsSince: (_s, cursor) => (recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : []),
         head: () => headSeq,
@@ -2445,7 +2468,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     return used ? r : { ...r, state: "healthy", detail: `${r.detail ?? "Not running."} Agent computers need it; none exist yet.` };
   };
   const probeFns: Record<ProbeName, () => Promise<ProbeResult> | ProbeResult> = {
-    disk_encrypted: () => (o.probes?.diskEncrypted ? o.probes.diskEncrypted() : probes.diskEncrypted(platform, paths.root)),
+    disk_encrypted: () => (o.probes?.diskEncrypted ? o.probes.diskEncrypted() : probes.diskEncrypted(platform, paths.root, cfg.diskChoice)),
     events_db: events,
     index_db: () => probes.indexLag(o.probes?.indexLag ? o.probes.indexLag() : null),
     scheduler: () => probes.schedulerTick(scheduler.lastTickAt, now()),
@@ -2476,6 +2499,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const d = db;
     // one commit for the three heartbeats, not three
     d.tx(() => {
+      // The installer changed how this server is reached (a new address or relay, VYRE_NETWORK_REV): apply it once. Without this the row made at the first start keeps the old way and a new domain never gets its site.
+      // The row is updated, not replaced: the relay address and the domain the installer is not changing stay, so the Console's own mode switch still works afterwards, and the endpoint of the old address is marked down.
+      if (cfg.networkRev) {
+        const seen = (d.all("SELECT value FROM network_info WHERE key = 'network_rev'")[0] as { value?: string } | undefined)?.value;
+        if (seen !== cfg.networkRev) {
+          if (d.all("SELECT id FROM network_config WHERE id = 1").length) {
+            d.run(
+              "UPDATE network_config SET address = ?, mode = ?, domain = COALESCE(?, domain), relay_address = COALESCE(?, relay_address), public_ingress = ?, ingress_detail = ?, reported_at = ? WHERE id = 1",
+              address, cfg.relayUrl && !cfg.address ? "relay" : "own_domain", cfg.address, relayHost, cfg.address || cfg.relayUrl ? 1 : 0, cfg.address || cfg.relayUrl ? null : "Forms and webhooks need a public address.", t,
+            );
+            d.run("UPDATE network_endpoint SET state = 'down' WHERE kind = 'direct' AND url != ?", /^https?:\/\//.test(address) ? address : `https://${address}`);
+          }
+          storeInfo(d, "network_rev", cfg.networkRev, t);
+        }
+      }
       storeInfo(d, "space_version", cfg.version, t);
       d.run(
         "INSERT INTO network_config (id, address, mode, domain, relay_address, public_ingress, ingress_detail, reported_at) VALUES (1, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET reported_at = excluded.reported_at, relay_address = COALESCE(excluded.relay_address, network_config.relay_address)",
@@ -2771,6 +2809,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const stop = (): Promise<void> => {
     stopping ??= (async () => {
       sink.log({ space: space ?? "-", level: 20, msg: "daemon.stopping", place: "boot" });
+      // first the hooks: no consumer is handed another event while the services close under it (what commits from here on is delivered by the next start, from the stored cursor), and the
+      // pass in flight ends before the engine and the seams go. Bounded, so a consumer that will not end cannot hold the stop.
+      if (hooks) await Promise.race([hooks.close().catch(() => undefined), new Promise<void>((r) => { setTimeout(r, 5_000).unref(); })]);
       for (const c of closers.reverse()) await Promise.resolve().then(c).catch(() => {});
       clearInfo(paths);
       o.onStopped?.();
@@ -2780,7 +2821,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   requestStop = () => { void stop(); };
 
   return {
-    url: `http://${cfg.host}:${boundPort}`, gitPort, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, personalChrome: composedChrome, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p) }, teamLinks: () => teamLinks.ids(),
+    url: `http://${cfg.host}:${boundPort}`, gitPort, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, boundPorts, projections, sink, log, chromeBridge, personalChrome: composedChrome, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p) }, teamLinks: () => teamLinks.ids(),
     runProbes: (names) => runProbes(names), pollCommands: runCommands, ensureIngress: () => ensureIngress(false),
     peers: peerService,
     startupWork: () => startupWork(),
