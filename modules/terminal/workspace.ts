@@ -84,6 +84,10 @@ export interface WorkspaceOptions {
   projectKickMs?: number;
   /** A workspace with nothing using it for this long sleeps. Default 10 minutes. */
   idleMs?: number;
+  /** The Space this manager works for: its workspaces carry it (label vyre.space), and it only ever sleeps, removes or gives back the room of those. Omitted: every workspace on the engine (tests). */
+  owner?: string;
+  /** Does this Space know the agent (a container made before the Space label is ours only then). */
+  ownsAgent?: (agentId: string) => boolean;
   /** Running work keeps it awake at most this long after the last command or keystroke. Default MAX_BUSY_AWAKE_MS (12 hours). */
   maxBusyMs?: number;
   /** The agent's folder in Files mirrored onto ~/Vyre (the computers module's home sync, handed over by the daemon). Omitted: ~/Vyre is an ordinary folder that Files does not see. */
@@ -219,7 +223,7 @@ export const SHARED_NETWORK_BODY = { Name: SHARED_NETWORK, Driver: "bridge", Che
  * `net`: the network it goes on. Default: each workspace's own behind the runner, else the shared one. "bridge" is Docker's default network, where every workspace was before 12 Nov: the fallback when the
  * shared network cannot be made, so a working workspace is never taken away for want of a network (its label then says bridge, and a later wake moves it).
  */
-export function workspaceContainerConfig(agentId: string, image: string, m: MountSpec, o: Pick<WorkspaceOptions, "limits" | "runner">, net?: string): ContainerConfig {
+export function workspaceContainerConfig(agentId: string, image: string, m: MountSpec, o: Pick<WorkspaceOptions, "limits" | "runner" | "owner">, net?: string): ContainerConfig {
   const network = net ?? (o.runner ? workspaceNetworkName(agentId) : SHARED_NETWORK);
   // the numbers are modules/computers/capacity.ts hostConfigLimits("workspace): a hard cap of 1 GB, 64 MB held back while it runs, low CPU shares, no swap (test/workspace.capacity.test.ts holds the two together)
   const limits = { cpus: 1, memoryMb: 1024, pids: 512, reserveMb: 64, ...o.limits };
@@ -232,7 +236,7 @@ export function workspaceContainerConfig(agentId: string, image: string, m: Moun
     WorkingDir: WORKSPACE_HOME,
     Cmd: ["sleep", "infinity"],
     Env: [`VYRE_WORKSPACE_AGENT=${agentId}`, `HOME=${WORKSPACE_HOME}`, "TERM=xterm-256color", "LANG=en_US.UTF-8"],
-    Labels: { "vyre.workspace": agentId, "vyre.mounts": stable(m, network) },
+    Labels: { "vyre.workspace": agentId, "vyre.mounts": stable(m, network), ...(o.owner === undefined ? {} : { "vyre.space": o.owner }) },
     StopTimeout: 10,
     HostConfig: {
       Binds: [
@@ -765,6 +769,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   function ensure(agentId: string): Promise<"created" | "woke" | "running"> {
     if (!AGENT_ID.test(agentId)) return Promise.reject(wsError("That is not an agent a workspace can be made for.", "bad_input"));
     if (gone.has(agentId)) return Promise.reject(wsError(AGENT_GONE_LINE, "gone"));
+    usedHere.add(agentId);
     return serial(agentId, () => wake(agentId));
   }
 
@@ -817,18 +822,29 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     });
   }
 
+  /**
+   * Is a workspace container this manager's (this daemon's Space)? Two daemons often share one engine (the desktop app runs a Personal Space daemon beside a device daemon; a test box runs many): each only
+   * ever sleeps, removes or gives back the room of its own. A container made before the Space label counts as ours when this Space knows its agent (ownsAgent) or this process has used it.
+   */
+  const usedHere = new Set<string>();
+  const mine = (labels: Record<string, string> | undefined, agentId: string): boolean => {
+    if (o.owner === undefined) return true;
+    const space = labels?.["vyre.space"];
+    if (space !== undefined) return space === o.owner;
+    return usedHere.has(agentId) || (o.ownsAgent?.(agentId) ?? false);
+  };
   async function running(): Promise<string[]> {
     const r = await http({ method: "GET", path: "/containers/json", query: { all: "false", filters: JSON.stringify({ label: ["vyre.workspace"] }) } });
     if (r.status !== 200) return [];
     const rows = JSON.parse(dec.decode(r.body)) as Array<{ Labels?: Record<string, string> }>;
-    return rows.map((x) => x.Labels?.["vyre.workspace"] ?? "").filter((id) => AGENT_ID.test(id));
+    return rows.flatMap((x) => { const id = x.Labels?.["vyre.workspace"] ?? ""; return AGENT_ID.test(id) && mine(x.Labels, id) ? [id] : []; });
   }
 
   /** Every workspace container on this engine, running or not. */
   async function every(): Promise<Array<{ agentId: string; running: boolean }>> {
     const r = await http({ method: "GET", path: "/containers/json", query: { all: "true", filters: JSON.stringify({ label: ["vyre.workspace"] }) } });
     if (r.status !== 200) throw new Error(`Docker did not list the workspaces (${r.status})`);
-    return (JSON.parse(dec.decode(r.body)) as Array<{ State?: string; Labels?: Record<string, string> }>).flatMap((x) => { const id = x.Labels?.["vyre.workspace"] ?? ""; return AGENT_ID.test(id) ? [{ agentId: id, running: x.State === "running" }] : []; });
+    return (JSON.parse(dec.decode(r.body)) as Array<{ State?: string; Labels?: Record<string, string> }>).flatMap((x) => { const id = x.Labels?.["vyre.workspace"] ?? ""; return AGENT_ID.test(id) && mine(x.Labels, id) ? [{ agentId: id, running: x.State === "running" }] : []; });
   }
 
   /**
@@ -946,6 +962,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       };
     },
     async status(agentId) {
+      usedHere.add(agentId);
       const row = (await this.list()).find((r) => r.agentId === agentId);
       const projects = mounted.get(agentId);
       const waits = waitingLine.get(agentId);
@@ -966,7 +983,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       const rows = JSON.parse(dec.decode(r.body)) as Array<{ State?: string; Labels?: Record<string, string> }>;
       return rows.flatMap((x) => {
         const id = x.Labels?.["vyre.workspace"] ?? "";
-        if (!AGENT_ID.test(id)) return [];
+        if (!AGENT_ID.test(id) || !mine(x.Labels, id)) return [];
         const at = lastUsed.get(id);
         return [{ agentId: id, state: x.State === "running" ? ("running" as const) : ("asleep" as const), ...(at === undefined ? {} : { lastUsedAt: at }) }];
       });

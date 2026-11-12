@@ -1971,6 +1971,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               image: releaseImage("agent-workspace", cfg.version, process.env["VYRE_WORKSPACE_IMAGE"]),
               ...(o.workspaceIdleMs !== undefined ? { idleMs: o.workspaceIdleMs } : {}),
               projectsOf: (agentId: string) => (db!.all("SELECT projectId FROM projects_member WHERE principal = ? AND kind = 'agent'", agentId) as Array<{ projectId?: string }>).map((r) => String(r.projectId)),
+              // the Space these workspaces are this daemon's for: another daemon on the same Docker (a device daemon beside a Personal Space one) never sleeps, removes or releases them, nor this one its
+              owner: spaceId,
+              ownsAgent: (agentId: string) => { try { return db!.all("SELECT 1 FROM agents_agent WHERE id = ?", agentId).length > 0; } catch { return false; } },
               // an agent in Trash has no workspace: nothing makes, wakes or claims room for one (review 12 Nov, 2). Asked before every make or wake.
               admit: ({ agentId }: { agentId: string }) => {
                 let row: { deletedAt?: unknown } | undefined;

@@ -789,3 +789,27 @@ test("a Personal Space (its kind bound as the daemon binds it) with no computer 
   assert.equal(message, "This workspace can't run right now: Docker is not running on this computer, and no server with Docker is online for it. Start Docker, or add a server with Docker in Console > Computers.");
   assert.doesNotMatch(message, /Team Space|machine/);
 });
+
+// ---- two daemons on one Docker engine ---------------------------------------------------------------------------------------------------------------------
+
+test("two daemons on one Docker engine each sleep, list and give back the room of their own Space's workspaces only, a workspace made before the Space label included", async () => {
+  const clock = { t: 1_000_000 };
+  const dk = engine();
+  const roomA: string[] = [], roomB: string[] = [];
+  const cap = (log: string[]) => ({ async claim(id: string) { log.push(`claim ${id}`); return { state: "running" as const }; }, async release(id: string) { log.push(`release ${id}`); } });
+  // a workspace of Space A made before the Space label
+  const legacy = workspaceContainerConfig("agt_old_a", "vyre/agent-workspace:1", { projects: [] }, {}, "bridge");
+  await dk.http({ method: "POST", path: "/containers/create", query: { name: workspaceName("agt_old_a") }, json: legacy });
+  const a = manager(dk, { now: () => clock.t, owner: "spc_a", capacity: cap(roomA), ownsAgent: (id) => id.endsWith("_a") });
+  const b = manager(dk, { now: () => clock.t, owner: "spc_b", capacity: cap(roomB), ownsAgent: (id) => id.endsWith("_b") });
+  await a.ensure("agt_one_a");
+  await b.ensure("agt_one_b");
+  assert.deepEqual((await b.list()).map((x) => x.agentId).sort(), ["agt_one_b"], "B sees only its own");
+  assert.deepEqual((await a.list()).map((x) => x.agentId).sort(), ["agt_old_a", "agt_one_a"], "A sees its own, the unlabelled one of its agent too");
+  clock.t += 700_000;
+  assert.deepEqual(await b.sweep(), ["agt_one_b"], "B sleeps only its own idle workspace");
+  assert.equal(dk.box(workspaceName("agt_one_a")).running, true, "A's is untouched");
+  assert.deepEqual(roomB.filter((x) => x.startsWith("release")), ["release agt_one_b"], "and gives back only its own room (A's stopped legacy workspace is not B's to release)");
+  assert.deepEqual(await a.sweep(), ["agt_one_a"]);
+  a.close(); b.close();
+});

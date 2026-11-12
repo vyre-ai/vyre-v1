@@ -50,7 +50,8 @@ export function workspaceBody(name: string, body: unknown, netOk: (agentId: stri
   const labels = isObj(body["Labels"]) ? body["Labels"] : {};
   const agent = String(labels["vyre.workspace"] ?? "");
   if (!WS_AGENT.test(agent)) return { why: "a container must carry vyre.workspace=<agent>" };
-  for (const k of Object.keys(labels)) if (k !== "vyre.workspace" && k !== "vyre.mounts") return { why: `a workspace container may not carry the label ${k}` };
+  // vyre.space: the Space whose workspace it is, so two daemons on one engine each touch only their own (12 Nov); only a Space id's shape
+  for (const k of Object.keys(labels)) if (k !== "vyre.workspace" && k !== "vyre.mounts" && !(k === "vyre.space" && /^spc_[A-Za-z0-9_-]{1,64}$/.test(String(labels[k])))) return { why: `a workspace container may not carry the label ${k}` };
   if (name !== `vyre-ws-${agent}`) return { why: "a workspace container is named vyre-ws-<its agent>" };
   if (!isWorkspaceImage(String(body["Image"] ?? ""))) return { why: "a workspace runs the agent workspace image" };
   if (body["Hostname"] !== undefined && body["Hostname"] !== name) return { why: "a workspace's hostname is its container name" };

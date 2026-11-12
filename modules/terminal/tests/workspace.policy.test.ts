@@ -33,3 +33,15 @@ test("the network and volume bodies the module sends pass the runner's", () => {
   assert.ok("body" in workspaceNetworkBody({ Name: workspaceNetworkName("agt_dex"), Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.workspace": "agt_dex" } }));
   assert.ok("body" in workspaceVolumeBody({ Name: "vyre-wsproj-prj_site", Labels: { "vyre.workspace.project": "prj_site" } }));
 });
+
+test("the Space label (vyre.space) the module puts on a workspace passes the runner; any other value or label is refused", () => {
+  const cfg = workspaceContainerConfig("agt_dex", "vyre/agent-workspace:1", { projects: [] }, { runner: true, owner: "spc_team1" });
+  assert.equal(cfg.Labels["vyre.space"], "spc_team1");
+  assert.ok("body" in workspaceBody(workspaceName("agt_dex"), cfg, netOk));
+  const odd = structuredClone(cfg);
+  odd.Labels["vyre.space"] = "../other";
+  assert.ok("why" in workspaceBody(workspaceName("agt_dex"), odd, netOk));
+  const extra = structuredClone(cfg);
+  extra.Labels["vyre.other"] = "x";
+  assert.ok("why" in workspaceBody(workspaceName("agt_dex"), extra, netOk));
+});

@@ -567,7 +567,7 @@ export interface TerminalHostSeam {
 }
 
 /** What the daemon hands over for agent workspaces (host/src/seams/terminal-host.ts): configuration only. The module builds the Docker managers from it, as agent computers are built. */
-export interface WorkspaceConfig extends Pick<WorkspaceOptions, "image" | "limits" | "idleMs" | "home" | "projectsOf" | "admit" | "capacity" | "log"> {
+export interface WorkspaceConfig extends Pick<WorkspaceOptions, "image" | "limits" | "idleMs" | "home" | "projectsOf" | "admit" | "capacity" | "log" | "owner" | "ownsAgent"> {
   /** The Docker Engine socket of this machine. With no socket and no runner the Space has no runtime of its own, and its workspaces go on servers that joined. */
   socketPath?: string;
   /** A Team server: the container runner's socket and its token (read again on each call). vyred holds no Docker socket there. */

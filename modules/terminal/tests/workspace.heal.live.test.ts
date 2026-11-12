@@ -48,7 +48,9 @@ test("real Docker: a restart while asleep heals, the sweep sees scripts and back
   const clock = { skew: 0 };
   const now = (): number => Date.now() + clock.skew;
   const managers: WorkspaceManager[] = [];
-  const make = (): WorkspaceManager => { const m = buildWorkspaceManager({ http: unixSocketHttp(), image: IMAGE, idleMs: 600_000, projectsOf: () => projects, now }); managers.push(m); return m; };
+  // a Space of its own: its sweeps never touch another daemon's workspaces on this shared engine, nor theirs these
+  const OWNER = `spc_heal${Math.random().toString(36).slice(2, 8)}`;
+  const make = (): WorkspaceManager => { const m = buildWorkspaceManager({ http: unixSocketHttp(), image: IMAGE, idleMs: 600_000, projectsOf: () => projects, now, owner: OWNER }); managers.push(m); return m; };
   const hostOver = (m: WorkspaceManager) => createLocalHost({ exec: async () => ({ code: 127, stdout: "", stderr: "" }), shell: async () => ({ exitCode: 1 }), home: "/tmp", runsHere: () => false }, m);
   t.after(async () => {
     for (const m of managers) m.close();
