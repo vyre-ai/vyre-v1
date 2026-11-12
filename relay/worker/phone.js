@@ -55,11 +55,11 @@ const RESPONSE_KEEP = new Set(["accept-ranges", "cache-control", "content-dispos
 export const DOOR = /^\/(?:mcp|oauth\/(?:authorize|register|token|wait)|\.well-known\/oauth-(?:protected-resource(?:\/mcp)?|authorization-server))$/;
 /**
  * A web request trigger: POST /hooks/automation/<id>/<secret> and that exact shape only (host/src/seams/relay.ts HOOK and host/src/routes/webhooks.ts AUTOMATION_PATH say the same). It is a new way in
- * from the internet, so it is narrow: POST only, no query, a body of 1 MB at most, only content-type and an idempotency key reach the box, and a Space takes 120 a minute and one hook 30 (the route
+ * from the internet, so it is narrow: POST only, no query, a body of 1 MB at most, only content-type and an idempotency key reach the box, and a Space takes 120 a minute, one hook 30 and one visitor 20 (the route
  * object counts them, alongside the per-visitor limit every public request has). Every refusal is the same bare 404, and the path, which carries the secret, is never logged.
  */
 export const HOOK = /^\/hooks\/automation\/(aut_[a-z0-9]{1,64})\/[A-Za-z0-9_-]{8,200}$/;
-export const HOOKS = Object.freeze({ maxBody: 1 << 20, perMinute: 120, perHookPerMinute: 30 });
+export const HOOKS = Object.freeze({ maxBody: 1 << 20, perMinute: 120, perHookPerMinute: 30, perVisitorPerMinute: 20 });
 const DOOR_KEEP = new Set([...REQUEST_KEEP, "mcp-session-id", "mcp-protocol-version", "origin", "last-event-id"]);
 const DOOR_BACK = new Set([...RESPONSE_KEEP, "www-authenticate", "mcp-session-id", "location", "allow", "x-frame-options", "x-content-type-options", "x-robots-tag", "referrer-policy", "cross-origin-opener-policy", "access-control-allow-origin", "access-control-allow-methods", "access-control-allow-headers", "access-control-max-age"]);
 

@@ -511,6 +511,17 @@ test("/hooks/: a Space takes 120 a minute and one hook 30; past that, the same b
   assert.equal(asked.length, 120);
 });
 
+test("/hooks/: one visitor takes 20 a minute, so a single address cannot spend the Space's whole budget", async t => {
+  const rt = world(t);
+  const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, {}, "{}"));
+  const post = (ip, i) => call(rt, `https://harbor.vyre.run/hooks/automation/aut_v${i % 5}/secretvalue${i}xx`, { method: "POST", body: "{}", headers: { "cf-connecting-ip": ip } });
+  let mine = 0;
+  for (let i = 0; i < 25; i++) if ((await post("203.0.113.50", i)).status === 200) mine++;
+  assert.equal(mine, 20);
+  assert.equal((await post("203.0.113.51", 99)).status, 200, "another visitor still gets through");
+  assert.equal(asked.length, 21);
+});
+
 test("info.json says the relay carries web request triggers, so the box can tell its card the truth", async t => {
   const rt = world(t);
   await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, {}, "{}"));
