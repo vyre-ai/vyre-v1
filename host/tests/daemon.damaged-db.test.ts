@@ -73,6 +73,9 @@ for (const name of ["modules.db"]) {
       assert.match(lines[0]!, line);
       // the restart: it holds
       const unchanged = contents(dir);
+      // the journal files the failed start's own open left beside the damaged file are cleared, so the list shows whether the hold's one check makes any
+      for (const e of ["-wal", "-shm"]) fs.rmSync(path.join(dir, name) + e, { force: true });
+      const filesBefore = fs.readdirSync(dir).sort();
       const held = start(dir, port);
       let res: Response | undefined;
       for (let i = 0; i < 100 && !res; i++) { try { res = await fetch(`http://127.0.0.1:${port}/healthz`); } catch { await new Promise((r) => setTimeout(r, 100)); } }
@@ -85,6 +88,7 @@ for (const name of ["modules.db"]) {
       const other = await fetch(`http://127.0.0.1:${port}/v1/notes/list`, { method: "POST" });
       await other.text();
       assert.equal(other.status, 503, "every request");
+      assert.deepEqual(fs.readdirSync(dir).sort(), filesBefore, "the check opened the damaged file immutable: no -shm or -wal made beside it");
       // after its one check of the damaged file it touches nothing: not a byte, not a timestamp
       const before = fingerprint(dir);
       await new Promise((r) => setTimeout(r, 1500));

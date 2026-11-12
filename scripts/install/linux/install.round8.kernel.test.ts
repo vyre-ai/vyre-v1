@@ -1,9 +1,10 @@
 // Round 8 of the installer: the kernel decision (boot id, fail safe, the one-shot answer) and the host check of the streamed copy. Fixtures: install.round8-kit.test.ts. (One of the files split from install.round8.test.ts, each well under the fast runner's 30 s cap.)
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { SERVER, read, tmp, HOST_BOOT, SAME, sh, world, MAC_ENV, db, mkSpace, hostTouches } from "./install.round8-kit.test.ts";
+import { SERVER, read, tmp, HOST_BOOT, SAME, sh, world, MAC_ENV, db, mkSpace, hostTouches, BOOT_FILE } from "./install.round8-kit.test.ts";
 
 test("the kernel is told by its boot id, not its version: a VM with the same kernel version is a VM, and silence or an unreadable boot id is never 'same'", () => {
   const dir = tmp();
@@ -71,5 +72,23 @@ test("when this engine runs no vyred of this install, the one-shot boot id is tr
     assert.equal(ask(), "vm", "a -shm likewise");
     // the running vyred's own answer is not second-guessed
     assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; engine_same_kernel && echo same || echo vm`, world(dir, { running: true, ...SAME })).stdout.trim(), "same");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("no test hook can make a Mac the same kernel: Darwin is never 'same', in test mode or out of it, whatever the engine and boot id hooks say", () => {
+  const dir = tmp();
+  try {
+    const bin = path.join(dir, "darwin");
+    fs.mkdirSync(bin);
+    const real = spawnSync("sh", ["-c", "command -v uname"], { encoding: "utf8" }).stdout.trim();
+    fs.writeFileSync(path.join(bin, "uname"), `#!/bin/sh\ncase "$1" in -s) echo Darwin ;; *) exec ${real} "$@" ;; esac\n`, { mode: 0o755 });
+    const hooks = { VYRE_TEST_ENGINE: `Ubuntu|${HOST_BOOT}`, VYRE_TEST_BOOT_ID_FILE: BOOT_FILE, VYRE_TEST_OS: "Linux" };
+    const ask = (env: Record<string, string>): string => spawnSync("sh", ["-c", `. "${SERVER}"\nDATA_DIR="${dir}/data"; engine_same_kernel && echo same || echo vm`], { encoding: "utf8", env: { PATH: `${bin}:${process.env.PATH ?? ""}`, VYRE_SOURCE_ONLY: "1", ...env } }).stdout.trim();
+    // a real Mac (uname says Darwin), not in test mode: the hooks are not read at all
+    assert.equal(ask(hooks), "vm", "outside test mode a Darwin host is never the same kernel");
+    // in test mode a test may say Darwin, and then nothing makes it 'same'
+    assert.equal(ask({ ...hooks, VYRE_TEST_MODE: "1", VYRE_TEST_OS: "Darwin" }), "vm");
+    // the hooks only ever model a Linux server, in test mode
+    assert.equal(ask({ ...hooks, VYRE_TEST_MODE: "1" }), "same");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

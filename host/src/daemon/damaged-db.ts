@@ -6,9 +6,17 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { pathToFileURL } from "node:url";
 
 export const DAMAGED_EXIT = 3;
 const CORRUPT = /database disk image is malformed|file is not a database|malformed database schema|SQLITE_CORRUPT|SQLITE_NOTADB/i;
+
+/** Opened for the one check with immutable=1: SQLite reads the file as it is and creates nothing beside it (no -shm, no -wal), so the check writes nothing. */
+function openForCheck(file: string): DatabaseSync {
+  const u = pathToFileURL(file);
+  u.searchParams.set("immutable", "1");
+  return new DatabaseSync(u, { readOnly: true });
+}
 
 export function isCorruption(e: unknown): boolean {
   return CORRUPT.test(e instanceof Error ? e.message : String(e));
@@ -20,7 +28,7 @@ export function damagedDatabase(root: string): string | null {
     const file = path.join(root, name);
     if (!fs.existsSync(file)) continue;
     try {
-      const d = new DatabaseSync(file, { readOnly: true });
+      const d = openForCheck(file);
       try {
         const r = d.prepare("PRAGMA quick_check").get() as { quick_check?: unknown } | undefined;
         if (r?.quick_check !== "ok") return name;
@@ -64,7 +72,7 @@ export function stillDamaged(root: string): string | null {
 function damagedOne(file: string): boolean {
   if (!fs.existsSync(file)) return false;
   try {
-    const d = new DatabaseSync(file, { readOnly: true });
+    const d = openForCheck(file);
     try { return (d.prepare("PRAGMA quick_check").get() as { quick_check?: unknown } | undefined)?.quick_check !== "ok"; } finally { d.close(); }
   } catch (e) { return isCorruption(e); }
 }
