@@ -41,18 +41,19 @@ const cases: Array<{ name: string; extra: Record<string, unknown>; failing: stri
     gone: (h) => sh(h).project === "guest",
   },
   {
-    name: "a role, when an admin changed roles after the invite (access keeps no per-person trace, so any change by a person counts)",
+    name: "a role an admin gave and took back after the step failed (no trace in the person's roles; the audit log has it, read at retry time)",
     extra: { role: "rol_admin" }, failing: "access.roles.assign:rol_admin", step: "role:rol_admin",
-    change: async (h) => {
-      h.world.principals.get(DANA)!.roles = ["rol_guest"];
-      await consumers["members.access_seen"].run(h.anon as never, { payload: { what: "assignment", by: "usr_admin" }, actor: "usr_admin", at: NOW + 1_000 });
+    change: (h) => {
+      for (const action of ["access.roles.assign", "access.roles.unassign"]) h.world.audit.push({ at: NOW + 1_000, actor: { kind: "person", id: "usr_admin" }, action, class: "admin", after: { targets: [{ kind: "role", id: "rol_admin" }, { kind: "person", id: DANA }] } });
     },
     gone: (h) => !sh(h).roles.includes("rol_admin"),
   },
   {
     name: "a group the admin put the person in and took them out of again (no trace left in the groups, only the change's time)",
     extra: { groups: ["grp_sales"] }, failing: "access.groups.add_member:grp_sales", step: "group:grp_sales",
-    change: async (h) => { await consumers["members.access_seen"].run(h.anon as never, { payload: { what: "membership", by: "usr_admin" }, actor: "usr_admin", at: NOW + 1_000 }); },
+    change: (h) => {
+      for (const action of ["access.groups.add_member", "access.groups.remove_member"]) h.world.audit.push({ at: NOW + 1_000, actor: { kind: "person", id: "usr_admin" }, action, class: "admin", after: { targets: [{ kind: "group", id: "grp_sales" }, { kind: "person", id: DANA }] } });
+    },
     gone: (h) => !sh(h).groups.includes("grp_sales"),
   },
 ];
@@ -98,6 +99,8 @@ test("a step whose state could not be read when it failed is never given uncheck
   assert.deepEqual(sh(h).channel, [], "not given");
   assert.ok(stepOf(h, "channel:chn_a").dropped);
   assert.equal(h.events.filter((e) => e.name === "member.join_stuck").length, 1);
+  const listed = (await handlers["members.joins.list"](h.as("usr_admin"), {})).joins.find((x: { personId: string }) => x.personId === DANA);
+  assert.equal(listed?.steps.find((x: { key: string }) => x.key === "channel:chn_a")?.error, "Vyre could not check this, so it left it. Give it by hand if it is still wanted.", "its own true line, not 'someone changed this'");
   h.world.channelMembers.set("chn_a", new Set([DANA]));   // an admin gives it by hand
   await drainJoins(h.anon, undefined, { periodic: true });
   assert.equal(stepOf(h, "channel:chn_a").state, "done", "it closes once the person holds it");
@@ -121,4 +124,24 @@ test("a retry gives nothing to a person who was removed, and waits while they ar
   assert.deepEqual(sh(g).channel, [], "a removed person is given nothing");
   assert.ok(stepOf(g, "channel:chn_a").dropped);
   assert.equal(stepOf(g, "channel:chn_a").state, "done", "a removed person's steps close");
+});
+
+test("only a change to that one role, made after the step failed, holds a role retry back; an unreadable audit log holds it back with its own plain line", async () => {
+  const admin = (h: H, action: string, role: string, at: number) => h.world.audit.push({ at, actor: { kind: "person", id: "usr_admin" }, action, class: "admin", after: { targets: [{ kind: "role", id: role }, { kind: "person", id: DANA }] } });
+  // another role changed after the failure, and this role changed before it: neither counts, the retry gives the role
+  const h = harness();
+  admin(h, "access.roles.assign", "rol_admin", NOW - 1);
+  await joinWithFailing(h, { role: "rol_admin" }, "access.roles.assign:rol_admin");
+  admin(h, "access.roles.assign", "rol_guest", NOW + 1_000);
+  await drainJoins(h.anon, undefined, { periodic: true });
+  assert.ok(sh(h).roles.includes("rol_admin"), "given");
+  assert.equal(stepOf(h, "role:rol_admin").state, "done");
+  // the audit log cannot be read: never given, and the line says so truly
+  const g = harness();
+  await joinWithFailing(g, { role: "rol_admin" }, "access.roles.assign:rol_admin");
+  g.world.failing.add("audit.list");
+  await drainJoins(g.anon, undefined, { periodic: true });
+  assert.ok(!sh(g).roles.includes("rol_admin"), "not given unchecked");
+  const listed = (await handlers["members.joins.list"](g.as("usr_admin"), {})).joins.find((x: { personId: string }) => x.personId === DANA);
+  assert.equal(listed?.steps.find((x: { key: string }) => x.key === "role:rol_admin")?.error, "Vyre could not check this, so it left it. Give it by hand if it is still wanted.");
 });

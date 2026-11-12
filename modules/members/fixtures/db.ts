@@ -349,6 +349,8 @@ export function harness(now = NOW) {
     principals: new Map<string, FakePrincipal>(),
     /** who is in each channel and holds a role on each project, as channels and projects keep them */
     channelMembers: new Map<string, Set<string>>(),
+    /** audit rows, as audit.list answers them: a test puts an admin's change here */
+    audit: [] as Array<{ at: number; actor: { kind: string; id: string }; action: string; class: string; after: { targets: Array<{ kind: string; id: string }> } }>,
     projectRoles: new Map<string, Map<string, string>>(),
     devices: new Map<string, { id: string; revokedAt?: number }[]>(),
     holds: [] as { id: string; taskId: string; principal: { id: string }; actingFor?: string }[],
@@ -399,6 +401,7 @@ export function harness(now = NOW) {
       case "channels.members.remove": { world.channelMembers.get(i.channelId)?.delete(i.personId); return { ok: true }; }
       case "channels.get": return { channel: { channelId: i.channelId, members: [...(world.channelMembers.get(i.channelId) ?? new Set<string>())].map((id) => ({ kind: "person", id })) } };
       case "access.shares_of": return { shares: [] };
+      case "audit.list": return { rows: world.audit.filter((r) => r.at >= Number(i.from ?? 0) && (!i.target || r.after.targets.some((t) => t.kind === i.target.kind && t.id === i.target.id))) };
       case "access.share": return { ok: true };
       case "channels.home_join": return { channelId: "chn_vyre", added: true };
       case "access.join_share": return { grant: { id: "gnt_join" } };

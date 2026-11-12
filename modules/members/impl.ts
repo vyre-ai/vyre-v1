@@ -1,5 +1,5 @@
 // Members module (lane L7a). The manifest stays `stub` until P-CI_02 lands (ruling 25: a module's status is runtime state in host/modules.json).
-import { drainJoins, invitesSeam, noteAccessChange, supersedeJoinStep } from "./handlers/invite.ts";
+import { drainJoins, invitesSeam, supersedeJoinStep } from "./handlers/invite.ts";
 import { handlers } from "./handlers/index.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { MembersCtx } from "./projections.ts";
@@ -20,15 +20,6 @@ export const codecs = {};
  * The join's own steps run as the host and are not a change by someone.
  */
 export const consumers = {
-  /** When a person last changed roles or group membership anywhere in the Space: a role or group join step retried after that is not given by itself (invite.ts drainOne). Vyre's own changes do not count. */
-  "members.access_seen": {
-    on: ["access.changed"],
-    run(ctx: Ctx, event: { payload: Record<string, unknown>; actor?: string; at?: number }): void {
-      const by = String(event.payload["by"] ?? event.actor ?? "");
-      if (!by || by === "system" || by.startsWith("svc_")) return;
-      noteAccessChange(ctx as unknown as MembersCtx, String(event.payload["what"] ?? ""), Number(event.at ?? 0));
-    },
-  },
   "members.join_superseded": {
     on: ["project.member_set", "project.member_removed", "channel.member_added", "channel.member_removed"],
     async run(ctx: Ctx, event: { name: string; payload: Record<string, unknown>; actor?: string }): Promise<void> {

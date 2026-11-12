@@ -6,7 +6,7 @@ import { currentPolicy, enabledProviders } from "./policy.ts";
 import { companyConnected } from "./company.ts";
 import type { MembersCtx, InviteRow, SeamInvite } from "../projections.ts";
 import {
-  DAY_MS, DEFAULT_EXPIRY_DAYS, EVERYONE, GUEST_ROLE, OWNER_ROLE, hashCode, inviteById, inviteByCode, inviteView, invitesAll, listOf, mustInvite, newCode, nid, normCode, page, policyGet, policyPut, raise, stateOf,
+  DAY_MS, DEFAULT_EXPIRY_DAYS, EVERYONE, GUEST_ROLE, OWNER_ROLE, hashCode, inviteById, inviteByCode, inviteView, invitesAll, listOf, mustInvite, newCode, nid, normCode, page, raise, stateOf,
 } from "../projections.ts";
 
 import { oneAtATime } from "../../../lib/one-at-a-time.ts";
@@ -175,6 +175,8 @@ export interface JoinStep {
   seen?: string | null;
   /** set when a retry was not made because someone changed this since (or it could not be told): the step never runs again by itself and shows to admins as needing them */
   dropped?: string;
+  /** when the step first failed: a retry undoes nothing done before it, so only changes after this count */
+  failedAt?: number;
 }
 
 function stepsFor(r: InviteRow, guest?: { level: "view" | "reply" }): JoinStep[] {
@@ -292,7 +294,7 @@ async function drainOne(ctx: MembersCtx, personId: string, opts: { periodic?: bo
   if (status === "suspended") return "pending";   // nothing is given to a suspended person; the steps wait for a reactivation
   for (const s of steps) {
     if (s.state === "done") continue;
-    if (opts.periodic === true && s.tries >= JOIN_MAX_TRIES) continue;
+    if (opts.periodic === true && s.tries >= JOIN_MAX_TRIES && s.dropped === undefined) continue;   // a step waiting for an admin is still looked at, so it closes once given by hand
     if (s.state === "failed") {
       if (status === "removed") { s.state = "done"; s.dropped = "the person was removed"; delete s.error; logWarn(ctx, "members: a join step was not retried", { personId: j.person_id, step: s.k, why: s.dropped }); continue; }
       if (s.dropped !== undefined) {
@@ -300,13 +302,16 @@ async function drainOne(ctx: MembersCtx, personId: string, opts: { periodic?: bo
         try { if (holds(s, await areaState(ctx, j.person_id, s))) { s.state = "done"; delete s.error; } } catch { /* read again next time */ }
         continue;
       }
-      if (s.seen === undefined) { drop(ctx, j.person_id, s, "what the Space held when it failed could not be read"); continue; }   // cannot tell: never give
-      // a role or a group: access keeps no per-person trace of a change that was made and undone, so a retry gives one only while nobody has changed roles or groups since the invite
+      if (s.seen === undefined) { drop(ctx, j.person_id, s, "what the Space held when it failed could not be read", NEEDS_YOU_UNREAD); continue; }   // cannot tell: never give
+      // a role or a group given and taken back leaves the person's roles and groups as they were, so the retry asks the audit log, at this moment, whether a person changed this one role or
+      // group of theirs since the step first failed (every access.roles.* and access.groups.* call is audited in its own commit, with the person, the role or the group as targets)
+      const colon = s.k.indexOf(":");
       const area = s.k.startsWith("role:") ? "role" : s.k.startsWith("group:") ? "group" : null;
       if (area) {
-        const last = policyGet<number>(ctx, `${LAST_CHANGE}${area}`) ?? 0;
-        const asked = inviteById(ctx, j.invite_id)?.created_at ?? 0;
-        if (last >= asked) { drop(ctx, j.person_id, s, `someone changed ${area === "role" ? "roles" : "groups"} in the Space after the invite`); continue; }
+        let changed: boolean;
+        try { changed = await changedSince(ctx, j.person_id, area, s.k.slice(colon + 1), s.failedAt ?? j.joined_at); }
+        catch { drop(ctx, j.person_id, s, "whether someone changed it since could not be read", NEEDS_YOU_UNREAD); continue; }
+        if (changed) { drop(ctx, j.person_id, s, `someone changed this ${area} of theirs after the step failed`); continue; }
       }
       if (s.seen !== null) {
         let now: string | null;
@@ -323,6 +328,7 @@ async function drainOne(ctx: MembersCtx, personId: string, opts: { periodic?: bo
       s.state = "failed";
       s.tries++;
       s.error = (e as { error?: { code?: string } }).error?.code ?? String(e).slice(0, 120);
+      if (s.failedAt === undefined) s.failedAt = ctx.now();
       if (s.seen === undefined) { try { s.seen = await areaState(ctx, j.person_id, s); } catch { /* read again at the next try */ } }
     }
   }
@@ -366,24 +372,35 @@ function holds(s: JoinStep, state: string | null): boolean {
  * A retry that would undo a later change, or that cannot be checked, is not made. It is never silent: the step stays among the failed ones admins see (joins list, Console Overview) as needing
  * them, with the reason, member.join_stuck says so once, and the log has a line. It never runs again by itself; it closes once the person holds what it gives.
  */
-function drop(ctx: MembersCtx, personId: string, s: JoinStep, why: string): void {
+function drop(ctx: MembersCtx, personId: string, s: JoinStep, why: string, code: string = NEEDS_YOU): void {
   s.state = "failed";
   s.dropped = why;
-  s.error = NEEDS_YOU;
+  s.error = code;
   s.tries = Math.max(s.tries, JOIN_SURFACE_AFTER);
-  ctx.emit("member.join_stuck", personId, { personId, step: s.k, error: `${NEEDS_YOU}: ${why}`, tries: s.tries });
+  ctx.emit("member.join_stuck", personId, { personId, step: s.k, error: `${code}: ${why}`, tries: s.tries });
   logWarn(ctx, "members: a join step was not retried", { personId, step: s.k, why });
 }
 const NEEDS_YOU = "needs_you";
 
-/** policy rows that keep when a person (not Vyre itself) last changed roles, or group membership, anywhere in the Space: `last_change:role`, `last_change:group` */
-export const LAST_CHANGE = "last_change:";
-/** From the consumer in impl.ts: an access change made by a person. Roles and role assignments count for role steps, group membership for group steps. */
-export function noteAccessChange(ctx: MembersCtx, what: string, at: number): void {
-  const area = what === "assignment" || what === "role" ? "role" : what === "membership" || what === "group" ? "group" : null;
-  if (!area) return;
-  const key = `${LAST_CHANGE}${area}`;
-  if ((policyGet<number>(ctx, key) ?? 0) < at) policyPut(ctx, key, at);
+const NEEDS_YOU_UNREAD = "needs_you_unread";
+
+/** Did a person (not Vyre itself) change this one role or group of this person since `since`? From the audit log, read now. Throws when it cannot be read. */
+async function changedSince(ctx: MembersCtx, personId: string, area: "role" | "group", id: string, since: number): Promise<boolean> {
+  const prefix = area === "role" ? "access.roles." : "access.groups.";
+  let next: string | undefined;
+  for (let page = 0; page < 20; page++) {
+    const got = (await ctx.call("audit.list", { target: { kind: "person", id: personId }, from: since, limit: 200, ...(next ? { cursor: next } : {}) })) as {
+      rows?: Array<{ actor?: { kind?: string; id?: string }; action?: string; class?: string; after?: { targets?: Array<{ kind?: string; id?: string }> } }>; next?: string;
+    };
+    for (const r of got.rows ?? []) {
+      if (!r.action?.startsWith(prefix) || r.class === "deny") continue;
+      if (r.actor?.kind === "service" || r.actor?.id?.startsWith("svc_")) continue;   // the join's own steps run as the host
+      if ((r.after?.targets ?? []).some((t) => t.kind === area && t.id === id)) return true;
+    }
+    if (!got.next) return false;
+    next = got.next;
+  }
+  return true;   // more than 4000 rows about this person since: treat as changed, never give unchecked
 }
 
 // ---- what admins see of joins that have not finished
@@ -412,6 +429,7 @@ const PLAIN_ERROR: Record<string, string> = {
   "validation.not_found": "It no longer exists.", "permission.no_grant": "Vyre was not allowed to do it.", "permission.role_lacks_permission": "Vyre was not allowed to do it.",
   "permission.not_contained": "Vyre was not allowed to do it.", "validation.precondition_failed": "It was not ready.", "internal.unavailable": "That part of the Space was not answering.",
   needs_you: "Someone changed this after they joined, so Vyre left it. Give it by hand if it is still wanted.",
+  needs_you_unread: "Vyre could not check this, so it left it. Give it by hand if it is still wanted.",
 };
 
 export async function joinsList(ctx: MembersCtx, input: { stuck?: boolean }) {

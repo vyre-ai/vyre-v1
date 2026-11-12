@@ -11,3 +11,4 @@
 - A join step that has to wait for an admin is now shown to admins as needing them, with the reason, instead of being dropped quietly; a failed Everyone or group step is no longer lost because another group step worked.
 - Someone removed from a chat, a project, a skill, a review or a shared file and later added back now gets their access again; before, the second add could quietly do nothing.
 - No session is ended by its age any more anywhere in Vyre: a sign-in older than 30 days keeps working for previews and single sign-on keys as it already did for everything else, and still ends at once when you sign out or revoke it.
+- A failed join step for a role or a group is now held back only when someone changed that one role or group of the person after the step failed, and a step Vyre could not check says so plainly.
