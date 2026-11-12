@@ -26,6 +26,8 @@ test("a helper's composed link waits for the person in the chat they asked in: i
     if (input.resumed) { reads.push(JSON.stringify(input.resumed).slice(0, 300)); yield { type: "text", text: input.resumed.approved ? "Here is what the rates page says." : "I could not open the rates page." }; return; }
     // the helper: a link it put together itself
     yield* run("tool_search", { query: "read link" });
+    // the first link it puts together goes through (nothing outside read yet); the page it read marks the chain, so the next one, to another host, waits for the person (lead, 12 Nov)
+    yield* run("read_link", { url: "https://www.other-rates.example/compare" });
     const out = yield* run("read_link", { url: "https://www.harborquotes.example/rates" });
     reads.push(JSON.stringify(out).slice(0, 300));
     yield { type: "text", text: "I could not open the rates page, so I have nothing to add." };

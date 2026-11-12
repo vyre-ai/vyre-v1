@@ -1,1 +1,2 @@
 - When a helper needs your OK (for example to open a link it found itself), the approval card now shows in the chat where you asked, not only in the helper's own thread, and the helper's row says what it waits for instead of "Working". Allow lets it finish; Deny lets it report back.
+- An agent can open a link it put together without asking, until it has read something from outside (a web page, an email) in that chat; after that, a new link it puts together waits for your OK, and your next message makes links free again.

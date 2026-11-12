@@ -55,10 +55,18 @@ function stepCovered(ctx: GateCtx, step: StepRef, act: string, targets: readonly
 }
 
 /** Spend the person's own ask on this call. Every target must be one they named. A request that named none covers any target, and a call that shows none (a crew push, a saved draft) takes any ask for its act: once, and only in a thread no outside content has reached, because nothing checks where it goes. */
+/** The chain's outside-content marks: what a stranger wrote was read in one of these threads. `marked` when one is not cleared yet (the person has not spoken since). */
+function taintOf(ctx: GateCtx, threads: readonly string[]): { any: boolean; marked: boolean } {
+  if (threads.length === 0) return { any: false, marked: false };
+  const rows = ctx.db.all(`SELECT cleared_at FROM gate_taint WHERE thread_id IN (${threads.map(() => "?").join(", ")})`, ...threads) as unknown as { cleared_at: number | null }[];
+  return { any: rows.length > 0, marked: rows.some((t) => t.cleared_at === null) };
+}
+
 function turnSpent(ctx: GateCtx, act: string, targets: readonly string[], turn: { person: string; threads: string[] }): string[] {
   const marks = turn.threads.map(() => "?").join(", ");
-  const taint = ctx.db.all(`SELECT cleared_at FROM gate_taint WHERE thread_id IN (${marks})`, ...turn.threads) as unknown as { cleared_at: number | null }[];
-  if (taint.some((t) => t.cleared_at === null)) return [];
+  const t = taintOf(ctx, turn.threads);
+  if (t.marked) return [];
+  const taint = t.any ? [1] : [];
   const rows = ctx.db.all(`SELECT id, target FROM gate_grants WHERE kind = 'turn' AND person = ? AND act = ? AND used_at IS NULL AND expires_at > ? AND thread_id IN (${marks}) ORDER BY created_at ASC, id ASC`,
     turn.person, act, ctx.now(), ...turn.threads) as unknown as { id: string; target: string }[];
   const named = targets.map((t) => rows.find((r) => r.target !== "" && namedCovers(r.target, t)));
@@ -176,6 +184,10 @@ export async function linksKnown(ctx: GateCtx, input: In): Promise<unknown> {
   const l = normalLink(String(input.url));
   if (l === null) return { known: false };
   const threads = input.threads as string[];
+  // A link the agent put together is a read while nothing a stranger wrote has been read in this chain since the person last spoke: only the person's words and the model's own knowledge steer it,
+  // so it is the agent opening a link (owner, 2 Nov: agents may open any link). Once outside content was read, a composed address can carry what the agent knows to a place that content chose: then
+  // only a link the person gave or the content itself linked to is a read (lead, 12 Nov). No thread to judge is never unmarked: the hook counts that as composed before it asks.
+  if (threads.length > 0 && !taintOf(ctx, threads).marked) return { known: true };
   return { known: ctx.db.all(`SELECT 1 AS x FROM gate_links WHERE link = ? AND thread_id IN (${threads.map(() => "?").join(", ")})`, await sha(l), ...threads).length > 0 };
 }
 
