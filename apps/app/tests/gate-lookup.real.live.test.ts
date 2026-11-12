@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { DatabaseSync } from "node:sqlite";
 import { edge, dismissOnboarding } from "./real-app-harness.test.ts";
 import { GATE_MODEL, REAL_KEY, SPACE_KIND, addAi, bootGate, claimInBrowser, gateSkip, tokenOf } from "./gate-kit.test.ts";
 
@@ -34,6 +35,15 @@ test("GATE lookup (Personal Space): three lookups, then an Ask first approval wi
     const agentReplies = async (): Promise<number> => ((await call("chat.messages.list", { threadId: thread })).messages as Array<{ author: { kind: string }; body: string }>).filter((m) => m.author.kind === "agent" && m.body.trim() !== "").length;
     const cardText = async (): Promise<string> => { const b = await body(page); const m = b.match(/[^|]*wants to[^|]*\|[^|]*(Approve|Allow|Review)[^|]*\|[^|]*/g); return (m ?? []).join(" // "); };
     const post = (text: string): Promise<unknown> => call("chat.post", { threadId: thread, body: text, mentions: [{ kind: "agent", id: agentId }] });
+    const dbInfo = (since: number): string => {
+      try {
+        const db = new DatabaseSync(path.join(d.dir, "modules.db"), { readOnly: true });
+        const tools = db.prepare("SELECT b.kind k, b.data d, b.at a FROM engine_turn_blocks b WHERE b.at >= ? AND b.kind = 'tool_call' ORDER BY b.at, b.idx").all(since) as Array<{ d: string }>;
+        const holds = db.prepare("SELECT id, cap_name, state, created_at c, decided_at dd, substr(input,1,90) i FROM gate_holds WHERE created_at >= ? ORDER BY created_at").all(since) as Array<{ id: string; cap_name: string; state: string; c: number; dd: number | null; i: string }>;
+        db.close();
+        return `tool calls: ${tools.map((t) => { try { return (JSON.parse(t.d) as { name: string }).name; } catch { return "?"; } }).join(", ") || "none recorded"}; holds: ${holds.map((h) => `${h.id.slice(-5)} ${h.cap_name} ${h.state} created +${h.c - since} ms decided ${h.dd === null ? "never" : `+${h.dd - since} ms`} ${h.i.replace(/\s+/g, " ")}`).join(" | ") || "none"}`;
+      } catch (e) { return `db read failed: ${String(e).slice(0, 80)}`; }
+    };
     const ask = async (label: string, text: string, limit = 240_000): Promise<void> => {
       const n0 = await agentReplies(); const t0 = Date.now(); await post(text);
       let cardAt = -1, answerAt = -1, states = "";
@@ -46,8 +56,10 @@ test("GATE lookup (Personal Space): three lookups, then an Ask first approval wi
         await page.waitForTimeout(500);
       }
       await page.screenshot({ path: path.join(shots, `${label}-end.png`) });
+      console.log(`GATE LOOKUP ${label} DB: ${dbInfo(t0)}`);
       console.log(`GATE LOOKUP ${label}: reply after ${answerAt} ms; card first seen after ${cardAt} ms; turn states [${states}]; cards on screen: ${await cardText() || "none"}`);
     };
+    await ask("0-tools", "List the names of every tool you can call, names only, one line. Do not call any tool.");
     await ask("1-reykjavik", "Look up the population of Reykjavik on the web and tell me the source.");
     await ask("2-akureyri", "Now look up the population of Akureyri on the web too and tell me the source.");
     await ask("3-two-towns", "In one answer, look up the population of Kopavogur and of Hafnarfjordur on the web, with a source for each.");

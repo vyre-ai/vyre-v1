@@ -6,6 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { edge, dismissOnboarding } from "./real-app-harness.test.ts";
 import { guardCrashes } from "./crash-guard.ts";
@@ -51,7 +52,7 @@ test("GATE C (Personal Space): the agent works in its tmux workspace", { skip: g
     await page.reload({ waitUntil: "load" }); await page.getByTestId("shell").waitFor({ timeout: 30_000 });
     const field = page.getByTestId("composer-field").first();
     let thread = "";
-    const threadsMsgs = async (): Promise<Msg[]> => { if (!thread) { const t = ((await api("threads.list", {})).threads ?? []) as Array<{ threadId: string }>; if (t[0]) thread = t[0].threadId; } return thread ? (((await api("chat.messages.list", { threadId: thread })).messages ?? []) as Msg[]) : []; };
+    const threadsMsgs = async (): Promise<Msg[]> => { if (!thread) { const t = ((await api("threads.list", {})).threads ?? []) as Array<{ threadId: string; kind?: string }>; const c0 = t.find((x) => x.kind !== "channel" && (x as { title?: string }).title !== "vyre") ?? t.find((x) => x.kind === "chat"); if (c0) thread = c0.threadId; else console.log(`GATE C threads.list shape: ${JSON.stringify(t).slice(0, 300)}`); } return thread ? (((await api("chat.messages.list", { threadId: thread })).messages ?? []) as Msg[]) : []; };
     const stopVisible = (): Promise<boolean> => page.getByTestId("stop-button").first().isVisible().catch(() => false);
     const step = async (name: string, f: () => Promise<Partial<{ result: string; ms: number; shot: string; note: string }> | void>): Promise<void> => {
       const t0 = Date.now();
@@ -92,6 +93,9 @@ test("GATE C (Personal Space): the agent works in its tmux workspace", { skip: g
       const reply = agentMs.map((m) => m.body).filter((x) => x.trim() !== "").join("\n");
       const toolBlocks = agentMs.flatMap((m) => m.blocks ?? []).filter((b) => /tool|command|terminal|step/i.test(b.type));
       const noise = [...new Set((await body()).match(NOISE) ?? [])];
+      let toolNames = "";
+      try { const db = new DatabaseSync(path.join(d.dir, "modules.db"), { readOnly: true }); toolNames = (db.prepare("SELECT data FROM engine_turn_blocks WHERE kind = 'tool_call' AND at >= ? ORDER BY at, idx").all(t0) as Array<{ data: string }>).map((r) => { try { return (JSON.parse(r.data) as { name: string }).name; } catch { return "?"; } }).join(","); db.close(); } catch { toolNames = "unreadable"; }
+      console.log(`GATE C ${tag} tools called: ${toolNames || "none"}; tabs open: ${await page.evaluate(() => [...document.querySelectorAll("[role=tab]")].length)}`);
       return { done, firstSign, maxGap, gapAt, reply, toolCalls: toolBlocks.length, turns: agentMs.length, noise, shots: shotsTaken, waitingForPerson };
     };
     const summarise = (r: Awaited<ReturnType<typeof job>>): string => `done ${r.done} ms; first sign ${r.firstSign} ms; longest silence ${r.maxGap} ms at ${r.gapAt} ms; ${r.toolCalls} tool blocks, ${r.turns} agent messages; noise on screen: ${r.noise.join(",") || "none"}; turn left waiting for the person: ${r.waitingForPerson}; reply: ${r.reply.slice(0, 220).replace(/\n/g, " / ")}`;

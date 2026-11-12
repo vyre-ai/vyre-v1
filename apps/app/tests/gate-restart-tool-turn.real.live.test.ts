@@ -16,7 +16,7 @@ const ROWS: Array<{ name: string; signal: "SIGKILL" | "SIGTERM"; during: "idle" 
   { name: "SIGTERM mid text reply", signal: "SIGTERM", during: "text" },
 ];
 for (const row of ROWS) {
-  test(`GATE restart row: ${row.name}, then three messages are answered on a model`, { skip: gateSkip(), timeout: 900_000 }, async () => {
+  test(`GATE restart row: ${row.name}, then three messages are answered on a model`, { skip: gateSkip() || (process.env["GATE_ROW"] && !row.name.includes(process.env["GATE_ROW"]) ? "another row is selected" : false), timeout: 900_000 }, async () => {
     const { chromium } = await import("playwright-core");
     const d = await bootGate(SPACE_KIND, "Restart Probe");
     const web = await edge(process.env["VYRE_APP_DIST"]!, d.address);
@@ -42,18 +42,18 @@ for (const row of ROWS) {
       const turns = async (): Promise<T[]> => ((await api("engine.turns.list", { threadId: thread })).turns ?? []);
       const say = (body: string): Promise<unknown> => api("chat.post", { threadId: thread, body, mentions: [{ kind: "agent", id: agentId }] });
       const idle = async (ms: number): Promise<void> => { const t0 = Date.now(); for (;;) { const t = await turns(); if (t.length > 0 && !t.some((x) => x.state === "running" || x.state === "queued")) return; if (Date.now() - t0 > ms) throw new Error("the chat stayed busy"); await new Promise((r) => setTimeout(r, 500)); } };
-      await say("Say OK."); await idle(120_000);
+      await say("Say OK."); await idle(Number(process.env["GATE_IDLE_MS"] ?? 120_000));
       assert.equal((await turns())[0]!.state, "completed", "the first turn completes");
       if (row.during === "command") { await say("Run `sleep 30 && echo one` in the terminal and tell me what it printed."); await new Promise((r) => setTimeout(r, 12_000)); assert.ok((await turns()).some((x) => x.state === "running"), "the command turn is running when the daemon stops"); }
       if (row.during === "text") { await say("Write 300 numbered lines, each a short fact about deserts. Nothing else."); await new Promise((r) => setTimeout(r, 4_000)); assert.ok((await turns()).some((x) => x.state === "running"), "the reply is streaming when the daemon stops"); }
       await d.stop(row.signal); await new Promise((r) => setTimeout(r, 1500)); await d.start(); await new Promise((r) => setTimeout(r, 6000));
-      await idle(120_000);
+      await idle(Number(process.env["GATE_IDLE_MS"] ?? 120_000));
       const seen: string[] = [];
       for (let i = 1; i <= 3; i++) {
         const tSay = Date.now();
         await say(`Say OK number ${i}.`);
         for (let k = 0; k < 60 && !(await turns()).some((x) => (x.startedAt ?? 0) >= tSay - 1000); k++) await new Promise((r) => setTimeout(r, 500));
-        await idle(120_000);
+        await idle(Number(process.env["GATE_IDLE_MS"] ?? 120_000));
         const last = (await turns()).filter((x) => (x.startedAt ?? 0) >= tSay - 1000)[0];
         assert.ok(last, `a turn was made for message ${i}`);
         seen.push(`${last.state}:${last.model || "NO MODEL"}`);
