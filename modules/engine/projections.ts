@@ -261,8 +261,27 @@ function leaseOf(r: Row): LeaseRow {
   return { threadId: str(r["thread_id"]), holder: str(r["holder"]), expiresAt: num(r["expires_at"]), turnId: orNull(r["turn_id"]) };
 }
 
+/** The host closed its database under a turn that was still ending (the daemon stopped): no lease is held any more, and nothing is written. */
+const isClosedDb = (e: unknown): boolean => e instanceof Error && /database is not open/i.test(e.message);
+function closedAs<T>(f: () => T, closed: T): T {
+  try { return f(); } catch (e) { if (isClosedDb(e)) return closed; throw e; }
+}
+
 export function sqlLeases(db: Db, ttlMs: number = LEASE_TTL_MS): LeaseStore {
   ensure(db);
+  const store = sqlLeaseStore(db, ttlMs);
+  // a lease call after the host closed the database is answered as "not held": a turn still ending as the daemon stops then ends as lease_lost and its worker stops, instead of throwing
+  // into nowhere from a timer or a finally (rc.26 tag blocker, 12 Nov). Any other error is thrown as before.
+  return {
+    acquire: (threadId, holder, now, turnId) => closedAs(() => store.acquire(threadId, holder, now, turnId), null),
+    renew: (threadId, holder, now) => closedAs(() => store.renew(threadId, holder, now), false),
+    setTurn: (threadId, holder, turnId) => closedAs(() => store.setTurn(threadId, holder, turnId), undefined),
+    release: (threadId, holder) => closedAs(() => store.release(threadId, holder), false),
+    get: (threadId, now) => closedAs(() => store.get(threadId, now), null),
+  };
+}
+
+function sqlLeaseStore(db: Db, ttlMs: number): LeaseStore {
   const read = (threadId: string): LeaseRow | null => {
     const r = rows(db, "SELECT * FROM engine_thread_lease WHERE thread_id = ?", threadId)[0];
     return r ? leaseOf(r) : null;
