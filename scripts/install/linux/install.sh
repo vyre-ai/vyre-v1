@@ -530,9 +530,11 @@ spacedb_host_boot() {
   [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_BOOT_ID_FILE:-}" ] || _sbf=$VYRE_TEST_BOOT_ID_FILE
   head -n 1 "$_sbf" 2>/dev/null || true
 }
+# spacedb_engine_boot: "vyred|<boot id>" from the running vyred, or "oneshot|<boot id>" from a one-shot container when this engine runs no vyred of this install
 spacedb_engine_boot() {
-  if _sbc=$(spacedb_vyred); then docker exec "$_sbc" cat /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1; return 0; fi
+  if _sbc=$(spacedb_vyred); then printf 'vyred|'; docker exec "$_sbc" cat /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1; return 0; fi
   _sbi=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  printf 'oneshot|'
   [ -z "$_sbi" ] || docker run --rm --network none --entrypoint cat "$_sbi" /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1
   return 0
 }
@@ -540,10 +542,13 @@ engine_same_kernel() {
   if [ -z "$SPACEDB_SAME" ]; then
     SPACEDB_SAME=1
     if [ "$(spacedb_os)" != Darwin ]; then
-      if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_ENGINE:-}" ]; then _sk=${VYRE_TEST_ENGINE%%|*}; _seb=${VYRE_TEST_ENGINE#*|}
+      if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_ENGINE:-}" ]; then _sk=${VYRE_TEST_ENGINE%%|*}; _seb=vyred\|${VYRE_TEST_ENGINE#*|}
       else _sk=$(docker info --format '{{.OperatingSystem}}' 2>/dev/null | head -n 1) || _sk=""; _seb=""; [ -z "$_sk" ] || _seb=$(spacedb_engine_boot); fi
       _shb=$(spacedb_host_boot)
-      case "$_sk" in ""|*"Docker Desktop"*) ;; *) [ -z "$_shb" ] || [ "$_shb" != "$_seb" ] || SPACEDB_SAME=0 ;; esac
+      case "$_sk" in ""|*"Docker Desktop"*) ;; *) [ -z "$_shb" ] || [ "$_shb" != "${_seb#*|}" ] || SPACEDB_SAME=0 ;; esac
+      # the engine this shell talks to runs no vyred of this install: the server may be running under another Docker context (another kernel). The one-shot container speaks
+      # for this engine only, so host tools are trusted only when no database in the Space has a -wal or -shm beside it (nothing has it open)
+      if [ "$SPACEDB_SAME" = 0 ] && [ "${_seb%%|*}" = oneshot ] && [ -n "$(find "$DATA_DIR/space" \( -name '*-wal' -o -name '*-shm' \) 2>/dev/null | head -n 1)" ]; then SPACEDB_SAME=1; fi
     fi
   fi
   return "$SPACEDB_SAME"

@@ -168,15 +168,16 @@ test("the kernel is told by its boot id, not its version: a VM with the same ker
     assert.ok(hostTouches(dir).some((l) => /^(sqlite3 .*|node --no-warnings -e .*)VACUUM INTO/.test(l)), "this kernel: the host's own sqlite3 (or node) takes the snapshot, as before");
     assert.doesNotMatch(read(path.join(dir, "docker.log")), /docker (exec \S+ node|run .*--entrypoint node)/, "no container reads a database");
     assert.match(read(path.join(dir, "docker.log")), /^docker exec cid1 cat \/proc\/sys\/kernel\/random\/boot_id$/m, "the boot id was read in the running vyred");
+    // vyred is down: the boot id is read in a one-shot container of the server image (trusted here: nothing in the Space has a -wal or -shm open)
+    fs.rmSync(path.join(dir, "docker.log"));
+    assert.equal(ask(world(dir, { running: false, ...SAME })), "same");
+    assert.match(read(path.join(dir, "docker.log")), /^docker run --rm --network none --entrypoint cat ghcr\.io\/vyre-ai\/vyred@sha256:b+ \/proc\/sys\/kernel\/random\/boot_id$/m);
     // a VM with the same kernel version string (Colima, Lima or Multipass on the same Ubuntu kernel): another boot id, so the VM reads it
     fs.rmSync(path.join(dir, "host.log")); fs.rmSync(path.join(dir, "docker.log"));
     const vm = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`, world(dir, { running: true, kernel: SAME.kernel, boot: "0f0e0d0c-another-kernel" }));
     assert.equal(vm.status, 0, vm.stderr);
     assert.deepEqual(hostTouches(dir), [], "another kernel: the VM reads it");
     assert.match(read(path.join(dir, "docker.log")), /^docker exec cid1 node/m);
-    // vyred is down: the boot id is read in a one-shot container of the server image
-    assert.equal(ask(world(dir, { running: false, ...SAME })), "same");
-    assert.match(read(path.join(dir, "docker.log")), /^docker run --rm --network none --entrypoint cat ghcr\.io\/vyre-ai\/vyred@sha256:b+ \/proc\/sys\/kernel\/random\/boot_id$/m);
     // fail safe: the engine silent, the boot id unreadable in the container, the boot id unreadable here, Docker Desktop, a Mac
     assert.equal(ask(world(dir, { running: true, kernel: "", boot: HOST_BOOT })), "vm", "an engine that does not answer");
     assert.equal(ask(world(dir, { running: true, kernel: SAME.kernel, boot: "" })), "vm", "no boot id from the engine");
@@ -651,3 +652,117 @@ test("the second half runs even when the first half was sourced (VYRE_SOURCE_ONL
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+
+// ---- review follow-ups (12 Nov, after eaf9db420)
+
+/** A stand-in for vyred holding on a damaged database: every request 503 with the damaged line. */
+async function holdingServer(): Promise<{ url: string; stop: () => void }> {
+  const port = 30000 + (process.pid % 20000);
+  const child = spawn(NODE, ["-e", `require("node:http").createServer((q,s)=>{s.writeHead(503,{"content-type":"application/json"});s.end(JSON.stringify({ok:false,status:"damaged",error:{code:"space.damaged",message:"modules.db is damaged (database disk image is malformed), so the Space cannot start. It is not repaired here. Put back the last good backup on the server: vyre-server restore <backup file> --yes"}}))}).listen(${port},"127.0.0.1",()=>console.log("up"))`], { stdio: ["ignore", "pipe", "inherit"] });
+  await new Promise<void>((r) => child.stdout.once("data", () => r()));
+  return { url: `http://127.0.0.1:${port}/healthz`, stop: () => child.kill() };
+}
+
+test("doctor names a server that holds on a damaged database, with the file and the restore command, and reports damaged data a restore set aside (never deleting it)", async () => {
+  const dir = tmp();
+  const srv = await holdingServer();
+  try {
+    mkSpace(dir, "D");
+    releases(dir);
+    fs.mkdirSync(path.join(dir, "data", "space.damaged-20261112T010000Z"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "data", "space.damaged-20261112T010000Z", "modules.db"), Buffer.alloc(3 * 1024 * 1024));
+    const r = sh(SERVER, `DATA_DIR="${dir}/data"; cmd_doctor`, { ...world(dir, { running: true, ...SAME }), VYRE_TEST_HEALTH_URL: srv.url, VYRE_TEST_DOCKER_ROOT: "", VYRE_TEST_USERNS_PROC: path.join(dir, "none"), VYRE_TEST_PROC_MOUNTS: "/nonexistent" });
+    assert.equal(r.status, 1, r.stderr + r.stdout);
+    assert.match(r.stdout, /^DOWN host\.healthz +vyred is holding, not serving: modules\.db is damaged \(database disk image is malformed\), so the Space cannot start\. .*vyre-server restore <backup file> --yes Backups are in \S+\/backups\./m, r.stdout);
+    assert.match(r.stdout, new RegExp(`^warn host\\.damaged_data +1 folder\\(s\\) of damaged data that a restore set aside are still here \\(3 MB\\)\\. Nothing uses them\\. Once the Space works, delete them: rm -rf ${esc(path.join(dir, "data", "space.damaged-20261112T010000Z"))}$`, "m"));
+    assert.ok(fs.existsSync(path.join(dir, "data", "space.damaged-20261112T010000Z")), "doctor never deletes it");
+  } finally { srv.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("three nights after a rolled-back update: the version is not tried again (one plain line, and doctor says so), no new pre-update backup is taken, and the backup from before the failure outlives any number of manual ones until an update succeeds", () => {
+  const dir = tmp();
+  try {
+    mkSpace(dir, "BEFORE");
+    releases(dir);
+    for (const v of ["1.2.0"]) {
+      const rel = path.join(dir, "releases", v);
+      fs.mkdirSync(rel, { recursive: true });
+      fs.writeFileSync(path.join(rel, "VERSION"), v); fs.writeFileSync(path.join(rel, ".complete"), "");
+      fs.writeFileSync(path.join(rel, "images.lock"), `VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:${"3".repeat(64)}\n`);
+    }
+    const env = { ...world(dir, { running: true, ...SAME }), TMPDIR: dir };
+    // 1.1.0 never becomes healthy here; the release running before it does
+    const night = (offered: string, extra = ""): Out => sh(SERVER, `DATA_DIR="${dir}/data"; fetch_release(){ REL_VERSION=${offered}; }; unpack_release(){ :; }; dc(){ :; }; prune_images(){ :; }; server_said(){ :; }; wait_healthy(){ [ "$(cur_version)" != 1.1.0 ]; }; trap cleanup EXIT; cmd_update --yes ${extra}`, env);
+    const n1 = night("1.1.0");
+    assert.equal(n1.status, 4, n1.stderr + n1.stdout);
+    const kept = n1.stdout.match(/Backed up to (\S+) while/)![1]!;
+    assert.equal(read(path.join(dir, "state/keep-backup")).trim(), kept);
+    db(path.join(dir, "data/space/events.db"), "INSERT INTO t VALUES ('WRITTEN-BY-THE-FAILED-VERSION')");
+    const pre = (): string[] => fs.readdirSync(path.join(dir, "backups")).filter((n) => n.startsWith("vyre-pre-"));
+    for (const n of [2, 3]) {
+      const r = night("1.1.0");
+      assert.equal(r.status, 0, `night ${n}: ${r.stderr}`);
+      assert.match(r.stdout, /^1\.1\.0 did not start here and was rolled back on \d{1,2} [A-Z][a-z]{2}\. It will not be tried again; the next release will\.$/m, `night ${n}`);
+      assert.doesNotMatch(r.stdout, /Backed up/, `night ${n}: no new backup`);
+      assert.deepEqual(pre(), [path.basename(kept)], `night ${n}: only the backup from before the failure`);
+    }
+    const doc = sh(SERVER, `DATA_DIR="${dir}/data"; check_all; printf '%s\\n' "$FINDINGS"`, env);
+    assert.match(doc.stdout, /host\.update\tdegraded\t1\.1\.0 did not start here and was rolled back on /);
+    // any number of manual backups never push it out
+    for (let i = 0; i < 6; i++) assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`, env).status, 0);
+    assert.ok(fs.existsSync(kept), "the backup from before the failure is still there");
+    // a newer release that works: the hold on that backup ends, and normal pruning applies again
+    const ok = night("1.2.0");
+    assert.equal(ok.status, 0, ok.stderr + ok.stdout);
+    assert.match(ok.stdout, /Updated to 1\.2\.0/);
+    assert.equal(fs.existsSync(path.join(dir, "state/keep-backup")), false);
+    assert.doesNotMatch(sh(SERVER, `DATA_DIR="${dir}/data"; check_all; printf '%s\\n' "$FINDINGS"`, env).stdout, /host\.update\t/, "doctor no longer mentions it");
+    // naming the version on purpose tries it once more
+    fs.rmSync(path.join(dir, "current")); fs.symlinkSync("releases/1.0.0", path.join(dir, "current"));
+    assert.doesNotMatch(night("1.1.0", "--version 1.1.0").stdout, /will not be tried again/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("the failed-update log and the printed reason never carry the one-time claim link or anything shaped like a code or token; the log is the owner's alone", () => {
+  const dir = tmp();
+  try {
+    const text = read(SERVER);
+    const env = updateWorld(dir, world(dir, { running: true, ...SAME }));
+    const newScript = text.replace(/^check_quiet\(\) \{/m, () => `check_quiet() { [ "$(cur_version)" != 1.1.0 ] || return 1; check_quiet_real; }\ncheck_quiet_real() {`);
+    releases(dir, { old: withFetchStub(text), new: newScript });
+    const link = "http://0.0.0.0:8420/claim/clm_zQhbYAT9gnUS4XM1B0VgJvigDonqEd2V#fp=37587f6372506e16&s=spc_proof";
+    fs.writeFileSync(path.join(dir, "server.log"), [
+      "vyred-1  | vyred 1.1.0 space spc_proof listening on http://0.0.0.0:8420",
+      `vyred-1  | Claim this Space as its owner (one time, valid 24 hours): ${link}`,
+      "vyred-1  | vyred: setup code VYRE-ABCD-EFGH was refused",
+      "vyred-1  | vyred: provider failed with token=Zx9fakefakefakefakefakefake0001 and key_abcdefghijklmnop",
+      `vyred-1  | vyred: error ${link}`,
+    ].join("\n") + "\n");
+    const r = runUpdate(dir, env);
+    assert.equal(r.status, 4, r.stderr + r.stdout);
+    const log = path.join(dir, "state/update-1.1.0-failed.log");
+    const kept = read(log);
+    for (const s of [r.stdout, r.stderr, kept]) {
+      assert.doesNotMatch(s, /Claim this Space|clm_|VYRE-ABCD-EFGH|Zx9fake|key_abcdefghijklmnop/, s);
+    }
+    assert.match(kept, /listening on/, "the rest of the log is kept");
+    assert.match(r.stdout, /The new version said: vyred: .*\[removed\]/, "the reason line is printed, scrubbed");
+    assert.equal(fs.statSync(log).mode & 0o077, 0, "0600");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("when this engine runs no vyred of this install, the one-shot boot id is trusted only while no database in the Space has a -wal or -shm beside it", () => {
+  const dir = tmp();
+  try {
+    mkSpace(dir, "C");
+    const ask = (): string => sh(SERVER, `DATA_DIR="${dir}/data"; engine_same_kernel && echo same || echo vm`, world(dir, { running: false, ...SAME })).stdout.trim();
+    assert.equal(ask(), "same", "nothing has the files open: this engine's one-shot answer stands");
+    fs.writeFileSync(path.join(dir, "data/space/modules.db-wal"), "");
+    assert.equal(ask(), "vm", "a -wal beside a database: something may have it open under another Docker context");
+    fs.rmSync(path.join(dir, "data/space/modules.db-wal"));
+    fs.writeFileSync(path.join(dir, "data/space/events.db-shm"), "");
+    assert.equal(ask(), "vm", "a -shm likewise");
+    // the running vyred's own answer is not second-guessed
+    assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; engine_same_kernel && echo same || echo vm`, world(dir, { running: true, ...SAME })).stdout.trim(), "same");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
