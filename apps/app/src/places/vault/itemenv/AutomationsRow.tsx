@@ -6,7 +6,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useOnline, useVaultData } from "../layout/data.tsx";
 import type { ItemKind } from "../layout/model.ts";
-import { Btn, Glyph } from "../layout/parts.tsx";
+import { Btn, Glyph, IconBtn } from "../layout/parts.tsx";
 import { GATE_TEXT, gateFor, hiddenOf, offersAutomations, stepsLine, usedByOf } from "./automations.ts";
 import type { AiAccount, BuilderStatus, UsedBy } from "./automations.ts";
 import { PendingSecrets, pendingSlots } from "./PendingSecrets.tsx";
@@ -20,6 +20,8 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
   const [accounts, setAccounts] = useState<readonly AiAccount[] | null>(null);
   const [uses, setUses] = useState<UsedBy[] | null>(null);
   const [hidden, setHidden] = useState(0);
+  // where this key may be sent without asking: hosts a person approved (Always allow on a held test read)
+  const [sentTo, setSentTo] = useState<string[]>([]);
   const [tick, setTick] = useState(0);
   const [builder, setBuilder] = useState<BuilderStatus | null>(null);
   const [asked, setAsked] = useState(false);
@@ -82,8 +84,21 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
     return () => { live = false; };
   }, [data, item.handle, tick]);
 
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const out = (await data.call("automations.key_hosts.list", { itemId: item.id })) as { hosts?: { host?: unknown }[] } | null;
+        if (live) setSentTo((out?.hosts ?? []).flatMap((h) => (typeof h.host === "string" ? [h.host] : [])));
+      } catch { if (live) setSentTo([]); }
+    })();
+    return () => { live = false; };
+  }, [data, item.id, tick]);
+  const mayUse = item.yourLevel === "use" || item.yourLevel === "edit" || item.yourLevel === "manage";
+  const forget = (host: string): void => { void data.call("automations.key_hosts.remove", { itemId: item.id, host }).then(() => setTick((n) => n + 1), () => undefined); };
+
   const used = uses ?? [];
-  if (!offers && used.length === 0 && hidden === 0) return null;
+  if (!offers && used.length === 0 && hidden === 0 && sentTo.length === 0) return null;
   const gate = gateFor({ online, yourLevel: item.yourLevel, accounts, builder, asked });
   const start = (): void => { if (gate.state === "ready") data.nav.addToAutomations?.({ id: item.id, name: item.name, handle: item.handle }); };
   const toRecords = (): void => { if (gate.state === "ready") data.nav.syncToRecords?.({ id: item.id, name: item.name, handle: item.handle }); };
@@ -126,6 +141,18 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
         </View>
       )}
       {hidden > 0 ? <Text style={s.note} testID="item-used-hidden">{used.length > 0 ? `and ${hidden} more you cannot open` : `${hidden === 1 ? "1 Automation" : `${hidden} Automations`} you cannot open ${hidden === 1 ? "uses" : "use"} this key`}</Text> : null}
+      {sentTo.length > 0 ? (
+        <View style={s.sent} testID="item-sent-to">
+          <Text style={s.sentLabel}>Sent to</Text>
+          {sentTo.map((h) => (
+            <View key={h} style={s.sentRow}>
+              <Glyph name="globe" size={13} />
+              <Text numberOfLines={1} style={s.sentHost}>{h}</Text>
+              {mayUse ? <IconBtn icon="x" label={`Stop sending this key to ${h}`} onPress={() => forget(h)} testID={`item-sent-to-remove-${h}`} /> : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -139,5 +166,9 @@ const s = StyleSheet.create({
   noticeText: { flex: 1, minWidth: 180, fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string },
   note: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingHorizontal: 4, paddingVertical: 4 },
   trail: { flexDirection: "row", alignItems: "center", gap: 8 },
+  sent: { marginTop: 8, paddingHorizontal: 4, gap: 2 },
+  sentLabel: { fontSize: 12, color: "var(--ink-3)" as string, marginBottom: 2 },
+  sentRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 28 },
+  sentHost: { flex: 1, fontSize: 13, color: "var(--ink-2)" as string },
   useSteps: { maxWidth: 160, fontSize: 12.5, color: "var(--ink-3)" as string },
 });

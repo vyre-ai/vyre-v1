@@ -11,3 +11,4 @@
 - An HTTP request step's key no longer follows a redirect to another site, whatever the key's header is called.
 - A step that uses a Vault key can be added or changed only by someone who may use that key ("Step 2 uses a key you cannot use"); other steps stay editable. A key cannot go to an address whose host is filled in when the step runs.
 - Used in, and the Move to Trash confirm, count the Automations you cannot open that use the key ("and 2 more you cannot open"), and the confirm says agents lose the key too.
+- Vault: a key's page lists where it may be sent ("Sent to"), and a person who may use the key can remove a host with one press.

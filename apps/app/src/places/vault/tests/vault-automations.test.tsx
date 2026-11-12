@@ -192,3 +192,22 @@ test("Automations the person cannot open are counted, never linked, in Used in a
   assert.match(confirm, /3 automations use this key: New lead to GoHighLevel and 2 you cannot open/, confirm);
   assert.match(confirm, /Agents that ask for #Northwind_GHL lose it too/, confirm);
 });
+
+test("Sent to lists the hosts approved for the key, and removing one asks the server to forget it", async () => {
+  const v = createSampleVault();
+  const base = v.data.call.bind(v.data);
+  const removed: unknown[] = [];
+  let hosts = [{ host: "api.gohighlevel.example", by: "usr_irfad", at: 1 }];
+  v.data = { ...v.data, call: async (cap, input) => {
+    if (cap === "automations.key_hosts.list") return { hosts };
+    if (cap === "automations.key_hosts.remove") { removed.push(input); hosts = []; return { removed: true }; }
+    return base(cap, input);
+  } };
+  const root = await open(v, "vit_ghl");
+  await settle();
+  assert.match(textOf(find(root, "item-sent-to")), /Sent to.*api\.gohighlevel\.example/);
+  await press(find(root, "item-sent-to-remove-api.gohighlevel.example"));
+  await settle();
+  assert.deepEqual(removed, [{ itemId: "vit_ghl", host: "api.gohighlevel.example" }]);
+  assert.equal(find(root, "item-sent-to"), null, "nothing listed once the last host is gone");
+});
