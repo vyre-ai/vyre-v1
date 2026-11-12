@@ -50,13 +50,30 @@ const PAGE_PROBE: &str = r#"(function () {
       (document.body ? document.body.children.length + " element(s) in body" : "no body") + ", page " + (document.documentElement ? document.documentElement.outerHTML.length : 0) + " bytes, served by " +
       (c ? "the worker " + c.scriptURL : "no worker");
     send("blank", shows);
-    inv("page_recover", { kind: "blank", text: shows }).then(function (ok) {
-      if (!ok) return;
+    function fresh() {
       var gone = sw && sw.getRegistrations ? sw.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }) : Promise.resolve();
       var cleared = window.caches ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : Promise.resolve();
       var again = function () { location.replace("/"); };
       Promise.all([gone, cleared]).then(again, again);
-    }, function () {});
+    }
+    // the shell will not load it again by itself: one plain line and a button, never an empty window
+    function notice() {
+      if (!document.body || !document.createElement) return;
+      var box = document.createElement("div");
+      box.setAttribute("role", "alert");
+      box.style.cssText = "position:fixed;inset:0;z-index:2147483647;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#f4f3f7;color:#1c1b22;font:15px/1.4 -apple-system,'Segoe UI',sans-serif";
+      var line = document.createElement("div");
+      line.textContent = "Vyre did not open properly.";
+      var btn = document.createElement("button");
+      btn.textContent = "Open again";
+      btn.style.cssText = "padding:8px 16px;border-radius:8px;border:1px solid #c9c7d1;background:#fff;color:#1c1b22;font:inherit;cursor:pointer";
+      btn.addEventListener("click", function () { send("blank", "the person pressed Open again"); fresh(); });
+      box.appendChild(line);
+      box.appendChild(btn);
+      document.body.appendChild(box);
+      send("blank", "showed the notice: Vyre did not open properly, with Open again");
+    }
+    inv("page_recover", { kind: "blank", text: shows }).then(function (ok) { if (ok) fresh(); else notice(); }, notice);
   }, 8000);
 })();"#;
 

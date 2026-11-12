@@ -16,14 +16,15 @@ function script(name: string): string {
 }
 
 type Call = { cmd: string; args: Record<string, string> };
+type El = { tag: string; textContent: string; style: Record<string, string>; attrs: Record<string, string>; kids: El[]; clicks: (() => void)[]; setAttribute(k: string, v: string): void; appendChild(c: El): void; addEventListener(e: string, fn: () => void): void };
 type Page = {
-  calls: Call[]; replaced: string[]; unregistered: number; deleted: string[];
+  calls: Call[]; replaced: string[]; unregistered: number; deleted: string[]; shown: El[];
   run(src: string): void; advance(ms: number): Promise<void>; settle(): Promise<void>;
 };
 
 /** A stand-in for the WebView's page: workers (and whether one controls this page), caches, the body's text, and the shell's commands. `allow` is the shell's answer to page_recover. */
 function page(o: { workers?: number; controlled?: boolean; text?: string; allow?: boolean; caches?: string[] }): Page {
-  const p = { calls: [] as Call[], replaced: [] as string[], unregistered: 0, deleted: [] as string[] } as Page;
+  const p = { calls: [] as Call[], replaced: [] as string[], unregistered: 0, deleted: [] as string[], shown: [] as El[] } as Page;
   let now = 0;
   const timers: { at: number; fn: () => void }[] = [];
   const regs = Array.from({ length: o.workers ?? 0 }, () => ({ unregister: () => { p.unregistered++; return Promise.resolve(true); } }));
@@ -35,7 +36,14 @@ function page(o: { workers?: number; controlled?: boolean; text?: string; allow?
     navigator: { serviceWorker: { controller: o.controlled ? { scriptURL: "http://tauri.localhost/sw.js" } : null, getRegistrations: () => Promise.resolve(regs) } },
     caches: { keys: () => Promise.resolve(keys), delete: (k: string) => { p.deleted.push(k); return Promise.resolve(true); } },
     location: { protocol: "http:", host: "tauri.localhost", pathname: "/", href: "http://tauri.localhost/", replace: (u: string) => { p.replaced.push(u); } },
-    document: { readyState: "complete", title: "Vyre", body: { innerText: o.text ?? "", children: { length: 1 } }, documentElement: { outerHTML: "<html><body><div id=root></div></body></html>" } },
+    document: {
+      readyState: "complete", title: "Vyre", documentElement: { outerHTML: "<html><body><div id=root></div></body></html>" },
+      body: { innerText: o.text ?? "", children: { length: 1 }, appendChild: (el: El) => { p.shown.push(el); } },
+      createElement: (tag: string): El => {
+        const el: El = { tag, textContent: "", style: {}, attrs: {}, kids: [], clicks: [], setAttribute(k, v) { el.attrs[k] = v; }, appendChild(c) { el.kids.push(c); }, addEventListener(e, fn) { if (e === "click") el.clicks.push(fn); } };
+        return el;
+      },
+    },
     Promise, String, Number,
   };
   win["window"] = win;
@@ -115,13 +123,31 @@ test("a window that has drawn nothing 8 s after loading says what the page shows
   assert.deepEqual(p.replaced, ["/"]);
 });
 
-test("a blank window the shell will not load again stays as it is, with what it shows on record", async () => {
+test("a blank window the shell will not load again shows one plain line and a way forward, never an empty window", async () => {
+  const p = page({ workers: 1, controlled: true, text: "", allow: false });
+  p.run(script("PAGE_PROBE"));
+  await p.advance(8000);
+  assert.match(reports(p, "blank")[0] ?? "", /served by the worker http:\/\/tauri\.localhost\/sw\.js$/);
+  assert.equal(recovers(p).length, 1);
+  assert.deepEqual(p.replaced, [], "the shell said no, so the page does not load itself again");
+  assert.equal(p.shown.length, 1, "a notice is put on the page");
+  const box = p.shown[0]!;
+  assert.equal(box.attrs["role"], "alert");
+  assert.deepEqual(box.kids.map((k) => [k.tag, k.textContent]), [["div", "Vyre did not open properly."], ["button", "Open again"]]);
+  assert.match(reports(p, "blank")[1] ?? "", /^showed the notice/);
+  // the person presses Open again: workers and caches go and the page loads again (a person's press, not bounded by the shell)
+  box.kids[1]!.clicks[0]!();
+  await p.settle();
+  assert.equal(p.unregistered, 1);
+  assert.deepEqual(p.replaced, ["/"]);
+});
+
+test("a blank window with no worker: still a notice when the shell says no", async () => {
   const p = page({ workers: 0, text: "", allow: false });
   p.run(script("PAGE_PROBE"));
   await p.advance(8000);
   assert.match(reports(p, "blank")[0] ?? "", /served by no worker$/);
-  assert.equal(recovers(p).length, 1);
-  assert.deepEqual(p.replaced, []);
+  assert.equal(p.shown.length, 1);
 });
 
 test("a window that draws is left alone", async () => {
@@ -132,6 +158,7 @@ test("a window that draws is left alone", async () => {
   assert.deepEqual(reports(p, "blank"), []);
   assert.deepEqual(recovers(p), []);
   assert.deepEqual(p.replaced, []);
+  assert.deepEqual(p.shown, []);
 });
 
 test("the shell bounds how often a page may load itself again, and says each time in its log", () => {

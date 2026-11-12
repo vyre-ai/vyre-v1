@@ -10,6 +10,7 @@ import { spawn, spawnSync } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { rendersAfter, upgradeVerdict } from "./upgrade-verdict.ts";
 
 const argv = process.argv.slice(2);
 // --day-two <app> <out>: the shipped app (rc.18) opened twice on this profile, so the second start shows what a person saw before this fix; its blank second start is recorded, not asserted.
@@ -130,34 +131,15 @@ if (kept) {
   profileListing("kept");
   const run = launch(GOOD, "upgraded-start", true);
   const removed = await run.waitFor(/page serviceworker: removed \d+ service worker/, 60_000);
-  // Everything the shell said from the first removal on. The removal can be said more than once in one start (run 43109353813 said it twice, then drew 132 chars), so this is the
-  // whole rest of the log, never the piece between two removals.
-  const sinceRemoval = (): string => { const log = run.log(); const at = log.indexOf("page serviceworker: removed"); return at < 0 ? "" : log.slice(at); };
-  const reportsAfter = (): number[] => [...sinceRemoval().matchAll(/page rendered: (\d+) chars/g)].map((m) => Number(m[1]));
-  await run.waitFor(() => reportsAfter().some((n) => n > 0), 30_000);
+  await run.waitFor((log) => rendersAfter(log).some((n) => n > 0), 30_000);
   await sleep(4000);
   shot("upgraded-start");
   // the page's last report after the worker's removal, which must be nonzero and still nonzero about 3 s later (a page that drew and went blank must not pass); every report is printed
-  const first = reportsAfter();
+  const firstLook = rendersAfter(run.log());
   await sleep(3000);
-  const later = reportsAfter();
-  const after = later.at(-1) ?? 0;
-  const said = sinceRemoval();
-  const removals = (said.match(/page serviceworker: removed/g) ?? []).length;
-  const recovered = said.split("\n").filter((l) => /page recover /.test(l));
-  console.log(`update-proof: first start over the shipped app's profile: worker removed=${removed}, then ${after} chars (every report after the removal: ${later.join(", ") || "none"}; at the first look: ${first.join(", ") || "none"}); removals said ${removals} time(s); the page loaded itself again ${recovered.filter((l) => !/refused/.test(l)).length} time(s)`);
-  for (const l of recovered) console.log(`update-proof:   ${l.trim()}`);
-  if (first.length > 0 && first[0] === 0 && after > 0) console.log("update-proof: NOTE the page reported 0 before it drew; a blank flash on the first start over an old profile");
-  if (recovered.some((l) => /page recover blank/.test(l)) && after > 0) console.log("update-proof: NOTE it drew only after the shell's blank-window recovery loaded it again");
-  if (!removed) failures.push("upgrade: the earlier version's service worker was not removed");
-  if (recovered.some((l) => /refused/.test(l))) failures.push("upgrade: the page kept loading itself again until the shell refused");
-  if (after === 0) {
-    failures.push("upgrade: the app draws nothing after removing the earlier worker");
-    // what the WebView held when nothing was drawn (PAGE_PROBE's "page blank" line: address, readyState, title, elements, size, which worker served it), then the shell's own words
-    const blank = said.split("\n").filter((l) => /page blank:/.test(l));
-    console.log(`update-proof: what the window showed: ${blank.length ? blank.map((l) => l.trim()).join(" | ") : "no blank report (the page never ran the shell's probe 8 s after a load)"}`);
-    console.log(`update-proof: the shell said, from the first removal on:\n${said.split("\n").slice(0, 40).join("\n")}`);
-  }
+  const verdict = upgradeVerdict({ removed, firstLook, log: run.log() });
+  for (const l of verdict.lines) console.log(`update-proof: ${l}`);
+  failures.push(...verdict.failures);
   await quit("upgraded-start");
 } else {
   // the earlier steps of this job ran the app on this profile and ended it with a force kill (run-shell.sh's trap): start as a fresh person, keeping a listing of what was there
