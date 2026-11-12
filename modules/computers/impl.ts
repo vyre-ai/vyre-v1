@@ -34,7 +34,7 @@ import type { HomeDeps, HomeSync, MadeFile } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost, boundHost, ensure as ensureSchema } from "./projections.ts";
-import { reconcileClaims, turnEnded, turnStarted } from "./sbrowser/room.ts";
+import { reconcileClaims, turnActive, turnEnded, turnStarted } from "./sbrowser/room.ts";
 import { browserOfDeleted, browserOfRestored, forgetExpired } from "./sbrowser/forget.ts";
 import { nodeHomeCheck, nodeJobs, nodeRecordingCheck, nodeResult, nodeStreamInput, nodeStreamOpen } from "./handlers/node.ts";
 import { nodeRun } from "./remote.ts";
@@ -194,7 +194,7 @@ export function toolErrorOf(stderr: string, exitCode: number | null): ToolError 
   const last = stderr.trim().split("\n").pop() ?? "";
   try {
     const j = JSON.parse(last) as { code?: unknown; message?: unknown; reason?: unknown };
-    if (typeof j.code === "string" && TOOL_CODES.includes(j.code)) return new ToolError(j.code as ToolCode, typeof j.message === "string" ? j.message : "The tool failed.", j.reason === "profile_held" || j.reason === "profile_busy" || j.reason === "browser_full" ? j.reason : undefined);
+    if (typeof j.code === "string" && TOOL_CODES.includes(j.code)) return new ToolError(j.code as ToolCode, typeof j.message === "string" ? j.message : "The tool failed.", j.reason === "profile_held" || j.reason === "profile_busy" || j.reason === "browser_full" || j.reason === "browser_reopened" ? j.reason : undefined);
   } catch { /* not JSON */ }
   return new ToolError("unavailable", `agentd tool failed (${exitCode ?? "no exit code"}): ${stderr.trim().slice(0, 200)}`);
 }
@@ -594,13 +594,16 @@ export { nodeRun };
 
 /** An agent moved to Trash (also a person's Assistant when the person leaves): its Space browser stops and its profile is kept while it can be restored, then removed (sbrowser/forget.ts). */
 export const consumers = {
-  // an agent mid-turn keeps its Space browser: make room never closes it (sbrowser/room.ts)
+  // an agent mid-turn keeps its Space browser: make room never closes it (sbrowser/room.ts). turn.block says a running turn is alive; turn.waiting (parked on a person, a task or a time) ends the
+  // protection, and the turn's continuation starts again with turn.started
   "computers.browser_turns": {
-    on: ["turn.started", "turn.completed", "turn.failed", "turn.cancelled"],
+    on: ["turn.started", "turn.block", "turn.waiting", "turn.completed", "turn.failed", "turn.cancelled"],
     run: async (ctx: CompCtx, event: { name: string; payload: { agentId?: unknown; turnId?: unknown } }): Promise<void> => {
       const a = event.payload.agentId, t = event.payload.turnId;
-      if (typeof a !== "string" || typeof t !== "string") return;
-      if (event.name === "turn.started") turnStarted(ctx.space, a, t, ctx.now()); else turnEnded(ctx.space, a, t);
+      if (typeof t !== "string") return;
+      if (event.name === "turn.block") { turnActive(t, ctx.now()); return; }
+      if (event.name === "turn.started") { if (typeof a === "string") turnStarted(ctx.space, a, t, ctx.now()); return; }
+      turnEnded(ctx.space, typeof a === "string" ? a : "", t);
     },
   },
   "computers.browser_forget": {

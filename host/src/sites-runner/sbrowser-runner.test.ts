@@ -170,14 +170,15 @@ test("the Space browser image may be fetched and read, by tag or by digest, and 
 
 // Lead, 12 Nov (owner: many agents' browsers on a big server): the runner's bound on the Space browser container follows the host it runs on, read by the runner itself, and stays a bound. A security
 // change: a daemon cannot ask its way past it.
-test("the Space browser's memory and task caps follow this host (8, 16 and 64 GB), and a body above them is refused whatever the daemon asks", async () => {
+test("the Space browser's memory and task caps follow this host (4, 8, 16 and 64 GB), and a body above them is refused whatever the daemon asks", async () => {
   const { sbrowserBody, sbrowserBounds } = await import("./computers-policy.ts");
   const GB = 1024 ** 3;
   const MB = 1024 ** 2;
-  for (const [gb, memMb] of [[8, 8192], [16, 16384 - 1536], [64, 65536 - 1536]] as const) {
+  // fifth look: never above the host less its headroom, so a 4 GB or 8 GB host is not offered the old 8 GB
+  for (const [gb, memMb] of [[4, 4096 - 1536], [8, 8192 - 1536], [16, 16384 - 1536], [64, 65536 - 1536]] as const) {
     const host = { memoryBytes: gb * GB };
     const b = sbrowserBounds(host);
-    assert.equal(b.memory, memMb * MB, `${gb} GB: memory less what the system keeps, never under the old 8 GB`);
+    assert.equal(b.memory, memMb * MB, `${gb} GB: memory less what the system keeps, never more`);
     const browsers = Math.floor((memMb - 512) / 256);
     assert.equal(b.pids, Math.max(2048, 100 + 120 * browsers + 256), `${gb} GB: the task cap the browsers of that memory need, with a margin`);
     // exactly at the bound: allowed
@@ -185,7 +186,7 @@ test("the Space browser's memory and task caps follow this host (8, 16 and 64 GB
     // above it: refused with a plain reason, though the daemon asked for it
     const memOver = sbrowserBody(SBROWSER_NAME, good({}, { Memory: b.memory + MB, MemorySwap: b.memory + MB }), host);
     assert.ok("why" in memOver && /memory cap of at most/.test(memOver.why), JSON.stringify(memOver));
-    const pidsOver = sbrowserBody(SBROWSER_NAME, good({}, { PidsLimit: b.pids + 1 }), host);
+    const pidsOver = sbrowserBody(SBROWSER_NAME, good({}, { Memory: b.memory, MemorySwap: b.memory, PidsLimit: b.pids + 1 }), host);
     assert.ok("why" in pidsOver && /process cap of at most/.test(pidsOver.why), JSON.stringify(pidsOver));
   }
   // the host is the runner's own reading: a 16 GB body on an 8 GB host is refused, the same body on a 64 GB host is not

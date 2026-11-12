@@ -42,6 +42,9 @@ export interface BrowserToolCall {
   space?: string;
   /** The Vault channel of this profile's agent for #Handle.field in the call: held by browserd in memory, for this profile only. */
   fill?: { url: string; token: string };
+  /** The start of the browser the refs this act uses were taken under (the `browserStart` of the last snapshot's answer): browserd refuses the act with reason browser_reopened when the browser has
+   * started again since, so a stale ref never clicks something else. */
+  refsFrom?: string;
   /** Who holds the controls as the module's table says (null: nobody). browserd takes on a person it did not know (it restarted); "nobody" never releases a takeover on this path. */
   hold?: string | null;
 }
@@ -81,6 +84,8 @@ export interface SpaceBrowser {
   /** The agent is gone: the browser stops and the folder is deleted. */
   forget(profileId: string): Promise<void>;
   profiles(): Promise<{ profiles: ProfileRow[]; maxRunning: number }>;
+  /** Close the least recently used quiet browser of another Space that has been quiet for `quietMs` (this Space has nothing of its own to close and the service is full). The id, or null. */
+  closeOther?(space: string, quietMs: number): Promise<string | null>;
   health(): Promise<{ ok: boolean; detail?: string }>;
   /** The subnets of the service's own network: a request from one reaches only the Vault channel of the daemon (computerSubnets). */
   subnets?(): string[];

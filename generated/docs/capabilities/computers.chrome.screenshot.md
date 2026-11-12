@@ -37,6 +37,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   fileId: string;
   width: number;
   height: number;
@@ -69,6 +71,8 @@ type Out = {
   "output": {
     "fileId": "fil_a1b2c3",
     "height": 1,
+    "note": "example",
+    "reopened": true,
     "width": 1
   }
 }

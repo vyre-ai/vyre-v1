@@ -292,7 +292,12 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
   return {
     available: () => o.api.ping().catch(() => false),
     async tool(a: BrowserToolCall) {
-      return call("tool", { profileId: a.profileId, tool: a.tool, args: a.args, timeoutMs: a.timeoutMs, ...(a.by ? { by: a.by } : {}), ...(a.fill ? { fillUrl: a.fill.url, fillToken: a.fill.token } : {}), ...(a.space ? { spaceId: a.space } : {}), ...(a.hold !== undefined ? { hold: a.hold } : {}), ...(a.agent ? { agentName: a.agent.name, ...(a.agent.faceSvg ? { faceSvg: a.agent.faceSvg } : {}) } : {}) });
+      return call("tool", { profileId: a.profileId, tool: a.tool, args: a.args, timeoutMs: a.timeoutMs, ...(a.by ? { by: a.by } : {}), ...(a.fill ? { fillUrl: a.fill.url, fillToken: a.fill.token } : {}), ...(a.space ? { spaceId: a.space } : {}), ...(a.hold !== undefined ? { hold: a.hold } : {}), ...(a.refsFrom ? { refsFrom: a.refsFrom } : {}), ...(a.agent ? { agentName: a.agent.name, ...(a.agent.faceSvg ? { faceSvg: a.agent.faceSvg } : {}) } : {}) });
+    },
+    async closeOther(space, quietMs) {
+      if (!(await o.api.containerRunning(name))) return null;
+      const r = (await call("close_other", { spaceId: space, quietMs })) as { closed?: unknown };
+      return typeof r.closed === "string" ? r.closed : null;
     },
     async downloads(profileId) {
       if (!(await o.api.containerRunning(name))) return [];

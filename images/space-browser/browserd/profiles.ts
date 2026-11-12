@@ -11,6 +11,16 @@ import { AgentError, badInput, notFound, paused, unavailable, within } from "../
 import { createVault, scrubUsed } from "../../agent-computer/agentd/vault.ts";
 import type { CallChannel, Vault } from "../../agent-computer/agentd/vault.ts";
 
+/** The line an act on stale refs is refused with (the module gives the same line). */
+export const REOPENED_LINE = "Your browser was reopened and its pages reloaded. Take a new snapshot before you click.";
+const SPACE_FILE = "space";
+const BOOT = Math.random().toString(36).slice(2, 10);
+let starts = 0;
+/** The Space a profile's folder says it belongs to, or undefined. */
+function spaceOnDisk(dir: string): string | undefined {
+  try { const s = readFileSync(join(dir, SPACE_FILE), "utf8").trim(); return /^[A-Za-z0-9_-]{3,80}$/.test(s) ? s : undefined; } catch { return undefined; }
+}
+
 /** A profile id is an agent id (agt_...) or another short name made of letters, digits, `_` and `-`. It becomes a folder name, so nothing else is allowed in it. */
 export const PROFILE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{2,79}$/;
 export const checkProfileId = (id: unknown): string => {
@@ -125,6 +135,8 @@ export interface Profile {
   /** The agent's name, for its start page. */
   agentName: string | undefined;
   spaceId: string | undefined;
+  /** Which start of its browser this is (this browserd's boot and a count): new each time the browser starts, so a ref from a snapshot taken under an older start is known to be stale (fifth look). */
+  startId: string;
   starting: Promise<void> | null;
   /** Chrome's data of an old computer is being put into the folder until then (resetChrome to importDone): the browser does not start meanwhile. */
   importingUntil: number;
@@ -142,7 +154,14 @@ export interface ProfileManager {
   /** Start the profile's browser if it is not running, making room first. */
   ensure(id: string): Promise<Profile>;
   /** One browser tool for one profile. `by: "person"` is the person at the controls, through the live view. `channel`: the Vault as the person whose call it is (main.ts), for the handles this call types. */
-  tool(a: { profileId: string; tool: string; args: Record<string, unknown>; timeoutMs: number; by?: string; channel?: CallChannel }): Promise<Record<string, unknown>>;
+  tool(a: { profileId: string; tool: string; args: Record<string, unknown>; timeoutMs: number; by?: string; channel?: CallChannel; refsFrom?: string }): Promise<Record<string, unknown>>;
+  /** The Space a profile belongs to, as the Space said: kept in the profile's folder too, so a purge of one Space finds its own profiles on disk, and only those. */
+  setSpace(id: string, spaceId: string): void;
+  /** Remove every profile of this Space (browsers closed first, cleanly), from what is on disk: removed, profiles of other Spaces, and profiles that name no Space (made before Spaces were written down). */
+  purgeSpace(spaceId: string): Promise<{ removed: number; others: number; unmarked: number }>;
+  /** Close the least recently used browser of ANOTHER Space that is quiet (no step, nobody watching, nobody at the controls, nothing held) and has been for `quietMs`: for a Space whose own browsers are
+   * all in use while this one is full of another Space's idle ones. The id closed, or null. */
+  closeOther(spaceId: string, quietMs: number): Promise<string | null>;
   takeover(id: string, personId: string): void;
   /** `before`: release only a takeover that began before then (a release decided on a reading taken at that time never undoes a takeover that came after it). */
   giveBack(id: string, before?: number): void;
@@ -195,7 +214,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       p = {
         id, dir, vault: createVault(),
         state: { stopped: false, tabLimit: o.tabLimit ?? 10, takeover: null, busy: 0, caption: undefined },
-        chrome: null, lastActiveAt: now(), viewers: 0, agentId: undefined, agentName: undefined, spaceId: undefined, starting: null, importingUntil: 0, dl: { active: new Set(), begunAt: 0, doneAt: 0 }, personActiveAt: 0,
+        chrome: null, lastActiveAt: now(), viewers: 0, agentId: undefined, agentName: undefined, spaceId: spaceOnDisk(dir), startId: "", starting: null, importingUntil: 0, dl: { active: new Set(), begunAt: 0, doneAt: 0 }, personActiveAt: 0,
       };
       profiles.set(id, p);
     }
@@ -274,6 +293,8 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       const c = launch(join(p.dir, "chrome"), o.extensionDir, o.log, opts);
       p.chrome = c;
       try { await c.ready(); } catch (e) { await release(p); throw e; }
+      starts += 1;
+      p.startId = `${BOOT}.${starts}`;
       // and the browser itself is told, so a download from a tab opened later goes the same way
       try {
         const b = await c.browser();
@@ -288,7 +309,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     }
   }
 
-  async function tool(a: { profileId: string; tool: string; args: Record<string, unknown>; timeoutMs: number; by?: string; channel?: CallChannel }): Promise<Record<string, unknown>> {
+  async function tool(a: { profileId: string; tool: string; args: Record<string, unknown>; timeoutMs: number; by?: string; channel?: CallChannel; refsFrom?: string }): Promise<Record<string, unknown>> {
     const p = get(a.profileId);
     const name = a.tool;
     if (!name.startsWith("chrome_")) throw badInput(`${name} is not a tool of the Space browser.`);
@@ -312,6 +333,9 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     try {
       const prof = await ensure(p.id);
       const c = prof.chrome as Chrome;
+      // an act on refs from a snapshot taken under an earlier start of this browser (closed to make room, or stopped when idle, and its pages reloaded since): those refs may name nothing, or another
+      // element. Refused, every time, until a new snapshot is taken (the module sends the start its last snapshot was taken under)
+      if (typeof a.refsFrom === "string" && a.refsFrom !== "" && a.refsFrom !== prof.startId) throw new AgentError("bad_input", REOPENED_LINE, "browser_reopened");
       const began = Date.now();
       const raw = await within(ms, name, () => c.tool(name, filled.args, prof.state));
       if (ACTING.has(name)) await settleDownloads(prof, began);
@@ -357,6 +381,31 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       mkdirSync(p.dir, { recursive: true });
     },
     importDone(id) { get(id).importingUntil = 0; },
+    setSpace(id, spaceId) {
+      const p = get(id);
+      if (!/^[A-Za-z0-9_-]{3,80}$/.test(spaceId) || (p.spaceId === spaceId && existsSync(join(p.dir, SPACE_FILE)))) return;
+      p.spaceId = spaceId;
+      try { mkdirSync(p.dir, { recursive: true }); writeFileSync(join(p.dir, SPACE_FILE), spaceId); } catch { /* kept in memory; written at the next call */ }
+    },
+    async purgeSpace(spaceId) {
+      let removed = 0, others = 0, unmarked = 0;
+      const root = join(o.root, "profiles");
+      const ids = existsSync(root) ? readdirSync(root) : [];
+      for (const id of ids) {
+        if (!PROFILE_ID.test(id)) continue;
+        const sp = profiles.get(id)?.spaceId ?? spaceOnDisk(join(root, id));
+        if (sp === spaceId) { await this.forget(id); removed += 1; } else if (sp) others += 1; else unmarked += 1;
+      }
+      return { removed, others, unmarked };
+    },
+    async closeOther(spaceId, quietMs) {
+      const pick = running().filter((p) => p.spaceId !== undefined && p.spaceId !== spaceId && quiet(p) && (p.chrome?.heldIds().length ?? 0) === 0 && now() - p.lastActiveAt >= quietMs)
+        .sort((a, b) => a.lastActiveAt - b.lastActiveAt)[0];
+      if (!pick) return null;
+      o.log(`profile ${pick.id} of another Space closed to make room`);
+      await release(pick);
+      return pick.id;
+    },
     async forget(id) {
       const p = profiles.get(checkProfileId(id));
       if (p) { await release(p); profiles.delete(p.id); rmSync(p.dir, { recursive: true, force: true }); }

@@ -169,13 +169,15 @@ export const sbrowserOf = (labels: Record<string, string> | null | undefined): b
 /**
  * How large the runner lets the Space browser's container be (owner, 12 Nov: many agents' browsers at once on a big server). The bound follows the HOST, read by the runner itself, never what the daemon
  * asks for: memory at most the host's memory less the 1536 MB the OS and Vyre keep (modules/computers/capacity.ts HEADROOM_MB), and a task cap that matches the browsers that memory holds (512 MB and 100 tasks
- * for browserd, 256 MB and about 120 tasks a browser, plus a margin). A body above either is refused with a plain reason. Never less than the 8 GB and 2048 tasks allowed before.
+ * for browserd, 256 MB and about 120 tasks a browser, plus a margin). A body above either is refused with a plain reason. Memory never above the host less 1536 MB (at least 1 GB); tasks never under the 2048 allowed before.
  */
 export interface SbrowserHost { memoryBytes: number }
 export const sbrowserHost = (): SbrowserHost => ({ memoryBytes: totalmem() });
 export function sbrowserBounds(host: SbrowserHost): { memory: number; pids: number; nanoCpus: number } {
   const MB = 1024 * 1024;
-  const memMb = Math.max(8192, Math.floor(host.memoryBytes / MB) - 1536);
+  // the floor is the smaller of the old 8 GB and the host less its headroom, so a small host is never given more than it has (fifth look); never under 1 GB
+  const hostLess = Math.floor(host.memoryBytes / MB) - 1536;
+  const memMb = Math.max(1024, Math.min(8192, hostLess), hostLess);
   const browsers = Math.max(1, Math.floor((memMb - 512) / 256));
   return { memory: memMb * MB, pids: Math.max(MAX.pids, 100 + 120 * browsers + 256), nanoCpus: MAX.nanoCpus };
 }

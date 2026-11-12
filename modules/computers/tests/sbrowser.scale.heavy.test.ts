@@ -94,7 +94,15 @@ test("@heavy space browser at scale: 30 profiles, 12 at once on a 12-browser bud
   const id = (i: number): string => `agt_s${String(i).padStart(2, "0")}`;
   const ctxOf = (i: number) => asPerson(h, { kind: "agent", id: id(i) }, { actingFor: "usr_dana" }).ctx;
   const failures: string[] = [];
+  // each step is one short turn, as the engine reports it (turn.started, then turn.completed): the module knows the agent is idle after it, so its browser may be closed 10 s after its last step
+  const { consumers } = await import("../impl.ts") as unknown as { consumers: Record<string, { run: (ctx: unknown, e: unknown) => Promise<unknown> }> };
+  let turnN = 0;
   const step = async (i: number, url: string): Promise<number> => {
+    const turnId = `trn_w${++turnN}`;
+    await consumers["computers.browser_turns"]!.run(h.ctx, { name: "turn.started", payload: { agentId: id(i), turnId, threadId: "thr_1" } });
+    try { return await stepIn(i, url); } finally { await consumers["computers.browser_turns"]!.run(h.ctx, { name: "turn.completed", payload: { agentId: id(i), turnId, threadId: "thr_1" } }); }
+  };
+  const stepIn = async (i: number, url: string): Promise<number> => {
     const t0 = performance.now();
     // a step that does not answer in six minutes is a failure with its name, not a hung run (a newcomer may wait its turn for a browser to pass its 90 s of grace)
     const late = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("no answer in 360 s")), 360_000).unref());
@@ -137,7 +145,7 @@ test("@heavy space browser at scale: 30 profiles, 12 at once on a 12-browser bud
     assert.equal(t, `cookie:[sid=${id(i)}]`, `${id(i)} reopened with its sign-in`);
   }
   console.log(`METRIC sbrowser-scale cold-start-step ms p50=${Math.round(pct(cold, 50))} p95=${Math.round(pct(cold, 95))} (12 at once, each starting its browser)`);
-  console.log(`METRIC sbrowser-scale make-room-step ms p50=${Math.round(pct(made, 50))} p95=${Math.round(pct(made, 95))} (12 at once, each waiting its turn for a browser whose last step is 90 s old, then closing it)`);
+  console.log(`METRIC sbrowser-scale make-room-step ms p50=${Math.round(pct(made, 50))} p95=${Math.round(pct(made, 95))} (12 at once, each closing a quiet browser whose agent has no turn and whose last step is 10 s old)`);
   console.log(`METRIC sbrowser-scale reopen-closed-step ms p50=${Math.round(pct(reopen, 50))} p95=${Math.round(pct(reopen, 95))} (a profile whose browser was closed: its next step)`);
   console.log(`METRIC sbrowser-scale memory with 12 open: ${memMb} MB (${Math.round(memMb / 12)} MB a browser with browserd), container limit ${limitMb} MB`);
 
@@ -199,6 +207,8 @@ test("@heavy space browser at scale: 30 agents on a 12-browser budget, 12 of the
   const failures: string[] = [];
   const reloaded: string[] = [];
   try {
+    let firstEnd = 0;
+    const started = performance.now();
     // twelve agents start a turn of several steps, a few seconds apart; a mark on the page shows whether it was ever reloaded under them
     const turns = Array.from({ length: 12 }, (_, i) => (async () => {
       working.add(id(i));
@@ -212,7 +222,7 @@ test("@heavy space browser at scale: 30 agents on a 12-browser budget, 12 of the
           if (mark !== id(i)) reloaded.push(`${id(i)} step ${k}: ${mark}`);
         }
       } catch (e) { failures.push(`${id(i)} turn: ${JSON.stringify(e).slice(0, 200)}`); }
-      finally { working.delete(id(i)); await turnEvent("turn.completed", id(i)); }
+      finally { working.delete(id(i)); if (firstEnd === 0) firstEnd = performance.now() - started; await turnEvent("turn.completed", id(i)); }
     })());
     await sleep(3000);
     // eighteen more ask while every browser is in a turn: they wait their turn
@@ -220,7 +230,9 @@ test("@heavy space browser at scale: 30 agents on a 12-browser budget, 12 of the
     const newcomers = Array.from({ length: 18 }, (_, k) => (async () => {
       const i = 12 + k;
       const t0 = performance.now();
+      await turnEvent("turn.started", id(i));
       try { await cap["computers.chrome.open"]!(ctxOf(i), { url: `${base}/whoami?new=${i}` }); waits.push(performance.now() - t0); } catch (e) { failures.push(`${id(i)}: ${JSON.stringify(e).slice(0, 200)}`); }
+      finally { await turnEvent("turn.completed", id(i)); }
     })());
     await Promise.all([...turns, ...newcomers]);
     assert.deepEqual(failures, [], "every step answered; none failed for lack of room");
@@ -228,7 +240,7 @@ test("@heavy space browser at scale: 30 agents on a 12-browser budget, 12 of the
     assert.ok(!stops.some((s) => Number(s.id.slice(5)) < 12 && s.at < Date.now() && working.has(s.id)), "nothing was closed while its agent worked");
     const twice = stops.filter((s, i) => stops.some((o, j) => j < i && o.id === s.id && s.at - o.at < 60_000));
     assert.deepEqual(twice, [], "nobody's browser was closed twice within a minute");
-    console.log(`METRIC sbrowser-scale mid-turn: 12 turns kept their pages; 18 newcomers waited ms p50=${Math.round(pct(waits, 50))} p95=${Math.round(pct(waits, 95))} max=${Math.round(Math.max(...waits))}; browsers closed to make room ${stops.length}`);
+    console.log(`METRIC sbrowser-scale mid-turn: 12 turns (six steps, 4 s apart, about 25 s each) kept their pages; first turn ended after ${Math.round(firstEnd)} ms; 18 newcomers waited ms p50=${Math.round(pct(waits, 50))} p95=${Math.round(pct(waits, 95))} max=${Math.round(Math.max(...waits))}; browsers closed to make room ${stops.length}`);
   } finally {
     bindSpaceBrowser(null);
     await api.containerStop(NAME2, 5).catch(() => undefined);

@@ -38,6 +38,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
   heldId?: string;
   snapshot?: string;
@@ -84,7 +86,9 @@ type Out = {
       }
     ],
     "heldId": "example",
+    "note": "example",
     "ok": true,
+    "reopened": true,
     "snapshot": "example"
   }
 }

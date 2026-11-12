@@ -7,7 +7,7 @@ import { provision } from "../handlers/lifecycle.ts";
 import { heldOn } from "../capacity.ts";
 import { bindSpaceBrowser } from "../sbrowser/port.ts";
 import type { ProfileRow, SpaceBrowser } from "../sbrowser/port.ts";
-import { resetRoom, setRoomWaitMs } from "../sbrowser/room.ts";
+import { resetRoom, setRoomWaitMs, setSayWaitMs } from "../sbrowser/room.ts";
 import "../sbrowser/migrate.ts";
 import { asPerson, codeOf, DANA, harness } from "../fixtures/harness.ts";
 import { tool } from "./tools.fixture.ts";
@@ -289,44 +289,145 @@ test("browsers that ask for room at the same moment never go past the budget", a
 });
 
 
-// Fourth look (12 Nov): a browser is never closed to make room while its agent has a turn in progress, within 90 s of its last step, or while it belongs to another Space; when none may be closed the
-// newcomer waits its turn and gets the first room that frees; the agent whose browser was closed is told on its next step.
-test("make room never closes a browser in use: a working agent's, one that stepped in the last 90 s, another Space's; the newcomer waits its turn and takes the first that frees; the closed one is told", async () => {
+// Fourth look, then the lead's rule of 12 Nov: a browser whose agent has a turn in progress is never closed; one known to have none may be closed 10 s after its last step; one whose turn state is not
+// known keeps 90 s. Another Space's are never closed by this module; when the container is full of them browserd is asked, by the 90 s rule. The newcomer waits its turn and says so after 10 s.
+test("make room: a turn keeps its browser; known idle goes after 10 s; unknown keeps 90 s; another Space's only through browserd; the newcomer waits in line and says how many are ahead", async () => {
   const stopped: string[] = [];
+  const askedOther: number[] = [];
   let rows: ProfileRow[] = [];
   sbrowser();
   const { spaceBrowser } = await import("../sbrowser/port.ts");
   const sb = spaceBrowser()!;
-  sb.profiles = async () => ({ profiles: rows, maxRunning: 3 });
+  sb.profiles = async () => ({ profiles: rows, maxRunning: 4 });
   sb.stop = async (id) => { stopped.push(id); rows = rows.filter((r) => r.profileId !== id); };
+  sb.closeOther = async (_space, quietMs) => { askedOther.push(quietMs); return null; };
   resetRoom();
   setRoomWaitMs(1500);
+  setSayWaitMs(200);
   const h = harness({ principal: { kind: "agent", id: "agt_new" }, actingFor: DANA });
   const { consumers } = await import("../impl.ts") as unknown as { consumers: Record<string, { run: (ctx: unknown, e: unknown) => Promise<unknown> }> };
-  const turn = (name: string): Promise<unknown> => consumers["computers.browser_turns"]!.run(h.ctx, { name, payload: { agentId: "agt_working", turnId: "trn_1", threadId: "thr_1" } });
-  // agt_working's turn is in progress (an Assistant: agents.status would not answer for it to another agent, the turn events do)
-  await turn("turn.started");
+  const turn = (name: string, agentId: string, turnId = `trn_${agentId}`): Promise<unknown> => consumers["computers.browser_turns"]!.run(h.ctx, { name, payload: { agentId, turnId, threadId: "thr_1" } });
+  // agt_working is mid-turn (an Assistant: agents.status would not answer for it to another agent, the turn events do); agt_idle finished its turn 5 s ago; agt_unknown has no turn heard of
+  await turn("turn.started", "agt_working");
+  await turn("turn.started", "agt_idle"); await turn("turn.completed", "agt_idle");
   h.fake.host.capacity = async () => ({ totalMb: 1536 + 10 * 256, freeMb: 4000, cpus: 4, os: "linux" });
   const old = Date.now() - 10 * 60_000;
   const row = (id: string, over: Partial<ProfileRow> = {}): ProfileRow => ({ profileId: id, spaceId: h.ctx.space, running: true, tabs: 1, busy: false, takeover: false, viewers: 0, lastActiveAt: old, held: 0, paused: false, ...over });
-  for (const id of ["agt_working", "agt_recent"]) h.db.run("INSERT INTO computers_claim (claim_key, kind, host, state, since, note) VALUES (?, 'browser', 'space', 'running', ?, NULL)", id, h.clock.t);
-  // the container holds three: a working agent's, one that stepped a moment ago, and another Space's (not claimed here)
-  rows = [row("agt_working"), row("agt_recent", { lastActiveAt: Date.now() - 5_000 }), row("agt_theirs", { spaceId: "spc_other" })];
+  for (const id of ["agt_working", "agt_idle", "agt_unknown"]) h.db.run("INSERT INTO computers_claim (claim_key, kind, host, state, since, note) VALUES (?, 'browser', 'space', 'running', ?, NULL)", id, h.clock.t);
+  rows = [row("agt_working"), row("agt_idle", { lastActiveAt: Date.now() - 5_000 }), row("agt_unknown", { lastActiveAt: Date.now() - 30_000 }), row("agt_theirs", { spaceId: "spc_other" })];
   try {
     const t0 = Date.now();
-    await assert.rejects(() => tool["computers.chrome.state"]!(h.ctx, {}), (e) => /Every browser on this server is in use/.test(JSON.stringify(e)), "nothing may be closed: it waits, then says so");
+    const waiting = assert.rejects(() => tool["computers.chrome.state"]!(h.ctx, {}), (e) => /Every browser on this server is in use/.test(JSON.stringify(e)), "nothing may be closed: it waits, then says so");
+    await new Promise((r) => setTimeout(r, 600));
+    const listed = (await (await import("../sbrowser/handlers.ts")).profiles(asPerson(h, { kind: "person", id: DANA }).ctx, {})) as { profiles: Array<{ agentId: string; line?: string }>; slots: { waiting: number } };
+    assert.equal(listed.slots.waiting, 1);
+    await waiting;
     assert.ok(Date.now() - t0 >= 1400, "it waited its turn for room before the line");
-    assert.deepEqual(stopped, [], "the working agent's, the recent one and the other Space's were all left alone");
-    // the agent stops working: its browser may now be closed, and the newcomer gets the room
-    await turn("turn.completed");
+    assert.deepEqual(stopped, [], "the working agent's, the one 5 s after its turn, the unknown one 30 s after its step and the other Space's were all left alone");
+    assert.ok(askedOther.length > 0 && askedOther.every((ms) => ms === 90_000), "browserd was asked for another Space's quiet browser by the 90 s rule");
+    void listed;
+    // agt_idle passes its 10 s: it goes first (the unknown one still has its 90 s)
+    rows = rows.map((r) => (r.profileId === "agt_idle" ? { ...r, lastActiveAt: Date.now() - 11_000 } : r));
     await tool["computers.chrome.state"]!(h.ctx, {});
-    assert.deepEqual(stopped, ["agt_working"], "the least recently used of those that may be closed");
-    // its next act is refused once with the line it can act on; then it works
-    const back = asPerson(h, { kind: "agent", id: "agt_working" }, { actingFor: DANA });
-    rows = rows.concat([row("agt_working", { lastActiveAt: Date.now() })]);
-    await assert.rejects(() => tool["computers.chrome.click"]!(back.ctx, { ref: "e1" }), (e) => /Your browser was reopened and its pages reloaded\. Take a new snapshot before you click\./.test(JSON.stringify(e)));
-    await tool["computers.chrome.click"]!(back.ctx, { ref: "e1" });
-  } finally { bindSpaceBrowser(null); resetRoom(); setRoomWaitMs(null); }
+    assert.deepEqual(stopped, ["agt_idle"], "known idle and past the short grace");
+    // the working agent's turn ends: its browser may go 10 s after its last step, not before
+    await turn("turn.completed", "agt_working");
+    const late = asPerson(h, { kind: "agent", id: "agt_late" }, { actingFor: DANA });
+    rows = rows.concat([row("agt_new", { lastActiveAt: Date.now() })]);
+    h.db.run("INSERT OR REPLACE INTO computers_claim (claim_key, kind, host, state, since, note) VALUES ('agt_new', 'browser', 'space', 'running', ?, NULL)", h.clock.t);
+    await tool["computers.chrome.state"]!(late.ctx, {});
+    assert.deepEqual(stopped, ["agt_idle", "agt_working"], "the least recently used of those that may now be closed");
+  } finally { bindSpaceBrowser(null); resetRoom(); setRoomWaitMs(null); setSayWaitMs(null); }
+});
+
+test("a waiting browser says so in its row after 10 s, with how many are ahead of it", async () => {
+  let rows: ProfileRow[] = [];
+  sbrowser();
+  const { spaceBrowser } = await import("../sbrowser/port.ts");
+  const sb = spaceBrowser()!;
+  sb.profiles = async () => ({ profiles: rows, maxRunning: 1 });
+  resetRoom();
+  setRoomWaitMs(1200);
+  setSayWaitMs(150);
+  const h = harness({ respond: { "agents.share_class": () => ({ class: "space", ownerId: DANA, people: [] }) } });
+  h.fake.host.capacity = async () => ({ totalMb: 1536 + 10 * 256, freeMb: 4000, cpus: 4, os: "linux" });
+  rows = [{ profileId: "agt_busy", spaceId: h.ctx.space, running: true, tabs: 1, busy: true, takeover: false, viewers: 0, lastActiveAt: Date.now(), held: 0, paused: false }];
+  h.db.run("INSERT INTO computers_claim (claim_key, kind, host, state, since, note) VALUES ('agt_busy', 'browser', 'space', 'running', ?, NULL)", h.clock.t);
+  try {
+    const { needRoom, roomWaitLine } = await import("../sbrowser/room.ts");
+    const a = needRoom(asPerson(h, { kind: "agent", id: "agt_first" }).ctx, sb, "agt_first").catch(() => undefined);
+    const b = needRoom(asPerson(h, { kind: "agent", id: "agt_second" }).ctx, sb, "agt_second").catch(() => undefined);
+    assert.equal(roomWaitLine("agt_second"), null, "not before 10 s");
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal(roomWaitLine("agt_first"), "Waiting for a free browser on this server. Next in line.");
+    assert.equal(roomWaitLine("agt_second"), "Waiting for a free browser on this server. 1 ahead.");
+    await Promise.all([a, b]);
+    assert.equal(roomWaitLine("agt_second"), null, "gone when it stops waiting");
+  } finally { bindSpaceBrowser(null); resetRoom(); setRoomWaitMs(null); setSayWaitMs(null); }
+});
+
+// Fifth look 3: a turn's protection is refreshed by its agent's browser calls and the engine's turn.block, so a long turn is never stale; turn.waiting ends it; and after a restart (nothing heard) every
+// agent is unknown (the 90 s grace) until its next turn event; a call with no turn heard of makes it unknown again.
+test("turn state: a long turn that keeps working is never stale; waiting ends it; nothing heard is unknown; a call with no known turn is unknown", async () => {
+  const { turnStarted, turnEnded, turnActive, turnState, callStarted, callEnded, TURN_STALE_MS } = await import("../sbrowser/room.ts");
+  resetRoom();
+  const S = "spc_a";
+  assert.equal(turnState(S, "agt_a", 0), "unknown", "nothing heard since this daemon started (a restart): unknown, so the 90 s grace");
+  turnStarted(S, "agt_a", "trn_1", 0);
+  assert.equal(turnState(S, "agt_a", 1000), "turn");
+  // forty minutes of work: browser calls and the engine's blocks keep it alive
+  for (let m = 5; m <= 40; m += 5) { if (m % 10 === 0) { callStarted("agt_a", S, m * 60_000); callEnded("agt_a"); } else turnActive("trn_1", m * 60_000); }
+  assert.equal(turnState(S, "agt_a", 41 * 60_000), "turn", "still working after 40 minutes: still protected");
+  assert.equal(turnState(S, "agt_a", 40 * 60_000 + TURN_STALE_MS + 1), "idle", "silent for 30 minutes: no longer");
+  turnStarted(S, "agt_a", "trn_2", 0);
+  // parked on a person (turn.waiting carries no agent id: the turn's own is used)
+  turnEnded(S, "", "trn_2");
+  assert.equal(turnState(S, "agt_a", 1000), "idle", "a parked turn does not hold its browser (a held send does)");
+  callStarted("agt_a", S, 2000); callEnded("agt_a");
+  assert.equal(turnState(S, "agt_a", 3000), "unknown", "a call with no turn heard of: the engine's events are behind, so unknown");
+  turnStarted(S, "agt_a", "trn_3", 4000);
+  assert.equal(turnState(S, "agt_a", 5000), "turn");
+  resetRoom();
+});
+
+// Fifth look 2: every answer after a reopen says so once; an act on refs from a snapshot under an older start of the browser is refused every time until a new snapshot; the same after an idle stop.
+test("after a reopen (make room or idle stop): the next answer carries the line once; an act on old refs is refused every time until a new snapshot", async () => {
+  let start = "b1.1";
+  const sent: Array<string | undefined> = [];
+  sbrowser();
+  const { spaceBrowser } = await import("../sbrowser/port.ts");
+  const sb = spaceBrowser()!;
+  const { ToolError } = await import("../handlers/tools/common.ts");
+  const { REOPENED_LINE } = await import("../sbrowser/room.ts");
+  sb.profiles = async () => ({ profiles: [{ profileId: "agt_dex", running: true, tabs: 1, busy: false, takeover: false, viewers: 0, lastActiveAt: Date.now(), held: 0, paused: false }], maxRunning: 6 });
+  sb.tool = async (a) => {
+    if (a.tool === "chrome_tabs" && a.args["action"] === "list") return { tabs: [] };
+    if (a.tool === "chrome_click" || a.tool === "chrome_act") sent.push(a.refsFrom);
+    if (a.refsFrom && a.refsFrom !== start) throw new ToolError("bad_input", REOPENED_LINE, "browser_reopened");
+    return { ok: true, url: "https://x.test/", title: "X", loading: false, tree: "- button e1", truncated: false, browserStart: start };
+  };
+  resetRoom();
+  const h = agent("agt_dex");
+  h.fake.host.capacity = async () => ({ totalMb: 8192, freeMb: 6000, cpus: 4, os: "linux" });
+  const refused = (e: unknown): boolean => /Your browser was reopened and its pages reloaded\. Take a new snapshot before you click\./.test(JSON.stringify(e));
+  try {
+    await tool["computers.chrome.snapshot"]!(h.ctx, {});
+    await tool["computers.chrome.click"]!(h.ctx, { ref: "e1" });
+    assert.deepEqual(sent, ["b1.1"], "the act says which start its refs came from");
+    for (const why of ["closed to make room", "stopped by browserd when idle"]) {
+      start = start === "b1.1" ? "b1.2" : "b2.1";
+      // a look: goes on, and its answer says so, once
+      const look = await tool["computers.chrome.state"]!(h.ctx, {}) as Record<string, unknown>;
+      assert.equal(look["reopened"], true, why);
+      assert.equal(look["note"], REOPENED_LINE);
+      assert.equal((await tool["computers.chrome.state"]!(h.ctx, {}) as Record<string, unknown>)["reopened"], undefined, "once");
+      // a click on an old ref: refused, and again
+      await assert.rejects(() => tool["computers.chrome.click"]!(h.ctx, { ref: "e1" }), refused, why);
+      await assert.rejects(() => tool["computers.chrome.click"]!(h.ctx, { ref: "e1" }), refused, "every time until a new snapshot");
+      await tool["computers.chrome.snapshot"]!(h.ctx, {});
+      await tool["computers.chrome.click"]!(h.ctx, { ref: "e1" });
+    }
+  } finally { bindSpaceBrowser(null); resetRoom(); }
 });
 
 test("calls waiting for room are served first come, first served", async () => {

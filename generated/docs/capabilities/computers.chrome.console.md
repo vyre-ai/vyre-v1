@@ -37,6 +37,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   messages: Array<{
       level: string;
       text: string;
@@ -75,7 +77,9 @@ type Out = {
         "level": "example",
         "text": "example"
       }
-    ]
+    ],
+    "note": "example",
+    "reopened": true
   }
 }
 ```

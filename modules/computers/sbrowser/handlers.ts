@@ -10,7 +10,7 @@ import type { ProfileAccess, ProfileAgent } from "./policy.ts";
 import { spaceBrowser } from "./port.ts";
 import type { ProfileRow, SpaceBrowser } from "./port.ts";
 import { currentHold, dropHold, heldBy, setHold, touchHold } from "./hold.ts";
-import { needRoom, waitingForRoom } from "./room.ts";
+import { needRoom, roomWaitLine, waitingForRoom, waitingProfiles } from "./room.ts";
 
 const TICKET_MS = 5 * 60_000;
 
@@ -80,15 +80,15 @@ export async function profiles(ctx: CompCtx, _input: Record<string, never>) {
     const access = profileAccess(agent, person, admin);
     const by = heldBy(ctx, row.profileId) ?? undefined;
     const { takeoverBy: _was, ...rest } = row;
-    if (access !== "none") out.push(rowOut({ ...rest, takeover: by !== undefined, ...(by ? { takeoverBy: by } : {}) }, access, waitingNote(ctx.db, row.profileId)));
+    if (access !== "none") out.push(rowOut({ ...rest, takeover: by !== undefined, ...(by ? { takeoverBy: by } : {}) }, access, waitingNote(ctx.db, row.profileId) ?? roomWaitLine(row.profileId)));
   }
   // a browser waiting for room has not reached the service yet: it is listed with the line
-  for (const r of rowsOf(ctx.db, "SELECT claim_key FROM computers_claim WHERE kind = 'browser' AND state = 'waiting'")) {
-    const id = String(r["claim_key"]);
+  const waiting = new Set([...rowsOf(ctx.db, "SELECT claim_key FROM computers_claim WHERE kind = 'browser' AND state = 'waiting'").map((r) => String(r["claim_key"])), ...waitingProfiles().filter((id) => roomWaitLine(id) !== null)]);
+  for (const id of waiting) {
     if (out.some((x) => x.agentId === id)) continue;
     const agent = await agentOf(ctx, id);
     const access = agent ? profileAccess(agent, person, admin) : "none";
-    if (access !== "none") out.push(rowOut({ profileId: id, running: false, tabs: 0, busy: false, takeover: false, viewers: 0, lastActiveAt: 0, held: 0, paused: false }, access, waitingNote(ctx.db, id)));
+    if (access !== "none") out.push(rowOut({ profileId: id, running: false, tabs: 0, busy: false, takeover: false, viewers: 0, lastActiveAt: 0, held: 0, paused: false }, access, waitingNote(ctx.db, id) ?? roomWaitLine(id)));
   }
   // the browser slots of this server, for one quiet line in Console > Computers: how many run now (every Space's on this server), how many it holds at once, how many calls wait for one
   const slots = { running: all.profiles.filter((p) => p.running).length, limit: all.maxRunning, waiting: waitingForRoom() };

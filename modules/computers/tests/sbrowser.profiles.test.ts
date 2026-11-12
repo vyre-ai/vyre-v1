@@ -356,3 +356,55 @@ test("the container's process cap limits how many browsers run too (a Chromium i
   assert.equal(pidsLimit((f) => (f.endsWith("pids.max") && !f.includes("/pids/") ? "2048\n" : "")), 2048);
   assert.equal(pidsLimit((f) => (f.includes("/pids/") ? "" : "max\n")), null);
 });
+
+// Fifth look 1: the Space a profile belongs to is written in its folder, so a purge of one install removes only that Space's profiles, from what is on disk, with their browsers closed cleanly first.
+test("purge_space removes only this Space's profiles (closed first) and counts what else is on the volume; the Space is kept on disk across a restart of browserd", async () => {
+  const r = rig();
+  try {
+    r.m.setSpace("agt_mine", "spc_a"); await r.call("agt_mine");
+    r.m.setSpace("agt_theirs", "spc_b"); await r.call("agt_theirs");
+    fs.mkdirSync(path.join(r.root, "profiles", "agt_old"), { recursive: true });   // made before Spaces were written down
+    // a browserd that starts again knows each profile's Space from its folder
+    const again = createProfileManager({ root: r.root, extensionDir: null, log: () => {}, launch: () => { throw new Error("no start"); } });
+    assert.equal(again.get("agt_theirs").spaceId, "spc_b");
+    const got = await r.m.purgeSpace("spc_a");
+    assert.deepEqual(got, { removed: 1, others: 1, unmarked: 1 });
+    assert.equal(r.launched[0]!.stopped, true, "this Space's browser was closed before its folder went");
+    assert.equal(fs.existsSync(path.join(r.root, "profiles", "agt_mine")), false);
+    assert.equal(fs.existsSync(path.join(r.root, "profiles", "agt_theirs", "chrome")), true, "another Space's sign-ins stay");
+    assert.equal(r.launched[1]!.stopped, false, "and its browser runs on");
+  } finally { r.done(); }
+});
+
+// Fifth look 2: every answer says which start of the browser it came from; an act on refs taken under an older start is refused, every time, with the line.
+test("each start of a browser has its own id on every answer, and an act on refs from an older start is refused with the line", async () => {
+  const r = rig({ idleMs: 1000 });
+  try {
+    await r.call("agt_dex");
+    const first = r.m.get("agt_dex").startId;
+    assert.match(first, /^[a-z0-9]+\.\d+$/);
+    await r.call("agt_dex", "chrome_click", { refsFrom: first });
+    await r.m.stop("agt_dex");
+    const stale = (e: unknown) => e instanceof AgentError && e.reason === "browser_reopened" && /Take a new snapshot before you click/.test(e.message);
+    await assert.rejects(() => r.call("agt_dex", "chrome_click", { refsFrom: first }), stale, "the browser started again for this call: the refs are from before");
+    await assert.rejects(() => r.call("agt_dex", "chrome_click", { refsFrom: first }), stale, "and again, until a new snapshot");
+    assert.notEqual(r.m.get("agt_dex").startId, first);
+    await r.call("agt_dex", "chrome_click", { refsFrom: r.m.get("agt_dex").startId });
+    assert.equal(r.launched[1]!.tools.filter((t) => t === "chrome_click").length, 1, "the refused acts never reached the browser");
+  } finally { r.done(); }
+});
+
+// Fifth look, cross-Space: a Space whose own browsers are all in use, on a container full of another Space's idle ones, asks browserd to close the longest quiet of those, by the 90 s rule.
+test("close_other closes another Space's longest quiet browser past the grace, never the asker's own, a busy, watched or held one, or one quiet for less", async () => {
+  const r = rig();
+  try {
+    r.m.setSpace("agt_b1", "spc_b"); await r.call("agt_b1"); r.clock.t += 1000;
+    r.m.setSpace("agt_b2", "spc_b"); await r.call("agt_b2"); r.clock.t += 1000;
+    r.m.setSpace("agt_a1", "spc_a"); await r.call("agt_a1");
+    assert.equal(await r.m.closeOther("spc_a", 90_000), null, "quiet for 2 s: not yet");
+    r.clock.t += 120_000;
+    r.launched[0]!.held.push("held_1");   // agt_b1 holds a send for its person
+    assert.equal(await r.m.closeOther("spc_a", 90_000), "agt_b2", "the held one stays; the other goes");
+    assert.equal(r.launched[2]!.stopped, false, "the asker's own Space is never closed this way");
+  } finally { r.done(); }
+});

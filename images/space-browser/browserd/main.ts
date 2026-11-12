@@ -148,7 +148,7 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       const n = a["tabLimit"];
       if (typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 200) p.state.tabLimit = n;
       if (typeof a["agentId"] === "string") p.agentId = a["agentId"];
-      if (typeof a["spaceId"] === "string") p.spaceId = a["spaceId"];
+      if (typeof a["spaceId"] === "string") manager.setSpace(p.id, a["spaceId"]);
       // The Vault channel for this profile only: held in memory, set again on every start. A profile fills only as its own agent.
       if (typeof a["fillUrl"] === "string" && typeof a["fillToken"] === "string") p.vault.setFiller(a["fillUrl"], a["fillToken"], p.id);
       return {};
@@ -159,7 +159,7 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       if (typeof a["agentName"] === "string") manager.get(pid).agentName = a["agentName"].slice(0, 80);
       // the face is drawn once by the host and kept with the profile, so the start page fetches nothing
       if (typeof a["faceSvg"] === "string" && a["faceSvg"].startsWith("<svg") && a["faceSvg"].length < 60_000) { mkdirSync(manager.get(pid).dir, { recursive: true }); writeFileSync(`${manager.get(pid).dir}/face.svg`, a["faceSvg"]); }
-      if (typeof a["spaceId"] === "string" && /^[A-Za-z0-9_-]{3,80}$/.test(a["spaceId"])) manager.get(pid).spaceId = a["spaceId"];
+      if (typeof a["spaceId"] === "string") manager.setSpace(pid, a["spaceId"]);
       // the channel is this call's, as the person whose turn it is: in while the call runs, gone when it ends, so no fill outlives the turn and two people's calls never share one (sbrowser audit bug 5)
       const channel = typeof a["fillUrl"] === "string" && typeof a["fillToken"] === "string" ? manager.get(pid).vault.enter(a["fillUrl"], a["fillToken"], pid) : null;
       try {
@@ -169,9 +169,14 @@ async function dispatch(action: string, a: Args): Promise<Args> {
         // Vyre for Chrome in the profile is paired with the Space as this agent as soon as the Space and the Vault channel are known
         if (manager.get(pid).spaceId && manager.get(pid).vault.hasChannel()) bridges?.pair(pid);
         const args = (typeof a["args"] === "object" && a["args"] !== null ? a["args"] : {}) as Args;
-        return await manager.tool({ profileId: checkProfileId(a["profileId"]), tool: text(a, "tool"), args, timeoutMs: typeof a["timeoutMs"] === "number" ? a["timeoutMs"] : 30_000, ...(a["by"] === "person" ? { by: "person" } : {}), ...(channel ? { channel } : {}) });
+        // every answer says which start of the browser it came from: the module knows a reopen (its pages reloaded) from it, and which refs are stale
+        const out = await manager.tool({ profileId: checkProfileId(a["profileId"]), tool: text(a, "tool"), args, ...(typeof a["refsFrom"] === "string" ? { refsFrom: a["refsFrom"] } : {}), timeoutMs: typeof a["timeoutMs"] === "number" ? a["timeoutMs"] : 30_000, ...(a["by"] === "person" ? { by: "person" } : {}), ...(channel ? { channel } : {}) });
+        return { ...out, browserStart: manager.get(pid).startId };
       } finally { channel?.leave(); }
     }
+    // a purge of one install on an engine that other Spaces share: only this Space's profiles go (closed cleanly first); what else is on the volume is counted, so the installer knows whether the volume is shared
+    case "purge_space": return await manager.purgeSpace(text(a, "spaceId"));
+    case "close_other": return { closed: await manager.closeOther(text(a, "spaceId"), typeof a["quietMs"] === "number" ? Math.max(10_000, a["quietMs"]) : 90_000) };
     case "downloads": return { downloads: manager.downloads(checkProfileId(a["profileId"])) };
     case "profile_used": return { used: manager.used(checkProfileId(a["profileId"])) };
     case "download_read": return { base64: manager.downloadRead(checkProfileId(a["profileId"]), text(a, "name")).toString("base64") };
@@ -179,7 +184,7 @@ async function dispatch(action: string, a: Args): Promise<Args> {
     case "download_keep": manager.downloadKeep(checkProfileId(a["profileId"]), text(a, "name")); return {};
     case "takeover": {
       const pid = checkProfileId(a["profileId"]);
-      if (typeof a["spaceId"] === "string" && /^[A-Za-z0-9_-]{3,80}$/.test(a["spaceId"])) manager.get(pid).spaceId = a["spaceId"];
+      if (typeof a["spaceId"] === "string") manager.setSpace(pid, a["spaceId"]);
       manager.takeover(pid, text(a, "personId"));
       return {};
     }

@@ -23,9 +23,9 @@ test("the container, the runner's bound and browserd all follow capacity.ts's on
     const bound = sbrowserBounds({ memoryBytes: hostMb * MB });
     assert.ok(bound.memory >= c.HostConfig.Memory, `${gb} GB: the runner allows the container the adapter makes`);
     assert.ok(bound.pids >= c.HostConfig.PidsLimit!, `${gb} GB: and its task cap`);
-    if (want.memoryMb >= 8192) {
-      assert.equal(bound.memory, want.memoryMb * MB, `${gb} GB: the runner's bound is the same budget, not more`);
-      assert.equal(bound.pids, BROWSER_BASE_TASKS + BROWSER_TASKS * want.slots + 256, `${gb} GB: its task cap is the same, with its margin`);
-    }
+    // the same budget, never more, on every host (fifth look: a 4 GB host is not offered 8 GB)
+    assert.equal(bound.memory, want.memoryMb * MB, `${gb} GB: the runner's bound is the same budget, not more`);
+    assert.ok(bound.memory <= Math.max(1024, hostMb - HEADROOM_MB) * MB, `${gb} GB: never above the host less its headroom`);
+    assert.equal(bound.pids, Math.max(2048, BROWSER_BASE_TASKS + BROWSER_TASKS * want.slots + 256), `${gb} GB: its task cap is the same, with its margin`);
   }
 });
