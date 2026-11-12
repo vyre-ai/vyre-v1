@@ -211,7 +211,7 @@ function WebhookAddress({ automationId }: { automationId: string }): ReactElemen
     const open = data?.nav.openAddress;
     return (
       <View style={s.hook} testID="trigger-webhook">
-        <Text style={s.hookUrl}>{open ? "This Space has no public address yet, so no app can reach it." : "This Space has no public address yet, so no app can reach it. Ask an admin to give this Space a public address."}</Text>
+        <Text style={s.hookNote}>{open ? "This Space has no public address yet, so no app can reach it." : "This Space has no public address yet, so no app can reach it. Ask an admin to give this Space a public address."}</Text>
         {open ? <View style={s.hookCopy}><TextButton label="Set the address" onPress={open} testID="trigger-webhook-set-address" /></View> : null}
       </View>
     );
@@ -283,6 +283,7 @@ const s = StyleSheet.create({
   wrap: { gap: 12 },
   hook: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--field)" as string, borderWidth: 1, borderColor: "var(--field-line)" as string },
   hookCopy: { flexShrink: 0 },
+  hookNote: { flex: 1, minWidth: 0, fontSize: 12.5, lineHeight: 18, color: "var(--ink-2)" as string },
   hookUrl: { flex: 1, minWidth: 0, fontSize: 12, color: "var(--ink-2)" as string, ...({ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", wordBreak: "break-all" } as object) },
   group: { gap: 4 },
   field: { gap: 4 },
