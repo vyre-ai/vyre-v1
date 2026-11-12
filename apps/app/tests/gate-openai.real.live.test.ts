@@ -32,6 +32,7 @@ test("GATE OpenAI first hour", { skip: KEY === "" ? "OPENAI_API_KEY is not set" 
     assert.equal(added.status, 200);
     const models = ((await call("engine.models.list", { refresh: true, wait: true })).models ?? []) as Array<{ model: string; allowed: boolean }>;
     console.log(`GATE OPENAI models listed (${models.length}): ${models.filter((m) => m.allowed).map((m) => m.model).slice(0, 40).join(", ")}`);
+    if (process.env["GATE_OPENAI_POLICY"] === "1") { const pol = await raw("engine.policy.set", { allowedModels: ["gpt-5.5", "gpt-5.4"] }); console.log(`GATE OPENAI policy allowed models [gpt-5.5, gpt-5.4]: ${pol.status}`); }
     agentId = (await call("agents.list")).agents[0].agentId as string;
     const thread = (await call("chat.start", { kind: "chat", agentIds: [agentId], title: "openai hour" })).thread.threadId as string;
     await page.goto(`${web.origin}/chats`, { waitUntil: "load" }); await page.getByTestId("shell").waitFor({ timeout: 30_000 }); await page.getByText("openai hour", { exact: true }).first().click().catch(() => undefined); await page.waitForTimeout(1500);
@@ -49,15 +50,15 @@ test("GATE OpenAI first hour", { skip: KEY === "" ? "OPENAI_API_KEY is not set" 
     const composer = await page.evaluate(() => [...document.querySelectorAll("[data-testid*=model],[data-testid*=composer-strip],[data-testid=composer]")].map((e) => (e as HTMLElement).innerText.replace(/\n+/g, " / ")).filter(Boolean).slice(0, 4).join(" || "));
     console.log(`GATE OPENAI composer words: ${composer.slice(0, 300)}; "Auto" visible: ${/\bAuto\b/.test(await body())}`);
     await send("2-terminal-job", "Run `echo openai-job-ok` in the terminal and tell me what it printed.");
-    // the reply's details card
-    const det = page.getByTestId("reply-details").last();
-    if (await det.count()) { await det.click({ timeout: 5000 }).catch(() => undefined); await page.waitForTimeout(1000); await page.screenshot({ path: path.join(shots, "3-details-card.png") }); console.log(clean(`GATE OPENAI details card: ${(await body()).slice(-500)}`)); } else console.log("GATE OPENAI details card: no reply-details element on screen");
-    // restrict the Space to one other model
-    const used = ((await call("engine.turns.list", { threadId: thread })).turns as T[])[0]?.model ?? "";
-    const other = models.filter((m) => m.allowed).map((m) => m.model).find((m) => m !== used && /gpt-[0-9.]+-mini$|mini/.test(m)) ?? models.filter((m) => m.allowed).map((m) => m.model).find((m) => m !== used) ?? "";
-    const pol = await raw("engine.policy.set", { allowedModels: [other] });
-    console.log(`GATE OPENAI policy: allowed models set to [${other}] (was running ${used}): ${pol.status} ${clean(JSON.stringify(pol.data)).slice(0, 160)}`);
-    await send("4-after-policy", "Say OK.");
+    // 2: pick gpt-5.6-luna by hand (set_model, what the menu calls), one tool message; watch for an error flash on screen
+    if (process.env["GATE_OPENAI_LUNA"] !== "0") {
+      const picked = await raw("engine.set_model", { threadId: thread, agentId, model: "gpt-5.6-luna" });
+      console.log(`GATE OPENAI picked gpt-5.6-luna by hand: ${picked.status} ${clean(JSON.stringify(picked.data)).slice(0, 140)}`);
+      let flash = false; const watch = (async () => { for (let i = 0; i < 80; i++) { if (page.isClosed()) return; if (/provider answered|bad_request|did not accept|refused this request|went wrong|Retry/i.test(await body())) { flash = true; await page.screenshot({ path: path.join(shots, "5-luna-flash.png") }); } await page.waitForTimeout(250); } })();
+      await send("5-luna-terminal-job", "Run `echo luna-job-ok` in the terminal and tell me what it printed.");
+      console.log(`GATE OPENAI luna: an error line showed on screen at some point: ${flash}`);
+      void watch;
+    }
   } finally {
     await browser.close(); web.close(); await d.stop();
     if (agentId !== "") for (const id of dk("ps", "-aq", "--filter", `label=vyre.workspace=${agentId}`).split("\n").filter(Boolean)) dk("rm", "-f", id);
