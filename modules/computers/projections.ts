@@ -94,7 +94,7 @@ export interface ComputerHost {
 
 /** The host's Vault fill channel (P-L2_21): a token per computer and the address agentd posts to. Unbound, a computer has no Vault channel and refuses a #Handle. */
 export interface FillBinding {
-  issue(h: { computerId: string; agentId: string; asker: string; nodeId?: string; turn?: boolean }): Promise<{ fillToken: string; revoke(): void }>;
+  issue(h: { computerId: string; agentId: string; asker: string; nodeId?: string; turn?: boolean; ttlMs?: number }): Promise<{ fillToken: string; revoke(): void; extend?(): void; pause?(): void; resume?(): void }>;
   url(): string;
   /** Is this server's link to the Space private? A server's computers get a Vault channel only if it is. Absent: no server's computer does. */
   nodeSecure?(nodeId: string): boolean;

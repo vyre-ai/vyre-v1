@@ -220,14 +220,22 @@ async function main(): Promise<void> {
   // The input helper takes a moment to start; the first input a person sends should not pay for it.
   injector.call({ op: "pointer" }).catch(() => undefined);
   chrome.ready().then(() => log("browser ready"), (e: unknown) => log(`browser failed: ${e instanceof Error ? e.message : "unknown"}`));
+  // Sleeping a desktop stops its container: Chrome is asked to close the way a person closes it (Browser.close, then a bounded wait) so its cookies and local storage reach the profile folder before the
+  // container goes. Killed with the container, a sign-in made seconds before would be lost (Chrome flushes cookies about every 30 seconds). docker stop gives 10 seconds; this takes at most about 8.
+  let leaving = false;
   const bye = (): void => {
+    if (leaving) return;
+    leaving = true;
     stream.close();
     injector.stop();
-    chrome.stop();
-    desktop.stop();
-    xvfb.kill("SIGTERM");
-    control.close();
-    setTimeout(() => process.exit(0), 1500).unref();
+    void chrome.shutdown().catch(() => undefined).then(() => {
+      chrome.stop();
+      desktop.stop();
+      xvfb.kill("SIGTERM");
+      control.close();
+      setTimeout(() => process.exit(0), 300).unref();
+    });
+    setTimeout(() => process.exit(0), 9000).unref();
   };
   process.on("SIGTERM", bye);
   process.on("SIGINT", bye);

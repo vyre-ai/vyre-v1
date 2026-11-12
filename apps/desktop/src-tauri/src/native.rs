@@ -1,12 +1,13 @@
 // Native features around the page (spec 2.24 and 3.13): the tray icon and its menu, OS notifications, the file and folder dialog, the Needs you badge.
 // The page owns every decision (the rules for what may interrupt live in apps/desktop/src/notify.ts); this side shows what it is told and checks what comes back.
-//   notify(title, body, link)   show an OS banner and remember its vyre://open link
+//   notify(title, body, link)   show an OS banner; its link must be a vyre://open link
 //   pick_paths(options)         open the system dialog; absolute paths come back, nothing is read from them here
 //   set_badge(count)            Needs you count in the tray menu, its tooltip and the dock/taskbar badge
-// Desktop notification plugins report no click, so a click is read as the window coming forward soon after a banner (CLICK_WINDOW): the banner's link is then
-// delivered like any other deep link (commands::deliver), once. Events: "vyre://tray" with "needs-you" when that tray item is chosen.
+// The desktop notification plugin reports no click on macOS, Windows or Linux, so a press on a banner cannot be told from the window coming forward for any other reason (switching back from
+// another app, the dock, the tray). A banner therefore opens nothing by itself: pressing it brings Vyre forward where it was, and the Inbox and the top bar show what is new. Reading a focus
+// as a press pulled people away from their work seconds after a banner they had ignored (review 12 Nov 2026). Events: "vyre://tray" with "needs-you" when that tray item is chosen.
 
-use crate::commands::{self, AppState};
+use crate::commands::AppState;
 use crate::links;
 use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
@@ -23,8 +24,6 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_notification::NotificationExt;
 
-/// A window that comes forward within this long of a banner is read as the click on it (same number as CLICK_WINDOW_MS in notify.ts).
-pub const CLICK_WINDOW: Duration = Duration::from_secs(30);
 pub const TRAY_ID: &str = "vyre-tray";
 pub const TRAY_EVENT: &str = "vyre://tray";
 const MAX_TITLE: usize = 120;
@@ -35,25 +34,14 @@ const MAX_SUBAGENTS: usize = 64;
 const MAX_REPO_PROBES: usize = 128;
 const REPO_DISCOVERY_BUDGET: Duration = Duration::from_secs(5);
 
-pub struct Notice {
-    pub link: String,
-    pub at: Instant,
-}
-
 #[derive(Default)]
 pub struct NativeState {
-    pub last: Mutex<Option<Notice>>,
     pub needs: Mutex<Option<MenuItem<tauri::Wry>>>,
 }
 
 /// Printable text only, cut to `max` characters.
 pub fn cut(s: &str, max: usize) -> String {
     s.chars().map(|c| if c.is_control() { ' ' } else { c }).collect::<String>().trim().chars().take(max).collect()
-}
-
-/// True when `at` is no more than `window` before `now`.
-pub fn fresh(at: Instant, now: Instant, window: Duration) -> bool {
-    now.checked_duration_since(at).map_or(false, |d| d <= window)
 }
 
 pub fn needs_label(count: u32) -> String {
@@ -78,7 +66,7 @@ pub fn open_link_ok(link: &str) -> bool {
 }
 
 #[tauri::command]
-pub fn notify(app: AppHandle, state: State<'_, AppState>, title: String, body: String, link: String) -> Result<(), String> {
+pub fn notify(app: AppHandle, _state: State<'_, AppState>, title: String, body: String, link: String) -> Result<(), String> {
     if !open_link_ok(&link) {
         return Err("a notification link must be a vyre://open link".to_string());
     }
@@ -88,28 +76,9 @@ pub fn notify(app: AppHandle, state: State<'_, AppState>, title: String, body: S
         .body(cut(&body, MAX_BODY))
         .show()
         .map_err(|e| e.to_string())?;
-    if let Ok(mut last) = state.native.last.lock() {
-        *last = Some(Notice { link, at: Instant::now() });
-    }
     // Content never goes to a log: the fact only.
     println!("vyre-desktop: notification shown");
     Ok(())
-}
-
-/// The window came forward: if a banner was shown just before, open what it was about, once.
-pub fn on_focus(app: &AppHandle) {
-    let state = app.state::<AppState>();
-    let notice = match state.native.last.lock() {
-        Ok(mut last) => last.take(),
-        Err(_) => None,
-    };
-    if let Some(n) = notice {
-        if fresh(n.at, Instant::now(), CLICK_WINDOW) {
-            if let Some(link) = links::parse(&n.link) {
-                commands::deliver(app, link);
-            }
-        }
-    }
 }
 
 #[derive(Deserialize)]
@@ -611,15 +580,6 @@ mod tests {
         let text = "{\"type\":\"session_meta\",\"payload\":{\"cwd\":\"/work/app\"}}\n{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"<environment_context>x</environment_context>\"}]}}\n{\"type\":\"event_msg\",\"payload\":{\"type\":\"user_message\",\"message\":\"Add dark mode\"}}\n";
         assert_eq!(facts_from_jsonl(text), (Some("Add dark mode".to_string()), Some("/work/app".to_string())));
         assert_eq!(facts_from_jsonl("not json\n"), (None, None));
-    }
-
-    #[test]
-    fn a_banner_is_fresh_for_the_click_window_only() {
-        let t0 = Instant::now();
-        assert!(fresh(t0, t0, CLICK_WINDOW));
-        assert!(fresh(t0, t0 + Duration::from_secs(30), CLICK_WINDOW));
-        assert!(!fresh(t0, t0 + Duration::from_secs(31), CLICK_WINDOW));
-        assert!(!fresh(t0 + Duration::from_secs(5), t0, CLICK_WINDOW), "a time before the banner is never a click");
     }
 
     #[test]

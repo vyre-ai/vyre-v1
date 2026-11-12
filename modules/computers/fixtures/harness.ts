@@ -6,6 +6,7 @@ import { scopedDb } from "../../../host/src/ctx/db.ts";
 import type { RawDb } from "../../../host/src/ctx/db.ts";
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 import { bindHost, bindKit, bindTeam, ensure, forgetSecrets } from "../projections.ts";
+import { resetMoveState } from "../migrate.ts";
 import type { CompCtx } from "../projections.ts";
 import { fakeHost } from "./fake-host.ts";
 import type { FakeHost, FakeHostOptions } from "./fake-host.ts";
@@ -58,6 +59,7 @@ export function harness(o: HarnessOptions = {}) {
   let files = 0;
   const db = scopedDb("computers", raw, TRACE);
   ensure(db);
+  resetMoveState();
   bindHost(fake.host);
   bindTeam(o.personalSpace ? () => false : null);
   const ctx: CompCtx = {

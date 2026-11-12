@@ -13,8 +13,9 @@ import { dayMonth, stepRows, stepsLine } from "./model.ts";
 import type { Step } from "./model.ts";
 import { stepEntries } from "./ComputerTab.tsx";
 import { Icon, LeadIcon, PaneList, TextButton } from "./parts.tsx";
+import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { Entry } from "./parts.tsx";
-import { attachedNote, browserAction, browserWords, orderSessions, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
+import { olderDesktopMenu, olderDesktopNote, attachedNote, browserAction, browserWords, orderSessions, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
 import type { BrowserData, BrowserView, Tone, WorkspaceData, WorkspaceView } from "./work-model.ts";
 
 /** Is the new layout wanted: the browser half is bound, or the workspace is and the agent has no legacy desktop computer. An agent that still has one keeps today's Computer tab until the browser half is bound. */
@@ -150,6 +151,16 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
   const ws = useWatched<WorkspaceView>(data.workspace, agentId);
   const br = useWatched<BrowserView>(data.browser, agentId);
   const [busy, setBusy] = useState<"attach" | "take" | "give" | "open" | null>(null);
+  // the older desktop's move, read once from the computer itself (an optional field: absent until the move has ended)
+  const olderId = data.agent.computerId ?? "";
+  const rt = useOptionalShellRuntime();
+  const [moved, setMoved] = useState<{ state: "done" | "partial" | "failed"; at: number; error?: string } | undefined>(undefined);
+  useEffect(() => {
+    if (olderId === "") return;
+    let live = true;
+    void Promise.resolve(data.call("computers.get", { computerId: olderId })).then((o) => { if (live) setMoved((o as { computer?: { moved?: typeof moved } }).computer?.moved); }, () => undefined);
+    return () => { live = false; };
+  }, [data, olderId]);
   const steps = useBrowserSteps(data.call, agentId, br.status === "ready" ? `${br.view.state}:${br.view.caption ?? ""}` : br.status);
   const [sel, setSel] = useState<number | null>(null);
   const picture = useStepPicture(data.call, sel !== null ? steps[sel]?.frameFileId : undefined);
@@ -198,6 +209,16 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
       const menu: MenuEntry[] = [{ label: "Sign Out", danger: true, onSelect: out }];
       entries.push({ key: `site-${x.site}`, type: "row", title: x.site, note: `${x.signedInAs ? `${x.signedInAs} · ` : ""}since ${dayMonth(x.since, clock)}`, leading: <LeadIcon name="lock" />, testID: `site-${x.site}`, menu });
     }
+  }
+  // An agent that still has an older desktop keeps a way to watch it, wake it and take it over until its sign-ins have moved to the browser above (Console > Computers removes it afterwards)
+  const older = data.agent.computerId ?? "";
+  if (older !== "") {
+    entries.push({ key: "l-older", type: "label", text: "Older desktop" });
+    // Remove is an owner's or admin's, and it lives in Console > Computers: the row offers it only to them
+    const menu: MenuEntry[] = olderDesktopMenu({ canRemove: allows(rt, GATE.provisionComputer), open: data.nav.openComputerInConsole ? () => data.nav.openComputerInConsole?.(older) : undefined });
+    entries.push({ key: "older-desktop", type: "row", title: "Open its desktop", note: "The computer it had before", leading: <LeadIcon name="watch" />, testID: "older-desktop", onPress: () => data.nav.openComputer(older), ...(menu.length > 0 ? { menu } : {}) });
+    // the line about the move can be long: its own block, wrapped, never cut off in a row
+    entries.push({ key: "older-note", type: "block", node: <View style={{ marginHorizontal: 24, marginBottom: 8 }}><Text testID="older-note" style={st.note}>{olderDesktopNote(moved, (ms) => dayMonth(ms, clock))}</Text></View> });
   }
   return <View style={st.fill}><PaneList entries={entries} {...(window ? { window } : {})} testID="work-list" /></View>;
 }
