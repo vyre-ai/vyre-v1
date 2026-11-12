@@ -12625,6 +12625,7 @@ export type EngineStopOut = {
 };
 export type EngineStopAllIn = {
   threadId: string;
+  reason?: "update";
 };
 export type EngineStopAllOut = {
   stopped: number;
@@ -12896,6 +12897,7 @@ export type EngineTurnRecordIn = {
   costMicros?: number;
   code?: string;
   message?: string;
+  reason?: string;
   info?: {
     effort?: string;
     account?: {
@@ -51120,6 +51122,8 @@ export type TurnCancelledPayload = {
   threadId: string;
   agentId: string;
   by: string;
+  reason?: string;
+  pressed?: boolean;
 };
 export type TurnCompactedPayload = {
   threadId: string;
