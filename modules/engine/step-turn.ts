@@ -63,6 +63,8 @@ const WHY: Readonly<Record<string, string>> = {
   "timeout.deadline": "The AI step did not answer in time.",
 };
 const whyOf = (code: string): string => WHY[code] ?? "The AI provider could not answer this step.";
+/** The step's own words when the AI account needs a model and the step gives it none (the API driver refuses an empty model before sending). */
+export const NO_MODEL_STEP = "This AI step has no model. Give it an agent that has a model, or set a model on its agent.";
 
 const hex = (s: string): string => {
   let h = 0x811c9dc5;
@@ -185,6 +187,7 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
   const minutes = Math.min(30, Math.max(1, input.timeoutMinutes ?? DEFAULT_MINUTES));
   const session = await open(spec).catch((e: unknown) => {
     const c = (e as { code?: unknown } | null)?.code;
+    if (c === "engine.no_model") raise(ctx, "validation.precondition_failed", NO_MODEL_STEP, { reason: "no_model" });
     const mapped = codeOfDriver(typeof c === "string" ? c : "");
     raise(ctx, mapped.code as never, whyOf(mapped.code), { reason: "open_failed" });
   });
@@ -211,6 +214,8 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
   recordStepUsage(ctx, { turnId, agentId: agentKey, asker, model, tokensIn, tokensOut, ...(paid.itemId ? { itemId: paid.itemId } : {}) });
   if (timedOut) raise(ctx, "timeout.deadline", `The AI step did not answer within ${minutes} minutes.`, { reason: "timeout" });
   if (failure) {
+    // the account needs a model and the step gave it none: plain words, not "the provider could not answer" (a subscription runs on its CLI's own default and never says this)
+    if (failure.code === "engine.no_model") raise(ctx, "validation.precondition_failed", NO_MODEL_STEP, { reason: "no_model" });
     const mapped = codeOfDriver(failure.code);
     raise(ctx, mapped.code as never, whyOf(mapped.code), { reason: "engine" });
   }

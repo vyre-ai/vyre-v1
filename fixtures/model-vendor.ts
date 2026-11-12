@@ -18,6 +18,10 @@ export async function vendor() {
     req.on("end", () => {
       requests.push(body);
       auth.push(String(req.headers.authorization ?? ""));
+      // as a real vendor: a request with no model, or an empty one, is refused before anything is scripted
+      let model: unknown;
+      try { model = (JSON.parse(body) as { model?: unknown }).model; } catch { model = undefined; }
+      if (typeof model !== "string" || model.trim() === "") { res.writeHead(400, { "content-type": "application/json" }); res.end(JSON.stringify({ error: { message: "you must provide a model parameter", type: "invalid_request_error" } })); return; }
       const next = script.shift() ?? { text: "{}" };
       if (next.status && next.status !== 200) { res.writeHead(next.status, { "content-type": "application/json" }); res.end(JSON.stringify({ error: { message: "vendor says no", type: "invalid_request_error" } })); return; }
       res.writeHead(200, { "content-type": "text/event-stream" });
