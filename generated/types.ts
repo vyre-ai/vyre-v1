@@ -8612,6 +8612,7 @@ export type ComputersBrowserTakeOverOut = {
     paired: boolean;
     access: "owner" | "admin" | "viewer";
   };
+  note?: string;
 };
 export type ComputersBrowserTimelineIn = {
   agentId: string;
