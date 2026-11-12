@@ -100,28 +100,18 @@ test("a browser stops after idle and not before, never while someone watches, ho
   } finally { r.done(); }
 });
 
-test("a full service stops the quietest idle browser for a new one, and says plainly when every one is busy", async () => {
+test("a full service closes nothing to make room: it says it is full (reason browser_full) and the Space's module decides which of its own to close (fourth look, 12 Nov)", async () => {
   const r = rig({ maxRunning: 2 });
   try {
     await r.call("agt_aaa"); r.clock.t += 1000;
     await r.call("agt_bbb"); r.clock.t += 1000;
+    await assert.rejects(() => r.call("agt_ccc"), (e) => e instanceof AgentError && e.code === "unavailable" && e.reason === "browser_full" && /Every browser on this server is in use/.test(e.message));
+    assert.deepEqual(r.launched.map((x) => x.stopped), [false, false], "the quiet ones were not closed by browserd");
+    await r.m.stop("agt_aaa");   // the module closed one of its own
     await r.call("agt_ccc");
-    assert.equal(r.launched[0]!.stopped, true, "the longest quiet one made room");
-    assert.equal(r.launched[1]!.stopped, false);
-    // both remaining are busy: hold the tools open
-    const gate: Array<() => void> = [];
-    for (const l of r.launched.filter((x) => !x.stopped)) {
-      const orig = l.chrome.tool.bind(l.chrome);
-      l.chrome.tool = async (n, a, s) => { await new Promise<void>((res) => gate.push(res)); return orig(n, a, s); };
-    }
-    const busy = [r.call("agt_bbb"), r.call("agt_ccc")];
-    await new Promise((res) => setTimeout(res, 20));
-    await assert.rejects(() => r.call("agt_ddd"), (e) => e instanceof AgentError && e.code === "unavailable" && /Waiting for room/.test(e.message));
-    gate.forEach((g) => g());
-    await Promise.all(busy);
+    assert.equal(r.launched.length, 3, "then the newcomer starts");
   } finally { r.done(); }
 });
-
 test("a person at the controls pauses the agent's tools for that profile only; the person's own tools go through; give back resumes", async () => {
   const r = rig();
   try {
@@ -251,7 +241,7 @@ test("two browsers that start at the same moment cannot both take the last place
     const alive = r.launched.filter((x) => !x.stopped).length;
     assert.ok(alive <= 2, `never more than the service holds (${alive} running)`);
     assert.equal(both.filter((x) => x.status === "fulfilled").length, 1, "one starts");
-    assert.ok(both.some((x) => x.status === "rejected" && /Waiting for room/.test(String((x as PromiseRejectedResult).reason?.message))), "the other is told plainly to wait");
+    assert.ok(both.some((x) => x.status === "rejected" && /in use/.test(String((x as PromiseRejectedResult).reason?.message)) && (x as PromiseRejectedResult).reason?.reason === "browser_full"), "the other is told plainly, with the reason the module acts on");
     gate.forEach((g) => g());
     await busy;
   } finally { r.done(); }

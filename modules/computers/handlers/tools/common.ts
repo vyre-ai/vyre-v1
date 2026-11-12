@@ -16,7 +16,10 @@ import { askedThisTurn } from "./my-chrome-ask.ts";
 import { spaceBrowser } from "../../sbrowser/port.ts";
 import { profileIdOf } from "../../sbrowser/policy.ts";
 import { takeDownloads } from "../../sbrowser/downloads.ts";
-import { callEnded, callStarted, needRoom } from "../../sbrowser/room.ts";
+import { callEnded, callStarted, needRoom, REOPENED_LINE, takeEvicted } from "../../sbrowser/room.ts";
+
+/** The steps that act on a page by its refs or its content: after the browser was reopened they are refused once, with the line, so nothing is done on a stale ref. */
+const ACTS: ReadonlySet<string> = new Set(["chrome_click", "chrome_act", "chrome_type", "chrome_fill", "chrome_send", "chrome_api"]);
 import { currentHold, DURING_HOLD, HELD_LINE, heldBy } from "../../sbrowser/hold.ts";
 import { agentInfo } from "../../sbrowser/agentinfo.ts";
 import { faceSvg } from "../../sbrowser/face.ts";
@@ -29,7 +32,7 @@ export type ToolAnswer = Record<string, unknown>;
 export type ToolCode = "timeout" | "paused" | "not_found" | "bad_input" | "held" | "unavailable";
 
 /** A reason that travels with a refusal and never changes with its wording: `profile_held` (a person has the controls), `profile_busy` (a step is running). Lane f-desktop's move matches on it. */
-export type ToolReason = "profile_held" | "profile_busy";
+export type ToolReason = "profile_held" | "profile_busy" | "browser_full";
 
 export class ToolError extends Error {
   readonly code: ToolCode;
@@ -365,6 +368,7 @@ async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof space
   let raw!: ToolAnswer;
   let list!: TabLister;
   let given!: ReturnType<typeof givenCount>;
+  let reopened = false;
   try {
   if (spec.name !== "chrome_status" && spec.name !== "chrome_stop" && spec.name !== "chrome_resume" && spec.name !== "chrome_plan") await needRoom(ctx, sb, profileId);
   // the agent's name rides every call (the service keeps it in memory); its face is drawn once and kept with the profile
@@ -378,8 +382,16 @@ async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof space
   if (spec.name === "chrome_screenshot" && !(await pictureAllowed(profileId, list, args["tabId"]))) raise(ctx, "validation.bad_input", HOLDS_VALUE, { reason: "vault_value_on_page" });
   given = givenCount(profileId);
   const send = (): Promise<ToolAnswer> => sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, hold: h.hold, ...(fill ? { fill } : {}) });
+  // closed to make room since its last step: its pages were reloaded, so the refs of the last snapshot are gone. An act on them is refused once with the line; a look goes on and its step says so.
+  reopened = takeEvicted(profileId);
+  if (reopened && ACTS.has(spec.name)) raise(ctx, "validation.bad_input", REOPENED_LINE, { reason: "browser_reopened" });
   try {
-    raw = await send();
+    try { raw = await send(); } catch (e) {
+      // the browser service is full though this profile holds room (another Space filled it): wait for room like any start, then send once more (it was refused before it ran)
+      if (!(e instanceof ToolError && e.reason === "browser_full")) throw e;
+      await needRoom(ctx, sb, profileId, { force: true });
+      raw = await send();
+    }
   } catch (e) {
     // browserd still holds a takeover the table no longer has (a give back that did not reach it): released only if it began before this call read the table, so a takeover made since stays; the
     // call was refused before it ran, so it is sent once more
@@ -402,6 +414,8 @@ async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof space
   if (spec.caption) {
     const at = ctx.now();
     let words = clean(profileId, spec.caption(args, out).trim()).slice(0, 200);
+    // the person watching reads the same as the agent: the browser was reopened and its pages reloaded
+    if (reopened) words = `${words} · Browser reopened, pages reloaded`;
     let frame: string | undefined;
     // no picture of a page that holds a value filled from the Vault (it is kept in Files, and a text field shows its value); the step says so in one line, and so whether the chat's live card,
     // which needs that picture, was due and not posted

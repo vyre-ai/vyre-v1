@@ -228,14 +228,12 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     return turn;
   }
 
+  // browserd never closes a browser to make room (fourth look, 12 Nov): it cannot see a send held for a person's approval in another layer, a call on its way, or a turn in progress, and it serves every
+  // Space on the container. When it is full it says so (reason browser_full) and the Space's module, which knows all of that, chooses which of its own browsers to close, or waits.
   async function roomFor(except: string): Promise<void> {
     const taken = (): number => running().length + [...reserved].filter((id) => id !== except && profiles.get(id)?.chrome === null).length;
     if (taken() < maxRunning) { reserved.add(except); return; }
-    const idle = running().filter((p) => p.id !== except && quiet(p)).sort((a, b) => a.lastActiveAt - b.lastActiveAt)[0];
-    if (!idle) throw unavailable("Waiting for room on the Space browser: every browser it can hold is busy. Try again in a minute.");
-    o.log(`profile ${idle.id} stopped to make room`);
-    reserved.add(except);
-    await release(idle);
+    throw new AgentError("unavailable", "Every browser on this server is in use. Yours opens as soon as one is free.", "browser_full");
   }
 
   async function ensure(id: string): Promise<Profile> {

@@ -203,7 +203,9 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
     if (!t.webSocketDebuggerUrl) throw unavailable("that tab cannot be controlled");
     return connectCdp(t.webSocketDebuggerUrl);
   };
-  const withTab = async <T>(tabId: unknown, f: (c: Cdp, t: Target) => Promise<T>): Promise<T> => {
+  /** `again`: the step only reads (or navigates to an address, which is the same done twice), so it may be done once more on the tab in front when the one it began on went. An act (a click, typed text, a
+   * script) is never repeated: it may have happened on the tab that went, and doing it again could do it twice. */
+  const withTab = async <T>(tabId: unknown, f: (c: Cdp, t: Target) => Promise<T>, again = false): Promise<T> => {
     let t = await pick(tabId);
     let c: Cdp;
     // the front tab can close between the list and the attach (a browser that brought back its tabs closes its blank first one): the next one is taken, unless the call named that tab
@@ -216,9 +218,9 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
     }
     await watch(t).catch(() => undefined);
     try { return await f(c, t); } catch (e) {
-      // the front tab went while the step worked on it (a browser that just started brings back its tabs and closes its blank one): nothing happened on a page that is gone, so a call that named no tab is
-      // done once more on the tab that is in front now
-      if ((typeof tabId === "string" && tabId !== "") || !/Session with given id not found|No target with given id/i.test(e instanceof Error ? e.message : "")) throw e;
+      // the front tab went while the step worked on it (a browser that just started brings back its tabs and closes its blank one): a read, or going to an address, that named no tab is done once more on
+      // the tab in front now; an act is not (it may have happened before the tab went), and its error says what failed
+      if (!again || (typeof tabId === "string" && tabId !== "") || !/Session with given id not found|No target with given id/i.test(e instanceof Error ? e.message : "")) throw e;
       c.close();
       await sleep(150);
       if (active === t.id) active = null;
@@ -346,7 +348,7 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
           await sleep(100);
           await waitFor(c, "load", undefined, 30_000).catch(() => 0);
           return { tabId: t.id, url: await evalIn<string>(c, "location.href"), title: await evalIn<string>(c, "document.title") };
-        });
+        }, true);
       }
       case "chrome_tabs": {
         const action = s("action") ?? "list";
@@ -370,13 +372,13 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
         return { tabs: all.map((t) => ({ tabId: t.id, url: t.url, title: t.title, active: t.id === (active ?? all[0]?.id) })) };
       }
       case "chrome_state":
-        return withTab(tabId, async (c) => ({ url: await evalIn<string>(c, "location.href"), title: await evalIn<string>(c, "document.title"), loading: (await evalIn<string>(c, "document.readyState")) !== "complete" }));
+        return withTab(tabId, async (c) => ({ url: await evalIn<string>(c, "location.href"), title: await evalIn<string>(c, "document.title"), loading: (await evalIn<string>(c, "document.readyState")) !== "complete" }), true);
       case "chrome_snapshot": {
         const tree = (s("format") ?? "tree") === "tree";
         return withTab(tabId, async (c) => {
           const r = await evalIn<{ text: string; truncated: boolean }>(c, SNAPSHOT(s("selector") ?? "body", tree));
           return { url: await evalIn<string>(c, "location.href"), title: await evalIn<string>(c, "document.title"), tree: r.text, truncated: r.truncated };
-        });
+        }, true);
       }
       case "chrome_screenshot":
         return withTab(tabId, async (c) => {
@@ -393,7 +395,7 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
           const shot = await c.send<{ data: string }>("Page.captureScreenshot", params);
           const png = Buffer.from(shot.data, "base64");
           return { png: shot.data, ...pngSize(png) };
-        });
+        }, true);
       case "chrome_eval":
         return withTab(tabId, async (c) => {
           const v = await evalIn<unknown>(c, s("expression") ?? "");

@@ -4,7 +4,7 @@
 import { NOT_FETCHED_REASON, fetchableImage } from "../../../sandbox/src/docker.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../../sandbox/src/docker.ts";
 import { computerSeccomp, reviewComputerConfig, toolErrorOf } from "../impl.ts";
-import { HEADROOM_MB, LIMITS } from "../capacity.ts";
+import { browserService, browserSlots, browserTasks, LIMITS } from "../capacity.ts";
 import { cpus, totalmem } from "node:os";
 import { ToolError } from "../handlers/tools/common.ts";
 import type { BrowserAnswer, BrowserToolCall, ProfileRow, SpaceBrowser } from "./port.ts";
@@ -67,9 +67,9 @@ export function browserContainerConfig(o: DockerSpaceBrowserOptions, net?: { gat
   const many = o.maxRunning;
   const limits = many !== undefined
     ? { cpus: Math.min(4, Math.max(1, Math.round((many * LIMITS.browser.cpus) / 2))), memoryMb: Math.min(8192, 512 + Math.round((many * LIMITS.browser.memoryMb) / 2)), pids: 2048, ...o.limits }
-    : { cpus: Math.min(4, Math.max(1, Math.floor(host.cpus / 2))), memoryMb: Math.max(1024, host.memoryMb - HEADROOM_MB), pids: 2048, ...o.limits };
-  // a browser counts about 120 tasks: the cap follows the memory. Behind the runner these are the numbers its policy allows for this host (host/src/sites-runner/computers-policy.ts sbrowserBounds)
-  if (many === undefined && o.limits?.pids === undefined) limits.pids = Math.max(2048, 100 + 120 * Math.floor((limits.memoryMb - 512) / 256));
+    : { cpus: Math.min(4, Math.max(1, Math.floor(host.cpus / 2))), memoryMb: browserService(host.memoryMb).memoryMb, pids: 2048, ...o.limits };
+  // the task cap follows the memory (capacity.ts browserService, the one budget). Behind the runner these are the numbers its policy allows for this host (host/src/sites-runner/computers-policy.ts sbrowserBounds)
+  if (many === undefined && o.limits?.pids === undefined) limits.pids = browserTasks(limits.memoryMb);
   const memory = Math.round(limits.memoryMb * 1024 * 1024);
   const uid = o.user?.uid ?? 10001;
   const gid = o.user?.gid ?? 10001;
@@ -361,7 +361,7 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       throw new ToolError("unavailable", "Whether this agent's Space browser profile holds sign-ins cannot be told now; try again later.");
     },
     async profiles() {
-      if (!(await o.api.containerRunning(name))) return { profiles: [], maxRunning: o.maxRunning ?? Math.max(1, Math.floor((browserContainerConfig(o).HostConfig.Memory / 1048576 - 512) / 256)) };
+      if (!(await o.api.containerRunning(name))) return { profiles: [], maxRunning: o.maxRunning ?? browserSlots(browserContainerConfig(o).HostConfig.Memory / 1048576) };
       const s = await call("status", {}) as { profiles?: ProfileRow[]; maxRunning?: number };
       return { profiles: Array.isArray(s.profiles) ? s.profiles : [], maxRunning: Number(s.maxRunning ?? o.maxRunning ?? 0) };
     },

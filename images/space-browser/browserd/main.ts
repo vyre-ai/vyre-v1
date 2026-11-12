@@ -268,8 +268,9 @@ async function main(): Promise<void> {
     starts?.close();
     control.close();
     // every browser is closed properly (cookies and logins reach the volume) before the process ends; Docker waits 10 s
-    void manager.stopAll().finally(() => process.exit(0));
-    setTimeout(() => process.exit(0), 8000).unref();
+    const began = Date.now();
+    void manager.stopAll().finally(() => { console.error(`browserd: every browser closed in ${Date.now() - began} ms`); process.exit(0); });
+    setTimeout(() => { console.error(`browserd: browsers still closing after ${Date.now() - began} ms; exiting anyway`); process.exit(0); }, 8000).unref();
   };
   process.on("SIGTERM", bye);
   process.on("SIGINT", bye);

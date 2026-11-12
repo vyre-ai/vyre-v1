@@ -667,6 +667,20 @@ finish() {
   say ""
 }
 
+# The Space browser's container, its profiles volume (every agent's sign-ins) and its network are made by the daemon, not by compose, so compose's down and its project label never name them: a purge
+# finds them by the Space browser's own label (vyre.sbrowser=1) and the volume each container mounts, and removes them too. A purge that left an agent's sign-ins on disk would not be a purge.
+purge_browser() {
+  command -v docker >/dev/null 2>&1 || return 0
+  for c in $(docker ps -aq --filter "label=vyre.sbrowser=1" 2>/dev/null); do
+    vols=$(docker inspect -f '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}' "$c" 2>/dev/null || true)
+    docker rm -f "$c" >/dev/null 2>&1 || true
+    for v in $vols; do docker volume rm -f "$v" >/dev/null 2>&1 || true; done
+  done
+  # the usual volume, in case its container was already removed
+  docker volume rm -f vyre-sbrowser-data >/dev/null 2>&1 || true
+  for n in $(docker network ls -q --filter "label=vyre.sbrowser=1" 2>/dev/null); do docker network rm "$n" >/dev/null 2>&1 || true; done
+}
+
 uninstall() {
   [ -d "$DIR" ] || die "nothing is installed at $DIR."
   if [ "$PURGE" = 1 ] && ! ask "Delete the Space's data and every backup under $DIR? This cannot be undone."; then
@@ -688,6 +702,7 @@ uninstall() {
     for c in $(docker ps -aq --filter "label=com.docker.compose.project=$proj" 2>/dev/null); do docker rm -f "$c" >/dev/null 2>&1 || true; done
     for v in $(docker volume ls -q --filter "label=com.docker.compose.project=$proj" 2>/dev/null); do docker volume rm -f "$v" >/dev/null 2>&1 || true; done
   fi
+  if [ "$PURGE" = 1 ] && [ "$DRY" != 1 ]; then purge_browser; fi
   for l in "$LABEL_SERVER" "$LABEL_UPDATE"; do
     if [ -f "$AGENT_DIR/$l.plist" ] && grep -q "$MARK" "$AGENT_DIR/$l.plist"; then run rm -f "$AGENT_DIR/$l.plist"; fi
   done

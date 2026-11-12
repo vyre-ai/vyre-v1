@@ -3,7 +3,7 @@
 export type ToolCode = "timeout" | "paused" | "not_found" | "bad_input" | "held" | "unavailable";
 
 /** A reason a caller may act on, which never changes with the wording: `profile_held` (a person has the controls of that profile), `profile_busy` (a step is running in it). */
-export type ToolReason = "profile_held" | "profile_busy";
+export type ToolReason = "profile_held" | "profile_busy" | "browser_full";
 
 export class AgentError extends Error {
   readonly code: ToolCode;

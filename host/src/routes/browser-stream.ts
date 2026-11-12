@@ -69,18 +69,39 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
       res.writeHead(200, { "content-type": up.headers.get("content-type") ?? "multipart/x-mixed-replace", "cache-control": "no-store", connection: "close" });
       const reader = up.body.getReader();
       let behindSince = 0;
+      // A still page sends no frame, so a viewer that went away (a closed laptop) would never be found out by the frames alone (fourth look, 12 Nov). The last whole frame is kept, sent again when
+      // nothing was written for PING_MS, and a timer looks at the socket: one that is gone, or that has taken nothing for DEAD_MS, ends the view and its view in the browser service.
+      const BOUNDARY = Buffer.from("--vyreframe");
+      let pending = Buffer.alloc(0);
+      let lastPart: Buffer | null = null;
+      let wroteAt = now();
+      const stalled = (): boolean => {
+        if (res.writableLength <= 2 * 1024 * 1024) { behindSince = 0; return false; }
+        if (behindSince === 0) behindSince = now();
+        return now() - behindSince >= DEAD_MS;
+      };
+      const end = (): void => { clearInterval(watch); try { abort.abort(); } catch { /* gone */ } try { res.end(); } catch { /* gone */ } finish(); };
+      const watch = setInterval(() => {
+        if (done || res.destroyed || res.writableEnded) { end(); return; }
+        if (stalled()) { end(); return; }
+        if (lastPart && now() - wroteAt >= PING_MS) { res.write(lastPart); wroteAt = now(); }
+      }, Math.max(10, Math.min(PING_MS, DEAD_MS) / 2));
+      (watch as { unref?: () => void }).unref?.();
       try {
         for (;;) {
-          const { value, done: end } = await reader.read();
-          if (end || done) break;
+          const { value, done: eof } = await reader.read();
+          if (eof || done) break;
+          pending = pending.length === 0 ? Buffer.from(value) : Buffer.concat([pending, Buffer.from(value)]);
+          for (let at = pending.indexOf(BOUNDARY, 1); at > 0; at = pending.indexOf(BOUNDARY, 1)) { lastPart = pending.subarray(0, at); pending = pending.subarray(at); }
+          if (pending.length > 8 * 1024 * 1024) pending = Buffer.alloc(0);
           // a viewer that is behind sees fewer frames, never old ones; one that has taken nothing for DEAD_MS is gone
-          if (res.writableLength > 2 * 1024 * 1024) { if (behindSince === 0) behindSince = now(); else if (now() - behindSince >= DEAD_MS) break; continue; }
-          behindSince = 0;
+          if (stalled()) break;
+          if (res.writableLength > 2 * 1024 * 1024) continue;
           res.write(value);
+          wroteAt = now();
         }
       } catch { /* the viewer left or the browser closed it */ }
-      res.end();
-      finish();
+      end();
     })().catch(() => { finish(); if (!res.headersSent) plain(res, 500, "internal.unexpected", "The view failed."); else res.end(); });
   }
 

@@ -5,7 +5,7 @@ import type { Handlers } from './handlers.ts';
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
   "computers.browser.give_back": async () => ({"profile":{"access":"owner","agentId":"agt_a1b2c3","busy":true,"lastActiveAt":1760000000000,"line":"example","paired":true,"running":true,"state":"running","tabs":1,"takeoverBy":"usr_a1b2c3","viewers":1}} as unknown) as never,
-  "computers.browser.profiles": async () => ({"maxRunning":1,"profiles":[{"access":"owner","agentId":"agt_a1b2c3","busy":true,"lastActiveAt":1760000000000,"line":"example","paired":true,"running":true,"state":"running","tabs":1,"takeoverBy":"usr_a1b2c3","viewers":1}]} as unknown) as never,
+  "computers.browser.profiles": async () => ({"maxRunning":1,"profiles":[{"access":"owner","agentId":"agt_a1b2c3","busy":true,"lastActiveAt":1760000000000,"line":"example","paired":true,"running":true,"state":"running","tabs":1,"takeoverBy":"usr_a1b2c3","viewers":1}],"slots":{"limit":1,"running":1,"waiting":1}} as unknown) as never,
   "computers.browser.sessions": async () => ({"sessions":[{"lastSeen":1760000000000,"signedInAs":"example","since":1760000000000,"site":"app.example.com"}]} as unknown) as never,
   "computers.browser.sign_out": async () => ({"ok":true} as unknown) as never,
   "computers.browser.stream": async () => ({"expiresAt":1760000000000,"height":1,"transport":"mjpeg","url":"example","width":1,"ws":"example"} as unknown) as never,

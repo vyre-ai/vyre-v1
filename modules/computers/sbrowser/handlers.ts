@@ -10,7 +10,7 @@ import type { ProfileAccess, ProfileAgent } from "./policy.ts";
 import { spaceBrowser } from "./port.ts";
 import type { ProfileRow, SpaceBrowser } from "./port.ts";
 import { currentHold, dropHold, heldBy, setHold, touchHold } from "./hold.ts";
-import { needRoom } from "./room.ts";
+import { needRoom, waitingForRoom } from "./room.ts";
 
 const TICKET_MS = 5 * 60_000;
 
@@ -90,7 +90,9 @@ export async function profiles(ctx: CompCtx, _input: Record<string, never>) {
     const access = agent ? profileAccess(agent, person, admin) : "none";
     if (access !== "none") out.push(rowOut({ profileId: id, running: false, tabs: 0, busy: false, takeover: false, viewers: 0, lastActiveAt: 0, held: 0, paused: false }, access, waitingNote(ctx.db, id)));
   }
-  return { profiles: out, maxRunning: all.maxRunning };
+  // the browser slots of this server, for one quiet line in Console > Computers: how many run now (every Space's on this server), how many it holds at once, how many calls wait for one
+  const slots = { running: all.profiles.filter((p) => p.running).length, limit: all.maxRunning, waiting: waitingForRoom() };
+  return { profiles: out, maxRunning: all.maxRunning, slots };
 }
 
 export async function stream(ctx: CompCtx, input: { agentId: string }) {
