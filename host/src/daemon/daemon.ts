@@ -1318,6 +1318,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "gate" });
             if (r.status !== "ok") throw new Error(`${cap} did not answer`);
             return r.output;
+          }, (connectionId) => {
+            try {
+              const row = spaceStore.open().tx.all("SELECT connector, secrets FROM cn_connections WHERE connection_id = ?", connectionId)[0] as { connector?: string; secrets?: string } | undefined;
+              if (!row?.connector) return null;
+              return { connector: row.connector, handles: Object.values(JSON.parse(row.secrets ?? "{}") as Record<string, unknown>).filter((v): v is string => typeof v === "string") };
+            } catch { return null; }
           }),
           outward: moduleOutward(loaded.moduleExports), fetches: moduleFetches(loaded.moduleExports),
           threads: threadChain,

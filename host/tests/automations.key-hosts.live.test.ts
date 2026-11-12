@@ -35,6 +35,7 @@ test("an agent's test read sends a Vault key only to a host a person approved fo
     return { status: 200, text: async () => "{}", arrayBuffer: async () => new ArrayBuffer(0) };
   };
   const dir = seededDir();
+  let localToken = "";
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({ os: "linux", hostname: "key-hosts", free: 80e9, commands: {
@@ -44,12 +45,13 @@ test("an agent's test read sends a Vault key only to a host a person approved fo
     seams: { vaultSinks: { env: () => undefined }, fetch: seamFetch, drivers: { setDocumentNetwork: () => ({ lookup: async () => ["93.184.216.34"], fetch: async () => { throw new Error("not used"); } }) } },
     session: (h) => {
       const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-      if (t === OWNER) return { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "key-hosts" };
+      if (t === OWNER || (localToken !== "" && t === localToken)) return { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "key-hosts" };
       if (t === AGENT) return { space: "spc_core", principal: { kind: "agent", id: "agt_scout" }, actingFor: "usr_olivia" };
       return null;
     },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000, tick: 200 },
   } satisfies DaemonOptions);
+  localToken = d.token ?? "";
   const post = async (who: string, route: string, body: Record<string, unknown>) => {
     const r = await fetch(`${d.url}${route}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${who}` }, body: JSON.stringify({ idempotencyKey: `${route}-${Math.random()}`, ...body }), signal: AbortSignal.timeout(8_000) });
     const text = await r.text();
@@ -133,17 +135,19 @@ test("an agent's test read sends a Vault key only to a host a person approved fo
     const sibling = await read(AGENT, "#Notely", "evil.notely.example");
     assert.notEqual(sibling.data["level"], "tested", sibling.text);
 
-    // 9. the item a person approves is the item whose key goes: hold, then a Mine item takes the same handle, then approve. The approved item's key goes, or nothing; never the other one's.
+    // 9. the item a person approves is the item whose key goes: hold, then that item goes to Trash and a second item named the same is made, then approve. The approved item's key goes, or
+    // nothing; never the other one's. (The Vault never gives two items one handle, not even with one in Trash: the second is #Plainkey_2. The send asks for the held item by id regardless.)
     const held9 = await read(AGENT, "#Plainkey", "approve.plainkey.example");
     assert.equal(held9.data["status"], "held", held9.text);
-    const mineFolder = await post(OWNER, "/v1/vault/folders/create", { name: "My keys", scope: "mine" });
-    const shadow = await post(OWNER, "/v1/vault/item/put", { folderId: String((mineFolder.data["folder"] as { id?: string } | undefined)?.id ?? ""), name: "Plainkey", kind: "api_key", fields: [{ key: "api_key", value: SECRET2 }] });
-    console.log(`SHADOW ${shadow.status} ${String((shadow.data["item"] as { handle?: string } | undefined)?.handle)}`);
+    assert.equal((await post(OWNER, "/v1/vault/item/delete", { itemId: plainId })).status, 200);
+    const shadow = await post(OWNER, "/v1/vault/item/put", { folderId, name: "Plainkey", kind: "api_key", fields: [{ key: "api_key", value: SECRET2 }] });
+    assert.equal(shadow.status, 200, shadow.text);
+    assert.notEqual((shadow.data["item"] as { handle?: string } | undefined)?.handle, "#Plainkey", "a second item never takes the handle");
     const approved9 = await post(OWNER, "/v1/tasks/act", { taskId: String(held9.data["taskId"]), action: "approve" });
     assert.equal(approved9.status, 200, approved9.text);
     await new Promise((r) => setTimeout(r, 1500));
     assert.equal(seen.filter((x) => x.other).length, 0, `the other item's key never went: ${JSON.stringify(seen.filter((x) => x.other))}`);
-    assert.ok(seen.filter((x) => x.host === "approve.plainkey.example").every((x) => x.key), "whatever went there carried the approved item's key");
+    assert.equal(seen.filter((x) => x.host === "approve.plainkey.example").length, 0, "the approved item is in Trash: nothing goes");
 
     assert.deepEqual(seen.filter((s) => s.key && s.host !== "approve.plainkey.example").map((s) => s.host).sort(), ["api.notely.example", "api.plainkey.example", "status.elsewhere.example"], "the key went only to approved hosts and the person's own read");
   } finally {

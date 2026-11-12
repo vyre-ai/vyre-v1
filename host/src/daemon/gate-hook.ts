@@ -108,6 +108,9 @@ export function createGateHook(d: GateHookDeps): GateHook {
     async seen(cap, input, output, seed) {
       // a person bound a Vault key to a connector and it succeeded: the connector's hosts are approved for that key, by them (the condition checks they may use it)
       if ((cap.name === "connections.create" || cap.name === "connections.set_secret") && seed.principal.kind === "person" && !seed.step) await d.evaluators?.["automations.after_person_bind"]?.(input, seed);
+      // a person finished an OAuth sign-in: the tokens the app's own token address gave are bound to that connector, so its hosts are approved for them, by that person
+      const done = (output as { connectionId?: unknown } | null)?.connectionId;
+      if (cap.name === "connections.complete_auth" && seed.principal.kind === "person" && !seed.step && typeof done === "string") await d.evaluators?.["automations.after_person_bind"]?.({ connectionId: done, bound: true }, seed);
       if (!seed.thread || seed.principal.kind !== "agent") return;
       if (!bringsOutside(cap.name, cap.effects) && d.fetches?.(cap.name, input) !== true) return;
       const text = typeof (output as { text?: unknown } | null)?.text === "string" ? (output as { text: string }).text : "";
@@ -220,6 +223,8 @@ export function moduleWhens(
   exports: ReadonlyMap<string, Record<string, unknown>>, db: () => ScopedDb | null, call: (cap: string, input: unknown) => Promise<unknown>,
   /** A read as one person (what they may see), for a condition that depends on it. */
   callAs?: (cap: string, input: unknown, person: string) => Promise<unknown>,
+  /** A connection's bound Vault handles (the connectors table): an OAuth sign-in a person finished binds the token items it stored. */
+  handlesOf?: (connectionId: string) => { connector: string; handles: string[] } | null,
 ): NonNullable<GateHookDeps["evaluators"]> {
   const out: NonNullable<GateHookDeps["evaluators"]> = {};
   // an agent's delete inside work/ on its own computer is its own change; anywhere else asks
@@ -252,11 +257,13 @@ export function moduleWhens(
   // a person binding a key themselves approves the connector's domains for it, through the same capability their press on the key's page uses (it checks they may use the key)
   const personBinds = async (input: unknown, person: string): Promise<void> => {
     if (!callAs) return;
-    const i = (input ?? {}) as { connector?: unknown; secrets?: unknown; connectionId?: unknown; handle?: unknown };
-    const refs: string[] = i.secrets && typeof i.secrets === "object" ? Object.values(i.secrets as Record<string, unknown>).filter((v): v is string => typeof v === "string") : typeof i.handle === "string" ? [i.handle] : [];
+    const i = (input ?? {}) as { connector?: unknown; secrets?: unknown; connectionId?: unknown; handle?: unknown; bound?: unknown };
+    const bound = i.bound === true && typeof i.connectionId === "string" ? handlesOf?.(i.connectionId) ?? null : null;
+    const refs: string[] = i.bound === true ? (bound?.handles ?? [])
+      : i.secrets && typeof i.secrets === "object" ? Object.values(i.secrets as Record<string, unknown>).filter((v): v is string => typeof v === "string") : typeof i.handle === "string" ? [i.handle] : [];
     if (refs.length === 0) return;
     try {
-      let connector = typeof i.connector === "string" ? i.connector : "";
+      let connector = typeof i.connector === "string" ? i.connector : bound?.connector ?? "";
       if (connector === "" && typeof i.connectionId === "string") connector = String(((await call("connections.get", { connectionId: i.connectionId })) as { connection?: { connector?: unknown } } | null)?.connection?.connector ?? "");
       const got = (await call("connectors.get", { key: connector })) as { connector?: { domains?: unknown } } | null;
       const domains = Array.isArray(got?.connector?.domains) ? (got!.connector!.domains as unknown[]).filter((x): x is string => typeof x === "string") : [];

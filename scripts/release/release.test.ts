@@ -286,14 +286,17 @@ test("the command line: tag checks the version against package.json, and pack ma
   const log = console.log, err = console.error;
   const lines: string[] = [];
   console.log = (...a: unknown[]) => { lines.push(a.join(" ")); };
-  console.error = () => undefined;
+  const errors: string[] = [];
+  console.error = (...a: unknown[]) => { errors.push(a.map(String).join(" ")); };
   const saved = process.env["VYRE_IMAGE"];
   try {
     assert.equal(main(["tag", "v1.2.3-dryrun.1"]), 1);
     assert.equal(main(["tag", "v9.9.9"]), 1, "package.json does not say 9.9.9");
     assert.equal(main(["pack"]), 2);
     process.env["VYRE_IMAGE"] = DIGEST;
-    assert.equal(main(["pack", out, "0.0.1"]), 0);
+    errors.length = 0;
+    // its own repository tree: the real apps/chrome and kits are read and written by other tests running beside this one (a full run failed here, 1 !== 0, while it passed alone)
+    assert.equal(main(["pack", out, "0.0.1"], fakeRepo()), 0, `pack said: ${errors.join(" | ")}`);
     assert.ok(fs.existsSync(path.join(out, "vyre.tgz")) && fs.existsSync(path.join(out, EXTENSION_ZIP)) && fs.existsSync(path.join(out, "vyre-kits.tgz")));
     const rel = JSON.parse(fs.readFileSync(path.join(out, "releases.json"), "utf8")) as Record<string, { version: string }>;
     assert.deepEqual(Object.keys(rel).sort(), ["extension", "kits", "server"]);
