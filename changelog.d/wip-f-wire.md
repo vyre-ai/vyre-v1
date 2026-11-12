@@ -16,3 +16,4 @@
 - The audit export has a where column: an agent's own browser, a person's own Chrome or an agent's own computer, for acts that did not name a computer.
 - The chat card and the Steps list say Browser for an agent's own browser, name each page by its address, say "just now" for a recent step, and show the page with "Opening…" instead of an empty dark box; the card no longer says Live once the agent has stopped.
 - An import cut off by a server restart now ends as failed and its owner is told, instead of staying "running" for ever. Bringing in a CRM whose first pull cannot start now tells you why.
+- An import whose end the server could not record is ended on the next minute's check, and a background sync that gave up after its last try now ends its Run as failed, so the person who started it is told.

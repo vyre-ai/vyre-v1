@@ -290,3 +290,26 @@ test("an import a restart cut off ends failed at boot, and its Run's owner is to
   await done;
   assert.equal(findSession(w.db, live.importId)!.state, "done");
 });
+
+// lead, 12 Nov: a runs.finish that fails when an import ends is not swallowed: it is logged with the Run id and kept, and the next check ends the Run, so the owner is told
+test("a Run that did not take its end is ended by the next check, as the import meant to end it", async () => {
+  const { interrupted } = await import("../handlers/commit.ts");
+  const h = harness();
+  const a = await ready(h);
+  const finish = h.world.handlers["runs.finish"]!;
+  h.world.down.add("runs.finish");
+  await run(h, "import.commit", a);
+  assert.ok(h.warned.some((w) => /did not take its end/.test(w)), "logged");
+  const kept = h.rows("SELECT runId, status FROM import_unfinished");
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0]!["status"], "succeeded");
+  h.world.down.delete("runs.finish");
+  h.world.handlers["runs.finish"] = finish;
+  const before = h.only("runs.finish").length;
+  const ended = await interrupted(h.ctx);
+  assert.deepEqual(ended, [kept[0]!["runId"]]);
+  assert.equal(h.only("runs.finish").length, before + 1);
+  assert.equal(h.only("runs.finish").at(-1)!.input.status, "succeeded");
+  assert.equal(h.rows("SELECT runId FROM import_unfinished").length, 0, "taken once");
+  assert.deepEqual(await interrupted(h.ctx), []);
+});

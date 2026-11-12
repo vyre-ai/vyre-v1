@@ -31,11 +31,30 @@ export async function interrupted(ctx: ImportCtx): Promise<string[]> {
     if (s.runId) await finish(ctx, s.runId, "failed", `Stopped: ${CUT_OFF}`, CUT_OFF);
     out.push(s.importId);
   }
+  // Runs whose end did not take before: ended now, as they were meant to end
+  for (const r of ctx.db.all("SELECT runId, status, summary, error FROM import_unfinished ORDER BY at") as Array<{ runId: string; status: "succeeded" | "failed" | "stopped"; summary: string; error: string | null }>) {
+    if (await finish(ctx, r.runId, r.status, r.summary, r.error ?? undefined)) out.push(r.runId);
+  }
   return out;
 }
 
-async function finish(ctx: ImportCtx, runId: string, status: "succeeded" | "failed" | "stopped", summary: string, error?: string): Promise<void> {
-  await tolerant(ctx, "runs.finish", { runId, status, summary, ...(error ? { error: { code: "internal.unexpected", message: error } } : {}) }, null);
+/**
+ * End the import's Run. A failure here is not swallowed (lead, 12 Nov): it is logged as an error with the Run id and kept in import_unfinished, and the boot-and-every-minute check (interrupted)
+ * ends the Run on its next pass, so the owner is told as they would have been.
+ */
+async function finish(ctx: ImportCtx, runId: string, status: "succeeded" | "failed" | "stopped", summary: string, error?: string): Promise<boolean> {
+  try {
+    if (!ctx.call) throw new Error("runs are not reachable");
+    await ctx.call("runs.finish", { runId, status, summary, ...(error ? { error: { code: "internal.unexpected", message: error } } : {}) });
+    ctx.db.run("DELETE FROM import_unfinished WHERE runId = ?", runId);
+    return true;
+  } catch (e) {
+    // a Run that already ended (an earlier pass, or a person stopped it) is done: nothing to keep
+    if (codeOf(e) === "validation.precondition_failed") { ctx.db.run("DELETE FROM import_unfinished WHERE runId = ?", runId); return true; }
+    (ctx.log.error ?? ctx.log.warn).call(ctx.log, "import: the Run did not take its end; the next check ends it", { runId, status, error: e instanceof Error ? e.message.slice(0, 200) : codeOf(e) });
+    ctx.db.run("INSERT INTO import_unfinished (runId, status, summary, error, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(runId) DO NOTHING", runId, status, summary, error ?? null, ctx.now());
+    return false;
+  }
 }
 
 export async function commit(ctx: ImportCtx, input: In): Promise<unknown> {
