@@ -26,7 +26,8 @@ test("asleep, waiting (with the line), not made yet (asleep: Attach makes it) an
   assert.deepEqual(workspaceView("agt_dex", read({ state: "waiting", line: LINE }), []), { state: "waiting", sessions: [], canAttach: true, line: LINE });
   assert.equal(workspaceView("agt_dex", read({ state: "none" }), []).state, "asleep");
   const gone = workspaceView("agt_dex", read({ state: "unavailable", line: "No machine here can run workspaces. Install Docker, or add a server." }), []);
-  assert.equal(gone.state, "error");
+  // owner walk, 12 Nov: not a red "Needs attention" but its own quiet state, with the line and nothing to press
+  assert.equal(gone.state, "unavailable");
   assert.equal(gone.canAttach, false);
   assert.match(gone.line ?? "", /Install Docker/);
 });
@@ -102,4 +103,12 @@ test("a workspace kept awake by running work shows what runs in its line (12 Nov
   const v = workspaceView("agt_dex", { state: "running", canAttach: true, line: "running: tail -f app.log" } as never, []);
   assert.equal(v.line, "running: tail -f app.log");
   assert.deepEqual(workspaceWords(v), { chip: "Running", tone: "ok", note: "running: tail -f app.log" });
+});
+
+test("owner walk: a workspace nothing can run is 'Not set up yet' in quiet words with the line, and offers no Attach", async () => {
+  const { terminalAction } = await import("../../places/chats/rightpane/work-model.ts");
+  const v = workspaceView("agt_dex", { state: "unavailable", canAttach: false, line: "This Space can't run agent workspaces yet. That needs Docker on the Space's server, or another server with Docker added in Console > Computers.", cannotAttach: "There is no workspace to attach to." } as never, []);
+  assert.equal(v.state, "unavailable");
+  assert.deepEqual(workspaceWords(v), { chip: "Not set up yet", tone: "quiet", note: "This Space can't run agent workspaces yet. That needs Docker on the Space's server, or another server with Docker added in Console > Computers." });
+  assert.equal(terminalAction(v), null, "no Attach");
 });

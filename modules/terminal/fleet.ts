@@ -90,7 +90,10 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
       const known = homes.get(agentId);
       const tag = (m: WorkspaceManager, st: WorkspaceStatus): WorkspaceStatus => { const n = nodeIdOf(m); return { ...st, host: n === undefined ? "space" : "server", ...(n === undefined ? {} : { nodeId: n }) }; };
       if (known) return tag(known, await known.status(agentId));
-      for (const m of all()) { const st = await m.status(agentId).catch(() => null); if (st && st.state !== "none") return tag(m, st); }
+      // no machine that answers: it cannot run, which is not "not made yet"
+      let answered = false;
+      for (const m of all()) { const st = await m.status(agentId).catch(() => null); if (st) answered = true; if (st && st.state !== "none") return tag(m, st); }
+      if (!answered) throw Object.assign(new Error("No machine for workspaces answers."), { code: "unavailable", workspace: true });
       return { state: "none" };
     },
     async available(agentId) { return o.space !== null || (homes.has(agentId) ? true : (await o.place(agentId).catch(() => null)) !== null); },

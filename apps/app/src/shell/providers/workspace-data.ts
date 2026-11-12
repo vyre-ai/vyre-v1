@@ -22,7 +22,7 @@ export interface WorkspaceRead {
 export function workspaceView(agentId: string, read: WorkspaceRead, rows: readonly TerminalRowLike[], projectNames: readonly string[] = []): WorkspaceView {
   const mine = rows.filter((r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited");
   const sessions: WorkspaceSession[] = mine.map((r) => ({ name: r.name, owner: r.by ?? { kind: "agent" }, ...(r.lastActiveAt !== undefined ? { lastActiveAt: r.lastActiveAt } : {}) }));
-  const state = read.state === "unavailable" ? "error" : read.state === "none" ? "asleep" : read.state;
+  const state = read.state === "none" ? "asleep" : read.state;
   return {
     state, sessions, canAttach: read.canAttach && read.state !== "unavailable",
     // waiting and unavailable say why; running says what keeps it awake past its idle time ("running: tail -f app.log")

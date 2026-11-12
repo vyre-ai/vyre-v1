@@ -7,7 +7,8 @@ import type { ReactElement } from "react";
 
 // ---- Terminal: the agent's workspace
 
-export type WorkspaceState = "running" | "asleep" | "starting" | "waiting" | "error";
+/** unavailable: nothing in this Space can run a workspace now (no Docker, no server): a plain line on what would, never an Attach that cannot work. */
+export type WorkspaceState = "running" | "asleep" | "starting" | "waiting" | "error" | "unavailable";
 /** Who a terminal session belongs to: the agent itself, a helper it started (by name), or a person who attached. */
 export interface SessionOwner { kind: "agent" | "helper" | "person"; name?: string }
 export interface WorkspaceSession { name: string; owner?: SessionOwner; /** left out when the host does not say */ windows?: number; /** people attached right now; left out when not known */ attached?: number; lastActiveAt?: number }
@@ -79,6 +80,7 @@ export function workspaceWords(v: WorkspaceView): Words {
     case "starting": return { chip: "Starting", tone: "quiet" };
     case "waiting": return { chip: "Waiting for room", tone: "warn", note: v.line ?? "Waiting for room on the Space server. The workspace starts by itself when there is room." };
     case "error": return { chip: "Needs attention", tone: "bad", note: v.line ?? "The workspace could not start." };
+    case "unavailable": return { chip: "Not set up yet", tone: "quiet", note: v.line ?? "This Space can't run agent workspaces yet. That needs Docker on the computer this Space runs on, or a server with Docker added in Console > Computers." };
   }
 }
 

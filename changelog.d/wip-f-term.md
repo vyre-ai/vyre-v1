@@ -36,3 +36,5 @@
 - A command that moves the cursor, clears the screen or draws a progress bar no longer looks like it ran until its time ran out; it ends when it ends, with its exit code.
 - In a Personal Space whose workspace cannot run right now, the terminal says why and what fixes it, not that a Team Space is needed.
 - Two Vyre servers on one computer (the desktop app's Personal Space and device ones) no longer put each other's workspaces to sleep or give away each other's room.
+- In a Space that cannot run agent workspaces yet, an agent's Computer tab says what would make it work, offers owners and admins Console > Computers, and no longer offers an Attach that cannot work.
+- An agent's own state reads Active or Idle, so it no longer says Awake while its workspace says Asleep on the same screen.

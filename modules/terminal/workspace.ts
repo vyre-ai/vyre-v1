@@ -963,6 +963,9 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     },
     async status(agentId) {
       usedHere.add(agentId);
+      // Docker that does not answer is not a workspace that sleeps: the caller says what would make it work (owner walk, 12 Nov)
+      const ping = await http({ method: "GET", path: "/_ping", timeoutMs: 5000 }).catch(() => null);
+      if (!ping || ping.status !== 200) throw wsError("The container runtime does not answer.", "docker_down");
       const row = (await this.list()).find((r) => r.agentId === agentId);
       const projects = mounted.get(agentId);
       const waits = waitingLine.get(agentId);

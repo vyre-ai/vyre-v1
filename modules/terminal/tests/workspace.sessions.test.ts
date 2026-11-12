@@ -227,3 +227,15 @@ test("who may enter, for a service: the host's own services do; a service a tena
   assert.equal(await mayEnterWorkspace(as("svc_engine"), "agt_dex"), true);
   for (const id of ["svc_form_abc", "svc_site_0123", `svc_${"a1".repeat(16)}`]) assert.equal(await mayEnterWorkspace(as(id), "agt_dex"), false, id);
 });
+
+test("owner walk: a Space whose Docker does not answer shows its workspace as not set up, with the plain line and no Attach, never as asleep", async () => {
+  const { bindWorkspaceStatus } = await import("../projections.ts");
+  reset();
+  bindWorkspaces(true);
+  bindTeam(() => true);
+  bindWorkspaceStatus(async () => { throw Object.assign(new Error("No machine for workspaces answers."), { workspace: true }); });
+  const admin = asPerson("usr_admin", true);
+  const w = await h["terminal.workspace"]!(admin, { agentId: "agt_dex" });
+  assert.deepEqual([w.state, w.canAttach], ["unavailable", false]);
+  assert.match(w.line, /^This Space can't run agent workspaces yet\. That needs Docker on the Space's server/);
+});

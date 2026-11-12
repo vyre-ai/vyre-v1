@@ -470,7 +470,9 @@ export async function workspace(ctx: TermCtx, input: { agentId: string }) {
   const probe = boundWorkspaceStatus();
   const available = probe !== null && (await workspacesFor(input.agentId));
   if (!available) return { state: "unavailable" as const, canAttach: false, line: isTeam(ctx.space) ? NO_WORKSPACE_TEAM : NO_WORKSPACE_PERSONAL, cannotAttach: "There is no workspace to attach to." };
-  const st = await (probe as NonNullable<typeof probe>)(input.agentId).catch(() => ({ state: "none" as const }));
+  // Docker that does not answer is not a workspace that sleeps: say what would make it work, and offer nothing that cannot (owner walk, 12 Nov)
+  const st = await (probe as NonNullable<typeof probe>)(input.agentId).catch(() => null);
+  if (st === null) return { state: "unavailable" as const, canAttach: false, line: isTeam(ctx.space) ? NO_WORKSPACE_TEAM : NO_WORKSPACE_PERSONAL, cannotAttach: "There is no workspace to attach to." };
   return { ...st, canAttach: st.state === "running" || st.state === "asleep" || st.state === "none" };
 }
 
