@@ -144,12 +144,12 @@ test("Files: the tree order and the counts", () => {
   assert.deepEqual([count("fld_memory"), count("fld_skills"), count("fld_routines"), count("fld_knowledge")], ["5", "2", "3", "2"]);
 });
 
-test("Files: Vyre's own dot folders and files (.index, .vyre) are not listed in the agent's folder", () => {
+test("Files: Vyre's own .index and .vyre are not listed in the agent's folder; the agent's own dot files are (review O5)", () => {
   const folders = [{ folderId: "f1", parentId: "root", name: "memory" }, { folderId: "f2", parentId: "root", name: ".index" }, { folderId: "f3", parentId: "root", name: ".vyre" }];
-  const files = [{ fileId: "a", folderId: "root", name: "AGENT.md" }, { fileId: "b", folderId: "root", name: ".lock" }];
-  const out = folderEntries(folders as never, files as never, "root");
-  assert.deepEqual(out.folders.map((f) => f.name), ["memory"]);
-  assert.deepEqual(out.files.map((f) => f.name), ["AGENT.md"]);
+  const files = [{ fileId: "a", folderId: "root", name: "AGENT.md" }, { fileId: "b", folderId: "root", name: ".env" }, { fileId: "c", folderId: "root", name: ".gitignore" }];
+  const out = folderEntries([...folders, { folderId: "f4", parentId: "root", name: ".github" }] as never, files as never, "root");
+  assert.deepEqual(out.folders.map((f) => f.name), [".github", "memory"], "only Vyre's own .index and .vyre stay out");
+  assert.deepEqual(out.files.map((f) => f.name), [".env", ".gitignore", "AGENT.md"], "an agent's own dot files show");
 });
 
 test("Files: an empty folder says so", () => {

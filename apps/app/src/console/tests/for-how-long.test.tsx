@@ -10,7 +10,7 @@ test("just started says nothing more; then for minutes, hours, days; then since 
   assert.equal(forHowLong(NOW, NOW - 5 * 60_000), " for 5 min");
   assert.equal(forHowLong(NOW, NOW - 3 * 3_600_000), " for 3 h");
   assert.equal(forHowLong(NOW, NOW - 2 * 86_400_000), " for 2 d");
-  assert.equal(forHowLong(NOW, Date.UTC(2026, 9, 1)), " since 2026-10-01");
+  assert.equal(forHowLong(NOW, Date.UTC(2026, 9, 1)), " since 1 Oct 2026");
   assert.ok(!/since now|ago/.test(forHowLong(NOW, NOW)), "never 'since now' or 'since 3 h ago'");
 });
 

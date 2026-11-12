@@ -362,7 +362,8 @@ function HealthTab({ detail, m, goto, onFix, fixed }: { detail: MachineOut | nul
       </Block>
       {sure ? <Text style={s.foot} testID="machine-fix-confirm">{stopLine(detail.idleSessions ?? 0, m.kind === "space")}</Text> : null}
       {fixed || detail.lastFix ? <Text style={s.foot} testID="machine-last-fix">{fixed || detail.lastFix?.detail}</Text> : null}
-      <Text style={s.foot}>The same check runs as vyre-server doctor in a terminal on this server, so it works even when the Space server is down.</Text>
+      {/* vyre-server doctor runs on a server; a person's own computer (linked) has no vyre-server, so the line is not said there (review O4) */}
+      {m.kind === "linked" ? null : <Text style={s.foot} testID="machine-doctor-cli">The same check runs as vyre-server doctor in a terminal on this server, so it works even when the Space server is down.</Text>}
       {m.kind === "space" && goto ? (
         <Block title="More checks" testID="machine-more">
           <Row id="more-logs" title="Server logs" note="Recent log lines, search and export" tall onPress={() => goto("server")} />

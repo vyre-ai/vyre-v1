@@ -17,3 +17,6 @@
 - Stopping a reply and an unsent message are each said once, under the message.
 - What needs you no longer repeats a row's title as its second line; the health tile says Computer alerts.
 - After New project, the Records sidebar switches types again and a reload starts no second new row; New project works at the phone width.
+- The Console calls the Computers page Computers in its list too, and a person's own computer no longer points them to vyre-server doctor.
+- The agent's folder shows the agent's own dot files (.env, .gitignore); only Vyre's .index and .vyre stay out.
+- Search finds rows inside Settings by name (Passkeys, Password), from the Settings page's own list.
