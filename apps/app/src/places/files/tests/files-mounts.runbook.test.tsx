@@ -108,7 +108,7 @@ test("only one thing runs at a time, and a failed call becomes words", async () 
   assert.deepEqual(busy, { ok: false, error: "Something is already running. Wait for it, or stop it first." });
   const s2 = make("fresh");
   s2.failNext("runbooks.run", "permission.needs_team");
-  assert.deepEqual(await runAll(s2.data.call, { fileId: NOTE_ID, target: SERVER, at: 5 }), { ok: false, error: "Running commands needs a Team Space." });
+  assert.deepEqual(await runAll(s2.data.call, { fileId: NOTE_ID, target: SERVER, at: 5 }), { ok: false, error: "No computer can run this right now. Start the agent's computer, or pick another place to run it." });
   s2.failNext("runbooks.set_target", "x");
   assert.deepEqual(await setTarget(s2.data.call, NOTE_ID, target), { ok: false, error: "Could not change where this runs." });
 });
