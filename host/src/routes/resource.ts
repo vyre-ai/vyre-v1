@@ -23,7 +23,7 @@ const str = (v: unknown): string | null => (typeof v === "string" && v.length > 
 
 /** @param spaceId the Space id (a `space` binding is the Space itself) @param resolve turns a Vault name or handle into the item id */
 export function resolveResource(
-  cap: Pick<CapabilityDef, "resource">, input: unknown, spaceId: string, resolve?: (type: string, kind: "name" | "handle", value: string) => string | null,
+  cap: Pick<CapabilityDef, "resource">, input: unknown, spaceId: string, resolve?: (type: string, kind: "name" | "handle", value: string) => string | null, caller?: { kind: string },
 ): ResourceRef {
   const b: ResourceBinding = cap.resource;
   if ("create" in b && b.create === true) {
@@ -45,6 +45,9 @@ export function resolveResource(
   }
   if (!("id" in b)) return { type: "space", id: spaceId };   // the `space` binding is the only one left without an id
   const raw = str(pointer(input, b.id));
+  // an agent that leaves the id out of a self binding (the chrome, screen and files tools) means its own computer or Space browser: the call is bound to the Space, where its role and grant are
+  // checked, and the handler keeps it to the caller's own (modules/computers/handlers/tools/common.ts prepare). Anyone else must still name the thing.
+  if (!raw && "self" in b && b.self === "agent" && caller?.kind === "agent") return { type: "space", id: spaceId };
   if (!raw) throw new BindingError(b.id, "the id is missing");
   if ("resolve" in b && b.resolve) {
     const id = resolve ? resolve(b.type, b.resolve, raw) : raw;

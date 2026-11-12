@@ -45,7 +45,9 @@ const intent = t.enm('make_skill', 'learn_routine', 'work_out_backend_calls', 'l
 
 /** Local tool capability on the agent computer: bound to the computer resource, Team Space only, never queued offline. */
 const local = (extra: Partial<CapOpts> = {}): CapOpts => ({
-  on: ['computer', '/computerId'], perm: 'computers.use', tool: 'computer', offline: 'online', errors: ['provider.unavailable', 'timeout.deadline'], ...extra,
+  // an agent may leave computerId out: its own computer, or its own profile in the Space browser for the chrome tools; a person must name the computer (f-wire, 12 Nov: the binding refused every
+  // call that left it out, so no agent without an old desktop could browse)
+  on: ['computer', '/computerId'], orSelf: true, perm: 'computers.use', tool: 'computer', offline: 'online', errors: ['provider.unavailable', 'timeout.deadline'], ...extra,
 });
 
 export default defineManifest({

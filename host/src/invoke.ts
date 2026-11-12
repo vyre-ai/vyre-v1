@@ -327,7 +327,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
 
       let collectionRateChecked=false;
       if(!(seed.preAuth&&isHostService(seed.principal))&&deps.recordAccess?.collection&&["records.query","records.search","records.counts"].includes(c.name)){
-        const resource=resolveResource(c,input,seed.space,deps.resolveItem);
+        const resource=resolveResource(c,input,seed.space,deps.resolveItem,seed.principal);
         const req:AuthReq={principal:seed.principal.id,actingFor:seed.actingFor,provider:seed.provider,action:{perm:c.permission,level:"view"},resource,now:now(),cap:c.name,input};
         if(c.rate&&deps.rate){const key=c.rate.scope==="space"?`space:${seed.space}:${c.name}`:`${seed.principal.id}:${c.name}`;if(!deps.rate.take(key,c.rate,now()))throw fail("rate_limit.exceeded",traceId,{details:{cap:c.name,perSeconds:c.rate.perSeconds}});collectionRateChecked=true;}
         const scoped=await deps.recordAccess.collection(c.name,input,seed,req,traceId);
@@ -382,7 +382,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     const did = (): string => (kd ? kd.decisionId : (fallbackId ??= mintId("dec", t)));   // minted only when an audit row or a parked task needs it
     let approved = false;
     if (!seed.preAuth) {
-      try { resource = resolveResource(c, input, seed.space, deps.resolveItem); }
+      try { resource = resolveResource(c, input, seed.space, deps.resolveItem, seed.principal); }
       catch (e) {
         // a Vault name or handle that names nothing the caller may use reads the same as one that does not exist, in words a person or an agent can act on
         if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...(e.message === "no such item" ? { message: "There is no Vault item by that name that you can use. Check the name, or ask for the key." } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
