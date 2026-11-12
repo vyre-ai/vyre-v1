@@ -457,7 +457,8 @@ test("a Space automation's AI account: Automatic needs a Space account kept for 
 
 test("an agent's press on a live Space automation clears whom it runs as, and its accountable owner is told, once (review 12 Nov, pass 2)", async () => {
   const h = harness({ authorize: () => false });
-  h.callee("vault.items.list", () => ({ items: [sub] }));
+  // the Vault as the creator sees it, as in the Promote tests above: the subscription, and the key the send step uses (a step may only name a key its saver can use)
+  h.callee("vault.items.list", (i) => ({ items: (i as { kind?: string }).kind === "ai_subscription" ? [sub] : [sub, { id: "vit_resend", kind: "api_key", handle: "#Resend_Key", name: "Resend", yourLevel: "use" }] }));
   const told: Array<{ to?: string; title?: string }> = [];
   h.callee("tasks.create", (i: { assigned?: { id?: string }; title?: string }) => { told.push({ to: i.assigned?.id, title: i.title }); return { task: { id: `tsk_${told.length}` } }; });
   h.callee("audit.append", () => ({ auditId: "aud_1" }));
