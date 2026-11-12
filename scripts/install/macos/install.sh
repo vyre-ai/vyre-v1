@@ -350,7 +350,9 @@ fetch_release() {
   fetch "$base/$CHANNEL.json.sig" "$TMP/manifest.sig" 30 || die "could not fetch the manifest's signature; nothing was installed."
   verify_manifest "$TMP/manifest.json" "$TMP/manifest.sig" || die "the release signature does not match the Vyre release key in this installer; nothing was installed."
   say "  ok  the release signature verifies"
-  [ "$(jq -r '.v // empty' "$TMP/manifest.json")" = 1 ] || die "the release manifest is not a version this installer reads; nothing was installed."
+  # v 1, or v 2: a release that needs this newer updater. Every script of rc.25 and older reads only v 1 and stops right here, before any image pull or backup, saying "nothing was
+  # installed": a release published with v 2 is never carried out by the old updater (whose backup on a Mac reads the live databases from macOS). Run the install line again to update.
+  case "$(jq -r '.v // empty' "$TMP/manifest.json")" in 1|2) ;; *) die "the release manifest is not a version this installer reads; nothing was installed." ;; esac
   [ "$(jq -r '.channel // empty' "$TMP/manifest.json")" = "$CHANNEL" ] || die "the manifest is for another channel than $CHANNEL; nothing was installed."
   REL_VERSION=$(jq -r '.server.version // empty' "$TMP/manifest.json")
   url=$(jq -r '.server.tarball // empty' "$TMP/manifest.json")
@@ -426,9 +428,11 @@ spacedb_host_boot() {
   [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_BOOT_ID_FILE:-}" ] || _sbf=$VYRE_TEST_BOOT_ID_FILE
   head -n 1 "$_sbf" 2>/dev/null || true
 }
+# spacedb_engine_boot: "vyred|<boot id>" from the running vyred, or "oneshot|<boot id>" from a one-shot container when this engine runs no vyred of this install
 spacedb_engine_boot() {
-  if _sbc=$(spacedb_vyred); then docker exec "$_sbc" cat /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1; return 0; fi
+  if _sbc=$(spacedb_vyred); then printf 'vyred|'; docker exec "$_sbc" cat /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1; return 0; fi
   _sbi=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  printf 'oneshot|'
   [ -z "$_sbi" ] || docker run --rm --network none --entrypoint cat "$_sbi" /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1
   return 0
 }
@@ -436,10 +440,13 @@ engine_same_kernel() {
   if [ -z "$SPACEDB_SAME" ]; then
     SPACEDB_SAME=1
     if [ "$(spacedb_os)" != Darwin ]; then
-      if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_ENGINE:-}" ]; then _sk=${VYRE_TEST_ENGINE%%|*}; _seb=${VYRE_TEST_ENGINE#*|}
+      if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_ENGINE:-}" ]; then _sk=${VYRE_TEST_ENGINE%%|*}; _seb=vyred\|${VYRE_TEST_ENGINE#*|}
       else _sk=$(docker info --format '{{.OperatingSystem}}' 2>/dev/null | head -n 1) || _sk=""; _seb=""; [ -z "$_sk" ] || _seb=$(spacedb_engine_boot); fi
       _shb=$(spacedb_host_boot)
-      case "$_sk" in ""|*"Docker Desktop"*) ;; *) [ -z "$_shb" ] || [ "$_shb" != "$_seb" ] || SPACEDB_SAME=0 ;; esac
+      case "$_sk" in ""|*"Docker Desktop"*) ;; *) [ -z "$_shb" ] || [ "$_shb" != "${_seb#*|}" ] || SPACEDB_SAME=0 ;; esac
+      # the engine this shell talks to runs no vyred of this install: the server may be running under another Docker context (another kernel). The one-shot container speaks
+      # for this engine only, so host tools are trusted only when no database in the Space has a -wal or -shm beside it (nothing has it open)
+      if [ "$SPACEDB_SAME" = 0 ] && [ "${_seb%%|*}" = oneshot ] && [ -n "$(find "$DATA_DIR/space" \( -name '*-wal' -o -name '*-shm' \) 2>/dev/null | head -n 1)" ]; then SPACEDB_SAME=1; fi
     fi
   fi
   return "$SPACEDB_SAME"
@@ -698,8 +705,18 @@ EOT
 # launchd_domain: the login session the agents live in.
 launchd_domain() { printf 'gui/%s' "$(id -u)"; }
 
+# update_job_safe: the daily update may run here only when the release `current` points at carries an updater that reads the Space's databases inside Docker's machine
+# (the spacedb block). An older one (rc.25 and before) backs them up with the Mac's own sqlite3 while the server writes them from the VM, which damaged a Mac's databases on
+# 12 Nov 2026. link_current runs before write_agents, so on a re-run over an old install `current` is already this release when this is asked.
+update_job_safe() { grep -q '^# BEGIN spacedb' "$DIR/current/bin/vyre-server" 2>/dev/null; }
+
 write_agents() {
   if [ "$DRY" = 1 ]; then say "would write $AGENT_DIR/$LABEL_SERVER.plist and $LABEL_UPDATE.plist and load them with launchctl"; return 0; fi
+  load_update=1
+  if ! update_job_safe; then
+    load_update=0
+    say "  The daily update is not turned on: the release in $DIR/current has an updater that would back up the live databases from macOS. Run this installer again with a current release."
+  fi
   install -d "$AGENT_DIR"
   plist "$LABEL_SERVER" start >"$AGENT_DIR/$LABEL_SERVER.plist.new"
   plist "$LABEL_UPDATE" update --yes >"$AGENT_DIR/$LABEL_UPDATE.plist.new"
@@ -713,7 +730,8 @@ write_agents() {
       launchctl enable "$(launchd_domain)/$l" >/dev/null 2>&1 || true
     done
     # Only the update agent is loaded now; the server is started by start_stack, and the agent takes over at the next login.
-    launchctl bootstrap "$(launchd_domain)" "$AGENT_DIR/$LABEL_UPDATE.plist" >/dev/null 2>&1 || true
+    if [ "$load_update" = 1 ]; then launchctl bootstrap "$(launchd_domain)" "$AGENT_DIR/$LABEL_UPDATE.plist" >/dev/null 2>&1 || true
+    else launchctl disable "$(launchd_domain)/$LABEL_UPDATE" >/dev/null 2>&1 || true; fi
   fi
 }
 
