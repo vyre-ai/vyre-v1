@@ -8,6 +8,9 @@ import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app
 import { guardCrashes } from "./crash-guard.ts";
 
 const PASSWORD = "fixture password 123";
+// the picture skin: paper (light) or graphite (dark); the pictures are named after it
+const skin = process.env["VYRE_ANCHOR_SKIN"] === "graphite" ? "graphite" : "paper";
+const tone = skin === "paper" ? "light" : "dark";
 
 test("a message's time card draws under the time, in a scrolled chat", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
@@ -54,9 +57,11 @@ test("a message's time card draws under the time, in a scrolled chat", async (t)
     };
     const ch = await call("channels.create", { name: "anchor-room", visibility: "public" });
     const thread = (ch.channel?.mainThreadId ?? ch.mainThreadId) as string;
+    let last = "";
     for (let i = 1; i <= 40; i++)
-      await call("chat.post", { threadId: thread, body: `Message number ${i} in the room` });
-    await page.goto(`${web.origin}/chat`, { waitUntil: "load" });
+      last = (await call("chat.post", { threadId: thread, body: `Message number ${i} in the room` })).message
+        .messageId as string;
+    await page.goto(`${web.origin}/chat?skin=${skin}`, { waitUntil: "load" });
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
     await page.getByText("anchor-room", { exact: true }).first().click({ timeout: 30_000 });
     await page.getByText("Message number 40 in the room").first().waitFor({ timeout: 30_000 });
@@ -95,7 +100,7 @@ test("a message's time card draws under the time, in a scrolled chat", async (t)
       };
     });
     fs.writeFileSync(path.join(out, "time-card-measure.json"), JSON.stringify(r, null, 1));
-    await page.screenshot({ path: path.join(out, "time-card-chat.png"), animations: "disabled" });
+    await page.screenshot({ path: path.join(out, `time-card-chat-${tone}.png`), animations: "disabled" });
     assert.ok(
       Math.abs(r.card.left - r.trigger.left) <= 12,
       `the card is under the time horizontally: ${JSON.stringify(r)}`,
@@ -105,6 +110,94 @@ test("a message's time card draws under the time, in a scrolled chat", async (t)
       `the card is right below the time: ${JSON.stringify(r)}`,
     );
     await guard.check("a message's time card");
+    await page.keyboard.press("Escape");
+
+    // the same class, every other card in the scrolled chat: drawn in the overlay layer or under no transform, and sitting by what opened it
+    const rectOf = async (
+      sel: string,
+    ): Promise<{ left: number; top: number; right: number; bottom: number; blockers: string[] }> =>
+      page.evaluate((q) => {
+        const el = document.querySelector(q) as HTMLElement;
+        const b = el.getBoundingClientRect();
+        const blockers: string[] = [];
+        for (let p = el.parentElement; p; p = p.parentElement) {
+          const c = getComputedStyle(p);
+          if (
+            c.transform !== "none" ||
+            c.filter !== "none" ||
+            c.perspective !== "none" ||
+            /paint|layout|strict|content/.test(c.contain)
+          )
+            blockers.push(`${p.tagName.toLowerCase()}[${p.getAttribute("data-testid") ?? ""}]`);
+        }
+        return { left: b.left, top: b.top, right: b.right, bottom: b.bottom, blockers };
+      }, sel);
+    const bySide = (
+      name: string,
+      trig: { left: number; top: number; right: number; bottom: number },
+      card: { left: number; top: number; right: number; bottom: number; blockers: string[] },
+    ): void => {
+      // by its trigger: under it, over it, beside it, or (squeezed by the window's edge) over it: the card's box is within 24 px of the trigger's
+      const near =
+        card.left <= trig.right + 24 &&
+        card.right >= trig.left - 24 &&
+        card.top <= trig.bottom + 24 &&
+        card.bottom >= trig.top - 24;
+      assert.ok(near, `${name} sits by what opened it: trigger ${JSON.stringify(trig)}, card ${JSON.stringify(card)}`);
+      assert.ok(
+        card.right > 0 && card.bottom > 0 && card.left < 1600 && card.top < 900,
+        `${name} is inside the window: ${JSON.stringify(card)}`,
+      );
+      assert.deepEqual(card.blockers, [], `${name} is under no transform that would move a fixed box`);
+    };
+    const lastRow = page.getByTestId(`msg-${last}`);
+    await lastRow.hover();
+    await page.getByTestId(`act-add-${last}`).waitFor({ timeout: 10_000 });
+    const addAt = await rectOf(`[data-testid=act-add-${last}]`);
+    await page.getByTestId(`act-add-${last}`).click();
+    await page.getByTestId("reaction-picker").waitFor({ timeout: 10_000 });
+    const pick = await rectOf("[data-testid=reaction-picker]");
+    bySide("the reaction picker", addAt, pick);
+    // never over what opened it: above the button when the window has no room below
+    assert.ok(
+      pick.top >= addAt.bottom - 2 || pick.bottom <= addAt.top + 2,
+      `the picker does not cover its button: ${JSON.stringify({ addAt, pick })}`,
+    );
+    await page.screenshot({ path: path.join(out, `reaction-picker-${tone}.png`), animations: "disabled" });
+    await page.keyboard.press("Escape");
+    await page.mouse.move(5, 5);
+    await lastRow.hover();
+    await page.getByTestId(`act-more-${last}`).waitFor({ timeout: 10_000 });
+    const moreAt = await rectOf(`[data-testid=act-more-${last}]`);
+    await page.getByTestId(`act-more-${last}`).click();
+    await page.getByTestId("menu").waitFor({ timeout: 10_000 });
+    bySide("the message menu", moreAt, await rectOf("[data-testid=menu]"));
+    await page.screenshot({ path: path.join(out, `message-menu-${tone}.png`), animations: "disabled" });
+    await page.keyboard.press("Escape");
+    const box = page.locator("textarea, [contenteditable=true]").last();
+    for (const [key, tag] of [
+      ["@", "mention menu"],
+      ["/", "slash menu"],
+    ] as const) {
+      await box.click();
+      await box.fill("");
+      await box.type(key);
+      await page.getByTestId("composer-popup").first().waitFor({ timeout: 10_000 });
+      const trig = await page.evaluate(() => {
+        const b = (
+          document.querySelector("[data-testid=composer-popup]") as HTMLElement
+        ).parentElement!.getBoundingClientRect();
+        return { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
+      });
+      const c = await rectOf("[data-testid=composer-popup]");
+      assert.ok(
+        c.bottom <= trig.bottom + 8 && c.right > 0 && c.left < 1600,
+        `the ${tag} is inside the composer's area: ${JSON.stringify({ trig, c })}`,
+      );
+      assert.deepEqual(c.blockers, [], `the ${tag} is under no transform`);
+      await page.screenshot({ path: path.join(out, `${tag.replace(" ", "-")}-${tone}.png`), animations: "disabled" });
+      await page.keyboard.press("Escape");
+    }
   } finally {
     await browser.close();
     web.close();
