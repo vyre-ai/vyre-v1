@@ -194,7 +194,7 @@ function evalSubject(
   }
   const clearance = s.clearance;
   // a guest holds on a thread or a channel only what guest-caps.ts lets their level do, whichever grant they got it by (a flag read, nothing more, for everyone else)
-  if (s.guest && matched > 0 && GUEST_TYPES.has(res.type) && !guestMay(req.cap, max >= rankOf("use")))
+  if (s.guest && (matched > 0 || isOwner) && GUEST_TYPES.has(res.type) && !guestMay(req.cap, max >= rankOf("use")))
     return "role_lacks_permission";
   const ownerOk = isOwner && label <= clearance;
   if (matched === 0 && !ownerOk) return sawExpired ? "expired" : "no_grant";

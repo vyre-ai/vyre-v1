@@ -33,6 +33,8 @@ export interface AddSheetDeps {
   toast(text: string): void;
   /** The person is an admin of the Space: on a project they may give any role, Manage or not (the server writes the grants for them). */
   admin?: boolean;
+  /** False when the person may not start chats: the people popover only names who is here, and offers no way to open them or add anyone. Absent: they may. */
+  mayChat?: boolean;
 }
 
 /* ---------- how an agent answers in a chat ---------- */

@@ -182,3 +182,19 @@ test("a check that names no capability (a list, a sync filter, a handler's own c
     "deny",
   );
 });
+
+test("a guest who owns a reply thread they opened is held to the table too, with or without the grant that let them in", () => {
+  const s = world();
+  s.putResource({ id: "thr_mine", type: "thread", parent_id: "thr_main", label: 0, owner_id: "usr_reply", holds: 0 });
+  const stop = caps.find((c) => c.name === "engine.stop_all")!, post = caps.find((c) => c.name === "chat.post")!;
+  assert.equal(can(s, "usr_reply", stop, { type: "thread", id: "thr_mine" }), false, "owning it does not give stop");
+  assert.equal(can(s, "usr_reply", post, { type: "thread", id: "thr_mine" }), true, "and they still post in it");
+  // the channel grant is taken away: they keep reading and nothing more
+  const gone = world();
+  gone.putResource({ id: "thr_mine", type: "thread", parent_id: "thr_main", label: 0, owner_id: "usr_reply", holds: 0 });
+  gone.revokeGrant?.("g2");
+  const read = caps.find((c) => c.name === "chat.messages.list")!;
+  assert.equal(can(gone, "usr_reply", stop, { type: "thread", id: "thr_mine" }), false);
+  assert.equal(can(gone, "usr_reply", post, { type: "thread", id: "thr_mine" }), false, "without the grant, owning the thread gives no posting");
+  assert.equal(can(gone, "usr_reply", read, { type: "thread", id: "thr_mine" }), true, "only reading");
+});

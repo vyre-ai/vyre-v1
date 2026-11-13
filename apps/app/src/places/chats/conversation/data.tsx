@@ -96,6 +96,8 @@ export interface ConversationData {
   };
   nameOf(id: string): string;
   kindOf(id: string): "person" | "agent";
+  /** The viewer holds the permission to start chats (chats.private). Without it the people and agents of this chat are named, not opened, and nobody is added from that list. Absent: yes. */
+  mayChat?: boolean;
   nav: ConversationNav;
   clock(): Clock;
   /** The @ # / tables of the composer. */

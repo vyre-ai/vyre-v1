@@ -308,6 +308,50 @@ export function createBridge(o: BridgeOptions): Bridge {
   const helperOf = new Map<string, string>(); // a helper's own thread id -> the chat that started it, where the person is (gate blocker, 12 Nov)
   const pokedBy = new Map<string, string>(); // `${thread}:${agent}` -> the person who poked it: the reply says so
 
+  // A guest's words are for the people of the channel: no agent turn starts for a guest in v1 (a guest has no AI account in the Space, and must not spend a member's or steer an agent). Who is a guest is read from
+  // their roles (only Guest), kept a minute so a busy channel does not ask for every message.
+  const guestSeen = new Map<string, { guest: boolean; at: number }>();
+  const isGuest = async (ctx: EngineCtx, personId: string): Promise<boolean> => {
+    const t = (o.now ?? Date.now)();
+    const hit = guestSeen.get(personId);
+    if (hit && t - hit.at < 60_000) return hit.guest;
+    let guest = false;
+    try {
+      const got = (await ctx.call("access.principals.get", { principal: { kind: "person", id: personId } })) as {
+        principal?: { roles?: string[] };
+      };
+      const roles = got.principal?.roles ?? [];
+      guest = roles.length > 0 && roles.every((r) => r === "rol_guest");
+    } catch {
+      /* unreadable: read as a member, as before */
+    }
+    guestSeen.set(personId, { guest, at: t });
+    return guest;
+  };
+  const GUEST_LINE = "Agents answer members of this Space";
+  /** The one quiet line under a guest's first mention of an agent in a chat: the same id for the same guest in the same chat, so a replay or a second mention says it once. */
+  const sayGuestLine = async (threadId: string, agentId: string, guestId: string): Promise<void> => {
+    const sum = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`guest-line|${threadId}|${guestId}`));
+    const clientId =
+      BRIDGE_PREFIX +
+      [...new Uint8Array(sum)]
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("")
+        .slice(0, 24);
+    try {
+      await o.postAs(agentId, {
+        actingFor: guestId,
+        threadId,
+        body: "",
+        mentions: [],
+        clientId,
+        blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: GUEST_LINE } }],
+      });
+    } catch (e) {
+      warn("could not say that agents answer members", { threadId, error: String(e) });
+    }
+  };
+
   const askerMention = (threadId: string, agentId: string): AgentPost["mentions"] => {
     const who = askerOf.get(threadId);
     return who && o.addressAsker?.(threadId, agentId) ? [{ kind: "person", id: who }] : [];
@@ -1044,6 +1088,14 @@ export function createBridge(o: BridgeOptions): Bridge {
       } catch {
         /* where it was sent from is a hint, never a reason to drop the message */
       }
+    }
+    // a guest's mention is delivered to the channel as a plain mention and starts no turn, with one quiet line the first time
+    if (sender.kind === "person" && typeof sender.id === "string" && (await isGuest(ctx, sender.id))) {
+      const named = (Array.isArray(p["mentions"]) ? (p["mentions"] as Array<{ kind?: string; id?: string }>) : []).find(
+        (m) => m.kind === "agent" && typeof m.id === "string",
+      );
+      if (named?.id) await sayGuestLine(threadId, named.id, sender.id);
+      return { skipped: "guest" };
     }
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.get(messageId)) return { skipped: "known" }; // the engine stored it: its own reply echoing back, or a replay

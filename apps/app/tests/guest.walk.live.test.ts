@@ -117,6 +117,7 @@ test("guest walk: sidebar, open, read, post, People list, a person row, an agent
     assert.ok(!/\bSomeone\b/.test(people), "and no one is Someone");
     assert.ok(!people.includes("Ledger"), "an agent that is in none of the guest's channels is not named");
     const log: string[] = [];
+    assert.equal(await page.getByTestId("people-footer").count(), 0, "a guest is offered no Add people and agents");
     // an agent row: press it
     const dexRow = page.getByText("Dex", { exact: true }).last();
     await dexRow.click().catch(() => undefined);
@@ -127,6 +128,11 @@ test("guest walk: sidebar, open, read, post, People list, a person row, an agent
     await page.screenshot({ path: path.join(out, "5-guest-press-agent.png") });
     fs.writeFileSync(path.join(out, "guest-walk.txt"), log.join("\n") + "\n");
     assert.equal(refused, false, "pressing the channel's agent does not end in a refusal");
+    assert.equal(
+      await page.getByText("Poke", { exact: true }).count(),
+      0,
+      "and opens no agent page with controls the guest cannot use",
+    );
   } finally {
     await browser.close();
     web.close();

@@ -4,3 +4,4 @@
 - Channels made before this release open for guests too: the first time one is used, its chat is moved under its channel.
 - A guest of a channel reads and replies in the threads under its messages too, at the level they were invited at; a thread an agent or a person started from the channel (a helper, a handoff, an Ask pane, an aside) stays closed to them.
 - A guest of a channel reads, reacts, replies and opens reply threads, and nothing else: stopping the agents, starting helpers or handing work on, changing modes, pinning, renaming and adding people are refused them, including for guests invited before this release.
+- A guest who mentions an agent in a channel is not answered by it: the mention reaches the channel, and one quiet line says agents answer members of the Space. The People list of a chat names its people and agents for a guest without offering to open them or add anyone.

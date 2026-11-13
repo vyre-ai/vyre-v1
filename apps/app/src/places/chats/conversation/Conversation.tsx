@@ -379,7 +379,14 @@ function ConversationView(): ReactElement {
   }, [data, data.threadId, online]);
   const menu = useMenu();
   const add = useAddSheet(
-    { call: data.call, me: data.me, nameOf: data.nameOf, newKey: data.newKey, toast: data.toast },
+    {
+      call: data.call,
+      me: data.me,
+      nameOf: data.nameOf,
+      newKey: data.newKey,
+      toast: data.toast,
+      ...(data.mayChat === false ? { mayChat: false } : {}),
+    },
     { copy: data.copy },
   );
   // the header "..." carries the chat's own items; what is starred and muted is read when the chat opens and follows what the person does here
