@@ -4,7 +4,7 @@
 //   bar     one full-width line of fixed height: the dot, the note (or the words), and at most one action; it changes text in place and moves nothing below it
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { useMenu } from "../Menu/index.tsx";
+import { menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 
 export type Tone = "ok" | "quiet" | "warn" | "bad" | "mine";
@@ -54,14 +54,30 @@ function ActionButton({ a, id }: { a: StatusAction; id: string }): ReactElement 
       testID={id}
       onPress={a.onPress}
       {...(web && a.disabled === true && a.why ? ({ dataSet: { tt: a.why } } as object) : {})}
-      style={({ hovered }: { hovered?: boolean }) => [st.action, hovered === true && st.actionOver, a.disabled === true && st.dim]}
+      style={({ hovered }: { hovered?: boolean }) => [
+        st.action,
+        hovered === true && st.actionOver,
+        a.disabled === true && st.dim,
+      ]}
     >
       <Text style={st.actionText}>{a.label}</Text>
     </Pressable>
   );
 }
 
-export function Status({ tone, label, note, action, alt, menu, slot, children, inline = false, bar = false, testID }: StatusProps): ReactElement {
+export function Status({
+  tone,
+  label,
+  note,
+  action,
+  alt,
+  menu,
+  slot,
+  children,
+  inline = false,
+  bar = false,
+  testID,
+}: StatusProps): ReactElement {
   const { element, show } = useMenu();
   if (inline)
     return (
@@ -82,15 +98,13 @@ export function Status({ tone, label, note, action, alt, menu, slot, children, i
         {action ? <ActionButton a={action} id={`${testID ?? "status"}-action`} /> : null}
       </View>
     );
-  const onContext = menu
-    ? (e: { preventDefault?: () => void; clientX?: number; clientY?: number }): void => {
-        e.preventDefault?.();
-        show(menu, e.clientX ?? 0, e.clientY ?? 0, "context");
-      }
-    : undefined;
   return (
     <View testID={testID}>
-      <View testID={`${testID ?? "status"}-head`} style={st.head} {...(onContext ? ({ onContextMenu: onContext } as object) : {})}>
+      <View
+        testID={`${testID ?? "status"}-head`}
+        style={st.head}
+        {...(menu ? menuTrigger((x, y) => show(menu, x, y, "context")) : {})}
+      >
         <Dot tone={tone} />
         <Text numberOfLines={1} style={[st.words, st.grow]}>
           {label}
