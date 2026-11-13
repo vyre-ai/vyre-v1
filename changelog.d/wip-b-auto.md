@@ -3,3 +3,4 @@
 - Ask Vyre now shows what the Assistant understood from your sentence, the forms it found on your site, one card to paste an app key (saved straight to your Vault, never into the chat), the field mapping, the wait for the first real submission, and a test-lead approval.
 - A step in an Automation someone else built that uses an app you may not use now shows whole, with one plain line saying so, instead of being dropped.
 - The new first page and builder page are drawn from their tested models: Needs you cards with their fix, one suggestion, a Today line, and numbered sentences with data chips and one orange line per step.
+- An Automation someone else built always opens whole in the new builder: each step is a sentence with real names, a step that uses an app you may not use keeps its sentence with one plain line, and Paths show If yes and Otherwise.
