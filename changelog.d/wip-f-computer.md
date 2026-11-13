@@ -9,3 +9,5 @@
 
 - An agent's first browser call right after a server update no longer fails with "Something went wrong on our side" when the browser's old container is being replaced at the same moment: each Docker step of starting the browser either finds its work already done or answers with a plain, retryable line, and callers wait on the one replace.
 - Clicks you make on an agent's browser while you are in control now land where you clicked; on the web they all went to the page's top left corner.
+- Controlling an agent's browser from the app now works: clicks used the wrong button number and landed in the page's top left corner, Space and Enter clicked that corner instead of typing, and the mouse wheel did not scroll. Clicks, typing and scrolling now reach the page.
+- Closing a terminal opened with Attach gives the right column back to the agent's pane when it was open before.
