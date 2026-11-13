@@ -139,14 +139,18 @@ test("every layer link opens over the page that is open, and none of them drops 
 
 // The guard for the class: whatever screen a link names, if it is a layer or a terminal it is shown over the open page. Every screen of the route table is tried with every id a link can carry, so a
 // layer added to SCREEN later cannot bring back the loss (Attach sent the chat to the landing page, 13 Nov 2026).
-test("every screen in the route table that is a layer or a terminal keeps the page that is open", () => {
+test("every screen in the route table is classified, and an overlay keeps the page that is open", () => {
+  // the screens that are pages of their own (they replace what is open); every other screen of SCREEN must be an overlay (a layer or a terminal), and a new screen is neither until it is listed here
+  const PAGES = new Set(["chats.agent-page", "chats.helper-chat", "tasks.needs-you", "tasks.my-work", "tasks.page", "goals.page", "chats.artifacts", "chats.notes", "chats.agent-form", "chats.conversation", "chats.ask"]);
   const chat = step(START, { t: "chat", threadId: "c1", pane: true });
-  const ids = "&computerId=cmp_1&terminalId=ter_1&recordingId=rec_1&channelId=chn_1&agentId=agt_1&threadId=c9";
+  const ids = "&computerId=cmp_1&terminalId=ter_1&recordingId=rec_1&channelId=chn_1&agentId=agt_1&threadId=c9&taskId=tsk_1&goalId=gol_1&noteId=not_1";
   let overlays = 0;
   for (const screen of Object.values(SCREEN)) {
     const hash = `screen=${screen}${ids}`;
     const named = fromHash(hash);
-    if (named.layer === null && named.terminalId === null) continue;
+    const overlay = named.layer !== null || named.terminalId !== null;
+    if (PAGES.has(screen)) { assert.ok(!overlay, `${screen} is a page, not an overlay`); assert.ok(JSON.stringify(named.route) !== JSON.stringify(START.route), `${screen} opens its page`); continue; }
+    assert.ok(overlay, `${screen} is not in PAGES and fromHash does not give a layer or a terminal for it: classify it (a screen that falls to the landing page loses the link)`);
     overlays++;
     const next = linkedTo(chat, hash);
     assert.deepEqual(next.route, chat.route, `${screen} keeps the chat`);
