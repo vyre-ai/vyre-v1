@@ -171,9 +171,22 @@ export function blockedNote(u: UsedBy): string | undefined {
   return b ? (host ? `Not allowed to go to ${host}` : "A step may no longer use this key") : undefined;
 }
 
+/** The gate for a setup that needs the assistant to build connectors, as the one function every door asks: the Vault row, the first page's Set up and the Records and picker doors all end here (gateFor). */
+export function builderGateFor(st: BuilderStatus | null): Gate {
+  // a status that could not be read is the same as "the assistant may not, and nobody can say it may": ask_admin
+  return gateFor({
+    online: true,
+    yourLevel: "use",
+    // the AI account is not this gate's question (the Vault row asks it too, and the session itself fails plainly without one): one working account stands in so the builder check is reached
+    accounts: [{ state: "ok" }],
+    builder: st ?? { allowed: false, canGrant: false },
+    asked: false,
+  });
+}
+
 /**
  * The last check before a setup session starts, for a door that offers it without the Vault's own strip (the Automations first page): the assistant must be able to use the item, and must hold the
- * Connector builder role, which a person who may give it gives with this press (they asked for the setup). It throws one plain sentence when the setup cannot be finished, so no session starts and dead-ends.
+ * Connector builder role, which a person who may give it gives with this press. It decides through gateFor, the Vault row's own function, and throws one plain sentence when the setup cannot be finished.
  */
 export async function readyToBuild(
   call: (cap: string, input: unknown) => Promise<unknown>,
@@ -185,8 +198,11 @@ export async function readyToBuild(
     ...(itemId === undefined ? {} : { itemId }),
   })) as BuilderStatus | null;
   if (st?.reaches === false) throw new Error("Your assistant cannot open that Vault item, so it cannot set it up.");
-  if (st?.allowed === true) return;
-  if (st?.canGrant !== true)
-    throw new Error("Your assistant needs permission to build connectors. An admin can allow it.");
-  await call("access.connector_builder.grant", { agentId });
+  const gate = builderGateFor(st);
+  if (gate.state === "ready") return;
+  if (gate.state === "no_builder") {
+    await call("access.connector_builder.grant", { agentId });
+    return;
+  }
+  throw new Error("Your assistant needs permission to build connectors. An admin can allow it.");
 }

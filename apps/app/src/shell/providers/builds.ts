@@ -2,7 +2,7 @@
 // CRM and Edit mapping in Records) show only when it can (owner, 13 Nov 2026: "its beyond the scope of my assistant so then dont show that to me"). Pressing one of them allows it first.
 import { useEffect, useState } from "react";
 import type { ShellRuntime } from "./runtime.tsx";
-import { readyToBuild } from "../../places/vault/itemenv/automations.ts";
+import { builderGateFor, readyToBuild } from "../../places/vault/itemenv/automations.ts";
 import type { BuilderStatus } from "../../places/vault/itemenv/automations.ts";
 
 export interface Builds {
@@ -36,7 +36,7 @@ export function useAssistantBuilds(rt: ShellRuntime | null): Builds {
     };
   }, [rt, agentId]);
   return {
-    builds: st !== null && (st.allowed || st.canGrant),
+    builds: st !== null && ["ready", "no_builder"].includes(builderGateFor(st).state),
     prepare: () =>
       rt && agentId
         ? readyToBuild((cap, input) => Promise.resolve(rt.call(cap as never, input as never)), agentId)

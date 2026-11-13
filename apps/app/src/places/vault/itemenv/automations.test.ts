@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   appNameOf,
+  builderGateFor,
   connectorOpening,
   gateFor,
   offersAutomations,
@@ -126,4 +127,23 @@ test("setupOffered: no setup is offered that an assistant cannot finish: a compa
   assert.equal(setupOffered({ ...base, aiKey: true }), false);
   assert.equal(setupOffered({ ...base, aiKey: null }), false, "not known yet");
   assert.equal(setupOffered({ ...base, kind: "card" }), false);
+});
+
+test("one gate: the first page's check and the Vault row's gateFor agree for every status, and readyToBuild is gateFor's answer", async () => {
+  for (const allowed of [true, false])
+    for (const canGrant of [true, false]) {
+      const st = { allowed, canGrant, reaches: true };
+      const row = gateFor({ online: true, yourLevel: "use", accounts: [{ state: "ok" }], builder: st, asked: false });
+      assert.deepEqual(builderGateFor(st), row, JSON.stringify(st));
+      const calls: string[] = [];
+      let thrown = false;
+      try {
+        await readyToBuild(async (cap) => (calls.push(cap), st), "agt_a", "vit_x");
+      } catch {
+        thrown = true;
+      }
+      assert.equal(thrown, row.state === "ask_admin", `${JSON.stringify(st)} -> ${row.state}`);
+      assert.equal(calls.includes("access.connector_builder.grant"), row.state === "no_builder");
+    }
+  assert.equal(builderGateFor(null).state, "ask_admin");
 });
