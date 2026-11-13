@@ -1580,6 +1580,12 @@
     },
     {
       "deferred": false,
+      "name": "chats_presence",
+      "summary": "Who is around (online or away; offline people are left out) and which agents are working now, with the chat when the asker may read it: the sidebar's dots and rings",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chrome_act",
       "summary": "Act on an element or key: click, hover, press, select, scroll, check; a send, post or payment is held and returns an id",
       "toolset": "computer"

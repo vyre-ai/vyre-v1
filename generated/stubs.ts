@@ -492,6 +492,9 @@ export function stubs(ctx: CallCtx) {
       },
       unpin: call("chat.unpin"),
     },
+    chats: {
+      presence: call("chats.presence"),
+    },
     ci: {
       cost: {
         month: call("ci.cost.month"),

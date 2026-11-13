@@ -11879,6 +11879,21 @@
     },
     {
       "blocks": [],
+      "cap": "chats.presence",
+      "deferred": false,
+      "description": "Who is around (online or away; offline people are left out) and which agents are working now, with the chat when the asker may read it: the sidebar's dots and rings",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "chats_presence",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "computers.chrome.act",
       "deferred": false,
       "description": "Act on an element or key: click, hover, press, select, scroll, check; a send, post or payment is held and returns an id",

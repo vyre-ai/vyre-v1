@@ -492,6 +492,9 @@ export function createClient(transport: Transport) {
       },
       unpin: call("chat.unpin", 1),
     },
+    chats: {
+      presence: call("chats.presence", 1),
+    },
     ci: {
       cost: {
         month: call("ci.cost.month", 1),

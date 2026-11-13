@@ -8282,6 +8282,18 @@ export type ChatUnpinIn = {
 export type ChatUnpinOut = {
   pinned: boolean;
 };
+export type ChatsPresenceIn = Record<string, unknown>;
+export type ChatsPresenceOut = {
+  people: Array<{
+      personId: string;
+      state: "online" | "away";
+    }>;
+  working: Array<{
+      agentId: string;
+      threadId?: string;
+      since: number;
+    }>;
+};
 export type CiCostMonthIn = {
   month?: string;
 };
@@ -45356,6 +45368,7 @@ export interface CapMap {
   "chat.transcript.summarize": { in: ChatTranscriptSummarizeIn; out: ChatTranscriptSummarizeOut };
   "chat.transcript.summary": { in: ChatTranscriptSummaryIn; out: ChatTranscriptSummaryOut };
   "chat.unpin": { in: ChatUnpinIn; out: ChatUnpinOut };
+  "chats.presence": { in: ChatsPresenceIn; out: ChatsPresenceOut };
   "ci.cost.month": { in: CiCostMonthIn; out: CiCostMonthOut };
   "ci.job.intake": { in: CiJobIntakeIn; out: CiJobIntakeOut };
   "ci.project.get": { in: CiProjectGetIn; out: CiProjectGetOut };
