@@ -185,7 +185,7 @@ function NeedRow({ item, rt, nameOf, kindOf, openNeed, openProfile, say }: { ite
   };
   const kind = kindOf(row.requester);
   const sub = needsLine(row, nameOf);
-  // the row's text is cut to one line: hovering or focusing it gives the whole of it in the app's one tooltip, and opening the row shows it in full in Needs you
+  // the row's text is cut to one line: hovering it gives the whole of it in the app's one tooltip, and opening the row shows it in full in Needs you
   const cut = useCutTip(`${row.title}\n${sub}`);
   return (
     <View testID={`landing-need-${row.id}`} style={[st.need, over && st.hover]} {...sq("row")} {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }}>

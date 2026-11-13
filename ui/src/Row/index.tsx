@@ -61,8 +61,9 @@ export function isCut(row: RowEl | null | undefined): boolean {
   return row ? Array.from(row.querySelectorAll("span,div")).some((n) => n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1) : false;
 }
 /**
- * A row that cuts its text with dots gives the whole text in the app's one tooltip (the title attribute, as ui/Tooltip and ui/Tip do) when the pointer or the keyboard focus reaches it, and only then: a row whose text
- * fits has no tooltip repeating what is on the screen. The tooltip is React state, so a redraw of the row never drops it. (The browser draws a title tooltip for the pointer only; it does not show on keyboard focus.)
+ * A row that cuts its text with dots gives the whole text in the app's one tooltip (the title attribute, as ui/Tooltip and ui/Tip do) when the pointer reaches it, and only then: a row whose text fits has no
+ * tooltip repeating what is on the screen. The tooltip is React state, so a redraw of the row never drops it. The browser draws a title tooltip for the pointer only, never on keyboard focus: the screen-set work
+ * (contract P3) needs one real tooltip that also opens on focus. Focus still fills the title, which a screen reader reads as the row's description.
  */
 export function useCutTip(full: string): { title: string | undefined; onMouseEnter(e: { currentTarget?: unknown }): void; onFocus(e: { currentTarget?: unknown }): void } {
   const [cut, setCut] = useState(false);

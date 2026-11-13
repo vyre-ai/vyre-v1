@@ -178,9 +178,9 @@ const BUSY_PART: Readonly<Record<string, string>> = { cpu: "processor", memory: 
 export function orderLines(order: readonly { name: string; label: string; roomN: number; why: string; online: boolean; drain: boolean }[]): { title: string; note: string; use: boolean; room: number }[] {
   let used = false;
   return order.map((o) => {
-    const skip = !o.online ? "It is offline" : o.drain ? "It is not taking new work" : o.roomN < 20 ? `It is busy: ${o.why === "turn limit" ? "it is running as much as it may" : `its ${BUSY_PART[o.why] ?? o.why} is nearly full`}` : null;
+    const skip = !o.online ? "It is offline" : o.drain ? "It is not taking new work" : o.roomN < 20 ? `It is busy: ${o.why === "turn limit" ? "it has all the work it can take" : `its ${BUSY_PART[o.why] ?? o.why} is nearly full`}` : null;
     const use = !used && skip === null;
     if (use) used = true;
-    return { title: `${o.label}: ${o.name}`, note: skip ? `Skipped. ${skip}` : use ? "The next job runs here" : "Has room, not needed", use, room: o.roomN };
+    return { title: `${o.label}: ${o.name}`, note: skip ? `Skipped. ${skip}` : use ? "Work goes here next" : "Has room, not needed", use, room: o.roomN };
   });
 }
