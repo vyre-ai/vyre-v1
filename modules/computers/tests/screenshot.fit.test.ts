@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { bindSpaceBrowser } from "../sbrowser/port.ts";
 import type { BrowserAnswer, BrowserToolCall, SpaceBrowser } from "../sbrowser/port.ts";
 import { resetAgentInfo } from "../sbrowser/agentinfo.ts";
-import { decodePng, encodePng, fitPng, SHOT_LIMIT_BYTES } from "../png-fit.ts";
+import { decodePng, encodePng } from "../../../lib/png.ts";
+import { fitPng, SHOT_LIMIT_BYTES } from "../png-fit.ts";
 import { DANA, harness } from "../fixtures/harness.ts";
 import { tool } from "./tools.fixture.ts";
 

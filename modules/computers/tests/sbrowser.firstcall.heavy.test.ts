@@ -17,7 +17,8 @@ import { createDockerApi, unixSocketHttp } from "../../../sandbox/src/docker.ts"
 import { createDockerSpaceBrowser } from "../sbrowser/docker.ts";
 import { bindSpaceBrowser } from "../sbrowser/port.ts";
 import { resetAgentInfo } from "../sbrowser/agentinfo.ts";
-import { encodePng, SHOT_LIMIT_BYTES } from "../png-fit.ts";
+import { encodePng } from "../../../lib/png.ts";
+import { SHOT_LIMIT_BYTES } from "../png-fit.ts";
 import { DANA, harness } from "../fixtures/harness.ts";
 import { tool as cap } from "./tools.fixture.ts";
 
@@ -112,6 +113,34 @@ const agent = () => harness({
     return { file: { fileId: `fil_shot${stored.length}` } };
   } },
 }).ctx;
+
+
+// The owner's server (13 Nov, 04:55): the person's pane started the browser container, and about ten seconds later the agent's first open failed with internal.unexpected after 1.1 s, right after the room
+// check. So the agent's call arrives while the container exists and Chrome is still coming up for the first time. Here a person's door (sessions, as the pane's poll calls it) starts it, and the agent's
+// open follows after a pause of 0, 2 and 6 seconds, each on a fresh container.
+for (const [pause, upgrade] of [[0, false], [2_000, false], [6_000, false], [0, true], [3_000, true]] as const) {
+  test(`@heavy space browser: the agent's first open ${pause / 1000} s after a person's pane started the browser container ${upgrade ? "(replacing the container of an earlier release) " : ""}succeeds`, { skip, timeout: 300_000 }, async () => {
+    const name = `${NAME}p${pause / 1000}${upgrade ? "u" : ""}`;
+    const sb = createDockerSpaceBrowser({ api, http, name, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000 });
+    bindSpaceBrowser(sb);
+    try {
+      // a server that has just been updated: a container made before this daemon started is of an earlier release, and the first call that finds it replaces it
+      if (upgrade) await createDockerSpaceBrowser({ api, name, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000 }).sessions("agt_dex");
+      const pane = sb.sessions("agt_dex").catch((e: unknown) => e);
+      if (!upgrade) for (let i = 0; i < 200 && !(await api.containerRunning(name)); i++) await new Promise((r) => setTimeout(r, 50));
+      assert.equal(await api.containerRunning(name), true, "the container runs");
+      await new Promise((r) => setTimeout(r, pause));
+      const out = await cap["computers.chrome.open"]!(agent(), { url: siteUrl("/heavy") }).then((o) => ({ ok: true as const, title: o.title }), (e: unknown) => ({ ok: false as const, code: (e as { code?: string }).code, message: (e as Error).message, stack: (e as Error).stack }));
+      await pane;
+      assert.deepEqual(out, { ok: true, title: "Heavy" }, JSON.stringify(out));
+    } finally {
+      await api.containerStop(name, 5).catch(() => undefined);
+      await api.containerRemove(name).catch(() => undefined);
+      await http({ method: "DELETE", path: `/volumes/${name}-data`, query: { force: "true" } }).catch(() => undefined);
+      await http({ method: "DELETE", path: `/networks/${name}net` }).catch(() => undefined);
+    }
+  });
+}
 
 test("@heavy space browser: the agent's very first calls, together, on a browser that has never started, wait for it and succeed", { skip, timeout: 300_000 }, async () => {
   const sb = createDockerSpaceBrowser({ api, http, name: NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000 });
