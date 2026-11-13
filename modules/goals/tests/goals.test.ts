@@ -493,6 +493,18 @@ test("an agent starts a draft only in a turn the owner began with their own mess
   assert.ok(started.permissions.every((p: { granted: boolean }) => p.granted === false), "an agent's start grants no permission");
 });
 
+test("an agent's start of a draft is logged with the agent, the owner and the asking message, linked", async () => {
+  const w = world({ count: 10 });
+  const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
+  const { goal } = await w.call("goals.create", labGoal({ sourceThreadId: "thr_chat" }), agent);
+  w.state.turn = asking(OWNER, "msg_start_it");
+  await w.call("goals.confirm", { goalId: goal.id }, agent);
+  const row = (await w.call("goals.activity", { goalId: goal.id }, owner)).activity.find((a: { kind: string }) => a.kind === "started");
+  assert.equal(row.by, `${LEAD}>${OWNER}`);
+  assert.equal(row.ref, "msg_start_it");
+  assert.match(row.tpl, /started the goal\. Due \{at:\d+\}, asked by \{who:usr_owner\}\./);
+});
+
 test("the owner asks an agent in another chat to change the deadline: it does, and the activity names the agent, the owner and the message", async () => {
   const w = world({ count: 10 });
   const { goal } = await w.call("goals.create", labGoal());

@@ -162,16 +162,18 @@ export function visible(ctx: GoalsCtx, id: string): Goal {
   return g;
 }
 /** The turns an agent made a change in for its owner because the owner asked: the activity line says so (note) and links the asking message. */
-const askedIn = new WeakMap<object, AskedBy>();
+const askedTurn = new WeakMap<object, AskedBy>();
+/** Remember, for the rest of this call, the turn the owner started: every activity line it writes says "asked by" and links their message. */
+export const rememberAsked = (ctx: object, asked: AskedBy | undefined): void => { if (asked) askedTurn.set(ctx, asked); else askedTurn.delete(ctx); };
 /**
  * The owner's controls: Pause, Resume, Stop, Edit, Extend. The owner, a Space admin, the server, or an agent acting for the owner in a turn the owner started with their own message
  * (lib/owner-asked.ts, read by the server). Answers the asking message when that is why it was allowed, so the change can be logged with it. Saying a goal is done stays the owner's press.
  */
 export async function mustControl(ctx: GoalsCtx, g: Goal): Promise<AskedBy | undefined> {
-  askedIn.delete(ctx);
+  askedTurn.delete(ctx);
   if (isOwner(ctx, g) || isSystem(ctx) || isAdmin(ctx)) return undefined;
   const asked = await ownerAsked(ctx, g.owner);
-  if (asked) { askedIn.set(ctx, asked); return asked; }
+  if (asked) { askedTurn.set(ctx, asked); return asked; }
   raise(ctx, "validation.precondition_failed", "Only the owner of this goal can do that. An agent can do it only in a turn the owner started with their own message.", { reason: "owner_only" });
 }
 
@@ -249,7 +251,7 @@ export const andList = (xs: readonly string[]): string => (xs.length < 2 ? xs.jo
 
 export function note(ctx: Pick<GoalsCtx, "db" | "now" | "principal" | "actingFor">, goalId: string, kind: string, text: string, ref?: string, data?: Record<string, unknown>): void {
   ensure(ctx.db);
-  const asked = askedIn.get(ctx);
+  const asked = askedTurn.get(ctx);
   if (asked) { text = `${text.replace(/\.$/, "")}, asked by ${whoToken(asked.person)}.`; ref ??= asked.messageIds[0]; }
   const last = (ctx.db.all("SELECT MAX(seq) AS s FROM goals_activity WHERE goal_id = ?", goalId)[0] as { s: number | null } | undefined)?.s ?? 0;
   // the whole sentence is kept: a long summary is shown in full, never cut

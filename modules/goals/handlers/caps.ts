@@ -1,6 +1,6 @@
 // The goals capabilities. Who may do what is decided here (a goal is not a kernel resource yet): see projections.ts canSee, mustControl, isOwnerPress, isLead.
 import {
-  ENDED, LIVE, activity, addTask, andList, said, allGoals, clean, dispatch, emit, ensure, getGoal, goalOfTask, goalOut, isAdmin, isHelper, isLead, isOwner, isOwnerPress, isSystem, lineOut, note,
+  ENDED, LIVE, activity, addTask, andList, said, rememberAsked, allGoals, clean, dispatch, emit, ensure, getGoal, goalOfTask, goalOut, isAdmin, isHelper, isLead, isOwner, isOwnerPress, isSystem, lineOut, note,
   money, mustControl, newGoalId, nextCheckin, openWake, progressOf, offsetAt, queueWake, raise, reached, readings, reasonWords, saveGoal, setStatus, visible, wakeById, when,
 } from "../projections.ts";
 import { ownerAsked } from "../../../lib/owner-asked.ts";
@@ -126,8 +126,10 @@ export async function create(ctx: GoalsCtx, input: In) {
 
 export async function confirm(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
-  if (!isOwner(ctx, g) && !(await ownerAsked(ctx, g.owner))) raise(ctx, "validation.precondition_failed", "Only the owner starts a goal. An agent may start it only in a turn the owner began with their own message; otherwise leave the Start button on the goal card for them.", { reason: "owner_only" });
+  const asked = isOwner(ctx, g) ? undefined : await ownerAsked(ctx, g.owner);
+  if (!isOwner(ctx, g) && !asked) raise(ctx, "validation.precondition_failed", "Only the owner starts a goal. An agent may start it only in a turn the owner began with their own message; otherwise leave the Start button on the goal card for them.", { reason: "owner_only" });
   if (g.status !== "draft") raise(ctx, "validation.precondition_failed", `This goal is ${g.status} already.`, { reason: "not_draft" });
+  rememberAsked(ctx, asked);
   const press = isOwnerPress(ctx, g);
   const pick = input.permissions as string[] | undefined;
   g.permissions = g.permissions.map((p) => ({ ...p, granted: press && (pick === undefined || pick.includes(p.label)) }));
