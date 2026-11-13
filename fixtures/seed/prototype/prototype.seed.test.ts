@@ -38,7 +38,11 @@ test("every person, agent and client id of VyreSeed exists in its seeded Space, 
 });
 
 test("the roster matches the prototype counts", () => {
-  const count = (k: (typeof SPACE_KEYS)[number]): [number, number, number] => [VYRE_SEED[k].people.length, VYRE_SEED[k].clients.length, VYRE_SEED[k].agents.length];
+  const count = (k: (typeof SPACE_KEYS)[number]): [number, number, number] => [
+    VYRE_SEED[k].people.length,
+    VYRE_SEED[k].clients.length,
+    VYRE_SEED[k].agents.length,
+  ];
   assert.deepEqual(count("northwind"), [6, 4, 5]);
   assert.deepEqual(count("harbor"), [3, 2, 3]);
   assert.deepEqual(count("personal"), [1, 0, 1]);

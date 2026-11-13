@@ -12,7 +12,8 @@ import { buildBrief, isOutside, MAX_BRIEF_INPUT } from "./brief.ts";
 import type { StepCall, StepEnv, StepNode, StepResult } from "./control.ts";
 
 /** A Run a stranger could start (an email, a form, a webhook): its trigger and inputs go in the brief as outside content. */
-const outsideOf = (env: StepEnv): { from: string } | undefined => (env.run.trigger !== undefined && isOutside(env.run.trigger) ? { from: env.run.trigger } : undefined);
+const outsideOf = (env: StepEnv): { from: string } | undefined =>
+  env.run.trigger !== undefined && isOutside(env.run.trigger) ? { from: env.run.trigger } : undefined;
 
 type Rec = Record<string, unknown>;
 const rec = (v: unknown): v is Rec => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -28,10 +29,15 @@ export function jsonIn(answer: string): { ok: true; value: unknown } | { ok: fal
     const start = whole.indexOf(open);
     if (start < 0) continue;
     const close = open === "{" ? "}" : "]";
-    for (let end = whole.lastIndexOf(close); end > start; end = whole.lastIndexOf(close, end - 1)) tries.push(whole.slice(start, end + 1));
+    for (let end = whole.lastIndexOf(close); end > start; end = whole.lastIndexOf(close, end - 1))
+      tries.push(whole.slice(start, end + 1));
   }
   for (const t of tries) {
-    try { return { ok: true, value: JSON.parse(t) as unknown }; } catch { /* the next candidate */ }
+    try {
+      return { ok: true, value: JSON.parse(t) as unknown };
+    } catch {
+      /* the next candidate */
+    }
   }
   return { ok: false };
 }
@@ -41,7 +47,10 @@ export function recordIdsIn(...sources: unknown[]): string[] {
   const ids = new Set<string>();
   const walk = (v: unknown, depth: number): void => {
     if (depth > 12 || ids.size >= 200 || v === null || typeof v !== "object") return;
-    if (Array.isArray(v)) { for (const x of v) walk(x, depth + 1); return; }
+    if (Array.isArray(v)) {
+      for (const x of v) walk(x, depth + 1);
+      return;
+    }
     const o = v as Rec;
     if (typeof o["id"] === "string" && /^rec_[a-z0-9]+$/.test(o["id"])) ids.add(o["id"]);
     for (const x of Object.values(o)) walk(x, depth + 1);
@@ -56,20 +65,36 @@ function promptOf(env: StepEnv, cfg: Rec, call: StepCall, title: string): string
   if (!prompt) throw stepError("validation.bad_input", `The AI step "${title}" needs a prompt.`, false);
   try {
     return buildBrief({
-      kind: "answer", goal: prompt, automation: env.run.automation ?? env.run.label, trigger: call.trigger, outside: outsideOf(env), outputs: call.outputs, also: [call.item],
-      inputs: cfg["inputs"], schema: rec(cfg["outputSchema"]) ? (cfg["outputSchema"] as JsonSchema) : undefined, doneMeans: stringsOf(cfg["doneMeans"]), timeoutMinutes: typeof cfg["timeoutMinutes"] === "number" ? cfg["timeoutMinutes"] : undefined,
+      kind: "answer",
+      goal: prompt,
+      automation: env.run.automation ?? env.run.label,
+      trigger: call.trigger,
+      outside: outsideOf(env),
+      outputs: call.outputs,
+      also: [call.item],
+      inputs: cfg["inputs"],
+      schema: rec(cfg["outputSchema"]) ? (cfg["outputSchema"] as JsonSchema) : undefined,
+      doneMeans: stringsOf(cfg["doneMeans"]),
+      timeoutMinutes: typeof cfg["timeoutMinutes"] === "number" ? cfg["timeoutMinutes"] : undefined,
     });
   } catch (e) {
-    if (e instanceof RangeError) throw stepError("validation.too_large", `The input to the AI step "${title}" is over ${MAX_BRIEF_INPUT} characters.`, false);
+    if (e instanceof RangeError)
+      throw stepError(
+        "validation.too_large",
+        `The input to the AI step "${title}" is over ${MAX_BRIEF_INPUT} characters.`,
+        false,
+      );
     throw e;
   }
 }
-const stringsOf = (v: unknown): string[] | undefined => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "") : undefined);
+const stringsOf = (v: unknown): string[] | undefined =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "") : undefined;
 
 export async function aiStep(env: StepEnv, node: StepNode, input: Rec, call: StepCall): Promise<StepResult> {
   if (!env.ctx.call) throw stepError("internal.unavailable", "AI steps are not available right now.", true);
   const cfg: Rec = { ...(node.ai ?? {}), ...input };
-  const title = typeof (node as { title?: unknown }).title === "string" ? String((node as { title?: unknown }).title) : node.id;
+  const title =
+    typeof (node as { title?: unknown }).title === "string" ? String((node as { title?: unknown }).title) : node.id;
   const schema = rec(cfg["outputSchema"]) ? (cfg["outputSchema"] as JsonSchema) : undefined;
   if (cfg["mode"] === "task") return taskStep(env, node, cfg, call, title);
   // the step's own account wins; a step that chooses none runs on the automation's AI account (and its backup), which pays only if the Space kept it for automations
@@ -85,27 +110,52 @@ export async function aiStep(env: StepEnv, node: StepNode, input: Rec, call: Ste
     ...(backupKeyId ? { backupKeyId } : {}),
     ...(inherits ? { keyFrom: "automation" } : {}),
     ...(typeof cfg["timeoutMinutes"] === "number" ? { timeoutMinutes: cfg["timeoutMinutes"] } : {}),
-    ...(recordIdsIn(call.outputs, call.trigger, call.item).length > 0 ? { recordIds: recordIdsIn(call.outputs, call.trigger, call.item) } : {}),
-    runId: env.run.id, stepId: node.id, idempotencyKey: call.key,
+    ...(recordIdsIn(call.outputs, call.trigger, call.item).length > 0
+      ? { recordIds: recordIdsIn(call.outputs, call.trigger, call.item) }
+      : {}),
+    runId: env.run.id,
+    stepId: node.id,
+    idempotencyKey: call.key,
   })) as { text?: string; keyUsed?: string; modelUsed?: string };
   const answer = typeof turn.text === "string" ? turn.text : "";
   let data: unknown;
   if (schema) {
     const found = jsonIn(answer);
-    if (!found.ok) throw stepError("validation.bad_input", `The AI step "${title}" did not answer with JSON, so its output schema could not be checked.`, false);
+    if (!found.ok)
+      throw stepError(
+        "validation.bad_input",
+        `The AI step "${title}" did not answer with JSON, so its output schema could not be checked.`,
+        false,
+      );
     const problems = validate(schema, found.value);
-    if (problems.length > 0) throw stepError("validation.bad_input", `The AI step "${title}" answered, but the answer does not match its output schema: ${problems.slice(0, 3).join("; ")}.`, false);
+    if (problems.length > 0)
+      throw stepError(
+        "validation.bad_input",
+        `The AI step "${title}" answered, but the answer does not match its output schema: ${problems.slice(0, 3).join("; ")}.`,
+        false,
+      );
     data = found.value;
   }
-  const output = { text: answer, ...(data !== undefined ? { data } : {}), keyUsed: turn.keyUsed ?? "", modelUsed: turn.modelUsed ?? "" };
+  const output = {
+    text: answer,
+    ...(data !== undefined ? { data } : {}),
+    keyUsed: turn.keyUsed ?? "",
+    modelUsed: turn.modelUsed ?? "",
+  };
 
   const reviewer = rec(cfg["reviewer"]) ? cfg["reviewer"] : undefined;
   const approver = rec(cfg["approver"]) ? cfg["approver"] : undefined;
   if (!reviewer && !approver) return { output };
   // the answer waits as a review task; the same key returns the same task, so a woken step finds it again
   const made = (await env.ctx.call("tasks.create", {
-    kind: "review", title: `Review the answer of ${title}`, summary: answer.length > 400 ? `${answer.slice(0, 400)}...` : answer,
-    assigned: reviewer ?? approver, ...(reviewer ? { reviewer } : {}), ...(approver ? { approver } : {}), source: { kind: "run", id: env.run.id }, idempotencyKey: `${call.key}:review`,
+    kind: "review",
+    title: `Review the answer of ${title}`,
+    summary: answer.length > 400 ? `${answer.slice(0, 400)}...` : answer,
+    assigned: reviewer ?? approver,
+    ...(reviewer ? { reviewer } : {}),
+    ...(approver ? { approver } : {}),
+    source: { kind: "run", id: env.run.id },
+    idempotencyKey: `${call.key}:review`,
   })) as { task?: { id?: string } };
   const taskId = made?.task?.id;
   if (!taskId) throw stepError("internal.unexpected", "The review task was not created.", true);
@@ -113,23 +163,38 @@ export async function aiStep(env: StepEnv, node: StepNode, input: Rec, call: Ste
   const got = (await env.ctx.call("tasks.get", { taskId })) as { task?: { state?: string } };
   const state = got?.task?.state;
   if (state === "done") return { output };
-  if (state === "doing" || state === "canceled") throw stepError("step.failed", `A reviewer did not accept the answer of the AI step "${title}".`, false);
+  if (state === "doing" || state === "canceled")
+    throw stepError("step.failed", `A reviewer did not accept the answer of the AI step "${title}".`, false);
   return { wait: { reason: "approval", taskId, on: "a review", cancelOn: ["task.withdrawn"] } };
 }
 
 // ---- the agent task kind ----
 
-const assigneeOf = (v: unknown): { kind: string; id: string } | undefined => (rec(v) && text(v["kind"]) && text(v["id"]) ? { kind: String(v["kind"]), id: String(v["id"]) } : undefined);
-const firstLine = (s: string, n: number): string => { const l = (s.split("\n").find((x) => x.trim() !== "") ?? s).trim(); return l.length <= n ? l : `${l.slice(0, n - 1)}...`; };
-const soft = async (f: () => Promise<unknown>): Promise<void> => { try { await f(); } catch { /* the task goes on without it */ } };
+const assigneeOf = (v: unknown): { kind: string; id: string } | undefined =>
+  rec(v) && text(v["kind"]) && text(v["id"]) ? { kind: String(v["kind"]), id: String(v["id"]) } : undefined;
+const firstLine = (s: string, n: number): string => {
+  const l = (s.split("\n").find((x) => x.trim() !== "") ?? s).trim();
+  return l.length <= n ? l : `${l.slice(0, n - 1)}...`;
+};
+const soft = async (f: () => Promise<unknown>): Promise<void> => {
+  try {
+    await f();
+  } catch {
+    /* the task goes on without it */
+  }
+};
 
 /** The names of the people and agents the brief points at, so it says "Maya reviews" and not an id. A name that cannot be found is left out of the brief. */
 async function namesOf(env: StepEnv, ids: Array<string | undefined>): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   try {
-    const listed = (await env.ctx.call!("access.principals.list", { limit: 500 })) as { principals?: Array<{ id?: string; name?: string }> };
+    const listed = (await env.ctx.call!("access.principals.list", { limit: 500 })) as {
+      principals?: Array<{ id?: string; name?: string }>;
+    };
     for (const p of listed.principals ?? []) if (p.id && p.name && ids.includes(p.id)) out[p.id] = p.name;
-  } catch { /* the brief names the seat instead */ }
+  } catch {
+    /* the brief names the seat instead */
+  }
   return out;
 }
 
@@ -142,25 +207,49 @@ async function taskStep(env: StepEnv, node: StepNode, cfg: Rec, call: StepCall, 
   if (!goal) throw stepError("validation.bad_input", `The AI step "${title}" needs a prompt.`, false);
   const agentId = text(cfg["agentId"]);
   const assigned = assigneeOf(cfg["assigned"]) ?? (agentId ? { kind: "agent", id: agentId } : undefined);
-  if (!assigned) throw stepError("validation.precondition_failed", `The AI step "${title}" is a task and needs someone to do it. Pick an agent.`, false);
+  if (!assigned)
+    throw stepError(
+      "validation.precondition_failed",
+      `The AI step "${title}" is a task and needs someone to do it. Pick an agent.`,
+      false,
+    );
   const reviewer = assigneeOf(cfg["reviewer"]);
   const approver = assigneeOf(cfg["approver"]);
   // checked again as it runs (it was checked when saved): the agent may have become someone's Assistant since. A Space Automation, which runs as itself, never gives work to anyone's Assistant;
   // a Personal one only to its owner's own (lead 12 Nov, rule 4)
   for (const w of [assigned, reviewer, approver]) {
     if (w?.kind !== "agent") continue;
-    const got = (await env.ctx.call!("agents.get", { agentId: w.id }).catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) }))) as { agent?: { kind?: string; ownerId?: string; name?: string }; error?: string } | null;
+    const got = (await env.ctx.call!("agents.get", { agentId: w.id }).catch((e: unknown) => ({
+      error: e instanceof Error ? e.message : String(e),
+    }))) as { agent?: { kind?: string; ownerId?: string; name?: string }; error?: string } | null;
     const a = got?.agent;
     const p = env.ctx.principal;
     if (!a && p.kind !== "person") {
       // the Automation may not read the agent: whether it may give it work is the same check a task makes
-      const u = (await env.ctx.call!("agents.outside.usable", { agentId: w.id }).catch(() => null)) as { usable?: boolean } | null;
-      if (u?.usable === false) throw stepError("validation.precondition_failed", `A Space automation cannot give work to a person's Assistant or to an agent on someone's own computer: choose a team agent in "${title}".`, false);
+      const u = (await env.ctx.call!("agents.outside.usable", { agentId: w.id }).catch(() => null)) as {
+        usable?: boolean;
+      } | null;
+      if (u?.usable === false)
+        throw stepError(
+          "validation.precondition_failed",
+          `A Space automation cannot give work to a person's Assistant or to an agent on someone's own computer: choose a team agent in "${title}".`,
+          false,
+        );
       continue;
     }
     if (a?.kind !== "assistant") continue;
-    if (p.kind !== "person") throw stepError("validation.precondition_failed", `${a.name ?? "That agent"} is a person's Assistant. A Space automation cannot give work to anyone's Assistant: choose a team agent in "${title}".`, false);
-    if (a.ownerId !== p.id) throw stepError("validation.precondition_failed", `${a.name ?? "That agent"} is someone else's Assistant. Choose your own Assistant or a team agent in "${title}".`, false);
+    if (p.kind !== "person")
+      throw stepError(
+        "validation.precondition_failed",
+        `${a.name ?? "That agent"} is a person's Assistant. A Space automation cannot give work to anyone's Assistant: choose a team agent in "${title}".`,
+        false,
+      );
+    if (a.ownerId !== p.id)
+      throw stepError(
+        "validation.precondition_failed",
+        `${a.name ?? "That agent"} is someone else's Assistant. Choose your own Assistant or a team agent in "${title}".`,
+        false,
+      );
   }
   const schema = rec(cfg["outputSchema"]) ? (cfg["outputSchema"] as JsonSchema) : undefined;
   const doneMeans = stringsOf(cfg["doneMeans"]);
@@ -170,45 +259,92 @@ async function taskStep(env: StepEnv, node: StepNode, cfg: Rec, call: StepCall, 
   let brief: string;
   try {
     brief = buildBrief({
-      kind: "task", goal, automation: env.run.automation ?? env.run.label, trigger: call.trigger, outside: outsideOf(env), outputs: call.outputs, also: [call.item], inputs: cfg["inputs"], schema, doneMeans,
-      reviewer: reviewer ? names[reviewer.id] ?? `The ${reviewer.kind === "agent" ? "reviewing agent" : "reviewer"}` : undefined, approver: approver ? names[approver.id] ?? `The ${approver.kind === "agent" ? "approving agent" : "approver"}` : undefined,
+      kind: "task",
+      goal,
+      automation: env.run.automation ?? env.run.label,
+      trigger: call.trigger,
+      outside: outsideOf(env),
+      outputs: call.outputs,
+      also: [call.item],
+      inputs: cfg["inputs"],
+      schema,
+      doneMeans,
+      reviewer: reviewer
+        ? (names[reviewer.id] ?? `The ${reviewer.kind === "agent" ? "reviewing agent" : "reviewer"}`)
+        : undefined,
+      approver: approver
+        ? (names[approver.id] ?? `The ${approver.kind === "agent" ? "approving agent" : "approver"}`)
+        : undefined,
       timeoutMinutes: minutes,
     });
   } catch (e) {
-    if (e instanceof RangeError) throw stepError("validation.too_large", `The input to the AI step "${title}" is over ${MAX_BRIEF_INPUT} characters.`, false);
+    if (e instanceof RangeError)
+      throw stepError(
+        "validation.too_large",
+        `The input to the AI step "${title}" is over ${MAX_BRIEF_INPUT} characters.`,
+        false,
+      );
     throw e;
   }
   const owner = env.ctx.principal.kind === "person" ? env.ctx.principal.id : undefined;
   const notes: Record<string, string> = {
-    brief, "run.step": node.id, ...(env.run.automation ? { "automation.id": env.run.automation } : {}), ...(env.run.trigger ? { "automation.trigger": env.run.trigger } : {}), ...(doneMeans && doneMeans.length > 0 ? { done_means: JSON.stringify(doneMeans) } : {}), ...(schema ? { output_schema: JSON.stringify(schema) } : {}),
-    ...(typeof cfg["nudgeMinutes"] === "number" ? { "baton.nudge_minutes": String(cfg["nudgeMinutes"]) } : {}), ...(escalateTo ? { "baton.escalate_to": JSON.stringify(escalateTo) } : {}), ...(owner ? { "baton.owner": owner } : {}),
+    brief,
+    "run.step": node.id,
+    ...(env.run.automation ? { "automation.id": env.run.automation } : {}),
+    ...(env.run.trigger ? { "automation.trigger": env.run.trigger } : {}),
+    ...(doneMeans && doneMeans.length > 0 ? { done_means: JSON.stringify(doneMeans) } : {}),
+    ...(schema ? { output_schema: JSON.stringify(schema) } : {}),
+    ...(typeof cfg["nudgeMinutes"] === "number" ? { "baton.nudge_minutes": String(cfg["nudgeMinutes"]) } : {}),
+    ...(escalateTo ? { "baton.escalate_to": JSON.stringify(escalateTo) } : {}),
+    ...(owner ? { "baton.owner": owner } : {}),
   };
   const made = (await env.ctx.call!("tasks.create", {
-    kind: "work", title: firstLine(goal, 90), summary: firstLine(goal, 300), assigned, ...(reviewer ? { reviewer } : {}), ...(approver ? { approver } : {}),
-    ...(minutes ? { due: env.ctx.now() + minutes * 60_000 } : {}), notes, source: { kind: "run", id: env.run.id }, idempotencyKey: `${call.key}:task`,
+    kind: "work",
+    title: firstLine(goal, 90),
+    summary: firstLine(goal, 300),
+    assigned,
+    ...(reviewer ? { reviewer } : {}),
+    ...(approver ? { approver } : {}),
+    ...(minutes ? { due: env.ctx.now() + minutes * 60_000 } : {}),
+    notes,
+    source: { kind: "run", id: env.run.id },
+    idempotencyKey: `${call.key}:task`,
   })) as { task?: { id?: string; threadId?: string } };
   const taskId = made?.task?.id;
   if (!taskId) throw stepError("internal.unexpected", "The task for the AI step was not created.", true);
-  const waiting: StepResult = { wait: { reason: "approval", taskId, on: "the agent's task", cancelOn: ["task.withdrawn"] } };
+  const waiting: StepResult = {
+    wait: { reason: "approval", taskId, on: "the agent's task", cancelOn: ["task.withdrawn"] },
+  };
   if (!call.resumed) {
     // the brief is the first thing in the task's thread, and an unattended task works without asking first (anything that leaves Vyre is still held)
     const threadId = made?.task?.threadId;
     if (threadId) {
       // every Run keeps Auto: one a stranger could start is marked as holding outside content instead (the engine's task baton), and the Gate's own rules stop its dangerous acts (lead 12 Nov)
-      await soft(() => env.ctx.call!("threads.set_mode", { threadId, mode: "auto", idempotencyKey: `${call.key}:mode` }));
+      await soft(() =>
+        env.ctx.call!("threads.set_mode", { threadId, mode: "auto", idempotencyKey: `${call.key}:mode` }),
+      );
       await soft(() => env.ctx.call!("chat.post", { threadId, body: brief, idempotencyKey: `${call.key}:brief` }));
     }
     return waiting;
   }
-  const got = (await env.ctx.call!("tasks.get", { taskId })) as { task?: { state?: string; workingNotes?: Record<string, string> } };
+  const got = (await env.ctx.call!("tasks.get", { taskId })) as {
+    task?: { state?: string; workingNotes?: Record<string, string> };
+  };
   const state = got?.task?.state;
   if (state === "done") {
     const n = got?.task?.workingNotes ?? {};
     let outputs: unknown;
-    try { outputs = n["outputs"] ? JSON.parse(n["outputs"]) : undefined; } catch { outputs = undefined; }
+    try {
+      outputs = n["outputs"] ? JSON.parse(n["outputs"]) : undefined;
+    } catch {
+      outputs = undefined;
+    }
     const data = rec(outputs) && (schema || Object.keys(outputs).length > 0) ? outputs : undefined;
-    return { output: { text: n["summary"] ?? "", ...(data !== undefined ? { data } : {}), keyUsed: "", modelUsed: "", taskId } };
+    return {
+      output: { text: n["summary"] ?? "", ...(data !== undefined ? { data } : {}), keyUsed: "", modelUsed: "", taskId },
+    };
   }
-  if (state === "canceled") throw stepError("step.failed", `The task for the AI step "${title}" was canceled before it was finished.`, false);
+  if (state === "canceled")
+    throw stepError("step.failed", `The task for the AI step "${title}" was canceled before it was finished.`, false);
   return waiting;
 }

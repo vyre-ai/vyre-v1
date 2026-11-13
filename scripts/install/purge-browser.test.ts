@@ -30,23 +30,46 @@ function run(os_: "linux" | "macos", answer: string, otherInstalls: "0" | "1"): 
   fs.writeFileSync(path.join(bin, "sleep"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
   const log = path.join(dir, "docker.log");
   try {
-    const r = spawnSync("sh", ["-c", `. "${script}"\npurge_browser spc_mine`], { encoding: "utf8", env: { PATH: `${bin}:${process.env.PATH ?? ""}`, HOME: dir, VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_TEST_OS: os_ === "linux" ? "Linux" : "Darwin", DOCKER_LOG: log, PURGE_ANSWER: answer, VYRE_TEST_OTHER_INSTALLS: otherInstalls } });
+    const r = spawnSync("sh", ["-c", `. "${script}"\npurge_browser spc_mine`], {
+      encoding: "utf8",
+      env: {
+        PATH: `${bin}:${process.env.PATH ?? ""}`,
+        HOME: dir,
+        VYRE_SOURCE_ONLY: "1",
+        VYRE_TEST_MODE: "1",
+        VYRE_TEST_OS: os_ === "linux" ? "Linux" : "Darwin",
+        DOCKER_LOG: log,
+        PURGE_ANSWER: answer,
+        VYRE_TEST_OTHER_INSTALLS: otherInstalls,
+      },
+    });
     assert.equal(r.status, 0, r.stderr);
     return { asked: fs.existsSync(log) ? fs.readFileSync(log, "utf8").trim().split("\n") : [], out: r.stdout };
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
-const removedAll = (asked: string[]): boolean => asked.includes("rm -f vyre-sbrowser") && asked.includes("volume rm -f vyre-sbrowser-data") && asked.includes("network rm n_browser");
+const removedAll = (asked: string[]): boolean =>
+  asked.includes("rm -f vyre-sbrowser") &&
+  asked.includes("volume rm -f vyre-sbrowser-data") &&
+  asked.includes("network rm n_browser");
 const removedAny = (asked: string[]): boolean => asked.some((a) => /^rm -f|^volume rm|^network rm/.test(a));
 
 for (const os_ of ["linux", "macos"] as const) {
   test(`${os_}: a purge asks browserd to remove only this Space's profiles, by its Space id`, () => {
     const { asked } = run(os_, '{"removed":2,"others":0,"unmarked":0}', "0");
-    assert.ok(asked.some((a) => a === 'exec vyre-sbrowser /opt/browserd/ctl purge_space {"spaceId":"spc_mine"}'), asked.join(" | "));
+    assert.ok(
+      asked.some((a) => a === 'exec vyre-sbrowser /opt/browserd/ctl purge_space {"spaceId":"spc_mine"}'),
+      asked.join(" | "),
+    );
   });
   test(`${os_}: another Space's profiles on the volume: the container, its volume and its network stay, and the purge says so`, () => {
     const { asked, out } = run(os_, '{"removed":2,"others":3,"unmarked":0}', "0");
     assert.equal(removedAny(asked), false, asked.join(" | "));
-    assert.match(out, /Removed this Space's 2 agent browser profiles\. The Space browser stays: it also holds 3 other profiles/);
+    assert.match(
+      out,
+      /Removed this Space's 2 agent browser profiles\. The Space browser stays: it also holds 3 other profiles/,
+    );
   });
   test(`${os_}: profiles that name no Space (made before Spaces were written down, perhaps another Space's): the container and the volume stay`, () => {
     const { asked, out } = run(os_, '{"removed":1,"others":0,"unmarked":2}', "0");
@@ -67,7 +90,14 @@ for (const os_ of ["linux", "macos"] as const) {
   });
   test(`${os_}: uninstall calls it only for a purge, after compose's own removal`, () => {
     const text = fs.readFileSync(path.join(HERE, os_, "install.sh"), "utf8");
-    assert.match(text.slice(text.indexOf("\nuninstall() {")), /if \[ "\$PURGE" = 1 \] && \[ "\$DRY" != 1 \]; then purge_browser; fi/);
-    assert.match(text, /space_id_of\(\) \{\n[^\n]*space_db query "\$DATA_DIR\/space\/events\.db"/, "the Space id is read through space_db, the one way to open a database");
+    assert.match(
+      text.slice(text.indexOf("\nuninstall() {")),
+      /if \[ "\$PURGE" = 1 \] && \[ "\$DRY" != 1 \]; then purge_browser; fi/,
+    );
+    assert.match(
+      text,
+      /space_id_of\(\) \{\n[^\n]*space_db query "\$DATA_DIR\/space\/events\.db"/,
+      "the Space id is read through space_db, the one way to open a database",
+    );
   });
 }

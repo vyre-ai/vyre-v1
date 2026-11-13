@@ -11,7 +11,10 @@ export interface MessageStore {
   recent(threadId: string, limit: number): StoredMessage[];
 }
 
-export interface WaitResolution { approved: boolean; result: ToolResult }
+export interface WaitResolution {
+  approved: boolean;
+  result: ToolResult;
+}
 
 /** A turn parked on a held tool call (turn.waiting { task }). It lives until the wake that continues it has started. */
 export interface WaitRow {
@@ -49,7 +52,10 @@ export function createMemoryMessages(): MessageStore {
   return {
     append(msg) {
       let list = byThread.get(msg.threadId);
-      if (!list) { list = []; byThread.set(msg.threadId, list); }
+      if (!list) {
+        list = [];
+        byThread.set(msg.threadId, list);
+      }
       const stored: StoredMessage = { ...msg, mentions: [...msg.mentions], threadSeq: list.length + 1 };
       list.push(stored);
       byId.set(stored.id, stored);
@@ -69,7 +75,9 @@ export function createMemoryMessages(): MessageStore {
 export function createMemoryWaits(): WaitStore {
   const rows = new Map<string, WaitRow>();
   return {
-    put(row) { rows.set(row.taskId, { ...row }); },
+    put(row) {
+      rows.set(row.taskId, { ...row });
+    },
     get(taskId) {
       const r = rows.get(taskId);
       return r ? { ...r } : null;
@@ -85,7 +93,9 @@ export function createMemoryWaits(): WaitStore {
       for (const r of rows.values()) if (r.threadId === threadId && r.wakeQseq === qseq) return { ...r };
       return null;
     },
-    remove(taskId) { rows.delete(taskId); },
+    remove(taskId) {
+      rows.delete(taskId);
+    },
     open: (threadId) => [...rows.values()].filter((r) => r.threadId === threadId).map((r) => ({ ...r })),
   };
 }

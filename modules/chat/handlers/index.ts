@@ -86,4 +86,3 @@ export const handlers = {
   ...g27Handlers,
   ...followHandlers,
 };
-

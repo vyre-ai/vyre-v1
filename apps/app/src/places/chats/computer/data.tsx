@@ -6,7 +6,10 @@ import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../clien
 import type { CaptureStore, Clock, Display } from "./model.ts";
 import type { Target, Viewer } from "../../../shell/reach/reach.ts";
 
-export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
+export interface Connection {
+  get(): "online" | "offline";
+  subscribe(l: () => void): () => void;
+}
 
 export interface PopupNav {
   /** Dismiss the popup (Esc, the Close icon). */
@@ -36,7 +39,13 @@ export interface ComputerPopupData {
 
 const Ctx = createContext<ComputerPopupData | null>(null);
 
-export function PopupDataProvider({ value, children }: { value: ComputerPopupData; children: ReactNode }): ReactElement {
+export function PopupDataProvider({
+  value,
+  children,
+}: {
+  value: ComputerPopupData;
+  children: ReactNode;
+}): ReactElement {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
@@ -54,7 +63,10 @@ export function usePopupData(): ComputerPopupData {
 export function useScreenQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}): QueryState<T> {
   const { screens } = usePopupData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>, [screens, screenId, name, key]);
+  const q = useMemo(
+    () => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>,
+    [screens, screenId, name, key],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 

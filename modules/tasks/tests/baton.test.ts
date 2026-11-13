@@ -23,31 +23,48 @@ function withThreads(): Harness {
 }
 /** A work task: the agent does, another agent reviews, Cara approves. */
 async function chain(h: Harness, over: Record<string, unknown> = {}): Promise<string> {
-  return (await h.call("tasks.create", newTask({ assigned: bot, reviewer: bot2, approver: cara, ...over }), me)).task.id as string;
+  return (await h.call("tasks.create", newTask({ assigned: bot, reviewer: bot2, approver: cara, ...over }), me)).task
+    .id as string;
 }
 const state = (h: Harness, id: string): string => findTask(h.db, id)!.state;
 const notes = (h: Harness, id: string): Record<string, string> => findTask(h.db, id)!.workingNotes;
-const lines = (h: Harness): string[] => h.threadCalls.filter((c) => c.cap === "chat.post").map((c) => (c.input as { body: string }).body);
+const lines = (h: Harness): string[] =>
+  h.threadCalls.filter((c) => c.cap === "chat.post").map((c) => (c.input as { body: string }).body);
 async function refused(p: Promise<unknown>, code: string, reason?: string): Promise<void> {
-  await assert.rejects(p, (e) => { assert.equal(codeOf(e), code); if (reason) assert.equal(reasonOf(e), reason); return true; });
+  await assert.rejects(p, (e) => {
+    assert.equal(codeOf(e), code);
+    if (reason) assert.equal(reasonOf(e), reason);
+    return true;
+  });
 }
 
 test("the baton goes doer, reviewer, approver, done, one tool each", async () => {
   const h = withThreads();
   const id = await chain(h);
-  const a = await h.call("tasks.submit", { taskId: id, outputs: { letter: "Dear Ms Rivera" }, summary: "Drafted the letter" }, doer);
+  const a = await h.call(
+    "tasks.submit",
+    { taskId: id, outputs: { letter: "Dear Ms Rivera" }, summary: "Drafted the letter" },
+    doer,
+  );
   assert.equal(a.next, "review");
   assert.equal(state(h, id), "in_review");
   assert.deepEqual(JSON.parse(notes(h, id).outputs!), { letter: "Dear Ms Rivera" });
   assert.equal(notes(h, id).summary, "Drafted the letter");
-  assert.deepEqual(h.events.map((e) => e.name), ["task.transitioned", "task.requested"], "the reviewer is asked: it is their turn");
+  assert.deepEqual(
+    h.events.map((e) => e.name),
+    ["task.transitioned", "task.requested"],
+    "the reviewer is asked: it is their turn",
+  );
   const b = await h.call("tasks.review", { taskId: id, verdict: "approve" }, checker);
   assert.equal(b.next, "approval");
   assert.equal(state(h, id), "awaiting_approval");
   const c = await h.call("tasks.decide", { taskId: id, verdict: "approve", reason: "Send it" }, boss);
   assert.equal(c.next, "done");
   assert.equal(state(h, id), "done");
-  assert.deepEqual(h.events.map((e) => e.name), ["task.transitioned", "task.completed", "task.approved"]);
+  assert.deepEqual(
+    h.events.map((e) => e.name),
+    ["task.transitioned", "task.completed", "task.approved"],
+  );
   assert.match(lines(h).join("\n"), /Submitted: Drafted the letter[\s\S]*Dear Ms Rivera/);
   assert.match(lines(h).join("\n"), /Reviewed: looks good/);
   assert.match(lines(h).join("\n"), /Approved/);
@@ -65,26 +82,63 @@ test("a task with no reviewer or approver is done by a submit", async () => {
 test("only the holder of the baton may use a tool, and a tool out of turn says whose turn it is", async () => {
   const h = withThreads();
   const id = await chain(h);
-  await refused(h.call("tasks.review", { taskId: id, verdict: "approve" }, checker), "validation.precondition_failed", "not_your_turn");
-  await refused(h.call("tasks.decide", { taskId: id, verdict: "approve" }, boss), "validation.precondition_failed", "not_your_turn");
-  await refused(h.call("tasks.submit", { taskId: id, summary: "Done" }, checker), "validation.precondition_failed", "wrong_actor");
+  await refused(
+    h.call("tasks.review", { taskId: id, verdict: "approve" }, checker),
+    "validation.precondition_failed",
+    "not_your_turn",
+  );
+  await refused(
+    h.call("tasks.decide", { taskId: id, verdict: "approve" }, boss),
+    "validation.precondition_failed",
+    "not_your_turn",
+  );
+  await refused(
+    h.call("tasks.submit", { taskId: id, summary: "Done" }, checker),
+    "validation.precondition_failed",
+    "wrong_actor",
+  );
   await h.call("tasks.submit", { taskId: id, summary: "Drafted" }, doer);
-  await refused(h.call("tasks.submit", { taskId: id, summary: "Again" }, doer), "validation.precondition_failed", "not_your_turn");
-  await refused(h.call("tasks.review", { taskId: id, verdict: "approve" }, doer), "validation.precondition_failed", "wrong_actor");
+  await refused(
+    h.call("tasks.submit", { taskId: id, summary: "Again" }, doer),
+    "validation.precondition_failed",
+    "not_your_turn",
+  );
+  await refused(
+    h.call("tasks.review", { taskId: id, verdict: "approve" }, doer),
+    "validation.precondition_failed",
+    "wrong_actor",
+  );
   assert.equal(state(h, id), "in_review");
 });
 
 test("a submit is refused without a summary, and outputs must match the schema the step recorded", async () => {
   const h = withThreads();
   const id = await chain(h);
-  await h.call("tasks.working_notes.set", { taskId: id, key: "output_schema", value: JSON.stringify({ type: "object", required: ["letter"], properties: { letter: { type: "string" } } }) }, svc);
-  await refused(h.call("tasks.submit", { taskId: id, outputs: { letter: "x" }, summary: "  " }, doer), "validation.bad_input");
-  await assert.rejects(h.call("tasks.submit", { taskId: id, outputs: { letter: 7 }, summary: "Drafted" }, doer), (e) => {
-    assert.equal(codeOf(e), "validation.bad_input");
-    assert.match(JSON.stringify(e), /letter/);
-    return true;
-  });
-  await assert.rejects(h.call("tasks.submit", { taskId: id, summary: "Drafted" }, doer), (e) => codeOf(e) === "validation.bad_input");
+  await h.call(
+    "tasks.working_notes.set",
+    {
+      taskId: id,
+      key: "output_schema",
+      value: JSON.stringify({ type: "object", required: ["letter"], properties: { letter: { type: "string" } } }),
+    },
+    svc,
+  );
+  await refused(
+    h.call("tasks.submit", { taskId: id, outputs: { letter: "x" }, summary: "  " }, doer),
+    "validation.bad_input",
+  );
+  await assert.rejects(
+    h.call("tasks.submit", { taskId: id, outputs: { letter: 7 }, summary: "Drafted" }, doer),
+    (e) => {
+      assert.equal(codeOf(e), "validation.bad_input");
+      assert.match(JSON.stringify(e), /letter/);
+      return true;
+    },
+  );
+  await assert.rejects(
+    h.call("tasks.submit", { taskId: id, summary: "Drafted" }, doer),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
   assert.equal(state(h, id), "todo", "nothing moved");
   await h.call("tasks.submit", { taskId: id, outputs: { letter: "ok" }, summary: "Drafted" }, doer);
   assert.equal(state(h, id), "in_review");
@@ -94,9 +148,21 @@ test("a reviewer sends back with numbered fixes, the doer sees them, and a new s
   const h = withThreads();
   const id = await chain(h);
   await h.call("tasks.submit", { taskId: id, summary: "Drafted" }, doer);
-  await refused(h.call("tasks.review", { taskId: id, verdict: "send_back" }, checker), "validation.precondition_failed", "fixes_required");
-  await refused(h.call("tasks.review", { taskId: id, verdict: "send_back", fixes: ["  "] }, checker), "validation.precondition_failed", "fixes_required");
-  const r = await h.call("tasks.review", { taskId: id, verdict: "send_back", fixes: ["Use her full name", "Cut the second paragraph"] }, checker);
+  await refused(
+    h.call("tasks.review", { taskId: id, verdict: "send_back" }, checker),
+    "validation.precondition_failed",
+    "fixes_required",
+  );
+  await refused(
+    h.call("tasks.review", { taskId: id, verdict: "send_back", fixes: ["  "] }, checker),
+    "validation.precondition_failed",
+    "fixes_required",
+  );
+  const r = await h.call(
+    "tasks.review",
+    { taskId: id, verdict: "send_back", fixes: ["Use her full name", "Cut the second paragraph"] },
+    checker,
+  );
   assert.equal(r.next, "fixes");
   assert.equal(state(h, id), "doing");
   assert.equal(r.task.reviewLoops, 1);
@@ -119,7 +185,11 @@ test("after the review loop limit an agent reviewer hands the decision to a pers
   const r = await h.call("tasks.review", { taskId: id, verdict: "send_back", fixes: ["Still wrong"] }, checker);
   assert.equal(r.next, "person");
   assert.equal(state(h, id), "in_review", "the work waits for the person");
-  assert.deepEqual(findTask(h.db, id)!.reviewer, { kind: "person", id: owner.id }, "the person behind the task is the reviewer now");
+  assert.deepEqual(
+    findTask(h.db, id)!.reviewer,
+    { kind: "person", id: owner.id },
+    "the person behind the task is the reviewer now",
+  );
   assert.deepEqual(JSON.parse(notes(h, id).fixes!), ["Still wrong"]);
   assert.ok(h.events.some((e) => e.name === "task.assigned" && e.payload.slot === "reviewer"));
   // the person is not held to the limit and sends it back by the same tool
@@ -136,7 +206,11 @@ test("a reviewer cannot hand off to a person when none can be found: it is refus
     await h.call("tasks.review", { taskId: id, verdict: "send_back", fixes: [`Fix ${i + 1}`] }, checker);
   }
   await h.call("tasks.submit", { taskId: id, summary: "Try 3" }, doer);
-  await refused(h.call("tasks.review", { taskId: id, verdict: "send_back", fixes: ["No"] }, checker), "validation.precondition_failed", "review_loop_limit");
+  await refused(
+    h.call("tasks.review", { taskId: id, verdict: "send_back", fixes: ["No"] }, checker),
+    "validation.precondition_failed",
+    "review_loop_limit",
+  );
 });
 
 test("an approver rejects with a reason, the doer gets it as the fix, and the human-approver rule holds", async () => {
@@ -144,7 +218,11 @@ test("an approver rejects with a reason, the doer gets it as the fix, and the hu
   const id = await chain(h, { approver: cara });
   await h.call("tasks.submit", { taskId: id, summary: "Drafted" }, doer);
   await h.call("tasks.review", { taskId: id, verdict: "approve" }, checker);
-  await refused(h.call("tasks.decide", { taskId: id, verdict: "reject" }, boss), "validation.precondition_failed", "reason_required");
+  await refused(
+    h.call("tasks.decide", { taskId: id, verdict: "reject" }, boss),
+    "validation.precondition_failed",
+    "reason_required",
+  );
   const r = await h.call("tasks.decide", { taskId: id, verdict: "reject", reason: "Wrong client" }, boss);
   assert.equal(r.next, "fixes");
   assert.equal(state(h, id), "doing");
@@ -156,13 +234,20 @@ test("an approver rejects with a reason, the doer gets it as the fix, and the hu
   const t = (await g.call("tasks.create", newTask({ assigned: bot, approver: alice }), me)).task.id as string;
   await g.call("tasks.submit", { taskId: t, summary: "Drafted" }, doer);
   assert.equal(state(g, t), "awaiting_approval");
-  await assert.rejects(g.call("tasks.decide", { taskId: t, verdict: "approve" }, { id: bot2.id, kind: "agent" }), "an agent who is not the approver cannot decide");
+  await assert.rejects(
+    g.call("tasks.decide", { taskId: t, verdict: "approve" }, { id: bot2.id, kind: "agent" }),
+    "an agent who is not the approver cannot decide",
+  );
 });
 
 test("an agent cannot approve its own work, even with the baton in its hand", async () => {
   const h = withThreads();
   h.policy("tasks.allow_self_review", false);
-  await refused(h.call("tasks.create", newTask({ assigned: bot, reviewer: bot }), me), "validation.precondition_failed", "self_review");
+  await refused(
+    h.call("tasks.create", newTask({ assigned: bot, reviewer: bot }), me),
+    "validation.precondition_failed",
+    "self_review",
+  );
 });
 
 test("ask opens an Answer task for the requester, the work waits on it, and the same question is not asked twice", async () => {
@@ -190,11 +275,23 @@ test("ask opens an Answer task for the requester, the work waits on it, and the 
 test("ask can name who to ask, and only the doer asks", async () => {
   const h = withThreads();
   const id = await chain(h);
-  const q = await h.call("tasks.ask", { taskId: id, question: "Can you share the file?", to: { kind: "person", id: bob.id } }, doer);
+  const q = await h.call(
+    "tasks.ask",
+    { taskId: id, question: "Can you share the file?", to: { kind: "person", id: bob.id } },
+    doer,
+  );
   assert.deepEqual(findTask(h.db, q.answerTaskId)!.assigned, { kind: "person", id: bob.id });
-  await refused(h.call("tasks.ask", { taskId: id, question: "Me too" }, checker), "validation.precondition_failed", "wrong_actor");
+  await refused(
+    h.call("tasks.ask", { taskId: id, question: "Me too" }, checker),
+    "validation.precondition_failed",
+    "wrong_actor",
+  );
   await h.call("tasks.submit", { taskId: id, summary: "Drafted" }, doer);
-  await refused(h.call("tasks.ask", { taskId: id, question: "Late" }, doer), "validation.precondition_failed", "not_your_turn");
+  await refused(
+    h.call("tasks.ask", { taskId: id, question: "Late" }, doer),
+    "validation.precondition_failed",
+    "not_your_turn",
+  );
 });
 
 test("block opens an Unblock task for whoever the task escalates to, else the person behind it", async () => {
@@ -205,11 +302,19 @@ test("block opens an Unblock task for whoever the task escalates to, else the pe
   assert.equal(child.kind, "unblock");
   assert.deepEqual(child.assigned, { kind: "person", id: owner.id });
   assert.equal(a.task.blocked, true);
-  assert.equal((await h.call("tasks.block", { taskId: id, reason: "I cannot open the client folder" }, doer)).unblockTaskId, a.unblockTaskId, "one open block at a time");
+  assert.equal(
+    (await h.call("tasks.block", { taskId: id, reason: "I cannot open the client folder" }, doer)).unblockTaskId,
+    a.unblockTaskId,
+    "one open block at a time",
+  );
 
   const g = withThreads();
   const t = await chain(g);
-  await g.call("tasks.working_notes.set", { taskId: t, key: "baton.escalate_to", value: JSON.stringify({ kind: "person", id: bob.id }) }, svc);
+  await g.call(
+    "tasks.working_notes.set",
+    { taskId: t, key: "baton.escalate_to", value: JSON.stringify({ kind: "person", id: bob.id }) },
+    svc,
+  );
   const b = await g.call("tasks.block", { taskId: t, reason: "Need access" }, doer);
   assert.deepEqual(findTask(g.db, b.unblockTaskId)!.assigned, { kind: "person", id: bob.id });
 });
@@ -217,13 +322,35 @@ test("block opens an Unblock task for whoever the task escalates to, else the pe
 test("the baton is for work tasks: a request is answered with tasks.act", async () => {
   const h = withThreads();
   const id = (await h.call("tasks.create", newTask({ kind: "approve", assigned: alice }), me)).task.id as string;
-  await refused(h.call("tasks.decide", { taskId: id, verdict: "approve" }, { id: alice.id }), "validation.precondition_failed", "not_work");
+  await refused(
+    h.call("tasks.decide", { taskId: id, verdict: "approve" }, { id: alice.id }),
+    "validation.precondition_failed",
+    "not_work",
+  );
 });
 
 test("a task starts with the notes it is given, so the agent woken the moment it exists already has its brief", async () => {
   const h = withThreads();
-  const id = (await h.call("tasks.create", newTask({ assigned: bot, notes: { brief: "Goal\nDraft it.", done_means: "[\"Names the client\"]", decision_id: "dec_x", payload_hash: "h" } }), me)).task.id as string;
-  assert.deepEqual(notes(h, id), { brief: "Goal\nDraft it.", done_means: "[\"Names the client\"]" }, "the keys a held act owns are never taken from here");
+  const id = (
+    await h.call(
+      "tasks.create",
+      newTask({
+        assigned: bot,
+        notes: {
+          brief: "Goal\nDraft it.",
+          done_means: '["Names the client"]',
+          decision_id: "dec_x",
+          payload_hash: "h",
+        },
+      }),
+      me,
+    )
+  ).task.id as string;
+  assert.deepEqual(
+    notes(h, id),
+    { brief: "Goal\nDraft it.", done_means: '["Names the client"]' },
+    "the keys a held act owns are never taken from here",
+  );
   const t = findTask(h.db, id)!;
   assert.equal(t.decisionId, undefined);
 });
@@ -232,29 +359,68 @@ test("baton.owner (whom an agent's turns on a task act for) is written only by a
   const h = withThreads();
   const auto = { id: "svc_0123456789abcdef0123456789abcdef", kind: "service" as const };
   // an Automation's service makes the task and cannot name a person for it, at create or after
-  const id = (await h.call("tasks.create", newTask({ assigned: bot, reviewer: cara, notes: { brief: "Triage it", "baton.owner": cara.id } }), auto)).task.id as string;
+  const id = (
+    await h.call(
+      "tasks.create",
+      newTask({ assigned: bot, reviewer: cara, notes: { brief: "Triage it", "baton.owner": cara.id } }),
+      auto,
+    )
+  ).task.id as string;
   assert.equal(notes(h, id)["baton.owner"], undefined, "a service cannot name a person at create");
-  await refused(h.call("tasks.working_notes.set", { taskId: id, key: "baton.owner", value: cara.id }, auto), "validation.field_locked");
-  await refused(h.call("tasks.working_notes.set", { taskId: id, key: "baton.owner", value: cara.id }, doer), "validation.field_locked");
-  await refused(h.call("tasks.working_notes.set", { taskId: id, key: "baton.owner", value: cara.id }, me), "validation.field_locked");
-  await refused(h.call("tasks.working_notes.set", { taskId: id, key: "baton.waiting", value: "anything" }, doer), "validation.field_locked");
+  await refused(
+    h.call("tasks.working_notes.set", { taskId: id, key: "baton.owner", value: cara.id }, auto),
+    "validation.field_locked",
+  );
+  await refused(
+    h.call("tasks.working_notes.set", { taskId: id, key: "baton.owner", value: cara.id }, doer),
+    "validation.field_locked",
+  );
+  await refused(
+    h.call("tasks.working_notes.set", { taskId: id, key: "baton.owner", value: cara.id }, me),
+    "validation.field_locked",
+  );
+  await refused(
+    h.call("tasks.working_notes.set", { taskId: id, key: "baton.waiting", value: "anything" }, doer),
+    "validation.field_locked",
+  );
   // the server writes the waiting line; Cara, who is on the task, starts it: her press names her and the line goes
-  await h.call("tasks.working_notes.set", { taskId: id, key: "baton.waiting", value: "This came from an automation and has nobody's permission to act yet. Open it to run it as yourself." }, svc);
+  await h.call(
+    "tasks.working_notes.set",
+    {
+      taskId: id,
+      key: "baton.waiting",
+      value: "This came from an automation and has nobody's permission to act yet. Open it to run it as yourself.",
+    },
+    svc,
+  );
   await h.call("tasks.act", { taskId: id, action: "start" }, boss);
   assert.equal(notes(h, id)["baton.owner"], cara.id, "the person who started it");
   assert.equal(notes(h, id)["baton.waiting"], undefined, "the line goes");
   assert.equal(state(h, id), "doing");
   // a person may still name themselves (a person handing a task on is a person's yes)
-  const mine = (await h.call("tasks.create", newTask({ assigned: bot, notes: { "baton.owner": owner.id } }), me)).task.id as string;
+  const mine = (await h.call("tasks.create", newTask({ assigned: bot, notes: { "baton.owner": owner.id } }), me)).task
+    .id as string;
   assert.equal(notes(h, mine)["baton.owner"], owner.id);
 });
 
 test("a task an agent makes records the person it was acting for, from the session and never from the input, and nobody can change it (lead 12 Nov)", async () => {
   const h = withThreads();
-  const id = (await h.call("tasks.create", newTask({ assigned: bot2, notes: { brief: "Check it", "baton.acting_for": cara.id } }), { ...doer, actingFor: owner.id })).task.id as string;
+  const id = (
+    await h.call(
+      "tasks.create",
+      newTask({ assigned: bot2, notes: { brief: "Check it", "baton.acting_for": cara.id } }),
+      { ...doer, actingFor: owner.id },
+    )
+  ).task.id as string;
   assert.equal(notes(h, id)["baton.acting_for"], owner.id, "the session's person, not the input's");
-  await refused(h.call("tasks.working_notes.set", { taskId: id, key: "baton.acting_for", value: cara.id }, doer), "validation.field_locked");
-  await refused(h.call("tasks.working_notes.set", { taskId: id, key: "baton.acting_for", value: cara.id }, svc), "validation.field_locked");
+  await refused(
+    h.call("tasks.working_notes.set", { taskId: id, key: "baton.acting_for", value: cara.id }, doer),
+    "validation.field_locked",
+  );
+  await refused(
+    h.call("tasks.working_notes.set", { taskId: id, key: "baton.acting_for", value: cara.id }, svc),
+    "validation.field_locked",
+  );
   const none = (await h.call("tasks.create", newTask({ assigned: bot2 }), doer)).task.id as string;
   assert.equal(notes(h, none)["baton.acting_for"], undefined, "an agent acting for nobody records nobody");
 });
@@ -262,8 +428,18 @@ test("a task an agent makes records the person it was acting for, from the sessi
 test("an agent cannot remove the person its task acts for, and a person who starts a waiting task must be able to give the agent work (review 12 Nov, 5 and 6)", async () => {
   const h = withThreads();
   const auto = { id: "svc_0123456789abcdef0123456789abcdef", kind: "service" as const };
-  const id = (await h.call("tasks.create", newTask({ assigned: bot, reviewer: cara, notes: { brief: "Triage it" } }), auto)).task.id as string;
-  await h.call("tasks.working_notes.set", { taskId: id, key: "baton.waiting", value: "This came from an automation and has nobody's permission to act yet. Open it to run it as yourself." }, svc);
+  const id = (
+    await h.call("tasks.create", newTask({ assigned: bot, reviewer: cara, notes: { brief: "Triage it" } }), auto)
+  ).task.id as string;
+  await h.call(
+    "tasks.working_notes.set",
+    {
+      taskId: id,
+      key: "baton.waiting",
+      value: "This came from an automation and has nobody's permission to act yet. Open it to run it as yourself.",
+    },
+    svc,
+  );
   // Cara may not give the agent work: her Start is refused, and nothing is written
   h.callee("agents.outside.usable", () => ({ usable: false }));
   await refused(h.call("tasks.act", { taskId: id, action: "start" }, boss), "validation.precondition_failed");
@@ -272,8 +448,14 @@ test("an agent cannot remove the person its task acts for, and a person who star
   await h.call("tasks.act", { taskId: id, action: "start" }, boss);
   assert.equal(notes(h, id)["baton.owner"], cara.id);
   // the doing agent cannot drop her to fall back to someone else; nor the waiting line; she may remove her own
-  await refused(h.call("tasks.working_notes.delete", { taskId: id, key: "baton.owner" }, doer), "validation.field_locked");
-  await refused(h.call("tasks.working_notes.delete", { taskId: id, key: "baton.acting_for" }, boss), "validation.field_locked");
+  await refused(
+    h.call("tasks.working_notes.delete", { taskId: id, key: "baton.owner" }, doer),
+    "validation.field_locked",
+  );
+  await refused(
+    h.call("tasks.working_notes.delete", { taskId: id, key: "baton.acting_for" }, boss),
+    "validation.field_locked",
+  );
   await h.call("tasks.working_notes.delete", { taskId: id, key: "baton.owner" }, boss);
   assert.equal(notes(h, id)["baton.owner"], undefined);
 });

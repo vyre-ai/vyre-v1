@@ -20,7 +20,8 @@ import type { ShellRuntime } from "./runtime.tsx";
 
 export function vaultRoute(target: HashTarget): VaultRoute {
   if (target.screen === "vault_requests.list") return { surface: "requests" };
-  if (target.screen === "vault.export" && target.args["folderId"]) return { surface: "export", folderId: target.args["folderId"] };
+  if (target.screen === "vault.export" && target.args["folderId"])
+    return { surface: "export", folderId: target.args["folderId"] };
   if (target.args["share"]) return { surface: "share", itemId: target.args["share"] };
   if (target.args["export"]) return { surface: "export", folderId: target.args["export"] };
   if (target.args["advanced"] === "true") return { surface: "advanced" };
@@ -33,7 +34,8 @@ export function vaultRoute(target: HashTarget): VaultRoute {
 }
 
 type Invoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
-const shellInvoke = (): Invoke | undefined => (globalThis as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke;
+const shellInvoke = (): Invoke | undefined =>
+  (globalThis as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke;
 
 /** Install Vyre for Chrome through the desktop shell's three fixed commands (src-tauri/src/chrome.rs); undefined in a browser, so the web app has no such row. */
 export function desktopBrowsers(invoke: Invoke | undefined = shellInvoke()): VaultBrowsers | undefined {
@@ -41,27 +43,54 @@ export function desktopBrowsers(invoke: Invoke | undefined = shellInvoke()): Vau
   return {
     async install() {
       const raw = await invoke("install_chrome_extension");
-      const r = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
-      if (typeof r["extensionDir"] !== "string" || !Array.isArray(r["browsers"])) throw new Error("Vyre could not tell where it put the extension.");
-      return { extensionDir: r["extensionDir"], version: typeof r["version"] === "string" ? r["version"] : "", browsers: r["browsers"].filter((b): b is string => typeof b === "string") };
+      const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+      if (typeof r["extensionDir"] !== "string" || !Array.isArray(r["browsers"]))
+        throw new Error("Vyre could not tell where it put the extension.");
+      return {
+        extensionDir: r["extensionDir"],
+        version: typeof r["version"] === "string" ? r["version"] : "",
+        browsers: r["browsers"].filter((b): b is string => typeof b === "string"),
+      };
     },
-    async openExtensionsPage() { await invoke("open_chrome_extensions"); },
-    async revealFolder() { await invoke("reveal_chrome_extension"); },
+    async openExtensionsPage() {
+      await invoke("open_chrome_extensions");
+    },
+    async revealFolder() {
+      await invoke("reveal_chrome_extension");
+    },
   };
 }
 
 /** The Vault calls whose contract asks for an idempotencyKey. The place's own sheets do not write one, so the shell mints one per attempt when it is missing (the daemon refuses the call without it: "/idempotencyKey: required"). */
-export const NEEDS_KEY: ReadonlySet<string> = new Set(["vault.export_env", "vault.folders.create", "vault.import", "vault.item.put", "vault.items.export_mine", "vault.request", "vault.share", "providers.add", "providers.custom_add", "providers.subscription_start"]);
+export const NEEDS_KEY: ReadonlySet<string> = new Set([
+  "vault.export_env",
+  "vault.folders.create",
+  "vault.import",
+  "vault.item.put",
+  "vault.items.export_mine",
+  "vault.request",
+  "vault.share",
+  "providers.add",
+  "providers.custom_add",
+  "providers.subscription_start",
+]);
 
 export function withKeys(call: ShellRuntime["call"]): ShellRuntime["call"] {
   return ((cap: string, input?: unknown, opts?: unknown) => {
     const plain = input !== null && typeof input === "object" && !Array.isArray(input);
-    const keyed = NEEDS_KEY.has(cap) && plain && (input as Record<string, unknown>)["idempotencyKey"] === undefined ? { ...(input as Record<string, unknown>), idempotencyKey: attemptKey() } : input;
+    const keyed =
+      NEEDS_KEY.has(cap) && plain && (input as Record<string, unknown>)["idempotencyKey"] === undefined
+        ? { ...(input as Record<string, unknown>), idempotencyKey: attemptKey() }
+        : input;
     return (call as (c: string, i?: unknown, o?: unknown) => Promise<unknown>)(cap, keyed, opts);
   }) as ShellRuntime["call"];
 }
 
-export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined = desktopBrowsers(), viewer: Viewer | null = null): VaultData {
+export function vaultData(
+  rt: ShellRuntime,
+  browsers: VaultBrowsers | undefined = desktopBrowsers(),
+  viewer: Viewer | null = null,
+): VaultData {
   // a door to a Console page exists only for a person who can open that page (reach): a Member sees no Backups or Outside actors link
   const door = (page: string, screen: string): { open(): void } | null => {
     const r = viewer === null ? null : reach({ kind: "console", page }, viewer);
@@ -70,7 +99,14 @@ export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined 
   const backups = door("backups", "console.backups");
   const actors = door("actors", "console.outside-actors");
   return {
-    screens: rt.screens, assistantId: rt.assistant.id, call: withKeys(rt.call), connection: rt.connection, principals: rt.principals, me: rt.me, spaceName: rt.space.name, ...(rt.space.kind === "personal" ? { personal: true } : {}),
+    screens: rt.screens,
+    assistantId: rt.assistant.id,
+    call: withKeys(rt.call),
+    connection: rt.connection,
+    principals: rt.principals,
+    me: rt.me,
+    spaceName: rt.space.name,
+    ...(rt.space.kind === "personal" ? { personal: true } : {}),
     nav: {
       openShare: (itemId) => rt.open({ screen: "vault.layout", args: { share: itemId } }),
       openExport: (folderId) => rt.open({ screen: "vault.export", args: { folderId } }),
@@ -82,13 +118,26 @@ export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined 
       openRequests: () => rt.open({ screen: "vault_requests.list" }),
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
       ask: (agentId, _mode, about) => openAsk(rt, agentId, about),
-      addToAutomations: (item) => openAsk(rt, "assistant", { kind: "vault_item", id: item.id, title: item.name }, undefined, connectorOpening(item)),
-      syncToRecords: (item) => openAsk(rt, "assistant", { kind: "vault_item", id: item.id, title: item.name }, undefined, syncOpening(item)),
+      addToAutomations: (item) =>
+        openAsk(
+          rt,
+          "assistant",
+          { kind: "vault_item", id: item.id, title: item.name },
+          undefined,
+          connectorOpening(item),
+        ),
+      syncToRecords: (item) =>
+        openAsk(rt, "assistant", { kind: "vault_item", id: item.id, title: item.name }, undefined, syncOpening(item)),
       openAutomation: (automationId) => rt.open({ screen: "automations.canvas", args: { automationId } }),
       openAddProvider: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),
       openConnections: () => rt.open(connectionsTarget()),
       // Google and Microsoft's cards: the company connection (Console, Connect your company); a person's own mail, calendar and files are in Settings
-      openCompany: () => rt.open(rt.space.kind === "personal" ? { screen: "settings.page", args: { page: "mail" } } : { screen: "company.setup" }),
+      openCompany: () =>
+        rt.open(
+          rt.space.kind === "personal"
+            ? { screen: "settings.page", args: { page: "mail" } }
+            : { screen: "company.setup" },
+        ),
     },
     clock: () => ({ now: rt.clock().now }),
     ...(browsers ? { browsers } : {}),
@@ -103,5 +152,18 @@ export default function VaultPlace(_props: { place: string }): ReactElement {
   const viewer = useViewer(rt);
   const data = useMemo(() => (rt ? vaultData(rt, desktopBrowsers(), viewer) : null), [rt, viewer]);
   const route = useMemo(() => vaultRoute(target), [target]);
-  return data ? <VaultLayout data={data} route={route} {...(route.surface === "layout" && route.addProvider ? { sheet: { addProvider: true as const } } : route.surface === "layout" && route.addApp ? { sheet: { add: { app: route.addApp } } } : {})} onRouteClose={() => opened({ screen: "vault.layout" })} /> : <VaultLoading />;
+  return data ? (
+    <VaultLayout
+      data={data}
+      route={route}
+      {...(route.surface === "layout" && route.addProvider
+        ? { sheet: { addProvider: true as const } }
+        : route.surface === "layout" && route.addApp
+          ? { sheet: { add: { app: route.addApp } } }
+          : {})}
+      onRouteClose={() => opened({ screen: "vault.layout" })}
+    />
+  ) : (
+    <VaultLoading />
+  );
 }

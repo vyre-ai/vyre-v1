@@ -8,8 +8,19 @@ import { objectsOf } from "../handlers/get.ts";
 import type { ConnectorDef } from "../projections.ts";
 
 const OVERRIDE: ConnectorDef = {
-  ...ACME, key: "oddapp", title: "Odd app",
-  objects: { contact: { list: "find_all", listAfter: "find_more", create: "add_one", update: "change_one", delete: "remove_one" }, deal: { list: "all_deals" } },
+  ...ACME,
+  key: "oddapp",
+  title: "Odd app",
+  objects: {
+    contact: {
+      list: "find_all",
+      listAfter: "find_more",
+      create: "add_one",
+      update: "change_one",
+      delete: "remove_one",
+    },
+    deal: { list: "all_deals" },
+  },
 };
 
 test("objects: connectors.get returns the objects map of a stored connector row, keys and names intact", async () => {
@@ -17,7 +28,13 @@ test("objects: connectors.get returns the objects map of a stored connector row,
   k.install(OVERRIDE);
   const { connector } = await k.hs["connectors.get"](k.ctx, { key: "oddapp" });
   assert.deepEqual(connector.objects, {
-    contact: { list: "find_all", listAfter: "find_more", create: "add_one", update: "change_one", delete: "remove_one" },
+    contact: {
+      list: "find_all",
+      listAfter: "find_more",
+      create: "add_one",
+      update: "change_one",
+      delete: "remove_one",
+    },
     deal: { list: "all_deals" },
   });
 });
@@ -37,7 +54,9 @@ test("objects: a connector without an override has no objects key, so the conven
 });
 
 test("objects: only the five known action keys with real names survive; empty and unknown entries drop", () => {
-  const def = { objects: { contact: { list: "find_all", bogus: "x", create: "" }, empty: {}, junk: 5 } } as unknown as Pick<ConnectorDef, "objects">;
+  const def = {
+    objects: { contact: { list: "find_all", bogus: "x", create: "" }, empty: {}, junk: 5 },
+  } as unknown as Pick<ConnectorDef, "objects">;
   assert.deepEqual(objectsOf(def), { contact: { list: "find_all" } });
   assert.equal(objectsOf({}), undefined);
   assert.equal(objectsOf({ objects: {} }), undefined);

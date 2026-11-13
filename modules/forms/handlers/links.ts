@@ -7,8 +7,29 @@
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { Row } from "../projections.ts";
 import {
-  fail, fieldsOf, flag, isNull, isRec, many, mustForm, nid, num, one, optBool, optInt, parseJson, publicUrl, publishedBySlug,
-  rateLimit, rec, reqStr, safeEqual, sha256hex, signToken, str, strList,
+  fail,
+  fieldsOf,
+  flag,
+  isNull,
+  isRec,
+  many,
+  mustForm,
+  nid,
+  num,
+  one,
+  optBool,
+  optInt,
+  parseJson,
+  publicUrl,
+  publishedBySlug,
+  rateLimit,
+  rec,
+  reqStr,
+  safeEqual,
+  sha256hex,
+  signToken,
+  str,
+  strList,
 } from "../projections.ts";
 
 const HOUR = 3600_000;
@@ -48,7 +69,10 @@ export function consumeLink(ctx: Ctx, link: Row): boolean {
   const cur = one(ctx, "SELECT * FROM forms_link WHERE id = ?", str(link.id));
   if (!cur || !isNull(cur.revoked_at) || num(cur.expires_at) <= now) return false;
   if (!flag(link.single_use)) return true;
-  return ctx.db.run("UPDATE forms_link SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL", now, str(link.id)).changes === 1;
+  return (
+    ctx.db.run("UPDATE forms_link SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL", now, str(link.id))
+      .changes === 1
+  );
 }
 
 /** Undo consumeLink after a failed write, so the person can try again. */
@@ -90,11 +114,13 @@ export async function linkView(ctx: Ctx, slug: string, token: string): Promise<L
     recordId: str(link.record_id),
     singleUse: flag(link.single_use),
     expiresAt: num(link.expires_at),
-    fields: fieldsOf(ctx, str(form.id)).filter((f) => allowed.has(str(f.field))).map((f) => {
-      const o: { field: string; mode: string; step?: number } = { field: str(f.field), mode: str(f.mode) };
-      if (!isNull(f.step)) o.step = num(f.step);
-      return o;
-    }),
+    fields: fieldsOf(ctx, str(form.id))
+      .filter((f) => allowed.has(str(f.field)))
+      .map((f) => {
+        const o: { field: string; mode: string; step?: number } = { field: str(f.field), mode: str(f.mode) };
+        if (!isNull(f.step)) o.step = num(f.step);
+        return o;
+      }),
   };
   const saved = parseJson(link.partial);
   if (isRec(saved) && num(link.partial_expires_at) > ctx.now()) {
@@ -117,12 +143,18 @@ async function linkCreate(ctx: Ctx, input: unknown): Promise<{ url: string; expi
   const hours = optInt(ctx, o, "expiresInHours", 1, MAX_HOURS) ?? (singleUse ? SINGLE_USE_HOURS : SIGNED_HOURS);
 
   // The gap check: only fields the form asks and the record still lacks go on the link.
-  const got = (await ctx.call("records.get", { type: str(form.record_type), recordId })) as { record?: { fields?: Record<string, unknown> } };
+  const got = (await ctx.call("records.get", { type: str(form.record_type), recordId })) as {
+    record?: { fields?: Record<string, unknown> };
+  };
   const have = got.record?.fields ?? {};
-  const asked = fieldsOf(ctx, str(form.id)).filter((f) => f.mode === "ask").map((f) => str(f.field));
-  const empty = (v: unknown): boolean => v === undefined || v === null || (typeof v === "string" && v.trim() === "") || (Array.isArray(v) && v.length === 0);
+  const asked = fieldsOf(ctx, str(form.id))
+    .filter((f) => f.mode === "ask")
+    .map((f) => str(f.field));
+  const empty = (v: unknown): boolean =>
+    v === undefined || v === null || (typeof v === "string" && v.trim() === "") || (Array.isArray(v) && v.length === 0);
   const missing = asked.filter((f) => empty(have[f]));
-  if (asked.length > 0 && missing.length === 0) fail(ctx, "validation.precondition_failed", "That record already has every answer this form asks for.");
+  if (asked.length > 0 && missing.length === 0)
+    fail(ctx, "validation.precondition_failed", "That record already has every answer this form asks for.");
 
   const now = ctx.now();
   const expiresAt = now + hours * HOUR;
@@ -130,7 +162,20 @@ async function linkCreate(ctx: Ctx, input: unknown): Promise<{ url: string; expi
   const token = await signToken(str(form.signing_key), linkId, recordId, expiresAt);
   ctx.db.run(
     "INSERT INTO forms_link (id, form_id, record_id, token_hash, single_use, missing, expires_at, consumed_at, revoked_at, partial, partial_step, partial_expires_at, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    linkId, str(form.id), recordId, await sha256hex(token), singleUse ? 1 : 0, JSON.stringify(missing), expiresAt, null, null, null, null, null, ctx.principal.id, now,
+    linkId,
+    str(form.id),
+    recordId,
+    await sha256hex(token),
+    singleUse ? 1 : 0,
+    JSON.stringify(missing),
+    expiresAt,
+    null,
+    null,
+    null,
+    null,
+    null,
+    ctx.principal.id,
+    now,
   );
   ctx.emit("form.link_created", `form/${str(form.id)}`, { formId: str(form.id), recordId, expiresAt });
   return { url: `${publicUrl(form)}?t=${encodeURIComponent(token)}`, expiresAt };
@@ -144,7 +189,14 @@ async function linkRevoke(ctx: Ctx, input: unknown): Promise<{ revoked: boolean 
   const link = dot < 1 ? undefined : one(ctx, "SELECT * FROM forms_link WHERE id = ?", token.slice(0, dot));
   if (!link || link.form_id !== form.id) fail(ctx, "validation.not_found", "That link does not exist.");
   if (!isNull(link.revoked_at)) return { revoked: true };
-  ctx.db.run("UPDATE forms_link SET revoked_at = ?, partial = ?, partial_step = ?, partial_expires_at = ? WHERE id = ?", ctx.now(), null, null, null, str(link.id));
+  ctx.db.run(
+    "UPDATE forms_link SET revoked_at = ?, partial = ?, partial_step = ?, partial_expires_at = ? WHERE id = ?",
+    ctx.now(),
+    null,
+    null,
+    null,
+    str(link.id),
+  );
   return { revoked: true };
 }
 
@@ -159,21 +211,33 @@ async function savePartial(ctx: Ctx, input: unknown): Promise<{ saved: boolean; 
   const allowed = answerableFields(ctx, form, link);
   const kept: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(answers)) {
-    if (!allowed.has(k)) fail(ctx, "validation.bad_input", "That question is not on this form.", { field: `answers.${k}` });
+    if (!allowed.has(k))
+      fail(ctx, "validation.bad_input", "That question is not on this form.", { field: `answers.${k}` });
     kept[k] = v;
   }
   const text = JSON.stringify(kept);
-  if (new TextEncoder().encode(text).length > PARTIAL_MAX_BYTES) fail(ctx, "validation.too_large", "Those answers are too large to save.");
+  if (new TextEncoder().encode(text).length > PARTIAL_MAX_BYTES)
+    fail(ctx, "validation.too_large", "Those answers are too large to save.");
   const expiresAt = Math.min(num(link.expires_at), ctx.now() + PARTIAL_TTL_MS);
   // a revoke made while this was checking the answers wins: nothing is kept for a revoked link
   const cur = one(ctx, "SELECT * FROM forms_link WHERE id = ?", str(link.id));
-  if (!cur || !isNull(cur.revoked_at)) fail(ctx, "auth.invalid_code", "This link is not valid any more. Ask for a new one.");
-  ctx.db.run("UPDATE forms_link SET partial = ?, partial_step = ?, partial_expires_at = ? WHERE id = ?", text, step ?? null, expiresAt, str(link.id));
+  if (!cur || !isNull(cur.revoked_at))
+    fail(ctx, "auth.invalid_code", "This link is not valid any more. Ask for a new one.");
+  ctx.db.run(
+    "UPDATE forms_link SET partial = ?, partial_step = ?, partial_expires_at = ? WHERE id = ?",
+    text,
+    step ?? null,
+    expiresAt,
+    str(link.id),
+  );
   return { saved: true, expiresAt };
 }
 
 /** The links of one form with their state. Used by the settings pane through the handlers' owner and by tests. */
-export function linksOf(ctx: Ctx, formId: string): { id: string; recordId: string; state: "open" | "used" | "revoked" | "expired" }[] {
+export function linksOf(
+  ctx: Ctx,
+  formId: string,
+): { id: string; recordId: string; state: "open" | "used" | "revoked" | "expired" }[] {
   return many(ctx, "SELECT * FROM forms_link WHERE form_id = ?", formId).map((l) => {
     let state: "open" | "used" | "revoked" | "expired" = "open";
     if (!isNull(l.revoked_at)) state = "revoked";

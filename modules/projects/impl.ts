@@ -42,22 +42,46 @@ export const periodic = {
   "projects.folder_backfill": {
     everyMs: 10 * 60_000,
     immediate: true,
-    async run(ctx: Ctx): Promise<void> { await backfill(ctx as never); },
+    async run(ctx: Ctx): Promise<void> {
+      await backfill(ctx as never);
+    },
   },
 };
 
 /** Host calls for the removal wizard (members.owned): the projects the person leads, and handing the lead to someone else through projects.members.set and .remove as the person doing the removal. */
-const leads = (ctx: Ctx, person: string): { projectId: string }[] => { try { return ctx.db.all(`SELECT "projectId" FROM projects_member WHERE "principal" = ? AND "role" = 'lead'`, person) as { projectId: string }[]; } catch { return []; } };
+const leads = (ctx: Ctx, person: string): { projectId: string }[] => {
+  try {
+    return ctx.db.all(`SELECT "projectId" FROM projects_member WHERE "principal" = ? AND "role" = 'lead'`, person) as {
+      projectId: string;
+    }[];
+  } catch {
+    return [];
+  }
+};
 export const hostCalls = {
   "projects.owned_by": (ctx: Ctx, i: { person: string }) => {
     const p = leads(ctx, i.person);
-    return { projects: { count: p.length, sample: p.slice(0, 5).map((x) => ({ type: "project", id: x.projectId, title: x.projectId })), ids: p.slice(0, 500).map((x) => x.projectId) } };
+    return {
+      projects: {
+        count: p.length,
+        sample: p.slice(0, 5).map((x) => ({ type: "project", id: x.projectId, title: x.projectId })),
+        ids: p.slice(0, 500).map((x) => x.projectId),
+      },
+    };
   },
-  "projects.reassign_owned": async (ctx: Ctx, i: { person: string; kind: string; action: string; to?: string }): Promise<number> => {
+  "projects.reassign_owned": async (
+    ctx: Ctx,
+    i: { person: string; kind: string; action: string; to?: string },
+  ): Promise<number> => {
     if (i.kind !== "projects" || i.action !== "reassign" || !i.to) return 0;
     let n = 0;
     for (const p of leads(ctx, i.person)) {
-      await ctx.call("projects.members.set", { projectId: p.projectId, principal: i.to, role: "lead", idempotencyKey: `own-${i.person}-${p.projectId}` });
+      await ctx.call("projects.members.set", {
+        projectId: p.projectId,
+        principal: i.to,
+        role: "lead",
+        idempotencyKey: `own-${i.person}-${p.projectId}`,
+      });
       await ctx.call("projects.members.remove", { projectId: p.projectId, principal: i.person });
       n++;
     }

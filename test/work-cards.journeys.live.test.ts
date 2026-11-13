@@ -10,7 +10,10 @@ import { standIn } from "./memory-live-kit.ts";
 
 test("journey, work cards: the reply says what was made and the cards stay current", async (t) => {
   const env = await browserOrSkip();
-  if (typeof env === "string") { t.skip(env); return; }
+  if (typeof env === "string") {
+    t.skip(env);
+    return;
+  }
   const s = await bootScreens({ kind: "personal", engineOpenSession: standIn }, env);
   const dir = "shots-evidence/work-cards-journey";
   try {
@@ -19,7 +22,22 @@ test("journey, work cards: the reply says what was made and the cards stay curre
     const account = await connectClaude(w);
     const helper = await makeAgent(w.owner, "Worker", account);
     const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [helper] })).thread.threadId as string;
-    const flow = (await w.owner.ok("automations.create", { name: "Lead sweep", definition: { triggers: [{ key: "manual" }], nodes: [{ id: "t", key: "create_task", title: "Call the lead", input: { title: "Call the lead", assigned: { kind: "person", id: w.owner.id } } }] } })).automation.id as string;
+    const flow = (
+      await w.owner.ok("automations.create", {
+        name: "Lead sweep",
+        definition: {
+          triggers: [{ key: "manual" }],
+          nodes: [
+            {
+              id: "t",
+              key: "create_task",
+              title: "Call the lead",
+              input: { title: "Call the lead", assigned: { kind: "person", id: w.owner.id } },
+            },
+          ],
+        },
+      })
+    ).automation.id as string;
     await w.owner.ok("automations.set_enabled", { automationId: flow, enabled: true });
 
     const me = await seat(s, w.owner, "Owner");
@@ -28,16 +46,47 @@ test("journey, work cards: the reply says what was made and the cards stay curre
     await shoot(me.page, dir, "empty-chat");
 
     // 1. a record
-    await w.owner.ok("chat.post", { threadId, body: `TOOL records_create ${JSON.stringify({ type: "contact", fields: { name: "Dana Fox" }, idempotencyKey: "j-rec" })}`, mentions: [{ kind: "agent", id: helper }] });
-    await until(async () => { await w.d.hooks?.pump?.(); return (await me.page.getByText("Record", { exact: false }).count()) > 0 ? true : null; }, "the Record card", 40_000);
+    await w.owner.ok("chat.post", {
+      threadId,
+      body: `TOOL records_create ${JSON.stringify({ type: "contact", fields: { name: "Dana Fox" }, idempotencyKey: "j-rec" })}`,
+      mentions: [{ kind: "agent", id: helper }],
+    });
+    await until(
+      async () => {
+        await w.d.hooks?.pump?.();
+        return (await me.page.getByText("Record", { exact: false }).count()) > 0 ? true : null;
+      },
+      "the Record card",
+      40_000,
+    );
     assert.ok(await me.page.getByText("Dana Fox").first().isVisible(), "the card names the record");
     await shoot(me.page, dir, "record-card");
 
     // 2. a Run
-    await w.owner.ok("chat.post", { threadId, body: `TOOL automations_run ${JSON.stringify({ automationId: flow, idempotencyKey: "j-run" })}`, mentions: [{ kind: "agent", id: helper }] });
-    await until(async () => { await w.d.hooks?.pump?.(); return (await me.page.getByText(/^Run:/).count()) > 0 ? true : null; }, "the Run started card", 40_000);
-    await until(async () => { await w.d.hooks?.pump?.(); return (await me.page.getByText("Done", { exact: true }).count()) > 0 ? true : null; }, "the Run card reads Done", 40_000);
+    await w.owner.ok("chat.post", {
+      threadId,
+      body: `TOOL automations_run ${JSON.stringify({ automationId: flow, idempotencyKey: "j-run" })}`,
+      mentions: [{ kind: "agent", id: helper }],
+    });
+    await until(
+      async () => {
+        await w.d.hooks?.pump?.();
+        return (await me.page.getByText(/^Run:/).count()) > 0 ? true : null;
+      },
+      "the Run started card",
+      40_000,
+    );
+    await until(
+      async () => {
+        await w.d.hooks?.pump?.();
+        return (await me.page.getByText("Done", { exact: true }).count()) > 0 ? true : null;
+      },
+      "the Run card reads Done",
+      40_000,
+    );
     await shoot(me.page, dir, "run-card-done");
     assert.deepEqual(me.errors, [], "no page errors");
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });

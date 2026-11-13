@@ -10,7 +10,11 @@ export const PULSE_EVERY_MS = 30_000;
 export const PULSE_QUIET_MS = 1_000;
 
 export type DigestOut = CapMap["home.digest"]["out"];
-export interface Pulse { digest: DigestOut["digest"]; team: TeamNow | null; presence: ReadonlyMap<string, "online" | "away"> }
+export interface Pulse {
+  digest: DigestOut["digest"];
+  team: TeamNow | null;
+  presence: ReadonlyMap<string, "online" | "away">;
+}
 
 const EMPTY: Pulse = { digest: null, team: null, presence: new Map() };
 
@@ -25,14 +29,27 @@ export interface PulseSource {
 
 /** One read of all three. A read that fails keeps what was there (a dot never flickers off because one poll missed). */
 export async function readPulse(src: PulseSource, last: Pulse): Promise<Pulse> {
-  const safe = <T,>(p: Promise<unknown>): Promise<T | null> => p.then((v) => v as T, () => null);
+  const safe = <T>(p: Promise<unknown>): Promise<T | null> =>
+    p.then(
+      (v) => v as T,
+      () => null,
+    );
   const [d, p, w] = await Promise.all([
     safe<DigestOut>(src.call("home.digest", {})),
     src.personal ? Promise.resolve(null) : safe<{ people: PresenceRow[] }>(src.call("devices.presence", {})),
     src.personal ? Promise.resolve(null) : safe<{ working: WorkingRow[] }>(src.call("engine.now", {})),
   ]);
   const presence = p ? p.people : null;
-  const team = src.personal ? null : teamNow({ presence: presence ?? undefined, working: w?.working, me: src.me, short: true, personName: src.personName, agentName: src.agentName });
+  const team = src.personal
+    ? null
+    : teamNow({
+        presence: presence ?? undefined,
+        working: w?.working,
+        me: src.me,
+        short: true,
+        personName: src.personName,
+        agentName: src.agentName,
+      });
   return {
     digest: d ? d.digest : last.digest,
     team: src.personal ? null : p || w ? team : last.team,
@@ -41,7 +58,10 @@ export async function readPulse(src: PulseSource, last: Pulse): Promise<Pulse> {
 }
 
 const same = (a: Pulse, b: Pulse): boolean =>
-  a.digest?.id === b.digest?.id && a.digest?.items.length === b.digest?.items.length && JSON.stringify(a.team) === JSON.stringify(b.team) && JSON.stringify([...a.presence]) === JSON.stringify([...b.presence]);
+  a.digest?.id === b.digest?.id &&
+  a.digest?.items.length === b.digest?.items.length &&
+  JSON.stringify(a.team) === JSON.stringify(b.team) &&
+  JSON.stringify([...a.presence]) === JSON.stringify([...b.presence]);
 
 export function usePulse(src: PulseSource): { pulse: Pulse; reread(): void } {
   const [pulse, setPulse] = useState<Pulse>(EMPTY);
@@ -56,14 +76,26 @@ export function usePulse(src: PulseSource): { pulse: Pulse; reread(): void } {
       last.current = next;
       setPulse(next);
     });
-    return () => { off = true; };
+    return () => {
+      off = true;
+    };
   }, [tick, src.personal]);
   useEffect(() => {
     const every = setInterval(() => setTick((n) => n + 1), PULSE_EVERY_MS);
-    (every as { unref?: () => void }).unref?.();   // a poll never keeps a process alive (a test that renders once, a server render)
+    (every as { unref?: () => void }).unref?.(); // a poll never keeps a process alive (a test that renders once, a server render)
     let wait: ReturnType<typeof setTimeout> | null = null;
-    const offChange = src.changes?.subscribe(() => { if (wait === null) wait = setTimeout(() => { wait = null; setTick((n) => n + 1); }, PULSE_QUIET_MS); });
-    return () => { clearInterval(every); if (wait !== null) clearTimeout(wait); offChange?.(); };
+    const offChange = src.changes?.subscribe(() => {
+      if (wait === null)
+        wait = setTimeout(() => {
+          wait = null;
+          setTick((n) => n + 1);
+        }, PULSE_QUIET_MS);
+    });
+    return () => {
+      clearInterval(every);
+      if (wait !== null) clearTimeout(wait);
+      offChange?.();
+    };
   }, [src.changes]);
   return { pulse, reread: () => setTick((n) => n + 1) };
 }

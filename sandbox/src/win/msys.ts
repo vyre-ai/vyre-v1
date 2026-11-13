@@ -6,24 +6,37 @@ import fs from "node:fs";
 import path from "node:path";
 
 /** Where Git for Windows is: from git.exe on PATH (<root>\cmd or <root>\mingw64\bin), else the usual folder. Null when there is no MSYS runtime. */
-export function gitRoot(env: Readonly<Record<string, string | undefined>> = process.env, exists: (p: string) => boolean = fs.existsSync): string | null {
+export function gitRoot(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  exists: (p: string) => boolean = fs.existsSync,
+): string | null {
   const roots: string[] = [];
   for (const dir of (env["PATH"] ?? env["Path"] ?? "").split(";")) {
     if (dir === "" || !exists(path.win32.join(dir, "git.exe"))) continue;
     const d = dir.replace(/[\\/]+$/, "");
     const base = path.win32.basename(d).toLowerCase();
     if (base === "cmd") roots.push(path.win32.dirname(d));
-    else if (base === "bin" && path.win32.basename(path.win32.dirname(d)).toLowerCase() === "mingw64") roots.push(path.win32.dirname(path.win32.dirname(d)));
+    else if (base === "bin" && path.win32.basename(path.win32.dirname(d)).toLowerCase() === "mingw64")
+      roots.push(path.win32.dirname(path.win32.dirname(d)));
   }
   roots.push(path.win32.join(env["ProgramFiles"] ?? "C:\\Program Files", "Git"));
-  return roots.find((r) => exists(path.win32.join(r, "usr", "bin", "msys-2.0.dll")) && exists(path.win32.join(r, "usr", "bin", "bash.exe"))) ?? null;
+  return (
+    roots.find(
+      (r) =>
+        exists(path.win32.join(r, "usr", "bin", "msys-2.0.dll")) &&
+        exists(path.win32.join(r, "usr", "bin", "bash.exe")),
+    ) ?? null
+  );
 }
 
 /**
  * The engine's own copy of Git's MSYS runtime, made once per Git version (its msys-2.0.dll size and time) under `dest`. Answers the copy's bash.exe, or null when the computer has no Git Bash
  * (then Claude Code uses its PowerShell tool).
  */
-export async function privateBash(dest: string, env: Readonly<Record<string, string | undefined>> = process.env): Promise<string | null> {
+export async function privateBash(
+  dest: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): Promise<string | null> {
   const root = gitRoot(env);
   if (root === null) return null;
   const dll = fs.statSync(path.win32.join(root, "usr", "bin", "msys-2.0.dll"));

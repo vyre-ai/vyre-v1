@@ -3,7 +3,22 @@
 // in when they arrive; a late answer for an older query is dropped. Everything the sheet does (move, choose, skin preview, filters,
 // Esc) is a method here, so it is tested in node without a DOM.
 import {
-  SKIN_ACTION, actionRows, answerParts, answerText, askable, effectiveTypes, filterCounts, groupRows, isQuestion, isSelectable, isSkinQuery, mergeHits, parseQuery, plainLength, searchText, stepActive,
+  SKIN_ACTION,
+  actionRows,
+  answerParts,
+  answerText,
+  askable,
+  effectiveTypes,
+  filterCounts,
+  groupRows,
+  isQuestion,
+  isSelectable,
+  isSkinQuery,
+  mergeHits,
+  parseQuery,
+  plainLength,
+  searchText,
+  stepActive,
 } from "./model.ts";
 import type { AskAnswer, AskSource, CmdAction, Hit, HitKind, ParsedQuery, RowModel } from "./model.ts";
 
@@ -112,12 +127,24 @@ export class CmdKController {
   private reveal: ReturnType<typeof setInterval> | null = null;
   private askSeq = 0;
 
-  constructor(private readonly data: CmdKData, private readonly opts: CmdKOptions = {}) {
+  constructor(
+    private readonly data: CmdKData,
+    private readonly opts: CmdKOptions = {},
+  ) {
     this.now = opts.now ?? defaultNow;
     this.pause = opts.pauseMs ?? SERVER_PAUSE_MS;
     this.s = {
-      raw: "", parsed: parseQuery(""), filter: [], rows: [], active: -1, counts: {}, serverStatus: "idle",
-      scope: data.scope(), timings: { localMs: null, mergedMs: null }, open: true, ask: null,
+      raw: "",
+      parsed: parseQuery(""),
+      filter: [],
+      rows: [],
+      active: -1,
+      counts: {},
+      serverStatus: "idle",
+      scope: data.scope(),
+      timings: { localMs: null, mergedMs: null },
+      open: true,
+      ask: null,
     };
     this.rebuild(true);
   }
@@ -126,12 +153,18 @@ export class CmdKController {
 
   subscribe = (fn: () => void): (() => void) => {
     this.listeners.add(fn);
-    return () => { this.listeners.delete(fn); };
+    return () => {
+      this.listeners.delete(fn);
+    };
   };
 
-  private emit(): void { for (const l of this.listeners) l(); }
+  private emit(): void {
+    for (const l of this.listeners) l();
+  }
 
-  private set(patch: Partial<CmdKState>): void { this.s = { ...this.s, ...patch }; }
+  private set(patch: Partial<CmdKState>): void {
+    this.s = { ...this.s, ...patch };
+  }
 
   /** Rebuild the rows from what is held now. Keeps the highlighted row when it is still there. */
   private rebuild(first = false): void {
@@ -143,7 +176,13 @@ export class CmdKController {
       // the answer view lists the sources once the answer has been written (the arrows move through them, Enter opens one)
       const a = this.s.ask;
       const settled = a.phase === "answered" || a.phase === "no_account" || a.phase === "failed";
-      rows = settled && a.sources.length > 0 ? [{ type: "head", key: "h-sources", title: "Sources" }, ...a.sources.map((source): RowModel => ({ type: "source", key: `src-${source.n}`, source }))] : [];
+      rows =
+        settled && a.sources.length > 0
+          ? [
+              { type: "head", key: "h-sources", title: "Sources" },
+              ...a.sources.map((source): RowModel => ({ type: "source", key: `src-${source.n}`, source })),
+            ]
+          : [];
       const keep0 = prevKey ? rows.findIndex((r) => r.key === prevKey) : -1;
       this.set({ rows, active: keep0 >= 0 ? keep0 : stepActive(rows, -1, "first"), counts: {} });
       return;
@@ -151,11 +190,28 @@ export class CmdKController {
     if (parsed.prefix === ">") {
       if (isSkinQuery(parsed.text)) {
         const cur = this.data.currentSkin();
-        rows = [{ type: "head", key: "h-skins", title: "Skins" }, ...this.data.skins().map((k): RowModel => ({ type: "skin", key: `skin-${k.id}`, id: k.id, name: k.name, ...(k.swatch ? { swatch: k.swatch } : {}), current: k.id === cur }))];
+        rows = [
+          { type: "head", key: "h-skins", title: "Skins" },
+          ...this.data.skins().map(
+            (k): RowModel => ({
+              type: "skin",
+              key: `skin-${k.id}`,
+              id: k.id,
+              name: k.name,
+              ...(k.swatch ? { swatch: k.swatch } : {}),
+              current: k.id === cur,
+            }),
+          ),
+        ];
       } else rows = actionRows(this.data.actions(parsed.text), parsed.text);
     } else if (parsed.prefix === null && parsed.text === "" && filter.length === 0) {
       const recent = this.data.recent();
-      rows = recent.length ? [{ type: "head", key: "h-recent", title: "Recent" }, ...recent.slice(0, 8).map((hit): RowModel => ({ type: "hit", key: `rec-${hit.kind}:${hit.id}`, hit }))] : [];
+      rows = recent.length
+        ? [
+            { type: "head", key: "h-recent", title: "Recent" },
+            ...recent.slice(0, 8).map((hit): RowModel => ({ type: "hit", key: `rec-${hit.kind}:${hit.id}`, hit })),
+          ]
+        : [];
     } else {
       const merged = mergeHits(this.local, this.server);
       counts = filterCounts(merged);
@@ -163,8 +219,17 @@ export class CmdKController {
       const shown = kinds ? merged.filter((h) => kinds.includes(h.kind)) : merged;
       rows = groupRows(shown, parsed.prefix || filter.length ? 20 : 6);
       // Ask the Space sits with the hits: first, and the highlighted row, for a question; last for a plain phrase. Never with a type filter or without a Space to ask.
-      if (this.data.ask && filter.length === 0 && askable(parsed) && this.data.scope() === "space" && this.data.online()) {
-        const ask: RowModel[] = [{ type: "head", key: "h-ask", title: "Ask" }, { type: "ask", key: "ask", question: parsed.text.trim() }];
+      if (
+        this.data.ask &&
+        filter.length === 0 &&
+        askable(parsed) &&
+        this.data.scope() === "space" &&
+        this.data.online()
+      ) {
+        const ask: RowModel[] = [
+          { type: "head", key: "h-ask", title: "Ask" },
+          { type: "ask", key: "ask", question: parsed.text.trim() },
+        ];
         rows = isQuestion(parsed.text) || rows.length === 0 ? [...ask, ...rows] : [...rows, ...ask];
       }
     }
@@ -180,7 +245,10 @@ export class CmdKController {
 
   private syncPreview(): void {
     const row = this.s.rows[this.s.active];
-    if (row?.type === "skin") { this.previewing = true; this.data.previewSkin(row.id); } else this.endPreview();
+    if (row?.type === "skin") {
+      this.previewing = true;
+      this.data.previewSkin(row.id);
+    } else this.endPreview();
   }
 
   private endPreview(): void {
@@ -197,7 +265,10 @@ export class CmdKController {
     if (this.timer) clearTimeout(this.timer);
     const parsed = parseQuery(raw);
     const types = parsed.types;
-    this.local = parsed.prefix === ">" || (parsed.prefix === null && parsed.text === "") ? [] : this.data.local(searchText(parsed), types);
+    this.local =
+      parsed.prefix === ">" || (parsed.prefix === null && parsed.text === "")
+        ? []
+        : this.data.local(searchText(parsed), types);
     this.server = [];
     this.set({ raw, parsed, serverStatus: "idle", timings: { localMs: null, mergedMs: null } });
     this.rebuild();
@@ -212,37 +283,48 @@ export class CmdKController {
   private scheduleServer(parsed: ParsedQuery): void {
     const wants = parsed.prefix !== ">" && (parsed.text !== "" || parsed.prefix !== null);
     if (!wants) return;
-    if (!this.data.online() || this.data.scope() === "device") { this.set({ serverStatus: "offline" }); return; }
+    if (!this.data.online() || this.data.scope() === "device") {
+      this.set({ serverStatus: "offline" });
+      return;
+    }
     const mine = this.seq;
     this.set({ serverStatus: "loading" });
     this.timer = setTimeout(() => {
-      this.data.server(searchText(parsed), parsed.types).then((hits) => {
-        if (mine !== this.seq || !this.s.open) return;
-        this.server = hits;
-        const mergedMs = this.now() - this.started;
-        this.set({ serverStatus: "done", timings: { ...this.s.timings, mergedMs } });
-        this.rebuild();
-        this.opts.onTiming?.("merged", mergedMs);
-        this.mark("cmdk.merged");
-        this.emit();
-      }, () => {
-        if (mine !== this.seq) return;
-        this.set({ serverStatus: "error" });
-        this.emit();
-      });
+      this.data.server(searchText(parsed), parsed.types).then(
+        (hits) => {
+          if (mine !== this.seq || !this.s.open) return;
+          this.server = hits;
+          const mergedMs = this.now() - this.started;
+          this.set({ serverStatus: "done", timings: { ...this.s.timings, mergedMs } });
+          this.rebuild();
+          this.opts.onTiming?.("merged", mergedMs);
+          this.mark("cmdk.merged");
+          this.emit();
+        },
+        () => {
+          if (mine !== this.seq) return;
+          this.set({ serverStatus: "error" });
+          this.emit();
+        },
+      );
     }, this.pause);
   }
 
   private mark(name: string): void {
     const p = (globalThis as { performance?: { mark?: (n: string) => void } }).performance;
-    try { p?.mark?.(name); } catch { /* marks are optional */ }
+    try {
+      p?.mark?.(name);
+    } catch {
+      /* marks are optional */
+    }
   }
 
   toggleFilter(id: string): void {
     const f = this.s.filter.includes(id) ? this.s.filter.filter((x) => x !== id) : [...this.s.filter, id];
     this.set({ filter: f });
     // A filter on an empty box browses that kind from the replica.
-    if (this.s.parsed.prefix === null && this.s.parsed.text === "") this.local = f.length ? this.data.local("", effectiveTypes({ ...this.s.parsed, types: null }, f)) : [];
+    if (this.s.parsed.prefix === null && this.s.parsed.text === "")
+      this.local = f.length ? this.data.local("", effectiveTypes({ ...this.s.parsed, types: null }, f)) : [];
     this.rebuild();
     this.emit();
   }
@@ -279,12 +361,18 @@ export class CmdKController {
       return;
     }
     if (r.type === "action") {
-      if (r.action.key === SKIN_ACTION) { this.setRaw("> skin "); return; }
+      if (r.action.key === SKIN_ACTION) {
+        this.setRaw("> skin ");
+        return;
+      }
       this.close();
       this.data.runAction(r.action);
       return;
     }
-    if (r.type === "ask") { void this.startAsk(r.question); return; }
+    if (r.type === "ask") {
+      void this.startAsk(r.question);
+      return;
+    }
     if (r.type === "source") {
       this.close();
       this.data.recordOpened(r.source);
@@ -307,10 +395,21 @@ export class CmdKController {
     this.rebuild();
     this.emit();
     let out: AskAnswer;
-    try { out = await ask(question); } catch { out = { state: "failed", sources: [], cited: [] }; }
+    try {
+      out = await ask(question);
+    } catch {
+      out = { state: "failed", sources: [], cited: [] };
+    }
     if (mine !== this.askSeq || !this.s.ask) return;
     const text = out.answer ?? "";
-    const base = { question, text, shown: 0, sources: out.sources, cited: out.cited, ...(out.account ? { account: out.account } : {}) };
+    const base = {
+      question,
+      text,
+      shown: 0,
+      sources: out.sources,
+      cited: out.cited,
+      ...(out.account ? { account: out.account } : {}),
+    };
     if (out.state !== "answered") {
       this.set({ ask: { ...base, phase: out.state, shown: text.length } });
     } else if ((this.opts.revealMs ?? REVEAL_MS) === 0) {
@@ -320,10 +419,16 @@ export class CmdKController {
       const total = plainLength(answerParts(text));
       this.reveal = setInterval(() => {
         const a = this.s.ask;
-        if (!a || mine !== this.askSeq) { this.stopReveal(); return; }
+        if (!a || mine !== this.askSeq) {
+          this.stopReveal();
+          return;
+        }
         const shown = Math.min(total, a.shown + REVEAL_STEP);
         this.set({ ask: shown >= total ? { ...a, phase: "answered", shown } : { ...a, shown } });
-        if (shown >= total) { this.stopReveal(); this.rebuild(); }
+        if (shown >= total) {
+          this.stopReveal();
+          this.rebuild();
+        }
         this.emit();
       }, this.opts.revealMs ?? REVEAL_MS);
     }
@@ -331,7 +436,12 @@ export class CmdKController {
     this.emit();
   }
 
-  private stopReveal(): void { if (this.reveal) { clearInterval(this.reveal); this.reveal = null; } }
+  private stopReveal(): void {
+    if (this.reveal) {
+      clearInterval(this.reveal);
+      this.reveal = null;
+    }
+  }
 
   private endAsk(): void {
     this.askSeq += 1;
@@ -341,7 +451,10 @@ export class CmdKController {
 
   /** Esc: from the answer back to the results with the question still in the field; from the results, close. */
   escape(): void {
-    if (!this.s.ask) { this.close(); return; }
+    if (!this.s.ask) {
+      this.close();
+      return;
+    }
     this.endAsk();
     this.rebuild();
     this.emit();
@@ -351,19 +464,30 @@ export class CmdKController {
   openCitation(n: number): void {
     const i = this.s.rows.findIndex((r) => r.type === "source" && r.source.n === n);
     if (i >= 0) this.choose(i, false);
-    else { const src = this.s.ask?.sources.find((x) => x.n === n); if (src) { this.close(); this.data.recordOpened(src); this.data.open(src, { newTab: false }); } }
+    else {
+      const src = this.s.ask?.sources.find((x) => x.n === n);
+      if (src) {
+        this.close();
+        this.data.recordOpened(src);
+        this.data.open(src, { newTab: false });
+      }
+    }
   }
 
   copyAnswer(): void {
     const a = this.s.ask;
-    if (a && a.phase === "answered") this.data.copyText?.(answerText({ answer: a.text, sources: [...a.sources], cited: [...a.cited] }));
+    if (a && a.phase === "answered")
+      this.data.copyText?.(answerText({ answer: a.text, sources: [...a.sources], cited: [...a.cited] }));
   }
 
   /** Continue in a chat: the question and the answer open as a real chat with the assistant. */
   continueInChat(): void {
     const a = this.s.ask;
     if (!a || a.phase !== "answered" || !this.data.continueInChat) return;
-    const chat = { question: a.question, answer: answerText({ answer: a.text, sources: [...a.sources], cited: [...a.cited] }) };
+    const chat = {
+      question: a.question,
+      answer: answerText({ answer: a.text, sources: [...a.sources], cited: [...a.cited] }),
+    };
     this.close();
     this.data.continueInChat(chat);
   }

@@ -10,7 +10,10 @@ export function countRuns(runs: { status?: unknown; costMicros?: unknown }[]): {
   let sawCost = false;
   for (const run of runs) {
     if (run && typeof run.status === "string" && run.status in n) n[run.status] += 1;
-    if (run && typeof run.costMicros === "number" && Number.isFinite(run.costMicros)) { cost += run.costMicros; sawCost = true; }
+    if (run && typeof run.costMicros === "number" && Number.isFinite(run.costMicros)) {
+      cost += run.costMicros;
+      sawCost = true;
+    }
   }
   const text = STATUSES.map((name) => `${n[name]} ${name}`).join(", ");
   return { text: sawCost ? `${text}. Cost ${cost}.` : `${text}.` };
@@ -35,16 +38,29 @@ export function eventRows(out: unknown): { id: string; line: string }[] | null {
       rows.push({ id: event.id, line: `${event.type}${when} sealed` });
       continue;
     }
-    const subject = event.subject && typeof event.subject === "object" ? event.subject as { type?: unknown; id?: unknown } : undefined;
-    const subjectBit = subject && typeof subject.type === "string" && typeof subject.id === "string" ? ` ${subject.type} ${subject.id}` : "";
+    const subject =
+      event.subject && typeof event.subject === "object"
+        ? (event.subject as { type?: unknown; id?: unknown })
+        : undefined;
+    const subjectBit =
+      subject && typeof subject.type === "string" && typeof subject.id === "string"
+        ? ` ${subject.type} ${subject.id}`
+        : "";
     const runBit = typeof event.runId === "string" ? ` run ${event.runId}` : "";
     rows.push({ id: event.id, line: `${event.type}${when}${subjectBit}${runBit}` });
   }
   return rows;
 }
 
-export interface DependencyNode { key: string; input: Record<string, unknown> }
-export interface DependencyAutomation { id: string; name: string; nodes: DependencyNode[] }
+export interface DependencyNode {
+  key: string;
+  input: Record<string, unknown>;
+}
+export interface DependencyAutomation {
+  id: string;
+  name: string;
+  nodes: DependencyNode[];
+}
 
 export function dependenciesFrom(automations: readonly DependencyAutomation[]): { id: string; line: string }[] {
   const rows: { id: string; line: string }[] = [];
@@ -75,7 +91,10 @@ export function dependenciesFrom(automations: readonly DependencyAutomation[]): 
   return rows;
 }
 
-export interface NamedRow { id: string; name: string }
+export interface NamedRow {
+  id: string;
+  name: string;
+}
 
 function namedRows(out: unknown, key: "packages" | "automations"): NamedRow[] | null {
   if (!out || typeof out !== "object" || !Array.isArray((out as Record<string, unknown>)[key])) return null;
@@ -101,32 +120,83 @@ export function exportChoices(out: unknown): NamedRow[] | null {
 // ---- Studio views: the shapes the server returns, parsed once. A reply that does not match is null, never a guess. ----
 
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
-const obj = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null);
+const obj = (v: unknown): Record<string, unknown> | null =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 
 export interface Analytics {
   windowDays: number;
-  totals: { runs: number; succeeded: number; failed: number; stopped: number; active: number; costMicros: number; successRate: number | null; medianMs: number | null };
+  totals: {
+    runs: number;
+    succeeded: number;
+    failed: number;
+    stopped: number;
+    active: number;
+    costMicros: number;
+    successRate: number | null;
+    medianMs: number | null;
+  };
   daily: { day: string; succeeded: number; failed: number; other: number }[];
-  automations: { automationId: string; name: string; runs: number; succeeded: number; failed: number; lastRunAt: number }[];
+  automations: {
+    automationId: string;
+    name: string;
+    runs: number;
+    succeeded: number;
+    failed: number;
+    lastRunAt: number;
+  }[];
   failures: { automationId: string | null; step: string; code: string; count: number }[];
 }
 
 export function analyticsOf(out: unknown): Analytics | null {
   const o = obj(out);
   const t = obj(o?.["totals"]);
-  if (!o || !t || !Array.isArray(o["daily"]) || !Array.isArray(o["automations"]) || !Array.isArray(o["failures"])) return null;
-  const rows = <T,>(list: unknown[], take: (r: Record<string, unknown>) => T | null): T[] => list.flatMap((r) => { const x = obj(r); const got = x ? take(x) : null; return got ? [got] : []; });
+  if (!o || !t || !Array.isArray(o["daily"]) || !Array.isArray(o["automations"]) || !Array.isArray(o["failures"]))
+    return null;
+  const rows = <T>(list: unknown[], take: (r: Record<string, unknown>) => T | null): T[] =>
+    list.flatMap((r) => {
+      const x = obj(r);
+      const got = x ? take(x) : null;
+      return got ? [got] : [];
+    });
   return {
     windowDays: num(o["windowDays"]),
     totals: {
-      runs: num(t["runs"]), succeeded: num(t["succeeded"]), failed: num(t["failed"]), stopped: num(t["stopped"]), active: num(t["active"]), costMicros: num(t["costMicros"]),
-      successRate: typeof t["successRate"] === "number" ? t["successRate"] : null, medianMs: typeof t["medianMs"] === "number" ? t["medianMs"] : null,
+      runs: num(t["runs"]),
+      succeeded: num(t["succeeded"]),
+      failed: num(t["failed"]),
+      stopped: num(t["stopped"]),
+      active: num(t["active"]),
+      costMicros: num(t["costMicros"]),
+      successRate: typeof t["successRate"] === "number" ? t["successRate"] : null,
+      medianMs: typeof t["medianMs"] === "number" ? t["medianMs"] : null,
     },
-    daily: rows(o["daily"] as unknown[], (r) => (typeof r["day"] === "string" ? { day: r["day"], succeeded: num(r["succeeded"]), failed: num(r["failed"]), other: num(r["other"]) } : null)),
-    automations: rows(o["automations"] as unknown[], (r) => (typeof r["automationId"] === "string" && typeof r["name"] === "string"
-      ? { automationId: r["automationId"], name: r["name"], runs: num(r["runs"]), succeeded: num(r["succeeded"]), failed: num(r["failed"]), lastRunAt: num(r["lastRunAt"]) } : null)),
-    failures: rows(o["failures"] as unknown[], (r) => (typeof r["step"] === "string" && typeof r["code"] === "string"
-      ? { automationId: typeof r["automationId"] === "string" ? r["automationId"] : null, step: r["step"], code: r["code"], count: num(r["count"]) } : null)),
+    daily: rows(o["daily"] as unknown[], (r) =>
+      typeof r["day"] === "string"
+        ? { day: r["day"], succeeded: num(r["succeeded"]), failed: num(r["failed"]), other: num(r["other"]) }
+        : null,
+    ),
+    automations: rows(o["automations"] as unknown[], (r) =>
+      typeof r["automationId"] === "string" && typeof r["name"] === "string"
+        ? {
+            automationId: r["automationId"],
+            name: r["name"],
+            runs: num(r["runs"]),
+            succeeded: num(r["succeeded"]),
+            failed: num(r["failed"]),
+            lastRunAt: num(r["lastRunAt"]),
+          }
+        : null,
+    ),
+    failures: rows(o["failures"] as unknown[], (r) =>
+      typeof r["step"] === "string" && typeof r["code"] === "string"
+        ? {
+            automationId: typeof r["automationId"] === "string" ? r["automationId"] : null,
+            step: r["step"],
+            code: r["code"],
+            count: num(r["count"]),
+          }
+        : null,
+    ),
   };
 }
 
@@ -141,8 +211,18 @@ export function durationWords(ms: number | null): string {
   return `${Math.round(ms / 60_000)} min`;
 }
 
-export interface DepUse { automationId: string; name: string; status: string; stepIds: string[] }
-export interface DepItem { kind: string; ref: string; problem: "missing" | "off" | null; usedBy: DepUse[] }
+export interface DepUse {
+  automationId: string;
+  name: string;
+  status: string;
+  stepIds: string[];
+}
+export interface DepItem {
+  kind: string;
+  ref: string;
+  problem: "missing" | "off" | null;
+  usedBy: DepUse[];
+}
 
 export function depsOf(out: unknown): { automations: number; items: DepItem[] } | null {
   const o = obj(out);
@@ -155,17 +235,33 @@ export function depsOf(out: unknown): { automations: number; items: DepItem[] } 
     for (const u of r["usedBy"]) {
       const x = obj(u);
       if (x && typeof x["automationId"] === "string" && typeof x["name"] === "string") {
-        usedBy.push({ automationId: x["automationId"], name: x["name"], status: typeof x["status"] === "string" ? x["status"] : "", stepIds: Array.isArray(x["stepIds"]) ? x["stepIds"].filter((s): s is string => typeof s === "string") : [] });
+        usedBy.push({
+          automationId: x["automationId"],
+          name: x["name"],
+          status: typeof x["status"] === "string" ? x["status"] : "",
+          stepIds: Array.isArray(x["stepIds"]) ? x["stepIds"].filter((s): s is string => typeof s === "string") : [],
+        });
       }
     }
-    items.push({ kind: r["kind"], ref: r["ref"], problem: r["problem"] === "missing" || r["problem"] === "off" ? r["problem"] : null, usedBy });
+    items.push({
+      kind: r["kind"],
+      ref: r["ref"],
+      problem: r["problem"] === "missing" || r["problem"] === "off" ? r["problem"] : null,
+      usedBy,
+    });
   }
   return { automations: num(o["automations"]), items };
 }
 
 export interface EventItem {
-  id: string; type: string; at: number; actor: string; sealed: boolean;
-  subject?: { type: string; id: string }; runId?: string; payload: unknown;
+  id: string;
+  type: string;
+  at: number;
+  actor: string;
+  sealed: boolean;
+  subject?: { type: string; id: string };
+  runId?: string;
+  payload: unknown;
 }
 
 export function eventItems(out: unknown): EventItem[] | null {
@@ -178,16 +274,29 @@ export function eventItems(out: unknown): EventItem[] | null {
     const sealed = obj(e["payload"])?.["sealed"] === true;
     const s = obj(e["subject"]);
     rows.push({
-      id: e["id"], type: e["type"], at: num(e["at"]), actor: typeof e["actor"] === "string" ? e["actor"] : "", sealed,
-      ...(s && typeof s["type"] === "string" && typeof s["id"] === "string" ? { subject: { type: s["type"], id: s["id"] } } : {}),
+      id: e["id"],
+      type: e["type"],
+      at: num(e["at"]),
+      actor: typeof e["actor"] === "string" ? e["actor"] : "",
+      sealed,
+      ...(s && typeof s["type"] === "string" && typeof s["id"] === "string"
+        ? { subject: { type: s["type"], id: s["id"] } }
+        : {}),
       ...(typeof e["runId"] === "string" ? { runId: e["runId"] } : {}),
-      payload: sealed ? null : e["payload"] ?? null,
+      payload: sealed ? null : (e["payload"] ?? null),
     });
   }
   return rows;
 }
 
-export interface TemplateItem { key: string; title: string; summary: string; starts: string; setUp: string[]; steps: { id: string; key: string; title: string }[] }
+export interface TemplateItem {
+  key: string;
+  title: string;
+  summary: string;
+  starts: string;
+  setUp: string[];
+  steps: { id: string; key: string; title: string }[];
+}
 
 export function templatesOf(out: unknown): TemplateItem[] | null {
   const o = obj(out);
@@ -196,14 +305,35 @@ export function templatesOf(out: unknown): TemplateItem[] | null {
   for (const raw of o["templates"]) {
     const t = obj(raw);
     if (!t || typeof t["key"] !== "string" || typeof t["title"] !== "string") continue;
-    const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : []);
-    const steps = Array.isArray(t["steps"]) ? t["steps"].flatMap((s) => { const x = obj(s); return x && typeof x["id"] === "string" && typeof x["title"] === "string" ? [{ id: x["id"], key: typeof x["key"] === "string" ? x["key"] : "", title: x["title"] }] : []; }) : [];
-    rows.push({ key: t["key"], title: t["title"], summary: typeof t["summary"] === "string" ? t["summary"] : "", starts: typeof t["starts"] === "string" ? t["starts"] : "", setUp: strings(t["setUp"]), steps });
+    const strings = (v: unknown): string[] =>
+      Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : [];
+    const steps = Array.isArray(t["steps"])
+      ? t["steps"].flatMap((s) => {
+          const x = obj(s);
+          return x && typeof x["id"] === "string" && typeof x["title"] === "string"
+            ? [{ id: x["id"], key: typeof x["key"] === "string" ? x["key"] : "", title: x["title"] }]
+            : [];
+        })
+      : [];
+    rows.push({
+      key: t["key"],
+      title: t["title"],
+      summary: typeof t["summary"] === "string" ? t["summary"] : "",
+      starts: typeof t["starts"] === "string" ? t["starts"] : "",
+      setUp: strings(t["setUp"]),
+      steps,
+    });
   }
   return rows;
 }
 
-export interface PackageItem { id: string; name: string; sourceAutomationId: string; createdAt: number; requires: { connections: { slot: string; label: string; stepIds: string[] }[]; vault: string[]; keys: string[] } }
+export interface PackageItem {
+  id: string;
+  name: string;
+  sourceAutomationId: string;
+  createdAt: number;
+  requires: { connections: { slot: string; label: string; stepIds: string[] }[]; vault: string[]; keys: string[] };
+}
 
 export function packageItems(out: unknown): PackageItem[] | null {
   const o = obj(out);
@@ -213,9 +343,29 @@ export function packageItems(out: unknown): PackageItem[] | null {
     const p = obj(raw);
     if (!p || typeof p["id"] !== "string" || typeof p["name"] !== "string") continue;
     const req = obj(p["requires"]);
-    const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : []);
-    const connections = Array.isArray(req?.["connections"]) ? req["connections"].flatMap((c) => { const x = obj(c); return x && typeof x["slot"] === "string" ? [{ slot: x["slot"], label: typeof x["label"] === "string" ? x["label"] : x["slot"], stepIds: strings(x["stepIds"]) }] : []; }) : [];
-    rows.push({ id: p["id"], name: p["name"], sourceAutomationId: typeof p["sourceAutomationId"] === "string" ? p["sourceAutomationId"] : "", createdAt: num(p["createdAt"]), requires: { connections, vault: strings(req?.["vault"]), keys: strings(req?.["keys"]) } });
+    const strings = (v: unknown): string[] =>
+      Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : [];
+    const connections = Array.isArray(req?.["connections"])
+      ? req["connections"].flatMap((c) => {
+          const x = obj(c);
+          return x && typeof x["slot"] === "string"
+            ? [
+                {
+                  slot: x["slot"],
+                  label: typeof x["label"] === "string" ? x["label"] : x["slot"],
+                  stepIds: strings(x["stepIds"]),
+                },
+              ]
+            : [];
+        })
+      : [];
+    rows.push({
+      id: p["id"],
+      name: p["name"],
+      sourceAutomationId: typeof p["sourceAutomationId"] === "string" ? p["sourceAutomationId"] : "",
+      createdAt: num(p["createdAt"]),
+      requires: { connections, vault: strings(req?.["vault"]), keys: strings(req?.["keys"]) },
+    });
   }
   return rows;
 }
@@ -230,8 +380,24 @@ export function countBy<T>(rows: readonly T[], key: (row: T) => string): { value
 // ---- Watching: pages and parts of pages checked on a rhythm (Vyre for Chrome) ----
 
 export interface WatchItem {
-  id: string; title: string; url: string; host: string; mode: "region" | "page"; region: string; everyMinutes: number; state: "on" | "paused" | "error"; runsOn: "computer" | "chrome";
-  agentId: string; tell: string[]; tellThreads: number; goalId: string; changes: number; lastCheckedAt: number | null; lastChange: { at: number; before: string; after: string } | null; error: string; value: string;
+  id: string;
+  title: string;
+  url: string;
+  host: string;
+  mode: "region" | "page";
+  region: string;
+  everyMinutes: number;
+  state: "on" | "paused" | "error";
+  runsOn: "computer" | "chrome";
+  agentId: string;
+  tell: string[];
+  tellThreads: number;
+  goalId: string;
+  changes: number;
+  lastCheckedAt: number | null;
+  lastChange: { at: number; before: string; after: string } | null;
+  error: string;
+  value: string;
 }
 
 export function watchItems(out: unknown): WatchItem[] | null {
@@ -244,12 +410,27 @@ export function watchItems(out: unknown): WatchItem[] | null {
     const region = obj(w["region"]);
     const change = obj(w["lastChange"]);
     rows.push({
-      id: w["watchId"], title: w["title"], url: typeof w["url"] === "string" ? w["url"] : "", host: typeof w["host"] === "string" ? w["host"] : "", mode: w["mode"] === "page" ? "page" : "region",
-      region: region && typeof region["label"] === "string" ? region["label"] : "", everyMinutes: num(w["everyMinutes"]), state: w["state"] === "paused" ? "paused" : w["state"] === "error" ? "error" : "on",
-      runsOn: w["runsOn"] === "chrome" ? "chrome" : "computer", agentId: typeof w["agentId"] === "string" ? w["agentId"] : "", tell: Array.isArray(w["tell"]) ? w["tell"].filter((x): x is string => typeof x === "string") : [], tellThreads: Array.isArray(w["tellThreads"]) ? w["tellThreads"].length : 0, goalId: typeof w["goalId"] === "string" ? w["goalId"] : "", changes: num(w["changes"]),
+      id: w["watchId"],
+      title: w["title"],
+      url: typeof w["url"] === "string" ? w["url"] : "",
+      host: typeof w["host"] === "string" ? w["host"] : "",
+      mode: w["mode"] === "page" ? "page" : "region",
+      region: region && typeof region["label"] === "string" ? region["label"] : "",
+      everyMinutes: num(w["everyMinutes"]),
+      state: w["state"] === "paused" ? "paused" : w["state"] === "error" ? "error" : "on",
+      runsOn: w["runsOn"] === "chrome" ? "chrome" : "computer",
+      agentId: typeof w["agentId"] === "string" ? w["agentId"] : "",
+      tell: Array.isArray(w["tell"]) ? w["tell"].filter((x): x is string => typeof x === "string") : [],
+      tellThreads: Array.isArray(w["tellThreads"]) ? w["tellThreads"].length : 0,
+      goalId: typeof w["goalId"] === "string" ? w["goalId"] : "",
+      changes: num(w["changes"]),
       lastCheckedAt: typeof w["lastCheckedAt"] === "number" ? w["lastCheckedAt"] : null,
-      lastChange: change && typeof change["at"] === "number" ? { at: change["at"], before: String(change["before"] ?? ""), after: String(change["after"] ?? "") } : null,
-      error: typeof w["error"] === "string" ? w["error"] : "", value: typeof w["value"] === "string" ? w["value"] : "",
+      lastChange:
+        change && typeof change["at"] === "number"
+          ? { at: change["at"], before: String(change["before"] ?? ""), after: String(change["after"] ?? "") }
+          : null,
+      error: typeof w["error"] === "string" ? w["error"] : "",
+      value: typeof w["value"] === "string" ? w["value"] : "",
     });
   }
   return rows;
@@ -274,8 +455,21 @@ export function everyShort(min: number): string {
 export function lastWords(w: WatchItem, now: number): string {
   if (w.state === "paused") return "Paused";
   if (w.state === "error") return `Can't read it${w.error ? `: ${w.error}` : ""}`;
-  const ago = (ms: number): string => { const m = Math.max(0, Math.round(ms / 60000)); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 2880 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
-  return w.lastChange ? `Changed ${ago(now - w.lastChange.at)}` : w.lastCheckedAt !== null ? `No change since ${ago(now - w.lastCheckedAt)}` : "Not checked yet";
+  const ago = (ms: number): string => {
+    const m = Math.max(0, Math.round(ms / 60000));
+    return m < 1
+      ? "just now"
+      : m < 60
+        ? `${m} min ago`
+        : m < 2880
+          ? `${Math.round(m / 60)} h ago`
+          : `${Math.round(m / 1440)} days ago`;
+  };
+  return w.lastChange
+    ? `Changed ${ago(now - w.lastChange.at)}`
+    : w.lastCheckedAt !== null
+      ? `No change since ${ago(now - w.lastCheckedAt)}`
+      : "Not checked yet";
 }
 
 /** The line under a watch's name on a phone: how often, and when it last changed. */
@@ -286,6 +480,9 @@ export function watchNote(w: WatchItem, now: number): string {
 
 /** Who hears about a change besides the person: people by name, channels by count. */
 export function tellWords(w: WatchItem, name: (id: string) => string): string {
-  const parts = [...w.tell.map(name), ...(w.tellThreads ? [`${w.tellThreads} ${w.tellThreads === 1 ? "channel" : "channels"}`] : [])];
+  const parts = [
+    ...w.tell.map(name),
+    ...(w.tellThreads ? [`${w.tellThreads} ${w.tellThreads === 1 ? "channel" : "channels"}`] : []),
+  ];
   return parts.length ? `You, ${parts.join(", ")}` : "You";
 }

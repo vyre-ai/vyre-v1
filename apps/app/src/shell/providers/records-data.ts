@@ -19,7 +19,9 @@ export function recordsData(rt: ShellRuntime, screen?: string, canEditSchema = f
       openRecordTypes: () => rt.open({ screen: "records.types" }),
       openSchemaMap: () => rt.open({ screen: "records.schema-map" }),
       // the session that brings a CRM in runs in the Records Ask pane, beside the records it makes
-      bringInCrm: () => { openAskPane({ thing: null, first: BRING_IN_OPENING }, "records"); },
+      bringInCrm: () => {
+        openAskPane({ thing: null, first: BRING_IN_OPENING }, "records");
+      },
       openSync: (type) => rt.open({ screen: "records.sync", args: { type } }),
     },
   };

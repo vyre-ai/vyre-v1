@@ -16,7 +16,11 @@ const only = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",
 const sizeOnly = (args.find((a) => a.startsWith("--size=")) ?? "").slice(7);
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), {
+    cwd: appDir,
+    stdio: "inherit",
+    env: exportEnv(),
+  });
 }
 fs.mkdirSync(out, { recursive: true });
 const SIZES = { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
@@ -24,7 +28,9 @@ const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
-const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => t.id.startsWith("ADDSHEET_01") && (only.length === 0 || only.includes(t.id.replace("ADDSHEET_01-", ""))));
+const targets = loadTargets(path.join(REPO, "scripts/shots")).filter(
+  (t) => t.id.startsWith("ADDSHEET_01") && (only.length === 0 || only.includes(t.id.replace("ADDSHEET_01-", ""))),
+);
 
 /** The first selector of "a || b" that is on the page. */
 async function pick(page, sel) {
@@ -32,37 +38,61 @@ async function pick(page, sel) {
   return sel.split("||")[0].trim();
 }
 
-for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [size, vp] of Object.entries(SIZES)) {
-  if (sizeOnly && size !== sizeOnly) continue;
-  const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
-  const page = await ctx.newPage();
-  const errs = [];
-  page.on("pageerror", (e) => errs.push(String(e)));
-  const url = routeUrl(real.origin, t.route, skin);
-  await page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
-  await page.waitForTimeout(500);
-  await page.waitForSelector(t.waitFor, { timeout: 15000 }).catch(() => errs.push(`no ${t.waitFor}`));
-  await page.waitForTimeout(600);
-  for (const [op, a, b] of t.steps ?? []) {
-    try {
-      if (op === "open") {
-        // the header + on a desktop; on a phone the message box's + and its Add people and agents row
-        if (await page.$("[data-testid='participants-button']")) { await page.click("[data-testid='participants-button']", { timeout: 8000 }); await page.click("[data-testid='people-footer']", { timeout: 8000 }); }
-        else { await page.click("[data-testid='composer-attach']", { timeout: 8000 }); await page.click("[data-testid='row-plus-people']", { timeout: 8000 }); }
-        await page.waitForSelector("[data-testid='add-sheet']", { timeout: 8000 });
-      } else if (op === "rclick") await page.click(await pick(page, a), { button: "right", timeout: 8000 });
-      else if (op === "click") await page.click(await pick(page, a), { timeout: 8000 });
-      else if (op === "fill") await page.fill(a, b, { timeout: 8000 });
-      else if (op === "wait") await page.waitForSelector(a, { timeout: 8000 });
-    } catch (e) { errs.push(`${op} ${a ?? ""}: ${String(e).slice(0, 120)}`); }
-    await page.waitForTimeout(350);
-  }
-  const found = t.after ? await page.waitForSelector(t.after, { timeout: 6000 }).then(() => true, () => false) : true;
-  await page.waitForTimeout(700);
-  const file = path.join(out, `${t.id.replace("ADDSHEET_01-", "")}-${skin}-${size}.png`);
-  await page.screenshot({ path: file });
-  console.log(`shot ${path.basename(file)} found=${found}${errs.length ? " errors=" + errs.join(" | ").slice(0, 500) : ""}`);
-  await ctx.close();
-}
-await browser.close(); real.close();
+for (const t of targets)
+  for (const skin of ["paper", "graphite"])
+    for (const [size, vp] of Object.entries(SIZES)) {
+      if (sizeOnly && size !== sizeOnly) continue;
+      const ctx = await browser.newContext({
+        viewport: vp,
+        deviceScaleFactor: 1,
+        colorScheme: skin === "graphite" ? "dark" : "light",
+        reducedMotion: "reduce",
+      });
+      const page = await ctx.newPage();
+      const errs = [];
+      page.on("pageerror", (e) => errs.push(String(e)));
+      const url = routeUrl(real.origin, t.route, skin);
+      await page
+        .goto(url, { waitUntil: "load", timeout: 60000 })
+        .catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
+      await page.waitForTimeout(500);
+      await page.waitForSelector(t.waitFor, { timeout: 15000 }).catch(() => errs.push(`no ${t.waitFor}`));
+      await page.waitForTimeout(600);
+      for (const [op, a, b] of t.steps ?? []) {
+        try {
+          if (op === "open") {
+            // the header + on a desktop; on a phone the message box's + and its Add people and agents row
+            if (await page.$("[data-testid='participants-button']")) {
+              await page.click("[data-testid='participants-button']", { timeout: 8000 });
+              await page.click("[data-testid='people-footer']", { timeout: 8000 });
+            } else {
+              await page.click("[data-testid='composer-attach']", { timeout: 8000 });
+              await page.click("[data-testid='row-plus-people']", { timeout: 8000 });
+            }
+            await page.waitForSelector("[data-testid='add-sheet']", { timeout: 8000 });
+          } else if (op === "rclick") await page.click(await pick(page, a), { button: "right", timeout: 8000 });
+          else if (op === "click") await page.click(await pick(page, a), { timeout: 8000 });
+          else if (op === "fill") await page.fill(a, b, { timeout: 8000 });
+          else if (op === "wait") await page.waitForSelector(a, { timeout: 8000 });
+        } catch (e) {
+          errs.push(`${op} ${a ?? ""}: ${String(e).slice(0, 120)}`);
+        }
+        await page.waitForTimeout(350);
+      }
+      const found = t.after
+        ? await page.waitForSelector(t.after, { timeout: 6000 }).then(
+            () => true,
+            () => false,
+          )
+        : true;
+      await page.waitForTimeout(700);
+      const file = path.join(out, `${t.id.replace("ADDSHEET_01-", "")}-${skin}-${size}.png`);
+      await page.screenshot({ path: file });
+      console.log(
+        `shot ${path.basename(file)} found=${found}${errs.length ? " errors=" + errs.join(" | ").slice(0, 500) : ""}`,
+      );
+      await ctx.close();
+    }
+await browser.close();
+real.close();
 process.exit(0);

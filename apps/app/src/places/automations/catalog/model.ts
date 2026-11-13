@@ -40,12 +40,37 @@ const VYRE_PRODUCT = /^(calendar\.|files\.|forms\.)/;
 
 /** Connected-app order: common operations for one app, then the next app, then the authenticated request. */
 const CONNECTED_ORDER = [
-  "google.gmail.list_messages", "google.gmail.send_message", "google.calendar.list_events", "google.calendar.create_event",
-  "google.drive.list_files", "google.drive.create_folder", "google.sheets.get_values", "google.sheets.append_values", "google.docs.create_document",
-  "ms.mail.list_messages", "ms.mail.send_message", "ms.calendar.list_events", "ms.calendar.create_event", "ms.drive.list_items", "ms.drive.create_folder",
-  "github.repos.list", "github.pull_request.get", "github.issue.create", "github.issue.comment", "github.issue.assign_agent",
-  "sheet.find_rows", "sheet.add_rows", "sheet.update_rows", "sheet.create", "sheet.read_all", "sheet.delete_rows",
-  "send_email", "send_sms", "post_message", "connector_request", "http_request",
+  "google.gmail.list_messages",
+  "google.gmail.send_message",
+  "google.calendar.list_events",
+  "google.calendar.create_event",
+  "google.drive.list_files",
+  "google.drive.create_folder",
+  "google.sheets.get_values",
+  "google.sheets.append_values",
+  "google.docs.create_document",
+  "ms.mail.list_messages",
+  "ms.mail.send_message",
+  "ms.calendar.list_events",
+  "ms.calendar.create_event",
+  "ms.drive.list_items",
+  "ms.drive.create_folder",
+  "github.repos.list",
+  "github.pull_request.get",
+  "github.issue.create",
+  "github.issue.comment",
+  "github.issue.assign_agent",
+  "sheet.find_rows",
+  "sheet.add_rows",
+  "sheet.update_rows",
+  "sheet.create",
+  "sheet.read_all",
+  "sheet.delete_rows",
+  "send_email",
+  "send_sms",
+  "post_message",
+  "connector_request",
+  "http_request",
 ];
 
 export function groupFor(step: { key: string; category?: string }): string {
@@ -53,17 +78,31 @@ export function groupFor(step: { key: string; category?: string }): string {
   if (LOGIC.has(step.key)) return "Logic";
   if (step.key === "approval") return "Human input";
   if (step.key === "ai" || step.key === "code") return "AI and code";
-  if (CONNECTED.test(step.key) || step.key === "connector_request" || step.key === "http_request" || step.key === "send_email" || step.key === "send_sms" || step.key === "post_message") return "Connected apps";
+  if (
+    CONNECTED.test(step.key) ||
+    step.key === "connector_request" ||
+    step.key === "http_request" ||
+    step.key === "send_email" ||
+    step.key === "send_sms" ||
+    step.key === "post_message"
+  )
+    return "Connected apps";
   if (VYRE_PRODUCT.test(step.key) || step.key === "sign" || step.key === "create_task") return "Vyre";
   switch (step.category) {
-    case "data": return "Data & transforms";
+    case "data":
+      return "Data & transforms";
     case "send":
-    case "sheet": return "Connected apps";
-    case "sign": return "Vyre";
-    case "journey": return "Sub-Automations";
+    case "sheet":
+      return "Connected apps";
+    case "sign":
+      return "Vyre";
+    case "journey":
+      return "Sub-Automations";
     case "control":
-    case "wait": return "Logic";
-    default: return "Vyre";
+    case "wait":
+      return "Logic";
+    default:
+      return "Vyre";
   }
 }
 
@@ -73,7 +112,18 @@ function rankOf(item: { key?: string }): number {
   return at === -1 ? 700 : at;
 }
 
-const GROUP_ORDER = ["Suggested", "Vyre", "Your connectors", "Connected apps", "AI and code", "Logic", "Data & transforms", "Human input", "Sub-Automations", "Preview"];
+const GROUP_ORDER = [
+  "Suggested",
+  "Vyre",
+  "Your connectors",
+  "Connected apps",
+  "AI and code",
+  "Logic",
+  "Data & transforms",
+  "Human input",
+  "Sub-Automations",
+  "Preview",
+];
 
 export function menuGroups<T extends { group: string }>(items: readonly T[]): { head: string; items: T[] }[] {
   const buckets = new Map<string, T[]>();
@@ -90,7 +140,8 @@ export function menuGroups<T extends { group: string }>(items: readonly T[]): { 
       out.push({ head, items });
     }
   }
-  for (const [head, grouped] of buckets) if (!GROUP_ORDER.includes(head) && grouped.length > 0) out.push({ head, items: grouped });
+  for (const [head, grouped] of buckets)
+    if (!GROUP_ORDER.includes(head) && grouped.length > 0) out.push({ head, items: grouped });
   return out;
 }
 
@@ -156,14 +207,28 @@ function actionTitle(action: string): string {
  */
 export function connectorSteps(connectorsOut: unknown, connectionsOut: unknown, levelsOut?: unknown): CatalogStep[] {
   const levels = (levelsOut as { levels?: unknown } | null | undefined)?.levels;
-  const tested = Array.isArray(levels) ? new Set(levels.flatMap((l) => { const r = l as { actionKey?: unknown; level?: unknown } | null; return r && r.level === "tested" && typeof r.actionKey === "string" ? [r.actionKey] : []; })) : null;
+  const tested = Array.isArray(levels)
+    ? new Set(
+        levels.flatMap((l) => {
+          const r = l as { actionKey?: unknown; level?: unknown } | null;
+          return r && r.level === "tested" && typeof r.actionKey === "string" ? [r.actionKey] : [];
+        }),
+      )
+    : null;
   const connectors = (connectorsOut as { connectors?: unknown } | null)?.connectors;
   const connections = (connectionsOut as { connections?: unknown } | null)?.connections;
   if (!Array.isArray(connectors) || !Array.isArray(connections)) return [];
   const steps: CatalogStep[] = [];
   for (const c of connectors) {
     const row = c as Record<string, unknown> | null;
-    if (!row || row["builtin"] === true || row["state"] !== "live" || typeof row["key"] !== "string" || !Array.isArray(row["actions"])) continue;
+    if (
+      !row ||
+      row["builtin"] === true ||
+      row["state"] !== "live" ||
+      typeof row["key"] !== "string" ||
+      !Array.isArray(row["actions"])
+    )
+      continue;
     const title = typeof row["title"] === "string" && row["title"] !== "" ? row["title"] : row["key"];
     const bound = connections.find((x) => {
       const k = x as Record<string, unknown> | null;
@@ -173,7 +238,12 @@ export function connectorSteps(connectorsOut: unknown, connectionsOut: unknown, 
     for (const action of row["actions"]) {
       if (typeof action !== "string") continue;
       steps.push({
-        key: "connector_request", title: `${title}: ${actionTitle(action)}`, category: "send", group: "Your connectors", availability: "available", effects: "outward",
+        key: "connector_request",
+        title: `${title}: ${actionTitle(action)}`,
+        category: "send",
+        group: "Your connectors",
+        availability: "available",
+        effects: "outward",
         preset: { connector: row["key"], action, connectionId: bound["connectionId"] },
         // with no levels to read nothing is claimed; with them, an action nobody tried says so
         ...(tested !== null && !tested.has(`${String(row["key"])}.${action}`) ? { untested: true } : {}),
@@ -188,35 +258,70 @@ export interface ProductCatalog {
   triggers: CatalogTrigger[];
 }
 
-export async function loadProductCatalog(call: (cap: string, input: unknown) => Promise<unknown>): Promise<{ ok: true; catalog: ProductCatalog } | { ok: false; message: string }> {
+export async function loadProductCatalog(
+  call: (cap: string, input: unknown) => Promise<unknown>,
+): Promise<{ ok: true; catalog: ProductCatalog } | { ok: false; message: string }> {
   try {
     const [stepsOut, triggersOut, built] = await Promise.all([
       call("automations.steps.list", {}),
       call("automations.triggers.list", {}),
       // a person who cannot manage connectors, or a server without them, simply has no Your connectors group
-      Promise.all([call("connectors.list", { state: "live" }), call("connections.list", {}), call("automations.connector_levels", {}).catch(() => undefined)]).catch(() => null),
+      Promise.all([
+        call("connectors.list", { state: "live" }),
+        call("connections.list", {}),
+        call("automations.connector_levels", {}).catch(() => undefined),
+      ]).catch(() => null),
     ]);
     const steps = stepsFromRuntime(stepsOut);
     const triggers = triggersFromRuntime(triggersOut);
     if (!steps || !triggers) return { ok: false, message: "The step catalog did not return a list." };
-    return { ok: true, catalog: { steps: [...steps, ...(built ? connectorSteps(built[0], built[1], built[2]) : [])], triggers } };
+    return {
+      ok: true,
+      catalog: { steps: [...steps, ...(built ? connectorSteps(built[0], built[1], built[2]) : [])], triggers },
+    };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "The step catalog is not available." };
   }
 }
 
 const STEP_ICON: Readonly<Record<string, IconKey>> = {
-  "records.find": "search", "records.create": "plus", "records.update": "edit", create_task: "task",
-  send_email: "send", send_sms: "phone", post_message: "chat", ai: "ai", approval: "shield",
-  paths: "branch", parallel: "parallel", loop: "loop", wait: "hourglass", stop: "stop",
-  start_journey: "journey", wait_stage: "hourglass", "sheet.add_rows": "sheet", "sheet.find_rows": "search",
-  "sheet.update_rows": "edit", sign: "sign", code: "code", http_request: "hook",
+  "records.find": "search",
+  "records.create": "plus",
+  "records.update": "edit",
+  create_task: "task",
+  send_email: "send",
+  send_sms: "phone",
+  post_message: "chat",
+  ai: "ai",
+  approval: "shield",
+  paths: "branch",
+  parallel: "parallel",
+  loop: "loop",
+  wait: "hourglass",
+  stop: "stop",
+  start_journey: "journey",
+  wait_stage: "hourglass",
+  "sheet.add_rows": "sheet",
+  "sheet.find_rows": "search",
+  "sheet.update_rows": "edit",
+  sign: "sign",
+  code: "code",
+  http_request: "hook",
 };
 
 const TRIGGER_ICON: Readonly<Record<string, IconKey>> = {
-  record_change: "bolt", schedule: "clock", webhook: "hook", form_submit: "inbox", email_received: "mail",
-  chat_message: "chat", spreadsheet_row: "sheet", ci_check: "ci", meeting_transcript_ready: "meeting",
-  journey_stage_entered: "stage", button: "button", manual: "hand",
+  record_change: "bolt",
+  schedule: "clock",
+  webhook: "hook",
+  form_submit: "inbox",
+  email_received: "mail",
+  chat_message: "chat",
+  spreadsheet_row: "sheet",
+  ci_check: "ci",
+  meeting_transcript_ready: "meeting",
+  journey_stage_entered: "stage",
+  button: "button",
+  manual: "hand",
 };
 
 export function iconForStep(key: string): IconKey {
@@ -234,7 +339,10 @@ export function schemaFields(input: unknown): { name: string; type: string }[] {
   if (!props || typeof props !== "object" || Array.isArray(props)) return [];
   const fields: { name: string; type: string }[] = [];
   for (const [name, def] of Object.entries(props)) {
-    const type = def && typeof def === "object" && typeof (def as { type?: unknown }).type === "string" ? (def as { type: string }).type : "unknown";
+    const type =
+      def && typeof def === "object" && typeof (def as { type?: unknown }).type === "string"
+        ? (def as { type: string }).type
+        : "unknown";
     fields.push({ name, type });
   }
   return fields;

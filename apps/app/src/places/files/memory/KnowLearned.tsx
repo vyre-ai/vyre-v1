@@ -10,7 +10,22 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { acceptFact, correctFact, rejectFact, restoreFact, undoFact } from "./actions.ts";
 import { useLive, useMemoryData } from "./data.tsx";
 import { Empty, Flash, KnowColumn, KnowHeader, SectionHead, frame } from "./KnowFrame.tsx";
-import { DAY_MS, DayHead, ErrorLine, FactRow, FilterBanner, KRow, MetaLine, Subject, capital, copyText, openSourceOf, readError, useDoing, whoOf } from "./KnowRows.tsx";
+import {
+  DAY_MS,
+  DayHead,
+  ErrorLine,
+  FactRow,
+  FilterBanner,
+  KRow,
+  MetaLine,
+  Subject,
+  capital,
+  copyText,
+  openSourceOf,
+  readError,
+  useDoing,
+  whoOf,
+} from "./KnowRows.tsx";
 import { TextButton } from "./KnowParts.tsx";
 import { groupByDay, learnedLine, stampText } from "./know.ts";
 import type { KFact, LearnedItem } from "./know.ts";
@@ -20,11 +35,18 @@ import { View } from "react-native";
 
 type Item = LearnedItem & { fact: KFact };
 type Window = 7 | 30 | 0;
-export const WINDOWS: readonly { days: Window; label: string }[] = [{ days: 7, label: "Last 7 days" }, { days: 30, label: "Last 30 days" }, { days: 0, label: "All time" }];
+export const WINDOWS: readonly { days: Window; label: string }[] = [
+  { days: 7, label: "Last 7 days" },
+  { days: 30, label: "Last 30 days" },
+  { days: 0, label: "All time" },
+];
 const byKey = (x: Item): string => (x.actorKind === "upkeep" ? "upkeep" : x.actor);
 
 /** The items a "Learned by" choice keeps (nothing chosen keeps all); upkeep items answer to "upkeep". */
-export function filterLearned<T extends { actor: string; actorKind: string }>(items: readonly T[], by: ReadonlySet<string>): T[] {
+export function filterLearned<T extends { actor: string; actorKind: string }>(
+  items: readonly T[],
+  by: ReadonlySet<string>,
+): T[] {
   return by.size === 0 ? [...items] : items.filter((x) => by.has(x.actorKind === "upkeep" ? "upkeep" : x.actor));
 }
 /** "Last 7 days · learned by Intake · 3 shown": what the filter banner says. */
@@ -66,8 +88,20 @@ export function KnowLearned(): ReactElement {
     const out: MenuEntry[] = [{ head: "Window" }];
     for (const w of WINDOWS) out.push({ label: w.label, checked: win === w.days, onSelect: () => setWin(w.days) });
     out.push({ head: "Learned by" });
-    const ids = [...counts.keys()].sort((a, b) => (counts.get(b)! - counts.get(a)!) || label(a).localeCompare(label(b)));
-    for (const id of ids) out.push({ label: label(id), checked: by.has(id), count: counts.get(id)!, onSelect: () => setBy((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; }) });
+    const ids = [...counts.keys()].sort((a, b) => counts.get(b)! - counts.get(a)! || label(a).localeCompare(label(b)));
+    for (const id of ids)
+      out.push({
+        label: label(id),
+        checked: by.has(id),
+        count: counts.get(id)!,
+        onSelect: () =>
+          setBy((s) => {
+            const n = new Set(s);
+            if (n.has(id)) n.delete(id);
+            else n.add(id);
+            return n;
+          }),
+      });
     out.push({ separator: true }, { label: "Show all", onSelect: clear });
     return out;
   };
@@ -75,50 +109,123 @@ export function KnowLearned(): ReactElement {
     const out: MenuEntry[] = [{ head: "An agent's own memory" }];
     for (const a of data.agents) {
       const page = agentPages.find((p) => p.agentId === a.id || p.title === a.name);
-      out.push({ label: a.name, onSelect: () => { if (page) nav.go({ v: "page", pageId: page.pageId }); else setBy(new Set([a.id])); } });
+      out.push({
+        label: a.name,
+        onSelect: () => {
+          if (page) nav.go({ v: "page", pageId: page.pageId });
+          else setBy(new Set([a.id]));
+        },
+      });
     }
     return out;
   };
-  function clear(): void { setWin(7); setBy(new Set()); }
+  function clear(): void {
+    setWin(7);
+    setBy(new Set());
+  }
 
   const undo = (f: KFact): void => {
-    doing.run("Could not undo the fact", () => undoFact(data, f.factId), () => ({
-      text: "Moved to Trash.",
-      undo: () => doing.run("Could not restore the fact", () => restoreFact(data, f.factId), () => ({ text: "Restored." })),
-    }));
+    doing.run(
+      "Could not undo the fact",
+      () => undoFact(data, f.factId),
+      () => ({
+        text: "Moved to Trash.",
+        undo: () =>
+          doing.run(
+            "Could not restore the fact",
+            () => restoreFact(data, f.factId),
+            () => ({ text: "Restored." }),
+          ),
+      }),
+    );
   };
-  const startEdit = (f: KFact): void => { setEditing(f.factId); setDraft(f.text); };
+  const startEdit = (f: KFact): void => {
+    setEditing(f.factId);
+    setDraft(f.text);
+  };
   const save = (f: KFact): void => {
     const text = draft.trim();
-    if (text === f.text) { setEditing(null); return; }
-    if (text === "") { doing.run("Could not save the fact", () => Promise.reject(new Error("A fact cannot be empty")), () => null); return; }
+    if (text === f.text) {
+      setEditing(null);
+      return;
+    }
+    if (text === "") {
+      doing.run(
+        "Could not save the fact",
+        () => Promise.reject(new Error("A fact cannot be empty")),
+        () => null,
+      );
+      return;
+    }
     setEditing(null);
-    doing.run("Could not save the fact", () => correctFact(data, f.factId, text), () => ({ text: "Saved. The old wording is kept in history." }));
+    doing.run(
+      "Could not save the fact",
+      () => correctFact(data, f.factId, text),
+      () => ({ text: "Saved. The old wording is kept in history." }),
+    );
   };
-  const accept = (f: KFact): void => doing.run("Could not accept the fact", () => acceptFact(data, f.factId), () => ({ text: `Accepted. It is now in ${lands(f)}.` }));
-  const reject = (f: KFact): void => doing.run("Could not reject the fact", () => rejectFact(data, f.factId), () => ({ text: "Rejected. It is closed off and kept in history." }));
-  const openPage = (f: KFact): void => { if (f.subject) nav.go({ v: "page", pageId: f.subject.pageId, hl: f.factId }); };
+  const accept = (f: KFact): void =>
+    doing.run(
+      "Could not accept the fact",
+      () => acceptFact(data, f.factId),
+      () => ({ text: `Accepted. It is now in ${lands(f)}.` }),
+    );
+  const reject = (f: KFact): void =>
+    doing.run(
+      "Could not reject the fact",
+      () => rejectFact(data, f.factId),
+      () => ({ text: "Rejected. It is closed off and kept in history." }),
+    );
+  const openPage = (f: KFact): void => {
+    if (f.subject) nav.go({ v: "page", pageId: f.subject.pageId, hl: f.factId });
+  };
 
   const factMenu = (f: KFact): MenuEntry[] => [
-    { label: "Undo", onSelect: () => undo(f) }, { label: "Edit", onSelect: () => startEdit(f) }, { separator: true },
+    { label: "Undo", onSelect: () => undo(f) },
+    { label: "Edit", onSelect: () => startEdit(f) },
+    { separator: true },
     ...(f.subject ? [{ label: "Open page", onSelect: () => openPage(f) }] : []),
-    { label: "Open source", onSelect: () => openSourceOf(nav, f) }, { label: "Copy fact", onSelect: () => copyText(f.text) },
+    { label: "Open source", onSelect: () => openSourceOf(nav, f) },
+    { label: "Copy fact", onSelect: () => copyText(f.text) },
   ];
 
   const rows = (x: Item): ReactElement => {
     if (x.actorKind === "upkeep") {
       const f = x.fact;
       const t = trail.find((r) => r.factId === f.factId && r.at === x.at);
-      const said = typeof t?.detail?.text === "string" ? (t.detail.text as string) : `${f.subject?.title ? `${f.subject.title}: ` : ""}${f.text}`;
+      const said =
+        typeof t?.detail?.text === "string"
+          ? (t.detail.text as string)
+          : `${f.subject?.title ? `${f.subject.title}: ` : ""}${f.text}`;
       const reason = t?.reason ?? f.trashReason;
       return (
         <KRow
-          key={`up-${f.factId}-${x.at}`} testID={`upkeep-${f.factId}`} label={`Upkeep ${x.from === "flag" ? "flagged" : "merged"} ${said}`} hollow
+          key={`up-${f.factId}-${x.at}`}
+          testID={`upkeep-${f.factId}`}
+          label={`Upkeep ${x.from === "flag" ? "flagged" : "merged"} ${said}`}
+          hollow
           onOpen={f.subject ? () => openPage(f) : () => nav.go({ v: "history" })}
-          menu={() => [...(f.subject ? [{ label: "Open page", onSelect: () => openPage(f) }] : []), { label: "Open History", onSelect: () => nav.go({ v: "history", ...(f.subject ? { pageId: f.subject.pageId } : {}) }) }]}
-          main={<Text style={{ fontSize: 14, lineHeight: 22, color: "var(--ink)" }}><Subject name="Upkeep" plain />{`${x.from === "flag" ? "flagged" : "merged"} ${said}`}</Text>}
+          menu={() => [
+            ...(f.subject ? [{ label: "Open page", onSelect: () => openPage(f) }] : []),
+            {
+              label: "Open History",
+              onSelect: () => nav.go({ v: "history", ...(f.subject ? { pageId: f.subject.pageId } : {}) }),
+            },
+          ]}
+          main={
+            <Text style={{ fontSize: 14, lineHeight: 22, color: "var(--ink)" }}>
+              <Subject name="Upkeep" plain />
+              {`${x.from === "flag" ? "flagged" : "merged"} ${said}`}
+            </Text>
+          }
           meta={<MetaLine parts={[...(reason ? [reason] : []), stampText(x.at, now)]} />}
-          actions={<TextButton label="Open" testID={`open-${f.factId}`} onPress={f.subject ? () => openPage(f) : () => nav.go({ v: "history" })} />}
+          actions={
+            <TextButton
+              label="Open"
+              testID={`open-${f.factId}`}
+              onPress={f.subject ? () => openPage(f) : () => nav.go({ v: "history" })}
+            />
+          }
         />
       );
     }
@@ -126,31 +233,87 @@ export function KnowLearned(): ReactElement {
     const live = editing === f.factId;
     return (
       <FactRow
-        key={`${f.factId}-${x.at}`} fact={f} testID={`learned-${f.factId}`} menu={() => factMenu(f)} onOpen={() => openPage(f)} keys={{ e: () => startEdit(f), u: () => undo(f) }}
+        key={`${f.factId}-${x.at}`}
+        fact={f}
+        testID={`learned-${f.factId}`}
+        menu={() => factMenu(f)}
+        onOpen={() => openPage(f)}
+        keys={{ e: () => startEdit(f), u: () => undo(f) }}
         meta={[capital(learnedLine(x, who)), stampText(x.at, now)]}
-        {...(live ? { editing: { draft, onDraft: setDraft, onCancel: () => setEditing(null), onSave: () => save(f) } } : {})}
-        actions={<><TextButton label="Undo" testID={`undo-${f.factId}`} a11y={`Undo: ${f.text}`} onPress={() => undo(f)} /><TextButton label="Edit" testID={`edit-${f.factId}`} a11y={`Edit: ${f.text}`} onPress={() => startEdit(f)} /></>}
+        {...(live
+          ? { editing: { draft, onDraft: setDraft, onCancel: () => setEditing(null), onSave: () => save(f) } }
+          : {})}
+        actions={
+          <>
+            <TextButton label="Undo" testID={`undo-${f.factId}`} a11y={`Undo: ${f.text}`} onPress={() => undo(f)} />
+            <TextButton
+              label="Edit"
+              testID={`edit-${f.factId}`}
+              a11y={`Edit: ${f.text}`}
+              onPress={() => startEdit(f)}
+            />
+          </>
+        }
       />
     );
   };
 
   const groups = groupByDay(shown, (x) => x.at, now);
   const body: ReactElement[] = [];
-  for (const g of groups) body.push(<View key={g.label} testID={`group-${g.label}`} accessibilityRole="list" accessibilityLabel={g.label}><DayHead label={g.label} count={g.items.length} />{each(g.items, rows)}</View>);
+  for (const g of groups)
+    body.push(
+      <View key={g.label} testID={`group-${g.label}`} accessibilityRole="list" accessibilityLabel={g.label}>
+        <DayHead label={g.label} count={g.items.length} />
+        {each(g.items, rows)}
+      </View>,
+    );
 
   const waiting: ReactElement[] = each(proposed, (f) => (
     <FactRow
-      key={f.factId} fact={f} testID={`proposed-${f.factId}`} always onOpen={() => openPage(f)}
-      menu={() => [{ label: "Allow", onSelect: () => accept(f) }, { label: "Deny", onSelect: () => reject(f) }, { separator: true }, ...(f.subject ? [{ label: "Open page", onSelect: () => openPage(f) }] : []), { label: "Open source", onSelect: () => openSourceOf(nav, f) }, { label: "Copy fact", onSelect: () => copyText(f.text) }]}
+      key={f.factId}
+      fact={f}
+      testID={`proposed-${f.factId}`}
+      always
+      onOpen={() => openPage(f)}
+      menu={() => [
+        { label: "Allow", onSelect: () => accept(f) },
+        { label: "Deny", onSelect: () => reject(f) },
+        { separator: true },
+        ...(f.subject ? [{ label: "Open page", onSelect: () => openPage(f) }] : []),
+        { label: "Open source", onSelect: () => openSourceOf(nav, f) },
+        { label: "Copy fact", onSelect: () => copyText(f.text) },
+      ]}
       meta={[`${capital(f.by ? who(f.by) : "An agent")} proposed it for ${lands(f)}`, stampText(f.learnedAt, now)]}
-      actions={<><TextButton accent label="Allow" testID={`accept-${f.factId}`} a11y={`Allow: ${f.text}`} onPress={() => accept(f)} /><TextButton label="Deny" testID={`reject-${f.factId}`} a11y={`Deny: ${f.text}`} onPress={() => reject(f)} /></>}
+      actions={
+        <>
+          <TextButton
+            accent
+            label="Allow"
+            testID={`accept-${f.factId}`}
+            a11y={`Allow: ${f.text}`}
+            onPress={() => accept(f)}
+          />
+          <TextButton label="Deny" testID={`reject-${f.factId}`} a11y={`Deny: ${f.text}`} onPress={() => reject(f)} />
+        </>
+      }
     />
   ));
 
   const right = (
     <>
-      <QuietButton icon="filter" label="Filter" lit={active} testID="learned-filter" onPress={(x, y) => menu.show(filterEntries(), x, y, "other")} />
-      <QuietButton icon="layers" label="By agent" testID="learned-by-agent" onPress={(x, y) => menu.show(agentEntries(), x, y, "other")} />
+      <QuietButton
+        icon="filter"
+        label="Filter"
+        lit={active}
+        testID="learned-filter"
+        onPress={(x, y) => menu.show(filterEntries(), x, y, "other")}
+      />
+      <QuietButton
+        icon="layers"
+        label="By agent"
+        testID="learned-by-agent"
+        onPress={(x, y) => menu.show(agentEntries(), x, y, "other")}
+      />
     </>
   );
   const bannerText = learnedBanner(win, each([...by], label), shown.length);
@@ -159,16 +322,29 @@ export function KnowLearned(): ReactElement {
     <View style={frame.main} testID="know-learned">
       <KnowHeader crumbs={[{ t: "Knowledge", route: { v: "learned" } }, { t: "Learned" }]} right={right} />
       <KnowColumn
-        testID="know-learned-body" label="Learned" title="Learned"
+        testID="know-learned-body"
+        label="Learned"
+        title="Learned"
         lede="What Vyre picked up. Undo or edit any of it."
       >
         <Flash flash={doing.flash} onClose={() => doing.setFlash(null)} />
         <ErrorLine text={doing.err ?? failed} />
         {active ? <FilterBanner text={bannerText} onClear={clear} /> : null}
-        {waiting.length > 0 ? <View testID="learned-waiting"><SectionHead title="Waiting for review" sub={`${waiting.length} waiting`} />{waiting}</View> : null}
+        {waiting.length > 0 ? (
+          <View testID="learned-waiting">
+            <SectionHead title="Waiting for review" sub={`${waiting.length} waiting`} />
+            {waiting}
+          </View>
+        ) : null}
         {body}
-        {groups.length === 0 && lq.status === "ready" ? <Empty title="Nothing new in this window" text="Try a longer window, or clear the filter." /> : null}
-        {lq.status === "loading" && !failed ? <Text style={{ marginTop: 24, fontSize: 13, color: "var(--ink-3)" }} accessibilityRole="progressbar">Loading</Text> : null}
+        {groups.length === 0 && lq.status === "ready" ? (
+          <Empty title="Nothing new in this window" text="Try a longer window, or clear the filter." />
+        ) : null}
+        {lq.status === "loading" && !failed ? (
+          <Text style={{ marginTop: 24, fontSize: 13, color: "var(--ink-3)" }} accessibilityRole="progressbar">
+            Loading
+          </Text>
+        ) : null}
       </KnowColumn>
       {menu.element}
     </View>

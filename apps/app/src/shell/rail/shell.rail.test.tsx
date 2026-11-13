@@ -12,17 +12,33 @@ import { PLACE_TITLE, kitById, railFor, railPlaces } from "./kits.ts";
 import { Rail } from "./Rail.tsx";
 import { SHELL_ICONS, iconMarkup } from "./icons.tsx";
 
-const rail = (space: typeof NORTHWIND, active: "inbox" | "chats" = "chats") => railFor({ kit: kitById(space.kit), console: space.console, counts: space.counts, dots: space.dots, active });
-const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string => renderToStaticMarkup(node).replaceAll("<!-- -->", "");
+const rail = (space: typeof NORTHWIND, active: "inbox" | "chats" = "chats") =>
+  railFor({ kit: kitById(space.kit), console: space.console, counts: space.counts, dots: space.dots, active });
+const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
+  renderToStaticMarkup(node).replaceAll("<!-- -->", "");
 const labels = (entries: readonly MenuEntry[]): string[] => entries.filter(isItem).map((e) => e.label);
 
 test("each Space's Kit draws its own rail and the Console shows only with access", () => {
-  assert.deepEqual(railPlaces(rail(NORTHWIND)), ["chats", "inbox", "records", "files", "automations", "apps", "vault", "console", "settings"]);
+  assert.deepEqual(railPlaces(rail(NORTHWIND)), [
+    "chats",
+    "inbox",
+    "records",
+    "files",
+    "automations",
+    "apps",
+    "vault",
+    "console",
+    "settings",
+  ]);
   assert.deepEqual(railPlaces(rail(HARBOR)), ["chats", "inbox", "files", "apps", "vault", "settings"]);
   assert.ok(!railPlaces(rail(PERSONAL)).includes("console"));
   for (const k of [NORTHWIND, HARBOR, PERSONAL]) assert.ok(!railPlaces(rail(k)).includes("home"), "Home is gone");
-  for (const k of ["northwind", "studio", "personal"]) assert.equal(kitById(k).start, "chats", "Chats is the first screen");
-  assert.ok(!railPlaces(rail(PERSONAL)).includes("apps"), "a Personal Space hides Apps: forms and sending domains are for a team");
+  for (const k of ["northwind", "studio", "personal"])
+    assert.equal(kitById(k).start, "chats", "Chats is the first screen");
+  assert.ok(
+    !railPlaces(rail(PERSONAL)).includes("apps"),
+    "a Personal Space hides Apps: forms and sending domains are for a team",
+  );
   const noAccess = railFor({ kit: kitById("northwind"), console: false, counts: {}, dots: {}, active: "home" });
   assert.ok(!railPlaces(noAccess).includes("console"), "no console.access, no Console button");
   assert.equal(kitById("nope").id, "northwind", "an unknown Kit falls back to the default");
@@ -34,7 +50,17 @@ test("no kit's rail has a + (Add a Space lives in the Space menu), and the switc
     assert.ok(![...k.top, ...k.bottom].includes("join"), `${id} has no join`);
   }
   for (const s of [NORTHWIND, HARBOR, PERSONAL]) assert.ok(!railPlaces(rail(s)).includes("join"));
-  assert.ok(labels(spaceMenuEntries({ spaces: SEED_DEFS, openId: "nw", away: false, onSwitch: () => undefined, onAction: () => undefined })).includes("Add a Space"));
+  assert.ok(
+    labels(
+      spaceMenuEntries({
+        spaces: SEED_DEFS,
+        openId: "nw",
+        away: false,
+        onSwitch: () => undefined,
+        onAction: () => undefined,
+      }),
+    ).includes("Add a Space"),
+  );
 });
 
 test("a count is a number, a dot is quiet and never on the place you are looking at", () => {
@@ -42,63 +68,182 @@ test("a count is a number, a dot is quiet and never on the place you are looking
   assert.equal(nw.top.find((e) => e.place === "chats")?.count, 7);
   assert.equal(nw.top.find((e) => e.place === "inbox")?.dot, true);
   assert.equal(rail(NORTHWIND, "chats").top.find((e) => e.place === "chats")?.dot, false);
-  const inboxOpen = railFor({ kit: kitById("northwind"), console: true, counts: {}, dots: { inbox: true }, active: "chats" });
+  const inboxOpen = railFor({
+    kit: kitById("northwind"),
+    console: true,
+    counts: {},
+    dots: { inbox: true },
+    active: "chats",
+  });
   assert.equal(inboxOpen.top.find((e) => e.place === "inbox")?.dot, true);
-  const lookingAtIt = railFor({ kit: kitById("northwind"), console: true, counts: {}, dots: { chats: true }, active: "chats" });
+  const lookingAtIt = railFor({
+    kit: kitById("northwind"),
+    console: true,
+    counts: {},
+    dots: { chats: true },
+    active: "chats",
+  });
   assert.equal(lookingAtIt.top.find((e) => e.place === "chats")?.dot, false);
 });
 
 test("the rail draws the open place selected, a quiet count or a coral dot, the tile above one soft track, one foot button over the rest, and the person's own face", () => {
-  const out = html(<Rail groups={rail(NORTHWIND)} active="chats" onSelect={() => undefined} header={<SpaceTile spaces={SEED_DEFS} openId="nw" away={false} onSwitch={() => undefined} onAction={() => undefined} />} foot={<span data-testid="rail-me" />} />);
+  const out = html(
+    <Rail
+      groups={rail(NORTHWIND)}
+      active="chats"
+      onSelect={() => undefined}
+      header={
+        <SpaceTile spaces={SEED_DEFS} openId="nw" away={false} onSwitch={() => undefined} onAction={() => undefined} />
+      }
+      foot={<span data-testid="rail-me" />}
+    />,
+  );
   assert.ok(out.includes('data-testid="rail-chats-selected"'));
   assert.ok(out.includes('data-testid="rail-inbox"') && !out.includes('data-testid="rail-inbox-selected"'));
   assert.ok(out.includes('data-testid="rail-count-chats"') && out.includes(">7<"));
   assert.ok(out.includes('data-testid="rail-dot-inbox"'));
   assert.ok(out.includes('aria-label="Chats, 7 waiting"'));
-  assert.ok(out.indexOf('data-testid="space-tile"') < out.indexOf('data-testid="rail-track"'), "the Space tile sits above the places");
-  assert.ok(out.indexOf('data-testid="rail-track"') < out.indexOf('data-testid="rail-automations"') && out.indexOf('data-testid="rail-automations"') < out.indexOf('data-testid="rail-isle"') && out.indexOf('data-testid="rail-isle"') < out.indexOf('data-testid="rail-apps"'), "the main track, then the foot button's places");
-  assert.ok(out.indexOf('data-testid="rail-settings"') < out.indexOf('data-testid="rail-isle-more"') && out.indexOf('data-testid="rail-isle-more"') < out.indexOf('data-testid="rail-me"'), "the button sits under what it opens, the face under it");
+  assert.ok(
+    out.indexOf('data-testid="space-tile"') < out.indexOf('data-testid="rail-track"'),
+    "the Space tile sits above the places",
+  );
+  assert.ok(
+    out.indexOf('data-testid="rail-track"') < out.indexOf('data-testid="rail-automations"') &&
+      out.indexOf('data-testid="rail-automations"') < out.indexOf('data-testid="rail-isle"') &&
+      out.indexOf('data-testid="rail-isle"') < out.indexOf('data-testid="rail-apps"'),
+    "the main track, then the foot button's places",
+  );
+  assert.ok(
+    out.indexOf('data-testid="rail-settings"') < out.indexOf('data-testid="rail-isle-more"') &&
+      out.indexOf('data-testid="rail-isle-more"') < out.indexOf('data-testid="rail-me"'),
+    "the button sits under what it opens, the face under it",
+  );
   assert.match(out, /max-height:0px/, "folded until pressed");
   assert.ok(out.includes('data-testid="tile-dot"'), "Harbor Studio needs you: the red dot on the tile");
-  for (const p of Object.keys(PLACE_TITLE)) assert.ok(SHELL_ICONS[p as keyof typeof SHELL_ICONS] !== undefined, `an icon for ${p}`);
+  for (const p of Object.keys(PLACE_TITLE))
+    assert.ok(SHELL_ICONS[p as keyof typeof SHELL_ICONS] !== undefined, `an icon for ${p}`);
 });
 
 test("the Space menu: your Spaces with the open one checked, then the actions; Terminal only for an owner or developer; icons on every item", () => {
   const input = { spaces: SEED_DEFS, openId: "nw", away: false, onSwitch: () => undefined, onAction: () => undefined };
   const nw = spaceMenuEntries(input);
   assert.ok(isHead(nw[0] as MenuEntry) && (nw[0] as { head: string }).head === "Spaces");
-  assert.deepEqual(labels(nw), ["Northwind", "Harbor Studio, needs you", "Personal", "Add a Space", "Invite People", "Space Settings", "Add a Server", "Open Terminal", "Set Yourself Away", "Your Profile", "Sign Out"]);
-  assert.equal(nw.filter(isItem).filter((e) => e.checked === true).map((e) => e.label).join(), "Northwind");
+  assert.deepEqual(labels(nw), [
+    "Northwind",
+    "Harbor Studio, needs you",
+    "Personal",
+    "Add a Space",
+    "Invite People",
+    "Space Settings",
+    "Add a Server",
+    "Open Terminal",
+    "Set Yourself Away",
+    "Your Profile",
+    "Sign Out",
+  ]);
+  assert.equal(
+    nw
+      .filter(isItem)
+      .filter((e) => e.checked === true)
+      .map((e) => e.label)
+      .join(),
+    "Northwind",
+  );
   assert.ok(iconsAllOrNone(nw));
-  assert.ok(!labels(spaceMenuEntries({ ...input, openId: "hb" })).includes("Open Terminal"), "a member does not get Open Terminal");
+  assert.ok(
+    !labels(spaceMenuEntries({ ...input, openId: "hb" })).includes("Open Terminal"),
+    "a member does not get Open Terminal",
+  );
   assert.ok(labels(spaceMenuEntries({ ...input, away: true })).includes("I'm Back"));
   // Invite People copies a real invite link: only for someone who may invite (Owner, Admin), never in a Personal Space, where nobody else can join
-  assert.ok(!labels(spaceMenuEntries({ ...input, openId: "hb" })).includes("Invite People"), "a member cannot invite, so the item is absent");
+  assert.ok(
+    !labels(spaceMenuEntries({ ...input, openId: "hb" })).includes("Invite People"),
+    "a member cannot invite, so the item is absent",
+  );
   // Space Settings: a Team Space's settings are the Console's; a member who has no Console is not offered a door to it (owner walk, 12 Nov)
-  assert.ok(!labels(spaceMenuEntries({ ...input, openId: "hb" })).includes("Space Settings"), "a member of a Team Space has no Space Settings to open");
+  assert.ok(
+    !labels(spaceMenuEntries({ ...input, openId: "hb" })).includes("Space Settings"),
+    "a member of a Team Space has no Space Settings to open",
+  );
   // every entry against who may do it (lead, 12 Nov): a member, an owner of a Team Space, the owner of a Personal Space
-  assert.deepEqual(labels(spaceMenuEntries({ ...input, openId: "hb" })).filter((l) => !/^(Northwind|Harbor Studio|Personal)/.test(l)), ["Add a Space", "Set Yourself Away", "Your Profile", "Sign Out"], "a member: nothing they cannot do");
-  assert.ok(labels(spaceMenuEntries({ ...input, openId: "me" })).includes("Add a Server"), "the owner of a Personal Space adds their own server");
-  assert.ok(labels(spaceMenuEntries({ ...input, openId: "me" })).includes("Space Settings"), "a Personal Space keeps its Space Settings");
-  assert.deepEqual(spaceSettingsTarget({ kind: "team", console: true }), ["console", "screen=console.page&page=space"], "an owner goes to Console > Space, not to Your Profile");
+  assert.deepEqual(
+    labels(spaceMenuEntries({ ...input, openId: "hb" })).filter((l) => !/^(Northwind|Harbor Studio|Personal)/.test(l)),
+    ["Add a Space", "Set Yourself Away", "Your Profile", "Sign Out"],
+    "a member: nothing they cannot do",
+  );
+  assert.ok(
+    labels(spaceMenuEntries({ ...input, openId: "me" })).includes("Add a Server"),
+    "the owner of a Personal Space adds their own server",
+  );
+  assert.ok(
+    labels(spaceMenuEntries({ ...input, openId: "me" })).includes("Space Settings"),
+    "a Personal Space keeps its Space Settings",
+  );
+  assert.deepEqual(
+    spaceSettingsTarget({ kind: "team", console: true }),
+    ["console", "screen=console.page&page=space"],
+    "an owner goes to Console > Space, not to Your Profile",
+  );
   assert.deepEqual(spaceSettingsTarget({ kind: "personal", console: false }), ["settings", "page=space"]);
-  assert.ok(!labels(spaceMenuEntries({ ...input, openId: "me", spaces: SEED_DEFS.map((d) => (d.spaceId === "me" ? { ...d, invite: true } : d)) })).includes("Invite People"), "never in a Personal Space");
+  assert.ok(
+    !labels(
+      spaceMenuEntries({
+        ...input,
+        openId: "me",
+        spaces: SEED_DEFS.map((d) => (d.spaceId === "me" ? { ...d, invite: true } : d)),
+      }),
+    ).includes("Invite People"),
+    "never in a Personal Space",
+  );
   const shown = menuEntries({ items: nw, source: "context" });
-  assert.ok(isReportItem(shown[shown.length - 1] as MenuEntry), "ui/Menu appends Report a problem; the switcher never adds it by hand");
+  assert.ok(
+    isReportItem(shown[shown.length - 1] as MenuEntry),
+    "ui/Menu appends Report a problem; the switcher never adds it by hand",
+  );
   assert.ok(!labels(nw).includes("Report a problem"));
 });
 
 test("choosing a Space or an action calls back with it", () => {
   const seen: string[] = [];
-  const entries = spaceMenuEntries({ spaces: SEED_DEFS, openId: "nw", away: false, onSwitch: (id) => seen.push(`switch:${id}`), onAction: (a) => seen.push(`action:${a}`) });
+  const entries = spaceMenuEntries({
+    spaces: SEED_DEFS,
+    openId: "nw",
+    away: false,
+    onSwitch: (id) => seen.push(`switch:${id}`),
+    onAction: (a) => seen.push(`action:${a}`),
+  });
   for (const e of entries.filter(isItem)) e.onSelect?.();
-  assert.deepEqual(seen, ["switch:nw", "switch:hb", "switch:me", "action:add", "action:invite", "action:settings", "action:add-server", "action:terminal", "action:away", "action:profile", "action:sign-out"]);
+  assert.deepEqual(seen, [
+    "switch:nw",
+    "switch:hb",
+    "switch:me",
+    "action:add",
+    "action:invite",
+    "action:settings",
+    "action:add-server",
+    "action:terminal",
+    "action:away",
+    "action:profile",
+    "action:sign-out",
+  ]);
 });
 
 test("the red dot is for another Space that needs you, and the tile says away", () => {
-  assert.deepEqual(othersNeedingYou(SEED_DEFS, "nw").map((s) => s.spaceId), ["hb"]);
+  assert.deepEqual(
+    othersNeedingYou(SEED_DEFS, "nw").map((s) => s.spaceId),
+    ["hb"],
+  );
   assert.deepEqual(othersNeedingYou(SEED_DEFS, "hb"), []);
-  const tile = (openId: string, away: boolean) => html(<SpaceTile spaces={SEED_DEFS} openId={openId} away={away} onSwitch={() => undefined} onAction={() => undefined} />);
+  const tile = (openId: string, away: boolean) =>
+    html(
+      <SpaceTile
+        spaces={SEED_DEFS}
+        openId={openId}
+        away={away}
+        onSwitch={() => undefined}
+        onAction={() => undefined}
+      />,
+    );
   assert.ok(tile("nw", false).includes('data-testid="tile-dot"'));
   assert.ok(!tile("hb", false).includes('data-testid="tile-dot"'));
   assert.ok(tile("nw", true).includes('data-testid="tile-away"'));
@@ -108,31 +253,84 @@ test("the red dot is for another Space that needs you, and the tile says away", 
 
 test("the rail tells the shell which place is pointed at or focused, so it can read that place ahead of the click; no prop, no calls", () => {
   const seen: string[] = [];
-  const html = renderToStaticMarkup(<Rail groups={{ top: [{ place: "home", title: "Home", count: 0, dot: false }, { place: "chats", title: "Chats", count: 0, dot: false }], bottom: [] }} active="home" onSelect={() => undefined} onPrefetch={(p) => seen.push(p)} />);
+  const html = renderToStaticMarkup(
+    <Rail
+      groups={{
+        top: [
+          { place: "home", title: "Home", count: 0, dot: false },
+          { place: "chats", title: "Chats", count: 0, dot: false },
+        ],
+        bottom: [],
+      }}
+      active="home"
+      onSelect={() => undefined}
+      onPrefetch={(p) => seen.push(p)}
+    />,
+  );
   assert.ok(html.includes('data-testid="rail-chats"'), "the rail still draws");
   assert.deepEqual(seen, [], "nothing is prefetched until a person points at a place");
-  assert.ok(renderToStaticMarkup(<Rail groups={{ top: [], bottom: [] }} active="home" onSelect={() => undefined} />).includes("shell-rail"));
+  assert.ok(
+    renderToStaticMarkup(<Rail groups={{ top: [], bottom: [] }} active="home" onSelect={() => undefined} />).includes(
+      "shell-rail",
+    ),
+  );
 });
 
 test("a Team Space's menu has a Chats run on switch: This computer or The Space, ticked for the current default; a Personal Space has none", () => {
   const chosen: string[] = [];
-  const entries = (openId: string, value: "device" | "space") => spaceMenuEntries({
-    spaces: SEED_DEFS, openId, away: false, onSwitch: () => undefined, onAction: () => undefined, runsOn: { value, set: (v) => chosen.push(v) },
-  }) as Array<{ label?: string; head?: string; checked?: boolean; onSelect?: () => void }>;
+  const entries = (openId: string, value: "device" | "space") =>
+    spaceMenuEntries({
+      spaces: SEED_DEFS,
+      openId,
+      away: false,
+      onSwitch: () => undefined,
+      onAction: () => undefined,
+      runsOn: { value, set: (v) => chosen.push(v) },
+    }) as Array<{ label?: string; head?: string; checked?: boolean; onSelect?: () => void }>;
   const team = entries("nw", "device");
   const at = team.findIndex((e) => e.head === "Chats run on");
   assert.ok(at > 0);
-  assert.deepEqual(team.slice(at + 1, at + 3).map((e) => [e.label, e.checked]), [["This computer", true], ["The Space", false]]);
+  assert.deepEqual(
+    team.slice(at + 1, at + 3).map((e) => [e.label, e.checked]),
+    [
+      ["This computer", true],
+      ["The Space", false],
+    ],
+  );
   team[at + 2]!.onSelect!();
   assert.deepEqual(chosen, ["space"]);
-  assert.deepEqual(entries("nw", "space").slice(at + 1, at + 3).map((e) => e.checked), [false, true]);
+  assert.deepEqual(
+    entries("nw", "space")
+      .slice(at + 1, at + 3)
+      .map((e) => e.checked),
+    [false, true],
+  );
   const personal = SEED_DEFS.find((s) => s.kind === "personal")!;
-  assert.ok(!entries(personal.spaceId, "device").some((e) => e.head === "Chats run on"), "this Space is this computer: nothing to choose");
+  assert.ok(
+    !entries(personal.spaceId, "device").some((e) => e.head === "Chats run on"),
+    "this Space is this computer: nothing to choose",
+  );
 });
 
 test("the Console sits in the bottom group of a Team Space for a person with access, and for nobody else", () => {
-  for (const kit of ["northwind", "studio"]) assert.ok(railFor({ kit: kitById(kit), console: true, counts: {}, dots: {}, active: "chats" }).bottom.some((e) => e.place === "console"), kit);
-  for (const kit of ["northwind", "studio", "personal"]) assert.ok(!railPlaces(railFor({ kit: kitById(kit), console: false, counts: {}, dots: {}, active: "chats" })).includes("console"), kit);
-  assert.ok(!railPlaces(railFor({ kit: kitById("personal"), console: true, counts: {}, dots: {}, active: "chats" })).includes("console"), "a Personal Space has no Console");
+  for (const kit of ["northwind", "studio"])
+    assert.ok(
+      railFor({ kit: kitById(kit), console: true, counts: {}, dots: {}, active: "chats" }).bottom.some(
+        (e) => e.place === "console",
+      ),
+      kit,
+    );
+  for (const kit of ["northwind", "studio", "personal"])
+    assert.ok(
+      !railPlaces(railFor({ kit: kitById(kit), console: false, counts: {}, dots: {}, active: "chats" })).includes(
+        "console",
+      ),
+      kit,
+    );
+  assert.ok(
+    !railPlaces(railFor({ kit: kitById("personal"), console: true, counts: {}, dots: {}, active: "chats" })).includes(
+      "console",
+    ),
+    "a Personal Space has no Console",
+  );
 });
-

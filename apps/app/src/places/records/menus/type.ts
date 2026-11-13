@@ -3,8 +3,16 @@
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { item, tidy } from "../../../../../../ui/src/Menu/entries.ts";
 
-export interface TypeFacts { starred: boolean; canEdit: boolean }
-export interface TypeDo { open(): void; star?(on: boolean): void; copyName?(): void; editType?(): void }
+export interface TypeFacts {
+  starred: boolean;
+  canEdit: boolean;
+}
+export interface TypeDo {
+  open(): void;
+  star?(on: boolean): void;
+  copyName?(): void;
+  editType?(): void;
+}
 
 export function typeMenu(f: TypeFacts, d: TypeDo): MenuEntry[] {
   return tidy([

@@ -13,15 +13,26 @@ import { treeHandlers } from "./tree.ts";
 type Row = Record<string, unknown>;
 
 const NEXT: Record<NextStep["kind"], string> = {
-  retry: "Try again", switch_model: "Switch model", use_backup_key: "Use the backup key", ask_access: "Ask for access", open_settings: "Open settings",
-  reconnect: "Reconnect", edit_input: "Fix the input", wait: "Wait a moment", contact_admin: "Contact an admin", report: "Report a problem",
+  retry: "Try again",
+  switch_model: "Switch model",
+  use_backup_key: "Use the backup key",
+  ask_access: "Ask for access",
+  open_settings: "Open settings",
+  reconnect: "Reconnect",
+  edit_input: "Fix the input",
+  wait: "Wait a moment",
+  contact_admin: "Contact an admin",
+  report: "Report a problem",
 };
 
 function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<string, unknown>): never {
   const def = ERROR_CODES.find((e) => e.code === code) ?? ERROR_CODES.find((e) => e.code === "internal.unexpected");
   if (!def) throw new Error("error catalogue is empty");
   const error: VyreError = {
-    code: def.code, message: message ?? def.what, retryable: def.retryable, traceId: ctx.trace.traceId,
+    code: def.code,
+    message: message ?? def.what,
+    retryable: def.retryable,
+    traceId: ctx.trace.traceId,
     next: def.next.map((kind) => ({ kind, label: NEXT[kind] })),
   };
   if (details) error.details = details;
@@ -29,18 +40,25 @@ function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<stri
 }
 
 const isNull = (v: unknown): boolean => v === null || v === undefined;
-const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v !== "" && Number.isFinite(Number(v)) ? Number(v) : 0);
+const num = (v: unknown): number =>
+  typeof v === "number" && Number.isFinite(v)
+    ? v
+    : typeof v === "string" && v !== "" && Number.isFinite(Number(v))
+      ? Number(v)
+      : 0;
 const one = (ctx: Ctx, sql: string, ...args: unknown[]): Row | undefined => (ctx.db.all(sql, ...args) as Row[])[0];
 
 function record(ctx: Ctx, input: unknown): Record<string, unknown> {
-  if (input === null || typeof input !== "object" || Array.isArray(input)) fail(ctx, "validation.bad_input", "The input is not valid.");
+  if (input === null || typeof input !== "object" || Array.isArray(input))
+    fail(ctx, "validation.bad_input", "The input is not valid.");
   return input as Record<string, unknown>;
 }
 
 function optStr(ctx: Ctx, o: Record<string, unknown>, key: string): string | undefined {
   const v = o[key];
   if (v === undefined || v === null) return undefined;
-  if (typeof v !== "string" || v.length === 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
+  if (typeof v !== "string" || v.length === 0)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
   return v;
 }
 
@@ -73,7 +91,10 @@ async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
 async function zipEntry(zip: Uint8Array, wanted: string): Promise<Uint8Array | undefined> {
   let eocd = -1;
   for (let i = zip.length - 22; i >= Math.max(0, zip.length - 22 - 65535); i--) {
-    if (u32(zip, i) === 0x06054b50) { eocd = i; break; }
+    if (u32(zip, i) === 0x06054b50) {
+      eocd = i;
+      break;
+    }
   }
   if (eocd < 0) return undefined;
   const count = u16(zip, eocd + 10);
@@ -127,7 +148,14 @@ async function docxParagraphs(zip: Uint8Array): Promise<string[] | undefined> {
 export type Op = { op: "ctx" | "add" | "del"; text: string; oldPos: number; newPos: number };
 export type Mark = { from: number; to: number };
 export type Line = { op: "ctx" | "add" | "del"; text: string; marks?: Mark[] };
-export type Hunk = { hunkId: string; oldStart: number; oldLines: number; newStart: number; newLines: number; lines: Line[] };
+export type Hunk = {
+  hunkId: string;
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: Line[];
+};
 
 const CONTEXT = 3;
 const DP_CAP = 6_000_000;
@@ -147,14 +175,20 @@ export function lcsPairs(a: readonly string[], b: readonly string[]): [number, n
     const t = new Uint32Array((n + 1) * w);
     for (let i = n - 1; i >= 0; i--) {
       for (let j = m - 1; j >= 0; j--) {
-        t[i * w + j] = a[head + i] === b[head + j] ? (t[(i + 1) * w + j + 1] ?? 0) + 1 : Math.max(t[(i + 1) * w + j] ?? 0, t[i * w + j + 1] ?? 0);
+        t[i * w + j] =
+          a[head + i] === b[head + j]
+            ? (t[(i + 1) * w + j + 1] ?? 0) + 1
+            : Math.max(t[(i + 1) * w + j] ?? 0, t[i * w + j + 1] ?? 0);
       }
     }
     let i = 0;
     let j = 0;
     while (i < n && j < m) {
-      if (a[head + i] === b[head + j]) { pairs.push([head + i, head + j]); i++; j++; }
-      else if ((t[(i + 1) * w + j] ?? 0) >= (t[i * w + j + 1] ?? 0)) i++;
+      if (a[head + i] === b[head + j]) {
+        pairs.push([head + i, head + j]);
+        i++;
+        j++;
+      } else if ((t[(i + 1) * w + j] ?? 0) >= (t[i * w + j + 1] ?? 0)) i++;
       else j++;
     }
   }
@@ -167,13 +201,20 @@ export function lineOps(a: readonly string[], b: readonly string[]): Op[] {
   let i = 0;
   let j = 0;
   const flush = (ai: number, bj: number): void => {
-    while (i < ai) { ops.push({ op: "del", text: a[i] ?? "", oldPos: i + 1, newPos: j }); i++; }
-    while (j < bj) { ops.push({ op: "add", text: b[j] ?? "", oldPos: i, newPos: j + 1 }); j++; }
+    while (i < ai) {
+      ops.push({ op: "del", text: a[i] ?? "", oldPos: i + 1, newPos: j });
+      i++;
+    }
+    while (j < bj) {
+      ops.push({ op: "add", text: b[j] ?? "", oldPos: i, newPos: j + 1 });
+      j++;
+    }
   };
   for (const [ai, bj] of lcsPairs(a, b)) {
     flush(ai, bj);
     ops.push({ op: "ctx", text: a[ai] ?? "", oldPos: i + 1, newPos: j + 1 });
-    i++; j++;
+    i++;
+    j++;
   }
   flush(a.length, b.length);
   return ops;
@@ -230,7 +271,9 @@ export function addMarks(ops: Op[]): Map<Op, Mark[]> {
  */
 export function hunksOf(ops: Op[], marks: Map<Op, Mark[]> | undefined, full = false): Hunk[] {
   const changed: number[] = [];
-  ops.forEach((o, idx) => { if (o.op !== "ctx") changed.push(idx); });
+  ops.forEach((o, idx) => {
+    if (o.op !== "ctx") changed.push(idx);
+  });
   const groups: [number, number][] = [];
   for (const idx of changed) {
     const last = groups[groups.length - 1];
@@ -267,7 +310,11 @@ export function splitLines(text: string): string[] {
 }
 
 export function splitParagraphs(text: string): string[] {
-  return text.replace(/\r\n/g, "\n").split(/\n{2,}/).map((p) => p.trim()).filter((p) => p.length > 0);
+  return text
+    .replace(/\r\n/g, "\n")
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
 }
 
 export interface DiffOut {
@@ -296,7 +343,14 @@ function shapeOf(file: Row, mime: string): Shape {
   if (mime.startsWith("image/") && mime !== "image/svg+xml") return "image";
   if (mime === DOCX || ext === "docx") return "docx";
   if (kind === "markdown" || mime === "text/markdown" || ext === "md") return "markdown";
-  if (mime.startsWith("text/") || mime === "application/json" || mime === "image/svg+xml" || kind === "text" || kind === "code") return "text";
+  if (
+    mime.startsWith("text/") ||
+    mime === "application/json" ||
+    mime === "image/svg+xml" ||
+    kind === "text" ||
+    kind === "code"
+  )
+    return "text";
   return "binary";
 }
 
@@ -324,9 +378,12 @@ async function filesDiff(ctx: Ctx, input: unknown): Promise<DiffOut> {
   const file = one(ctx, "SELECT * FROM files_file WHERE id = ?", fileId);
   if (!file) return fail(ctx, "validation.not_found", "That file does not exist.", { fileId });
   const mode = optStr(ctx, o, "mode");
-  if (mode !== undefined && !["unified", "split", "words", "paragraph"].includes(mode)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "mode" });
+  if (mode !== undefined && !["unified", "split", "words", "paragraph"].includes(mode))
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "mode" });
 
-  const versions = (ctx.db.all("SELECT * FROM files_file_version WHERE file_id = ?", fileId) as Row[]).sort((a, b) => num(b.n) - num(a.n));
+  const versions = (ctx.db.all("SELECT * FROM files_file_version WHERE file_id = ?", fileId) as Row[]).sort(
+    (a, b) => num(b.n) - num(a.n),
+  );
   const byId = (id: string): Row => {
     const v = versions.find((x) => String(x.id) === id);
     if (!v) return fail(ctx, "validation.not_found", "That version is not on this file.", { versionId: id });
@@ -388,7 +445,8 @@ type WriteResult = Awaited<ReturnType<(typeof treeHandlers)["files.write"]>>;
  * (the Conflicts list reads that event). Everything else goes straight to the tree handler.
  */
 async function filesWrite(ctx: Ctx, input: unknown): Promise<WriteResult> {
-  if (input === null || typeof input !== "object" || Array.isArray(input)) return treeHandlers["files.write"](ctx, input);
+  if (input === null || typeof input !== "object" || Array.isArray(input))
+    return treeHandlers["files.write"](ctx, input);
   const o = input as Record<string, unknown>;
   const fileId = typeof o.fileId === "string" ? o.fileId : undefined;
   const base = typeof o.baseVersion === "number" ? o.baseVersion : undefined;
@@ -396,7 +454,9 @@ async function filesWrite(ctx: Ctx, input: unknown): Promise<WriteResult> {
   if (!file || !isNull(file.deleted_at) || base === undefined || base === num(file.version) || !isBinaryFile(file)) {
     return treeHandlers["files.write"](ctx, input);
   }
-  const overtaken = (ctx.db.all("SELECT * FROM files_file_version WHERE file_id = ?", String(file.id)) as Row[]).find((v) => num(v.n) === num(file.version));
+  const overtaken = (ctx.db.all("SELECT * FROM files_file_version WHERE file_id = ?", String(file.id)) as Row[]).find(
+    (v) => num(v.n) === num(file.version),
+  );
   const rest: Record<string, unknown> = { ...o };
   delete rest.baseVersion;
   const result = await treeHandlers["files.write"](ctx, rest);
@@ -404,13 +464,23 @@ async function filesWrite(ctx: Ctx, input: unknown): Promise<WriteResult> {
   const by = String(overtaken.actor);
   ctx.db.run(
     "UPDATE files_file_version SET name = ?, reason = ?, updated_at = ? WHERE id = ?",
-    isNull(overtaken.name) || String(overtaken.name).length === 0 ? `Conflict: kept (saved by ${by})` : String(overtaken.name),
-    "conflict", ctx.now(), String(overtaken.id),
+    isNull(overtaken.name) || String(overtaken.name).length === 0
+      ? `Conflict: kept (saved by ${by})`
+      : String(overtaken.name),
+    "conflict",
+    ctx.now(),
+    String(overtaken.id),
   );
   ctx.emit("file.conflict_kept", `file/${String(file.id)}`, {
-    fileId: String(file.id), keptVersionId: String(overtaken.id), currentVersionId: result.versionId,
+    fileId: String(file.id),
+    keptVersionId: String(overtaken.id),
+    currentVersionId: result.versionId,
   });
-  ctx.log.info("files.conflict_kept", { fileId: String(file.id), kept: num(overtaken.n), current: num(file.version) + 1 });
+  ctx.log.info("files.conflict_kept", {
+    fileId: String(file.id),
+    kept: num(overtaken.n),
+    current: num(file.version) + 1,
+  });
   return result;
 }
 

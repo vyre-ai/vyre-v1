@@ -1,25 +1,56 @@
-import {currentSignInPolicy,assertSignInPolicy} from "../policy.ts";
+import { currentSignInPolicy, assertSignInPolicy } from "../policy.ts";
 import { carriedFor } from "./carry.ts";
 // Sign-in, second factor, GitHub, pairing, sessions and the TOTP factor (spec 3.13, 2.25). Passkeys are deferred (fork F-A); SSO is reserved.
 import type { Account, Device, IdentityCtx, SignInOut } from "../projections.ts";
 import {
-  ENROL_TTL_MS, PAIR_TTL_MS, accountById, accountByName, burnVerify, checkVerifier, currentSessionId, endSessionRow, issueSession, lockedFor, matchTotp, me, newChallenge,
-  newTotpSecret, nid, noteFail, normCode, pairCode, peekCode, putCode, raise, spendCode, USERNAME,
+  ENROL_TTL_MS,
+  PAIR_TTL_MS,
+  accountById,
+  accountByName,
+  burnVerify,
+  checkVerifier,
+  currentSessionId,
+  endSessionRow,
+  issueSession,
+  lockedFor,
+  matchTotp,
+  me,
+  newChallenge,
+  newTotpSecret,
+  nid,
+  noteFail,
+  normCode,
+  pairCode,
+  peekCode,
+  putCode,
+  raise,
+  spendCode,
+  USERNAME,
 } from "../projections.ts";
 
-type SpaceRow = { name: string; logo_file_id: string | null; fingerprint: string; github: number; second_factor_required: number; sso_json: string };
+type SpaceRow = {
+  name: string;
+  logo_file_id: string | null;
+  fingerprint: string;
+  github: number;
+  second_factor_required: number;
+  sso_json: string;
+};
 const ok = { ok: true } as const;
 
 export async function signInOptions(ctx: IdentityCtx, _input: Record<string, never>) {
-  const row = ctx.db.all(`SELECT name, logo_file_id, fingerprint, github, second_factor_required, sso_json FROM identity_space WHERE id = ?`, ctx.space)[0] as SpaceRow | undefined;
+  const row = ctx.db.all(
+    `SELECT name, logo_file_id, fingerprint, github, second_factor_required, sso_json FROM identity_space WHERE id = ?`,
+    ctx.space,
+  )[0] as SpaceRow | undefined;
   if (!row) raise(ctx.trace.traceId, "validation.not_found", "this Space is not set up");
-  const policy=currentSignInPolicy(ctx);
+  const policy = currentSignInPolicy(ctx);
   return {
     name: row.name,
     ...(row.logo_file_id ? { logoFileId: row.logo_file_id } : {}),
     fingerprint: row.fingerprint,
-    password: policy.allowPassword&&!policy.requireSso,
-    github: !!ctx.github&&policy.allowGithub&&!policy.requireSso,
+    password: policy.allowPassword && !policy.requireSso,
+    github: !!ctx.github && policy.allowGithub && !policy.requireSso,
     sso: ctx.sso ? ctx.sso.providers() : [],
     secondFactorRequired: policy.secondFactor === "required",
   };
@@ -31,8 +62,14 @@ export async function usernameAvailable(ctx: IdentityCtx, input: { username: str
 }
 
 /** After the first factor: a second factor is owed when the person has TOTP set. */
-async function afterFirstFactor(ctx: IdentityCtx, a: Account, dev: Device, method: "password" | "github" | "sso", provider?: string): Promise<SignInOut> {
-  assertSignInPolicy(ctx,a,method);
+async function afterFirstFactor(
+  ctx: IdentityCtx,
+  a: Account,
+  dev: Device,
+  method: "password" | "github" | "sso",
+  provider?: string,
+): Promise<SignInOut> {
+  assertSignInPolicy(ctx, a, method);
   if (a.totp_secret) return { status: "second_factor_required", challengeId: newChallenge(ctx, a.person_id, method) };
   return await issueSession(ctx, a, dev, method, provider ? { provider } : {});
 }
@@ -42,11 +79,19 @@ async function takeTotp(ctx: IdentityCtx, a: Account, code: string): Promise<boo
   if (!a.totp_secret) return false;
   const step = await matchTotp(a.totp_secret, code, ctx.now(), a.totp_last_step);
   if (step === null) return false;
-  const got = ctx.db.run(`UPDATE identity_accounts SET totp_last_step = ? WHERE person_id = ? AND totp_last_step < ?`, step, a.person_id, step);
+  const got = ctx.db.run(
+    `UPDATE identity_accounts SET totp_last_step = ? WHERE person_id = ? AND totp_last_step < ?`,
+    step,
+    a.person_id,
+    step,
+  );
   return got.changes === 1;
 }
 
-export async function signIn(ctx: IdentityCtx, input: Device & { username: string; password: string; totp?: string }): Promise<SignInOut> {
+export async function signIn(
+  ctx: IdentityCtx,
+  input: Device & { username: string; password: string; totp?: string },
+): Promise<SignInOut> {
   const a = accountByName(ctx, input.username);
   const name = input.username.trim().toLowerCase();
   if (!a) {
@@ -73,9 +118,23 @@ export async function signIn(ctx: IdentityCtx, input: Device & { username: strin
   return await afterFirstFactor(ctx, a, input, "password");
 }
 
-export async function verifySecondFactor(ctx: IdentityCtx, input: Device & { challengeId: string; code: string }): Promise<SignInOut> {
-  const c = ctx.db.all(`SELECT id, person_id, method, expires_at, used_at, tries FROM identity_challenges WHERE id = ?`, input.challengeId)[0] as
-    { id: string; person_id: string; method: "password" | "github" | "sso"; expires_at: number; used_at: number | null; tries: number } | undefined;
+export async function verifySecondFactor(
+  ctx: IdentityCtx,
+  input: Device & { challengeId: string; code: string },
+): Promise<SignInOut> {
+  const c = ctx.db.all(
+    `SELECT id, person_id, method, expires_at, used_at, tries FROM identity_challenges WHERE id = ?`,
+    input.challengeId,
+  )[0] as
+    | {
+        id: string;
+        person_id: string;
+        method: "password" | "github" | "sso";
+        expires_at: number;
+        used_at: number | null;
+        tries: number;
+      }
+    | undefined;
   if (!c || c.used_at !== null) raise(ctx.trace.traceId, "auth.invalid_code");
   if (c.expires_at <= ctx.now()) raise(ctx.trace.traceId, "auth.expired");
   const a = accountById(ctx, c.person_id);
@@ -95,8 +154,11 @@ export async function verifySecondFactor(ctx: IdentityCtx, input: Device & { cha
 
 export async function githubSignIn(ctx: IdentityCtx, input: Device & { code: string }): Promise<SignInOut> {
   if (!ctx.github) raise(ctx.trace.traceId, "internal.unavailable", "GitHub sign-in isn't set up on this server");
-  const space = ctx.db.all(`SELECT github FROM identity_space WHERE id = ?`, ctx.space)[0] as { github: number } | undefined;
-  if (!space || space.github !== 1) raise(ctx.trace.traceId, "validation.unsupported", "GitHub sign-in is off for this Space");
+  const space = ctx.db.all(`SELECT github FROM identity_space WHERE id = ?`, ctx.space)[0] as
+    | { github: number }
+    | undefined;
+  if (!space || space.github !== 1)
+    raise(ctx.trace.traceId, "validation.unsupported", "GitHub sign-in is off for this Space");
   const gh = await ctx.github.resolve(input.code).catch(() => undefined);
   if (!gh) {
     noteFail(ctx, undefined, "github", "bad_credentials");
@@ -112,23 +174,33 @@ export async function githubSignIn(ctx: IdentityCtx, input: Device & { code: str
     raise(ctx.trace.traceId, "auth.bad_credentials");
   }
   const out = await afterFirstFactor(ctx, a, input, "github");
-  if (out.status !== "second_factor_required") await ctx.github.signedIn?.(gh.id, a.person_id).catch(() => undefined);   // signing in with GitHub connects it too
+  if (out.status !== "second_factor_required") await ctx.github.signedIn?.(gh.id, a.person_id).catch(() => undefined); // signing in with GitHub connects it too
   return out;
 }
 
 /** A signed-in person starts proving a provider identity is theirs: the owner does this before everyone must use it, so the rule cannot lock them out. The address opens in any browser; the sign-in that comes back is bound to them. */
 export async function ssoLink(ctx: IdentityCtx, input: { provider: string }): Promise<{ start: string }> {
   const person = ctx.principal;
-  if (!ctx.sso?.offer || !ctx.sso.providers().some((p) => p.key === input.provider)) raise(ctx.trace.traceId, "validation.unsupported", "That sign-in is not set up for this Space");
-  if (person?.kind !== "person") raise(ctx.trace.traceId, "permission.role_lacks_permission", "A person proves their own sign-in.");
-  return { start: `/auth/sso/${encodeURIComponent(input.provider)}/start?link=${encodeURIComponent(ctx.sso.offer(person.id))}` };
+  if (!ctx.sso?.offer || !ctx.sso.providers().some((p) => p.key === input.provider))
+    raise(ctx.trace.traceId, "validation.unsupported", "That sign-in is not set up for this Space");
+  if (person?.kind !== "person")
+    raise(ctx.trace.traceId, "permission.role_lacks_permission", "A person proves their own sign-in.");
+  return {
+    start: `/auth/sso/${encodeURIComponent(input.provider)}/start?link=${encodeURIComponent(ctx.sso.offer(person.id))}`,
+  };
 }
 
-export async function ssoSignIn(ctx: IdentityCtx, input: Device & { provider: string; code: string; state: string }): Promise<SignInOut> {
-  if (!ctx.sso || !ctx.sso.providers().some((p) => p.key === input.provider)) raise(ctx.trace.traceId, "validation.unsupported", "That sign-in is not set up for this Space");
+export async function ssoSignIn(
+  ctx: IdentityCtx,
+  input: Device & { provider: string; code: string; state: string },
+): Promise<SignInOut> {
+  if (!ctx.sso || !ctx.sso.providers().some((p) => p.key === input.provider))
+    raise(ctx.trace.traceId, "validation.unsupported", "That sign-in is not set up for this Space");
   // the ticket names a verified address at the firm's domain; who it is, and whether they have an account here, is decided now
   const person = ctx.sso.resolve(input.provider, input.code);
-  const a = person ? (ctx.db.all(`SELECT * FROM identity_accounts WHERE person_id = ?`, person)[0] as Account | undefined) : undefined;
+  const a = person
+    ? (ctx.db.all(`SELECT * FROM identity_accounts WHERE person_id = ?`, person)[0] as Account | undefined)
+    : undefined;
   if (!a) {
     noteFail(ctx, undefined, input.provider, "bad_credentials");
     raise(ctx.trace.traceId, "auth.bad_credentials");
@@ -145,7 +217,7 @@ export async function signOut(ctx: IdentityCtx, input: { sessionId?: string }) {
   const target = input.sessionId ?? currentSessionId(ctx, a.person_id);
   if (!target) return ok;
   endSessionRow(ctx, a.person_id, target);
-  ctx.keyring?.clear(a.person_id);   // signing out locks their Mine items on this node (ruling 62)
+  ctx.keyring?.clear(a.person_id); // signing out locks their Mine items on this node (ruling 62)
   return ok;
 }
 
@@ -167,14 +239,28 @@ export async function whoami(ctx: IdentityCtx, _input: Record<string, never>) {
 /** My sign-in here: when the password last changed (the day I joined, until it has), the linked GitHub account, the authenticator app and the passkeys (none until they ship). */
 export async function securityGet(ctx: IdentityCtx, _input: Record<string, never>) {
   const a = me(ctx);
-  const changed = ctx.db.all(`SELECT changed_at FROM identity_password_changed WHERE person_id = ?`, a.person_id)[0] as { changed_at: number } | undefined;
+  const changed = ctx.db.all(`SELECT changed_at FROM identity_password_changed WHERE person_id = ?`, a.person_id)[0] as
+    | { changed_at: number }
+    | undefined;
   const carried = carriedFor(ctx, a.person_id);
-  return { passwordChangedAt: changed?.changed_at ?? a.created_at, ...(a.github_id && a.github_login ? { github: a.github_login } : {}), totp: !!a.totp_secret, passkeys: [] as string[], username: a.username, ...(carried.length ? { carried } : {}) };
+  return {
+    passwordChangedAt: changed?.changed_at ?? a.created_at,
+    ...(a.github_id && a.github_login ? { github: a.github_login } : {}),
+    totp: !!a.totp_secret,
+    passkeys: [] as string[],
+    username: a.username,
+    ...(carried.length ? { carried } : {}),
+  };
 }
 
 // ---- pairing: one stack for the app, the extension and the daemon
 /** What a pair code may become: a code made for the phone redeems only as a phone, one for the extension only as the extension, one for the local daemon only as a daemon. "app" keeps the three app classes. */
-const PAIR_CLASSES: Record<string, readonly string[]> = { phone: ["phone"], extension: ["extension"], daemon: ["daemon"], app: ["desktop", "web", "phone"] };
+const PAIR_CLASSES: Record<string, readonly string[]> = {
+  phone: ["phone"],
+  extension: ["extension"],
+  daemon: ["daemon"],
+  app: ["desktop", "web", "phone"],
+};
 
 export async function pairCreate(ctx: IdentityCtx, input: { purpose: "app" | "phone" | "extension" | "daemon" }) {
   const a = me(ctx);
@@ -188,7 +274,8 @@ export async function pairRedeem(ctx: IdentityCtx, input: Device & { code: strin
   try {
     // the purpose is checked before the code is spent: a code for one kind of device is refused for another, and stays good for the right one
     const peeked = peekCode(ctx, "pair", normCode(input.code));
-    if (peeked.purpose !== null && !(PAIR_CLASSES[peeked.purpose] ?? []).includes(input.deviceClass)) raise(ctx.trace.traceId, "auth.invalid_code");
+    if (peeked.purpose !== null && !(PAIR_CLASSES[peeked.purpose] ?? []).includes(input.deviceClass))
+      raise(ctx.trace.traceId, "auth.invalid_code");
     spent = spendCode(ctx, "pair", normCode(input.code));
   } catch (e) {
     noteFail(ctx, undefined, "pair", "bad_code");
@@ -206,21 +293,36 @@ export async function totpBegin(ctx: IdentityCtx, _input: Record<string, never>)
   if (a.totp_secret) raise(ctx.trace.traceId, "validation.precondition_failed", "a second factor is already set");
   const secret = newTotpSecret();
   const id = nid("enr");
-  ctx.db.run(`INSERT INTO identity_enrolments (id, person_id, secret, expires_at, used_at) VALUES (?, ?, ?, ?, ?)`, id, a.person_id, secret, ctx.now() + ENROL_TTL_MS, null);
+  ctx.db.run(
+    `INSERT INTO identity_enrolments (id, person_id, secret, expires_at, used_at) VALUES (?, ?, ?, ?, ?)`,
+    id,
+    a.person_id,
+    secret,
+    ctx.now() + ENROL_TTL_MS,
+    null,
+  );
   const setupUri = `otpauth://totp/Vyre:${encodeURIComponent(a.username)}?secret=${secret}&issuer=Vyre&algorithm=SHA1&digits=6&period=30`;
   return { setupUri, enrolmentId: id };
 }
 
 export async function totpConfirm(ctx: IdentityCtx, input: { enrolmentId: string; code: string }) {
   const a = me(ctx);
-  const e = ctx.db.all(`SELECT id, secret, expires_at, used_at FROM identity_enrolments WHERE id = ? AND person_id = ?`, input.enrolmentId, a.person_id)[0] as
-    { id: string; secret: string; expires_at: number; used_at: number | null } | undefined;
+  const e = ctx.db.all(
+    `SELECT id, secret, expires_at, used_at FROM identity_enrolments WHERE id = ? AND person_id = ?`,
+    input.enrolmentId,
+    a.person_id,
+  )[0] as { id: string; secret: string; expires_at: number; used_at: number | null } | undefined;
   if (!e || e.used_at !== null) raise(ctx.trace.traceId, "auth.invalid_code");
   if (e.expires_at <= ctx.now()) raise(ctx.trace.traceId, "auth.expired");
   const step = await matchTotp(e.secret, input.code, ctx.now(), 0);
   if (step === null) raise(ctx.trace.traceId, "auth.invalid_code");
   ctx.db.run(`UPDATE identity_enrolments SET used_at = ? WHERE id = ?`, ctx.now(), e.id);
-  ctx.db.run(`UPDATE identity_accounts SET totp_secret = ?, totp_last_step = ? WHERE person_id = ?`, e.secret, step, a.person_id);
+  ctx.db.run(
+    `UPDATE identity_accounts SET totp_secret = ?, totp_last_step = ? WHERE person_id = ?`,
+    e.secret,
+    step,
+    a.person_id,
+  );
   ctx.emit("factor.enrolled", a.person_id, { personId: a.person_id, kind: "totp" });
   return ok;
 }
@@ -231,14 +333,18 @@ export async function totpRemove(ctx: IdentityCtx, input: { password: string }) 
     noteFail(ctx, a, a.username, "bad_credentials");
     raise(ctx.trace.traceId, "auth.bad_credentials");
   }
-  if (currentSignInPolicy(ctx).secondFactor === "required") raise(ctx.trace.traceId, "validation.precondition_failed", "this Space requires a second factor");
+  if (currentSignInPolicy(ctx).secondFactor === "required")
+    raise(ctx.trace.traceId, "validation.precondition_failed", "this Space requires a second factor");
   if (!a.totp_secret) raise(ctx.trace.traceId, "validation.precondition_failed", "no second factor is set");
   ctx.db.run(`UPDATE identity_accounts SET totp_secret = NULL, totp_last_step = 0 WHERE person_id = ?`, a.person_id);
   ctx.emit("factor.removed", a.person_id, { personId: a.person_id, kind: "totp" });
   return ok;
 }
 
-export async function passkeyRegister(ctx: IdentityCtx, _input: { attestation: unknown; name: string }): Promise<never> {
+export async function passkeyRegister(
+  ctx: IdentityCtx,
+  _input: { attestation: unknown; name: string },
+): Promise<never> {
   raise(ctx.trace.traceId, "internal.not_implemented", "passkeys ship in 1.1.0 (fork F-A)");
 }
 export async function passkeyRemove(ctx: IdentityCtx, _input: { name: string }): Promise<never> {
@@ -250,11 +356,22 @@ export async function githubLink(ctx: IdentityCtx, input: { code: string }) {
   const a = me(ctx);
   if (!ctx.github) raise(ctx.trace.traceId, "internal.unavailable", "GitHub sign-in isn't set up on this server");
   // a ticket the host minted when the person connected their GitHub stands for a code that was already spent
-  const gh = (ctx.github.redeem && input.code.startsWith("vyre-gh-link.") ? ctx.github.redeem(input.code) ?? undefined : await ctx.github.resolve(input.code).catch(() => undefined));
+  const gh =
+    ctx.github.redeem && input.code.startsWith("vyre-gh-link.")
+      ? (ctx.github.redeem(input.code) ?? undefined)
+      : await ctx.github.resolve(input.code).catch(() => undefined);
   if (!gh) raise(ctx.trace.traceId, "auth.invalid_code");
-  const other = ctx.db.all(`SELECT person_id FROM identity_accounts WHERE github_id = ?`, gh.id)[0] as { person_id: string } | undefined;
-  if (other && other.person_id !== a.person_id) raise(ctx.trace.traceId, "validation.duplicate", "that GitHub account is linked to someone else");
-  ctx.db.run(`UPDATE identity_accounts SET github_id = ?, github_login = ? WHERE person_id = ?`, gh.id, gh.login, a.person_id);
+  const other = ctx.db.all(`SELECT person_id FROM identity_accounts WHERE github_id = ?`, gh.id)[0] as
+    | { person_id: string }
+    | undefined;
+  if (other && other.person_id !== a.person_id)
+    raise(ctx.trace.traceId, "validation.duplicate", "that GitHub account is linked to someone else");
+  ctx.db.run(
+    `UPDATE identity_accounts SET github_id = ?, github_login = ? WHERE person_id = ?`,
+    gh.id,
+    gh.login,
+    a.person_id,
+  );
   ctx.emit("github.linked", a.person_id, { personId: a.person_id, login: gh.login });
   return { login: gh.login };
 }

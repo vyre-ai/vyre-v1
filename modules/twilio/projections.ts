@@ -17,10 +17,21 @@ export interface TwilioCtx {
   trace: { traceId: string };
   now(): number;
   db: TwilioDb;
-  emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
+  emit(
+    name: string,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
-  http: (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ status: number; text(): Promise<string> }>;
-  log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
+  http: (
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
+  ) => Promise<{ status: number; text(): Promise<string> }>;
+  log: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 export type Row = Record<string, string | number | null>;
@@ -50,7 +61,11 @@ export function needHost(ctx: Pick<TwilioCtx, "trace">): TwilioHost {
 }
 
 export const HANDLE = { account: "#Twilio_Account", auth: "#Twilio_Auth", apiKey: "#Twilio_API_Key" } as const;
-export const API = { rest: "https://api.twilio.com/2010-04-01", messaging: "https://messaging.twilio.com/v1", trusthub: "https://trusthub.twilio.com/v1" } as const;
+export const API = {
+  rest: "https://api.twilio.com/2010-04-01",
+  messaging: "https://messaging.twilio.com/v1",
+  trusthub: "https://trusthub.twilio.com/v1",
+} as const;
 
 // ---- readers
 
@@ -66,7 +81,7 @@ export const intOrUndef = (v: unknown): number | undefined => {
   const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN;
   return Number.isSafeInteger(n) && n >= 0 ? n : undefined;
 };
-export const codeOf = (err: unknown): string => ((err as { error?: { code?: string } } | null)?.error?.code ?? "");
+export const codeOf = (err: unknown): string => (err as { error?: { code?: string } } | null)?.error?.code ?? "";
 
 export function bad(ctx: Pick<TwilioCtx, "trace">, message: string): never {
   throw fail("validation.bad_input", ctx.trace.traceId, { message });
@@ -74,7 +89,9 @@ export function bad(ctx: Pick<TwilioCtx, "trace">, message: string): never {
 
 export const E164 = /^\+[1-9][0-9]{6,14}$/;
 export function phone(ctx: Pick<TwilioCtx, "trace">, v: unknown, what: string): string {
-  return typeof v === "string" && E164.test(v) ? v : bad(ctx, `${what} must be a phone number with country code, like +14155550123.`);
+  return typeof v === "string" && E164.test(v)
+    ? v
+    : bad(ctx, `${what} must be a phone number with country code, like +14155550123.`);
 }
 /** A Twilio Sid: two letters and 32 hex characters. */
 export function sid(ctx: Pick<TwilioCtx, "trace">, v: unknown, what: string): string {
@@ -122,7 +139,8 @@ export function getState(ctx: Pick<TwilioCtx, "db">, key: string): string | null
   return row && typeof row.value === "string" ? row.value : null;
 }
 export function setState(ctx: Pick<TwilioCtx, "db">, key: string, value: string): void {
-  if (getState(ctx, key) === null) ctx.db.run(`INSERT OR IGNORE INTO twilio_state ("key", "value") VALUES (?, ?)`, key, value);
+  if (getState(ctx, key) === null)
+    ctx.db.run(`INSERT OR IGNORE INTO twilio_state ("key", "value") VALUES (?, ?)`, key, value);
   else ctx.db.run(`UPDATE twilio_state SET "value" = ? WHERE "key" = ?`, value, key);
 }
 
@@ -173,9 +191,13 @@ export async function raw(ctx: TwilioCtx, c: Call): Promise<Answer> {
   }
   let res: { status: number; text(): Promise<string> };
   try {
-    res = await ctx.http(`${c.url}${qs}`, { method: c.method ?? "GET", headers, ...(body !== undefined ? { body } : {}) });
+    res = await ctx.http(`${c.url}${qs}`, {
+      method: c.method ?? "GET",
+      headers,
+      ...(body !== undefined ? { body } : {}),
+    });
   } catch (e) {
-    if (typeof e === "object" && e !== null && "error" in e) throw e;   // a HostError such as the egress guard
+    if (typeof e === "object" && e !== null && "error" in e) throw e; // a HostError such as the egress guard
     throw fail("provider.network", ctx.trace.traceId, { message: "Twilio could not be reached." });
   }
   return parse(ctx, res.status, await res.text());
@@ -187,7 +209,8 @@ export function parse(ctx: Pick<TwilioCtx, "trace">, status: number, body: strin
     const parsed = body ? (JSON.parse(body) as unknown) : {};
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) json = parsed as Json;
   } catch {
-    if (status < 300) throw fail("provider.bad_response", ctx.trace.traceId, { message: "Twilio answered something unreadable." });
+    if (status < 300)
+      throw fail("provider.bad_response", ctx.trace.traceId, { message: "Twilio answered something unreadable." });
   }
   return { status, json };
 }
@@ -213,18 +236,35 @@ export function refusal(ctx: Pick<TwilioCtx, "trace">, a: Answer, o: Opts = {}) 
   const twilioCode = typeof a.json.code === "number" ? a.json.code : undefined;
   const details: Record<string, unknown> = twilioCode === undefined ? { status } : { status, twilioCode };
   if (status === 429) return fail("provider.rate_limited", t, { message: "Twilio asked us to slow down.", details });
-  if (status === 401 || status === 403) return fail("provider.auth_failed", t, { message: "Twilio did not accept the credentials, or they may not do this. Check Twilio_Account and Twilio_Auth in the Vault.", details });
+  if (status === 401 || status === 403)
+    return fail("provider.auth_failed", t, {
+      message:
+        "Twilio did not accept the credentials, or they may not do this. Check Twilio_Account and Twilio_Auth in the Vault.",
+      details,
+    });
   if (status === 404) return fail("validation.not_found", t, { message: "Twilio has no such item.", details });
   if (status >= 500) return fail("provider.unavailable", t, { message: "Twilio is not answering right now.", details });
-  if (o.taken && (status === 409 || twilioCode === 21422 || twilioCode === 21452)) return fail("validation.duplicate", t, { message: "That number is not available to buy.", details });
+  if (o.taken && (status === 409 || twilioCode === 21422 || twilioCode === 21452))
+    return fail("validation.duplicate", t, { message: "That number is not available to buy.", details });
   if (status === 400 || status === 402 || status === 409 || status === 422) {
-    return o.send ? fail("provider.bad_response", t, { message: "Twilio could not use that request. Check the numbers and the account balance.", details }) : fail("validation.bad_input", t, { message: "Twilio could not use that request.", details });
+    return o.send
+      ? fail("provider.bad_response", t, {
+          message: "Twilio could not use that request. Check the numbers and the account balance.",
+          details,
+        })
+      : fail("validation.bad_input", t, { message: "Twilio could not use that request.", details });
   }
   return fail("provider.bad_response", t, { message: "Twilio answered something unexpected.", details });
 }
 
 /** Every item of a Twilio list, following next_page_uri (at most `pages` pages). */
-export async function listAll(ctx: TwilioCtx, firstUrl: string, key: string, query: Record<string, string> = {}, pages = 5): Promise<unknown[]> {
+export async function listAll(
+  ctx: TwilioCtx,
+  firstUrl: string,
+  key: string,
+  query: Record<string, string> = {},
+  pages = 5,
+): Promise<unknown[]> {
   const out: unknown[] = [];
   let url = firstUrl;
   let q: Record<string, string> | undefined = query;

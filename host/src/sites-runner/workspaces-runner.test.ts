@@ -11,29 +11,83 @@ import { test } from "node:test";
 import { createSitesRunner } from "./server.ts";
 import { WS_INIT_SCRIPT, workspaceImages } from "./workspaces-policy.ts";
 
-const A = "agt_dex", B = "agt_pam";
+const A = "agt_dex",
+  B = "agt_pam";
 const net = (id: string): string => `vyre-wsnet-${createHash("sha256").update(id).digest("hex").slice(0, 16)}`;
 const name = (id: string): string => `vyre-ws-${id}`;
 const good = (id = A, over: Record<string, unknown> = {}, h: Record<string, unknown> = {}) => ({
-  Image: "vyre/agent-workspace:1", Hostname: name(id), User: "10001:10001", WorkingDir: "/home/agent", Cmd: ["sleep", "infinity"],
-  Env: [`VYRE_WORKSPACE_AGENT=${id}`, "HOME=/home/agent", "TERM=xterm-256color", "LANG=en_US.UTF-8"], Labels: { "vyre.workspace": id, "vyre.mounts": "0123456789abcdef" }, StopTimeout: 10, ...over,
+  Image: "vyre/agent-workspace:1",
+  Hostname: name(id),
+  User: "10001:10001",
+  WorkingDir: "/home/agent",
+  Cmd: ["sleep", "infinity"],
+  Env: [`VYRE_WORKSPACE_AGENT=${id}`, "HOME=/home/agent", "TERM=xterm-256color", "LANG=en_US.UTF-8"],
+  Labels: { "vyre.workspace": id, "vyre.mounts": "0123456789abcdef" },
+  StopTimeout: 10,
+  ...over,
   HostConfig: {
-    Binds: [`${name(id)}-home:/home/agent:rw`, `${name(id)}-files:/home/agent/Vyre:rw`, "vyre-wsproj-prj_site:/home/agent/projects/prj_site:rw"], ReadonlyRootfs: false, Tmpfs: { "/tmp": "rw,size=512m" }, CapDrop: ["ALL"], CapAdd: [],
-    SecurityOpt: ["no-new-privileges:true"], Privileged: false, NetworkMode: net(id), PidMode: "", IpcMode: "private", UsernsMode: "", Devices: [], PidsLimit: 512, Memory: 1024 ** 3, MemorySwap: 1024 ** 3,
-    NanoCpus: 1e9, MemoryReservation: 64 * 1024 ** 2, CpuShares: 256, Init: true, AutoRemove: false, Ulimits: [{ Name: "nofile", Soft: 8192, Hard: 16384 }], ExtraHosts: [], Dns: [], ...h,
+    Binds: [
+      `${name(id)}-home:/home/agent:rw`,
+      `${name(id)}-files:/home/agent/Vyre:rw`,
+      "vyre-wsproj-prj_site:/home/agent/projects/prj_site:rw",
+    ],
+    ReadonlyRootfs: false,
+    Tmpfs: { "/tmp": "rw,size=512m" },
+    CapDrop: ["ALL"],
+    CapAdd: [],
+    SecurityOpt: ["no-new-privileges:true"],
+    Privileged: false,
+    NetworkMode: net(id),
+    PidMode: "",
+    IpcMode: "private",
+    UsernsMode: "",
+    Devices: [],
+    PidsLimit: 512,
+    Memory: 1024 ** 3,
+    MemorySwap: 1024 ** 3,
+    NanoCpus: 1e9,
+    MemoryReservation: 64 * 1024 ** 2,
+    CpuShares: 256,
+    Init: true,
+    AutoRemove: false,
+    Ulimits: [{ Name: "nofile", Soft: 8192, Hard: 16384 }],
+    ExtraHosts: [],
+    Dns: [],
+    ...h,
   },
 });
 const helper = (project = "prj_site", over: Record<string, unknown> = {}, h: Record<string, unknown> = {}) => ({
-  Image: "vyre/agent-workspace:1", User: "0:0", Entrypoint: ["sh", "-c", WS_INIT_SCRIPT], Cmd: [], NetworkDisabled: true, Labels: { "vyre.workspace.helper": "project-init", "vyre.workspace.project": project }, ...over,
-  HostConfig: { Binds: [`vyre-wsproj-${project}:/vol:rw`], CapDrop: ["ALL"], CapAdd: ["CHOWN"], SecurityOpt: ["no-new-privileges:true"], NetworkMode: "none", Privileged: false, AutoRemove: false, Memory: 128 * 1024 ** 2, PidsLimit: 32, ...h },
+  Image: "vyre/agent-workspace:1",
+  User: "0:0",
+  Entrypoint: ["sh", "-c", WS_INIT_SCRIPT],
+  Cmd: [],
+  NetworkDisabled: true,
+  Labels: { "vyre.workspace.helper": "project-init", "vyre.workspace.project": project },
+  ...over,
+  HostConfig: {
+    Binds: [`vyre-wsproj-${project}:/vol:rw`],
+    CapDrop: ["ALL"],
+    CapAdd: ["CHOWN"],
+    SecurityOpt: ["no-new-privileges:true"],
+    NetworkMode: "none",
+    Privileged: false,
+    AutoRemove: false,
+    Memory: 128 * 1024 ** 2,
+    PidsLimit: 32,
+    ...h,
+  },
 });
 
 async function world() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-runner-ws-"));
   const seen: Array<{ method: string; url: string; body: string }> = [];
   const labels: Record<string, Record<string, string>> = {
-    [name(A)]: { "vyre.workspace": A }, [name(B)]: { "vyre.workspace": B }, "vyre-wsinit-prj_site": { "vyre.workspace.helper": "project-init", "vyre.workspace.project": "prj_site" },
-    site1: { "vyre.site": "sit_01abc", "vyre.kind": "app" }, vyred: { "vyre.ingress": "1" }, other: {},
+    [name(A)]: { "vyre.workspace": A },
+    [name(B)]: { "vyre.workspace": B },
+    "vyre-wsinit-prj_site": { "vyre.workspace.helper": "project-init", "vyre.workspace.project": "prj_site" },
+    site1: { "vyre.site": "sit_01abc", "vyre.kind": "app" },
+    vyred: { "vyre.ingress": "1" },
+    other: {},
   };
   const fake = http.createServer((q, s) => {
     let b = "";
@@ -41,21 +95,73 @@ async function world() {
     q.on("end", () => {
       seen.push({ method: q.method ?? "", url: q.url ?? "", body: b });
       const insp = /^\/containers\/([^/]+)\/json$/.exec(q.url ?? "");
-      if (insp) { const l = labels[insp[1] as string]; s.writeHead(l ? 200 : 404); s.end(JSON.stringify({ Id: insp[1], Config: { Labels: l ?? {} } })); return; }
-      if (q.method === "GET" && /^\/v[\d.]+\/networks$/.test(q.url ?? "")) { s.writeHead(200); s.end(JSON.stringify([{ Name: "vyre-site-secret", Labels: { "vyre.site": "sit_x" }, Containers: { abc: { Name: "site1" } }, IPAM: { Driver: "default", Config: [{ Subnet: "172.18.0.0/16", Gateway: "172.18.0.1" }] } }])); return; }
-      if (/\/exec$/.test(q.url ?? "")) { s.writeHead(201); s.end(JSON.stringify({ Id: "e".repeat(64) })); return; }
-      s.writeHead(/\/(containers|volumes|networks)\/create/.test(q.url ?? "") ? 201 : 200); s.end(JSON.stringify({ Id: "c".repeat(64) }));
+      if (insp) {
+        const l = labels[insp[1] as string];
+        s.writeHead(l ? 200 : 404);
+        s.end(JSON.stringify({ Id: insp[1], Config: { Labels: l ?? {} } }));
+        return;
+      }
+      if (q.method === "GET" && /^\/v[\d.]+\/networks$/.test(q.url ?? "")) {
+        s.writeHead(200);
+        s.end(
+          JSON.stringify([
+            {
+              Name: "vyre-site-secret",
+              Labels: { "vyre.site": "sit_x" },
+              Containers: { abc: { Name: "site1" } },
+              IPAM: { Driver: "default", Config: [{ Subnet: "172.18.0.0/16", Gateway: "172.18.0.1" }] },
+            },
+          ]),
+        );
+        return;
+      }
+      if (/\/exec$/.test(q.url ?? "")) {
+        s.writeHead(201);
+        s.end(JSON.stringify({ Id: "e".repeat(64) }));
+        return;
+      }
+      s.writeHead(/\/(containers|volumes|networks)\/create/.test(q.url ?? "") ? 201 : 200);
+      s.end(JSON.stringify({ Id: "c".repeat(64) }));
     });
   });
   await new Promise<void>((r) => fake.listen(path.join(dir, "docker.sock"), r));
-  const runner = createSitesRunner({ dockerSocket: path.join(dir, "docker.sock"), listen: path.join(dir, "runner.sock"), token: "t0ken" });
-  await runner.listening;
-  const call = (method: string, p: string, body?: unknown) => new Promise<{ status: number; body: string }>((resolve, reject) => {
-    const data = body === undefined ? undefined : Buffer.from(JSON.stringify(body));
-    const r = http.request({ socketPath: path.join(dir, "runner.sock"), method, path: p, headers: { authorization: "Bearer t0ken", ...(data ? { "content-type": "application/json", "content-length": data.length } : {}) } }, (res) => { let t = ""; res.on("data", (c) => (t += c)); res.on("end", () => resolve({ status: res.statusCode ?? 0, body: t })); });
-    r.on("error", reject); r.end(data);
+  const runner = createSitesRunner({
+    dockerSocket: path.join(dir, "docker.sock"),
+    listen: path.join(dir, "runner.sock"),
+    token: "t0ken",
   });
-  return { call, seen, close: async () => { await runner.close(); fake.close(); fs.rmSync(dir, { recursive: true, force: true }); } };
+  await runner.listening;
+  const call = (method: string, p: string, body?: unknown) =>
+    new Promise<{ status: number; body: string }>((resolve, reject) => {
+      const data = body === undefined ? undefined : Buffer.from(JSON.stringify(body));
+      const r = http.request(
+        {
+          socketPath: path.join(dir, "runner.sock"),
+          method,
+          path: p,
+          headers: {
+            authorization: "Bearer t0ken",
+            ...(data ? { "content-type": "application/json", "content-length": data.length } : {}),
+          },
+        },
+        (res) => {
+          let t = "";
+          res.on("data", (c) => (t += c));
+          res.on("end", () => resolve({ status: res.statusCode ?? 0, body: t }));
+        },
+      );
+      r.on("error", reject);
+      r.end(data);
+    });
+  return {
+    call,
+    seen,
+    close: async () => {
+      await runner.close();
+      fake.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    },
+  };
 }
 
 test("a workspace container is refused when it asks for anything a workspace is never given, and nothing refused reaches Docker", async (t) => {
@@ -67,9 +173,21 @@ test("a workspace container is refused when it asks for anything a workspace is 
     ["a host folder", good(A, {}, { Binds: ["/etc:/host-etc"] }), "host folders"],
     ["a host folder as the Files folder", good(A, {}, { Binds: ["/srv/files:/home/agent/Vyre:rw"] }), "host folders"],
     ["another agent's home", good(A, {}, { Binds: [`${name(B)}-home:/home/agent:rw`] }), "host folders"],
-    ["a project volume at the wrong place", good(A, {}, { Binds: ["vyre-wsproj-prj_site:/home/agent/projects/other:rw"] }), "host folders"],
-    ["a computer's profile volume", good(A, {}, { Binds: ["vyre-comp-0123456789ab-profile:/home/agent/.profile-disk:rw"] }), "host folders"],
-    ["a read-only-less bind of the socket", good(A, {}, { Binds: ["/var/run/docker.sock:/var/run/docker.sock"] }), "host folders"],
+    [
+      "a project volume at the wrong place",
+      good(A, {}, { Binds: ["vyre-wsproj-prj_site:/home/agent/projects/other:rw"] }),
+      "host folders",
+    ],
+    [
+      "a computer's profile volume",
+      good(A, {}, { Binds: ["vyre-comp-0123456789ab-profile:/home/agent/.profile-disk:rw"] }),
+      "host folders",
+    ],
+    [
+      "a read-only-less bind of the socket",
+      good(A, {}, { Binds: ["/var/run/docker.sock:/var/run/docker.sock"] }),
+      "host folders",
+    ],
     ["a mount by Mounts", good(A, {}, { Mounts: [{ Type: "bind", Source: "/", Target: "/h" }] }), "Mounts"],
     ["the host network", good(A, {}, { NetworkMode: "host" }), "own network"],
     ["the default bridge", good(A, {}, { NetworkMode: "bridge" }), "own network"],
@@ -82,7 +200,11 @@ test("a workspace container is refused when it asks for anything a workspace is 
     ["capabilities not dropped", good(A, {}, { CapDrop: [] }), "capabilit"],
     ["new privileges allowed", good(A, {}, { SecurityOpt: [] }), "privileges"],
     ["seccomp off", good(A, {}, { SecurityOpt: ["no-new-privileges:true", "seccomp=unconfined"] }), "security option"],
-    ["apparmor off", good(A, {}, { SecurityOpt: ["no-new-privileges:true", "apparmor=unconfined"] }), "security option"],
+    [
+      "apparmor off",
+      good(A, {}, { SecurityOpt: ["no-new-privileges:true", "apparmor=unconfined"] }),
+      "security option",
+    ],
     ["no memory cap", good(A, {}, { Memory: 0 }), "memory"],
     ["too much memory", good(A, {}, { Memory: 64 * 1024 ** 3, MemorySwap: 64 * 1024 ** 3 }), "memory"],
     ["swap", good(A, {}, { MemorySwap: 8 * 1024 ** 3 }), "swap"],
@@ -117,44 +239,99 @@ test("a workspace container is refused when it asks for anything a workspace is 
   const ok = await create(good());
   assert.equal(ok.status, 201, ok.body);
   const sent = JSON.parse(w.seen.at(-1)!.body) as { HostConfig: Record<string, unknown> };
-  assert.deepEqual([sent.HostConfig["CapDrop"], sent.HostConfig["CapAdd"], sent.HostConfig["Privileged"], sent.HostConfig["LogConfig"]], [["ALL"], [], false, { Type: "json-file", Config: { "max-size": "10m", "max-file": "3" } }]);
+  assert.deepEqual(
+    [
+      sent.HostConfig["CapDrop"],
+      sent.HostConfig["CapAdd"],
+      sent.HostConfig["Privileged"],
+      sent.HostConfig["LogConfig"],
+    ],
+    [["ALL"], [], false, { Type: "json-file", Config: { "max-size": "10m", "max-file": "3" } }],
+  );
 });
 
 test("a workspace's network is its own: named for its agent, a plain bridge, nothing of a site's or a computer's", async (t) => {
   const w = await world();
   t.after(w.close);
   const mk = (body: unknown) => w.call("POST", "/v1.47/networks/create", body);
-  assert.equal((await mk({ Name: net(A), Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.workspace": A } })).status, 201);
+  assert.equal(
+    (await mk({ Name: net(A), Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.workspace": A } })).status,
+    201,
+  );
   for (const [what, body] of [
     ["a name that is not a hash", { Name: "vyre-wsnet-dex", Labels: { "vyre.workspace": A } }],
     ["host", { Name: net(A), Driver: "host", Labels: { "vyre.workspace": A } }],
     ["internal off", { Name: net(A), Labels: { "vyre.workspace": A }, Attachable: true }],
-    ["another label", { Name: net(A), Labels: { "vyre.workspace": A, "x": "y" } }],
-  ] as Array<[string, unknown]>) assert.equal((await mk(body)).status, 403, what);
+    ["another label", { Name: net(A), Labels: { "vyre.workspace": A, x: "y" } }],
+  ] as Array<[string, unknown]>)
+    assert.equal((await mk(body)).status, 403, what);
   assert.equal((await w.call("GET", `/v1.47/networks/${net(A)}`)).status, 200);
   assert.equal((await w.call("DELETE", `/v1.47/networks/${net(A)}`)).status, 200);
-  assert.equal((await w.call("POST", `/v1.47/networks/${net(A)}/connect`, { Container: "vyred" })).status, 403, "the ingress does not join a workspace's network: no route into it");
-  assert.equal((await w.call("POST", `/v1.47/networks/${net(A)}/connect`, { Container: name(A) })).status, 403, "its own container is on it from create, not by joining");
+  assert.equal(
+    (await w.call("POST", `/v1.47/networks/${net(A)}/connect`, { Container: "vyred" })).status,
+    403,
+    "the ingress does not join a workspace's network: no route into it",
+  );
+  assert.equal(
+    (await w.call("POST", `/v1.47/networks/${net(A)}/connect`, { Container: name(A) })).status,
+    403,
+    "its own container is on it from create, not by joining",
+  );
 });
 
 test("a workspace container may be started, stopped, read, run in and removed, and nothing else: archive only in its Files folder, no wait; another container never", async (t) => {
   const w = await world();
   t.after(w.close);
   const n = name(A);
-  for (const [m, p] of [["POST", `/containers/${n}/start`], ["POST", `/containers/${n}/stop`], ["GET", `/containers/${n}/json`], ["GET", `/containers/${n}/logs?tail=10`], ["DELETE", `/containers/${n}`]] as const) {
+  for (const [m, p] of [
+    ["POST", `/containers/${n}/start`],
+    ["POST", `/containers/${n}/stop`],
+    ["GET", `/containers/${n}/json`],
+    ["GET", `/containers/${n}/logs?tail=10`],
+    ["DELETE", `/containers/${n}`],
+  ] as const) {
     const r = await w.call(m, `/v1.47${p}`);
     assert.equal(r.status, 200, `${m} ${p}`);
   }
-  const exec = await w.call("POST", `/v1.47/containers/${n}/exec`, { Cmd: ["tmux", "-V"], Env: ["A=1"], AttachStdout: true, AttachStderr: true, Tty: false });
+  const exec = await w.call("POST", `/v1.47/containers/${n}/exec`, {
+    Cmd: ["tmux", "-V"],
+    Env: ["A=1"],
+    AttachStdout: true,
+    AttachStderr: true,
+    Tty: false,
+  });
   assert.equal(exec.status, 201, exec.body);
-  for (const [what, body] of [["another user", { Cmd: ["id"], User: "root" }], ["a tty", { Cmd: ["sh"], Tty: true }], ["privileged", { Cmd: ["sh"], Privileged: true }]] as Array<[string, unknown]>) {
+  for (const [what, body] of [
+    ["another user", { Cmd: ["id"], User: "root" }],
+    ["a tty", { Cmd: ["sh"], Tty: true }],
+    ["privileged", { Cmd: ["sh"], Privileged: true }],
+  ] as Array<[string, unknown]>) {
     assert.equal((await w.call("POST", `/v1.47/containers/${n}/exec`, body)).status, 403, what);
   }
-  for (const [m, q, want] of [["GET", "/home/agent/Vyre/.", 200], ["PUT", "/home/agent/Vyre", 200], ["PUT", "/home/agent/Vyre/work", 200], ["GET", "/home/agent/projects/prj_site/.", 200], ["PUT", "/home/agent/projects/prj_site", 200], ["PUT", "/home/agent/projects/prj_site/a/b.txt", 200], ["GET", "/home/agent/projects", 403], ["GET", "/home/agent/projects/../.ssh", 403], ["GET", "/home/agent", 403], ["GET", "/home/agent/.ssh", 403], ["PUT", "/home/agent/Vyre/../.ssh", 403], ["PUT", "/etc", 403], ["DELETE", "/home/agent/Vyre", 403]] as const) {
-    assert.equal((await w.call(m, `/v1.47/containers/${n}/archive?path=${encodeURIComponent(q)}`)).status, want, `${m} archive ${q}`);
+  for (const [m, q, want] of [
+    ["GET", "/home/agent/Vyre/.", 200],
+    ["PUT", "/home/agent/Vyre", 200],
+    ["PUT", "/home/agent/Vyre/work", 200],
+    ["GET", "/home/agent/projects/prj_site/.", 200],
+    ["PUT", "/home/agent/projects/prj_site", 200],
+    ["PUT", "/home/agent/projects/prj_site/a/b.txt", 200],
+    ["GET", "/home/agent/projects", 403],
+    ["GET", "/home/agent/projects/../.ssh", 403],
+    ["GET", "/home/agent", 403],
+    ["GET", "/home/agent/.ssh", 403],
+    ["PUT", "/home/agent/Vyre/../.ssh", 403],
+    ["PUT", "/etc", 403],
+    ["DELETE", "/home/agent/Vyre", 403],
+  ] as const) {
+    assert.equal(
+      (await w.call(m, `/v1.47/containers/${n}/archive?path=${encodeURIComponent(q)}`)).status,
+      want,
+      `${m} archive ${q}`,
+    );
   }
   assert.equal((await w.call("POST", `/v1.47/containers/${n}/wait`)).status, 403);
-  for (const other of ["vyred", "other"]) assert.equal((await w.call("POST", `/v1.47/containers/${other}/exec`, { Cmd: ["id"] })).status, 403, other);
+  for (const other of ["vyred", "other"])
+    assert.equal((await w.call("POST", `/v1.47/containers/${other}/exec`, { Cmd: ["id"] })).status, 403, other);
 });
 
 test("the list of workspaces: only the ones that carry the workspace label, and only the two query words", async (t) => {
@@ -162,26 +339,67 @@ test("the list of workspaces: only the ones that carry the workspace label, and 
   t.after(w.close);
   const f = encodeURIComponent(JSON.stringify({ label: ["vyre.workspace"] }));
   assert.equal((await w.call("GET", `/v1.47/containers/json?all=true&filters=${f}`)).status, 200);
-  assert.equal((await w.call("GET", `/v1.47/containers/json`)).status, 403, "unfiltered, it would list every container on the machine");
-  assert.equal((await w.call("GET", `/v1.47/containers/json?all=true&filters=${encodeURIComponent(JSON.stringify({ label: ["vyre.site"] }))}`)).status, 403);
+  assert.equal(
+    (await w.call("GET", `/v1.47/containers/json`)).status,
+    403,
+    "unfiltered, it would list every container on the machine",
+  );
+  assert.equal(
+    (
+      await w.call(
+        "GET",
+        `/v1.47/containers/json?all=true&filters=${encodeURIComponent(JSON.stringify({ label: ["vyre.site"] }))}`,
+      )
+    ).status,
+    403,
+  );
   assert.equal((await w.call("GET", `/v1.47/containers/json?filters=${f}&size=true`)).status, 403);
-  assert.equal((await w.call("GET", `/v1.47/containers/json?filters=${encodeURIComponent(JSON.stringify({ label: ["vyre.workspace"], name: ["x"] }))}`)).status, 403);
+  assert.equal(
+    (
+      await w.call(
+        "GET",
+        `/v1.47/containers/json?filters=${encodeURIComponent(JSON.stringify({ label: ["vyre.workspace"], name: ["x"] }))}`,
+      )
+    ).status,
+    403,
+  );
 });
 
 test("a project's shared volume: made labelled for its project, read, and nothing else; only a workspace's own home and files volumes may be removed", async (t) => {
   const w = await world();
   t.after(w.close);
-  assert.equal((await w.call("POST", "/v1.47/volumes/create", { Name: "vyre-wsproj-prj_site", Labels: { "vyre.workspace.project": "prj_site" } })).status, 201);
+  assert.equal(
+    (
+      await w.call("POST", "/v1.47/volumes/create", {
+        Name: "vyre-wsproj-prj_site",
+        Labels: { "vyre.workspace.project": "prj_site" },
+      })
+    ).status,
+    201,
+  );
   for (const [what, body] of [
     ["a name that is not a project's", { Name: "evil", Labels: { "vyre.workspace.project": "evil" } }],
     ["a label of another project", { Name: "vyre-wsproj-prj_site", Labels: { "vyre.workspace.project": "prj_other" } }],
-    ["a driver", { Name: "vyre-wsproj-prj_site", Labels: { "vyre.workspace.project": "prj_site" }, Driver: "local", DriverOpts: { type: "none", device: "/", o: "bind" } }],
-  ] as Array<[string, unknown]>) assert.equal((await w.call("POST", "/v1.47/volumes/create", body)).status, 403, what);
+    [
+      "a driver",
+      {
+        Name: "vyre-wsproj-prj_site",
+        Labels: { "vyre.workspace.project": "prj_site" },
+        Driver: "local",
+        DriverOpts: { type: "none", device: "/", o: "bind" },
+      },
+    ],
+  ] as Array<[string, unknown]>)
+    assert.equal((await w.call("POST", "/v1.47/volumes/create", body)).status, 403, what);
   assert.equal((await w.call("GET", "/v1.47/volumes/vyre-wsproj-prj_site")).status, 200);
   assert.equal((await w.call("GET", "/v1.47/volumes/some-other-volume")).status, 403);
   assert.equal((await w.call("DELETE", `/v1.47/volumes/${name(A)}-home`)).status, 200);
   assert.equal((await w.call("DELETE", `/v1.47/volumes/${name(A)}-files`)).status, 200);
-  assert.equal((await w.call("DELETE", "/v1.47/volumes/vyre-wsproj-prj_site")).status, 403, "a project's folder is shared: no workspace removes it");
+  assert.equal(
+    (await w.call("DELETE", "/v1.47/volumes/vyre-wsproj-prj_site")).status,
+    403,
+    "a project's folder is shared: no workspace removes it",
+  );
   assert.equal((await w.call("DELETE", "/v1.47/volumes/vyre_data")).status, 403);
 });
 
@@ -189,30 +407,66 @@ test("the workspace image: read, pulled and created from only for the two reposi
   const w = await world();
   t.after(w.close);
   const digest = `sha256:${"a".repeat(64)}`;
-  for (const img of ["vyre/agent-workspace:1", "ghcr.io/vyre-ai/agent-workspace:1.0.0", `ghcr.io/vyre-ai/agent-workspace@${digest}`, `vyre/agent-workspace@${digest}`]) {
+  for (const img of [
+    "vyre/agent-workspace:1",
+    "ghcr.io/vyre-ai/agent-workspace:1.0.0",
+    `ghcr.io/vyre-ai/agent-workspace@${digest}`,
+    `vyre/agent-workspace@${digest}`,
+  ]) {
     assert.equal((await w.call("GET", `/v1.47/images/${encodeURIComponent(img)}/json`)).status, 200, img);
     const from = img.includes("@") ? img : img.slice(0, img.lastIndexOf(":"));
-    const q = img.includes("@") ? `fromImage=${encodeURIComponent(from)}` : `fromImage=${encodeURIComponent(from)}&tag=${img.slice(img.lastIndexOf(":") + 1)}`;
+    const q = img.includes("@")
+      ? `fromImage=${encodeURIComponent(from)}`
+      : `fromImage=${encodeURIComponent(from)}&tag=${img.slice(img.lastIndexOf(":") + 1)}`;
     // a bare vyre/... name runs when it is already here and is never fetched: Docker would look for it on Docker Hub, which is not Vyre's
-    assert.equal((await w.call("POST", `/v1.47/images/create?${q}`)).status, img.startsWith("vyre/") ? 403 : 200, `pull ${img}`);
-    assert.equal((await w.call("POST", `/v1.47/containers/create?name=${name(A)}`, good(A, { Image: img }))).status, 201, `create from ${img}`);
+    assert.equal(
+      (await w.call("POST", `/v1.47/images/create?${q}`)).status,
+      img.startsWith("vyre/") ? 403 : 200,
+      `pull ${img}`,
+    );
+    assert.equal(
+      (await w.call("POST", `/v1.47/containers/create?name=${name(A)}`, good(A, { Image: img }))).status,
+      201,
+      `create from ${img}`,
+    );
   }
-  for (const img of [`evil/agent-workspace@${digest}`, "ghcr.io/evil/agent-workspace:1", "ghcr.io/vyre-ai/agent-workspace@sha256:abc", "alpine:latest"]) {
-    assert.equal((await w.call("POST", `/v1.47/containers/create?name=${name(A)}`, good(A, { Image: img }))).status, 403, `create from ${img}`);
+  for (const img of [
+    `evil/agent-workspace@${digest}`,
+    "ghcr.io/evil/agent-workspace:1",
+    "ghcr.io/vyre-ai/agent-workspace@sha256:abc",
+    "alpine:latest",
+  ]) {
+    assert.equal(
+      (await w.call("POST", `/v1.47/containers/create?name=${name(A)}`, good(A, { Image: img }))).status,
+      403,
+      `create from ${img}`,
+    );
   }
-  assert.ok(workspaceImages("registry.example/ws").test("registry.example/ws:1"), "a server may name more repositories");
+  assert.ok(
+    workspaceImages("registry.example/ws").test("registry.example/ws:1"),
+    "a server may name more repositories",
+  );
 });
 
 test("the project folder helper: the fixed chown on one volume, as root with CHOWN alone, on no network; and it is the one container that is waited for", async (t) => {
   const w = await world();
   t.after(w.close);
-  const make = (body: unknown, n = "vyre-wsinit-prj_site") => w.call("POST", `/v1.47/containers/create?name=${n}`, body);
+  const make = (body: unknown, n = "vyre-wsinit-prj_site") =>
+    w.call("POST", `/v1.47/containers/create?name=${n}`, body);
   const refused: Array<[string, unknown, string]> = [
     ["another script", helper("prj_site", { Entrypoint: ["sh", "-c", "chown -R 0:0 /vol"] }), "folder script"],
     ["a command word", helper("prj_site", { Cmd: ["/etc"] }), "command words"],
     ["a network", helper("prj_site", {}, { NetworkMode: "bridge" }), "no network"],
-    ["a second volume", helper("prj_site", {}, { Binds: ["vyre-wsproj-prj_site:/vol:rw", "vyre-wsproj-prj_other:/other:rw"] }), "only its project"],
-    ["another project's volume", helper("prj_site", {}, { Binds: ["vyre-wsproj-prj_other:/vol:rw"] }), "only its project"],
+    [
+      "a second volume",
+      helper("prj_site", {}, { Binds: ["vyre-wsproj-prj_site:/vol:rw", "vyre-wsproj-prj_other:/other:rw"] }),
+      "only its project",
+    ],
+    [
+      "another project's volume",
+      helper("prj_site", {}, { Binds: ["vyre-wsproj-prj_other:/vol:rw"] }),
+      "only its project",
+    ],
     ["a host folder", helper("prj_site", {}, { Binds: ["/:/vol:rw"] }), "only its project"],
     ["a second capability", helper("prj_site", {}, { CapAdd: ["CHOWN", "SYS_ADMIN"] }), "CHOWN"],
     ["no capability", helper("prj_site", {}, { CapAdd: [] }), "CHOWN"],
@@ -220,15 +474,33 @@ test("the project folder helper: the fixed chown on one volume, as root with CHO
     ["a device", helper("prj_site", {}, { Devices: [{}] }), "Devices|may not set"],
     ["not root", helper("prj_site", { User: "10001:10001" }), "root"],
     ["another image", helper("prj_site", { Image: "alpine:latest" }), "image"],
-    ["another label", helper("prj_site", { Labels: { "vyre.workspace.helper": "project-init", "vyre.workspace.project": "prj_site", "x": "y" } }), "label"],
+    [
+      "another label",
+      helper("prj_site", {
+        Labels: { "vyre.workspace.helper": "project-init", "vyre.workspace.project": "prj_site", x: "y" },
+      }),
+      "label",
+    ],
   ];
-  for (const [what, body, why] of refused) { const r = await make(body); assert.equal(r.status, 403, `${what}: ${r.body}`); assert.match(r.body, new RegExp(why, "i"), what); }
+  for (const [what, body, why] of refused) {
+    const r = await make(body);
+    assert.equal(r.status, 403, `${what}: ${r.body}`);
+    assert.match(r.body, new RegExp(why, "i"), what);
+  }
   assert.equal((await make(helper("prj_site"), "vyre-wsinit-prj_other")).status, 403, "a name of another project");
   assert.equal((await make(helper("prj_site"))).status, 201);
   const sent = JSON.parse(w.seen.at(-1)!.body) as { HostConfig: Record<string, unknown> };
-  assert.deepEqual([sent.HostConfig["CapAdd"], sent.HostConfig["NetworkMode"], sent.HostConfig["Memory"]], [["CHOWN"], "none", 128 * 1024 ** 2]);
-  for (const act of ["start", "wait"]) assert.equal((await w.call("POST", `/v1.47/containers/vyre-wsinit-prj_site/${act}`)).status, 200, act);
-  assert.equal((await w.call("POST", "/v1.47/containers/vyre-wsinit-prj_site/exec", { Cmd: ["id"] })).status, 403, "no exec into the helper");
+  assert.deepEqual(
+    [sent.HostConfig["CapAdd"], sent.HostConfig["NetworkMode"], sent.HostConfig["Memory"]],
+    [["CHOWN"], "none", 128 * 1024 ** 2],
+  );
+  for (const act of ["start", "wait"])
+    assert.equal((await w.call("POST", `/v1.47/containers/vyre-wsinit-prj_site/${act}`)).status, 200, act);
+  assert.equal(
+    (await w.call("POST", "/v1.47/containers/vyre-wsinit-prj_site/exec", { Cmd: ["id"] })).status,
+    403,
+    "no exec into the helper",
+  );
   assert.equal((await w.call("DELETE", "/v1.47/containers/vyre-wsinit-prj_site")).status, 200);
 });
 
@@ -236,25 +508,75 @@ test("the one workspaces' network (12 Nov): made only exactly, traffic between c
   const w = await world();
   t.after(w.close);
   const mk = (body: unknown) => w.call("POST", "/v1.47/networks/create", body);
-  const shared = { Name: "vyre-workspaces", Driver: "bridge", CheckDuplicate: true, Options: { "com.docker.network.bridge.enable_icc": "false" }, Labels: { "vyre.workspaces": "shared" } };
+  const shared = {
+    Name: "vyre-workspaces",
+    Driver: "bridge",
+    CheckDuplicate: true,
+    Options: { "com.docker.network.bridge.enable_icc": "false" },
+    Labels: { "vyre.workspaces": "shared" },
+  };
   assert.equal((await mk(shared)).status, 201);
-  const sent = JSON.parse(w.seen.filter((x) => x.url.includes("/networks/create")).at(-1)!.body) as Record<string, unknown>;
-  assert.deepEqual(sent, shared, "what reaches Docker is that body, no subnet named (Docker picks one: a firm's own network may use any fixed range)");
+  const sent = JSON.parse(w.seen.filter((x) => x.url.includes("/networks/create")).at(-1)!.body) as Record<
+    string,
+    unknown
+  >;
+  assert.deepEqual(
+    sent,
+    shared,
+    "what reaches Docker is that body, no subnet named (Docker picks one: a firm's own network may use any fixed range)",
+  );
   for (const [what, body] of [
     ["traffic between containers on", { ...shared, Options: { "com.docker.network.bridge.enable_icc": "true" } }],
     ["no option", { ...shared, Options: {} }],
-    ["another option", { ...shared, Options: { ...shared.Options, "com.docker.network.bridge.enable_ip_masquerade": "false" } }],
+    [
+      "another option",
+      { ...shared, Options: { ...shared.Options, "com.docker.network.bridge.enable_ip_masquerade": "false" } },
+    ],
     ["a subnet", { ...shared, IPAM: { Config: [{ Subnet: "10.0.0.0/8" }] } }],
     ["another label", { ...shared, Labels: { "vyre.workspaces": "shared", x: "y" } }],
     ["not ours", { ...shared, Labels: {} }],
     ["host driver", { ...shared, Driver: "host" }],
     ["attachable", { ...shared, Attachable: true }],
-  ] as Array<[string, unknown]>) assert.equal((await mk(body)).status, 403, what);
-  assert.equal((await w.call("POST", "/v1.47/containers/create?name=vyre-ws-agt_dex", good(A, {}, { NetworkMode: "vyre-workspaces" }))).status, 201, "a workspace on the shared network");
-  assert.equal((await w.call("GET", "/v1.47/networks/vyre-workspaces")).status, 200, "read (its subnet, for the daemon's guard)");
-  assert.equal((await w.call("DELETE", "/v1.47/networks/vyre-workspaces")).status, 403, "never removed through the runner");
-  for (const who of ["vyred", name(A), "site1"]) assert.equal((await w.call("POST", "/v1.47/networks/vyre-workspaces/connect", { Container: who })).status, 403, `${who} does not join it`);
-  assert.equal((await w.call("POST", "/v1.47/containers/create?name=vyre-ws-agt_dex", good(A, {}, { NetworkMode: "vyre-sbrowser" }))).status, 403, "and a workspace on no other network");
+  ] as Array<[string, unknown]>)
+    assert.equal((await mk(body)).status, 403, what);
+  assert.equal(
+    (
+      await w.call(
+        "POST",
+        "/v1.47/containers/create?name=vyre-ws-agt_dex",
+        good(A, {}, { NetworkMode: "vyre-workspaces" }),
+      )
+    ).status,
+    201,
+    "a workspace on the shared network",
+  );
+  assert.equal(
+    (await w.call("GET", "/v1.47/networks/vyre-workspaces")).status,
+    200,
+    "read (its subnet, for the daemon's guard)",
+  );
+  assert.equal(
+    (await w.call("DELETE", "/v1.47/networks/vyre-workspaces")).status,
+    403,
+    "never removed through the runner",
+  );
+  for (const who of ["vyred", name(A), "site1"])
+    assert.equal(
+      (await w.call("POST", "/v1.47/networks/vyre-workspaces/connect", { Container: who })).status,
+      403,
+      `${who} does not join it`,
+    );
+  assert.equal(
+    (
+      await w.call(
+        "POST",
+        "/v1.47/containers/create?name=vyre-ws-agt_dex",
+        good(A, {}, { NetworkMode: "vyre-sbrowser" }),
+      )
+    ).status,
+    403,
+    "and a workspace on no other network",
+  );
 });
 
 test("the list of networks (server health's count of what is left) is answered with subnets only: no names, labels or containers; with a filter it is refused", async (t) => {
@@ -262,6 +584,10 @@ test("the list of networks (server health's count of what is left) is answered w
   t.after(w.close);
   const r = await w.call("GET", "/v1.47/networks");
   assert.equal(r.status, 200);
-  assert.deepEqual(JSON.parse(r.body), [{ IPAM: { Config: [{ Subnet: "172.18.0.0/16" }] } }], "the subnet and nothing else");
+  assert.deepEqual(
+    JSON.parse(r.body),
+    [{ IPAM: { Config: [{ Subnet: "172.18.0.0/16" }] } }],
+    "the subnet and nothing else",
+  );
   assert.equal((await w.call("GET", "/v1.47/networks?filters=%7B%7D")).status, 403);
 });

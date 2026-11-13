@@ -16,7 +16,12 @@ const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 40));
 
 const synced: PageSpace = { ...northwind, types: [{ ...CLIENT, syncedFrom: "crm_ledger" } as typeof CLIENT, PROJECT] };
 const STATE: RecordSync = {
-  synced: true, state: "synced", app: { key: "crm_ledger", title: "Ledger", domain: "crm-a.test" }, remoteId: "101", openUrl: "https://app.crm-a.test/people/101", lastSyncAt: SAMPLE_NOW - 60_000,
+  synced: true,
+  state: "synced",
+  app: { key: "crm_ledger", title: "Ledger", domain: "crm-a.test" },
+  remoteId: "101",
+  openUrl: "https://app.crm-a.test/people/101",
+  lastSyncAt: SAMPLE_NOW - 60_000,
   fields: [
     { key: "email", dir: "both", state: "synced", at: SAMPLE_NOW - 2000, history: 0 },
     { key: "phone", dir: "both", state: "saving", history: 0 },
@@ -34,7 +39,18 @@ function world(state: RecordSync = STATE) {
     if (cap.startsWith("sync_types.") || cap.startsWith("connectors.")) {
       sync.push({ cap, input: input as any });
       if (cap === "sync_types.record_state") return state;
-      if (cap === "sync_types.field_history") return { entries: [{ historyId: "11", value: "ada@old.example", replacedBy: "app", actor: "sync:crm_ledger", at: SAMPLE_NOW - 3_600_000 }] };
+      if (cap === "sync_types.field_history")
+        return {
+          entries: [
+            {
+              historyId: "11",
+              value: "ada@old.example",
+              replacedBy: "app",
+              actor: "sync:crm_ledger",
+              at: SAMPLE_NOW - 3_600_000,
+            },
+          ],
+        };
       return { ok: true };
     }
     return inner(cap, input);
@@ -43,11 +59,18 @@ function world(state: RecordSync = STATE) {
   return { s, sync };
 }
 const open = (w: ReturnType<typeof world>, type = "clients", id = "cl_0") =>
-  mount(createRoot, <RecordPageDataProvider value={w.s.data}><RecordPage type={type} recordId={id} start={{ all: true }} /></RecordPageDataProvider>);
+  mount(
+    createRoot,
+    <RecordPageDataProvider value={w.s.data}>
+      <RecordPage type={type} recordId={id} start={{ all: true }} />
+    </RecordPageDataProvider>,
+  );
 
 test("the source chip shows the app and Open in the app; the app's name opens the Sync page", async () => {
   const opened: string[] = [];
-  (globalThis as { open?: unknown }).open = (u: string) => { opened.push(u); };
+  (globalThis as { open?: unknown }).open = (u: string) => {
+    opened.push(u);
+  };
   const w = world();
   const root = await open(w);
   await settle();
@@ -76,12 +99,21 @@ test("a failed field retries the push; an edit nudges a pass; Restore puts an ea
   await settle();
   await press(find(root, "field-mark-retry"));
   await settle();
-  assert.deepEqual(w.sync.filter((c) => c.cap === "connectors.outbox.retry").map((c) => c.input.outboxId), ["obx_7"]);
-  assert.ok(w.sync.some((c) => c.cap === "connectors.sync_now"), "a retry starts a pass");
+  assert.deepEqual(
+    w.sync.filter((c) => c.cap === "connectors.outbox.retry").map((c) => c.input.outboxId),
+    ["obx_7"],
+  );
+  assert.ok(
+    w.sync.some((c) => c.cap === "connectors.sync_now"),
+    "a retry starts a pass",
+  );
   w.sync.length = 0;
   await press(find(root, "field-mark-earlier"));
   await settle();
-  assert.deepEqual(w.sync.filter((c) => c.cap === "sync_types.field_history").map((c) => c.input.field), ["email"]);
+  assert.deepEqual(
+    w.sync.filter((c) => c.cap === "sync_types.field_history").map((c) => c.input.field),
+    ["email"],
+  );
 });
 
 test("a type that does not sync asks the server nothing and shows no chip or marks", async () => {
@@ -96,14 +128,39 @@ test("the sidebar: a synced type wears the app's logo and a sync dot that opens 
   const sample = createSampleRecords(tableNorthwind);
   const log: string[] = [];
   const data = {
-    ...sample.data, canEditSchema: true,
+    ...sample.data,
+    canEditSchema: true,
     call: async (cap: string, input: unknown) => {
-      if (cap === "sync_types.list") return { syncedTypes: [{ type: "clients", connector: "crm_ledger", state: "syncing", pending: 0, conflicts: 1, schemaChanges: 0, app: { title: "Ledger", domain: "crm-a.test" } }] };
+      if (cap === "sync_types.list")
+        return {
+          syncedTypes: [
+            {
+              type: "clients",
+              connector: "crm_ledger",
+              state: "syncing",
+              pending: 0,
+              conflicts: 1,
+              schemaChanges: 0,
+              app: { title: "Ledger", domain: "crm-a.test" },
+            },
+          ],
+        };
       return sample.data.call(cap, input);
     },
-    nav: { ...sample.data.nav, openSync: (t: string) => void log.push(`sync:${t}`), bringInCrm: () => void log.push("bring-in") },
+    nav: {
+      ...sample.data.nav,
+      openSync: (t: string) => void log.push(`sync:${t}`),
+      bringInCrm: () => void log.push("bring-in"),
+    },
   };
-  const root = await mount(createRoot, <RecordsDataProvider value={data}><RecordsStateProvider><RecordsSidebar /></RecordsStateProvider></RecordsDataProvider>);
+  const root = await mount(
+    createRoot,
+    <RecordsDataProvider value={data}>
+      <RecordsStateProvider>
+        <RecordsSidebar />
+      </RecordsStateProvider>
+    </RecordsDataProvider>,
+  );
   await settle();
   assert.ok(find(root, "sync-logo-crm_ledger"), "the type wears the app's logo");
   assert.ok(find(root, "sync-dot-needs"), "a conflict to decide makes the dot ask for a person");
@@ -117,7 +174,14 @@ test("the sidebar: a synced type wears the app's logo and a sync dot that opens 
 test("without the right to change record types the sidebar does not offer Bring in from your CRM", async () => {
   const sample = createSampleRecords(tableNorthwind);
   const data = { ...sample.data, nav: { ...sample.data.nav, bringInCrm: () => undefined } };
-  const root = await mount(createRoot, <RecordsDataProvider value={data}><RecordsStateProvider><RecordsSidebar /></RecordsStateProvider></RecordsDataProvider>);
+  const root = await mount(
+    createRoot,
+    <RecordsDataProvider value={data}>
+      <RecordsStateProvider>
+        <RecordsSidebar />
+      </RecordsStateProvider>
+    </RecordsDataProvider>,
+  );
   await settle();
   assert.doesNotMatch(textOf(root), /Bring in from your CRM/);
 });

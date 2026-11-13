@@ -5,11 +5,38 @@ import assert from "node:assert/strict";
 import { basicWords, createLocalEmbedder, encode, vocabOf, wordpiece } from "../local-embedder.ts";
 import type { ModelFiles, OrtLike } from "../local-embedder.ts";
 
-const VOCAB = ["[PAD]", "[UNK]", "[CLS]", "[SEP]", "bank", "rec", "##on", "##cil", "##iation", "the", "chase", "feed", ",", "didn", "'", "t", "match"];
+const VOCAB = [
+  "[PAD]",
+  "[UNK]",
+  "[CLS]",
+  "[SEP]",
+  "bank",
+  "rec",
+  "##on",
+  "##cil",
+  "##iation",
+  "the",
+  "chase",
+  "feed",
+  ",",
+  "didn",
+  "'",
+  "t",
+  "match",
+];
 const tokenizerJson = JSON.stringify({ model: { vocab: Object.fromEntries(VOCAB.map((t, i) => [t, i])) } });
 const vocab = vocabOf(tokenizerJson);
 test("the tokenizer lowercases, strips accents, splits punctuation and cuts words into pieces", () => {
-  assert.deepEqual(basicWords("The Chase feed, didn't match"), ["the", "chase", "feed", ",", "didn", "'", "t", "match"]);
+  assert.deepEqual(basicWords("The Chase feed, didn't match"), [
+    "the",
+    "chase",
+    "feed",
+    ",",
+    "didn",
+    "'",
+    "t",
+    "match",
+  ]);
   assert.deepEqual(basicWords("Café  BANK"), ["cafe", "bank"]);
   assert.deepEqual(wordpiece("reconciliation", vocab).length, 4, "rec + ##on + ##cil + ##iation");
   assert.deepEqual(wordpiece("xyzzy", vocab), [vocab.unk]);
@@ -23,24 +50,49 @@ test("the tokenizer lowercases, strips accents, splits punctuation and cuts word
 function fakeOrt(): OrtLike & { sessions: number } {
   const ort = {
     sessions: 0,
-    InferenceSession: { async create() { ort.sessions++; return { async run(feeds: Record<string, { data: unknown; dims: readonly number[] }>) {
-      const ids = feeds["input_ids"]!.data as BigInt64Array;
-      const [B, T] = feeds["input_ids"]!.dims as [number, number];
-      const out = new Float32Array(B * T * 384);
-      for (let i = 0; i < B * T; i++) out[i * 384 + Number(ids[i]! % 8n)] = 1;
-      return { last_hidden_state: { data: out, dims: [B, T, 384] } };
-    } }; } },
-    Tensor: class { type: string; data: BigInt64Array; dims: number[]; constructor(type: string, data: BigInt64Array, dims: number[]) { this.type = type; this.data = data; this.dims = dims; } },
+    InferenceSession: {
+      async create() {
+        ort.sessions++;
+        return {
+          async run(feeds: Record<string, { data: unknown; dims: readonly number[] }>) {
+            const ids = feeds["input_ids"]!.data as BigInt64Array;
+            const [B, T] = feeds["input_ids"]!.dims as [number, number];
+            const out = new Float32Array(B * T * 384);
+            for (let i = 0; i < B * T; i++) out[i * 384 + Number(ids[i]! % 8n)] = 1;
+            return { last_hidden_state: { data: out, dims: [B, T, 384] } };
+          },
+        };
+      },
+    },
+    Tensor: class {
+      type: string;
+      data: BigInt64Array;
+      dims: number[];
+      constructor(type: string, data: BigInt64Array, dims: number[]) {
+        this.type = type;
+        this.data = data;
+        this.dims = dims;
+      }
+    },
   };
   return ort as unknown as OrtLike & { sessions: number };
 }
 
-
 const files = (fail: () => boolean = () => false): ModelFiles & { loads: number } => {
-  const f = { name: "stand-in@1", loads: 0, async load() { f.loads++; if (fail()) throw new Error("offline"); return { model: new Uint8Array([1]), tokenizer: tokenizerJson }; } };
+  const f = {
+    name: "stand-in@1",
+    loads: 0,
+    async load() {
+      f.loads++;
+      if (fail()) throw new Error("offline");
+      return { model: new Uint8Array([1]), tokenizer: tokenizerJson };
+    },
+  };
   return f;
 };
-const settle = async (e: { status(): { state: string } }, want: string): Promise<void> => { for (let i = 0; i < 100 && e.status().state !== want; i++) await new Promise<void>((r) => setTimeout(r, 5)); };
+const settle = async (e: { status(): { state: string } }, want: string): Promise<void> => {
+  for (let i = 0; i < 100 && e.status().state !== want; i++) await new Promise<void>((r) => setTimeout(r, 5));
+};
 
 test("the embedder is not set up until first used, then loading, then ready; its vectors are unit length and a blank text is a zero vector", async () => {
   {
@@ -57,7 +109,10 @@ test("the embedder is not set up until first used, then loading, then ready; its
     assert.equal(ort.sessions, 1);
     const [a, blank, b] = await e.embed(["the bank", "   ", "the bank"]);
     assert.ok(Math.abs(Math.hypot(...a!) - 1) < 1e-5, "unit length");
-    assert.deepEqual([...blank!].every((x) => x === 0), true);
+    assert.deepEqual(
+      [...blank!].every((x) => x === 0),
+      true,
+    );
     assert.deepEqual([...a!], [...b!], "the same text, the same vector");
   }
 });

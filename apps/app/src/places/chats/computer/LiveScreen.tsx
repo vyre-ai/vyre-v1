@@ -43,7 +43,24 @@ export interface LiveScreenProps {
   children?: ReactNode;
 }
 
-export function LiveScreen({ computerId, state, call, note, spaceUrl, display, now, control, keys = false, onIdlePress, testID, streamTestID, label, style, disabled, children }: LiveScreenProps): ReactElement {
+export function LiveScreen({
+  computerId,
+  state,
+  call,
+  note,
+  spaceUrl,
+  display,
+  now,
+  control,
+  keys = false,
+  onIdlePress,
+  testID,
+  streamTestID,
+  label,
+  style,
+  disabled,
+  children,
+}: LiveScreenProps): ReactElement {
   const [stream, setStream] = useState<{ transport: "webrtc" | "mjpeg"; url: string; ticket: string } | null>(null);
   const box = useRef({ width: 0, height: 0 });
   const node = useRef<unknown>(null);
@@ -52,21 +69,46 @@ export function LiveScreen({ computerId, state, call, note, spaceUrl, display, n
   const reachable = state === "working" || state === "takeover";
 
   useEffect(() => {
-    if (!reachable) { setStream(null); return; }
+    if (!reachable) {
+      setStream(null);
+      return;
+    }
     let live = true;
-    void openStream(deps, computerId).then((s) => { if (live && s) setStream({ transport: s.transport, url: s.url, ticket: s.ticket }); });
-    return () => { live = false; };
+    void openStream(deps, computerId).then((s) => {
+      if (live && s) setStream({ transport: s.transport, url: s.url, ticket: s.ticket });
+    });
+    return () => {
+      live = false;
+    };
   }, [reachable, deps, computerId]);
 
   useEffect(() => {
     if (!keys || !control) return;
-    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void } }).document;
+    const doc = (
+      globalThis as {
+        document?: {
+          addEventListener(t: string, f: (e: KeyboardEvent) => void): void;
+          removeEventListener(t: string, f: (e: KeyboardEvent) => void): void;
+        };
+      }
+    ).document;
     if (!doc) return;
     const onKey = (e: KeyboardEvent): void => {
       const tag = ((e.target as { tagName?: string } | null)?.tagName ?? "").toUpperCase();
-      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as { isContentEditable?: boolean } | null)?.isContentEditable === true) return;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        (e.target as { isContentEditable?: boolean } | null)?.isContentEditable === true
+      )
+        return;
       e.preventDefault();
-      void forwarder.key({ key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey, shiftKey: e.shiftKey });
+      void forwarder.key({
+        key: e.key,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        altKey: e.altKey,
+        shiftKey: e.shiftKey,
+      });
       setTimeout(() => void forwarder.flush(), 120);
     };
     doc.addEventListener("keydown", onKey);
@@ -74,7 +116,10 @@ export function LiveScreen({ computerId, state, call, note, spaceUrl, display, n
   }, [keys, control, forwarder]);
 
   const press = (e: { nativeEvent?: { locationX?: number; locationY?: number } }): void => {
-    if (!control) { onIdlePress?.(); return; }
+    if (!control) {
+      onIdlePress?.();
+      return;
+    }
     void forwarder.press(e.nativeEvent?.locationX ?? 0, e.nativeEvent?.locationY ?? 0, box.current, now());
   };
   const domPoint = (e: DomEvent): { x: number; y: number } => {
@@ -85,27 +130,51 @@ export function LiveScreen({ computerId, state, call, note, spaceUrl, display, n
   // Only while the person is in control does either go to the agent's desktop.
   const trigger = menuTrigger((x, y) => {
     if (!control) return;
-    const r = (node.current as { getBoundingClientRect?: () => { left: number; top: number } } | null)?.getBoundingClientRect?.();
+    const r = (
+      node.current as { getBoundingClientRect?: () => { left: number; top: number } } | null
+    )?.getBoundingClientRect?.();
     void forwarder.press(x - (r?.left ?? 0), y - (r?.top ?? 0), box.current, now(), "right");
   });
-  delete trigger.onKeyDown;   // the menu key is a key for the desktop, not a right click
+  delete trigger.onKeyDown; // the menu key is a key for the desktop, not a right click
   const web: Record<string, unknown> = {
     ...trigger,
-    ...(Platform.OS !== "web" ? {} : {
-      onWheel: (e: DomEvent) => {
-        if (!control) return;
-        e.preventDefault?.();
-        const p = domPoint(e);
-        void forwarder.scroll(p.x, p.y, box.current, e.deltaX ?? 0, e.deltaY ?? 0);
-      },
-    }),
+    ...(Platform.OS !== "web"
+      ? {}
+      : {
+          onWheel: (e: DomEvent) => {
+            if (!control) return;
+            e.preventDefault?.();
+            const p = domPoint(e);
+            void forwarder.scroll(p.x, p.y, box.current, e.deltaX ?? 0, e.deltaY ?? 0);
+          },
+        }),
   };
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} onPress={press} {...(disabled ? { disabled } : {})}
-      onLayout={(e) => { box.current = { width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height }; }}
-      ref={(n) => { node.current = n; }} style={style} {...web}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      testID={testID}
+      onPress={press}
+      {...(disabled ? { disabled } : {})}
+      onLayout={(e) => {
+        box.current = { width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height };
+      }}
+      ref={(n) => {
+        node.current = n;
+      }}
+      style={style}
+      {...web}
+    >
       {children}
-      {stream && stream.transport === "mjpeg" ? <Image testID={streamTestID ?? `${testID}-stream`} accessibilityLabel="Live view" source={{ uri: streamSrc(stream.url, stream.ticket, spaceUrl) }} resizeMode="contain" style={st.stream} /> : null}
+      {stream && stream.transport === "mjpeg" ? (
+        <Image
+          testID={streamTestID ?? `${testID}-stream`}
+          accessibilityLabel="Live view"
+          source={{ uri: streamSrc(stream.url, stream.ticket, spaceUrl) }}
+          resizeMode="contain"
+          style={st.stream}
+        />
+      ) : null}
     </Pressable>
   );
 }

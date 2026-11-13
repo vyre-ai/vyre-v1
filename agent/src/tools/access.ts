@@ -7,7 +7,15 @@ import type { Catalog, Level, Refusal, ThreadFacts, ToolCtx, ToolDef, ToolSet } 
 export const ASK_VIEW_EXTRAS: ReadonlySet<string> = new Set(["access.propose_change"]);
 
 /** In a task thread the agent finishes every turn with one of these, so they are in its list without a search. A request (Answer, Review, Approve, Unblock) ends with tasks_act. */
-export const TASK_BATON_TOOLS: ReadonlySet<string> = new Set(["task_submit", "task_ask", "task_block", "task_review", "task_decide", "tasks_take", "tasks_act"]);
+export const TASK_BATON_TOOLS: ReadonlySet<string> = new Set([
+  "task_submit",
+  "task_ask",
+  "task_block",
+  "task_review",
+  "task_decide",
+  "tasks_take",
+  "tasks_act",
+]);
 
 export interface AccessDeps {
   catalog: Catalog;
@@ -19,11 +27,12 @@ export interface AccessDeps {
   canEngineer?(asker: string): boolean;
 }
 
-const listsTool = (list: readonly string[] | undefined, t: ToolDef): boolean => list !== undefined && (list.includes(t.name) || list.includes(t.toolset));
+const listsTool = (list: readonly string[] | undefined, t: ToolDef): boolean =>
+  list !== undefined && (list.includes(t.name) || list.includes(t.toolset));
 
 export function askLevel(deps: AccessDeps, asker: string, thread: ThreadFacts): Level | null {
   if (thread.kind !== "ask") return "manage";
-  return thread.scope ? deps.levelFor(asker, thread.scope) : "view";   // an Ask pane with no scope gets the narrowest set
+  return thread.scope ? deps.levelFor(asker, thread.scope) : "view"; // an Ask pane with no scope gets the narrowest set
 }
 
 /** Level rule for an Ask pane: view = read tools at view plus the propose-change extra; use and above = everything up to that level. */
@@ -34,20 +43,31 @@ export function allowedAtLevel(level: Level, t: ToolDef): boolean {
 }
 
 /** The objects an Ask can be pinned to: the pane changes that one thing and nothing else. A folder, a project or a place holds many things, so its Ask is bounded by the level alone. */
-const ONE_OBJECT: ReadonlySet<string> = new Set(["record", "file", "task", "run", "site", "form", "automation", "agent"]);
+const ONE_OBJECT: ReadonlySet<string> = new Set([
+  "record",
+  "file",
+  "task",
+  "run",
+  "site",
+  "form",
+  "automation",
+  "agent",
+]);
 /** Writes that change nothing outside the pane: a drafted change for the editors, asking for access or a key. */
 const ASK_ANYWHERE: ReadonlySet<string> = new Set([...ASK_VIEW_EXTRAS, "access.request", "vault.request"]);
 
 function pointed(input: unknown, pointer: string): unknown {
   let at = input;
-  for (const key of pointer.split("/").slice(1)) at = at !== null && typeof at === "object" ? (at as Record<string, unknown>)[key] : undefined;
+  for (const key of pointer.split("/").slice(1))
+    at = at !== null && typeof at === "object" ? (at as Record<string, unknown>)[key] : undefined;
   return at;
 }
 
 /** May this call go ahead in an Ask pinned to one object? It reads anything the person can read, writes in the pane's own thread, and changes only the object the pane is about. */
 export function reachesScope(t: ToolDef, thread: ThreadFacts, input: unknown): boolean {
   const scope = thread.scope;
-  if (thread.kind !== "ask" || !scope || !ONE_OBJECT.has(scope.type) || t.effects === "read" || ASK_ANYWHERE.has(t.cap)) return true;
+  if (thread.kind !== "ask" || !scope || !ONE_OBJECT.has(scope.type) || t.effects === "read" || ASK_ANYWHERE.has(t.cap))
+    return true;
   if (!t.resource) return false;
   const id = pointed(input, t.resource.id);
   return t.resource.type === "thread" ? id === thread.threadId : t.resource.type === scope.type && id === scope.id;
@@ -57,7 +77,8 @@ export function reachesScope(t: ToolDef, thread: ThreadFacts, input: unknown): b
 export function refusalFor(deps: AccessDeps, ctx: ToolCtx, t: ToolDef, level: Level | null): Refusal | null {
   if (t.toolset === "engineer" && deps.canEngineer?.(ctx.asker) !== true) return "engineer";
   if (listsTool(ctx.rules?.deny, t)) return "agent_denied";
-  if (ctx.rules?.allow !== undefined && ctx.rules.allow.length > 0 && !listsTool(ctx.rules.allow, t)) return "agent_denied";
+  if (ctx.rules?.allow !== undefined && ctx.rules.allow.length > 0 && !listsTool(ctx.rules.allow, t))
+    return "agent_denied";
   if (ctx.thread.planMode && (t.planMode === "blocked" || t.effects === "outward")) return "plan_mode";
   if (level === null) return "no_access";
   if (ctx.thread.kind === "ask" && !allowedAtLevel(level, t)) return "ask_level";
@@ -78,11 +99,15 @@ export function toolsFor(deps: AccessDeps, ctx: ToolCtx): ToolSet {
 
 /** tool_search: rank the deferred tools the asker may use by how many query words hit the name, toolset or summary. Names and schemas come back; calling them is then allowed. */
 export function searchTools(searchable: readonly ToolDef[], query: string, limit = 8): ToolDef[] {
-  const words = query.toLowerCase().split(/[^a-z0-9_]+/).filter((w) => w.length > 1);
+  const words = query
+    .toLowerCase()
+    .split(/[^a-z0-9_]+/)
+    .filter((w) => w.length > 1);
   if (words.length === 0) return [];
   const scored: Array<{ t: ToolDef; s: number }> = [];
   for (const t of searchable) {
-    const name = t.name.toLowerCase(), rest = `${t.toolset} ${t.summary}`.toLowerCase();
+    const name = t.name.toLowerCase(),
+      rest = `${t.toolset} ${t.summary}`.toLowerCase();
     let s = 0;
     for (const w of words) s += (name.includes(w) ? 3 : 0) + (rest.includes(w) ? 1 : 0);
     if (s > 0) scored.push({ t, s });

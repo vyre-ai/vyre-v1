@@ -13,16 +13,32 @@ import { GateError, journeyOfType, moveInJourney, startInJourney, stageFieldOf, 
 import type { JourneyBinding, MissingField } from "./model.ts";
 
 /** A move the stage refused for want of fields: the card, where it was going and what is missing. */
-export interface Gated { row: RecordRow; stage: string; missing: readonly MissingField[] }
+export interface Gated {
+  row: RecordRow;
+  stage: string;
+  missing: readonly MissingField[];
+}
 
 /** The binding of a Journey type once its Journey is known; undefined while it loads, null when no Journey owns the type. */
-export function useJourneyBinding(type: string, def: ViewCtx["def"], onGate?: (g: Gated) => void): JourneyBinding | null | undefined {
+export function useJourneyBinding(
+  type: string,
+  def: ViewCtx["def"],
+  onGate?: (g: Gated) => void,
+): JourneyBinding | null | undefined {
   const data = useRecordsData();
   const [found, setFound] = useState<{ id: string; subjectType: string } | null | undefined>(undefined);
   useEffect(() => {
     let live = true;
-    journeyOfType(data.call, type).then((j) => { if (live) setFound(j); }).catch(() => { if (live) setFound(null); });
-    return () => { live = false; };
+    journeyOfType(data.call, type)
+      .then((j) => {
+        if (live) setFound(j);
+      })
+      .catch(() => {
+        if (live) setFound(null);
+      });
+    return () => {
+      live = false;
+    };
   }, [data, type]);
   const field = stageFieldOf(def);
   return useMemo(() => {
@@ -30,11 +46,18 @@ export function useJourneyBinding(type: string, def: ViewCtx["def"], onGate?: (g
     if (!found || !field) return null;
     const first = optionsOf(field)[0]?.key;
     return {
-      journeyId: found.id, subjectType: found.subjectType, field,
+      journeyId: found.id,
+      subjectType: found.subjectType,
+      field,
       move: async (row, stage) => {
-        try { await moveInJourney(data.call, found.id, row, stage); } catch (e) {
+        try {
+          await moveInJourney(data.call, found.id, row, stage);
+        } catch (e) {
           // a stage waiting on fields asks for them in a sheet instead of failing
-          if (e instanceof GateError && onGate) { onGate({ row, stage, missing: e.missing }); return; }
+          if (e instanceof GateError && onGate) {
+            onGate({ row, stage, missing: e.missing });
+            return;
+          }
           throw e;
         }
       },
@@ -43,7 +66,14 @@ export function useJourneyBinding(type: string, def: ViewCtx["def"], onGate?: (g
         if (!at) return [{ head: "This Journey has no stages." }];
         const rows = await subjectTitles(data.call, found.subjectType);
         if (rows.length === 0) return [{ head: "Nothing to add yet. Make a record first." }];
-        return rows.map((r) => ({ label: r.title, onSelect: () => { startInJourney(data.call, found.id, r.id, at).then(() => done(null)).catch((e: unknown) => done(e instanceof Error ? e.message : "Could not add it.")); } }));
+        return rows.map((r) => ({
+          label: r.title,
+          onSelect: () => {
+            startInJourney(data.call, found.id, r.id, at)
+              .then(() => done(null))
+              .catch((e: unknown) => done(e instanceof Error ? e.message : "Could not add it."));
+          },
+        }));
       },
     } satisfies JourneyBinding;
   }, [found, field, data, onGate]);
@@ -59,8 +89,16 @@ export function JourneyBoard({ ctx }: { ctx: ViewCtx }): ReactElement {
       <BoardView ctx={binding ? { ...ctx, journey: binding } : ctx} />
       {gate && binding ? (
         <GateSheet
-          call={data.call} journeyId={binding.journeyId} type={ctx.type} def={ctx.def} row={gate.row} toStage={gate.stage} missing={gate.missing}
-          stageTitle={optionsOf(binding.field).find((o) => o.key === gate.stage)?.title ?? gate.stage} onDone={() => setGate(null)} onClose={() => setGate(null)}
+          call={data.call}
+          journeyId={binding.journeyId}
+          type={ctx.type}
+          def={ctx.def}
+          row={gate.row}
+          toStage={gate.stage}
+          missing={gate.missing}
+          stageTitle={optionsOf(binding.field).find((o) => o.key === gate.stage)?.title ?? gate.stage}
+          onDone={() => setGate(null)}
+          onClose={() => setGate(null)}
         />
       ) : null}
     </>

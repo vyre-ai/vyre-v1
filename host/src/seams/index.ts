@@ -34,8 +34,40 @@ import type { FetchedResponse, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, 
 
 export { createGithubHost, createStripeHost, createTwilioHost, createZoomHost };
 export type { GithubHostSeam, StripeHostSeam, TwilioHostSeam, ZoomHostSeam, FillerPort };
-export { createComputersHost, createDropboxHost, createEngineHost, createGoogleHost, createImapSecretResolver, createMailgunHost, createMsHost, createResendHost, createSourcesSecretResolver };
-export type { ComputersHostDeps, ComputersHostSeam, DropboxHostSeam, EngineHostDeps, EngineHostSeam, EngineInvoke, EngineSessionPorts, FetchedResponse, GoogleHostSeam, MailgunHostSeam, ResendHostSeam, GoogleSeamDeps, ImapSecretResolver, MsHostSeam, SourcesSecretResolver, MsSeamDeps, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort };
+export {
+  createComputersHost,
+  createDropboxHost,
+  createEngineHost,
+  createGoogleHost,
+  createImapSecretResolver,
+  createMailgunHost,
+  createMsHost,
+  createResendHost,
+  createSourcesSecretResolver,
+};
+export type {
+  ComputersHostDeps,
+  ComputersHostSeam,
+  DropboxHostSeam,
+  EngineHostDeps,
+  EngineHostSeam,
+  EngineInvoke,
+  EngineSessionPorts,
+  FetchedResponse,
+  GoogleHostSeam,
+  MailgunHostSeam,
+  ResendHostSeam,
+  GoogleSeamDeps,
+  ImapSecretResolver,
+  MsHostSeam,
+  SourcesSecretResolver,
+  MsSeamDeps,
+  SeamFetch,
+  SpaceBlobs,
+  SpaceFiles,
+  SpaceMembers,
+  VaultPort,
+};
 
 /** Every host driver is built from the same deps; a driver may return anything the setter accepts (a seam object, a function, a config). */
 export type SeamDriver = (d: SeamDriverDeps) => unknown;
@@ -103,10 +135,21 @@ export interface SeamDeps {
 }
 
 export type SeamState = "wired" | "absent";
-export interface MissingDriver { setter: string; module?: string; reason: string }
+export interface MissingDriver {
+  setter: string;
+  module?: string;
+  reason: string;
+}
 export interface WiredSeams {
   /** the four connector seams, kept for the callers that read them by name */
-  state: { google: SeamState; microsoft: SeamState; imap: SeamState; sources: SeamState; resend: SeamState; mailgun: SeamState };
+  state: {
+    google: SeamState;
+    microsoft: SeamState;
+    imap: SeamState;
+    sources: SeamState;
+    resend: SeamState;
+    mailgun: SeamState;
+  };
   /** every setter that was called with its driver */
   wired: string[];
   /** every setter that was exported but could not be given a driver (none registered, or the driver threw), with the module that offered it */
@@ -120,8 +163,10 @@ export interface WiredSeams {
 export const defaultFetch: SeamFetch = async (url, init) => {
   // a token request or a bearer download never follows a redirect off the listed host, so redirects are errors here
   const r = await globalThis.fetch(url, {
-    ...(init?.method ? { method: init.method } : {}), ...(init?.headers ? { headers: init.headers } : {}),
-    ...(init?.body !== undefined ? { body: init.body } : {}), redirect: "error",
+    ...(init?.method ? { method: init.method } : {}),
+    ...(init?.headers ? { headers: init.headers } : {}),
+    ...(init?.body !== undefined ? { body: init.body } : {}),
+    redirect: "error",
   } as never);
   return { status: r.status, text: () => r.text(), arrayBuffer: () => r.arrayBuffer() };
 };
@@ -132,27 +177,54 @@ export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.free
   setMsHost: (d: SeamDriverDeps) => createMsHost({ ...d.common, publicUrl: d.publicUrl }),
   setImapSecretResolver: (d: SeamDriverDeps) => createImapSecretResolver(d.vault),
   setSourcesSecretResolver: (d: SeamDriverDeps) => createSourcesSecretResolver(d.vault, d.space),
-  setResendHost: (d: SeamDriverDeps) => createResendHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
-  setMailgunHost: (d: SeamDriverDeps) => createMailgunHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
+  setResendHost: (d: SeamDriverDeps) =>
+    createResendHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
+  setMailgunHost: (d: SeamDriverDeps) =>
+    createMailgunHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
   setStripeHost: (d: SeamDriverDeps) => createStripeHost({ vault: d.vault }),
-  setTwilioHost: (d: SeamDriverDeps) => createTwilioHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, publicUrl: d.publicUrl }),
+  setTwilioHost: (d: SeamDriverDeps) =>
+    createTwilioHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, publicUrl: d.publicUrl }),
   setCiHost: (d: SeamDriverDeps) => createCiHost({ vault: d.vault, fetch: d.fetch }),
   setZoomHost: (d: SeamDriverDeps) => createZoomHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs }),
-  setDropboxHost: (d: SeamDriverDeps) => createDropboxHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
+  setDropboxHost: (d: SeamDriverDeps) =>
+    createDropboxHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
   setTalkHost: (d: SeamDriverDeps) => createTalkHost({ vault: d.vault, fetch: d.fetch }),
-  setPluginsHost: (d: SeamDriverDeps) => createPluginsHost({ fetch: d.fetch, ...(d.filler ? { fillToken: (h: string) => d.filler!.fill(h, { kind: "git_clone", ref: h }, Date.now()) } : {}) }),
-  setGithubHost: (d: SeamDriverDeps) => createGithubHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, filler: d.filler, publicUrl: d.publicUrl, hostCall: d.hostCall, defaultApp: d.defaultGithubApp, tickets: d.githubTickets }),
+  setPluginsHost: (d: SeamDriverDeps) =>
+    createPluginsHost({
+      fetch: d.fetch,
+      ...(d.filler ? { fillToken: (h: string) => d.filler!.fill(h, { kind: "git_clone", ref: h }, Date.now()) } : {}),
+    }),
+  setGithubHost: (d: SeamDriverDeps) =>
+    createGithubHost({
+      vault: d.vault,
+      fetch: d.fetch,
+      blobs: d.blobs,
+      filler: d.filler,
+      publicUrl: d.publicUrl,
+      hostCall: d.hostCall,
+      defaultApp: d.defaultGithubApp,
+      tickets: d.githubTickets,
+    }),
 });
 
 const LEGACY: Readonly<Record<string, keyof WiredSeams["state"]>> = Object.freeze({
-  setGoogleHost: "google", setMsHost: "microsoft", setImapSecretResolver: "imap", setSourcesSecretResolver: "sources", setResendHost: "resend", setMailgunHost: "mailgun",
+  setGoogleHost: "google",
+  setMsHost: "microsoft",
+  setImapSecretResolver: "imap",
+  setSourcesSecretResolver: "sources",
+  setResendHost: "resend",
+  setMailgunHost: "mailgun",
 });
 
 /** What the notifications module hands the transport (the structural subset of its PushMessage). */
 export interface PushSendMessage {
-  device: string; platform: string; token: string;
+  device: string;
+  platform: string;
+  token: string;
   /** the only text of a push */
-  title: string; deepLink: string; tag: string;
+  title: string;
+  deepLink: string;
+  tag: string;
   category?: "needs_you";
   actions?: { key: string; cap: string }[];
 }
@@ -168,7 +240,13 @@ export interface PushTransportDeps {
   /** the Space's display name for the push title; omitted: the Space id */
   spaceName?: (space: string) => Promise<string | undefined> | string | undefined;
   /** the email transport (seams/notify-mail.ts in a daemon): answers what became of it; "sent" only when it went out */
-  email?: (msg: { to: string; subject: string; line: string; open: { kind: string; id: string }; key?: string }) => Promise<void | "sent" | "no_mailbox" | "no_address" | "suppressed" | "held">;
+  email?: (msg: {
+    to: string;
+    subject: string;
+    line: string;
+    open: { kind: string; id: string };
+    key?: string;
+  }) => Promise<void | "sent" | "no_mailbox" | "no_address" | "suppressed" | "held">;
   /** an email the module gave up on after its tries: the host says so to admins */
   gaveUp?: (msg: { to: string; kind: string }) => Promise<void>;
 }
@@ -177,7 +255,8 @@ export interface PushPortSeam extends Omit<PushTransportDeps, "send"> {
 }
 export function createPushPort(deps: PushTransportDeps = {}): PushPortSeam {
   return {
-    send: (msg) => (deps.send ? deps.send(msg) : Promise.reject(new Error("No push transport is configured on this server."))),
+    send: (msg) =>
+      deps.send ? deps.send(msg) : Promise.reject(new Error("No push transport is configured on this server.")),
     ...(deps.computerIdleMs ? { computerIdleMs: deps.computerIdleMs } : {}),
     ...(deps.spaceName ? { spaceName: deps.spaceName } : {}),
     ...(deps.email ? { email: deps.email } : {}),
@@ -198,7 +277,14 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
   const common = { vault: deps.vault, fetch, files: deps.files, blobs: deps.blobs, members: deps.members };
   const driverDeps: SeamDriverDeps = { ...deps, fetch, common };
   const registry: Record<string, SeamDriver> = { ...BUILTIN_DRIVERS, ...(deps.drivers ?? {}) };
-  const state: WiredSeams["state"] = { google: "absent", microsoft: "absent", imap: "absent", sources: "absent", resend: "absent", mailgun: "absent" };
+  const state: WiredSeams["state"] = {
+    google: "absent",
+    microsoft: "absent",
+    imap: "absent",
+    sources: "absent",
+    resend: "absent",
+    mailgun: "absent",
+  };
   const wired: string[] = [];
   const missing: MissingDriver[] = [];
   const called: ((driver: unknown) => void)[] = [];
@@ -209,10 +295,23 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
     const module = deps.owners?.get(name);
     const where = module ? { module } : {};
     const make = registry[name];
-    if (!make) { missing.push({ setter: name, ...where, reason: "The host has no driver registered under this name." }); continue; }
+    if (!make) {
+      missing.push({ setter: name, ...where, reason: "The host has no driver registered under this name." });
+      continue;
+    }
     const set = fn as (driver: unknown) => void;
     let driver: unknown;
-    try { driver = make(driverDeps); set(driver); } catch (e) { missing.push({ setter: name, ...where, reason: `The driver failed: ${e instanceof Error ? e.message : String(e)}` }); continue; }
+    try {
+      driver = make(driverDeps);
+      set(driver);
+    } catch (e) {
+      missing.push({
+        setter: name,
+        ...where,
+        reason: `The driver failed: ${e instanceof Error ? e.message : String(e)}`,
+      });
+      continue;
+    }
     wired.push(name);
     called.push(set);
     names.push(name);
@@ -223,7 +322,9 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
     if (legacy) state[legacy] = "wired";
   }
   return {
-    state, wired, missing,
+    state,
+    wired,
+    missing,
     unwire() {
       called.forEach((set, i) => {
         const name = names[i]!;
@@ -232,14 +333,29 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
         if (holders.get(name) !== me) {
           // a later daemon holds the seam: this one's own leftovers (an engine opener the module retired when it was replaced) are closed now
           const mine = drivers[i];
-          try { void (mine as { retire?: () => Promise<void> } | undefined)?.retire?.(); } catch { /* shutting down */ }
+          try {
+            void (mine as { retire?: () => Promise<void> } | undefined)?.retire?.();
+          } catch {
+            /* shutting down */
+          }
           return;
         }
         holders.delete(name);
-        try { set(null); } catch { /* shutting down: one module's refusal must not keep the others wired */ }
+        try {
+          set(null);
+        } catch {
+          /* shutting down: one module's refusal must not keep the others wired */
+        }
         // the daemon that wired before this one and is still running gets its seam back
         const before = rest.at(-1);
-        if (before) { holders.set(name, before.me); try { set(before.driver); } catch { /* it keeps whatever it had */ } }
+        if (before) {
+          holders.set(name, before.me);
+          try {
+            set(before.driver);
+          } catch {
+            /* it keeps whatever it had */
+          }
+        }
       });
     },
     owns: (setter) => holders.get(setter) === me,

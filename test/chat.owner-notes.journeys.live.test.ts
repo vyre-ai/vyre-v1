@@ -11,20 +11,30 @@ const OUT = "shots-evidence/chat-owner-notes";
 // The daemon's shutdown does not close the CLI session (live-engine owns it), so the process ends 1.5 s after the journey with the code of its result.
 let passes = 0;
 let ran = false;
-after(() => { if (ran) setTimeout(() => process.exit(passes === 1 ? 0 : 1), 1_500); });
+after(() => {
+  if (ran) setTimeout(() => process.exit(passes === 1 ? 0 : 1), 1_500);
+});
 
 test("owner notes: a named record is a link, :smi inserts an emoji, own messages never make a 'wrote' banner, no Used line without memory", async (t) => {
   const env = await browserOrSkip();
-  if (typeof env === "string") { t.skip(env); return; }
+  if (typeof env === "string") {
+    t.skip(env);
+    return;
+  }
   ran = true;
   const s = await bootScreens({ kind: "personal", engineCli: cli }, env);
   const dir = `${OUT}/notes`;
   try {
     const w = s.world;
     await connectSubscription(w);
-    const rec = (await w.owner.ok("records.create", { type: "contact", fields: { name: "Dana Fox", email: "dana@fox.test" } })).record as { id: string };
-    const agent = (await w.owner.ok("agents.create", { name: "Haiku", role: "You answer briefly.", idempotencyKey: "on-agent" })).agent.agentId as string;
-    const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agent], idempotencyKey: "on-chat" })).thread.threadId as string;
+    const rec = (
+      await w.owner.ok("records.create", { type: "contact", fields: { name: "Dana Fox", email: "dana@fox.test" } })
+    ).record as { id: string };
+    const agent = (
+      await w.owner.ok("agents.create", { name: "Haiku", role: "You answer briefly.", idempotencyKey: "on-agent" })
+    ).agent.agentId as string;
+    const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agent], idempotencyKey: "on-chat" }))
+      .thread.threadId as string;
     await w.owner.ok("threads.set_mode", { threadId, mode: "auto", idempotencyKey: "on-auto" });
     const me = await seat(s, w.owner, "Owner");
     await open(me, s, `/chat#screen=chats.conversation&threadId=${threadId}`);
@@ -37,7 +47,14 @@ test("owner notes: a named record is a link, :smi inserts an emoji, own messages
     assert.ok(await me.page.getByText("😄").first().isVisible(), "the smile is offered");
     await shoot(me.page, dir, "emoji-picker", { phone: false });
     await field.press("Enter");
-    await me.page.waitForFunction(() => Array.from(document.querySelectorAll("textarea,input,[contenteditable]")).some((n) => ((n as HTMLInputElement).value ?? n.textContent ?? "").includes("nice 😄")), undefined, { timeout: 5_000 });
+    await me.page.waitForFunction(
+      () =>
+        Array.from(document.querySelectorAll("textarea,input,[contenteditable]")).some((n) =>
+          ((n as HTMLInputElement).value ?? n.textContent ?? "").includes("nice 😄"),
+        ),
+      undefined,
+      { timeout: 5_000 },
+    );
     await field.fill("");
 
     // an agent that names a record by its id: the reply shows its name as a link, never the id
@@ -55,5 +72,7 @@ test("owner notes: a named record is a link, :smi inserts an emoji, own messages
     await me.page.waitForTimeout(1_500);
     await shoot(me.page, dir, "record-opened", { phone: false });
     passes += 1;
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });

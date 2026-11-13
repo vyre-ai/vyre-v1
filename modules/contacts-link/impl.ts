@@ -5,8 +5,24 @@
 // records.update, and keeps its own address index, suppression list and dismissed duplicate suggestions.
 import type { Handler } from "../../host/src/invoke.ts";
 import {
-  addressAdd, addressList, addressRemove, addressSetPrimary, applyOptout, deliverability, dndScreen, duplicatesDismiss, duplicatesList, preferencesGet, preferencesSet, resolve,
-  routeOwner, suppressionAdd, suppressionCheck, suppressionImport, suppressionList, suppressionRemove,
+  addressAdd,
+  addressList,
+  addressRemove,
+  addressSetPrimary,
+  applyOptout,
+  deliverability,
+  dndScreen,
+  duplicatesDismiss,
+  duplicatesList,
+  preferencesGet,
+  preferencesSet,
+  resolve,
+  routeOwner,
+  suppressionAdd,
+  suppressionCheck,
+  suppressionImport,
+  suppressionList,
+  suppressionRemove,
 } from "./handlers/index.ts";
 
 export const handlers: Record<string, Handler> = {

@@ -8,24 +8,74 @@ import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { canonical } from "../../lib/canonical.ts";
 
-export type ActKey = "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+export type ActKey =
+  | "send"
+  | "post"
+  | "pay"
+  | "delete"
+  | "transfer"
+  | "enroll_node"
+  | "connection_change"
+  | "push_protected"
+  | "secret_export"
+  | "site_promote"
+  | "signature_send"
+  | "spend_raise"
+  | "signin_change"
+  | "approve";
 export type Risk = "low" | "medium" | "high";
 export type Mode = "hold" | "allow";
 export type Scope = "space" | "floor" | "agent";
 export type HoldState = "held" | "approved" | "denied" | "expired";
-export interface PrincipalRef { kind: "person" | "agent" | "actor" | "service"; id: string }
-export interface Assignee { kind: "person" | "agent" | "group" | "role" | "automation"; id: string }
+export interface PrincipalRef {
+  kind: "person" | "agent" | "actor" | "service";
+  id: string;
+}
+export interface Assignee {
+  kind: "person" | "agent" | "group" | "role" | "automation";
+  id: string;
+}
 
 export interface ActDef {
-  key: ActKey; title: string; risk: Risk; block: string; approvers: string; peopleOnly: boolean; agentOkFor?: Risk; afterHours: number; onTimeout: "drop" | "escalate";
-  escalateTo: "delegate" | "role"; emailBackstopHours: number; humanToo: boolean;
+  key: ActKey;
+  title: string;
+  risk: Risk;
+  block: string;
+  approvers: string;
+  peopleOnly: boolean;
+  agentOkFor?: Risk;
+  afterHours: number;
+  onTimeout: "drop" | "escalate";
+  escalateTo: "delegate" | "role";
+  emailBackstopHours: number;
+  humanToo: boolean;
   /** Stops for a person with the right role however it was reached: no rule, grant, mode or automation lifts it. A person pressing it themselves is let through by the capability's own `when`, before this. */
   alwaysStops: boolean;
   /** Only the person the act is asked of decides it: no rule names another approver, escalates it or lets it time out into someone else's hands. */
   personOnly: boolean;
 }
-const act = (key: ActKey, title: string, risk: Risk, block: string, approvers: string, o: Partial<ActDef> = {}): ActDef => ({
-  key, title, risk, block, approvers, peopleOnly: true, afterHours: 24, onTimeout: "escalate", escalateTo: "delegate", emailBackstopHours: 4, humanToo: false, alwaysStops: false, personOnly: false, ...o,
+const act = (
+  key: ActKey,
+  title: string,
+  risk: Risk,
+  block: string,
+  approvers: string,
+  o: Partial<ActDef> = {},
+): ActDef => ({
+  key,
+  title,
+  risk,
+  block,
+  approvers,
+  peopleOnly: true,
+  afterHours: 24,
+  onTimeout: "escalate",
+  escalateTo: "delegate",
+  emailBackstopHours: 4,
+  humanToo: false,
+  alwaysStops: false,
+  personOnly: false,
+  ...o,
 });
 export const ACTS: readonly ActDef[] = [
   act("send", "Send a message", "medium", "doc_excerpt", "asker", { agentOkFor: "low" }),
@@ -40,9 +90,15 @@ export const ACTS: readonly ActDef[] = [
   act("site_promote", "Promote a site to production", "high", "deploy", "role:admin", { humanToo: true }),
   act("signature_send", "Send a document for signature", "high", "file", "role:admin"),
   act("spend_raise", "Raise a spend cap", "medium", "table", "role:admin"),
-  act("signin_change", "Change how people sign in to the Space", "high", "record_card", "role:admin", { alwaysStops: true }),
+  act("signin_change", "Change how people sign in to the Space", "high", "record_card", "role:admin", {
+    alwaysStops: true,
+  }),
   act("approve", "Allow this step", "medium", "doc_excerpt", "asker"),
-  act("github_approval", "Let a session use my GitHub", "high", "table", "asker", { alwaysStops: true, personOnly: true, onTimeout: "drop" }),
+  act("github_approval", "Let a session use my GitHub", "high", "table", "asker", {
+    alwaysStops: true,
+    personOnly: true,
+    onTimeout: "drop",
+  }),
 ];
 export const actOf = (k: string): ActDef => ACTS.find((a) => a.key === k) ?? ACTS[0]!;
 
@@ -74,14 +130,25 @@ export interface GateCtx {
   db: Db;
   emit(name: string, subject: string, payload: unknown, opts?: { vis?: string }): { id: string };
   call?(cap: string, input: unknown, opts?: CallOpts): Promise<unknown>;
-  authorize?(action: { perm: string | null; level: string }, resource: { type: string; id: string | null }): { effect: string };
+  authorize?(
+    action: { perm: string | null; level: string },
+    resource: { type: string; id: string | null },
+  ): { effect: string };
   schedule?(at: number | string, cap: string, input: unknown): Promise<string>;
-  seal?: { seal(v: Uint8Array, scope: string): { keyId: string; nonce: string; bytes: string }; unseal(s: { keyId: string; nonce: string; bytes: string }): Uint8Array };
+  seal?: {
+    seal(v: Uint8Array, scope: string): { keyId: string; nonce: string; bytes: string };
+    unseal(s: { keyId: string; nonce: string; bytes: string }): Uint8Array;
+  };
   log?: { warn(msg: string, attrs?: Record<string, unknown>): void };
 }
 
 type Code = Parameters<typeof fail>[0];
-export function raise(ctx: { trace: { traceId: string } }, code: Code, message?: string, details?: Record<string, unknown>): never {
+export function raise(
+  ctx: { trace: { traceId: string } },
+  code: Code,
+  message?: string,
+  details?: Record<string, unknown>,
+): never {
   throw fail(code, ctx.trace.traceId, { ...(message ? { message } : {}), ...(details ? { details } : {}) });
 }
 export function clean<T extends Record<string, unknown>>(o: T): T {
@@ -105,16 +172,33 @@ export async function sha(v: unknown): Promise<string> {
 
 // ---- policy values (the gate.* settings) ----
 
-export interface Policy { timeoutHours: number; emailBackstopHours: number; draftedByLabel: boolean }
+export interface Policy {
+  timeoutHours: number;
+  emailBackstopHours: number;
+  draftedByLabel: boolean;
+}
 export const POLICY_DEFAULTS: Policy = { timeoutHours: 24, emailBackstopHours: 4, draftedByLabel: true };
-const POLICY_KEYS: ReadonlySet<string> = new Set(["gate.timeout_hours", "gate.email_backstop_hours", "gate.drafted_by_label"]);
+const POLICY_KEYS: ReadonlySet<string> = new Set([
+  "gate.timeout_hours",
+  "gate.email_backstop_hours",
+  "gate.drafted_by_label",
+]);
 export function readPolicy(db: Db): Policy {
   const p: Policy = { ...POLICY_DEFAULTS };
-  for (const r of db.all("SELECT policy_key, policy_value FROM gate_policy") as { policy_key: string; policy_value: string }[]) {
+  for (const r of db.all("SELECT policy_key, policy_value FROM gate_policy") as {
+    policy_key: string;
+    policy_value: string;
+  }[]) {
     let v: unknown;
-    try { v = JSON.parse(r.policy_value); } catch { continue; }
-    if (r.policy_key === "gate.timeout_hours" && typeof v === "number" && Number.isInteger(v) && v >= 1) p.timeoutHours = v;
-    if (r.policy_key === "gate.email_backstop_hours" && typeof v === "number" && Number.isInteger(v) && v >= 1) p.emailBackstopHours = v;
+    try {
+      v = JSON.parse(r.policy_value);
+    } catch {
+      continue;
+    }
+    if (r.policy_key === "gate.timeout_hours" && typeof v === "number" && Number.isInteger(v) && v >= 1)
+      p.timeoutHours = v;
+    if (r.policy_key === "gate.email_backstop_hours" && typeof v === "number" && Number.isInteger(v) && v >= 1)
+      p.emailBackstopHours = v;
     if (r.policy_key === "gate.drafted_by_label" && typeof v === "boolean") p.draftedByLabel = v;
   }
   return p;
@@ -127,84 +211,161 @@ export function readPolicy(db: Db): Policy {
 export function syncPolicy(db: Db, p: Record<string, unknown>): boolean {
   const key = String(p["key"] ?? "");
   if (!POLICY_KEYS.has(key) || p["scope"] !== "space" || p["after"] === undefined) return false;
-  db.run("INSERT OR REPLACE INTO gate_policy (policy_key, policy_value) VALUES (?, ?)", key, JSON.stringify(p["after"]));
+  db.run(
+    "INSERT OR REPLACE INTO gate_policy (policy_key, policy_value) VALUES (?, ?)",
+    key,
+    JSON.stringify(p["after"]),
+  );
   return true;
 }
 
 // ---- rules ----
 
 export interface RuleRow {
-  act: ActKey; scope: Scope; agentId: string; mode: Mode; approvers?: string; agentOkFor?: Risk; afterHours?: number; onTimeout?: "drop" | "escalate"; escalateTo?: "delegate" | "role"; updatedAt: number;
+  act: ActKey;
+  scope: Scope;
+  agentId: string;
+  mode: Mode;
+  approvers?: string;
+  agentOkFor?: Risk;
+  afterHours?: number;
+  onTimeout?: "drop" | "escalate";
+  escalateTo?: "delegate" | "role";
+  updatedAt: number;
 }
 type Raw = Record<string, unknown>;
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
 const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
 
 function ruleFrom(r: Raw): RuleRow {
-  const o: RuleRow = { act: r.act as ActKey, scope: r.scope as Scope, agentId: (r.agent_id as string) ?? "", mode: r.mode as Mode, updatedAt: num(r.updated_at) ?? 0 };
-  const approvers = str(r.approvers); if (approvers) o.approvers = approvers;
-  const ok = str(r.agent_ok_for); if (ok) o.agentOkFor = ok as Risk;
-  const hours = num(r.after_hours); if (hours !== undefined) o.afterHours = hours;
-  const ot = str(r.on_timeout); if (ot) o.onTimeout = ot as "drop" | "escalate";
-  const et = str(r.escalate_to); if (et) o.escalateTo = et as "delegate" | "role";
+  const o: RuleRow = {
+    act: r.act as ActKey,
+    scope: r.scope as Scope,
+    agentId: (r.agent_id as string) ?? "",
+    mode: r.mode as Mode,
+    updatedAt: num(r.updated_at) ?? 0,
+  };
+  const approvers = str(r.approvers);
+  if (approvers) o.approvers = approvers;
+  const ok = str(r.agent_ok_for);
+  if (ok) o.agentOkFor = ok as Risk;
+  const hours = num(r.after_hours);
+  if (hours !== undefined) o.afterHours = hours;
+  const ot = str(r.on_timeout);
+  if (ot) o.onTimeout = ot as "drop" | "escalate";
+  const et = str(r.escalate_to);
+  if (et) o.escalateTo = et as "delegate" | "role";
   return o;
 }
 export function allRules(db: Db, scope?: Scope, agentId?: string): RuleRow[] {
-  const rows = db.all("SELECT act, scope, agent_id, mode, approvers, agent_ok_for, after_hours, on_timeout, escalate_to, updated_at FROM gate_rules ORDER BY act, scope, agent_id") as Raw[];
-  return rows.map(ruleFrom).filter((r) => (scope === undefined || r.scope === scope) && (agentId === undefined || r.agentId === agentId));
+  const rows = db.all(
+    "SELECT act, scope, agent_id, mode, approvers, agent_ok_for, after_hours, on_timeout, escalate_to, updated_at FROM gate_rules ORDER BY act, scope, agent_id",
+  ) as Raw[];
+  return rows
+    .map(ruleFrom)
+    .filter((r) => (scope === undefined || r.scope === scope) && (agentId === undefined || r.agentId === agentId));
 }
 export function putRule(db: Db, r: RuleRow): void {
   db.run(
     `INSERT OR REPLACE INTO gate_rules (act, scope, agent_id, mode, approvers, agent_ok_for, after_hours, on_timeout, escalate_to, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    r.act, r.scope, r.agentId, r.mode, r.approvers ?? null, r.agentOkFor ?? null, r.afterHours ?? null, r.onTimeout ?? null, r.escalateTo ?? null, r.updatedAt,
+    r.act,
+    r.scope,
+    r.agentId,
+    r.mode,
+    r.approvers ?? null,
+    r.agentOkFor ?? null,
+    r.afterHours ?? null,
+    r.onTimeout ?? null,
+    r.escalateTo ?? null,
+    r.updatedAt,
   );
 }
 
 export const RISK_RANK: Record<Risk, number> = { low: 0, medium: 1, high: 2 };
 export const APPROVER_RANK = (a: string): number => (a === "owner" ? 3 : a.startsWith("role:") ? 2 : 1);
-const minRisk = (a: Risk | undefined, b: Risk | undefined): Risk | undefined => (a === undefined ? b : b === undefined ? a : RISK_RANK[a] <= RISK_RANK[b] ? a : b);
+const minRisk = (a: Risk | undefined, b: Risk | undefined): Risk | undefined =>
+  a === undefined ? b : b === undefined ? a : RISK_RANK[a] <= RISK_RANK[b] ? a : b;
 
 export interface Effective {
-  hold: boolean; reason: string; approvers: string; peopleOnly: boolean; agentOkFor?: Risk; afterHours: number; onTimeout: "drop" | "escalate"; escalateTo: "delegate" | "role";
-  emailBackstopHours: number; sources: { space: Mode; floor?: Mode; agent?: Mode };
+  hold: boolean;
+  reason: string;
+  approvers: string;
+  peopleOnly: boolean;
+  agentOkFor?: Risk;
+  afterHours: number;
+  onTimeout: "drop" | "escalate";
+  escalateTo: "delegate" | "role";
+  emailBackstopHours: number;
+  sources: { space: Mode; floor?: Mode; agent?: Mode };
   /** a rule somebody wrote (not the default) asks for approval of this act */
   adminRule: boolean;
 }
 
 /** The effective rule for a principal and an act: the strictest of the Space policy, the owner floor and the agent's own rule. An agent rule can only tighten; an `allow` anywhere cannot
  *  loosen a `hold` elsewhere; nothing here reads a mode (spec 2.14): the one thing that lifts a default hold is a grant, matched by the Gate hook. A person's own act skips the Gate unless the act is a human-too kind. */
-export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: Policy = readPolicy(db), adminOnly = false): Effective {
+export function effectiveRule(
+  db: Db,
+  p: PrincipalRef,
+  actKey: string,
+  policy: Policy = readPolicy(db),
+  adminOnly = false,
+): Effective {
   const a = actOf(actKey);
   const rows = allRules(db).filter((r) => r.act === a.key);
   const space = rows.find((r) => r.scope === "space");
   const floor = rows.find((r) => r.scope === "floor");
   const agent = p.kind === "agent" ? rows.find((r) => r.scope === "agent" && r.agentId === p.id) : undefined;
   const sSpace: Mode = space?.mode ?? "hold";
-  const sources: Effective["sources"] = { space: sSpace, ...(floor ? { floor: floor.mode } : {}), ...(agent ? { agent: agent.mode } : {}) };
+  const sources: Effective["sources"] = {
+    space: sSpace,
+    ...(floor ? { floor: floor.mode } : {}),
+    ...(agent ? { agent: agent.mode } : {}),
+  };
   // adminOnly: the default rule (no row) does not ask; only a rule an admin or the owner wrote does
-  const wants = a.alwaysStops || (sSpace === "hold" && (!adminOnly || space !== undefined)) || floor?.mode === "hold" || agent?.mode === "hold";
+  const wants =
+    a.alwaysStops ||
+    (sSpace === "hold" && (!adminOnly || space !== undefined)) ||
+    floor?.mode === "hold" ||
+    agent?.mode === "hold";
   const applies = a.alwaysStops || p.kind !== "person" || a.humanToo;
   const hold = wants && applies;
-  const reason = !applies ? "A person's own act does not wait for approval."
-    : a.alwaysStops ? "A person with the right role always decides this."
-    : !wants ? "The Space rule lets this through."
-    : floor?.mode === "hold" ? "The owner always asks first."
-    : agent?.mode === "hold" && sSpace === "allow" ? "This agent's own rule holds it."
-    : "Acts of this kind wait for approval.";
+  const reason = !applies
+    ? "A person's own act does not wait for approval."
+    : a.alwaysStops
+      ? "A person with the right role always decides this."
+      : !wants
+        ? "The Space rule lets this through."
+        : floor?.mode === "hold"
+          ? "The owner always asks first."
+          : agent?.mode === "hold" && sSpace === "allow"
+            ? "This agent's own rule holds it."
+            : "Acts of this kind wait for approval.";
   // approvers: the strictest named by any level
   const named = [floor?.approvers, agent?.approvers, space?.approvers].filter((x): x is string => x !== undefined);
-  const approvers = a.personOnly ? a.approvers : named.reduce((best, x) => (APPROVER_RANK(x) > APPROVER_RANK(best) ? x : best), a.approvers);
+  const approvers = a.personOnly
+    ? a.approvers
+    : named.reduce((best, x) => (APPROVER_RANK(x) > APPROVER_RANK(best) ? x : best), a.approvers);
   // agents may approve only up to the risk the Space names; an agent's own rule can only lower it
   const base = space?.agentOkFor ?? a.agentOkFor;
   const okFor = a.alwaysStops ? undefined : minRisk(base, agent?.agentOkFor);
   const peopleOnly = okFor === undefined || RISK_RANK[okFor] < RISK_RANK[a.risk];
   // timing: the Space sets it; the floor and the agent can only shorten
   const spaceHours = space?.afterHours ?? policy.timeoutHours;
-  const afterHours = Math.min(...[spaceHours, floor?.afterHours, agent?.afterHours].filter((x): x is number => x !== undefined));
-  const dropped = a.personOnly || [space?.onTimeout ?? a.onTimeout, floor?.onTimeout, agent?.onTimeout].includes("drop");
+  const afterHours = Math.min(
+    ...[spaceHours, floor?.afterHours, agent?.afterHours].filter((x): x is number => x !== undefined),
+  );
+  const dropped =
+    a.personOnly || [space?.onTimeout ?? a.onTimeout, floor?.onTimeout, agent?.onTimeout].includes("drop");
   const e: Effective = {
-    hold, reason, approvers, peopleOnly, afterHours, onTimeout: dropped ? "drop" : "escalate",
-    escalateTo: space?.escalateTo ?? agent?.escalateTo ?? a.escalateTo, emailBackstopHours: Math.min(policy.emailBackstopHours, a.emailBackstopHours), sources,
+    hold,
+    reason,
+    approvers,
+    peopleOnly,
+    afterHours,
+    onTimeout: dropped ? "drop" : "escalate",
+    escalateTo: space?.escalateTo ?? agent?.escalateTo ?? a.escalateTo,
+    emailBackstopHours: Math.min(policy.emailBackstopHours, a.emailBackstopHours),
+    sources,
     adminRule: a.alwaysStops || space?.mode === "hold" || floor?.mode === "hold" || agent?.mode === "hold",
   };
   if (okFor !== undefined) e.agentOkFor = okFor;
@@ -214,9 +375,34 @@ export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: P
 // ---- holds ----
 
 export interface Hold {
-  id: string; act: ActKey; capName: string; capVersion: number; input: unknown; inputHash: string; payloadHash: string; principal: PrincipalRef; actingFor?: string; decisionId: string;
-  runId?: string; threadId?: string; taskId: string; state: HoldState; summary: string; approver: Assignee; rule: Effective; createdAt: number; expiresAt: number;
-  backstopAt?: number; backstopSchedule?: string; expireSchedule?: string; escalatedAt?: number; sendingAt?: number; decidedAt?: number; decidedBy?: string; possiblySent: boolean; error?: string;
+  id: string;
+  act: ActKey;
+  capName: string;
+  capVersion: number;
+  input: unknown;
+  inputHash: string;
+  payloadHash: string;
+  principal: PrincipalRef;
+  actingFor?: string;
+  decisionId: string;
+  runId?: string;
+  threadId?: string;
+  taskId: string;
+  state: HoldState;
+  summary: string;
+  approver: Assignee;
+  rule: Effective;
+  createdAt: number;
+  expiresAt: number;
+  backstopAt?: number;
+  backstopSchedule?: string;
+  expireSchedule?: string;
+  escalatedAt?: number;
+  sendingAt?: number;
+  decidedAt?: number;
+  decidedBy?: string;
+  possiblySent: boolean;
+  error?: string;
   /** What the approved call answered, for a chat turn that waited on it. */
   result?: unknown;
   /** The automation step the call came from. */
@@ -224,41 +410,88 @@ export interface Hold {
   /** Ask the person: the agent that asked the person this hold runs as (principal). Only that person approves it, and it runs as them. */
   askedBy?: PrincipalRef;
 }
-export interface StepRef { automationId: string; nodeId: string; defHash: string; ask?: boolean }
+export interface StepRef {
+  automationId: string;
+  nodeId: string;
+  defHash: string;
+  ask?: boolean;
+}
 const HOLD_SELECT_EXTRA = ", result, step, asked_by";
 const HOLD_COLS = `id, act, cap_name, cap_version, input, input_hash, payload_hash, principal_kind, principal_id, acting_for, decision_id, run_id, thread_id, task_id, state, summary, approver, rule,
   created_at, expires_at, backstop_at, backstop_schedule, expire_schedule, escalated_at, sending_at, decided_at, decided_by, possibly_sent, error`;
 
 function parse<T>(v: unknown, d: T): T {
   if (typeof v !== "string" || !v) return d;
-  try { return JSON.parse(v) as T; } catch { return d; }
+  try {
+    return JSON.parse(v) as T;
+  } catch {
+    return d;
+  }
 }
 function holdFrom(r: Raw): Hold {
   const h: Hold = {
-    id: r.id as string, act: r.act as ActKey, capName: r.cap_name as string, capVersion: num(r.cap_version) ?? 1, input: parse<unknown>(r.input, null), inputHash: r.input_hash as string,
-    payloadHash: r.payload_hash as string, principal: { kind: r.principal_kind as PrincipalRef["kind"], id: r.principal_id as string }, decisionId: r.decision_id as string,
-    taskId: (r.task_id as string) ?? "", state: r.state as HoldState, summary: r.summary as string, approver: parse<Assignee>(r.approver, { kind: "role", id: "rol_admin" }),
-    rule: parse<Effective>(r.rule, effectiveFallback()), createdAt: r.created_at as number, expiresAt: r.expires_at as number, possiblySent: num(r.possibly_sent) === 1,
+    id: r.id as string,
+    act: r.act as ActKey,
+    capName: r.cap_name as string,
+    capVersion: num(r.cap_version) ?? 1,
+    input: parse<unknown>(r.input, null),
+    inputHash: r.input_hash as string,
+    payloadHash: r.payload_hash as string,
+    principal: { kind: r.principal_kind as PrincipalRef["kind"], id: r.principal_id as string },
+    decisionId: r.decision_id as string,
+    taskId: (r.task_id as string) ?? "",
+    state: r.state as HoldState,
+    summary: r.summary as string,
+    approver: parse<Assignee>(r.approver, { kind: "role", id: "rol_admin" }),
+    rule: parse<Effective>(r.rule, effectiveFallback()),
+    createdAt: r.created_at as number,
+    expiresAt: r.expires_at as number,
+    possiblySent: num(r.possibly_sent) === 1,
   };
   // a hold parked for a person-only act before the rule was pinned is pinned now: its approver is the asker and it never escalates
   if (actOf(h.act).personOnly) h.rule = { ...h.rule, approvers: "asker", peopleOnly: true, onTimeout: "drop" };
-  const res = str(r.result); if (res) h.result = parse<unknown>(res, null);
-  const stp = str(r.step); if (stp) h.step = JSON.parse(stp) as StepRef;
-  const ab = str(r.asked_by); if (ab) h.askedBy = parse<PrincipalRef>(ab, { kind: "agent", id: "" });
-  const af = str(r.acting_for); if (af) h.actingFor = af;
-  const run = str(r.run_id); if (run) h.runId = run;
-  const th = str(r.thread_id); if (th) h.threadId = th;
-  const b = num(r.backstop_at); if (b !== undefined) h.backstopAt = b;
-  const bs = str(r.backstop_schedule); if (bs) h.backstopSchedule = bs;
-  const es = str(r.expire_schedule); if (es) h.expireSchedule = es;
-  const ea = num(r.escalated_at); if (ea !== undefined) h.escalatedAt = ea;
-  const sa = num(r.sending_at); if (sa !== undefined) h.sendingAt = sa;
-  const da = num(r.decided_at); if (da !== undefined) h.decidedAt = da;
-  const db = str(r.decided_by); if (db) h.decidedBy = db;
-  const er = str(r.error); if (er) h.error = er;
+  const res = str(r.result);
+  if (res) h.result = parse<unknown>(res, null);
+  const stp = str(r.step);
+  if (stp) h.step = JSON.parse(stp) as StepRef;
+  const ab = str(r.asked_by);
+  if (ab) h.askedBy = parse<PrincipalRef>(ab, { kind: "agent", id: "" });
+  const af = str(r.acting_for);
+  if (af) h.actingFor = af;
+  const run = str(r.run_id);
+  if (run) h.runId = run;
+  const th = str(r.thread_id);
+  if (th) h.threadId = th;
+  const b = num(r.backstop_at);
+  if (b !== undefined) h.backstopAt = b;
+  const bs = str(r.backstop_schedule);
+  if (bs) h.backstopSchedule = bs;
+  const es = str(r.expire_schedule);
+  if (es) h.expireSchedule = es;
+  const ea = num(r.escalated_at);
+  if (ea !== undefined) h.escalatedAt = ea;
+  const sa = num(r.sending_at);
+  if (sa !== undefined) h.sendingAt = sa;
+  const da = num(r.decided_at);
+  if (da !== undefined) h.decidedAt = da;
+  const db = str(r.decided_by);
+  if (db) h.decidedBy = db;
+  const er = str(r.error);
+  if (er) h.error = er;
   return h;
 }
-const effectiveFallback = (): Effective => ({ hold: true, reason: "", approvers: "role:admin", peopleOnly: true, afterHours: 24, onTimeout: "escalate", escalateTo: "delegate", emailBackstopHours: 4, sources: { space: "hold" }, adminRule: false });
+const effectiveFallback = (): Effective => ({
+  hold: true,
+  reason: "",
+  approvers: "role:admin",
+  peopleOnly: true,
+  afterHours: 24,
+  onTimeout: "escalate",
+  escalateTo: "delegate",
+  emailBackstopHours: 4,
+  sources: { space: "hold" },
+  adminRule: false,
+});
 
 export function findHold(db: Db, id: string): Hold | undefined {
   const rows = db.all(`SELECT ${HOLD_COLS}${HOLD_SELECT_EXTRA} FROM gate_holds WHERE id = ?`, id) as Raw[];
@@ -270,15 +503,48 @@ export function getHold(ctx: GateCtx, id: string): Hold {
   return h;
 }
 export function holdsWhere(db: Db, where = "", ...args: unknown[]): Hold[] {
-  return (db.all(`SELECT ${HOLD_COLS}${HOLD_SELECT_EXTRA} FROM gate_holds${where ? ` WHERE ${where}` : ""} ORDER BY created_at DESC, id DESC`, ...args) as Raw[]).map(holdFrom);
+  return (
+    db.all(
+      `SELECT ${HOLD_COLS}${HOLD_SELECT_EXTRA} FROM gate_holds${where ? ` WHERE ${where}` : ""} ORDER BY created_at DESC, id DESC`,
+      ...args,
+    ) as Raw[]
+  ).map(holdFrom);
 }
 const n = (v: unknown): unknown => (v === undefined ? null : v);
 export function insertHold(db: Db, h: Hold): void {
   db.run(
     `INSERT INTO gate_holds (${HOLD_COLS}, step, asked_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    h.id, h.act, h.capName, h.capVersion, JSON.stringify(h.input ?? null), h.inputHash, h.payloadHash, h.principal.kind, h.principal.id, n(h.actingFor), h.decisionId, n(h.runId), n(h.threadId),
-    h.taskId, h.state, h.summary, JSON.stringify(h.approver), JSON.stringify(h.rule), h.createdAt, h.expiresAt, n(h.backstopAt), n(h.backstopSchedule), n(h.expireSchedule), n(h.escalatedAt),
-    n(h.sendingAt), n(h.decidedAt), n(h.decidedBy), h.possiblySent ? 1 : 0, n(h.error), h.step ? JSON.stringify(h.step) : null, h.askedBy ? JSON.stringify(h.askedBy) : null,
+    h.id,
+    h.act,
+    h.capName,
+    h.capVersion,
+    JSON.stringify(h.input ?? null),
+    h.inputHash,
+    h.payloadHash,
+    h.principal.kind,
+    h.principal.id,
+    n(h.actingFor),
+    h.decisionId,
+    n(h.runId),
+    n(h.threadId),
+    h.taskId,
+    h.state,
+    h.summary,
+    JSON.stringify(h.approver),
+    JSON.stringify(h.rule),
+    h.createdAt,
+    h.expiresAt,
+    n(h.backstopAt),
+    n(h.backstopSchedule),
+    n(h.expireSchedule),
+    n(h.escalatedAt),
+    n(h.sendingAt),
+    n(h.decidedAt),
+    n(h.decidedBy),
+    h.possiblySent ? 1 : 0,
+    n(h.error),
+    h.step ? JSON.stringify(h.step) : null,
+    h.askedBy ? JSON.stringify(h.askedBy) : null,
   );
 }
 /** Write the mutable columns of a hold. */
@@ -286,15 +552,39 @@ export function saveHold(db: Db, h: Hold): void {
   db.run(
     `UPDATE gate_holds SET task_id = ?, state = ?, approver = ?, rule = ?, expires_at = ?, backstop_at = ?, backstop_schedule = ?, expire_schedule = ?, escalated_at = ?, sending_at = ?,
        decided_at = ?, decided_by = ?, possibly_sent = ?, error = ?, result = ? WHERE id = ?`,
-    h.taskId, h.state, JSON.stringify(h.approver), JSON.stringify(h.rule), h.expiresAt, n(h.backstopAt), n(h.backstopSchedule), n(h.expireSchedule), n(h.escalatedAt), n(h.sendingAt),
-    n(h.decidedAt), n(h.decidedBy), h.possiblySent ? 1 : 0, n(h.error), h.result === undefined ? null : JSON.stringify(h.result), h.id,
+    h.taskId,
+    h.state,
+    JSON.stringify(h.approver),
+    JSON.stringify(h.rule),
+    h.expiresAt,
+    n(h.backstopAt),
+    n(h.backstopSchedule),
+    n(h.expireSchedule),
+    n(h.escalatedAt),
+    n(h.sendingAt),
+    n(h.decidedAt),
+    n(h.decidedBy),
+    h.possiblySent ? 1 : 0,
+    n(h.error),
+    h.result === undefined ? null : JSON.stringify(h.result),
+    h.id,
   );
 }
 
 export function holdOut(h: Hold): Record<string, unknown> {
   return clean({
-    id: h.id, act: h.act, capName: h.capName, taskId: h.taskId, runId: h.runId, principal: h.principal, actingFor: h.actingFor, state: h.state, payloadHash: h.payloadHash,
-    createdAt: h.createdAt, expiresAt: h.expiresAt, askedBy: h.askedBy,
+    id: h.id,
+    act: h.act,
+    capName: h.capName,
+    taskId: h.taskId,
+    runId: h.runId,
+    principal: h.principal,
+    actingFor: h.actingFor,
+    state: h.state,
+    payloadHash: h.payloadHash,
+    createdAt: h.createdAt,
+    expiresAt: h.expiresAt,
+    askedBy: h.askedBy,
   });
 }
 
@@ -306,7 +596,11 @@ export function mayHandle(ctx: GateCtx, h: Hold): boolean {
   if (h.principal.id === me || h.actingFor === me || ctx.actingFor === h.principal.id) return true;
   if (h.approver.id === me && (h.approver.kind === "person" || h.approver.kind === "agent")) return true;
   if (h.approver.kind === "role" || h.approver.kind === "group") {
-    return !!ctx.authorize && !!h.taskId && ctx.authorize({ perm: null, level: "use" }, { type: "task", id: h.taskId }).effect === "allow";
+    return (
+      !!ctx.authorize &&
+      !!h.taskId &&
+      ctx.authorize({ perm: null, level: "use" }, { type: "task", id: h.taskId }).effect === "allow"
+    );
   }
   return false;
 }
@@ -325,20 +619,47 @@ export function summaryLine(a: ActDef, capName: string, input: unknown): string 
     if (Array.isArray(v)) recipients += v.length;
     else if (typeof v === "string" && v.length > 0) recipients += 1;
   }
-  const parts = [a.key === "send" && (outwardOf(capName, input) === null || outwardOf(capName, input)?.channel === "event") ? holdTitle(capName, input, a.title) : `${a.title} via ${capName}`];
+  const parts = [
+    a.key === "send" && (outwardOf(capName, input) === null || outwardOf(capName, input)?.channel === "event")
+      ? holdTitle(capName, input, a.title)
+      : `${a.title} via ${capName}`,
+  ];
   if (recipients > 0) parts.push(`to ${recipients} ${recipients === 1 ? "recipient" : "recipients"}`);
   const amount = o.amount;
-  if (typeof amount === "number" && Number.isFinite(amount)) parts.push(`for ${amount}${typeof o.currency === "string" ? ` ${o.currency.slice(0, 3).toUpperCase()}` : ""}`);
+  if (typeof amount === "number" && Number.isFinite(amount))
+    parts.push(`for ${amount}${typeof o.currency === "string" ? ` ${o.currency.slice(0, 3).toUpperCase()}` : ""}`);
   return cut(parts.join(" "), 120);
 }
 
 /** The exact preview (spec 2.14): the whole input, as the act kind's block, so the approver sees what will go out. */
-export function previewBlocks(a: ActDef, capName: string, input: unknown, edited?: { by: string; at: number }, holdId?: string, names?: { people?: Record<string, string> }): { type: string; v: number; data: unknown }[] {
+export function previewBlocks(
+  a: ActDef,
+  capName: string,
+  input: unknown,
+  edited?: { by: string; at: number },
+  holdId?: string,
+  names?: { people?: Record<string, string> },
+): { type: string; v: number; data: unknown }[] {
   // a held message in a person's words: who, by which channel, when, and what it says as Markdown (lib/outward.ts). The raw input stays beside it, because it is the exact act that was held.
   const outward = outwardOf(capName, input);
   // the person it goes to, by name, so the card says who and not "a teammate" (the call carries an id or a handle)
-  if (outward && names?.people) outward.to = outward.to.map((r) => (r.kind === "person" && r.id && names.people![r.id] ? { ...r, name: names.people![r.id]! } : r));
-  return [{ type: a.block, v: 1, data: { act: a.key, cap: capName, input, ...(holdId ? { holdId } : {}), ...(outward ? { outward: { ...outward, ...(edited ? { edited } : {}) } } : {}) } }];
+  if (outward && names?.people)
+    outward.to = outward.to.map((r) =>
+      r.kind === "person" && r.id && names.people![r.id] ? { ...r, name: names.people![r.id]! } : r,
+    );
+  return [
+    {
+      type: a.block,
+      v: 1,
+      data: {
+        act: a.key,
+        cap: capName,
+        input,
+        ...(holdId ? { holdId } : {}),
+        ...(outward ? { outward: { ...outward, ...(edited ? { edited } : {}) } } : {}),
+      },
+    },
+  ];
 }
 
 // ---- the payload hash (bound at park, carried by the approval token): made by the host, see lib/payload-hasher.ts ----
@@ -347,8 +668,16 @@ export type { PayloadHasher } from "../../lib/payload-hasher.ts";
 
 /** Replace a held call's input and the two hashes made from it (the edit of a held message). */
 export function reviseHoldInput(db: Db, h: Hold, input: unknown, inputHash: string, payloadHash: string): void {
-  db.run("UPDATE gate_holds SET input = ?, input_hash = ?, payload_hash = ? WHERE id = ? AND state = 'held' AND sending_at IS NULL", JSON.stringify(input ?? null), inputHash, payloadHash, h.id);
-  h.input = input; h.inputHash = inputHash; h.payloadHash = payloadHash;
+  db.run(
+    "UPDATE gate_holds SET input = ?, input_hash = ?, payload_hash = ? WHERE id = ? AND state = 'held' AND sending_at IS NULL",
+    JSON.stringify(input ?? null),
+    inputHash,
+    payloadHash,
+    h.id,
+  );
+  h.input = input;
+  h.inputHash = inputHash;
+  h.payloadHash = payloadHash;
 }
 
 // ---- ask the person (docs/ask-the-person.md) ----
@@ -360,7 +689,10 @@ const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
 /** The first path in this input whose name says secret and whose value is not a handle, or null. An agent never carries a secret value into an ask: the card would show it and the log would keep it. */
 export function rawSecretIn(input: unknown, path = ""): string | null {
   if (Array.isArray(input)) {
-    for (const [i, v] of input.entries()) { const hit = rawSecretIn(v, `${path}/${i}`); if (hit) return hit; }
+    for (const [i, v] of input.entries()) {
+      const hit = rawSecretIn(v, `${path}/${i}`);
+      if (hit) return hit;
+    }
     return null;
   }
   if (!isObj(input)) return null;
@@ -391,11 +723,31 @@ function flatRows(input: Record<string, unknown>, at = ""): [string, string][] {
  * The card of an ask: what will happen, which agent asked, that it runs as you, and every input exactly, one row each (nested values as JSON). Secrets are handles by then (rawSecretIn refused
  * anything else), so nothing on it is a secret. Drawn by the app as key/value pairs.
  */
-export function askBlocks(o: { act: string; what: string; agentName: string; capName: string; input: unknown }): { type: string; v: number; data: unknown }[] {
-  const rows: [string, string][] = [["What happens", o.what], ["Asked by", o.agentName], ["Runs as", "You, once, exactly as shown"], ["Tool", o.capName]];
-  const inputs: [string, string][] = isObj(o.input) ? flatRows(o.input).filter(([k]) => k !== "idempotencyKey") : [["input", cut(shown(o.input), 400)]];
+export function askBlocks(o: {
+  act: string;
+  what: string;
+  agentName: string;
+  capName: string;
+  input: unknown;
+}): { type: string; v: number; data: unknown }[] {
+  const rows: [string, string][] = [
+    ["What happens", o.what],
+    ["Asked by", o.agentName],
+    ["Runs as", "You, once, exactly as shown"],
+    ["Tool", o.capName],
+  ];
+  const inputs: [string, string][] = isObj(o.input)
+    ? flatRows(o.input).filter(([k]) => k !== "idempotencyKey")
+    : [["input", cut(shown(o.input), 400)]];
   // the first block also carries { act, cap, input } like every hold's preview, so the chat's approval card reads it the same way, plus `ask` for its own first line
-  return [{ type: "pairs", v: 1, data: { pairs: rows, act: o.act, cap: o.capName, input: o.input, ask: { what: o.what, by: o.agentName } } }, { type: "table", v: 1, data: { columns: ["Input", "Value"], rows: inputs } }];
+  return [
+    {
+      type: "pairs",
+      v: 1,
+      data: { pairs: rows, act: o.act, cap: o.capName, input: o.input, ask: { what: o.what, by: o.agentName } },
+    },
+    { type: "table", v: 1, data: { columns: ["Input", "Value"], rows: inputs } },
+  ];
 }
 
 /** Who approves: the strictest rule names a role or the owner, or the asker (the person the agent works for, else the agent's owner). */

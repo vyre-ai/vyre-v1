@@ -25,15 +25,26 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
 const bin = path.basename(argv[0] ?? "");
-const flag = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
-const resume = bin === "codex" ? (argv.includes("resume") ? argv[argv.indexOf("resume") + 1] : undefined) : flag("--resume");
+const flag = (name) => {
+  const i = argv.indexOf(name);
+  return i >= 0 ? argv[i + 1] : undefined;
+};
+const resume =
+  bin === "codex" ? (argv.includes("resume") ? argv[argv.indexOf("resume") + 1] : undefined) : flag("--resume");
 const session = resume ?? `fake-${process.pid}`;
 const out = (line) => process.stdout.write(`${line}\n`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-if (argv.includes("--version")) { out(`${bin} fake 0.0.0`); process.exit(0); }
+if (argv.includes("--version")) {
+  out(`${bin} fake 0.0.0`);
+  process.exit(0);
+}
 if (resume !== undefined && resume.startsWith("gone-")) {
-  const words = { claude: `No conversation found with session ID: ${resume}`, codex: `Error: No saved session found with ID ${resume}`, grok: "Error: Session does not exist" };
+  const words = {
+    claude: `No conversation found with session ID: ${resume}`,
+    codex: `Error: No saved session found with ID ${resume}`,
+    grok: "Error: Session does not exist",
+  };
   process.stderr.write(`${words[bin] ?? words.claude}\n`);
   process.exit(1);
 }
@@ -45,25 +56,41 @@ function mcpTarget() {
     const url = overrides.find((o) => o.startsWith("mcp_servers.vyre.url="));
     const env = overrides.find((o) => o.startsWith("mcp_servers.vyre.bearer_token_env_var="));
     if (!url) return null;
-    return { url: JSON.parse(url.slice("mcp_servers.vyre.url=".length)), authorization: env ? `Bearer ${token}` : undefined };
+    return {
+      url: JSON.parse(url.slice("mcp_servers.vyre.url=".length)),
+      authorization: env ? `Bearer ${token}` : undefined,
+    };
   }
   const raw = flag("--mcp-config");
   if (!raw) return null;
   const server = JSON.parse(raw).mcpServers.vyre;
-  const header = String(server.headers?.Authorization ?? "").split("${VYRE_MCP_TOKEN}").join(token);
+  const header = String(server.headers?.Authorization ?? "")
+    .split("${VYRE_MCP_TOKEN}")
+    .join(token);
   return { url: server.url, authorization: header || undefined };
 }
 
 async function callTool(name) {
   const target = mcpTarget();
   if (!target) return { ok: false };
-  const post = (body, extra = {}) => fetch(target.url, {
-    method: "POST",
-    headers: { "content-type": "application/json", accept: "application/json, text/event-stream", ...(target.authorization ? { authorization: target.authorization } : {}), ...extra },
-    body: JSON.stringify(body),
-  });
+  const post = (body, extra = {}) =>
+    fetch(target.url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        ...(target.authorization ? { authorization: target.authorization } : {}),
+        ...extra,
+      },
+      body: JSON.stringify(body),
+    });
   try {
-    const init = await post({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: bin, version: "0" } } });
+    const init = await post({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: bin, version: "0" } },
+    });
     if (init.status !== 200) return { ok: false };
     const sid = init.headers.get("mcp-session-id");
     const extra = sid ? { "mcp-session-id": sid } : {};
@@ -78,37 +105,88 @@ async function callTool(name) {
 
 function replay(name) {
   const file = path.join(here, `${bin}-${name}.jsonl`);
-  for (const line of fs.readFileSync(file, "utf8").split("\n")) if (line.trim() !== "") out(line.split("{{SESSION}}").join(session));
+  for (const line of fs.readFileSync(file, "utf8").split("\n"))
+    if (line.trim() !== "") out(line.split("{{SESSION}}").join(session));
 }
 
 function say(text) {
   if (bin === "codex") {
     out(JSON.stringify({ type: "thread.started", thread_id: session }));
     out(JSON.stringify({ type: "item.completed", item: { id: "item_0", type: "agent_message", text } }));
-    out(JSON.stringify({ type: "turn.completed", usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1 } }));
+    out(
+      JSON.stringify({ type: "turn.completed", usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1 } }),
+    );
     return;
   }
-  out(JSON.stringify({ type: "system", subtype: "init", session_id: session, mcp_servers: [{ name: "vyre", status: "connected" }] }));
-  out(JSON.stringify({ type: "assistant", message: { id: `m_${Date.now()}`, content: [{ type: "text", text }], usage: { input_tokens: 1, output_tokens: 1 } }, session_id: session }));
-  out(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: text, session_id: session, usage: { input_tokens: 1, output_tokens: 1 } }));
+  out(
+    JSON.stringify({
+      type: "system",
+      subtype: "init",
+      session_id: session,
+      mcp_servers: [{ name: "vyre", status: "connected" }],
+    }),
+  );
+  out(
+    JSON.stringify({
+      type: "assistant",
+      message: {
+        id: `m_${Date.now()}`,
+        content: [{ type: "text", text }],
+        usage: { input_tokens: 1, output_tokens: 1 },
+      },
+      session_id: session,
+    }),
+  );
+  out(
+    JSON.stringify({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: text,
+      session_id: session,
+      usage: { input_tokens: 1, output_tokens: 1 },
+    }),
+  );
 }
 
 /** What the CLI finds of the plugins written for it: the commands and skills in each --plugin-dir (Claude Code), the skills under the work folder (Codex) and the MCP servers it was given. */
 function pluginsSeen() {
   const seen = [];
-  const ls = (d) => { try { return fs.readdirSync(d).sort(); } catch { return []; } };
+  const ls = (d) => {
+    try {
+      return fs.readdirSync(d).sort();
+    } catch {
+      return [];
+    }
+  };
   if (bin === "codex") {
-    for (const n of ls(path.join(process.cwd(), ".agents", "skills"))) seen.push(`skill:${n}:${fs.readFileSync(path.join(process.cwd(), ".agents", "skills", n, "SKILL.md"), "utf8").split("\n").find((l) => l.startsWith("description:"))}`);
-    for (const o of argv.filter((_, i) => argv[i - 1] === "-c")) { const m = /^mcp_servers\.(plugin_[a-z0-9_]+)\.command=/.exec(o); if (m) seen.push(`mcp:${m[1]}`); }
+    for (const n of ls(path.join(process.cwd(), ".agents", "skills")))
+      seen.push(
+        `skill:${n}:${fs
+          .readFileSync(path.join(process.cwd(), ".agents", "skills", n, "SKILL.md"), "utf8")
+          .split("\n")
+          .find((l) => l.startsWith("description:"))}`,
+      );
+    for (const o of argv.filter((_, i) => argv[i - 1] === "-c")) {
+      const m = /^mcp_servers\.(plugin_[a-z0-9_]+)\.command=/.exec(o);
+      if (m) seen.push(`mcp:${m[1]}`);
+    }
   } else {
     argv.forEach((a, i) => {
       if (a !== "--plugin-dir") return;
       const dir = argv[i + 1];
       for (const c of ls(path.join(dir, "commands"))) seen.push(`command:${c.replace(/\.md$/, "")}`);
-      for (const n of ls(path.join(dir, "skills"))) seen.push(`skill:${n}:${fs.readFileSync(path.join(dir, "skills", n, "SKILL.md"), "utf8").split("\n").find((l) => l.startsWith("description:"))}`);
+      for (const n of ls(path.join(dir, "skills")))
+        seen.push(
+          `skill:${n}:${fs
+            .readFileSync(path.join(dir, "skills", n, "SKILL.md"), "utf8")
+            .split("\n")
+            .find((l) => l.startsWith("description:"))}`,
+        );
     });
     const servers = JSON.parse(flag("--mcp-config") ?? "{}").mcpServers ?? {};
-    for (const k of Object.keys(servers)) if (k.startsWith("plugin_")) seen.push(`mcp:${k}:${JSON.stringify(servers[k].env)}`);
+    for (const k of Object.keys(servers))
+      if (k.startsWith("plugin_")) seen.push(`mcp:${k}:${JSON.stringify(servers[k].env)}`);
   }
   seen.push(`token:${process.env.VYRE_PLUGIN_1 ?? "none"}`);
   return seen.join("|");
@@ -120,11 +198,15 @@ function pluginServers() {
   if (bin === "codex") {
     const servers = {};
     for (const o of argv.filter((_, i) => argv[i - 1] === "-c")) {
-      const m = /^mcp_servers\.(plugin_[A-Za-z0-9_-]+)\.(command|args|env_vars|env\.([A-Za-z_][A-Za-z0-9_]*))=(.*)$/s.exec(o);
+      const m =
+        /^mcp_servers\.(plugin_[A-Za-z0-9_-]+)\.(command|args|env_vars|env\.([A-Za-z_][A-Za-z0-9_]*))=(.*)$/s.exec(o);
       if (!m) continue;
       const s = (servers[m[1]] ??= { env: {}, envVars: [] });
-      const v = JSON.parse(m[4]);   // the driver writes TOML strings and arrays of strings, which read as JSON
-      if (m[2] === "command") s.command = v; else if (m[2] === "args") s.args = v; else if (m[2] === "env_vars") s.envVars = v; else s.env[m[3]] = v;
+      const v = JSON.parse(m[4]); // the driver writes TOML strings and arrays of strings, which read as JSON
+      if (m[2] === "command") s.command = v;
+      else if (m[2] === "args") s.args = v;
+      else if (m[2] === "env_vars") s.envVars = v;
+      else s.env[m[3]] = v;
     }
     return Object.entries(servers).map(([name, s]) => {
       const env = {};
@@ -134,54 +216,159 @@ function pluginServers() {
   }
   const servers = JSON.parse(flag("--mcp-config") ?? "{}").mcpServers ?? {};
   const expand = (v) => String(v).replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, k) => process.env[k] ?? "");
-  return Object.entries(servers).filter(([k]) => k.startsWith("plugin_")).map(([name, s]) => ({ name, command: s.command, args: s.args ?? [], env: { ...process.env, ...Object.fromEntries(Object.entries(s.env ?? {}).map(([k, v]) => [k, expand(v)])) } }));
+  return Object.entries(servers)
+    .filter(([k]) => k.startsWith("plugin_"))
+    .map(([name, s]) => ({
+      name,
+      command: s.command,
+      args: s.args ?? [],
+      env: { ...process.env, ...Object.fromEntries(Object.entries(s.env ?? {}).map(([k, v]) => [k, expand(v)])) },
+    }));
 }
 function pluginEnv() {
-  return pluginServers().map((s) => {
-    const r = spawnSync(s.command, s.args, { env: s.env, encoding: "utf8", timeout: 10_000 });
-    return `${s.name}=${(r.stdout ?? "").trim() || `failed: ${(r.stderr ?? "").trim() || r.error?.message || r.status}`}`;
-  }).join("|");
+  return pluginServers()
+    .map((s) => {
+      const r = spawnSync(s.command, s.args, { env: s.env, encoding: "utf8", timeout: 10_000 });
+      return `${s.name}=${(r.stdout ?? "").trim() || `failed: ${(r.stderr ?? "").trim() || r.error?.message || r.status}`}`;
+    })
+    .join("|");
 }
 function skillsSeen() {
   const base = path.join(process.cwd(), bin === "codex" ? ".agents/skills" : ".claude/skills");
-  const ls = (d) => { try { return fs.readdirSync(d, { withFileTypes: true }); } catch { return []; } };
-  const walk = (d, rel = "") => ls(d).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name), `${rel}${e.name}/`) : [`${rel}${e.name}`]));
-  return ls(base).filter((e) => e.isDirectory() && fs.existsSync(path.join(base, e.name, "SKILL.md"))).map((e) => {
-    const md = fs.readFileSync(path.join(base, e.name, "SKILL.md"), "utf8");
-    return `${e.name}:${md.split("\n").find((l) => l.startsWith("description:")) ?? ""}:${walk(path.join(base, e.name)).filter((f) => f !== "SKILL.md").sort().join(",")}`;
-  }).sort().join("|") || "none";
+  const ls = (d) => {
+    try {
+      return fs.readdirSync(d, { withFileTypes: true });
+    } catch {
+      return [];
+    }
+  };
+  const walk = (d, rel = "") =>
+    ls(d).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name), `${rel}${e.name}/`) : [`${rel}${e.name}`]));
+  return (
+    ls(base)
+      .filter((e) => e.isDirectory() && fs.existsSync(path.join(base, e.name, "SKILL.md")))
+      .map((e) => {
+        const md = fs.readFileSync(path.join(base, e.name, "SKILL.md"), "utf8");
+        return `${e.name}:${md.split("\n").find((l) => l.startsWith("description:")) ?? ""}:${walk(
+          path.join(base, e.name),
+        )
+          .filter((f) => f !== "SKILL.md")
+          .sort()
+          .join(",")}`;
+      })
+      .sort()
+      .join("|") || "none"
+  );
 }
 
 let folding = false;
 async function run(prompt) {
   const words = prompt.trim().split(/\s+/);
   switch (words[0]) {
-    case "text": replay("text"); break;
-    case "echoenv": say(`env GH_TOKEN=${process.env.GH_TOKEN ?? "none"} GITHUB_TOKEN=${process.env.GITHUB_TOKEN ?? "none"}`); process.stderr.write(`stderr ${process.env.GH_TOKEN ?? "none"}\n`); break;   // a CLI that echoes its environment
-    case "nopartial": replay("nopartial"); break;
-    case "tool": replay((await callTool(words[1] ?? "schema_describe")).ok ? "tool" : "tool-denied"); break;
-    case "authfail": replay("error-auth"); break;
-    case "nomodel": replay("error-model"); break;
-    case "maxturns": replay("max-turns"); break;
-    case "mcpfail": replay("mcp-failed"); break;
-    case "limits": out(JSON.stringify({ type: "rate_limit_event", rate_limit_info: { status: "allowed_warning", resetsAt: 1_792_000_000, rateLimitType: "five_hour", utilization: 0.43 }, session_id: session })); say("ok"); break;
-    case "fold": folding = true; await sleep(Number(words[1] ?? 400)); folding = false; replay("text"); break;   // a turn that reads a mid-turn message at a step boundary and answers it inside the same turn
-    case "slow": await sleep(Number(words[1] ?? 400)); replay("text"); break;
+    case "text":
+      replay("text");
+      break;
+    case "echoenv":
+      say(`env GH_TOKEN=${process.env.GH_TOKEN ?? "none"} GITHUB_TOKEN=${process.env.GITHUB_TOKEN ?? "none"}`);
+      process.stderr.write(`stderr ${process.env.GH_TOKEN ?? "none"}\n`);
+      break; // a CLI that echoes its environment
+    case "nopartial":
+      replay("nopartial");
+      break;
+    case "tool":
+      replay((await callTool(words[1] ?? "schema_describe")).ok ? "tool" : "tool-denied");
+      break;
+    case "authfail":
+      replay("error-auth");
+      break;
+    case "nomodel":
+      replay("error-model");
+      break;
+    case "maxturns":
+      replay("max-turns");
+      break;
+    case "mcpfail":
+      replay("mcp-failed");
+      break;
+    case "limits":
+      out(
+        JSON.stringify({
+          type: "rate_limit_event",
+          rate_limit_info: {
+            status: "allowed_warning",
+            resetsAt: 1_792_000_000,
+            rateLimitType: "five_hour",
+            utilization: 0.43,
+          },
+          session_id: session,
+        }),
+      );
+      say("ok");
+      break;
+    case "fold":
+      folding = true;
+      await sleep(Number(words[1] ?? 400));
+      folding = false;
+      replay("text");
+      break; // a turn that reads a mid-turn message at a step boundary and answers it inside the same turn
+    case "slow":
+      await sleep(Number(words[1] ?? 400));
+      replay("text");
+      break;
     case "hang":
-      out(JSON.stringify(bin === "codex" ? { type: "thread.started", thread_id: session } : { type: "system", subtype: "init", session_id: session, mcp_servers: [{ name: "vyre", status: "connected" }] }));
+      out(
+        JSON.stringify(
+          bin === "codex"
+            ? { type: "thread.started", thread_id: session }
+            : {
+                type: "system",
+                subtype: "init",
+                session_id: session,
+                mcp_servers: [{ name: "vyre", status: "connected" }],
+              },
+        ),
+      );
       setInterval(() => undefined, 60_000);
       await new Promise(() => undefined);
       break;
-    case "die": process.stderr.write("boom: the engine crashed\n"); process.exit(3); break;
-    case "plugins": say(pluginsSeen()); break;
-    case "pluginenv": say(pluginEnv()); break;
-    case "skills": say(skillsSeen()); break;
-    case "/compact":
-      out(JSON.stringify({ type: "system", subtype: "compact_boundary", session_id: session, compact_metadata: { trigger: "manual", pre_tokens: 50_000, post_tokens: 3_000 } }));
-      out(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "", session_id: session, usage: { input_tokens: 50_000, output_tokens: 900 } }));
+    case "die":
+      process.stderr.write("boom: the engine crashed\n");
+      process.exit(3);
       break;
-    case "env": say(Object.keys(process.env).sort().join(",")); break;
-    default: say(prompt);
+    case "plugins":
+      say(pluginsSeen());
+      break;
+    case "pluginenv":
+      say(pluginEnv());
+      break;
+    case "skills":
+      say(skillsSeen());
+      break;
+    case "/compact":
+      out(
+        JSON.stringify({
+          type: "system",
+          subtype: "compact_boundary",
+          session_id: session,
+          compact_metadata: { trigger: "manual", pre_tokens: 50_000, post_tokens: 3_000 },
+        }),
+      );
+      out(
+        JSON.stringify({
+          type: "result",
+          subtype: "success",
+          is_error: false,
+          result: "",
+          session_id: session,
+          usage: { input_tokens: 50_000, output_tokens: 900 },
+        }),
+      );
+      break;
+    case "env":
+      say(Object.keys(process.env).sort().join(","));
+      break;
+    default:
+      say(prompt);
   }
 }
 
@@ -199,19 +386,50 @@ if (bin === "claude") {
       at = buf.indexOf("\n");
       if (line.trim() === "") continue;
       let prompt = "";
-      try { prompt = JSON.parse(line).message.content.map((c) => c.text ?? "").join("\n"); } catch { continue; }
+      try {
+        prompt = JSON.parse(line)
+          .message.content.map((c) => c.text ?? "")
+          .join("\n");
+      } catch {
+        continue;
+      }
       // the real engine echoes each user message when it takes it up (--replay-user-messages): here, when the turn for it starts, or at once when a running "fold" turn takes it in
-      if (!folding && /^\s*fold\b/.test(prompt)) folding = true;   // the turn is under way the moment its message is in
-      else if (folding) { if (argv.includes("--replay-user-messages")) out(JSON.stringify({ type: "user", isReplay: true, message: { role: "user", content: [{ type: "text", text: prompt }] } })); continue; }
-      queue = queue.then(() => { if (argv.includes("--replay-user-messages")) out(JSON.stringify({ type: "user", isReplay: true, message: { role: "user", content: [{ type: "text", text: prompt }] } })); return run(prompt); });
+      if (!folding && /^\s*fold\b/.test(prompt))
+        folding = true; // the turn is under way the moment its message is in
+      else if (folding) {
+        if (argv.includes("--replay-user-messages"))
+          out(
+            JSON.stringify({
+              type: "user",
+              isReplay: true,
+              message: { role: "user", content: [{ type: "text", text: prompt }] },
+            }),
+          );
+        continue;
+      }
+      queue = queue.then(() => {
+        if (argv.includes("--replay-user-messages"))
+          out(
+            JSON.stringify({
+              type: "user",
+              isReplay: true,
+              message: { role: "user", content: [{ type: "text", text: prompt }] },
+            }),
+          );
+        return run(prompt);
+      });
     }
   });
-  process.stdin.on("end", () => { queue.then(() => process.exit(0)); });
+  process.stdin.on("end", () => {
+    queue.then(() => process.exit(0));
+  });
 } else {
   // One-shot: the whole prompt on stdin, one answer, exit.
   let prompt = "";
   process.stdin.setEncoding("utf8");
-  process.stdin.on("data", (d) => { prompt += d; });
+  process.stdin.on("data", (d) => {
+    prompt += d;
+  });
   process.stdin.on("end", async () => {
     await run(prompt);
   });

@@ -11,12 +11,14 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /** Ports a real Space never binds, each with the reason. */
 const TEST_ONLY: Readonly<Record<string, string>> = {
-  "modules/terminal:bindHost": "a stand-in host for tests; a real Space binds the machine's own through bindMachineHost (setTerminalHost)",
+  "modules/terminal:bindHost":
+    "a stand-in host for tests; a real Space binds the machine's own through bindMachineHost (setTerminalHost)",
   "modules/terminal:bindPlace": "a stand-in for tests; a real Space binds bindMachinePlace (setTerminalHost)",
   "modules/terminal:bindValues": "a stand-in for tests; a real Space binds bindMachineValues (setTerminalHost)",
   "modules/terminal:bindKit": "a stand-in for tests; the real kit (lib/vault-use) is bound from the start",
   "modules/computers:bindKit": "a stand-in for tests; the real scrubber (lib/vault-use) is bound from the start",
-  "modules/computers:bindMigration": "all three migration ports at once, for tests; a real Space binds them one by one with bindMigrationPort",
+  "modules/computers:bindMigration":
+    "all three migration ports at once, for tests; a real Space binds them one by one with bindMigrationPort",
   "modules/engine:bindCompleter": "a stand-in for tests; the runtime sets its own completer when it starts",
   "modules/mail:bindDns": "a per-context stand-in for tests; a real Space uses setDefaultDns",
   "modules/mail:bindImapSession": "a per-context stand-in for tests; a real Space uses setDefaultImapSession",
@@ -29,7 +31,8 @@ const TEST_ONLY: Readonly<Record<string, string>> = {
  */
 const KNOWN_UNBOUND: ReadonlySet<string> = new Set();
 
-const testy = (rel: string): boolean => /(^|\/)(tests?|fixtures)\//.test(rel) || /\.test\.tsx?$/.test(rel) || /-kit\.test\.ts$/.test(rel);
+const testy = (rel: string): boolean =>
+  /(^|\/)(tests?|fixtures)\//.test(rel) || /\.test\.tsx?$/.test(rel) || /-kit\.test\.ts$/.test(rel);
 
 function files(dir: string): string[] {
   const out: string[] = [];
@@ -52,25 +55,59 @@ function files(dir: string): string[] {
 export function isBound(name: string, mod: string, text: ReadonlyMap<string, string>): boolean {
   const callIn = new RegExp(`(^|[^A-Za-z0-9_.])${name}(\\?\\.)?\\(\\s*(?!(?:null|false)\\s*\\))`);
   const methodCall = new RegExp(`\\.${name}(\\?\\.)?\\(\\s*(?!(?:null|false)\\s*\\))`);
-  return [...text].some(([r, s]) => (r.startsWith(`${mod}/`) || r.startsWith("host/")) && s.split("\n").some((line) => {
-    const t = line.trim();
-    if (/^(import|export \{|export \*|\/\/|\*|\/\*\*)/.test(t) || new RegExp(`^export (function|const) ${name}\\b`).test(t)) return false;
-    return callIn.test(line) || (r.startsWith("host/") && methodCall.test(line));
-  }));
+  return [...text].some(
+    ([r, s]) =>
+      (r.startsWith(`${mod}/`) || r.startsWith("host/")) &&
+      s.split("\n").some((line) => {
+        const t = line.trim();
+        if (
+          /^(import|export \{|export \*|\/\/|\*|\/\*\*)/.test(t) ||
+          new RegExp(`^export (function|const) ${name}\\b`).test(t)
+        )
+          return false;
+        return callIn.test(line) || (r.startsWith("host/") && methodCall.test(line));
+      }),
+  );
 }
 
 test("the guard counts only a real call with something to bind: a quoted name in the host, or a call with null, is not a binding", () => {
   const mod = "modules/demo";
   const def = ["modules/demo/projections.ts", "export function bindThing(x: unknown) { thing = x; }"] as const;
-  assert.equal(isBound("bindThing", mod, new Map([def, ["host/src/daemon/daemon.ts", `const names = ["bindThing", 'bindThing'];`]])), false, "a name in quotes");
-  assert.equal(isBound("bindThing", mod, new Map([def, ["modules/demo/impl.ts", "bindThing(null);"]])), false, "taking it out");
-  assert.equal(isBound("bindThing", mod, new Map([def, ["modules/other/impl.ts", "bindThing(real);"]])), false, "another module's call");
-  assert.equal(isBound("bindThing", mod, new Map([def, ["modules/demo/impl.ts", "bindThing(createThing());"]])), true, "the module binds it");
-  assert.equal(isBound("bindThing", mod, new Map([def, ["host/src/daemon/daemon.ts", "comp.bindThing?.(async () => real);"]])), true, "the host binds it through the module's exports");
+  assert.equal(
+    isBound(
+      "bindThing",
+      mod,
+      new Map([def, ["host/src/daemon/daemon.ts", `const names = ["bindThing", 'bindThing'];`]]),
+    ),
+    false,
+    "a name in quotes",
+  );
+  assert.equal(
+    isBound("bindThing", mod, new Map([def, ["modules/demo/impl.ts", "bindThing(null);"]])),
+    false,
+    "taking it out",
+  );
+  assert.equal(
+    isBound("bindThing", mod, new Map([def, ["modules/other/impl.ts", "bindThing(real);"]])),
+    false,
+    "another module's call",
+  );
+  assert.equal(
+    isBound("bindThing", mod, new Map([def, ["modules/demo/impl.ts", "bindThing(createThing());"]])),
+    true,
+    "the module binds it",
+  );
+  assert.equal(
+    isBound("bindThing", mod, new Map([def, ["host/src/daemon/daemon.ts", "comp.bindThing?.(async () => real);"]])),
+    true,
+    "the host binds it through the module's exports",
+  );
 });
 
 test("every port a module exports is bound by production code, or is listed with why not", () => {
-  const prod = [...files(path.join(ROOT, "modules")), ...files(path.join(ROOT, "host", "src"))].map((p) => ({ rel: path.relative(ROOT, p).split(path.sep).join("/"), p })).filter((f) => !testy(f.rel));
+  const prod = [...files(path.join(ROOT, "modules")), ...files(path.join(ROOT, "host", "src"))]
+    .map((p) => ({ rel: path.relative(ROOT, p).split(path.sep).join("/"), p }))
+    .filter((f) => !testy(f.rel));
   const text = new Map(prod.map((f) => [f.rel, fs.readFileSync(f.p, "utf8")] as const));
   const unbound: string[] = [];
   const seen = new Set<string>();
@@ -87,7 +124,8 @@ test("every port a module exports is bound by production code, or is listed with
       if (!called && TEST_ONLY[key] === undefined && !KNOWN_UNBOUND.has(key)) unbound.push(`${key} (${rel})`);
     }
   }
-  for (const key of Object.keys(TEST_ONLY)) assert.ok(seen.has(key), `${key} is listed as test-only but no longer exists: take it off the list`);
+  for (const key of Object.keys(TEST_ONLY))
+    assert.ok(seen.has(key), `${key} is listed as test-only but no longer exists: take it off the list`);
   assert.deepEqual(unbound, [], "ports only a test binds; bind them in production, or list them here with the reason");
 });
 
@@ -95,15 +133,27 @@ test("every port a module exports is bound by production code, or is listed with
  * Setters left unbound on purpose, each with the reason and the decision (f-wire, 12 Nov). The test fails when one becomes bound while it is still listed, so binding it is a decision taken here.
  */
 const DELIBERATELY_UNBOUND: Readonly<Record<string, string>> = {
-  "modules/memory:setCaptureExtractor": "the model pass it was made for runs already: memory.capture after each turn goes through learnTurn (modules/memory/handlers/learn.ts) on the asker's own account inside their quota; a bound extractor would pay twice for the idle and room capture. Lead, 12 Nov: leave unbound; BACKLOG After v1.0.0 retires the seam",
+  "modules/memory:setCaptureExtractor":
+    "the model pass it was made for runs already: memory.capture after each turn goes through learnTurn (modules/memory/handlers/learn.ts) on the asker's own account inside their quota; a bound extractor would pay twice for the idle and room capture. Lead, 12 Nov: leave unbound; BACKLOG After v1.0.0 retires the seam",
 };
 
 test("a setter left unbound on purpose stays unbound, and exists", () => {
-  const prod = [...files(path.join(ROOT, "modules")), ...files(path.join(ROOT, "host", "src"))].map((p) => ({ rel: path.relative(ROOT, p).split(path.sep).join("/"), p })).filter((f) => !testy(f.rel));
+  const prod = [...files(path.join(ROOT, "modules")), ...files(path.join(ROOT, "host", "src"))]
+    .map((p) => ({ rel: path.relative(ROOT, p).split(path.sep).join("/"), p }))
+    .filter((f) => !testy(f.rel));
   const text = new Map(prod.map((f) => [f.rel, fs.readFileSync(f.p, "utf8")] as const));
   for (const [key, why] of Object.entries(DELIBERATELY_UNBOUND)) {
     const [mod, name] = key.split(":") as [string, string];
-    assert.ok([...text].some(([r, s]) => r.startsWith(`${mod}/`) && new RegExp(`^export (?:function|const) ${name}\\b`, "m").test(s)), `${key} no longer exists: take it off the list`);
-    assert.equal(isBound(name, mod, text), false, `${key} is bound now, but it was left unbound on purpose (${why.slice(0, 60)}...): take it off the list with the decision`);
+    assert.ok(
+      [...text].some(
+        ([r, s]) => r.startsWith(`${mod}/`) && new RegExp(`^export (?:function|const) ${name}\\b`, "m").test(s),
+      ),
+      `${key} no longer exists: take it off the list`,
+    );
+    assert.equal(
+      isBound(name, mod, text),
+      false,
+      `${key} is bound now, but it was left unbound on purpose (${why.slice(0, 60)}...): take it off the list with the decision`,
+    );
   }
 });

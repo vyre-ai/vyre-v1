@@ -16,18 +16,31 @@ import type { Step, Tools, World } from "./rules.ts";
 
 const read = (rel: string): string => readFileSync(new URL(`../../../${rel}`, import.meta.url), "utf8");
 const SKILL = read("agent/skills/about-vyre/SKILL.md");
-const evalSet = JSON.parse(read("agent/skills/about-vyre/eval.json")) as { version: number; world: World; scenarios: AboutScenario[] };
+const evalSet = JSON.parse(read("agent/skills/about-vyre/eval.json")) as {
+  version: number;
+  world: World;
+  scenarios: AboutScenario[];
+};
 const registry = JSON.parse(read("generated/registry.json")) as { $defs: Record<string, JsonSchema> };
 const gen = loadGenerated();
 /** What a chat lists from its first turn: the default set, plus the crew tools and the Space reads every chat preloads (modules/mcp/impl.ts). */
 const chatListed = new Set([...gen.defaults, ...CREW_TOOLS, ...ABOUT_VYRE_TOOLS]);
 const tools: Tools = { byName: (n) => gen.catalog.byName(n), isListed: (n) => chatListed.has(n), defs: registry.$defs };
 const world: AboutWorld = { ...evalSet.world, skill: SKILL };
-const scenario = (id: string): AboutScenario => { const s = evalSet.scenarios.find((x) => x.id === id); assert.ok(s, `scenario ${id}`); return structuredClone(s); };
+const scenario = (id: string): AboutScenario => {
+  const s = evalSet.scenarios.find((x) => x.id === id);
+  assert.ok(s, `scenario ${id}`);
+  return structuredClone(s);
+};
 const broken = (s: AboutScenario): string[] => [...new Set(evaluateAbout(s, world, tools).map((v) => v.rule))];
 const lastSay = (s: AboutScenario): number => s.trace.length - 1 - [...s.trace].reverse().findIndex((t) => "say" in t);
-const setSay = (s: AboutScenario, text: string): void => { s.trace[lastSay(s)] = { say: text }; };
-const addSay = (s: AboutScenario, text: string): void => { const i = lastSay(s); s.trace[i] = { say: `${(s.trace[i] as { say: string }).say} ${text}` }; };
+const setSay = (s: AboutScenario, text: string): void => {
+  s.trace[lastSay(s)] = { say: text };
+};
+const addSay = (s: AboutScenario, text: string): void => {
+  const i = lastSay(s);
+  s.trace[i] = { say: `${(s.trace[i] as { say: string }).say} ${text}` };
+};
 
 /** The six questions the lead asked for, word for word. */
 const ASKED = [
@@ -80,19 +93,82 @@ for (const s of evalSet.scenarios) {
 type Mutation = [id: string, rule: string, mutate: (s: AboutScenario) => void];
 const calls = (s: AboutScenario) => s.trace.filter((t): t is Extract<Step, { call: string }> => "call" in t);
 const mutations: Mutation[] = [
-  ["codex-supported", "no_known_wrong", (s) => setSay(s, "Codex is not supported in Vyre. It runs on Claude Code and Grok.")],
+  [
+    "codex-supported",
+    "no_known_wrong",
+    (s) => setSay(s, "Codex is not supported in Vyre. It runs on Claude Code and Grok."),
+  ],
   ["codex-supported", "no_known_wrong", (s) => setSay(s, "Vyre doesn't support Codex today.")],
-  ["codex-supported", "connect_not_unsupported", (s) => setSay(s, "Codex, Claude Code and Grok are engines here, and Vyre installs Codex itself, but Codex is not connected, so it is not available.")],
-  ["codex-supported", "checks_space", (s) => { s.trace = s.trace.filter((t) => !("call" in t)); }],
-  ["owner-replacement", "checks_space", (s) => { s.trace = s.trace.filter((t) => !("call" in t)); }],
-  ["github-pr", "checks_space", (s) => { s.trace = s.trace.filter((t) => !("call" in t)); }],
-  ["github-pr", "tools_available", (s) => { s.trace = s.trace.filter((t) => !("call" in t) || t.call !== "tool_search"); }],
-  ["github-pr", "tools_available", (s) => { (calls(s).find((c) => c.call === "engine_crew_repo_get")!.input as { projectId: string }).projectId = "Website"; }],
-  ["github-pr", "names_a_limit", (s) => setSay(s, "Yes. Crew teammates work on their own branch; Merge and Push land it, and the GitHub App opens pull requests and watches checks.")],
+  [
+    "codex-supported",
+    "connect_not_unsupported",
+    (s) =>
+      setSay(
+        s,
+        "Codex, Claude Code and Grok are engines here, and Vyre installs Codex itself, but Codex is not connected, so it is not available.",
+      ),
+  ],
+  [
+    "codex-supported",
+    "checks_space",
+    (s) => {
+      s.trace = s.trace.filter((t) => !("call" in t));
+    },
+  ],
+  [
+    "owner-replacement",
+    "checks_space",
+    (s) => {
+      s.trace = s.trace.filter((t) => !("call" in t));
+    },
+  ],
+  [
+    "github-pr",
+    "checks_space",
+    (s) => {
+      s.trace = s.trace.filter((t) => !("call" in t));
+    },
+  ],
+  [
+    "github-pr",
+    "tools_available",
+    (s) => {
+      s.trace = s.trace.filter((t) => !("call" in t) || t.call !== "tool_search");
+    },
+  ],
+  [
+    "github-pr",
+    "tools_available",
+    (s) => {
+      (calls(s).find((c) => c.call === "engine_crew_repo_get")!.input as { projectId: string }).projectId = "Website";
+    },
+  ],
+  [
+    "github-pr",
+    "names_a_limit",
+    (s) =>
+      setSay(
+        s,
+        "Yes. Crew teammates work on their own branch; Merge and Push land it, and the GitHub App opens pull requests and watches checks.",
+      ),
+  ],
   ["long-session-crash", "says_facts", (s) => setSay(s, "It keeps going for hours. A crash is handled.")],
-  ["what-is-vyre", "says_facts", (s) => { s.facts.push("a phone app with push notifications"); addSay(s, "There is a phone app with push notifications."); }],
+  [
+    "what-is-vyre",
+    "says_facts",
+    (s) => {
+      s.facts.push("a phone app with push notifications");
+      addSay(s, "There is a phone app with push notifications.");
+    },
+  ],
   ["project-tasks-reviewers", "plain_words", (s) => addSay(s, "I can set it up with task_plan and tasks_assign.")],
-  ["what-is-vyre", "about_loaded", (s) => { s.prompt = "Send this to Sam."; }],
+  [
+    "what-is-vyre",
+    "about_loaded",
+    (s) => {
+      s.prompt = "Send this to Sam.";
+    },
+  ],
   ["owner-what-do-you-think", "no_known_wrong", (s) => setSay(s, "I don't know much about Vyre yet.")],
 ];
 
@@ -108,8 +184,25 @@ for (const [id, rule, mutate] of mutations) {
 // ---- the trigger
 
 test("the owner's words and the six questions load the skill by themselves; ordinary asks do not", () => {
-  for (const said of [...OWNER_WORDS, ...ASKED, "Is Vyre better than Cursor for this?", "can this replace Jira for us", "does it work with Ollama?", "How does vyre handle context limits?"]) assert.ok(ABOUT_VYRE_INTENT.test(said), said);
-  for (const said of ["what is on my calendar", "send this to Sam", "add a task to call Dana", "fix the failing test in billing.ts", "summarise this thread", "use Codex to write the parser", "open the contracts folder"]) assert.equal(ABOUT_VYRE_INTENT.test(said), false, said);
+  for (const said of [
+    ...OWNER_WORDS,
+    ...ASKED,
+    "Is Vyre better than Cursor for this?",
+    "can this replace Jira for us",
+    "does it work with Ollama?",
+    "How does vyre handle context limits?",
+  ])
+    assert.ok(ABOUT_VYRE_INTENT.test(said), said);
+  for (const said of [
+    "what is on my calendar",
+    "send this to Sam",
+    "add a task to call Dana",
+    "fix the failing test in billing.ts",
+    "summarise this thread",
+    "use Codex to write the parser",
+    "open the contracts folder",
+  ])
+    assert.equal(ABOUT_VYRE_INTENT.test(said), false, said);
 });
 
 // ---- the skill text
@@ -141,8 +234,17 @@ test("every tool the skill names is real, and the Space reads it leans on are li
 
 /** The name the skill gives each engine and provider the drivers have. A driver added without a name here fails, and so does one the skill leaves out. */
 const ENGINE_NAMES: Readonly<Record<string, string>> = {
-  claude_code: "Claude Code", codex: "Codex", grok: "Grok",
-  anthropic: "Anthropic", openai: "OpenAI", openrouter: "OpenRouter", google: "Google", xai: "xAI", opencode_go: "OpenCode Go", local: "local model", custom: "OpenAI-compatible endpoint",
+  claude_code: "Claude Code",
+  codex: "Codex",
+  grok: "Grok",
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  openrouter: "OpenRouter",
+  google: "Google",
+  xai: "xAI",
+  opencode_go: "OpenCode Go",
+  local: "local model",
+  custom: "OpenAI-compatible endpoint",
 };
 
 test("the skill names every engine and provider the drivers support, and Vyre installing the CLIs", () => {

@@ -32,7 +32,13 @@ export interface CommandEnv {
 
 /** The list the composer offers after "/": ours first, then each plugin's that does not clash with a name already in use. */
 export function commandItems(plugins: readonly PluginCommand[] = []): ListItem[] {
-  const out: ListItem[] = CHAT_COMMANDS.map((c) => ({ t: c.id, s: c.detail, kind: "Command", body: c.id, ...(c.arg !== undefined ? { arg: c.arg } : {}) }));
+  const out: ListItem[] = CHAT_COMMANDS.map((c) => ({
+    t: c.id,
+    s: c.detail,
+    kind: "Command",
+    body: c.id,
+    ...(c.arg !== undefined ? { arg: c.arg } : {}),
+  }));
   const taken = new Set(CHAT_COMMANDS.map((c) => c.id));
   for (const p of plugins) {
     const name = p.name.replace(/^\//, "").toLowerCase();
@@ -43,7 +49,8 @@ export function commandItems(plugins: readonly PluginCommand[] = []): ListItem[]
   return out;
 }
 
-export const pluginNames = (plugins: readonly PluginCommand[] = []): string[] => plugins.map((p) => p.name.replace(/^\//, "").toLowerCase());
+export const pluginNames = (plugins: readonly PluginCommand[] = []): string[] =>
+  plugins.map((p) => p.name.replace(/^\//, "").toLowerCase());
 
 /** If the text is a command we know, run it and return true; otherwise false and the caller sends it as a message. */
 export async function runSlash(text: string, env: CommandEnv): Promise<boolean> {
@@ -61,7 +68,9 @@ export async function runSlash(text: string, env: CommandEnv): Promise<boolean> 
 const failureLine = (id: string, e: unknown): string => {
   const m = e instanceof Error ? e.message : "";
   if (m === act.OTHERS_LINE) return m;
-  return m !== "" && m.length < 140 && !/^[a-z]+\.[a-z_]+$/.test(m) ? `/${id}: ${m}` : `/${id} did not work. Try again.`;
+  return m !== "" && m.length < 140 && !/^[a-z]+\.[a-z_]+$/.test(m)
+    ? `/${id}: ${m}`
+    : `/${id} did not work. Try again.`;
 };
 
 /** The newest message a person wrote or read that a command can act on. */
@@ -72,7 +81,10 @@ export function lastActionable(rows: readonly Message[]): Message | undefined {
 async function run(id: string, arg: string, env: CommandEnv, plugins: readonly PluginCommand[]): Promise<void> {
   const { data, thread, rows, say } = env;
   const def = chatCommand(id);
-  if (def?.argRequired && arg === "") { say(`/${id} needs ${def.arg ?? "a few words"}. For example: /${id} ${exampleFor(id)}`); return; }
+  if (def?.argRequired && arg === "") {
+    say(`/${id} needs ${def.arg ?? "a few words"}. For example: /${id} ${exampleFor(id)}`);
+    return;
+  }
   switch (id) {
     case "plan": {
       const want = /^(on|yes|start)$/i.test(arg) ? true : /^(off|no|stop)$/i.test(arg) ? false : !thread.planMode;
@@ -80,12 +92,19 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
       say(want ? "Plan mode is on: the agent plans and changes nothing until you approve" : "Plan mode is off");
       return;
     }
-    case "permissions": await act.showPermissions(data, arg, say); return;
-    case "btw": env.aside(arg); return;
+    case "permissions":
+      await act.showPermissions(data, arg, say);
+      return;
+    case "btw":
+      env.aside(arg);
+      return;
     case "usage": {
       // the words come from engine.my_ai (the one place that knows), never from the model
       const lead = thread.agents.find((a) => a.mode === "lead");
-      const out = (await data.call("engine.my_ai", { threadId: thread.threadId, ...(lead ? { agentId: lead.agentId } : {}) })) as MyAi;
+      const out = (await data.call("engine.my_ai", {
+        threadId: thread.threadId,
+        ...(lead ? { agentId: lead.agentId } : {}),
+      })) as MyAi;
       say(usageText(out));
       return;
     }
@@ -104,11 +123,23 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
       return;
     }
     case "handoff": {
-      const named = mentionsIn(arg, data.directory.filter((c) => c.kind === "agent"))[0];
-      if (!named) { say("Name the agent to hand it to: /handoff @Docs write the letter"); return; }
+      const named = mentionsIn(
+        arg,
+        data.directory.filter((c) => c.kind === "agent"),
+      )[0];
+      if (!named) {
+        say("Name the agent to hand it to: /handoff @Docs write the letter");
+        return;
+      }
       const first = (data.nameOf(named.id).split(/\s+/)[0] ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const note = arg.replace(new RegExp(`@${first}\\b`, "i"), "").replace(/\s+/g, " ").trim();
-      if (note === "") { say(`Tell ${data.nameOf(named.id)} what to do: /handoff @${data.nameOf(named.id).split(/\s+/)[0]} the task`); return; }
+      const note = arg
+        .replace(new RegExp(`@${first}\\b`, "i"), "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (note === "") {
+        say(`Tell ${data.nameOf(named.id)} what to do: /handoff @${data.nameOf(named.id).split(/\s+/)[0]} the task`);
+        return;
+      }
       const next = await act.handOff(data, thread, named.id, note);
       say(`Handed to ${data.nameOf(named.id)}`);
       data.nav.openThread(next);
@@ -116,7 +147,10 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
     }
     case "pin": {
       const m = lastActionable(rows);
-      if (!m) { say("Nothing to pin yet"); return; }
+      if (!m) {
+        say("Nothing to pin yet");
+        return;
+      }
       await act.setPinned(data, m.messageId, !m.pinned);
       say(m.pinned ? "Unpinned the last message" : "Pinned the last message");
       return;
@@ -131,39 +165,79 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
     case "export": {
       const format: ExportFormat = /json/i.test(arg) ? "json" : "md";
       const file = await act.exportChat(data, thread, format);
-      if (data.saveFile) { data.saveFile(file.name, file.mime, file.content); say(`Saved ${file.name}: ${file.messages} ${file.messages === 1 ? "message" : "messages"}`); }
-      else { data.copy(file.content); say(`Copied the chat as ${format === "json" ? "JSON" : "Markdown"}: ${file.messages} ${file.messages === 1 ? "message" : "messages"}`); }
+      if (data.saveFile) {
+        data.saveFile(file.name, file.mime, file.content);
+        say(`Saved ${file.name}: ${file.messages} ${file.messages === 1 ? "message" : "messages"}`);
+      } else {
+        data.copy(file.content);
+        say(
+          `Copied the chat as ${format === "json" ? "JSON" : "Markdown"}: ${file.messages} ${file.messages === 1 ? "message" : "messages"}`,
+        );
+      }
       return;
     }
     case "continue": {
-      if (!act.onlyMeHere(thread, data.me.id)) { say(act.OTHERS_LINE); return; }
+      if (!act.onlyMeHere(thread, data.me.id)) {
+        say(act.OTHERS_LINE);
+        return;
+      }
       const spaces = data.elsewhere?.spaces ?? [];
-      if (spaces.length === 0) { say("You are in no other Space on this device"); return; }
+      if (spaces.length === 0) {
+        say("You are in no other Space on this device");
+        return;
+      }
       const want = arg.trim().toLowerCase();
-      const hit = spaces.find((x) => x.name.toLowerCase() === want) ?? spaces.find((x) => x.name.toLowerCase().startsWith(want));
-      if (!hit) { say(`No Space named "${arg}". You can continue in: ${spaces.map((x) => x.name).join(", ")}`); return; }
+      const hit =
+        spaces.find((x) => x.name.toLowerCase() === want) ?? spaces.find((x) => x.name.toLowerCase().startsWith(want));
+      if (!hit) {
+        say(`No Space named "${arg}". You can continue in: ${spaces.map((x) => x.name).join(", ")}`);
+        return;
+      }
       await act.continueElsewhere(data, thread, hit, data.spaceName ?? "another Space", env.newKey());
       say(`Continued in ${hit.name}. Open that Space and it is in your chats there.`);
       return;
     }
     case "task": {
       const m = lastActionable(rows);
-      if (!m && arg === "") { say("Nothing to make a task from yet. Say what it is: /task call the court"); return; }
-      const taskId = await act.makeTask(data, thread, m ?? { messageId: "", body: arg, author: { kind: "person", id: data.me.id }, createdAt: data.clock().now }, env.newKey(), arg);
+      if (!m && arg === "") {
+        say("Nothing to make a task from yet. Say what it is: /task call the court");
+        return;
+      }
+      const taskId = await act.makeTask(
+        data,
+        thread,
+        m ?? { messageId: "", body: arg, author: { kind: "person", id: data.me.id }, createdAt: data.clock().now },
+        env.newKey(),
+        arg,
+      );
       say("Task made from the last message");
       data.nav.openBeside("task", taskId);
       return;
     }
     case "remember": {
       const lead = thread.agents.find((a) => a.mode === "lead") ?? thread.agents[0];
-      if (!lead) { if (env.openAdd) env.openAdd(); else say("Add an agent to this chat first. It keeps what you tell it to remember."); return; }
+      if (!lead) {
+        if (env.openAdd) env.openAdd();
+        else say("Add an agent to this chat first. It keeps what you tell it to remember.");
+        return;
+      }
       const merged = await act.remember(data, thread, lead.agentId, arg);
-      say(merged ? `${data.nameOf(lead.agentId)} will remember that` : `Sent to ${data.nameOf(lead.agentId)} to confirm before it is kept`);
+      say(
+        merged
+          ? `${data.nameOf(lead.agentId)} will remember that`
+          : `Sent to ${data.nameOf(lead.agentId)} to confirm before it is kept`,
+      );
       return;
     }
-    case "find": env.openFind(); return;
-    case "search": env.openSearch(arg); return;
-    case "model": env.openModel(); return;
+    case "find":
+      env.openFind();
+      return;
+    case "search":
+      env.openSearch(arg);
+      return;
+    case "model":
+      env.openModel();
+      return;
     case "stop": {
       // each stopped reply says so under itself
       await act.stopAll(data);
@@ -171,10 +245,23 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
     }
     default: {
       const p = plugins.find((x) => x.name.replace(/^\//, "").toLowerCase() === id);
-      if (!p) { say(`/${id} is not a command here`); return; }
-      if (p.run) { const line = await p.run(arg); if (line) say(line); return; }
-      if (p.render) { env.send(await p.render(arg)); return; }
-      if (p.prompt) { env.send(p.prompt.replaceAll("$ARGUMENTS", arg).trim()); return; }
+      if (!p) {
+        say(`/${id} is not a command here`);
+        return;
+      }
+      if (p.run) {
+        const line = await p.run(arg);
+        if (line) say(line);
+        return;
+      }
+      if (p.render) {
+        env.send(await p.render(arg));
+        return;
+      }
+      if (p.prompt) {
+        env.send(p.prompt.replaceAll("$ARGUMENTS", arg).trim());
+        return;
+      }
       say(`/${id} has nothing to run`);
     }
   }
@@ -182,11 +269,15 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
 
 function exampleFor(id: string): string {
   switch (id) {
-    case "helper": return "read the lease and list the dates";
-    case "btw": return "what is the deadline again?";
-    case "handoff": return "@Docs draft the cover letter";
-    case "remember": return "I prefer short answers";
-    default: return "...";
+    case "helper":
+      return "read the lease and list the dates";
+    case "btw":
+      return "what is the deadline again?";
+    case "handoff":
+      return "@Docs draft the cover letter";
+    case "remember":
+      return "I prefer short answers";
+    default:
+      return "...";
   }
 }
-

@@ -12,7 +12,14 @@ export type Row = { name: string; conclusion: string; sec: number };
 /** Seconds each job took, slowest first. Jobs that never started count as 0. */
 export function rows(jobs: Job[]): Row[] {
   return jobs
-    .map((j) => ({ name: j.name, conclusion: j.conclusion ?? "running", sec: j.started_at && j.completed_at ? Math.max(0, (Date.parse(j.completed_at) - Date.parse(j.started_at)) / 1000) : 0 }))
+    .map((j) => ({
+      name: j.name,
+      conclusion: j.conclusion ?? "running",
+      sec:
+        j.started_at && j.completed_at
+          ? Math.max(0, (Date.parse(j.completed_at) - Date.parse(j.started_at)) / 1000)
+          : 0,
+    }))
     .sort((a, b) => b.sec - a.sec || (a.name < b.name ? -1 : 1));
 }
 
@@ -20,24 +27,42 @@ export function rows(jobs: Job[]): Row[] {
 export function report(jobs: Job[]): string {
   const r = rows(jobs);
   const sum = r.reduce((n, x) => n + x.sec, 0);
-  const lines = ["| job | result | seconds |", "| --- | --- | --- |", ...r.map((x) => `| ${x.name} | ${x.conclusion} | ${Math.round(x.sec)} |`)];
-  lines.push("", `${r.length} jobs, slowest ${r[0]?.name ?? "none"} (${Math.round(r[0]?.sec ?? 0)} s), ${Math.round(sum)} s of runner time`);
+  const lines = [
+    "| job | result | seconds |",
+    "| --- | --- | --- |",
+    ...r.map((x) => `| ${x.name} | ${x.conclusion} | ${Math.round(x.sec)} |`),
+  ];
+  lines.push(
+    "",
+    `${r.length} jobs, slowest ${r[0]?.name ?? "none"} (${Math.round(r[0]?.sec ?? 0)} s), ${Math.round(sum)} s of runner time`,
+  );
   return lines.join("\n");
 }
 
 /** Queue versus execution for the whole run: queue is run start to the first job start, execution is first start to last end. */
 export function queueVsExec(runStartedAt: string, jobs: Job[]): string {
-  const starts = jobs.map((j) => j.started_at).filter((x): x is string => !!x).map(Date.parse);
-  const ends = jobs.map((j) => j.completed_at).filter((x): x is string => !!x).map(Date.parse);
+  const starts = jobs
+    .map((j) => j.started_at)
+    .filter((x): x is string => !!x)
+    .map(Date.parse);
+  const ends = jobs
+    .map((j) => j.completed_at)
+    .filter((x): x is string => !!x)
+    .map(Date.parse);
   if (!starts.length) return "queue vs execution: no job started";
-  const first = Math.min(...starts), last = Math.max(...ends, first);
-  const q = Math.max(0, (first - Date.parse(runStartedAt)) / 1000), e = (last - first) / 1000;
+  const first = Math.min(...starts),
+    last = Math.max(...ends, first);
+  const q = Math.max(0, (first - Date.parse(runStartedAt)) / 1000),
+    e = (last - first) / 1000;
   return `queue ${Math.round(q)} s, execution ${Math.round(e)} s${q > 120 ? " (ALERT: queue over 2 min)" : ""}`;
 }
 
 const self = fileURLToPath(import.meta.url);
 if (process.argv[1] && path.resolve(process.argv[1]) === self) {
-  const val = (n: string) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
+  const val = (n: string) => {
+    const i = process.argv.indexOf(n);
+    return i >= 0 ? process.argv[i + 1] : undefined;
+  };
   let jobs: Job[];
   let runStart = val("--run-start");
   if (val("--jobs")) jobs = JSON.parse(fs.readFileSync(val("--jobs")!, "utf8"));

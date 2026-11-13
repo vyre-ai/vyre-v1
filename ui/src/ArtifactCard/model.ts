@@ -35,12 +35,17 @@ export function whenLabel(at: number | undefined, now: number): string {
   return dateIn(at, zone, now);
 }
 
-const join = (names: readonly string[]): string => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]!}` : names[0] ?? "");
+const join = (names: readonly string[]): string =>
+  names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]!}` : (names[0] ?? "");
 
 /** Who can see it, in the words a person uses. */
 export function sharingLine(a: ArtifactInfo, meId: string, nameOf: (id: string) => string = (id) => id): string {
   if (a.owner !== meId) return `Shared by ${nameOf(a.owner)}`;
-  const who = [...(a.sharedWith ?? []), ...(a.audience?.includes("space") ? ["everyone in the Space"] : []), ...(a.audience?.includes("link") ? ["anyone with the link"] : [])];
+  const who = [
+    ...(a.sharedWith ?? []),
+    ...(a.audience?.includes("space") ? ["everyone in the Space"] : []),
+    ...(a.audience?.includes("link") ? ["anyone with the link"] : []),
+  ];
   if (who.length > 0) return `Shared with ${join(who)}`;
   if (a.access === "public") return "Public link";
   if (a.access === "space") return "Shared with the Space";
@@ -55,7 +60,12 @@ export function subline(a: ArtifactInfo, meId: string, now: number, nameOf?: (id
 }
 
 /** The rows for one filter and search, newest update first. */
-export function filterArtifacts<T extends ArtifactInfo>(rows: readonly T[], filter: ArtifactFilter, q: string, meId: string): T[] {
+export function filterArtifacts<T extends ArtifactInfo>(
+  rows: readonly T[],
+  filter: ArtifactFilter,
+  q: string,
+  meId: string,
+): T[] {
   const needle = q.trim().toLowerCase();
   return rows
     .filter((a) => (filter === "All" ? true : filter === "Mine" ? a.owner === meId : a.owner !== meId))

@@ -4,11 +4,29 @@
 // Search is a word match over subject, snippet, addresses and body inside the caller's visible mail; the host's FTS index serves the sync window.
 import { fail } from "../../../../host/src/routes/errors.ts";
 import {
-  bad, can, first, isId, logRead, missing, num, readStrings, rowsOf, str, strOrNull,
+  bad,
+  can,
+  first,
+  isId,
+  logRead,
+  missing,
+  num,
+  readStrings,
+  rowsOf,
+  str,
+  strOrNull,
 } from "../../projections.ts";
 import type { MailCtx, Row } from "../../projections.ts";
 import {
-  ensureAll, idemRef, MESSAGE_COLUMNS, messageRow, newestFirst, pageOf, parsePage, preconditionFailed, rememberIdem,
+  ensureAll,
+  idemRef,
+  MESSAGE_COLUMNS,
+  messageRow,
+  newestFirst,
+  pageOf,
+  parsePage,
+  preconditionFailed,
+  rememberIdem,
 } from "./common.ts";
 import type { MessageRow, PageIn } from "./common.ts";
 import { cleanMessage, gmailBodies, htmlToText, reactionOf } from "../../../../lib/mail-parse.ts";
@@ -74,7 +92,8 @@ function loadMessage(ctx: MailCtx, id: string): Row {
 function refuse(ctx: MailCtx, row: Row): never {
   for (const id of inboxesOf(row)) {
     const d = ctx.authorize({ perm: null, level: "view" }, { type: "mailbox", id });
-    if (d.effect !== "allow" && d.reason.toLowerCase().includes("clearance")) throw fail("permission.above_clearance", ctx.trace.traceId);
+    if (d.effect !== "allow" && d.reason.toLowerCase().includes("clearance"))
+      throw fail("permission.above_clearance", ctx.trace.traceId);
   }
   // a message the person may not see answers exactly as one that is not there, so its existence is not leaked (the clearance case above is for a message they may see exist)
   throw fail("permission.not_found", ctx.trace.traceId);
@@ -82,12 +101,23 @@ function refuse(ctx: MailCtx, row: Row): never {
 
 // ---- attachments (stored on the message row as JSON; an ingested one carries a blobId, a draft's one a fileId)
 
-export interface AttachmentRow { attachmentId: string; name: string; mime: string; size: number; fileId?: string; blobId?: string }
+export interface AttachmentRow {
+  attachmentId: string;
+  name: string;
+  mime: string;
+  size: number;
+  fileId?: string;
+  blobId?: string;
+}
 
 export function readAttachments(value: unknown): AttachmentRow[] {
   if (typeof value !== "string" || value.length === 0) return [];
   let parsed: unknown;
-  try { parsed = JSON.parse(value); } catch { return []; }
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return [];
+  }
   if (!Array.isArray(parsed)) return [];
   const out: AttachmentRow[] = [];
   parsed.forEach((item, i) => {
@@ -115,9 +145,14 @@ const codeOf = (e: unknown): string => {
 async function describeFiles(ctx: MailCtx, list: AttachmentRow[]): Promise<AttachmentRow[]> {
   const out: AttachmentRow[] = [];
   for (const a of list) {
-    if (a.name || !a.fileId) { out.push(a); continue; }
+    if (a.name || !a.fileId) {
+      out.push(a);
+      continue;
+    }
     try {
-      const got = (await ctx.call("files.get", { fileId: a.fileId })) as { file?: { name?: unknown; mime?: unknown; size?: unknown } } | null;
+      const got = (await ctx.call("files.get", { fileId: a.fileId })) as {
+        file?: { name?: unknown; mime?: unknown; size?: unknown };
+      } | null;
       const f = got?.file;
       out.push({
         ...a,
@@ -139,7 +174,11 @@ export interface MessageDetail {
   text?: string;
   html?: string;
   attachments: { attachmentId: string; name: string; mime: string; size: number; fileId?: string }[];
-  provider: { providerId?: string; dns?: { spf: "pass" | "fail" | "pending"; dkim: "pass" | "fail" | "pending"; dmarc: "pass" | "fail" | "pending" }; traceId: string };
+  provider: {
+    providerId?: string;
+    dns?: { spf: "pass" | "fail" | "pending"; dkim: "pass" | "fail" | "pending"; dmarc: "pass" | "fail" | "pending" };
+    traceId: string;
+  };
 }
 
 const dnsState = (v: string): "pass" | "fail" | "pending" => (v === "pass" || v === "fail" ? v : "pending");
@@ -158,7 +197,12 @@ export async function messageGet(ctx: MailCtx, input: { messageId: string }): Pr
   const out: MessageDetail = {
     message: messageRow(ctx, row),
     attachments: (await describeFiles(ctx, readAttachments(str(row, "attachments")))).map((a) => {
-      const item: MessageDetail["attachments"][number] = { attachmentId: a.attachmentId, name: a.name, mime: a.mime, size: a.size };
+      const item: MessageDetail["attachments"][number] = {
+        attachmentId: a.attachmentId,
+        name: a.name,
+        mime: a.mime,
+        size: a.size,
+      };
       if (a.fileId) item.fileId = a.fileId;
       return item;
     }),
@@ -174,15 +218,29 @@ export async function messageGet(ctx: MailCtx, input: { messageId: string }): Pr
   // DNS state is shown for mail that left through a Space sending domain.
   if (str(row, "direction") === "out") {
     const from = str(row, "fromAddress");
-    const domain = first(ctx.db.all(`SELECT spf, dkim, dmarc FROM mail_domain WHERE name = ? AND deleted_at IS NULL`, from.slice(from.lastIndexOf("@") + 1)));
-    if (domain) out.provider.dns = { spf: dnsState(str(domain, "spf")), dkim: dnsState(str(domain, "dkim")), dmarc: dnsState(str(domain, "dmarc")) };
+    const domain = first(
+      ctx.db.all(
+        `SELECT spf, dkim, dmarc FROM mail_domain WHERE name = ? AND deleted_at IS NULL`,
+        from.slice(from.lastIndexOf("@") + 1),
+      ),
+    );
+    if (domain)
+      out.provider.dns = {
+        spf: dnsState(str(domain, "spf")),
+        dkim: dnsState(str(domain, "dkim")),
+        dmarc: dnsState(str(domain, "dmarc")),
+      };
   }
   return out;
 }
 
 // ---- mail.message.list / search
 
-interface MessageList { messages: MessageRow[]; next?: string; total: number }
+interface MessageList {
+  messages: MessageRow[];
+  next?: string;
+  total: number;
+}
 
 function finish(ctx: MailCtx, viewer: Viewer, rows: Row[], offset: number, limit: number): MessageList {
   const page = pageOf(rows, offset, limit);
@@ -196,8 +254,14 @@ function finish(ctx: MailCtx, viewer: Viewer, rows: Row[], offset: number, limit
 function candidates(ctx: MailCtx, mailboxId: string | undefined, extra: Record<string, string>): Row[] {
   const where = [`deleted_at IS NULL`];
   const args: unknown[] = [];
-  for (const [col, value] of Object.entries(extra)) { where.push(`"${col}" = ?`); args.push(value); }
-  if (mailboxId) { where.push(`"inboxIds" LIKE ?`); args.push(`%"${mailboxId}"%`); }
+  for (const [col, value] of Object.entries(extra)) {
+    where.push(`"${col}" = ?`);
+    args.push(value);
+  }
+  if (mailboxId) {
+    where.push(`"inboxIds" LIKE ?`);
+    args.push(`%"${mailboxId}"%`);
+  }
   const rows = rowsOf(ctx.db.all(`SELECT ${MESSAGE_COLUMNS} FROM mail_message WHERE ${where.join(" AND ")}`, ...args));
   // The LIKE only narrows; the exact test is on the parsed list.
   return mailboxId ? rows.filter((r) => inboxesOf(r).includes(mailboxId)) : rows;
@@ -210,7 +274,8 @@ export async function messageList(
   ensureAll(ctx);
   if (input.mailboxId !== undefined && !isId("mbx", input.mailboxId)) bad(ctx, "Mailbox id is not valid.");
   if (input.contactId !== undefined && !isId("rec", input.contactId)) bad(ctx, "Contact id is not valid.");
-  if (input.threadId !== undefined && (typeof input.threadId !== "string" || input.threadId.length === 0)) bad(ctx, "Thread id is not valid.");
+  if (input.threadId !== undefined && (typeof input.threadId !== "string" || input.threadId.length === 0))
+    bad(ctx, "Thread id is not valid.");
   if (input.status !== undefined && !STATUSES.has(input.status)) bad(ctx, "Status is not valid.");
   const { offset, limit } = parsePage(ctx, input);
   const extra: Record<string, string> = {};
@@ -219,7 +284,9 @@ export async function messageList(
   if (input.status) extra.status = input.status;
   const viewer = new Viewer(ctx);
   // Drafts have their own list (mail.drafts.list); they show here only when asked for by status.
-  const rows = candidates(ctx, input.mailboxId, extra).filter((r) => (input.status === "draft" || str(r, "status") !== "draft") && viewer.door(r) !== null);
+  const rows = candidates(ctx, input.mailboxId, extra).filter(
+    (r) => (input.status === "draft" || str(r, "status") !== "draft") && viewer.door(r) !== null,
+  );
   return finish(ctx, viewer, newestFirst(rows), offset, limit);
 }
 
@@ -230,14 +297,19 @@ export async function messageSearch(
   ensureAll(ctx);
   if (typeof input.q !== "string" || input.q.trim().length === 0) bad(ctx, "Search text is required.");
   if (input.mailboxId !== undefined && !isId("mbx", input.mailboxId)) bad(ctx, "Mailbox id is not valid.");
-  for (const t of [input.from, input.to]) if (t !== undefined && !Number.isSafeInteger(t)) bad(ctx, "Dates must be timestamps.");
-  if (input.from !== undefined && input.to !== undefined && input.from > input.to) bad(ctx, "The start date is after the end date.");
+  for (const t of [input.from, input.to])
+    if (t !== undefined && !Number.isSafeInteger(t)) bad(ctx, "Dates must be timestamps.");
+  if (input.from !== undefined && input.to !== undefined && input.from > input.to)
+    bad(ctx, "The start date is after the end date.");
   const { offset, limit } = parsePage(ctx, input);
   const words = input.q.toLowerCase().split(/\s+/).filter(Boolean);
   const viewer = new Viewer(ctx);
   const where = [`deleted_at IS NULL`];
   const args: unknown[] = [];
-  if (input.mailboxId) { where.push(`"inboxIds" LIKE ?`); args.push(`%"${input.mailboxId}"%`); }
+  if (input.mailboxId) {
+    where.push(`"inboxIds" LIKE ?`);
+    args.push(`%"${input.mailboxId}"%`);
+  }
   const rows = rowsOf(ctx.db.all(`SELECT * FROM mail_message WHERE ${where.join(" AND ")}`, ...args)).filter((r) => {
     if (str(r, "status") === "draft") return false;
     if (input.mailboxId && !inboxesOf(r).includes(input.mailboxId)) return false;
@@ -245,7 +317,16 @@ export async function messageSearch(
     if (input.from !== undefined && at < input.from) return false;
     if (input.to !== undefined && at > input.to) return false;
     if (viewer.door(r) === null) return false;
-    const hay = [str(r, "subject"), str(r, "snippet"), str(r, "fromAddress"), str(r, "toAddresses"), str(r, "ccAddresses"), str(r, "body")].join("\n").toLowerCase();
+    const hay = [
+      str(r, "subject"),
+      str(r, "snippet"),
+      str(r, "fromAddress"),
+      str(r, "toAddresses"),
+      str(r, "ccAddresses"),
+      str(r, "body"),
+    ]
+      .join("\n")
+      .toLowerCase();
     return words.every((w) => hay.includes(w));
   });
   return finish(ctx, viewer, newestFirst(rows), offset, limit);
@@ -263,14 +344,26 @@ function mayMark(ctx: MailCtx, row: Row): boolean {
   return false;
 }
 
-export async function messageSetPrivate(ctx: MailCtx, input: { messageId: string; isPrivate: boolean }): Promise<{ message: MessageRow }> {
+export async function messageSetPrivate(
+  ctx: MailCtx,
+  input: { messageId: string; isPrivate: boolean },
+): Promise<{ message: MessageRow }> {
   ensureAll(ctx);
   const id = emlId(ctx, input.messageId);
   if (typeof input.isPrivate !== "boolean") bad(ctx, "The private flag must be true or false.");
   const row = loadMessage(ctx, id);
-  if (!mayMark(ctx, row)) throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only the owner of the inbox can mark a message private." });
+  if (!mayMark(ctx, row))
+    throw fail("permission.no_grant", ctx.trace.traceId, {
+      message: "Only the owner of the inbox can mark a message private.",
+    });
   if ((num(row, "isPrivate") === 1) !== input.isPrivate) {
-    ctx.db.run(`UPDATE mail_message SET "isPrivate" = ?, version = ?, updated_at = ? WHERE id = ?`, input.isPrivate ? 1 : 0, num(row, "version") + 1, ctx.now(), id);
+    ctx.db.run(
+      `UPDATE mail_message SET "isPrivate" = ?, version = ?, updated_at = ? WHERE id = ?`,
+      input.isPrivate ? 1 : 0,
+      num(row, "version") + 1,
+      ctx.now(),
+      id,
+    );
   }
   return { message: messageRow(ctx, loadMessage(ctx, id)) };
 }
@@ -296,10 +389,14 @@ async function defaultFolder(ctx: MailCtx): Promise<string> {
   const root = await resolveFolder(ctx, "Personal");
   if (!root) preconditionFailed(ctx, "Your Personal files folder is not available.");
   try {
-    const made = (await ctx.call("files.folder.create", { idempotencyKey: `mail-saved:${ctx.trace.traceId}`, parentId: root, name: FOLDER_NAME })) as { folder?: { folderId?: unknown } } | null;
+    const made = (await ctx.call("files.folder.create", {
+      idempotencyKey: `mail-saved:${ctx.trace.traceId}`,
+      parentId: root,
+      name: FOLDER_NAME,
+    })) as { folder?: { folderId?: unknown } } | null;
     if (typeof made?.folder?.folderId === "string") return made.folder.folderId;
   } catch (e) {
-    if (codeOf(e) !== "validation.duplicate") throw e;   // made a moment ago by another save: look it up again
+    if (codeOf(e) !== "validation.duplicate") throw e; // made a moment ago by another save: look it up again
   }
   const again = await resolveFolder(ctx, `Personal/${FOLDER_NAME}`);
   if (!again) preconditionFailed(ctx, "The Mail attachments folder could not be created.");
@@ -345,7 +442,13 @@ export async function attachmentSave(
   let fileId = "";
   for (let n = 1; n <= 20 && !fileId; n++) {
     try {
-      const made = (await ctx.call("files.create", { idempotencyKey: `mail-save:${ctx.trace.traceId}:${input.messageId}:${input.attachmentId}:${n}`, folderId, name: numbered(base, n), mime: found.mime, content: { blobId: found.blobId } })) as { file?: { fileId?: unknown } } | null;
+      const made = (await ctx.call("files.create", {
+        idempotencyKey: `mail-save:${ctx.trace.traceId}:${input.messageId}:${input.attachmentId}:${n}`,
+        folderId,
+        name: numbered(base, n),
+        mime: found.mime,
+        content: { blobId: found.blobId },
+      })) as { file?: { fileId?: unknown } } | null;
       if (typeof made?.file?.fileId === "string") fileId = made.file.fileId;
       else throw fail("provider.bad_response", ctx.trace.traceId, { message: "Files did not return the saved file." });
     } catch (e) {
@@ -357,7 +460,10 @@ export async function attachmentSave(
   const next = list.map((a, i) => (i === at ? { ...a, fileId } : a));
   ctx.db.run(
     `UPDATE mail_message SET attachments = ?, version = ?, updated_at = ? WHERE id = ?`,
-    JSON.stringify(next), num(row, "version") + 1, ctx.now(), id,
+    JSON.stringify(next),
+    num(row, "version") + 1,
+    ctx.now(),
+    id,
   );
   rememberIdem(ctx, input.idempotencyKey, "attsave", fileId);
   return { fileId };
@@ -365,7 +471,10 @@ export async function attachmentSave(
 
 // ---- mail.thread.get
 
-export interface ThreadParty { address: string; name?: string }
+export interface ThreadParty {
+  address: string;
+  name?: string;
+}
 export interface ThreadMessage {
   id: string;
   at: number;
@@ -389,7 +498,13 @@ export interface ThreadMessage {
   inReplyTo?: string;
 }
 export type ThreadRole = "started" | "to" | "cc" | "added_later" | "none";
-export interface ThreadOut { threadId: string; subject: string; role: ThreadRole; participants: ThreadParty[]; messages: ThreadMessage[] }
+export interface ThreadOut {
+  threadId: string;
+  subject: string;
+  role: ThreadRole;
+  participants: ThreadParty[];
+  messages: ThreadMessage[];
+}
 
 const headersOf = (v: unknown): Record<string, string> => {
   if (typeof v !== "string" || !v) return {};
@@ -398,9 +513,15 @@ const headersOf = (v: unknown): Record<string, string> => {
     const out: Record<string, string> = {};
     for (const [k, x] of Object.entries(o)) if (typeof x === "string") out[k.toLowerCase()] = x;
     return out;
-  } catch { return {}; }
+  } catch {
+    return {};
+  }
 };
-const rfcList = (v: string | undefined): string[] => (v ?? "").split(/\s+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+const rfcList = (v: string | undefined): string[] =>
+  (v ?? "")
+    .split(/\s+/)
+    .map((x) => x.trim().toLowerCase())
+    .filter(Boolean);
 const stripRe = (s: string): string => s.replace(/^\s*((re|fwd?|aw|sv|wg)\s*:\s*)+/i, "").trim();
 const damaged = (s: string | null): boolean => s !== null && s.includes("�");
 
@@ -409,27 +530,62 @@ const damaged = (s: string | null): boolean => s !== null && s.includes("�");
  * honoured it) is read again from the provider when its thread is opened, through the mailbox's own copy, and stored. A re-read that fails leaves it as it was.
  */
 async function backfill(ctx: MailCtx, row: Row, body: Row | null): Promise<Row | null> {
-  const text = strOrNull(body, "text"), html = strOrNull(body, "html");
+  const text = strOrNull(body, "text"),
+    html = strOrNull(body, "html");
   const empty = !(text && text.trim()) && !(html && html.trim()) && !str(row, "body").trim();
   if (!empty && !damaged(text) && !damaged(html)) return body;
   const id = str(row, "id");
-  for (const copy of rowsOf(ctx.db.all(`SELECT * FROM mail_copy WHERE "messageId" = ?`, id)).filter((c) => ["google", "microsoft"].includes(str(c, "source")))) {
-    const box = first(ctx.db.all(`SELECT * FROM mail_mailbox WHERE id = ? AND deleted_at IS NULL`, str(copy, "mailboxId")));
+  for (const copy of rowsOf(ctx.db.all(`SELECT * FROM mail_copy WHERE "messageId" = ?`, id)).filter((c) =>
+    ["google", "microsoft"].includes(str(c, "source")),
+  )) {
+    const box = first(
+      ctx.db.all(`SELECT * FROM mail_mailbox WHERE id = ? AND deleted_at IS NULL`, str(copy, "mailboxId")),
+    );
     const connectionId = strOrNull(box, "connectionId");
-    if (!box || !connectionId || /^(gua|mua)_/.test(connectionId)) continue;   // a person's own sign-in has no re-read capability here
+    if (!box || !connectionId || /^(gua|mua)_/.test(connectionId)) continue; // a person's own sign-in has no re-read capability here
     try {
       let got: { text?: string; html?: string } = {};
       if (str(copy, "source") === "google") {
-        const r = await ctx.call("google.gmail.get_message", { connectionId, as: str(box, "address"), messageId: str(copy, "providerId"), format: "full" });
+        const r = await ctx.call("google.gmail.get_message", {
+          connectionId,
+          as: str(box, "address"),
+          messageId: str(copy, "providerId"),
+          format: "full",
+        });
         got = gmailBodies(((r as { message?: { payload?: unknown } }).message ?? {}).payload);
       } else {
-        const r = await ctx.call("ms.mail.get_message", { connectionId, as: str(box, "address"), messageId: str(copy, "providerId") }) as { body?: unknown };
-        if (typeof r.body === "string" && r.body.trim()) got = /<[a-z][\s\S]*>/i.test(r.body) ? { html: r.body, text: htmlToText(r.body) } : { text: r.body };
+        const r = (await ctx.call("ms.mail.get_message", {
+          connectionId,
+          as: str(box, "address"),
+          messageId: str(copy, "providerId"),
+        })) as { body?: unknown };
+        if (typeof r.body === "string" && r.body.trim())
+          got = /<[a-z][\s\S]*>/i.test(r.body) ? { html: r.body, text: htmlToText(r.body) } : { text: r.body };
       }
       if (!got.text && !got.html) continue;
-      if (body) ctx.db.run(`UPDATE mail_body SET text = ?, html = ? WHERE "messageId" = ?`, got.text ?? null, got.html ?? null, id);
-      else ctx.db.run(`INSERT INTO mail_body ("messageId", text, html, "fromName", bcc, headers) VALUES (?, ?, ?, ?, ?, ?)`, id, got.text ?? null, got.html ?? null, null, null, null);
-      ctx.db.run(`UPDATE mail_message SET body = ?, updated_at = ? WHERE id = ?`, got.text ?? htmlToText(got.html ?? ""), ctx.now(), id);
+      if (body)
+        ctx.db.run(
+          `UPDATE mail_body SET text = ?, html = ? WHERE "messageId" = ?`,
+          got.text ?? null,
+          got.html ?? null,
+          id,
+        );
+      else
+        ctx.db.run(
+          `INSERT INTO mail_body ("messageId", text, html, "fromName", bcc, headers) VALUES (?, ?, ?, ?, ?, ?)`,
+          id,
+          got.text ?? null,
+          got.html ?? null,
+          null,
+          null,
+          null,
+        );
+      ctx.db.run(
+        `UPDATE mail_message SET body = ?, updated_at = ? WHERE id = ?`,
+        got.text ?? htmlToText(got.html ?? ""),
+        ctx.now(),
+        id,
+      );
       return first(ctx.db.all(`SELECT * FROM mail_body WHERE "messageId" = ?`, id));
     } catch (e) {
       ctx.log.warn("mail.thread.get re-read failed", { messageId: id, code: codeOf(e) });
@@ -444,11 +600,16 @@ async function backfill(ctx: MailCtx, row: Row, body: Row | null): Promise<Row |
  */
 export async function threadGet(ctx: MailCtx, input: { threadId: string; images?: boolean }): Promise<ThreadOut> {
   ensureAll(ctx);
-  if (typeof input.threadId !== "string" || input.threadId.trim() === "" || input.threadId.length > 500) bad(ctx, "Thread id is not valid.");
+  if (typeof input.threadId !== "string" || input.threadId.trim() === "" || input.threadId.length > 500)
+    bad(ctx, "Thread id is not valid.");
   if (input.images !== undefined && typeof input.images !== "boolean") bad(ctx, "Images is true or false.");
-  const all = rowsOf(ctx.db.all(`SELECT * FROM mail_message WHERE "threadId" = ? AND deleted_at IS NULL`, input.threadId)).filter((r) => str(r, "status") !== "draft");
+  const all = rowsOf(
+    ctx.db.all(`SELECT * FROM mail_message WHERE "threadId" = ? AND deleted_at IS NULL`, input.threadId),
+  ).filter((r) => str(r, "status") !== "draft");
   const viewer = new Viewer(ctx);
-  const seen = all.filter((r) => viewer.door(r) !== null).sort((a, b) => num(a, "sentAt") - num(b, "sentAt") || (str(a, "id") < str(b, "id") ? -1 : 1));
+  const seen = all
+    .filter((r) => viewer.door(r) !== null)
+    .sort((a, b) => num(a, "sentAt") - num(b, "sentAt") || (str(a, "id") < str(b, "id") ? -1 : 1));
   if (seen.length === 0) {
     if (all[0]) refuse(ctx, all[0]);
     missing(ctx, "Thread does not exist.");
@@ -456,7 +617,11 @@ export async function threadGet(ctx: MailCtx, input: { threadId: string; images?
   for (const r of seen) viewer.read(viewer.door(r) ?? str(r, "mailboxId"));
   viewer.flush();
 
-  const mine = new Set(rowsOf(ctx.db.all(`SELECT address FROM mail_mailbox WHERE "ownerId" = ? AND deleted_at IS NULL`, ctx.principal.id)).map((r) => str(r, "address").toLowerCase()));
+  const mine = new Set(
+    rowsOf(
+      ctx.db.all(`SELECT address FROM mail_mailbox WHERE "ownerId" = ? AND deleted_at IS NULL`, ctx.principal.id),
+    ).map((r) => str(r, "address").toLowerCase()),
+  );
   const messages: ThreadMessage[] = [];
   const reactions: { emoji: string; from: ThreadParty; at: number; target: string[] }[] = [];
   const byRfc = new Map<string, ThreadMessage>();
@@ -467,31 +632,59 @@ export async function threadGet(ctx: MailCtx, input: { threadId: string; images?
     const headers = headersOf(strOrNull(body, "headers"));
     const text = strOrNull(body, "text") ?? (strOrNull(body, "html") === null ? str(row, "body") : null);
     const html = strOrNull(body, "html");
-    const from: ThreadParty = meta.from.name ? { address: meta.from.address, name: meta.from.name } : { address: meta.from.address };
+    const from: ThreadParty = meta.from.name
+      ? { address: meta.from.address, name: meta.from.name }
+      : { address: meta.from.address };
     const reaction = reactionOf({ text, html, headers });
     if (reaction) {
-      reactions.push({ emoji: reaction.emoji, from, at: num(row, "sentAt"), target: [...rfcList(headers["in-reply-to"]), ...rfcList(headers.references).reverse()] });
+      reactions.push({
+        emoji: reaction.emoji,
+        from,
+        at: num(row, "sentAt"),
+        target: [...rfcList(headers["in-reply-to"]), ...rfcList(headers.references).reverse()],
+      });
       continue;
     }
     const clean = cleanMessage({ text, html }, from.name ?? from.address, { images: input.images === true });
     const m: ThreadMessage = {
-      id, at: num(row, "sentAt"), direction: meta.direction, mailboxId: meta.mailboxId, mailboxIds: meta.inboxIds, from, to: meta.to, cc: meta.cc, subject: meta.subject,
-      body: clean.body, reactions: [], isPrivate: meta.isPrivate,
-      attachments: readAttachments(str(row, "attachments")).map((a) => ({ attachmentId: a.attachmentId, name: a.name || "Attachment", mime: a.mime, size: a.size })),
+      id,
+      at: num(row, "sentAt"),
+      direction: meta.direction,
+      mailboxId: meta.mailboxId,
+      mailboxIds: meta.inboxIds,
+      from,
+      to: meta.to,
+      cc: meta.cc,
+      subject: meta.subject,
+      body: clean.body,
+      reactions: [],
+      isPrivate: meta.isPrivate,
+      attachments: readAttachments(str(row, "attachments")).map((a) => ({
+        attachmentId: a.attachmentId,
+        name: a.name || "Attachment",
+        mime: a.mime,
+        size: a.size,
+      })),
     };
     if (clean.quoted) m.quoted = clean.quoted;
     if (clean.signature) m.signature = clean.signature;
     if (clean.html) m.html = clean.html;
     if (clean.imagesHeld) m.imagesHeld = clean.imagesHeld;
     const rfc = strOrNull(row, "rfcMessageId");
-    if (rfc) { m.rfcMessageId = rfc; byRfc.set(rfc.toLowerCase(), m); }
+    if (rfc) {
+      m.rfcMessageId = rfc;
+      byRfc.set(rfc.toLowerCase(), m);
+    }
     const irt = rfcList(headers["in-reply-to"])[0];
     if (irt) m.inReplyTo = irt;
     messages.push(m);
   }
   // a reaction sits on the message it answers; one whose target is not here sits on the message before it
   for (const r of reactions) {
-    const target = r.target.map((x) => byRfc.get(x)).find((x) => x !== undefined) ?? [...messages].reverse().find((m) => m.at <= r.at) ?? messages[0];
+    const target =
+      r.target.map((x) => byRfc.get(x)).find((x) => x !== undefined) ??
+      [...messages].reverse().find((m) => m.at <= r.at) ??
+      messages[0];
     target?.reactions.push({ emoji: r.emoji, from: r.from, at: r.at });
   }
 
@@ -500,17 +693,28 @@ export async function threadGet(ctx: MailCtx, input: { threadId: string; images?
   let role: ThreadRole = "none";
   if (firstMsg) {
     const known = new Set(seen.map((r) => str(r, "rfcMessageId").toLowerCase()).filter(Boolean));
-    const firstHeaders = headersOf(strOrNull(first(ctx.db.all(`SELECT headers FROM mail_body WHERE "messageId" = ?`, firstMsg.id)), "headers"));
-    const answersUnseen = [...rfcList(firstHeaders["in-reply-to"]), ...rfcList(firstHeaders.references)].some((x) => !known.has(x));
+    const firstHeaders = headersOf(
+      strOrNull(first(ctx.db.all(`SELECT headers FROM mail_body WHERE "messageId" = ?`, firstMsg.id)), "headers"),
+    );
+    const answersUnseen = [...rfcList(firstHeaders["in-reply-to"]), ...rfcList(firstHeaders.references)].some(
+      (x) => !known.has(x),
+    );
     if (isMine(firstMsg.from)) role = "started";
     else if (answersUnseen && mine.size > 0) role = "added_later";
     else if (firstMsg.to.some(isMine)) role = "to";
     else if (firstMsg.cc.some(isMine)) role = "cc";
   }
   const people = new Map<string, ThreadParty>();
-  for (const m of messages) for (const p of [m.from, ...m.to, ...m.cc]) {
-    const k = p.address.toLowerCase();
-    if (!people.has(k) || (!people.get(k)?.name && p.name)) people.set(k, p);
-  }
-  return { threadId: input.threadId, subject: stripRe(firstMsg?.subject ?? "") || "(no subject)", role, participants: [...people.values()], messages };
+  for (const m of messages)
+    for (const p of [m.from, ...m.to, ...m.cc]) {
+      const k = p.address.toLowerCase();
+      if (!people.has(k) || (!people.get(k)?.name && p.name)) people.set(k, p);
+    }
+  return {
+    threadId: input.threadId,
+    subject: stripRe(firstMsg?.subject ?? "") || "(no subject)",
+    role,
+    participants: [...people.values()],
+    messages,
+  };
 }

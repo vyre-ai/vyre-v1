@@ -39,7 +39,14 @@ export interface ModelDialog {
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const text = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
-const json = (line: string): Record<string, unknown> | null => { try { const v: unknown = JSON.parse(line); return isObj(v) ? v : null; } catch { return null; } };
+const json = (line: string): Record<string, unknown> | null => {
+  try {
+    const v: unknown = JSON.parse(line);
+    return isObj(v) ? v : null;
+  } catch {
+    return null;
+  }
+};
 const rpc = (o: Record<string, unknown>): string => `${JSON.stringify({ jsonrpc: "2.0", ...o })}\n`;
 const efforts = (v: unknown, key?: string): string[] | undefined => {
   if (!Array.isArray(v)) return undefined;
@@ -54,24 +61,43 @@ export function codexModel(m: unknown): LiveModel | null {
   if (id === "") return null;
   const e = efforts(m["supportedReasoningEfforts"], "reasoningEffort");
   const d = text(m["defaultReasoningEffort"]);
-  return { id, title: text(m["displayName"]) || id, ...(m["isDefault"] === true ? { isDefault: true } : {}), ...(e ? { efforts: e } : {}), ...(d ? { defaultEffort: d } : {}) };
+  return {
+    id,
+    title: text(m["displayName"]) || id,
+    ...(m["isDefault"] === true ? { isDefault: true } : {}),
+    ...(e ? { efforts: e } : {}),
+    ...(d ? { defaultEffort: d } : {}),
+  };
 }
 
 const PAGES = 8;
 export function codexDialog(): ModelDialog {
   const got: LiveModel[] = [];
-  let next = 2, pages = 0;
-  const ask = (cursor?: string): string => rpc({ id: next, method: "model/list", params: { includeHidden: false, ...(cursor ? { cursor } : {}) } });
+  let next = 2,
+    pages = 0;
+  const ask = (cursor?: string): string =>
+    rpc({ id: next, method: "model/list", params: { includeHidden: false, ...(cursor ? { cursor } : {}) } });
   return {
     argv: ["codex", "app-server"],
-    start: [rpc({ id: 1, method: "initialize", params: { clientInfo: { name: "vyre", title: "Vyre", version: "1" }, capabilities: null } }), rpc({ method: "initialized" }), ask()],
+    start: [
+      rpc({
+        id: 1,
+        method: "initialize",
+        params: { clientInfo: { name: "vyre", title: "Vyre", version: "1" }, capabilities: null },
+      }),
+      rpc({ method: "initialized" }),
+      ask(),
+    ],
     push(line) {
       const j = json(line);
       if (!j || j["id"] !== next) return null;
       if (isObj(j["error"])) return { fail: text(j["error"]["message"]) || "Codex did not list its models." };
       const r = j["result"];
       if (!isObj(r) || !Array.isArray(r["data"])) return { fail: "Codex answered model/list with something else." };
-      for (const m of r["data"]) { const one = codexModel(m); if (one && !got.some((g) => g.id === one.id)) got.push(one); }
+      for (const m of r["data"]) {
+        const one = codexModel(m);
+        if (one && !got.some((g) => g.id === one.id)) got.push(one);
+      }
       const cursor = text(r["nextCursor"]);
       pages += 1;
       if (cursor === "" || pages >= PAGES) return { done: got };
@@ -96,12 +122,21 @@ export function claudeModels(rows: unknown): LiveModel[] {
   let fallbackDefault: string | null = null;
   for (const r of rows) {
     if (!isObj(r)) continue;
-    const value = text(r["value"]), resolved = text(r["resolvedModel"]);
-    if (value === "default" || value === "") { if (resolved !== "") fallbackDefault = resolved; continue; }
+    const value = text(r["value"]),
+      resolved = text(r["resolvedModel"]);
+    if (value === "default" || value === "") {
+      if (resolved !== "") fallbackDefault = resolved;
+      continue;
+    }
     const id = resolved || value;
     if (out.some((o) => o.id === id)) continue;
     const e = efforts(r["supportedEffortLevels"]);
-    out.push({ id, title: claudeName(r) || text(r["displayName"]) || id, ...(value !== id ? { alias: value } : {}), ...(e ? { efforts: e } : {}) });
+    out.push({
+      id,
+      title: claudeName(r) || text(r["displayName"]) || id,
+      ...(value !== id ? { alias: value } : {}),
+      ...(e ? { efforts: e } : {}),
+    });
   }
   const d = out.find((o) => o.id === fallbackDefault);
   if (d) d.isDefault = true;
@@ -114,7 +149,9 @@ export function claudeDialog(): ModelDialog {
     argv: ["claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"],
     // nonessential traffic stays on: the CLI's call for what the plan offers counts as nonessential, and it is the point of the run
     env: { DISABLE_AUTOUPDATER: "1" },
-    start: [`${JSON.stringify({ type: "control_request", request_id: CLAUDE_INIT, request: { subtype: "initialize" } })}\n`],
+    start: [
+      `${JSON.stringify({ type: "control_request", request_id: CLAUDE_INIT, request: { subtype: "initialize" } })}\n`,
+    ],
     push(line) {
       const j = json(line);
       if (!j || j["type"] !== "control_response" || !isObj(j["response"])) return null;
@@ -141,14 +178,20 @@ export function grokModels(out: string): LiveModel[] {
   for (const raw of out.split("\n")) {
     const line = raw.trim();
     const d = /^Default model:\s*(\S+)/i.exec(line);
-    if (d) { def = d[1] as string; continue; }
+    if (d) {
+      def = d[1] as string;
+      continue;
+    }
     const m = /^[*-]\s+(\S+)(\s+\(default\))?/.exec(line);
     if (!m) continue;
     const id = m[1] as string;
     if (models.some((x) => x.id === id)) continue;
     models.push({ id, title: grokTitle(id), ...(m[2] ? { isDefault: true } : {}) });
   }
-  if (def !== "" && !models.some((m) => m.isDefault)) { const m = models.find((x) => x.id === def); if (m) m.isDefault = true; }
+  if (def !== "" && !models.some((m) => m.isDefault)) {
+    const m = models.find((x) => x.id === def);
+    if (m) m.isDefault = true;
+  }
   return models;
 }
 
@@ -158,26 +201,52 @@ export function grokDialog(): ModelDialog {
     argv: ["grok", "models"],
     env: { GROK_CLAUDE_MCPS_ENABLED: "0", GROK_CURSOR_MCPS_ENABLED: "0" },
     start: [],
-    push(line) { seen.push(line); return null; },
-    end() { const m = grokModels(seen.join("\n")); return m.length > 0 ? m : null; },
+    push(line) {
+      seen.push(line);
+      return null;
+    },
+    end() {
+      const m = grokModels(seen.join("\n"));
+      return m.length > 0 ? m : null;
+    },
   };
 }
 
-export const MODEL_DIALOGS: Readonly<Record<CliId, () => ModelDialog>> = { codex: codexDialog, claude_code: claudeDialog, grok: grokDialog };
+export const MODEL_DIALOGS: Readonly<Record<CliId, () => ModelDialog>> = {
+  codex: codexDialog,
+  claude_code: claudeDialog,
+  grok: grokDialog,
+};
 
 export class ModelListError extends Error {
-  constructor(message: string) { super(message); this.name = "ModelListError"; }
+  constructor(message: string) {
+    super(message);
+    this.name = "ModelListError";
+  }
 }
 
 /**
  * Ask the CLI for its models through the launcher the turns use (the sandbox, the fill). Ends the process as soon as the answer is in; gives up after `timeoutMs`. Throws ModelListError with a
  * plain reason when there is no answer; the caller keeps the list it had.
  */
-export async function listCliModels(launcher: Launcher, cli: CliId, o: { cwd?: string; env?: Readonly<Record<string, string>>; timeoutMs?: number; graceMs?: number } = {}): Promise<LiveModel[]> {
+export async function listCliModels(
+  launcher: Launcher,
+  cli: CliId,
+  o: { cwd?: string; env?: Readonly<Record<string, string>>; timeoutMs?: number; graceMs?: number } = {},
+): Promise<LiveModel[]> {
   const dialog = MODEL_DIALOGS[cli]();
-  const proc = await launcher.spawn({ argv: dialog.argv, ...(o.cwd !== undefined ? { cwd: o.cwd } : {}), env: { ...dialog.env, ...o.env } });
+  const proc = await launcher.spawn({
+    argv: dialog.argv,
+    ...(o.cwd !== undefined ? { cwd: o.cwd } : {}),
+    env: { ...dialog.env, ...o.env },
+  });
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new ModelListError("The engine did not list its models in time.")), o.timeoutMs ?? 20_000); });
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new ModelListError("The engine did not list its models in time.")),
+      o.timeoutMs ?? 20_000,
+    );
+  });
   const talk = (async (): Promise<LiveModel[]> => {
     for (const s of dialog.start) await proc.write(s);
     if (dialog.start.length === 0) proc.endInput();
@@ -192,7 +261,9 @@ export async function listCliModels(launcher: Launcher, cli: CliId, o: { cwd?: s
     if (last) return last;
     const exit = await proc.exited;
     const why = proc.stderrTail().trim().split("\n").at(-1)?.slice(0, 200) ?? "";
-    throw new ModelListError(why !== "" ? why : `The engine ended (${exit.code ?? exit.signal ?? "?"}) without listing its models.`);
+    throw new ModelListError(
+      why !== "" ? why : `The engine ended (${exit.code ?? exit.signal ?? "?"}) without listing its models.`,
+    );
   })();
   try {
     return await Promise.race([talk, timeout]);
@@ -208,10 +279,28 @@ export async function listCliModels(launcher: Launcher, cli: CliId, o: { cwd?: s
  * that is killed, and the caller waits up to `graceMs` more for it. A kill is a hard stop on Windows (SIGTERM there is TerminateProcess), which is why it is the last step and not the first. Either
  * way the process has ended, and the fill launcher has put the sign-in files back, before the caller goes on.
  */
-export async function closeGently(proc: Pick<CliProcess, "endInput" | "kill" | "exited">, graceMs = 3_000): Promise<"exited" | "killed" | "stuck"> {
-  const ended = proc.exited.then(() => true, () => true);
-  const wait = (ms: number): Promise<boolean> => { let t: ReturnType<typeof setTimeout> | undefined; return Promise.race([ended, new Promise<boolean>((r) => { t = setTimeout(() => r(false), ms); })]).finally(() => clearTimeout(t)); };
-  try { proc.endInput(); } catch { /* closed */ }
+export async function closeGently(
+  proc: Pick<CliProcess, "endInput" | "kill" | "exited">,
+  graceMs = 3_000,
+): Promise<"exited" | "killed" | "stuck"> {
+  const ended = proc.exited.then(
+    () => true,
+    () => true,
+  );
+  const wait = (ms: number): Promise<boolean> => {
+    let t: ReturnType<typeof setTimeout> | undefined;
+    return Promise.race([
+      ended,
+      new Promise<boolean>((r) => {
+        t = setTimeout(() => r(false), ms);
+      }),
+    ]).finally(() => clearTimeout(t));
+  };
+  try {
+    proc.endInput();
+  } catch {
+    /* closed */
+  }
   if (await wait(graceMs)) return "exited";
   proc.kill("SIGTERM");
   return (await wait(graceMs)) ? "killed" : "stuck";

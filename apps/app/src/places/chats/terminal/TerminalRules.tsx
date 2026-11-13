@@ -11,12 +11,28 @@ import { Icon, TextButton } from "../rightpane/parts.tsx";
 import { RULES_SCREEN } from "./data.ts";
 import { saveRules } from "./session.ts";
 import type { TerminalData } from "./data.ts";
-import { MAX_RULES, NO_RULES, RULE_EXAMPLE, RULE_LISTS, RULE_NOTE, RULE_TITLE, linesText, parseLines, rulesProblem, sameRules } from "./model.ts";
+import {
+  MAX_RULES,
+  NO_RULES,
+  RULE_EXAMPLE,
+  RULE_LISTS,
+  RULE_NOTE,
+  RULE_TITLE,
+  linesText,
+  parseLines,
+  rulesProblem,
+  sameRules,
+} from "./model.ts";
 import type { RuleList, Rules } from "./model.ts";
 
 type RulesOut = CapMap["terminal.rules.get"]["out"];
 
-const textOf = (r: Rules): Record<RuleList, string> => ({ allow: linesText(r.allow), ask: linesText(r.ask), deny: linesText(r.deny), folders: linesText(r.folders) });
+const textOf = (r: Rules): Record<RuleList, string> => ({
+  allow: linesText(r.allow),
+  ask: linesText(r.ask),
+  deny: linesText(r.deny),
+  folders: linesText(r.folders),
+});
 
 export function TerminalRules({ data, onClose }: { data: TerminalData; onClose: () => void }): ReactElement {
   const q = useLive<RulesOut>(data.screens, RULES_SCREEN, "rules", {});
@@ -32,7 +48,12 @@ export function TerminalRules({ data, onClose }: { data: TerminalData; onClose: 
     setText(textOf(saved));
   }, [q.status, saved, dirty]);
 
-  const draft: Rules = { allow: parseLines(text.allow), ask: parseLines(text.ask), deny: parseLines(text.deny), folders: parseLines(text.folders) };
+  const draft: Rules = {
+    allow: parseLines(text.allow),
+    ask: parseLines(text.ask),
+    deny: parseLines(text.deny),
+    folders: parseLines(text.folders),
+  };
   const problem = rulesProblem(draft);
   const changed = !sameRules(draft, saved);
   const total = RULE_LISTS.reduce((n, k) => n + draft[k].length, 0);
@@ -46,10 +67,16 @@ export function TerminalRules({ data, onClose }: { data: TerminalData; onClose: 
         setLine("Saved. New commands follow these rules at once.");
         setBusy(false);
       },
-      (e: unknown) => { setLine(errorWords(e, "Could not save the rules.")); setBusy(false); },
+      (e: unknown) => {
+        setLine(errorWords(e, "Could not save the rules."));
+        setBusy(false);
+      },
     );
   };
-  const revert = (): void => { setDirty(false); setLine(null); };
+  const revert = (): void => {
+    setDirty(false);
+    setLine(null);
+  };
 
   const boxes: ReactElement[] = [];
   for (const k of RULE_LISTS) {
@@ -61,9 +88,21 @@ export function TerminalRules({ data, onClose }: { data: TerminalData; onClose: 
         </View>
         <Text style={st.note}>{RULE_NOTE[k]}</Text>
         <TextInput
-          testID={`rules-input-${k}`} accessibilityLabel={RULE_TITLE[k]} multiline numberOfLines={3} value={text[k]}
-          placeholder={RULE_EXAMPLE[k]} placeholderTextColor="var(--ink-4)" autoCapitalize="none" autoCorrect={false} spellCheck={false}
-          onChangeText={(t) => { setDirty(true); setLine(null); setText((cur) => ({ ...cur, [k]: t })); }}
+          testID={`rules-input-${k}`}
+          accessibilityLabel={RULE_TITLE[k]}
+          multiline
+          numberOfLines={3}
+          value={text[k]}
+          placeholder={RULE_EXAMPLE[k]}
+          placeholderTextColor="var(--ink-4)"
+          autoCapitalize="none"
+          autoCorrect={false}
+          spellCheck={false}
+          onChangeText={(t) => {
+            setDirty(true);
+            setLine(null);
+            setText((cur) => ({ ...cur, [k]: t }));
+          }}
           style={st.input}
         />
       </View>,
@@ -72,15 +111,36 @@ export function TerminalRules({ data, onClose }: { data: TerminalData; onClose: 
 
   return (
     <Sheet label="Terminal rules" testID="terminal-rules" width={520} onClose={onClose}>
-      <LayerHead title="Terminal rules" sub="What a command may do on your terminals and on agents' computers. One entry per line." lead={<Icon name="terminal" size={16} />} onClose={onClose} />
-      <ScrollView style={st.body} contentContainerStyle={st.bodyIn}>{boxes}</ScrollView>
-      {problem ? <Text testID="rules-problem" accessibilityRole="alert" style={st.problem}>{problem}</Text> : null}
-      {line ? <Text testID="rules-line" accessibilityLiveRegion="polite" style={st.line}>{line}</Text> : null}
+      <LayerHead
+        title="Terminal rules"
+        sub="What a command may do on your terminals and on agents' computers. One entry per line."
+        lead={<Icon name="terminal" size={16} />}
+        onClose={onClose}
+      />
+      <ScrollView style={st.body} contentContainerStyle={st.bodyIn}>
+        {boxes}
+      </ScrollView>
+      {problem ? (
+        <Text testID="rules-problem" accessibilityRole="alert" style={st.problem}>
+          {problem}
+        </Text>
+      ) : null}
+      {line ? (
+        <Text testID="rules-line" accessibilityLiveRegion="polite" style={st.line}>
+          {line}
+        </Text>
+      ) : null}
       <View style={st.foot}>
         <Text style={st.total}>{`${total} of ${MAX_RULES}`}</Text>
         <View style={{ flex: 1 }} />
         <TextButton label="Revert" onPress={revert} disabled={!changed || busy} testID="rules-revert" />
-        <TextButton label="Save" primary onPress={save} disabled={!changed || problem !== null || busy} testID="rules-save" />
+        <TextButton
+          label="Save"
+          primary
+          onPress={save}
+          disabled={!changed || problem !== null || busy}
+          testID="rules-save"
+        />
       </View>
     </Sheet>
   );
@@ -94,7 +154,19 @@ const st = StyleSheet.create({
   groupTitle: { fontSize: 12.5, fontWeight: "600", color: "var(--ink)" as string },
   count: { fontSize: 11.5, color: "var(--ink-4)" as string, fontVariant: ["tabular-nums"] },
   note: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
-  input: { minHeight: 64, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string, color: "var(--ink)" as string, fontSize: 12.5, lineHeight: 18, fontFamily: "var(--mono, ui-monospace, Menlo, monospace)" as string },
+  input: {
+    minHeight: 64,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+    backgroundColor: "var(--win)" as string,
+    color: "var(--ink)" as string,
+    fontSize: 12.5,
+    lineHeight: 18,
+    fontFamily: "var(--mono, ui-monospace, Menlo, monospace)" as string,
+  },
   problem: { fontSize: 12.5, color: "var(--danger)" as string, paddingHorizontal: 14, paddingTop: 6 },
   line: { fontSize: 12.5, color: "var(--ink-2)" as string, paddingHorizontal: 14, paddingTop: 6 },
   foot: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 12 },

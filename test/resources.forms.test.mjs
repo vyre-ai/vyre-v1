@@ -9,18 +9,35 @@ test("a created form is an access resource: forms.get and forms.fields_set answe
   const s = await bootFlowSpace(["forms"]);
   try {
     const admin = s.d.token;
-    const made = await s.call("forms.create", admin, { idempotencyKey: "res-form", name: "Intake", recordType: "contact", kind: "public" });
+    const made = await s.call("forms.create", admin, {
+      idempotencyKey: "res-form",
+      name: "Intake",
+      recordType: "contact",
+      kind: "public",
+    });
     assert.equal(made.status, 200, JSON.stringify(made.body));
     const formId = made.body.data.form.formId;
     assert.match(formId, /^frm_[a-z0-9]+$/);
     const got = await s.call("forms.get", admin, { formId });
     assert.equal(got.status, 200, `forms.get: ${JSON.stringify(got.body)}`);
-    const set = await s.call("forms.fields_set", admin, { idempotencyKey: "res-form-fields", formId, fields: [{ field: "email", mode: "ask" }] });
+    const set = await s.call("forms.fields_set", admin, {
+      idempotencyKey: "res-form-fields",
+      formId,
+      fields: [{ field: "email", mode: "ask" }],
+    });
     assert.equal(set.status, 200, `forms.fields_set: ${JSON.stringify(set.body)}`);
 
-    const booking = await s.call("bookings.page_create", admin, { idempotencyKey: "res-booking", name: "Call", hostIds: ["usr_olivia"], lengthMinutes: 30, recordType: "contact" });
+    const booking = await s.call("bookings.page_create", admin, {
+      idempotencyKey: "res-booking",
+      name: "Call",
+      hostIds: ["usr_olivia"],
+      lengthMinutes: 30,
+      recordType: "contact",
+    });
     assert.equal(booking.status, 200, JSON.stringify(booking.body));
     const got2 = await s.call("forms.get", admin, { formId: booking.body.data.form.formId });
     assert.equal(got2.status, 200, `a booking page is a form resource too: ${JSON.stringify(got2.body)}`);
-  } finally { await s.stop(); }
+  } finally {
+    await s.stop();
+  }
 });

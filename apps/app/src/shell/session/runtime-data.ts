@@ -3,7 +3,10 @@ import type { LiveQuery, ScreenHooks } from "../../../../../client/src/index.ts"
 
 export type Kind = "person" | "agent" | "group" | "role" | "automation";
 export interface Principal {
-  id: string; name: string; kind: Kind; /** The sign-in name this person chose, when this device knows it (it is never read from the Space). */ username?: string;
+  id: string;
+  name: string;
+  kind: Kind;
+  /** The sign-in name this person chose, when this device knows it (it is never read from the Space). */ username?: string;
   /** An agent's person. */ owner?: string;
   /** Someone else's agent this person may not open or @mention (their assistant, an outside agent they connected): named as its person, "Irfad Imtiaz (Agent)", never offered. */ private?: boolean;
   /** A private agent's own name, for owners and admins only (Console audit details). */ agentName?: string;
@@ -13,7 +16,10 @@ export interface Principal {
   /** An agent this person may not use that is not someone's private one (a Space agent kept from them): named as it is, never offered. */ hidden?: boolean;
 }
 
-export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
+export interface Connection {
+  get(): "online" | "offline";
+  subscribe(l: () => void): () => void;
+}
 
 export interface RuntimeBase {
   screens: ScreenHooks;

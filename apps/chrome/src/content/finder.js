@@ -7,7 +7,8 @@
   const g = globalThis;
   const ns = (g.__vyreExt = g.__vyreExt || {});
 
-  const OTP_HINT = /(^|[^a-z])(otp|totp|2fa|mfa|one[-_ ]?time|verification|authenticator|security[-_ ]?code|passcode|auth[-_ ]?code)([^a-z]|$)/i;
+  const OTP_HINT =
+    /(^|[^a-z])(otp|totp|2fa|mfa|one[-_ ]?time|verification|authenticator|security[-_ ]?code|passcode|auth[-_ ]?code)([^a-z]|$)/i;
   const USER_HINT = /(user|login|email|e-mail|account|identifier|member|signin|sign-in)/i;
   const SEARCH_HINT = /(search|query|\bq\b|coupon|promo|zip|postal|captcha)/i;
   const TEXTY = new Set(["", "text", "email", "tel", "number", "url"]);
@@ -15,7 +16,16 @@
   /** @param {any} el */
   function attrs(el) {
     const a = (/** @type {string} */ n) => String((el.getAttribute ? el.getAttribute(n) : el[n]) ?? "");
-    return { type: a("type").toLowerCase(), name: a("name"), id: a("id"), auto: a("autocomplete").toLowerCase(), placeholder: a("placeholder"), label: a("aria-label"), maxlength: Number(a("maxlength")) || 0, role: a("role").toLowerCase() };
+    return {
+      type: a("type").toLowerCase(),
+      name: a("name"),
+      id: a("id"),
+      auto: a("autocomplete").toLowerCase(),
+      placeholder: a("placeholder"),
+      label: a("aria-label"),
+      maxlength: Number(a("maxlength")) || 0,
+      role: a("role").toLowerCase(),
+    };
   }
 
   /** @param {any} el */
@@ -60,9 +70,17 @@
     if (anchor) {
       const at = inputs.indexOf(anchor);
       for (let i = at - 1; i >= 0; i--) {
-        if (classify(inputs[i]) === "username") { username = inputs[i]; break; }
+        if (classify(inputs[i]) === "username") {
+          username = inputs[i];
+          break;
+        }
       }
-      if (!username) username = inputs.slice(0, Math.max(at, 0)).reverse().find((i) => TEXTY.has(attrs(i).type) && classify(i) !== "otp" && classify(i) !== null) ?? null;
+      if (!username)
+        username =
+          inputs
+            .slice(0, Math.max(at, 0))
+            .reverse()
+            .find((i) => TEXTY.has(attrs(i).type) && classify(i) !== "otp" && classify(i) !== null) ?? null;
     } else {
       // A username-only first step (many sites ask for the address, then show the password).
       username = inputs.find((i) => classify(i) === "username") ?? null;
@@ -77,7 +95,14 @@
     return attrs(fields.password).auto === "new-password";
   }
 
-  const CARD_AUTO = { "cc-number": "number", "cc-name": "name", "cc-exp": "exp", "cc-csc": "cvc", "cc-exp-month": "expMonth", "cc-exp-year": "expYear" };
+  const CARD_AUTO = {
+    "cc-number": "number",
+    "cc-name": "name",
+    "cc-exp": "exp",
+    "cc-csc": "cvc",
+    "cc-exp-month": "expMonth",
+    "cc-exp-year": "expYear",
+  };
   const CARD_HINT = [
     ["number", /(card.?(number|no)|cc.?num|ccnumber|pan\b)/i],
     ["cvc", /(cvc|cvv|csc|security.?code|card.?code)/i],
@@ -98,7 +123,11 @@
       if (a.type === "password") continue;
       const role = /** @type {Record<string, string>} */ (CARD_AUTO)[a.auto.split(/\s+/).pop() || ""];
       let key = role;
-      if (!key) { const words = `${a.name} ${a.id} ${a.placeholder} ${a.label}`; const hit = CARD_HINT.find(([, re]) => /** @type {RegExp} */ (re).test(words)); key = hit ? /** @type {string} */ (hit[0]) : ""; }
+      if (!key) {
+        const words = `${a.name} ${a.id} ${a.placeholder} ${a.label}`;
+        const hit = CARD_HINT.find(([, re]) => /** @type {RegExp} */ (re).test(words));
+        key = hit ? /** @type {string} */ (hit[0]) : "";
+      }
       if (key && !out[key]) out[key] = el;
     }
     return /** @type {any} */ (out);

@@ -84,6 +84,12 @@ export function createStreamStore(scheduler: FrameScheduler = frameScheduler): S
       };
     },
     getSnapshot: () => snapshot,
-    stats: () => ({ deltas: coalescer.stats.deltas, appends, notifications, coalescer: { ...coalescer.stats }, markdown: { ...md.stats } }),
+    stats: () => ({
+      deltas: coalescer.stats.deltas,
+      appends,
+      notifications,
+      coalescer: { ...coalescer.stats },
+      markdown: { ...md.stats },
+    }),
   };
 }

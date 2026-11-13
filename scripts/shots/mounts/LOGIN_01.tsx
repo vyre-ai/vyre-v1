@@ -15,12 +15,32 @@ export const title = "Direct AI sign-in";
 
 const noop = (): void => undefined;
 const call = (async () => ({})) as never;
-const CLAUDE: Flow & { provider: string } = { provider: "claude-code", flowId: "sub_1", instruction: "x", url: "https://claude.ai/oauth/authorize?code=true&client_id=9d1c250a&state=abc", needsCode: true };
-const CHATGPT: Flow & { provider: string } = { provider: "codex", flowId: "sub_2", instruction: "x", url: "https://auth.openai.com/codex/device", userCode: "KQ7M-2XPD", needsCode: false };
+const CLAUDE: Flow & { provider: string } = {
+  provider: "claude-code",
+  flowId: "sub_1",
+  instruction: "x",
+  url: "https://claude.ai/oauth/authorize?code=true&client_id=9d1c250a&state=abc",
+  needsCode: true,
+};
+const CHATGPT: Flow & { provider: string } = {
+  provider: "codex",
+  flowId: "sub_2",
+  instruction: "x",
+  url: "https://auth.openai.com/codex/device",
+  userCode: "KQ7M-2XPD",
+  needsCode: false,
+};
 
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
-  useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "onboarding"), []);
+  useEffect(
+    () =>
+      setPart(
+        new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ??
+          "onboarding",
+      ),
+    [],
+  );
   // the Add a provider gallery asks the Space for its provider catalog (providers.catalog), which the plain Vault sample does not answer: without it the sheet says "Could not load providers" and never reaches the sign-in
   // the sample's catalog stops before Codex (the ChatGPT sign-in), so the mount adds the entry the Space's own catalog carries
   const sample = useMemo(() => {
@@ -28,7 +48,20 @@ export default function Mount(): ReactNode {
     const call = s.data.call.bind(s.data) as (cap: string, input: unknown) => Promise<unknown>;
     const withCodex = async (cap: string, input: unknown): Promise<unknown> => {
       const out = await call(cap, input);
-      return cap === "providers.catalog" ? { providers: [...(out as { providers: unknown[] }).providers, { key: "codex", name: "Codex", connections: ["subscription", "api_key"], modelsSource: "openai", engine: "codex" }] } : out;
+      return cap === "providers.catalog"
+        ? {
+            providers: [
+              ...(out as { providers: unknown[] }).providers,
+              {
+                key: "codex",
+                name: "Codex",
+                connections: ["subscription", "api_key"],
+                modelsSource: "openai",
+                engine: "codex",
+              },
+            ],
+          }
+        : out;
     };
     return { ...s, data: { ...s.data, call: withCodex as never } };
   }, []);
@@ -39,11 +72,28 @@ export default function Mount(): ReactNode {
     return (
       <VaultDataProvider value={sample.data}>
         <View style={{ flex: 1, minHeight: 760, backgroundColor: "var(--win)" as string }}>
-          <AddProvider onClose={noop} onAdded={noop} initial={{ providerKey: grok ? "grok" : flow.provider, connection: "subscription" }} {...(grok ? {} : { initialFlow: flow })} />
+          <AddProvider
+            onClose={noop}
+            onAdded={noop}
+            initial={{ providerKey: grok ? "grok" : flow.provider, connection: "subscription" }}
+            {...(grok ? {} : { initialFlow: flow })}
+          />
         </View>
       </VaultDataProvider>
     );
   }
   const flow = part === "onboarding-claude" ? CLAUDE : part === "onboarding-chatgpt" ? CHATGPT : undefined;
-  return <OnboardingScreen key={part} flow="personal" spaceName="Personal" progress={{}} stepKey="ai" live={false} onStep={noop} onClose={noop} renderCard={() => <ConnectAiCard call={call} onConnected={noop} {...(flow ? { initialFlow: flow } : {})} />} />;
+  return (
+    <OnboardingScreen
+      key={part}
+      flow="personal"
+      spaceName="Personal"
+      progress={{}}
+      stepKey="ai"
+      live={false}
+      onStep={noop}
+      onClose={noop}
+      renderCard={() => <ConnectAiCard call={call} onConnected={noop} {...(flow ? { initialFlow: flow } : {})} />}
+    />
+  );
 }

@@ -7,6 +7,14 @@ import { fileURLToPath } from "node:url";
 import { exportEnv } from "./lib/registry-hash.mjs";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const run = (cmd, args, cwd, env) => { const r = spawnSync(cmd, args, { cwd, env, stdio: "inherit", shell: process.platform === "win32" }); if (r.status !== 0) process.exit(r.status ?? 1); };
+const run = (cmd, args, cwd, env) => {
+  const r = spawnSync(cmd, args, { cwd, env, stdio: "inherit", shell: process.platform === "win32" });
+  if (r.status !== 0) process.exit(r.status ?? 1);
+};
 run("npx", ["expo", "export", "--platform", "web", "--output-dir", "dist"], path.join(repo, "apps/app"), exportEnv());
-run(process.execPath, [path.join(repo, "scripts/shots/registry-hash-in-bundle.mjs"), path.join(repo, "apps/app/dist")], repo, process.env);
+run(
+  process.execPath,
+  [path.join(repo, "scripts/shots/registry-hash-in-bundle.mjs"), path.join(repo, "apps/app/dist")],
+  repo,
+  process.env,
+);

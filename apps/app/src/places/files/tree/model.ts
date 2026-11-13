@@ -11,7 +11,13 @@ export type TreeRoots = CapMap["files.tree"]["out"]["roots"];
 export const SCREENS = { tree: "files.tree", list: "files.list" } as const;
 
 /** Where the list is. */
-export type Where = { kind: "folder"; id: string | null } | { kind: "recent" } | { kind: "starred" } | { kind: "shared" } | { kind: "trash" } | { kind: "knowledge" };
+export type Where =
+  | { kind: "folder"; id: string | null }
+  | { kind: "recent" }
+  | { kind: "starred" }
+  | { kind: "shared" }
+  | { kind: "trash" }
+  | { kind: "knowledge" };
 export type SortKey = "name" | "updated" | "by" | "size" | "kind";
 export type ViewMode = "list" | "grid";
 
@@ -35,9 +41,26 @@ export interface FilesState {
   forward: readonly Where[];
 }
 
-export const INITIAL_STATE: FilesState = { where: { kind: "folder", id: null }, selection: [], anchor: null, sort: "name", dir: "asc", quickLook: null, view: "list", showHidden: false, back: [], forward: [] };
+export const INITIAL_STATE: FilesState = {
+  where: { kind: "folder", id: null },
+  selection: [],
+  anchor: null,
+  sort: "name",
+  dir: "asc",
+  quickLook: null,
+  view: "list",
+  showHidden: false,
+  back: [],
+  forward: [],
+};
 
-export const SORT_LABEL: Record<SortKey, string> = { name: "Name", updated: "Date modified", by: "Made by", size: "Size", kind: "Kind" };
+export const SORT_LABEL: Record<SortKey, string> = {
+  name: "Name",
+  updated: "Date modified",
+  by: "Made by",
+  size: "Size",
+  kind: "Kind",
+};
 export const SORTS: readonly SortKey[] = ["name", "updated", "by", "size", "kind"];
 
 // ---------------------------------------------------------------- lines
@@ -66,26 +89,81 @@ export interface Line {
 }
 
 export function fileLine(f: FileRow): Line {
-  return { key: `file:${f.fileId}`, type: "file", id: f.fileId, name: f.name, kind: f.kind, size: f.size, updatedAt: f.updatedAt, updatedBy: f.updatedBy, thumb: f.thumb, source: f.source?.provider ?? null, mime: f.mime, items: 0, folderId: f.folderId, ...(f.starred === true ? { starred: true } : {}), ...(f.conflict === true ? { conflict: true } : {}) };
+  return {
+    key: `file:${f.fileId}`,
+    type: "file",
+    id: f.fileId,
+    name: f.name,
+    kind: f.kind,
+    size: f.size,
+    updatedAt: f.updatedAt,
+    updatedBy: f.updatedBy,
+    thumb: f.thumb,
+    source: f.source?.provider ?? null,
+    mime: f.mime,
+    items: 0,
+    folderId: f.folderId,
+    ...(f.starred === true ? { starred: true } : {}),
+    ...(f.conflict === true ? { conflict: true } : {}),
+  };
 }
 
 export function folderLine(f: FolderRow): Line {
-  return { key: `folder:${f.folderId}`, type: "folder", id: f.folderId, name: f.name, kind: "folder", size: 0, updatedAt: 0, updatedBy: null, thumb: false, source: f.source?.provider ?? null, items: f.fileCount + f.folderCount, folderId: f.parentId ?? null };
+  return {
+    key: `folder:${f.folderId}`,
+    type: "folder",
+    id: f.folderId,
+    name: f.name,
+    kind: "folder",
+    size: 0,
+    updatedAt: 0,
+    updatedBy: null,
+    thumb: false,
+    source: f.source?.provider ?? null,
+    items: f.fileCount + f.folderCount,
+    folderId: f.parentId ?? null,
+  };
 }
 
 // an older Word, Excel or PowerPoint file wears the same tile as a new one: the list, the grid and the viewer's header say Word, Excel or PowerPoint the same way
-const EXT_LABEL: Readonly<Record<string, string>> = { pdf: "PDF", md: "MD", markdown: "MD", csv: "CSV", docx: "DOCX", doc: "DOCX", xlsx: "XLSX", xls: "XLSX", pptx: "PPTX", ppt: "PPTX", txt: "TXT", json: "JSON", zip: "ZIP" };
+const EXT_LABEL: Readonly<Record<string, string>> = {
+  pdf: "PDF",
+  md: "MD",
+  markdown: "MD",
+  csv: "CSV",
+  docx: "DOCX",
+  doc: "DOCX",
+  xlsx: "XLSX",
+  xls: "XLSX",
+  pptx: "PPTX",
+  ppt: "PPTX",
+  txt: "TXT",
+  json: "JSON",
+  zip: "ZIP",
+};
 
 /** The short label on a file's type tile (PDF, MD, CSV, DOCX), from its extension; pictures, folders and files with no known extension get an icon instead (null). */
 export function tileLabel(name: string, kind: FileKind | "folder"): string | null {
   if (kind === "folder" || kind === "image") return null;
   const dot = name.lastIndexOf(".");
-  return dot < 0 ? null : EXT_LABEL[name.slice(dot + 1).toLowerCase()] ?? null;
+  return dot < 0 ? null : (EXT_LABEL[name.slice(dot + 1).toLowerCase()] ?? null);
 }
 
 const KIND_LABEL: Record<FileKind | "folder", string> = {
-  folder: "Folder", text: "Text", markdown: "Markdown", document: "Document", spreadsheet: "Spreadsheet", presentation: "Presentation", pdf: "PDF", image: "Image", video: "Video", audio: "Audio",
-  code: "Code", archive: "Archive", google_native: "Google file", other: "File",
+  folder: "Folder",
+  text: "Text",
+  markdown: "Markdown",
+  document: "Document",
+  spreadsheet: "Spreadsheet",
+  presentation: "Presentation",
+  pdf: "PDF",
+  image: "Image",
+  video: "Video",
+  audio: "Audio",
+  code: "Code",
+  archive: "Archive",
+  google_native: "Google file",
+  other: "File",
 };
 export const kindLabel = (k: FileKind | "folder"): string => KIND_LABEL[k];
 
@@ -111,17 +189,36 @@ export function updatedText(at: number, now: number, _offsetMin?: number): strin
 }
 
 /** Folders first, then files, each by the chosen key. Name sorts without case and with numbers in order ("file 2" before "file 10"). */
-export function sortLines(lines: readonly Line[], key: SortKey, dir: "asc" | "desc", nameOf: (id: string) => string = (id) => id): Line[] {
+export function sortLines(
+  lines: readonly Line[],
+  key: SortKey,
+  dir: "asc" | "desc",
+  nameOf: (id: string) => string = (id) => id,
+): Line[] {
   const sign = dir === "asc" ? 1 : -1;
   const cmp = (a: Line, b: Line): number => {
     if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
     const byName = a.name.localeCompare(b.name, "en", { sensitivity: "base", numeric: true });
     switch (key) {
-      case "name": return sign * byName;
-      case "updated": return sign * (a.updatedAt - b.updatedAt) || byName;
-      case "by": return sign * (a.updatedBy === null ? (b.updatedBy === null ? 0 : -1) : b.updatedBy === null ? 1 : nameOf(a.updatedBy).localeCompare(nameOf(b.updatedBy), "en", { sensitivity: "base" })) || byName;
-      case "size": return sign * (a.size - b.size) || byName;
-      case "kind": return sign * a.kind.localeCompare(b.kind) || byName;
+      case "name":
+        return sign * byName;
+      case "updated":
+        return sign * (a.updatedAt - b.updatedAt) || byName;
+      case "by":
+        return (
+          sign *
+            (a.updatedBy === null
+              ? b.updatedBy === null
+                ? 0
+                : -1
+              : b.updatedBy === null
+                ? 1
+                : nameOf(a.updatedBy).localeCompare(nameOf(b.updatedBy), "en", { sensitivity: "base" })) || byName
+        );
+      case "size":
+        return sign * (a.size - b.size) || byName;
+      case "kind":
+        return sign * a.kind.localeCompare(b.kind) || byName;
     }
   };
   return lines.slice().sort(cmp);
@@ -134,7 +231,8 @@ export type Mods = { meta: boolean; shift: boolean };
 /** Finder rules: a plain click selects one; Cmd or Ctrl toggles one; Shift selects the range from the anchor to the line. */
 export function clickSelect(s: FilesState, order: readonly string[], key: string, mods: Mods): FilesState {
   if (mods.shift && s.anchor !== null && order.includes(s.anchor)) {
-    const a = order.indexOf(s.anchor), b = order.indexOf(key);
+    const a = order.indexOf(s.anchor),
+      b = order.indexOf(key);
     const [lo, hi] = a < b ? [a, b] : [b, a];
     return { ...s, selection: order.slice(lo, hi + 1) };
   }
@@ -181,15 +279,26 @@ export function parsePayload(payload: string): { type: "file" | "folder"; id: st
   return out;
 }
 
-export interface Move { cap: "files.move" | "files.folder.move"; input: Record<string, unknown> }
+export interface Move {
+  cap: "files.move" | "files.folder.move";
+  input: Record<string, unknown>;
+}
 
 /** The moves a drop makes: each file to the folder, each folder under it. A folder never moves into itself, and an item already there stays put. */
-export function dropMoves(items: readonly { type: "file" | "folder"; id: string }[], target: string | null, here: (item: { type: "file" | "folder"; id: string }) => string | null): Move[] {
+export function dropMoves(
+  items: readonly { type: "file" | "folder"; id: string }[],
+  target: string | null,
+  here: (item: { type: "file" | "folder"; id: string }) => string | null,
+): Move[] {
   const out: Move[] = [];
   for (const it of items) {
     if (it.type === "folder" && it.id === target) continue;
     if (here(it) === target) continue;
-    out.push(it.type === "file" ? { cap: "files.move", input: { fileId: it.id, toFolderId: target } } : { cap: "files.folder.move", input: { folderId: it.id, ...(target === null ? {} : { toParentId: target }) } });
+    out.push(
+      it.type === "file"
+        ? { cap: "files.move", input: { fileId: it.id, toFolderId: target } }
+        : { cap: "files.folder.move", input: { folderId: it.id, ...(target === null ? {} : { toParentId: target }) } },
+    );
   }
   return out;
 }
@@ -203,18 +312,33 @@ export interface Spring {
 export const SPRING_MS = 700;
 
 /** Spring-load: a dragged item resting on a folder for `delay` ms opens it. Moving to another folder restarts the wait; leaving cancels it. */
-export function createSpring(fire: (id: string) => void, delay: number = SPRING_MS, schedule: (fn: () => void, ms: number) => unknown = setTimeout, clear: (h: unknown) => void = (h) => clearTimeout(h as ReturnType<typeof setTimeout>)): Spring {
+export function createSpring(
+  fire: (id: string) => void,
+  delay: number = SPRING_MS,
+  schedule: (fn: () => void, ms: number) => unknown = setTimeout,
+  clear: (h: unknown) => void = (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+): Spring {
   let on: string | null = null;
   let handle: unknown = null;
-  const stop = (): void => { if (handle !== null) clear(handle); handle = null; on = null; };
+  const stop = (): void => {
+    if (handle !== null) clear(handle);
+    handle = null;
+    on = null;
+  };
   return {
     enter(id) {
       if (on === id) return;
       stop();
       on = id;
-      handle = schedule(() => { handle = null; on = null; fire(id); }, delay);
+      handle = schedule(() => {
+        handle = null;
+        on = null;
+        fire(id);
+      }, delay);
     },
-    leave(id) { if (on === id) stop(); },
+    leave(id) {
+      if (on === id) stop();
+    },
     cancel: stop,
   };
 }
@@ -246,27 +370,71 @@ function sortFor(from: Where, to: Where, s: FilesState): Pick<FilesState, "sort"
 
 export function reduce(s: FilesState, a: Action): FilesState {
   switch (a.type) {
-    case "go": return sameWhere(s.where, a.where)
-      ? { ...s, where: a.where, selection: [], anchor: null, quickLook: null }
-      : { ...s, ...sortFor(s.where, a.where, s), where: a.where, selection: [], anchor: null, quickLook: null, back: [...s.back, s.where].slice(-50), forward: [] };
-    case "hidden": return { ...s, showHidden: a.on };
+    case "go":
+      return sameWhere(s.where, a.where)
+        ? { ...s, where: a.where, selection: [], anchor: null, quickLook: null }
+        : {
+            ...s,
+            ...sortFor(s.where, a.where, s),
+            where: a.where,
+            selection: [],
+            anchor: null,
+            quickLook: null,
+            back: [...s.back, s.where].slice(-50),
+            forward: [],
+          };
+    case "hidden":
+      return { ...s, showHidden: a.on };
     case "back": {
       const prev = s.back[s.back.length - 1];
-      return prev === undefined ? s : { ...s, ...sortFor(s.where, prev, s), where: prev, selection: [], anchor: null, quickLook: null, back: s.back.slice(0, -1), forward: [...s.forward, s.where] };
+      return prev === undefined
+        ? s
+        : {
+            ...s,
+            ...sortFor(s.where, prev, s),
+            where: prev,
+            selection: [],
+            anchor: null,
+            quickLook: null,
+            back: s.back.slice(0, -1),
+            forward: [...s.forward, s.where],
+          };
     }
     case "forward": {
       const next = s.forward[s.forward.length - 1];
-      return next === undefined ? s : { ...s, ...sortFor(s.where, next, s), where: next, selection: [], anchor: null, quickLook: null, back: [...s.back, s.where], forward: s.forward.slice(0, -1) };
+      return next === undefined
+        ? s
+        : {
+            ...s,
+            ...sortFor(s.where, next, s),
+            where: next,
+            selection: [],
+            anchor: null,
+            quickLook: null,
+            back: [...s.back, s.where],
+            forward: s.forward.slice(0, -1),
+          };
     }
-    case "click": return clickSelect(s, a.order, a.key, a.mods);
-    case "arrow": return arrowSelect(s, a.order, a.dir, a.shift);
-    case "all": return selectAll(s, a.order);
-    case "context": return contextSelect(s, a.key);
-    case "clear": return { ...s, selection: [], anchor: null, quickLook: null };
-    case "sort": return s.sort === a.key ? { ...s, dir: s.dir === "asc" ? "desc" : "asc" } : { ...s, sort: a.key, dir: a.key === "updated" ? "desc" : "asc" };
-    case "dir": return { ...s, dir: a.dir };
-    case "quicklook": return { ...s, quickLook: a.key };
-    case "view": return { ...s, view: a.view };
+    case "click":
+      return clickSelect(s, a.order, a.key, a.mods);
+    case "arrow":
+      return arrowSelect(s, a.order, a.dir, a.shift);
+    case "all":
+      return selectAll(s, a.order);
+    case "context":
+      return contextSelect(s, a.key);
+    case "clear":
+      return { ...s, selection: [], anchor: null, quickLook: null };
+    case "sort":
+      return s.sort === a.key
+        ? { ...s, dir: s.dir === "asc" ? "desc" : "asc" }
+        : { ...s, sort: a.key, dir: a.key === "updated" ? "desc" : "asc" };
+    case "dir":
+      return { ...s, dir: a.dir };
+    case "quicklook":
+      return { ...s, quickLook: a.key };
+    case "view":
+      return { ...s, view: a.view };
   }
 }
 
@@ -274,23 +442,41 @@ export function sameWhere(a: Where, b: Where): boolean {
   return a.kind === b.kind && (a.kind !== "folder" || (b.kind === "folder" && a.id === b.id));
 }
 
-export const WHERE_LABEL: Record<Exclude<Where["kind"], "folder">, string> = { recent: "Recent", starred: "Starred", shared: "Shared with me", trash: "Trash", knowledge: "Knowledge" };
+export const WHERE_LABEL: Record<Exclude<Where["kind"], "folder">, string> = {
+  recent: "Recent",
+  starred: "Starred",
+  shared: "Shared with me",
+  trash: "Trash",
+  knowledge: "Knowledge",
+};
 
 /** The capability and input that list a place. */
-export function sourceOf(where: Where): { cap: "files.list" | "files.recent" | "files.shared_with_me" | "files.knowledge" | "files.trash.list"; input: Record<string, unknown> } {
+export function sourceOf(where: Where): {
+  cap: "files.list" | "files.recent" | "files.shared_with_me" | "files.knowledge" | "files.trash.list";
+  input: Record<string, unknown>;
+} {
   switch (where.kind) {
-    case "folder": return { cap: "files.list", input: where.id === null ? {} : { folder: where.id } };
-    case "recent": return { cap: "files.recent", input: { limit: 50 } };
+    case "folder":
+      return { cap: "files.list", input: where.id === null ? {} : { folder: where.id } };
+    case "recent":
+      return { cap: "files.recent", input: { limit: 50 } };
     // Starred reads the starred flag on the files the copy holds; the list keeps the flagged ones
-    case "starred": return { cap: "files.recent", input: { limit: 500 } };
-    case "shared": return { cap: "files.shared_with_me", input: {} };
-    case "trash": return { cap: "files.trash.list", input: {} };
-    case "knowledge": return { cap: "files.knowledge", input: {} };
+    case "starred":
+      return { cap: "files.recent", input: { limit: 500 } };
+    case "shared":
+      return { cap: "files.shared_with_me", input: {} };
+    case "trash":
+      return { cap: "files.trash.list", input: {} };
+    case "knowledge":
+      return { cap: "files.knowledge", input: {} };
   }
 }
 
 /** The titles from the top of the tree down to a folder. */
-export function crumbs(nodes: readonly { id: string; name: string; parentId: string | null }[], id: string | null): { id: string; name: string }[] {
+export function crumbs(
+  nodes: readonly { id: string; name: string; parentId: string | null }[],
+  id: string | null,
+): { id: string; name: string }[] {
   const out: { id: string; name: string }[] = [];
   let cur = id === null ? undefined : nodes.find((n) => n.id === id);
   while (cur && out.length < 16) {
@@ -304,24 +490,36 @@ export function crumbs(nodes: readonly { id: string; name: string; parentId: str
 /** The empty state's line: two or three words, the way the prototype says it. */
 export function emptyText(where: Where): string {
   switch (where.kind) {
-    case "folder": return "Empty folder";
-    case "recent": return "Nothing recent";
-    case "starred": return "Nothing starred";
-    case "shared": return "Nothing shared";
-    case "trash": return "Trash is empty";
-    case "knowledge": return "No notes yet";
+    case "folder":
+      return "Empty folder";
+    case "recent":
+      return "Nothing recent";
+    case "starred":
+      return "Nothing starred";
+    case "shared":
+      return "Nothing shared";
+    case "trash":
+      return "Trash is empty";
+    case "knowledge":
+      return "No notes yet";
   }
 }
 
 /** The empty state's icon, from the shared set: each place gets its own so the page reads as designed. */
 export function emptyIcon(where: Where): "files" | "search" | "inbox" | "doc" | "trash" {
   switch (where.kind) {
-    case "folder": return "files";
-    case "recent": return "search";
-    case "starred": return "doc";
-    case "shared": return "inbox";
-    case "trash": return "trash";
-    case "knowledge": return "doc";
+    case "folder":
+      return "files";
+    case "recent":
+      return "search";
+    case "starred":
+      return "doc";
+    case "shared":
+      return "inbox";
+    case "trash":
+      return "trash";
+    case "knowledge":
+      return "doc";
   }
 }
 
@@ -332,17 +530,29 @@ export type TreeRoot = TreeRoots[number];
 /** Files registers its root folders itself (Agents, Projects, People, Channels, Shared knowledge, ...) and files.tree lists them in order. The sidebar shows them in that order. */
 export function rootRank(roots: TreeRoots): Map<string, number> {
   const out = new Map<string, number>();
-  roots.forEach((r, i) => { if (r.kind === "folder" && r.folderId !== undefined) out.set(r.folderId, i); });
+  roots.forEach((r, i) => {
+    if (r.kind === "folder" && r.folderId !== undefined) out.set(r.folderId, i);
+  });
   return out;
 }
 
 /** The roots Files registers for the Space (ruling 65, spec 3.5). Personal and Knowledge are not Space roots (Knowledge has its own section), and any other top folder is not listed under Space. */
-export const SPACE_ROOT_KEYS: ReadonlySet<string> = new Set(["agents", "projects", "people", "channels", "shared_knowledge", "agent_template", "deployments", "github"]);
+export const SPACE_ROOT_KEYS: ReadonlySet<string> = new Set([
+  "agents",
+  "projects",
+  "people",
+  "channels",
+  "shared_knowledge",
+  "agent_template",
+  "deployments",
+  "github",
+]);
 
 /** The folder ids of the Space's registered roots: the only top folders the sidebar lists under Space. */
 export function spaceRoots(roots: TreeRoots): Set<string> {
   const out = new Set<string>();
-  for (const r of roots) if (r.kind === "folder" && SPACE_ROOT_KEYS.has(r.key) && r.folderId !== undefined) out.add(r.folderId);
+  for (const r of roots)
+    if (r.kind === "folder" && SPACE_ROOT_KEYS.has(r.key) && r.folderId !== undefined) out.add(r.folderId);
   return out;
 }
 
@@ -352,9 +562,13 @@ export function hasAgentFace(f: FolderRow): boolean {
 }
 
 /** Folders in the order the sidebar lists them: registered roots in files.tree order, everything else by name. */
-export function orderFolders<T extends { folderId: string; name: string }>(folders: readonly T[], rank: ReadonlyMap<string, number>): T[] {
+export function orderFolders<T extends { folderId: string; name: string }>(
+  folders: readonly T[],
+  rank: ReadonlyMap<string, number>,
+): T[] {
   return folders.slice().sort((a, b) => {
-    const ra = rank.get(a.folderId), rb = rank.get(b.folderId);
+    const ra = rank.get(a.folderId),
+      rb = rank.get(b.folderId);
     if (ra !== undefined && rb !== undefined) return ra - rb;
     if (ra !== undefined) return -1;
     if (rb !== undefined) return 1;
@@ -364,19 +578,30 @@ export function orderFolders<T extends { folderId: string; name: string }>(folde
 
 /** Agents and Projects open when the sidebar first draws, as the prototype's do (an agent's or project's own folder, with an id, starts closed). */
 export function openByDefault(f: FolderRow): boolean {
-  return f.parentId === undefined && f.subject !== undefined && f.subject.kind !== "space" && f.subject.id === undefined;
+  return (
+    f.parentId === undefined && f.subject !== undefined && f.subject.kind !== "space" && f.subject.id === undefined
+  );
 }
 
 /** The path above the Move picker's list after going into `folderId`: going into a folder already on the path steps back to it; otherwise it is added. */
-export function pathInto(trail: readonly { id: string | null; name: string }[], _from: string | null, folderId: string, name: string): { id: string | null; name: string }[] {
+export function pathInto(
+  trail: readonly { id: string | null; name: string }[],
+  _from: string | null,
+  folderId: string,
+  name: string,
+): { id: string | null; name: string }[] {
   const i = trail.findIndex((c) => c.id === folderId);
   return i >= 0 ? trail.slice(0, i + 1).slice() : [...trail, { id: folderId, name }];
 }
 
 /** Delete and Restore in Files are one pair: a folder goes to Trash with files.folder.delete and comes back with files.folder.restore. */
 export function trashCall(type: "file" | "folder", id: string): { cap: string; input: Record<string, unknown> } {
-  return type === "file" ? { cap: "files.delete", input: { fileId: id } } : { cap: "files.folder.delete", input: { folderId: id } };
+  return type === "file"
+    ? { cap: "files.delete", input: { fileId: id } }
+    : { cap: "files.folder.delete", input: { folderId: id } };
 }
 export function restoreCall(type: "file" | "folder", id: string): { cap: string; input: Record<string, unknown> } {
-  return type === "file" ? { cap: "files.restore", input: { fileId: id } } : { cap: "files.folder.restore", input: { folderId: id } };
+  return type === "file"
+    ? { cap: "files.restore", input: { fileId: id } }
+    : { cap: "files.folder.restore", input: { folderId: id } };
 }

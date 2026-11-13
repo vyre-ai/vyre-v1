@@ -9,7 +9,11 @@ const DEFAULT_LIMIT = 500;
 
 function removeRun(ctx: RunsCtx, id: string): void {
   for (const t of TABLES) {
-    try { ctx.db.run(`DELETE FROM ${t} WHERE "run_id" = ?`, id); } catch (e) { if (!/no such table/i.test(e instanceof Error ? e.message : String(e))) throw e; }   // a table a later migration adds may not be there yet
+    try {
+      ctx.db.run(`DELETE FROM ${t} WHERE "run_id" = ?`, id);
+    } catch (e) {
+      if (!/no such table/i.test(e instanceof Error ? e.message : String(e))) throw e;
+    } // a table a later migration adds may not be there yet
   }
   ctx.db.run(`DELETE FROM runs_idem WHERE "run_id" = ?`, id);
   ctx.db.run(`DELETE FROM runs_items__fm WHERE "id" = ?`, id);
@@ -26,9 +30,13 @@ export async function erase(ctx: RunsCtx, input: { runId: string; idempotencyKey
 
 export async function purge(ctx: RunsCtx, input: { before: number; limit?: number; idempotencyKey: string }) {
   const limit = input.limit ?? DEFAULT_LIMIT;
-  const ids = (ctx.db.all(
-    `SELECT "id" FROM runs_items WHERE "ended_at" IS NOT NULL AND "ended_at" < ? AND "status" IN ('succeeded', 'failed', 'stopped') ORDER BY "ended_at" ASC LIMIT ?`, input.before, limit + 1,
-  ) as { id: string }[]).map((r) => String(r.id));
+  const ids = (
+    ctx.db.all(
+      `SELECT "id" FROM runs_items WHERE "ended_at" IS NOT NULL AND "ended_at" < ? AND "status" IN ('succeeded', 'failed', 'stopped') ORDER BY "ended_at" ASC LIMIT ?`,
+      input.before,
+      limit + 1,
+    ) as { id: string }[]
+  ).map((r) => String(r.id));
   const batch = ids.slice(0, limit);
   for (const id of batch) removeRun(ctx, id);
   ctx.emit("runs.purged", `entity/${batch.length}`, { removed: batch.length });

@@ -12,7 +12,14 @@ interface Entry {
   used: number;
 }
 
-export interface QueryStats { runs: number; listRowReads: number; listRebuilds: number; notifications: number; entries: number; feedListeners: number }
+export interface QueryStats {
+  runs: number;
+  listRowReads: number;
+  listRebuilds: number;
+  notifications: number;
+  entries: number;
+  feedListeners: number;
+}
 
 export interface QueryClient {
   readonly spaceId: string;
@@ -26,7 +33,10 @@ export interface QueryClient {
   close(): void;
 }
 
-export function createQueryClient(store: SpaceStore, o: { maxEntries?: number; windowRows?: number } = {}): QueryClient {
+export function createQueryClient(
+  store: SpaceStore,
+  o: { maxEntries?: number; windowRows?: number } = {},
+): QueryClient {
   const entries = new Map<string, Entry>();
   const maxEntries = o.maxEntries ?? 500;
   const keep = o.windowRows ?? 2000;
@@ -50,7 +60,10 @@ export function createQueryClient(store: SpaceStore, o: { maxEntries?: number; w
   const evict = (): void => {
     if (entries.size <= maxEntries) return;
     const idle = [...entries.values()].filter((e) => e.listeners.size === 0).sort((a, b) => a.used - b.used);
-    for (const e of idle) { if (entries.size <= maxEntries) break; entries.delete(e.key); }
+    for (const e of idle) {
+      if (entries.size <= maxEntries) break;
+      entries.delete(e.key);
+    }
   };
 
   const register = <E extends Entry>(e: E): E => {
@@ -64,9 +77,14 @@ export function createQueryClient(store: SpaceStore, o: { maxEntries?: number; w
     return {
       subscribe(l) {
         e.listeners.add(l);
-        return () => { e.listeners.delete(l); };
+        return () => {
+          e.listeners.delete(l);
+        };
       },
-      getSnapshot() { e.used = ++tick; return get(); },
+      getSnapshot() {
+        e.used = ++tick;
+        return get();
+      },
     };
   }
 
@@ -77,9 +95,15 @@ export function createQueryClient(store: SpaceStore, o: { maxEntries?: number; w
     let e = entries.get(key) as QEntry | undefined;
     if (!e) {
       const made: QEntry = {
-        key, listeners: new Set(), used: ++tick, snap: null, dirty: true,
+        key,
+        listeners: new Set(),
+        used: ++tick,
+        snap: null,
+        dirty: true,
         handle(batch) {
-          const hit = batch.some((c) => def.entities.includes(c.entity) && (def.affects ? def.affects(c, input) : true));
+          const hit = batch.some(
+            (c) => def.entities.includes(c.entity) && (def.affects ? def.affects(c, input) : true),
+          );
           if (hit) made.dirty = true;
           return hit;
         },
@@ -104,7 +128,9 @@ export function createQueryClient(store: SpaceStore, o: { maxEntries?: number; w
     const key = `${store.spaceId}\u0000${def.entity}\u0000${def.idOf(row)}`;
     const old = known.get(key)?.deref() as R | undefined;
     if (old !== undefined) {
-      const same = def.versionOf ? Object.is(def.versionOf(old), def.versionOf(row)) : JSON.stringify(old) === JSON.stringify(row);
+      const same = def.versionOf
+        ? Object.is(def.versionOf(old), def.versionOf(row))
+        : JSON.stringify(old) === JSON.stringify(row);
       if (same) return old;
     }
     known.set(key, new WeakRef(row as unknown as object));
@@ -148,7 +174,10 @@ export function createQueryClient(store: SpaceStore, o: { maxEntries?: number; w
             for (const r of this.def.readRows(store.db, missing)) this.cache.set(this.def.idOf(r), intern(this.def, r));
             if (this.cache.size > keep) {
               const near = new Set(want);
-              for (const id of [...this.cache.keys()]) { if (this.cache.size <= keep) break; if (!near.has(id)) this.cache.delete(id); }
+              for (const id of [...this.cache.keys()]) {
+                if (this.cache.size <= keep) break;
+                if (!near.has(id)) this.cache.delete(id);
+              }
             }
           }
           return want.map((id) => this.cache.get(id));
@@ -164,21 +193,35 @@ export function createQueryClient(store: SpaceStore, o: { maxEntries?: number; w
         if (this.pos.has(c.id)) {
           const [row] = this.def.readRows(store.db, [c.id]);
           stats.listRowReads++;
-          if (!row || (this.def.matches && !this.def.matches(row, this.input))) { reorder = true; changed = true; continue; }
+          if (!row || (this.def.matches && !this.def.matches(row, this.input))) {
+            reorder = true;
+            changed = true;
+            continue;
+          }
           const prev = this.cache.get(c.id);
           if (this.def.orderKey) {
-            if (prev === undefined || JSON.stringify(this.def.orderKey(prev)) !== JSON.stringify(this.def.orderKey(row))) reorder = true;
+            if (
+              prev === undefined ||
+              JSON.stringify(this.def.orderKey(prev)) !== JSON.stringify(this.def.orderKey(row))
+            )
+              reorder = true;
           } else reorder = true;
           if (prev !== undefined) this.cache.set(c.id, intern(this.def, row));
           changed = true;
         } else {
           const [row] = this.def.readRows(store.db, [c.id]);
           stats.listRowReads++;
-          if (row && (!this.def.matches || this.def.matches(row, this.input))) { reorder = true; changed = true; }
+          if (row && (!this.def.matches || this.def.matches(row, this.input))) {
+            reorder = true;
+            changed = true;
+          }
         }
       }
       if (reorder) this.rebuild();
-      if (changed) { this.version++; this.snap = this.windowOf(); }
+      if (changed) {
+        this.version++;
+        this.snap = this.windowOf();
+      }
       return changed;
     }
   }
@@ -225,15 +268,25 @@ export function createQueryClient(store: SpaceStore, o: { maxEntries?: number; w
 }
 
 /** One client per Space; switching drops the old Space's entries so nothing of it can show in the new one. */
-export function createQueryClients(open: (spaceId: string) => SpaceStore): { forSpace(spaceId: string): QueryClient; drop(spaceId: string): void; spaceIds(): string[] } {
+export function createQueryClients(open: (spaceId: string) => SpaceStore): {
+  forSpace(spaceId: string): QueryClient;
+  drop(spaceId: string): void;
+  spaceIds(): string[];
+} {
   const clients = new Map<string, QueryClient>();
   return {
     forSpace(spaceId) {
       let c = clients.get(spaceId);
-      if (!c) { c = createQueryClient(open(spaceId)); clients.set(spaceId, c); }
+      if (!c) {
+        c = createQueryClient(open(spaceId));
+        clients.set(spaceId, c);
+      }
       return c;
     },
-    drop(spaceId) { clients.get(spaceId)?.close(); clients.delete(spaceId); },
+    drop(spaceId) {
+      clients.get(spaceId)?.close();
+      clients.delete(spaceId);
+    },
     spaceIds: () => [...clients.keys()].sort(),
   };
 }

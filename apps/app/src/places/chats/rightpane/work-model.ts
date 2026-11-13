@@ -10,8 +10,17 @@ import type { ReactElement } from "react";
 /** unavailable: nothing in this Space can run a workspace now (no Docker, no server): a plain line on what would, never an Attach that cannot work. */
 export type WorkspaceState = "running" | "asleep" | "starting" | "waiting" | "error" | "unavailable";
 /** Who a terminal session belongs to: the agent itself, a helper it started (by name), or a person who attached. */
-export interface SessionOwner { kind: "agent" | "helper" | "person"; name?: string }
-export interface WorkspaceSession { name: string; owner?: SessionOwner; /** left out when the host does not say */ windows?: number; /** people attached right now; left out when not known */ attached?: number; lastActiveAt?: number }
+export interface SessionOwner {
+  kind: "agent" | "helper" | "person";
+  name?: string;
+}
+export interface WorkspaceSession {
+  name: string;
+  owner?: SessionOwner;
+  /** left out when the host does not say */ windows?: number;
+  /** people attached right now; left out when not known */ attached?: number;
+  lastActiveAt?: number;
+}
 export interface WorkspaceView {
   state: WorkspaceState;
   /** Where it runs: "the Space server", or a compute server's name. */
@@ -39,7 +48,11 @@ export interface WorkspaceData {
 // ---- Browser: the agent's profile in the Space browser
 
 export type BrowserState = "closed" | "starting" | "open" | "takeover" | "waiting" | "error";
-export interface BrowserSite { site: string; signedInAs?: string; since: number }
+export interface BrowserSite {
+  site: string;
+  signedInAs?: string;
+  since: number;
+}
 export interface BrowserView {
   state: BrowserState;
   host?: string;
@@ -71,27 +84,68 @@ export interface BrowserData {
 // ---- the words
 
 export type Tone = "ok" | "quiet" | "warn" | "bad" | "mine";
-export interface Words { chip: string; tone: Tone; /** the one line under the chip, when there is one */ note?: string }
+export interface Words {
+  chip: string;
+  tone: Tone;
+  /** the one line under the chip, when there is one */ note?: string;
+}
 
 export function workspaceWords(v: WorkspaceView): Words {
   switch (v.state) {
-    case "running": return v.line !== undefined ? { chip: "Running", tone: "ok", note: v.line } : v.sessions.length === 0 ? { chip: "Running", tone: "ok", note: "No session open yet. A command starts one." } : { chip: "Running", tone: "ok" };
-    case "asleep": return { chip: "Asleep", tone: "quiet", note: "Wakes in about a second on the next command." };
-    case "starting": return { chip: "Starting", tone: "quiet" };
-    case "waiting": return { chip: "Waiting for room", tone: "warn", note: v.line ?? "Waiting for room on the Space server. The workspace starts by itself when there is room." };
-    case "error": return { chip: "Needs attention", tone: "bad", note: v.line ?? "The workspace could not start." };
-    case "unavailable": return { chip: "Not set up yet", tone: "quiet", note: v.line ?? "This Space can't run agent workspaces yet. That needs Docker on the computer this Space runs on, or a server with Docker added in Console > Computers." };
+    case "running":
+      return v.line !== undefined
+        ? { chip: "Running", tone: "ok", note: v.line }
+        : v.sessions.length === 0
+          ? { chip: "Running", tone: "ok", note: "No session open yet. A command starts one." }
+          : { chip: "Running", tone: "ok" };
+    case "asleep":
+      return { chip: "Asleep", tone: "quiet", note: "Wakes in about a second on the next command." };
+    case "starting":
+      return { chip: "Starting", tone: "quiet" };
+    case "waiting":
+      return {
+        chip: "Waiting for room",
+        tone: "warn",
+        note: v.line ?? "Waiting for room on the Space server. The workspace starts by itself when there is room.",
+      };
+    case "error":
+      return { chip: "Needs attention", tone: "bad", note: v.line ?? "The workspace could not start." };
+    case "unavailable":
+      return {
+        chip: "Not set up yet",
+        tone: "quiet",
+        note:
+          v.line ??
+          "This Space can't run agent workspaces yet. That needs Docker on the computer this Space runs on, or a server with Docker added in Console > Computers.",
+      };
   }
 }
 
 export function browserWords(v: BrowserView): Words {
   switch (v.state) {
-    case "closed": return { chip: "Closed", tone: "quiet", note: "Opens when it browses." };
-    case "starting": return { chip: "Starting", tone: "quiet" };
-    case "open": return { chip: v.tabs === undefined ? "Open" : `Open · ${v.tabs} ${v.tabs === 1 ? "tab" : "tabs"}`, tone: "ok", ...(v.caption ? { note: v.caption } : {}) };
-    case "takeover": return v.mine ? { chip: "You're in control", tone: "mine" } : { chip: `${v.takenBy ?? "Someone"} is in control`, tone: "mine" };
-    case "waiting": return { chip: "Waiting for room", tone: "warn", note: v.line ?? "Waiting for room on the Space server. Add a compute server in Console > Computers to run more." };
-    case "error": return { chip: "Needs attention", tone: "bad", note: v.line ?? "The browser could not open." };
+    case "closed":
+      return { chip: "Closed", tone: "quiet", note: "Opens when it browses." };
+    case "starting":
+      return { chip: "Starting", tone: "quiet" };
+    case "open":
+      return {
+        chip: v.tabs === undefined ? "Open" : `Open · ${v.tabs} ${v.tabs === 1 ? "tab" : "tabs"}`,
+        tone: "ok",
+        ...(v.caption ? { note: v.caption } : {}),
+      };
+    case "takeover":
+      return v.mine
+        ? { chip: "You're in control", tone: "mine" }
+        : { chip: `${v.takenBy ?? "Someone"} is in control`, tone: "mine" };
+    case "waiting":
+      return {
+        chip: "Waiting for room",
+        tone: "warn",
+        note:
+          v.line ?? "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.",
+      };
+    case "error":
+      return { chip: "Needs attention", tone: "bad", note: v.line ?? "The browser could not open." };
   }
 }
 
@@ -128,28 +182,44 @@ export function ownerLabel(o: SessionOwner | undefined, agentName: string): stri
 }
 /** The agent's own sessions first, then helpers, then people; each group keeps its order. */
 export function orderSessions(list: readonly WorkspaceSession[]): WorkspaceSession[] {
-  const rank = (s: WorkspaceSession): number => (!s.owner || s.owner.kind === "agent" ? 0 : s.owner.kind === "helper" ? 1 : 2);
-  return list.map((s, i) => ({ s, i })).sort((a, b) => rank(a.s) - rank(b.s) || a.i - b.i).map((x) => x.s);
+  const rank = (s: WorkspaceSession): number =>
+    !s.owner || s.owner.kind === "agent" ? 0 : s.owner.kind === "helper" ? 1 : 2;
+  return list
+    .map((s, i) => ({ s, i }))
+    .sort((a, b) => rank(a.s) - rank(b.s) || a.i - b.i)
+    .map((x) => x.s);
 }
 /** When both sections wait for the same reason the line is said once, above them. Null otherwise. */
-export function sharedWait(w: { state: string; line?: string } | undefined, b: { state: string; line?: string } | undefined): string | null {
+export function sharedWait(
+  w: { state: string; line?: string } | undefined,
+  b: { state: string; line?: string } | undefined,
+): string | null {
   if (!w || !b || w.state !== "waiting" || b.state !== "waiting") return null;
-  const a = workspaceWordsLine(w.line), c = workspaceWordsLine(b.line);
+  const a = workspaceWordsLine(w.line),
+    c = workspaceWordsLine(b.line);
   return a === c ? a : null;
 }
 const DEFAULT_WAIT = "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.";
 const workspaceWordsLine = (l: string | undefined): string => l ?? DEFAULT_WAIT;
 
 /** What the "Older desktop" row says about the move of the old desktop's sign-ins, in plain words: what will happen, what happened, or why it did not. */
-export function olderDesktopNote(m: { state: "done" | "partial" | "failed"; at: number; error?: string } | undefined, day: (ms: number) => string): string {
+export function olderDesktopNote(
+  m: { state: "done" | "partial" | "failed"; at: number; error?: string } | undefined,
+  day: (ms: number) => string,
+): string {
   if (!m) return "Its sign-ins move to this agent's browser when the desktop is asleep.";
-  if (m.state === "done") return `Its sign-ins moved to this agent's browser on ${day(m.at)}. The old desktop is kept until you remove it.`;
-  if (m.state === "partial") return `${m.error ?? "Its sign-ins did not all move."} The old desktop is kept until you remove it.`;
+  if (m.state === "done")
+    return `Its sign-ins moved to this agent's browser on ${day(m.at)}. The old desktop is kept until you remove it.`;
+  if (m.state === "partial")
+    return `${m.error ?? "Its sign-ins did not all move."} The old desktop is kept until you remove it.`;
   if (m.error?.startsWith("Moving its sign-ins was interrupted")) return m.error;
   return `Moving its sign-ins did not work yet${m.error ? `: ${m.error.replace(/\.+$/, "")}` : ""}. It will be tried again.`;
 }
 
 /** The row's menu: Remove is an owner's or admin's and lives in Console > Computers, so only they, and only where the pane can open the Console, are offered it. */
-export function olderDesktopMenu(a: { canRemove: boolean; open?: (() => void) | undefined }): Array<{ label: string; danger: true; onSelect: () => void }> {
+export function olderDesktopMenu(a: {
+  canRemove: boolean;
+  open?: (() => void) | undefined;
+}): Array<{ label: string; danger: true; onSelect: () => void }> {
   return a.canRemove && a.open ? [{ label: "Remove in Console > Computers", danger: true, onSelect: a.open }] : [];
 }

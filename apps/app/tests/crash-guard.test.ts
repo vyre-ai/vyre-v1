@@ -4,11 +4,16 @@ import assert from "node:assert/strict";
 import { guardCrashes } from "./crash-guard.ts";
 
 function fakePage(body: string) {
-  const handlers: { pageerror: Array<(e: Error) => void>; console: Array<(m: { type(): string; text(): string }) => void> } = { pageerror: [], console: [] };
+  const handlers: {
+    pageerror: Array<(e: Error) => void>;
+    console: Array<(m: { type(): string; text(): string }) => void>;
+  } = { pageerror: [], console: [] };
   return {
     handlers,
     page: {
-      on(event: string, f: never) { (handlers as Record<string, unknown[]>)[event]!.push(f); },
+      on(event: string, f: never) {
+        (handlers as Record<string, unknown[]>)[event]!.push(f);
+      },
       locator: () => ({ innerText: async () => body }),
       url: () => "http://x/chat",
     } as never,
@@ -26,10 +31,16 @@ test("a React error or a script error in the console fails the next check; a ref
   const { page, handlers } = fakePage("fine");
   const g = guardCrashes(page);
   await g.check("start");
-  handlers.console[0]!({ type: () => "error", text: () => "Failed to load resource: the server responded with a status of 403" });
+  handlers.console[0]!({
+    type: () => "error",
+    text: () => "Failed to load resource: the server responded with a status of 403",
+  });
   handlers.pageerror[0]!(new Error("ResizeObserver loop completed"));
   await g.check("noise is not a crash");
-  handlers.console[0]!({ type: () => "error", text: () => "Error: Minified React error #310; visit https://react.dev/errors/310" });
+  handlers.console[0]!({
+    type: () => "error",
+    text: () => "Error: Minified React error #310; visit https://react.dev/errors/310",
+  });
   await assert.rejects(() => g.check("after the chat loaded"), /after the chat loaded: a crash was logged/);
   await g.check("each crash is reported once");
   handlers.pageerror[0]!(new Error("OpenLink is not defined"));

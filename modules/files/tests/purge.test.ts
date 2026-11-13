@@ -10,9 +10,35 @@ const DAY = 86_400_000;
 const NOW = 1_760_000_000_000;
 
 function seed(w: ReturnType<typeof open>): void {
-  const blob = (id: string, refs: number) => w.ctx.db.run(`INSERT INTO files_blob (id, hash, size, mime, key_id, nonce, bytes, scope, created_at, refs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, `h_${id}`, 1, "text/plain", "k", "n", "b", "s", 1, refs);
-  const ver = (id: string, file: string, n: number, blobId: string, at: number, name: string | null) => w.ctx.db.run(
-    `INSERT INTO files_file_version (id, file_id, n, blob, actor, reason, name, at, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, file, n, blobId, "usr_a", null, name, at, 1, at, null);
+  const blob = (id: string, refs: number) =>
+    w.ctx.db.run(
+      `INSERT INTO files_blob (id, hash, size, mime, key_id, nonce, bytes, scope, created_at, refs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id,
+      `h_${id}`,
+      1,
+      "text/plain",
+      "k",
+      "n",
+      "b",
+      "s",
+      1,
+      refs,
+    );
+  const ver = (id: string, file: string, n: number, blobId: string, at: number, name: string | null) =>
+    w.ctx.db.run(
+      `INSERT INTO files_file_version (id, file_id, n, blob, actor, reason, name, at, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id,
+      file,
+      n,
+      blobId,
+      "usr_a",
+      null,
+      name,
+      at,
+      1,
+      at,
+      null,
+    );
   for (const b of ["b1", "b2", "b3", "b4", "b5", "b6", "b7"]) blob(`blb_${b}`, 1);
   // f1: three old versions; n=2 is named, n=3 is the newest
   ver("ver_f1n1", "fil_f1", 1, "blb_b1", NOW - 400 * DAY, null);
@@ -26,9 +52,21 @@ function seed(w: ReturnType<typeof open>): void {
   ver("ver_f3n2", "fil_f3", 2, "blb_b7", NOW - 1 * DAY, null);
 }
 
-const versions = (w: ReturnType<typeof open>): string[] => w.db.rows("files_file_version").map((r) => String(r["id"])).sort();
-const blobs = (w: ReturnType<typeof open>): string[] => w.db.rows("files_blob").map((r) => String(r["id"])).sort();
-const purge = (w: ReturnType<typeof open>, input: Record<string, unknown>) => (handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)["files.versions_purge"]!(w.ctx, { idempotencyKey: "k", ...input });
+const versions = (w: ReturnType<typeof open>): string[] =>
+  w.db
+    .rows("files_file_version")
+    .map((r) => String(r["id"]))
+    .sort();
+const blobs = (w: ReturnType<typeof open>): string[] =>
+  w.db
+    .rows("files_blob")
+    .map((r) => String(r["id"]))
+    .sort();
+const purge = (w: ReturnType<typeof open>, input: Record<string, unknown>) =>
+  (handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)["files.versions_purge"]!(w.ctx, {
+    idempotencyKey: "k",
+    ...input,
+  });
 
 test("old unnamed versions go, the newest, the named and the young stay, a held file is left whole, and the blobs follow", async () => {
   const w = open();
@@ -38,7 +76,10 @@ test("old unnamed versions go, the newest, the named and the young stay, a held 
   assert.deepEqual(versions(w), ["ver_f1n2", "ver_f1n3", "ver_f2n1", "ver_f2n2", "ver_f3n1", "ver_f3n2"]);
   assert.ok(!blobs(w).includes("blb_b1"), "the removed version's blob is released");
   assert.ok(blobs(w).includes("blb_b2") && blobs(w).includes("blb_b4"));
-  assert.deepEqual(w.events.map((e) => [e.name, e.payload]), [["file_versions.purged", { removed: 1 }]]);
+  assert.deepEqual(
+    w.events.map((e) => [e.name, e.payload]),
+    [["file_versions.purged", { removed: 1 }]],
+  );
 });
 
 test("without a hold list the held file's old version goes too; batches go oldest first and say when more is left", async () => {

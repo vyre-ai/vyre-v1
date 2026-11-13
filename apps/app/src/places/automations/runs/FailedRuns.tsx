@@ -36,30 +36,53 @@ export function FailedRuns({ scope = "mine", selectedRunId = null }: FailedRunsP
   const { rows, automations } = useMemo(() => failedAcross(runs), [runs]);
 
   const subjectName = (r: Run): string => (r.subject ? data.name(r.subject.id) : "");
-  const menu = (run: Run, x: number, y: number): void => show(runMenu(run, actions, data.nav, show, { x, y }, true), x, y, "context", { label: runTitle(run) });
+  const menu = (run: Run, x: number, y: number): void =>
+    show(runMenu(run, actions, data.nav, show, { x, y }, true), x, y, "context", { label: runTitle(run) });
   const onKey = (e: KeyEventLike & { currentTarget?: unknown; target?: unknown }): void => {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") { if (moveRowFocus(e.currentTarget, e.target, e.key === "ArrowDown" ? 1 : -1)) e.preventDefault?.(); }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      if (moveRowFocus(e.currentTarget, e.target, e.key === "ArrowDown" ? 1 : -1)) e.preventDefault?.();
+    }
   };
 
   const renderRun = (run: Run): ReactElement => (
     <RunRow
-      run={run} now={now} rowKey={run.id} selected={selectedRunId === run.id} open alwaysActions title={`${subjectName(run)} \u00B7 ${runTitle(run)}`}
-      onOpen={(x) => data.nav.openRunSide(x.id)} onOpenMain={(x) => data.nav.openRun(x.id)} onRetry={(x) => void actions.retryStep(x)} onMenu={menu}
+      run={run}
+      now={now}
+      rowKey={run.id}
+      selected={selectedRunId === run.id}
+      open
+      alwaysActions
+      title={`${subjectName(run)} \u00B7 ${runTitle(run)}`}
+      onOpen={(x) => data.nav.openRunSide(x.id)}
+      onOpenMain={(x) => data.nav.openRun(x.id)}
+      onRetry={(x) => void actions.retryStep(x)}
+      onMenu={menu}
     />
   );
 
   return (
     <View testID="failed-runs" accessibilityLabel="Failed runs" style={f.frame} {...webOnly({ onKeyDown: onKey })}>
       <MainHead
-        tile={<View aria-hidden style={f.tile}><Glyph name="warn" size={15} color="var(--danger)" /></View>}
-        title="Failed runs" {...(q.status === "ready" ? { meta: failedHeadline(rows.length, automations) } : {})}
+        tile={
+          <View aria-hidden style={f.tile}>
+            <Glyph name="warn" size={15} color="var(--danger)" />
+          </View>
+        }
+        title="Failed runs"
+        {...(q.status === "ready" ? { meta: failedHeadline(rows.length, automations) } : {})}
       />
       <View style={f.col}>
         {q.status === "loading" ? (
-          <View testID="failed-runs-loading" style={{ paddingTop: 22 }}>{each([0, 1, 2], (i) => <View key={i} style={f.skRow} />)}</View>
+          <View testID="failed-runs-loading" style={{ paddingTop: 22 }}>
+            {each([0, 1, 2], (i) => (
+              <View key={i} style={f.skRow} />
+            ))}
+          </View>
         ) : rows.length === 0 ? (
           <View style={f.blank} testID="failed-runs-empty">
-            <View aria-hidden style={f.big}><Glyph name="check" size={24} color="var(--ok)" /></View>
+            <View aria-hidden style={f.big}>
+              <Glyph name="check" size={24} color="var(--ok)" />
+            </View>
             <Text style={f.blankHead}>All clear</Text>
             <Text style={f.blankText}>Nothing failed. A failed run waits here until you retry it.</Text>
           </View>
@@ -67,7 +90,11 @@ export function FailedRuns({ scope = "mine", selectedRunId = null }: FailedRunsP
           <VirtualList data={rows} rowHeight={44} keyOf={keyOfRun} renderItem={renderRun} />
         )}
       </View>
-      {actions.note ? <Text style={f.note} accessibilityLiveRegion="polite" testID="run-note">{actions.note}</Text> : null}
+      {actions.note ? (
+        <Text style={f.note} accessibilityLiveRegion="polite" testID="run-note">
+          {actions.note}
+        </Text>
+      ) : null}
       {element}
     </View>
   );
@@ -75,12 +102,40 @@ export function FailedRuns({ scope = "mine", selectedRunId = null }: FailedRunsP
 
 const f = StyleSheet.create({
   frame: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
-  col: { flex: 1, minHeight: 0, width: "100%", maxWidth: 820, alignSelf: "center", paddingHorizontal: 28, paddingTop: 22 },
-  tile: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "color-mix(in srgb, var(--danger) 14%, transparent)" as string },
+  col: {
+    flex: 1,
+    minHeight: 0,
+    width: "100%",
+    maxWidth: 820,
+    alignSelf: "center",
+    paddingHorizontal: 28,
+    paddingTop: 22,
+  },
+  tile: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "color-mix(in srgb, var(--danger) 14%, transparent)" as string,
+  },
   skRow: { height: 32, marginBottom: 12, borderRadius: 9, backgroundColor: "var(--sunk)" as string },
   blank: { alignItems: "center", paddingTop: 60, gap: 10 },
-  big: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
+  big: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--sunk)" as string,
+  },
   blankHead: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
   blankText: { fontSize: 13, color: "var(--ink-3)" as string, textAlign: "center", maxWidth: 360 },
-  note: { fontSize: 12, color: "var(--ink-2)" as string, padding: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  note: {
+    fontSize: 12,
+    color: "var(--ink-2)" as string,
+    padding: 10,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
 });

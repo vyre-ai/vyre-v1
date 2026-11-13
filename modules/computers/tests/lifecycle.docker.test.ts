@@ -4,15 +4,30 @@ import test from "node:test";
 import { tarFiles, untar } from "../../../sandbox/src/tar.ts";
 import assert from "node:assert/strict";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../../sandbox/src/docker.ts";
-import { AGENTD_CTL, computerContainerConfig, createDockerComputerHost, DEFAULT_COMPUTER_IMAGE, FILES_GUEST, reviewComputerConfig } from "../impl.ts";
+import {
+  AGENTD_CTL,
+  computerContainerConfig,
+  createDockerComputerHost,
+  DEFAULT_COMPUTER_IMAGE,
+  FILES_GUEST,
+  reviewComputerConfig,
+} from "../impl.ts";
 import { bindHost } from "../projections.ts";
 import { giveBack, provision, sleep, takeOver, wake } from "../handlers/lifecycle.ts";
 import { recordStart, recordStop } from "../handlers/record.ts";
 import { harness, INTAKE } from "../fixtures/harness.ts";
 
-interface ExecCall { name: string; cmd: readonly string[] }
+interface ExecCall {
+  name: string;
+  cmd: readonly string[];
+}
 
-function fakeApi(answers: Record<string, (body: Record<string, unknown>) => { exitCode?: number; stdout?: string; stderr?: string }> = {}) {
+function fakeApi(
+  answers: Record<
+    string,
+    (body: Record<string, unknown>) => { exitCode?: number; stdout?: string; stderr?: string }
+  > = {},
+) {
   const calls: string[] = [];
   const execs: ExecCall[] = [];
   const created = new Map<string, ContainerConfig>();
@@ -21,18 +36,47 @@ function fakeApi(answers: Record<string, (body: Record<string, unknown>) => { ex
   let imageThere = true;
   let failExecs = 0;
   const api: DockerApi = {
-    async ping() { calls.push("ping"); return true; },
-    async imageExists(name) { calls.push(`imageExists ${name}`); return imageThere; },
-    async networkCreate() { throw new Error("computers do not make networks"); },
-    async networkRemove() { throw new Error("computers do not make networks"); },
-    async containerCreate(name, config) { calls.push(`create ${name}`); created.set(name, config); return `id-${name}`; },
-    async containerStart(id) { calls.push(`start ${id}`); running.add(id); },
-    async containerStop(id, grace) { calls.push(`stop ${id} ${grace}`); running.delete(id); },
-    async containerRemove(id) { calls.push(`remove ${id}`); created.delete(id); running.delete(id); },
-    async containerRunning(id) { return running.has(id); },
+    async ping() {
+      calls.push("ping");
+      return true;
+    },
+    async imageExists(name) {
+      calls.push(`imageExists ${name}`);
+      return imageThere;
+    },
+    async networkCreate() {
+      throw new Error("computers do not make networks");
+    },
+    async networkRemove() {
+      throw new Error("computers do not make networks");
+    },
+    async containerCreate(name, config) {
+      calls.push(`create ${name}`);
+      created.set(name, config);
+      return `id-${name}`;
+    },
+    async containerStart(id) {
+      calls.push(`start ${id}`);
+      running.add(id);
+    },
+    async containerStop(id, grace) {
+      calls.push(`stop ${id} ${grace}`);
+      running.delete(id);
+    },
+    async containerRemove(id) {
+      calls.push(`remove ${id}`);
+      created.delete(id);
+      running.delete(id);
+    },
+    async containerRunning(id) {
+      return running.has(id);
+    },
     async exec(name, a) {
       execs.push({ name, cmd: a.cmd });
-      if (failExecs > 0) { failExecs--; return { exitCode: 1, stdout: "", stderr: "agentd is not up yet" }; }
+      if (failExecs > 0) {
+        failExecs--;
+        return { exitCode: 1, stdout: "", stderr: "agentd is not up yet" };
+      }
       if (a.cmd[0] === AGENTD_CTL) {
         const action = String(a.cmd[1]);
         const body = JSON.parse(String(a.cmd[2] ?? "{}")) as Record<string, unknown>;
@@ -41,37 +85,105 @@ function fakeApi(answers: Record<string, (body: Record<string, unknown>) => { ex
       }
       return { exitCode: 0, stdout: "", stderr: "" };
     },
-    async putArchive(name, dir, tar) { archives.push({ name, dir, tar }); },
+    async putArchive(name, dir, tar) {
+      archives.push({ name, dir, tar });
+    },
   };
-  return { api, calls, execs, created, running, archives, setImage(v: boolean) { imageThere = v; }, failNextExecs(n: number) { failExecs = n; } };
+  return {
+    api,
+    calls,
+    execs,
+    created,
+    running,
+    archives,
+    setImage(v: boolean) {
+      imageThere = v;
+    },
+    failNextExecs(n: number) {
+      failExecs = n;
+    },
+  };
 }
 
-const ctlCalls = (execs: ExecCall[]): string[] => execs.filter((e) => e.cmd[0] === AGENTD_CTL).map((e) => `${e.cmd[1]} ${e.cmd[2]}`);
+const ctlCalls = (execs: ExecCall[]): string[] =>
+  execs.filter((e) => e.cmd[0] === AGENTD_CTL).map((e) => `${e.cmd[1]} ${e.cmd[2]}`);
 
 test("the container is built inside its profile and a config outside it is refused", () => {
-  const c = computerContainerConfig("vyre-comp-abc", "cmt_abc", INTAKE, { api: fakeApi().api, filesRoot: (a) => `/srv/vyre/files/${a}` }, 8);
+  const c = computerContainerConfig(
+    "vyre-comp-abc",
+    "cmt_abc",
+    INTAKE,
+    { api: fakeApi().api, filesRoot: (a) => `/srv/vyre/files/${a}` },
+    8,
+  );
   assert.deepEqual(reviewComputerConfig(c), []);
   assert.equal(c.Image, DEFAULT_COMPUTER_IMAGE);
   assert.deepEqual(c.HostConfig.CapDrop, ["ALL"]);
   assert.equal(c.HostConfig.SecurityOpt[0], "no-new-privileges:true");
-  assert.ok(c.HostConfig.SecurityOpt[1]?.startsWith("seccomp={"), "a seccomp profile is given inline, and it is not unconfined");
+  assert.ok(
+    c.HostConfig.SecurityOpt[1]?.startsWith("seccomp={"),
+    "a seccomp profile is given inline, and it is not unconfined",
+  );
   assert.equal(c.HostConfig.Privileged, false);
   assert.equal(c.HostConfig.Devices.length, 0);
   assert.equal(c.HostConfig.NetworkMode, "bridge");
   assert.equal(c.HostConfig.IpcMode, "private");
-  assert.deepEqual(c.HostConfig.Binds, ["vyre-comp-abc-profile:/home/agent/.profile-disk:rw", `/srv/vyre/files/${INTAKE}:${FILES_GUEST}:rw`]);
+  assert.deepEqual(c.HostConfig.Binds, [
+    "vyre-comp-abc-profile:/home/agent/.profile-disk:rw",
+    `/srv/vyre/files/${INTAKE}:${FILES_GUEST}:rw`,
+  ]);
   assert.deepEqual(c.Labels, { "vyre.computer": "cmt_abc", "vyre.agent": INTAKE });
   assert.ok(c.HostConfig.Memory > 0 && c.HostConfig.PidsLimit > 0);
-  const bad = (f: (x: ContainerConfig) => void): string[] => { const x = structuredClone(c); f(x); return reviewComputerConfig(x); };
-  assert.ok(bad((x) => { x.HostConfig.Privileged = true; }).includes("privileged"));
-  assert.ok(bad((x) => { x.HostConfig.CapDrop = []; }).includes("capabilities are not all dropped"));
-  assert.ok(bad((x) => { x.HostConfig.CapAdd = ["SYS_ADMIN"]; }).includes("capabilities added"));
-  assert.ok(bad((x) => { x.HostConfig.NetworkMode = "host"; }).includes("host network"));
-  assert.ok(bad((x) => { x.HostConfig.PidMode = "host"; }).includes("host pid namespace"));
-  assert.ok(bad((x) => { x.HostConfig.Binds.push("/var/run/docker.sock:/var/run/docker.sock"); }).includes("docker socket"));
-  assert.ok(bad((x) => { x.HostConfig.Binds.push("/etc:/etc:ro"); }).includes("a system folder is bound"));
-  assert.ok(bad((x) => { x.HostConfig.Devices = [{ PathOnHost: "/dev/kvm" }]; }).includes("devices"));
-  assert.ok(bad((x) => { x.HostConfig.Memory = 0; }).includes("no process or memory limit"));
+  const bad = (f: (x: ContainerConfig) => void): string[] => {
+    const x = structuredClone(c);
+    f(x);
+    return reviewComputerConfig(x);
+  };
+  assert.ok(
+    bad((x) => {
+      x.HostConfig.Privileged = true;
+    }).includes("privileged"),
+  );
+  assert.ok(
+    bad((x) => {
+      x.HostConfig.CapDrop = [];
+    }).includes("capabilities are not all dropped"),
+  );
+  assert.ok(
+    bad((x) => {
+      x.HostConfig.CapAdd = ["SYS_ADMIN"];
+    }).includes("capabilities added"),
+  );
+  assert.ok(
+    bad((x) => {
+      x.HostConfig.NetworkMode = "host";
+    }).includes("host network"),
+  );
+  assert.ok(
+    bad((x) => {
+      x.HostConfig.PidMode = "host";
+    }).includes("host pid namespace"),
+  );
+  assert.ok(
+    bad((x) => {
+      x.HostConfig.Binds.push("/var/run/docker.sock:/var/run/docker.sock");
+    }).includes("docker socket"),
+  );
+  assert.ok(
+    bad((x) => {
+      x.HostConfig.Binds.push("/etc:/etc:ro");
+    }).includes("a system folder is bound"),
+  );
+  assert.ok(
+    bad((x) => {
+      x.HostConfig.Devices = [{ PathOnHost: "/dev/kvm" }];
+    }).includes("devices"),
+  );
+  assert.ok(
+    bad((x) => {
+      x.HostConfig.Memory = 0;
+    }).includes("no process or memory limit"),
+  );
 });
 
 test("create makes a stopped container, and an image that is not on the host is an error, not a surprise later", async () => {
@@ -81,18 +193,36 @@ test("create makes a stopped container, and an image that is not on the host is 
   assert.deepEqual(f.calls, [`imageExists ${DEFAULT_COMPUTER_IMAGE}`, "create vyre-comp-abc"]);
   assert.equal(f.running.size, 0);
   f.setImage(false);
-  await assert.rejects(() => host.create({ computerId: "cmt_two", agentId: "agt_two", tabLimit: 8, idleSleepMinutes: 10 }), (e: Error) => e.message.startsWith("This server can't start agent computers yet.\nDetails: "));
+  await assert.rejects(
+    () => host.create({ computerId: "cmt_two", agentId: "agt_two", tabLimit: 8, idleSleepMinutes: 10 }),
+    (e: Error) => e.message.startsWith("This server can't start agent computers yet.\nDetails: "),
+  );
   assert.equal(f.created.has("vyre-comp-two"), false);
 });
 
 test("a local agent computer image name (vyre/...) is never asked of a registry: Docker would look on Docker Hub, which is not Vyre's", async () => {
-  for (const image of ["vyre/agent-computer:1", "docker.io/vyre/agent-computer:1", `vyre/agent-computer@sha256:${"f".repeat(64)}`]) {
+  for (const image of [
+    "vyre/agent-computer:1",
+    "docker.io/vyre/agent-computer:1",
+    `vyre/agent-computer@sha256:${"f".repeat(64)}`,
+  ]) {
     const f = fakeApi();
     f.setImage(false);
     const asked: string[] = [];
-    const http = async (r: { path: string }) => { asked.push(r.path); f.setImage(true); return { status: 200, body: new TextEncoder().encode('{"status":"Pull complete"}') }; };
+    const http = async (r: { path: string }) => {
+      asked.push(r.path);
+      f.setImage(true);
+      return { status: 200, body: new TextEncoder().encode('{"status":"Pull complete"}') };
+    };
     const host = createDockerComputerHost({ api: f.api, image, http } as never);
-    await assert.rejects(() => host.create({ computerId: "cmt_loc", agentId: INTAKE, tabLimit: 8, idleSleepMinutes: 10 }), (e: Error) => { const [plain, details] = e.message.split("\nDetails: "); return plain === "This server can't start agent computers yet." && /never fetched/.test(details ?? ""); }, image);
+    await assert.rejects(
+      () => host.create({ computerId: "cmt_loc", agentId: INTAKE, tabLimit: 8, idleSleepMinutes: 10 }),
+      (e: Error) => {
+        const [plain, details] = e.message.split("\nDetails: ");
+        return plain === "This server can't start agent computers yet." && /never fetched/.test(details ?? "");
+      },
+      image,
+    );
     assert.deepEqual(asked, [], `no fetch was tried for ${image}`);
   }
 });
@@ -102,21 +232,56 @@ test("an image named by digest is fetched whole (fromImage carries the digest, n
   const f = fakeApi();
   f.setImage(false);
   const pulls: Array<Record<string, string>> = [];
-  const http = async (r: { path: string; query?: Record<string, string> }) => { pulls.push({ path: r.path, ...(r.query ?? {}) }); f.setImage(true); return { status: 200, body: new TextEncoder().encode('{"status":"Pull complete"}') }; };
+  const http = async (r: { path: string; query?: Record<string, string> }) => {
+    pulls.push({ path: r.path, ...(r.query ?? {}) });
+    f.setImage(true);
+    return { status: 200, body: new TextEncoder().encode('{"status":"Pull complete"}') };
+  };
   const host = createDockerComputerHost({ api: f.api, image: digest, http } as never);
   await host.create({ computerId: "cmt_dig", agentId: INTAKE, tabLimit: 8, idleSleepMinutes: 10 });
-  assert.deepEqual(pulls, [{ path: "/images/create", fromImage: digest }], "the whole reference in fromImage, and no tag");
+  assert.deepEqual(
+    pulls,
+    [{ path: "/images/create", fromImage: digest }],
+    "the whole reference in fromImage, and no tag",
+  );
   const g = fakeApi();
   g.setImage(false);
-  const none = createDockerComputerHost({ api: g.api, image: digest, http: async () => ({ status: 404, body: new TextEncoder().encode('{"message":"manifest unknown"}') }) } as never);
-  await assert.rejects(() => none.create({ computerId: "cmt_none", agentId: INTAKE, tabLimit: 8, idleSleepMinutes: 10 }), (e: Error) => { const [plain, details] = e.message.split("\nDetails: "); return plain === "This server can't start agent computers yet." && !/docker|image|sha256|ghcr|digest|pull/i.test(plain) && (details ?? "").includes(`docker pull ${digest}`); });
+  const none = createDockerComputerHost({
+    api: g.api,
+    image: digest,
+    http: async () => ({ status: 404, body: new TextEncoder().encode('{"message":"manifest unknown"}') }),
+  } as never);
+  await assert.rejects(
+    () => none.create({ computerId: "cmt_none", agentId: INTAKE, tabLimit: 8, idleSleepMinutes: 10 }),
+    (e: Error) => {
+      const [plain, details] = e.message.split("\nDetails: ");
+      return (
+        plain === "This server can't start agent computers yet." &&
+        !/docker|image|sha256|ghcr|digest|pull/i.test(plain) &&
+        (details ?? "").includes(`docker pull ${digest}`)
+      );
+    },
+  );
 });
 
 test("start unseals the profile, starts the container and waits for agentd to answer", async () => {
   const f = fakeApi();
   const order: string[] = [];
   let slept = 0;
-  const host = createDockerComputerHost({ api: f.api, profile: { unseal: async () => { order.push("unseal"); }, seal: async () => { order.push("seal"); } }, sleep: async () => { slept++; } });
+  const host = createDockerComputerHost({
+    api: f.api,
+    profile: {
+      unseal: async () => {
+        order.push("unseal");
+      },
+      seal: async () => {
+        order.push("seal");
+      },
+    },
+    sleep: async () => {
+      slept++;
+    },
+  });
   f.failNextExecs(2);
   await host.start({ computerId: "cmt_abc", tabLimit: 5 });
   assert.equal(f.running.has("vyre-comp-abc"), true);
@@ -130,16 +295,30 @@ test("start unseals the profile, starts the container and waits for agentd to an
   const realNow = Date.now;
   Date.now = () => (t += 20_000);
   try {
-    await assert.rejects(() => createDockerComputerHost({ api: dead.api, sleep: async () => {} }).start({ computerId: "cmt_x", tabLimit: 1 }), /did not answer in time/);
+    await assert.rejects(
+      () =>
+        createDockerComputerHost({ api: dead.api, sleep: async () => {} }).start({ computerId: "cmt_x", tabLimit: 1 }),
+      /did not answer in time/,
+    );
   } finally {
     Date.now = realNow;
   }
 });
 
 test("stop reads the signed-in sessions first, stops the container, then seals the profile", async () => {
-  const f = fakeApi({ sessions: () => ({ stdout: JSON.stringify({ sessions: [{ site: "app.example.com", since: 1, lastSeen: 2 }] }) }) });
+  const f = fakeApi({
+    sessions: () => ({ stdout: JSON.stringify({ sessions: [{ site: "app.example.com", since: 1, lastSeen: 2 }] }) }),
+  });
   const order: string[] = [];
-  const host = createDockerComputerHost({ api: f.api, profile: { unseal: async () => {}, seal: async () => { order.push("seal"); } } });
+  const host = createDockerComputerHost({
+    api: f.api,
+    profile: {
+      unseal: async () => {},
+      seal: async () => {
+        order.push("seal");
+      },
+    },
+  });
   await host.start({ computerId: "cmt_abc", tabLimit: 8 });
   const out = await host.stop({ computerId: "cmt_abc", reason: "requested" });
   assert.deepEqual(out.sessions, [{ site: "app.example.com", since: 1, lastSeen: 2 }]);
@@ -154,21 +333,38 @@ test("stop reads the signed-in sessions first, stops the container, then seals t
 test("remove deletes the container and the profile volume", async () => {
   const f = fakeApi();
   const volumes: string[] = [];
-  const http: DockerHttp = async (r) => { volumes.push(`${r.method} ${r.path} ${r.query?.["force"] ?? ""}`); return { status: 204, body: new Uint8Array() }; };
+  const http: DockerHttp = async (r) => {
+    volumes.push(`${r.method} ${r.path} ${r.query?.["force"] ?? ""}`);
+    return { status: 204, body: new Uint8Array() };
+  };
   await createDockerComputerHost({ api: f.api, http }).remove("cmt_abc");
   assert.deepEqual(f.calls, ["remove vyre-comp-abc"]);
   assert.deepEqual(volumes, ["DELETE /volumes/vyre-comp-abc-profile true"]);
   const refused: DockerHttp = async () => ({ status: 409, body: new Uint8Array() });
-  await assert.rejects(() => createDockerComputerHost({ api: f.api, http: refused }).remove("cmt_abc"), /profile volume was not removed/);
+  await assert.rejects(
+    () => createDockerComputerHost({ api: f.api, http: refused }).remove("cmt_abc"),
+    /profile volume was not removed/,
+  );
 });
 
 test("probe asks agentd only when the container runs", async () => {
-  const f = fakeApi({ status: () => ({ stdout: JSON.stringify({ tabs: 3, busy: true, caption: "Reading", lastFrameAt: 99, diskBytes: 7 }) }) });
+  const f = fakeApi({
+    status: () => ({
+      stdout: JSON.stringify({ tabs: 3, busy: true, caption: "Reading", lastFrameAt: 99, diskBytes: 7 }),
+    }),
+  });
   const host = createDockerComputerHost({ api: f.api });
   assert.deepEqual(await host.probe("cmt_abc"), { running: false, busy: false, tabs: 0 });
   assert.equal(f.execs.length, 0);
   f.running.add("vyre-comp-abc");
-  assert.deepEqual(await host.probe("cmt_abc"), { running: true, busy: true, tabs: 3, caption: "Reading", lastFrameAt: 99, diskBytes: 7 });
+  assert.deepEqual(await host.probe("cmt_abc"), {
+    running: true,
+    busy: true,
+    tabs: 3,
+    caption: "Reading",
+    lastFrameAt: 99,
+    diskBytes: 7,
+  });
 });
 
 test("agentd's answers become the host's: takeover, screenshot, stream, sessions, sign out, and errors carry agentd's words", async () => {
@@ -183,31 +379,63 @@ test("agentd's answers become the host's: takeover, screenshot, stream, sessions
   const host = createDockerComputerHost({ api: f.api });
   const shot = await host.screenshot("cmt_abc");
   assert.deepEqual([shot.width, shot.height, shot.bytes.length], [640, 400, 4]);
-  assert.deepEqual(await host.stream({ computerId: "cmt_abc", ticket: "cpt_1" }), { transport: "webrtc", url: "/rtc/cpt_1" });
+  assert.deepEqual(await host.stream({ computerId: "cmt_abc", ticket: "cpt_1" }), {
+    transport: "webrtc",
+    url: "/rtc/cpt_1",
+  });
   assert.equal((await host.sessions("cmt_abc")).length, 1);
   assert.equal(await host.signOut({ computerId: "cmt_abc", site: "a.example.com" }), true);
   assert.equal(await host.signOut({ computerId: "cmt_abc", site: "b.example.com" }), false);
-  await assert.rejects(() => host.takeover({ computerId: "cmt_abc", personId: "usr_dana" }), /agentd takeover failed \(3\): the desktop is not ready/);
+  await assert.rejects(
+    () => host.takeover({ computerId: "cmt_abc", personId: "usr_dana" }),
+    /agentd takeover failed \(3\): the desktop is not ready/,
+  );
   await host.giveBack("cmt_abc");
   assert.ok(ctlCalls(f.execs).includes("give_back {}"));
 });
 
 test("recordings: agentd records, the host writes the masked files beside the video, and a path outside work/recordings is refused", async () => {
   const f = fakeApi({
-    record_stop: () => ({ stdout: JSON.stringify({ events: "{\"t\":1}\n", har: "{\"log\":{}}", durationMs: 1234 }) }),
+    record_stop: () => ({ stdout: JSON.stringify({ events: '{"t":1}\n', har: '{"log":{}}', durationMs: 1234 }) }),
   });
   const host = createDockerComputerHost({ api: f.api, user: { uid: 1000, gid: 1000 } });
   await host.record({ computerId: "cmt_abc", recordingId: "rcd_a1", action: "start" });
-  assert.deepEqual(await host.record({ computerId: "cmt_abc", recordingId: "rcd_a1", action: "stop" }), { events: "{\"t\":1}\n", har: "{\"log\":{}}", durationMs: 1234 });
-  await host.saveRecording({ computerId: "cmt_abc", recordingId: "rcd_a1", folderPath: "work/recordings/rcd_a1", events: "E", har: "H" });
-  assert.deepEqual(f.execs.find((e) => e.cmd[0] === "mkdir")?.cmd, ["mkdir", "-p", `${FILES_GUEST}/work/recordings/rcd_a1`]);
+  assert.deepEqual(await host.record({ computerId: "cmt_abc", recordingId: "rcd_a1", action: "stop" }), {
+    events: '{"t":1}\n',
+    har: '{"log":{}}',
+    durationMs: 1234,
+  });
+  await host.saveRecording({
+    computerId: "cmt_abc",
+    recordingId: "rcd_a1",
+    folderPath: "work/recordings/rcd_a1",
+    events: "E",
+    har: "H",
+  });
+  assert.deepEqual(f.execs.find((e) => e.cmd[0] === "mkdir")?.cmd, [
+    "mkdir",
+    "-p",
+    `${FILES_GUEST}/work/recordings/rcd_a1`,
+  ]);
   const a = f.archives[0]!;
   assert.equal(a.dir, `${FILES_GUEST}/work/recordings/rcd_a1`);
   const files = untar(a.tar).filter((x) => x.type === "file");
-  assert.deepEqual(files.map((x) => [x.path, new TextDecoder().decode(x.data), x.uid]), [["events.jsonl", "E", 1000], ["network.har", "H", 1000]]);
+  assert.deepEqual(
+    files.map((x) => [x.path, new TextDecoder().decode(x.data), x.uid]),
+    [
+      ["events.jsonl", "E", 1000],
+      ["network.har", "H", 1000],
+    ],
+  );
   for (const bad of ["work/recordings/../../etc", "../escape", "work/recordings/rcd_a1/extra", "/abs"]) {
-    await assert.rejects(() => host.saveRecording({ computerId: "cmt_abc", recordingId: "rcd_a1", folderPath: bad, events: "", har: "" }), /work\/recordings/);
-    await assert.rejects(() => host.removeRecording({ computerId: "cmt_abc", recordingId: "rcd_a1", folderPath: bad }), /work\/recordings/);
+    await assert.rejects(
+      () => host.saveRecording({ computerId: "cmt_abc", recordingId: "rcd_a1", folderPath: bad, events: "", har: "" }),
+      /work\/recordings/,
+    );
+    await assert.rejects(
+      () => host.removeRecording({ computerId: "cmt_abc", recordingId: "rcd_a1", folderPath: bad }),
+      /work\/recordings/,
+    );
   }
   await host.removeRecording({ computerId: "cmt_abc", recordingId: "rcd_a1", folderPath: "work/recordings/rcd_a1" });
   assert.deepEqual(f.execs.at(-1)?.cmd, ["rm", "-rf", `${FILES_GUEST}/work/recordings/rcd_a1`]);
@@ -219,13 +447,22 @@ test("health is the engine's answer", async () => {
   assert.equal(h.ok, true);
   assert.ok((h.latencyMs ?? -1) >= 0);
   const down = createDockerComputerHost({ api: { ...fakeApi().api, ping: async () => false } });
-  assert.deepEqual([(await down.health()).ok, (await down.health()).detail], [false, "The container runtime did not answer."]);
+  assert.deepEqual(
+    [(await down.health()).ok, (await down.health()).detail],
+    [false, "The container runtime did not answer."],
+  );
 });
 
 test("the whole lifecycle through the handlers on the Docker host: provision, wake, take over, record, give back, sleep", async () => {
   const f = fakeApi({
     status: () => ({ stdout: JSON.stringify({ tabs: 2, busy: false }) }),
-    record_stop: () => ({ stdout: JSON.stringify({ events: "", har: JSON.stringify({ log: { version: "1.2", entries: [] } }), durationMs: 60_000 }) }),
+    record_stop: () => ({
+      stdout: JSON.stringify({
+        events: "",
+        har: JSON.stringify({ log: { version: "1.2", entries: [] } }),
+        durationMs: 60_000,
+      }),
+    }),
     sessions: () => ({ stdout: JSON.stringify({ sessions: [] }) }),
   });
   const h = harness();
@@ -245,7 +482,10 @@ test("the whole lifecycle through the handlers on the Docker host: provision, wa
   assert.equal((await giveBack(h.ctx, { computerId: made.computer.computerId })).computer.state, "working");
   assert.equal((await sleep(h.ctx, { computerId: made.computer.computerId })).computer.state, "asleep");
   assert.equal(f.running.has(name), false);
-  assert.deepEqual(ctlCalls(f.execs).map((c) => c.split(" ")[0]), ["configure", "status", "takeover", "record_start", "record_stop", "give_back", "status", "status", "sessions"]);
+  assert.deepEqual(
+    ctlCalls(f.execs).map((c) => c.split(" ")[0]),
+    ["configure", "status", "takeover", "record_start", "record_stop", "give_back", "status", "status", "sessions"],
+  );
 });
 
 test("chromeData reads only what holds sign-ins and settings out of Chrome's folder (never the caches), renamed into place under chrome/, unseals and seals around it, and says nothing when there is none", async () => {
@@ -259,12 +499,48 @@ test("chromeData reads only what holds sign-ins and settings out of Chrome's fol
     asked.push(rel);
     if (status !== 200 || !have.has(rel)) return { status: status === 200 ? 404 : status, body: new Uint8Array() };
     const base = rel.split("/").pop()!;
-    return { status: 200, body: tarFiles(rel === "Default/Local Storage" ? [{ path: `${base}/leveldb/000003.log`, data: new Uint8Array([2]), mode: 0o600, uid: 10001, gid: 10001, mtime: 1 }] : [{ path: base, data: new Uint8Array([1]), mode: 0o600, uid: 10001, gid: 10001, mtime: 1 }]) };
+    return {
+      status: 200,
+      body: tarFiles(
+        rel === "Default/Local Storage"
+          ? [
+              {
+                path: `${base}/leveldb/000003.log`,
+                data: new Uint8Array([2]),
+                mode: 0o600,
+                uid: 10001,
+                gid: 10001,
+                mtime: 1,
+              },
+            ]
+          : [{ path: base, data: new Uint8Array([1]), mode: 0o600, uid: 10001, gid: 10001, mtime: 1 }],
+      ),
+    };
   };
-  const host = createDockerComputerHost({ api: f.api, http, profile: { async unseal() { steps.push("unseal"); }, async seal() { steps.push("seal"); } } });
+  const host = createDockerComputerHost({
+    api: f.api,
+    http,
+    profile: {
+      async unseal() {
+        steps.push("unseal");
+      },
+      async seal() {
+        steps.push("seal");
+      },
+    },
+  });
   const got = await host.chromeData!("cmt_abc123");
-  assert.deepEqual(untar(got!.tar).filter((e) => e.type === "file").map((e) => e.path).sort(), ["chrome/Default/Cookies", "chrome/Default/Local Storage/leveldb/000003.log", "chrome/Local State"]);
-  assert.ok(!asked.some((p) => /Cache|GPUCache|History|Service Worker/.test(p)), `no cache is read: ${asked.join(", ")}`);
+  assert.deepEqual(
+    untar(got!.tar)
+      .filter((e) => e.type === "file")
+      .map((e) => e.path)
+      .sort(),
+    ["chrome/Default/Cookies", "chrome/Default/Local Storage/leveldb/000003.log", "chrome/Local State"],
+  );
+  assert.ok(
+    !asked.some((p) => /Cache|GPUCache|History|Service Worker/.test(p)),
+    `no cache is read: ${asked.join(", ")}`,
+  );
   assert.deepEqual(steps, ["unseal", "seal"]);
   have.clear();
   assert.equal(await host.chromeData!("cmt_abc123"), null);

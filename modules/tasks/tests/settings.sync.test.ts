@@ -5,7 +5,8 @@ import { harness, codeOf, reasonOf } from "../fixtures/db.ts";
 import { alice, bot, newTask, owner } from "../fixtures/seed.ts";
 import { consumers } from "../impl.ts";
 
-const announce = (h: ReturnType<typeof harness>, key: string, after: unknown): Promise<string[]> => consumers["tasks.settings_sync"].run({ db: h.db } as never, { payload: { key, scope: "space", after } });
+const announce = (h: ReturnType<typeof harness>, key: string, after: unknown): Promise<string[]> =>
+  consumers["tasks.settings_sync"].run({ db: h.db } as never, { payload: { key, scope: "space", after } });
 
 test("changing the review loop limit changes when an agent reviewer has to stop", async () => {
   const h = harness();
@@ -15,7 +16,11 @@ test("changing the review loop limit changes when an agent reviewer has to stop"
   await h.call("tasks.transition", { taskId: id, to: "in_review" }, { id: alice.id });
   await h.call("tasks.transition", { taskId: id, to: "doing", note: "once" }, agent);
   await h.call("tasks.transition", { taskId: id, to: "in_review" }, { id: alice.id });
-  await assert.rejects(h.call("tasks.transition", { taskId: id, to: "doing", note: "twice" }, agent), (e) => { assert.equal(codeOf(e), "validation.precondition_failed"); assert.equal(reasonOf(e), "review_loop_limit"); return true; });
+  await assert.rejects(h.call("tasks.transition", { taskId: id, to: "doing", note: "twice" }, agent), (e) => {
+    assert.equal(codeOf(e), "validation.precondition_failed");
+    assert.equal(reasonOf(e), "review_loop_limit");
+    return true;
+  });
 });
 
 test("settings that are not the tasks module's are left alone", async () => {

@@ -28,13 +28,32 @@ export const POPUP_SCREEN = "chats.computer-popup";
 export const SCREEN_H = 180;
 
 /** The faux window the screen draws: a bar with three dots and a caption line, then lines of content. The real frame replaces it when the stream arrives. */
-function Screen({ view, caption, onPress, name, online, live }: { view: ReturnType<typeof computerView>; caption: string; onPress: () => void; name: string; online: boolean; live?: { computerId: string; state: string; control: boolean } }): ReactElement {
+function Screen({
+  view,
+  caption,
+  onPress,
+  name,
+  online,
+  live,
+}: {
+  view: ReturnType<typeof computerView>;
+  caption: string;
+  onPress: () => void;
+  name: string;
+  online: boolean;
+  live?: { computerId: string; state: string; control: boolean };
+}): ReactElement {
   const dim = view.screen === "asleep";
   const data = usePaneData();
   const body = (
     <>
       <View style={[st.window, dim && { opacity: 0.45 }]}>
-        <View style={st.bar}><View style={st.dot} /><View style={st.dot} /><View style={st.dot} /><View style={st.url} /></View>
+        <View style={st.bar}>
+          <View style={st.dot} />
+          <View style={st.dot} />
+          <View style={st.dot} />
+          <View style={st.url} />
+        </View>
         <View style={st.body}>
           <View style={[st.line, { width: "42%" }]} />
           <View style={[st.field, view.screen === "live" && { borderColor: "var(--accent)" as string }]} />
@@ -43,9 +62,28 @@ function Screen({ view, caption, onPress, name, online, live }: { view: ReturnTy
         </View>
       </View>
       {/* ui-rows-lint: not a list (the drawn dock of a computer picture) */}
-      <View style={st.dock}>{(["globe", "terminal", "folder"] as const).map((n) => <View key={n} style={st.dockItem}><Icon name={n} size={9} color="#fff" /></View>)}</View>
-      {dim ? <View style={st.center}><View style={st.wake}><Icon name="moon" size={13} color="var(--ink-2)" /><Text style={st.wakeText}>Wake</Text></View></View> : null}
-      {!dim ? <View style={st.cap}><Text numberOfLines={1} style={st.capText}>{view.screen === "mine" ? "You're typing" : caption}</Text></View> : null}
+      <View style={st.dock}>
+        {(["globe", "terminal", "folder"] as const).map((n) => (
+          <View key={n} style={st.dockItem}>
+            <Icon name={n} size={9} color="#fff" />
+          </View>
+        ))}
+      </View>
+      {dim ? (
+        <View style={st.center}>
+          <View style={st.wake}>
+            <Icon name="moon" size={13} color="var(--ink-2)" />
+            <Text style={st.wakeText}>Wake</Text>
+          </View>
+        </View>
+      ) : null}
+      {!dim ? (
+        <View style={st.cap}>
+          <Text numberOfLines={1} style={st.capText}>
+            {view.screen === "mine" ? "You're typing" : caption}
+          </Text>
+        </View>
+      ) : null}
     </>
   );
   const label = view.screen === "asleep" ? `Wake ${name}'s computer` : `Open ${name}'s computer`;
@@ -53,11 +91,35 @@ function Screen({ view, caption, onPress, name, online, live }: { view: ReturnTy
   // Working or taken over: the real screen, live in the pane. While you are in control your clicks, wheel and keys go to it, here, without opening anything.
   if (live && (live.state === "working" || live.state === "takeover")) {
     return (
-      <LiveScreen computerId={live.computerId} state={live.state} call={data.call} spaceUrl={data.spaceUrl} now={() => data.clock().now} control={live.control} keys onIdlePress={onPress}
-        testID="computer-screen" streamTestID="computer-stream" label={label} style={style}>{body}</LiveScreen>
+      <LiveScreen
+        computerId={live.computerId}
+        state={live.state}
+        call={data.call}
+        spaceUrl={data.spaceUrl}
+        now={() => data.clock().now}
+        control={live.control}
+        keys
+        onIdlePress={onPress}
+        testID="computer-screen"
+        streamTestID="computer-stream"
+        label={label}
+        style={style}
+      >
+        {body}
+      </LiveScreen>
     );
   }
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} testID="computer-screen" style={style}>{body}</Pressable>;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      testID="computer-screen"
+      style={style}
+    >
+      {body}
+    </Pressable>
+  );
 }
 
 export function ComputerTab({ deps, window }: { deps: PaneDeps; window?: VirtualWindow }): ReactElement {
@@ -67,12 +129,38 @@ export function ComputerTab({ deps, window }: { deps: PaneDeps; window?: Virtual
   const canProvision = allows(rt, GATE.provisionComputer);
   const name = data.agent.name;
   const computerId = data.agent.computerId ?? "";
-  if (computerId === "") return <ComputerNone name={name} {...(canProvision && data.nav.openMachines ? { onOpenConsole: () => data.nav.openMachines?.() } : {})} />;
-  return <ComputerBody deps={deps} computerId={computerId} admin={canProvision} canTake={allows(rt, GATE.takeOver)} {...(window ? { window } : {})} />;
+  if (computerId === "")
+    return (
+      <ComputerNone
+        name={name}
+        {...(canProvision && data.nav.openMachines ? { onOpenConsole: () => data.nav.openMachines?.() } : {})}
+      />
+    );
+  return (
+    <ComputerBody
+      deps={deps}
+      computerId={computerId}
+      admin={canProvision}
+      canTake={allows(rt, GATE.takeOver)}
+      {...(window ? { window } : {})}
+    />
+  );
 }
 
-export interface HostRowOut { hostId: string; kind?: string; name: string; online?: boolean; canRun: boolean; reason?: string; detail?: string; room?: { fits: number; freeMb: number; totalMb: number } }
-export type HostsAnswer = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; available: boolean; hosts: readonly HostRowOut[] };
+export interface HostRowOut {
+  hostId: string;
+  kind?: string;
+  name: string;
+  online?: boolean;
+  canRun: boolean;
+  reason?: string;
+  detail?: string;
+  room?: { fits: number; freeMb: number; totalMb: number };
+}
+export type HostsAnswer =
+  | { state: "loading" }
+  | { state: "error"; message: string }
+  | { state: "ready"; available: boolean; hosts: readonly HostRowOut[] };
 
 /** The steps a computer goes through to be ready, from what it reports: the machine, the start, and Chrome coming up. Nothing else is waited for: the computer is ready once it is working and its browser is up. */
 export const SETUP_STEPS = ["Getting the machine ready", "Starting the computer", "Starting Chrome"] as const;
@@ -83,7 +171,8 @@ export function setupStep(c: Pick<Computer, "state" | "tabs" | "lastFrameAt" | "
   if (c.state === "working" && c.caption === undefined && c.lastFrameAt === undefined && c.tabs === 0) return 2;
   return c.state === "working" ? SETUP_STEPS.length : 1;
 }
-export const isSettingUp = (c: Pick<Computer, "state" | "tabs" | "lastFrameAt" | "caption">): boolean => c.state === "provisioning" || c.state === "waking" || (c.state === "working" && setupStep(c) < SETUP_STEPS.length);
+export const isSettingUp = (c: Pick<Computer, "state" | "tabs" | "lastFrameAt" | "caption">): boolean =>
+  c.state === "provisioning" || c.state === "waking" || (c.state === "working" && setupStep(c) < SETUP_STEPS.length);
 
 /** Real progress, never a bare spinner. */
 export function SettingUp({ name, step, where }: { name: string; step: number; where?: string }): ReactElement {
@@ -94,8 +183,15 @@ export function SettingUp({ name, step, where }: { name: string; step: number; w
       <View style={{ marginTop: 8 }}>
         {/* ui-rows-lint: not a list (setup progress: the steps as a stepper, nothing to press) */}
         {SETUP_STEPS.map((w, i) => (
-          <View key={w} testID={`setup-step-${i}`} accessibilityLabel={`${w}: ${i < step ? "done" : i === step ? "now" : "waiting"}`} style={st.step}>
-            <View style={[st.stepDot, i < step && st.stepDone, i === step && st.stepNow]}>{i < step ? <Icon name="check" size={11} color="#fff" width={2} /> : null}</View>
+          <View
+            key={w}
+            testID={`setup-step-${i}`}
+            accessibilityLabel={`${w}: ${i < step ? "done" : i === step ? "now" : "waiting"}`}
+            style={st.step}
+          >
+            <View style={[st.stepDot, i < step && st.stepDone, i === step && st.stepNow]}>
+              {i < step ? <Icon name="check" size={11} color="#fff" width={2} /> : null}
+            </View>
             <Text style={[st.stepText, i === step && { color: "var(--ink)", fontWeight: "500" }]}>{w}</Text>
           </View>
         ))}
@@ -105,13 +201,32 @@ export function SettingUp({ name, step, where }: { name: string; step: number; w
 }
 
 /** The real reason and the next step, and a way to keep the details. */
-export function FailedBody({ name, reason, details, onCopy, onAgain, againLabel = "Try again" }: { name: string; reason: string; details: string; onCopy(text: string): void; onAgain?: () => void; againLabel?: string }): ReactElement {
+export function FailedBody({
+  name,
+  reason,
+  details,
+  onCopy,
+  onAgain,
+  againLabel = "Try again",
+}: {
+  name: string;
+  reason: string;
+  details: string;
+  onCopy(text: string): void;
+  onAgain?: () => void;
+  againLabel?: string;
+}): ReactElement {
   return (
     <View testID="computer-failed" style={st.padded}>
       <Text accessibilityRole="header" style={st.headline}>{`${name}'s computer`}</Text>
       <View style={st.fail}>
-        <View style={st.cannotHead}><Icon name="warn" size={14} color="var(--danger)" /><Text style={st.failTitle}>The computer could not be set up</Text></View>
-        <Text testID="computer-fail-reason" style={st.failText}>{reason}</Text>
+        <View style={st.cannotHead}>
+          <Icon name="warn" size={14} color="var(--danger)" />
+          <Text style={st.failTitle}>The computer could not be set up</Text>
+        </View>
+        <Text testID="computer-fail-reason" style={st.failText}>
+          {reason}
+        </Text>
       </View>
       <View style={st.row2}>
         <TextButton label="Copy details" onPress={() => onCopy(details)} testID="computer-copy-details" />
@@ -124,7 +239,10 @@ export function FailedBody({ name, reason, details, onCopy, onAgain, againLabel 
 /** The name of the machine a computer runs on: the server it was placed on, or the Space's own. */
 export function hostName(h: HostsAnswer, nodeId: string | null): string {
   if (h.state !== "ready") return "";
-  return (nodeId ? h.hosts.find((x) => x.hostId === nodeId) : h.hosts.find((x) => x.kind === "space" || x.kind === "this"))?.name ?? "";
+  return (
+    (nodeId ? h.hosts.find((x) => x.hostId === nodeId) : h.hosts.find((x) => x.kind === "space" || x.kind === "this"))
+      ?.name ?? ""
+  );
 }
 
 /** The hosts the Space offers, read once for the pane. */
@@ -133,34 +251,75 @@ function useHosts(): HostsAnswer {
   const [hosts, setHosts] = useState<HostsAnswer>({ state: "loading" });
   useEffect(() => {
     let live = true;
-    void data.call("computers.hosts", {}).then((o) => {
-      if (!live) return;
-      const out = o as { available?: boolean; hosts?: HostRowOut[] };
-      setHosts({ state: "ready", available: out.available === true, hosts: Array.isArray(out.hosts) ? out.hosts : [] });
-    }).catch((e: unknown) => { if (live) setHosts({ state: "error", message: e instanceof Error ? e.message : "no answer" }); });
-    return () => { live = false; };
+    void data
+      .call("computers.hosts", {})
+      .then((o) => {
+        if (!live) return;
+        const out = o as { available?: boolean; hosts?: HostRowOut[] };
+        setHosts({
+          state: "ready",
+          available: out.available === true,
+          hosts: Array.isArray(out.hosts) ? out.hosts : [],
+        });
+      })
+      .catch((e: unknown) => {
+        if (live) setHosts({ state: "error", message: e instanceof Error ? e.message : "no answer" });
+      });
+    return () => {
+      live = false;
+    };
   }, [data]);
   return hosts;
 }
 
 /** The legacy Computer tab for an agent that has no old desktop, drawn only where the terminal and the browser are not bound: what would let this Space run them. Owners and admins get a button to Console > Computers; others read it as plain words. */
-export function ComputerNone({ name, onOpenConsole }: { name: string; onOpenConsole?: (() => void) | undefined }): ReactElement {
+export function ComputerNone({
+  name,
+  onOpenConsole,
+}: {
+  name: string;
+  onOpenConsole?: (() => void) | undefined;
+}): ReactElement {
   return (
     <View testID="computer-none" style={st.padded}>
       <Text accessibilityRole="header" style={st.headline}>{`${name}'s terminal and browser`}</Text>
       {/* a member has no Console: who can add the server is named instead of a place they cannot open (review F4) */}
-      <Text style={st.none}>{onOpenConsole ? "They appear here once this Space can run them. That needs Docker on the computer this Space runs on, or a server with Docker added in Console > Computers." : "They appear here once this Space can run them. That needs Docker on the computer this Space runs on, or a server with Docker, which an owner or admin adds."}</Text>
-      {onOpenConsole ? <View style={[st.row2, { marginTop: 10 }]}><TextButton label="Open Console > Computers" primary onPress={onOpenConsole} testID="computer-none-console" /></View> : null}
+      <Text style={st.none}>
+        {onOpenConsole
+          ? "They appear here once this Space can run them. That needs Docker on the computer this Space runs on, or a server with Docker added in Console > Computers."
+          : "They appear here once this Space can run them. That needs Docker on the computer this Space runs on, or a server with Docker, which an owner or admin adds."}
+      </Text>
+      {onOpenConsole ? (
+        <View style={[st.row2, { marginTop: 10 }]}>
+          <TextButton label="Open Console > Computers" primary onPress={onOpenConsole} testID="computer-none-console" />
+        </View>
+      ) : null}
     </View>
   );
 }
 
-function ComputerBody({ deps, computerId, window, canTake, admin }: { deps: PaneDeps; computerId: string; window?: VirtualWindow; canTake: boolean; admin: boolean }): ReactElement {
+function ComputerBody({
+  deps,
+  computerId,
+  window,
+  canTake,
+  admin,
+}: {
+  deps: PaneDeps;
+  computerId: string;
+  window?: VirtualWindow;
+  canTake: boolean;
+  admin: boolean;
+}): ReactElement {
   const data = usePaneData();
   const online = useOnline();
   const [sel, setSel] = useState<number | null>(null);
   const hosts = useHosts();
-  const refused = useSyncExternalStore(wakeFailure.subscribe, () => wakeFailure.get(computerId), () => wakeFailure.get(computerId));
+  const refused = useSyncExternalStore(
+    wakeFailure.subscribe,
+    () => wakeFailure.get(computerId),
+    () => wakeFailure.get(computerId),
+  );
   const q = useScreenQuery<ComputerOut>(COMPUTER_SCREEN, "computer", { computerId });
   const sq = useScreenQuery<SessionsOut>(COMPUTER_SCREEN, "sessions", { computerId });
   const tq = useScreenQuery<TimelineOut>(POPUP_SCREEN, "timeline", { computerId });
@@ -168,73 +327,212 @@ function ComputerBody({ deps, computerId, window, canTake, admin }: { deps: Pane
   const clock = data.clock();
 
   if (q.status === "loading") {
-    return <View testID="computer-loading" accessibilityLabel="Loading" style={st.padded}><View style={st.skHead} /><View style={st.skScreen} /></View>;
+    return (
+      <View testID="computer-loading" accessibilityLabel="Loading" style={st.padded}>
+        <View style={st.skHead} />
+        <View style={st.skScreen} />
+      </View>
+    );
   }
 
   const c: Computer = q.data.computer;
   const where = c.nodeId ? hostName(hosts, c.nodeId) : hostName(hosts, null);
   // a wake the server refused or failed before it could write the row's own error: the row says Asleep, this says why it did not start
   if (c.state === "error" || (refused !== undefined && c.state === "asleep")) {
-    const raw: Failure = c.state === "error" ? { message: c.error ?? "It could not start. Look at the server's logs for the reason." } : (refused ?? { message: "" });
+    const raw: Failure =
+      c.state === "error"
+        ? { message: c.error ?? "It could not start. Look at the server's logs for the reason." }
+        : (refused ?? { message: "" });
     const words = computerWords(raw, admin, name);
     const reason = words.sentence;
-    return <FailedBody name={name} reason={reason} details={`${name}'s computer ${c.computerId}\nstate: ${c.state}\nreason: ${words.details}${where ? `\nruns on: ${where}` : ""}`} onCopy={(text) => void copyText(deps, text)} {...(words.server ? (admin ? { onAgain: () => data.nav.openMachines?.(c.nodeId ?? undefined), againLabel: "Open Console > Computers" } : {}) : { onAgain: () => void wake(deps, c.computerId, name) })} />;
+    return (
+      <FailedBody
+        name={name}
+        reason={reason}
+        details={`${name}'s computer ${c.computerId}\nstate: ${c.state}\nreason: ${words.details}${where ? `\nruns on: ${where}` : ""}`}
+        onCopy={(text) => void copyText(deps, text)}
+        {...(words.server
+          ? admin
+            ? { onAgain: () => data.nav.openMachines?.(c.nodeId ?? undefined), againLabel: "Open Console > Computers" }
+            : {}
+          : { onAgain: () => void wake(deps, c.computerId, name) })}
+      />
+    );
   }
   if (isSettingUp(c)) return <SettingUp name={name} step={setupStep(c)} {...(where ? { where } : {})} />;
   const view = computerView(c);
   const steps: Step[] = tq.status === "ready" ? stepRows(tq.data.steps) : [];
   const sessions: Session[] = sq.status === "ready" ? sq.data.sessions : [];
   const shown = sel !== null ? steps[sel] : undefined;
-  const caption = shown ? shown.caption : c.caption ?? view.label;
+  const caption = shown ? shown.caption : (c.caption ?? view.label);
 
   // the state is one quiet chip; Open is the picture, Sleep is in the header's "..." and the computer sleeps by itself when idle
-  const chipText = view.screen === "asleep" ? "Asleep · wakes when needed" : view.screen === "mine" ? "You're in control" : `Awake · ${c.caption ?? "idle"}`;
+  const chipText =
+    view.screen === "asleep"
+      ? "Asleep · wakes when needed"
+      : view.screen === "mine"
+        ? "You're in control"
+        : `Awake · ${c.caption ?? "idle"}`;
   const head = (
     <View testID="computer-head" style={st.head}>
       {shown ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to live" onPress={() => setSel(null)} testID="computer-live" style={st.back}>
-          <Icon name="back" size={13} /><Text style={st.backText}>Live</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back to live"
+          onPress={() => setSel(null)}
+          testID="computer-live"
+          style={st.back}
+        >
+          <Icon name="back" size={13} />
+          <Text style={st.backText}>Live</Text>
         </Pressable>
       ) : null}
       <View testID="computer-chip" style={st.chip}>
-        <View testID="computer-state" accessibilityLabel={view.label} style={[st.statusDot, view.screen === "live" && st.dotLive, view.screen === "mine" && st.dotMine]} />
-        <Text numberOfLines={1} style={st.statusText}>{shown ? `Step ${(sel ?? 0) + 1} of ${steps.length}` : chipText}</Text>
+        <View
+          testID="computer-state"
+          accessibilityLabel={view.label}
+          style={[st.statusDot, view.screen === "live" && st.dotLive, view.screen === "mine" && st.dotMine]}
+        />
+        <Text numberOfLines={1} style={st.statusText}>
+          {shown ? `Step ${(sel ?? 0) + 1} of ${steps.length}` : chipText}
+        </Text>
       </View>
       <View style={st.grow} />
-      {view.action === "give" ? <TextButton label="Give back" primary onPress={() => void giveBack(deps, c.computerId, name, { threadId: data.threadId, agentId: data.agent.agentId })} testID="computer-give" /> : null}
-      {canTake && (view.action === "take" || shown) ? <Tool icon="hand" label="Take over" onPress={() => void takeOver(deps, c.computerId, name)} testID="computer-take" /> : null}
+      {view.action === "give" ? (
+        <TextButton
+          label="Give back"
+          primary
+          onPress={() =>
+            void giveBack(deps, c.computerId, name, { threadId: data.threadId, agentId: data.agent.agentId })
+          }
+          testID="computer-give"
+        />
+      ) : null}
+      {canTake && (view.action === "take" || shown) ? (
+        <Tool
+          icon="hand"
+          label="Take over"
+          onPress={() => void takeOver(deps, c.computerId, name)}
+          testID="computer-take"
+        />
+      ) : null}
     </View>
   );
 
   const entries: Entry[] = [
     { key: "head", type: "block", node: head },
     {
-      key: "screen", type: "block",
-      node: <View style={st.padded}><Screen view={view} caption={caption} name={name} online={online} live={{ computerId: c.computerId, state: c.state, control: view.screen === "mine" }} onPress={() => (view.screen === "asleep" ? void wake(deps, c.computerId, name) : view.screen === "mine" ? undefined : data.nav.openComputer(c.computerId))} /></View>,
+      key: "screen",
+      type: "block",
+      node: (
+        <View style={st.padded}>
+          <Screen
+            view={view}
+            caption={caption}
+            name={name}
+            online={online}
+            live={{ computerId: c.computerId, state: c.state, control: view.screen === "mine" }}
+            onPress={() =>
+              view.screen === "asleep"
+                ? void wake(deps, c.computerId, name)
+                : view.screen === "mine"
+                  ? undefined
+                  : data.nav.openComputer(c.computerId)
+            }
+          />
+        </View>
+      ),
     },
-    { key: "l-session", type: "label", text: view.screen === "asleep" ? "Last session" : "Session", right: stepsLine(steps.length) },
+    {
+      key: "l-session",
+      type: "label",
+      text: view.screen === "asleep" ? "Last session" : "Session",
+      right: stepsLine(steps.length),
+    },
   ];
-  if (steps.length === 0) entries.push({ key: "no-steps", type: "empty", text: "Nothing yet. Steps appear as it works." });
-  entries.push(...stepEntries({ steps, live: view.screen === "live", asleep: view.screen === "asleep", clock, sel, onSelect: setSel, onCopy: (text) => void copyText(deps, text), onSkill: (stepId) => data.nav.skillFromStep(c.computerId, stepId) }));
+  if (steps.length === 0)
+    entries.push({ key: "no-steps", type: "empty", text: "Nothing yet. Steps appear as it works." });
+  entries.push(
+    ...stepEntries({
+      steps,
+      live: view.screen === "live",
+      asleep: view.screen === "asleep",
+      clock,
+      sel,
+      onSelect: setSel,
+      onCopy: (text) => void copyText(deps, text),
+      onSkill: (stepId) => data.nav.skillFromStep(c.computerId, stepId),
+    }),
+  );
   entries.push({ key: "l-sites", type: "label", text: "Signed in on its computer" });
   if (sessions.length === 0) entries.push({ key: "no-sites", type: "empty", text: "Not signed in anywhere yet." });
   for (const x of sessions) {
     entries.push({
-      key: `site-${x.site}`, type: "row", title: x.site, note: `${x.signedInAs ? `${x.signedInAs} · ` : ""}since ${dayMonth(x.since, clock)}`, leading: <LeadIcon name="lock" />, testID: `site-${x.site}`,
-      trailing: (over) => (over ? <Tool icon="x" label={`Sign out of ${x.site}`} onPress={() => void signOut(deps, c.computerId, x.site)} testID={`signout-${x.site}`} /> : null),
+      key: `site-${x.site}`,
+      type: "row",
+      title: x.site,
+      note: `${x.signedInAs ? `${x.signedInAs} · ` : ""}since ${dayMonth(x.since, clock)}`,
+      leading: <LeadIcon name="lock" />,
+      testID: `site-${x.site}`,
+      trailing: (over) =>
+        over ? (
+          <Tool
+            icon="x"
+            label={`Sign out of ${x.site}`}
+            onPress={() => void signOut(deps, c.computerId, x.site)}
+            testID={`signout-${x.site}`}
+          />
+        ) : null,
       menu: [{ label: "Sign Out", danger: true, onSelect: () => void signOut(deps, c.computerId, x.site) }],
     });
   }
-  { const at = where || (c.host === "vm" ? "its own machine" : "the Space server"); entries.push({ key: "runs-on", type: "block", node: <RunsOn text={`On ${at} · ${view.screen === "asleep" ? "asleep" : `${c.tabs} of ${c.tabLimit} tabs`}`} {...(data.nav.openMachines ? { onPress: () => data.nav.openMachines?.(c.nodeId) } : {})} /> }); }
-  return <View style={st.fill}><PaneList entries={entries} {...(window ? { window } : {})} testID="computer-list" /></View>;
+  {
+    const at = where || (c.host === "vm" ? "its own machine" : "the Space server");
+    entries.push({
+      key: "runs-on",
+      type: "block",
+      node: (
+        <RunsOn
+          text={`On ${at} · ${view.screen === "asleep" ? "asleep" : `${c.tabs} of ${c.tabLimit} tabs`}`}
+          {...(data.nav.openMachines ? { onPress: () => data.nav.openMachines?.(c.nodeId) } : {})}
+        />
+      ),
+    });
+  }
+  return (
+    <View style={st.fill}>
+      <PaneList entries={entries} {...(window ? { window } : {})} testID="computer-list" />
+    </View>
+  );
 }
 
 /** The one footer line: where the computer runs and how many tabs it has open; it opens Console, Machines where the shell can. */
 export function RunsOn({ text, onPress }: { text: string; onPress?: () => void }): ReactElement {
-  const body = <><Icon name="server" size={14} /><Text numberOfLines={1} style={st.footText}>{text}</Text>{onPress ? <Icon name="chev" size={11} /> : null}</>;
-  return onPress
-    ? <Pressable role="button" accessibilityRole="button" accessibilityLabel={`${text}. Open Machines`} testID="computer-runs-on" onPress={onPress} style={st.foot}>{body}</Pressable>
-    : <View testID="computer-runs-on" style={st.foot}>{body}</View>;
+  const body = (
+    <>
+      <Icon name="server" size={14} />
+      <Text numberOfLines={1} style={st.footText}>
+        {text}
+      </Text>
+      {onPress ? <Icon name="chev" size={11} /> : null}
+    </>
+  );
+  return onPress ? (
+    <Pressable
+      role="button"
+      accessibilityRole="button"
+      accessibilityLabel={`${text}. Open Machines`}
+      testID="computer-runs-on"
+      onPress={onPress}
+      style={st.foot}
+    >
+      {body}
+    </Pressable>
+  ) : (
+    <View testID="computer-runs-on" style={st.foot}>
+      {body}
+    </View>
+  );
 }
 
 /** m:ss from a number of milliseconds. */
@@ -247,7 +545,18 @@ export function offsetLabel(ms: number): string {
  * The rows of a session's steps, newest last: one per step with its caption, who took it and when, Show This Step, Copy Caption and (for a computer) Make a Skill from Here. The Computer tab draws
  * a computer's steps with it, and the Browser section an agent's steps in its Space browser profile (f-wire, 12 Nov): one list for both.
  */
-export function stepEntries(o: { steps: readonly Step[]; live: boolean; asleep: boolean; clock: Clock; sel: number | null; onSelect(i: number | null): void; onCopy(text: string): void; onSkill?: (stepId: string) => void; key?: string; where?: WorkPlace }): Entry[] {
+export function stepEntries(o: {
+  steps: readonly Step[];
+  live: boolean;
+  asleep: boolean;
+  clock: Clock;
+  sel: number | null;
+  onSelect(i: number | null): void;
+  onCopy(text: string): void;
+  onSkill?: (stepId: string) => void;
+  key?: string;
+  where?: WorkPlace;
+}): Entry[] {
   const out: Entry[] = [];
   const { steps } = o;
   steps.forEach((x, i) => {
@@ -256,14 +565,23 @@ export function stepEntries(o: { steps: readonly Step[]; live: boolean; asleep: 
     const menu: MenuEntry[] = [
       { label: "Show This Step", onSelect: () => o.onSelect(last ? null : i) },
       { label: "Copy Caption", onSelect: () => o.onCopy(x.caption) },
-      ...(o.onSkill ? [{ separator: true as const }, { label: "Make a Skill from Here", onSelect: () => o.onSkill!(x.stepId) }] : []),
+      ...(o.onSkill
+        ? [{ separator: true as const }, { label: "Make a Skill from Here", onSelect: () => o.onSkill!(x.stepId) }]
+        : []),
     ];
     // A finished session reads as the prototype's: the tool and how far into the session the step was (Chrome · 0:02); a live one says how long ago.
     // one wording for a recent step: "just now", as agoLabel says it (review, 12 Nov)
     const when = running ? "just now" : o.asleep ? offsetLabel(x.at - (steps[0]?.at ?? x.at)) : agoLabel(x.at, o.clock);
     out.push({
-      key: `${o.key ?? "step"}-${x.stepId}`, type: "row", title: x.caption, note: `${stepWho(x, o.where)} · ${when}`, selected: o.sel === i,
-      leading: <Thumb dark={toolWord(x.tool) === "Terminal"} person={x.by === "person"} />, onPress: () => o.onSelect(last ? null : i), menu, testID: `step-${x.stepId}`,
+      key: `${o.key ?? "step"}-${x.stepId}`,
+      type: "row",
+      title: x.caption,
+      note: `${stepWho(x, o.where)} · ${when}`,
+      selected: o.sel === i,
+      leading: <Thumb dark={toolWord(x.tool) === "Terminal"} person={x.by === "person"} />,
+      onPress: () => o.onSelect(last ? null : i),
+      menu,
+      testID: `step-${x.stepId}`,
     });
   });
   return out;
@@ -273,47 +591,129 @@ export function stepEntries(o: { steps: readonly Step[]; live: boolean; asleep: 
 function Thumb({ dark, person }: { dark: boolean; person: boolean }): ReactElement {
   return (
     <View testID="step-thumb" aria-hidden style={[st.thumb, dark && st.thumbDark, person && st.thumbMine]}>
-      <View style={st.thumbBar} /><View style={st.thumbLine} /><View style={[st.thumbLine, { width: "55%" }]} />
+      <View style={st.thumbBar} />
+      <View style={st.thumbLine} />
+      <View style={[st.thumbLine, { width: "55%" }]} />
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  pic: { borderRadius: 12, backgroundColor: "#211f33" as string, overflow: "hidden", marginBottom: 12, borderWidth: 1, borderColor: "var(--line-2)" as string },
-  picWin: { position: "absolute", left: "12%", right: "12%", top: 14, bottom: 22, borderRadius: 6, backgroundColor: "#f4f3f8" as string, overflow: "hidden" },
+  pic: {
+    borderRadius: 12,
+    backgroundColor: "#211f33" as string,
+    overflow: "hidden",
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+  },
+  picWin: {
+    position: "absolute",
+    left: "12%",
+    right: "12%",
+    top: 14,
+    bottom: 22,
+    borderRadius: 6,
+    backgroundColor: "#f4f3f8" as string,
+    overflow: "hidden",
+  },
   picBar: { height: 10, backgroundColor: "#dcdbe6" as string },
   dock: { position: "absolute", bottom: 6, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: 6 },
-  dockItem: { width: 17, height: 17, borderRadius: 6, backgroundColor: "rgba(255,255,255,0.22)" as string, alignItems: "center", justifyContent: "center" },
+  dockItem: {
+    width: 17,
+    height: 17,
+    borderRadius: 6,
+    backgroundColor: "rgba(255,255,255,0.22)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headline: { fontSize: 16.5, fontWeight: "600", color: "var(--ink)" as string, marginBottom: 8 },
   gets: { gap: 7, marginBottom: 14 },
   get: { flexDirection: "row", gap: 9, alignItems: "flex-start" },
   getText: { flex: 1, fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string },
   label: { fontSize: 11.5, color: "var(--ink-3)" as string, marginBottom: 6, marginTop: 2 },
-  host: { flexDirection: "row", gap: 10, alignItems: "center", padding: 10, borderRadius: 10, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  host: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "center",
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+  },
   hostOn: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
   radio: { width: 15, height: 15, borderRadius: 8, borderWidth: 1.5, borderColor: "var(--line-2)" as string },
   radioOn: { borderWidth: 5, borderColor: "var(--accent)" as string },
   hostTitle: { flexDirection: "row", alignItems: "center", gap: 6 },
   hostName: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string, flexShrink: 1 },
-  best: { fontSize: 10.5, fontWeight: "600", color: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string, paddingHorizontal: 6, borderRadius: 6, overflow: "hidden" },
+  best: {
+    fontSize: 10.5,
+    fontWeight: "600",
+    color: "var(--accent)" as string,
+    backgroundColor: "var(--accent-wash)" as string,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    overflow: "hidden",
+  },
   hostDetail: { fontSize: 11.5, color: "var(--ink-3)" as string },
-  room: { height: 4, borderRadius: 2, backgroundColor: "var(--line-2)" as string, marginVertical: 5, overflow: "hidden" },
+  room: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "var(--line-2)" as string,
+    marginVertical: 5,
+    overflow: "hidden",
+  },
   roomFill: { height: 4, borderRadius: 2, backgroundColor: "var(--accent)" as string },
-  go: { height: 38, borderRadius: 11, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center", marginTop: 12 },
+  go: {
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: "var(--accent)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 12,
+  },
   goText: { fontSize: 13.5, fontWeight: "600", color: "var(--accent-ink)" as string },
   cannot: { gap: 4, padding: 10, borderRadius: 10, backgroundColor: "var(--sunk)" as string },
   cannotHead: { flexDirection: "row", alignItems: "center", gap: 7 },
   cannotTitle: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   step: { flexDirection: "row", alignItems: "center", gap: 11, paddingVertical: 8 },
-  stepDot: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },
+  stepDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: "var(--line-2)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   stepDone: { backgroundColor: "var(--ok)" as string, borderColor: "var(--ok)" as string },
   stepNow: { borderColor: "var(--accent)" as string },
   stepText: { fontSize: 13, color: "var(--ink-3)" as string },
-  fail: { padding: 12, borderRadius: 12, backgroundColor: "var(--sunk)" as string, gap: 7, borderWidth: 1, borderColor: "var(--danger)" as string, marginBottom: 10 },
+  fail: {
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: "var(--sunk)" as string,
+    gap: 7,
+    borderWidth: 1,
+    borderColor: "var(--danger)" as string,
+    marginBottom: 10,
+  },
   failTitle: { fontSize: 13.5, fontWeight: "600", color: "var(--danger)" as string },
   failText: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
   row2: { flexDirection: "row", gap: 8 },
-  thumb: { width: 38, height: 26, marginRight: 10, borderRadius: 4, paddingHorizontal: 4, paddingTop: 4, gap: 3, backgroundColor: "#1c1d21" as string, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
+  thumb: {
+    width: 38,
+    height: 26,
+    marginRight: 10,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingTop: 4,
+    gap: 3,
+    backgroundColor: "#1c1d21" as string,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    overflow: "hidden",
+  },
   thumbDark: { backgroundColor: "#0c0d0f" as string },
   thumbMine: { borderColor: "var(--accent)" as string },
   thumbBar: { height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.28)" as string },
@@ -322,10 +722,37 @@ const st = StyleSheet.create({
   padded: { paddingHorizontal: 24, paddingVertical: 8 },
   none: { fontSize: 12.5, color: "var(--ink-3)" as string, lineHeight: 18 },
   grow: { flex: 1 },
-  chip: { flexShrink: 1, height: 26, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 9, paddingRight: 11, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
-  foot: { flexDirection: "row", alignItems: "center", gap: 9, marginHorizontal: 24, marginTop: 22, paddingVertical: 14, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  chip: {
+    flexShrink: 1,
+    height: 26,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingLeft: 9,
+    paddingRight: 11,
+    borderRadius: 12,
+    backgroundColor: "var(--sunk)" as string,
+  },
+  foot: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    marginHorizontal: 24,
+    marginTop: 22,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
   footText: { flex: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
-  head: { minHeight: 34, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 24, paddingTop: 18, paddingBottom: 10 },
+  head: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 24,
+    paddingTop: 18,
+    paddingBottom: 10,
+  },
   back: { height: 24, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 4 },
   backText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   status: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 7 },
@@ -333,20 +760,68 @@ const st = StyleSheet.create({
   dotLive: { backgroundColor: "var(--ok)" as string },
   dotMine: { backgroundColor: "var(--accent)" as string },
   statusText: { flexShrink: 1, fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
-  screen: { height: SCREEN_H, borderRadius: 14, backgroundColor: "#17161f" as string, backgroundImage: "radial-gradient(120% 120% at 20% 10%, #3a3468, #17161f 70%)", overflow: "hidden" } as object,
+  screen: {
+    height: SCREEN_H,
+    borderRadius: 14,
+    backgroundColor: "#17161f" as string,
+    backgroundImage: "radial-gradient(120% 120% at 20% 10%, #3a3468, #17161f 70%)",
+    overflow: "hidden",
+  } as object,
   screenMine: { borderWidth: 1.5, borderColor: "var(--accent)" as string },
-  window: { position: "absolute", left: "10%", right: "10%", top: 14, bottom: 30, borderRadius: 8, backgroundColor: "#f8f8fb" as string, overflow: "hidden" },
-  bar: { height: 18, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, backgroundColor: "#e9e8ef" as string },
+  window: {
+    position: "absolute",
+    left: "10%",
+    right: "10%",
+    top: 14,
+    bottom: 30,
+    borderRadius: 8,
+    backgroundColor: "#f8f8fb" as string,
+    overflow: "hidden",
+  },
+  bar: {
+    height: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    backgroundColor: "#e9e8ef" as string,
+  },
   dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "#b9b8c6" as string },
   url: { flex: 1, height: 8, marginLeft: 8, borderRadius: 4, backgroundColor: "#f8f8fb" as string },
   body: { padding: 10, gap: 7 },
   line: { height: 7, borderRadius: 4, backgroundColor: "#dcdbe6" as string },
   field: { height: 16, borderRadius: 5, borderWidth: 1, borderColor: "#cfcedb" as string },
-  center: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center" },
-  wake: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 14, backgroundColor: "var(--raised)" as string },
+  center: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  wake: {
+    height: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: "var(--raised)" as string,
+  },
   wakeText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string },
   cap: { position: "absolute", left: 10, right: 10, top: 8, alignItems: "flex-start" },
-  capText: { maxWidth: "100%", fontSize: 11.5, color: "var(--accent-ink)" as string, backgroundColor: "var(--ink)" as string, opacity: 0.86, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, overflow: "hidden" },
+  capText: {
+    maxWidth: "100%",
+    fontSize: 11.5,
+    color: "var(--accent-ink)" as string,
+    backgroundColor: "var(--ink)" as string,
+    opacity: 0.86,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    overflow: "hidden",
+  },
   skHead: { height: 20, width: "40%", borderRadius: 5, backgroundColor: "var(--sunk)" as string, marginBottom: 10 },
   skScreen: { height: SCREEN_H, borderRadius: 10, backgroundColor: "var(--sunk)" as string },
 });

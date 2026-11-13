@@ -30,8 +30,20 @@ function world(levels: { person: Level | null; agent: Level | null; actor: Level
   snap.putPrincipal({ id: ACTOR, kind: "svc", owner: PERSON, status: "active", name: "Claude Code" });
   for (const id of [PERSON, AGENT, ACTOR]) snap.addPrincipalRole({ holder: id, role: "full" });
   snap.putResource({ id: "R1", type: "folder", parent_id: null, label: 0, owner_id: null, holds: 0 });
-  for (const [who, level] of [[PERSON, levels.person], [AGENT, levels.agent], [ACTOR, levels.actor]] as const) {
-    if (level !== null) snap.putGrant({ id: `g_${who}`, subject_kind: "actor", subject_id: who, resource_type: "folder", resource_id: "R1", level });
+  for (const [who, level] of [
+    [PERSON, levels.person],
+    [AGENT, levels.agent],
+    [ACTOR, levels.actor],
+  ] as const) {
+    if (level !== null)
+      snap.putGrant({
+        id: `g_${who}`,
+        subject_kind: "actor",
+        subject_id: who,
+        resource_type: "folder",
+        resource_id: "R1",
+        level,
+      });
   }
   return snap;
 }
@@ -44,9 +56,15 @@ function pipeline(snap: AccessSnapshot, calls: string[]): Invoke {
     // what only a person does is parked for the person the agent acts for, never run as the agent (docs/ask-the-person.md)
     if (seed.askPerson === "always") return { status: "held", taskId: "tsk_ask", traceId: "t".repeat(32) };
     const d = authorize(snap, {
-      principal: seed.principal.id, actingFor: seed.actingFor, action: { perm: null, level: row.level }, resource: { type: "folder", id: "R1" }, cap, now: NOW,
+      principal: seed.principal.id,
+      actingFor: seed.actingFor,
+      action: { perm: null, level: row.level },
+      resource: { type: "folder", id: "R1" },
+      cap,
+      now: NOW,
     });
-    if (d.effect !== "allow") throw fail(codeForReason(d.reason) as ErrorCode, "t".repeat(32), { details: { cap, reason: d.reason } });
+    if (d.effect !== "allow")
+      throw fail(codeForReason(d.reason) as ErrorCode, "t".repeat(32), { details: { cap, reason: d.reason } });
     calls.push(cap);
     return { status: "ok", output: { cap }, traceId: "t".repeat(32) };
   };
@@ -54,64 +72,120 @@ function pipeline(snap: AccessSnapshot, calls: string[]): Invoke {
 
 const callerOf = (kind: "outside" | "driver", withPerson = true): McpCaller =>
   kind === "outside"
-    ? { kind, sessionId: "ses_o", space: "spc_1", principal: { kind: "agent", id: ACTOR }, ...(withPerson ? { actingFor: PERSON } : {}) }
-    : { kind, sessionId: "ses_d", space: "spc_1", principal: { kind: "agent", id: AGENT }, ...(withPerson ? { actingFor: PERSON } : {}), threadId: "thr_1" };
+    ? {
+        kind,
+        sessionId: "ses_o",
+        space: "spc_1",
+        principal: { kind: "agent", id: ACTOR },
+        ...(withPerson ? { actingFor: PERSON } : {}),
+      }
+    : {
+        kind,
+        sessionId: "ses_d",
+        space: "spc_1",
+        principal: { kind: "agent", id: AGENT },
+        ...(withPerson ? { actingFor: PERSON } : {}),
+        threadId: "thr_1",
+      };
 
 function serverFor(snap: AccessSnapshot, caller: McpCaller, calls: string[]) {
-  const server = createMcpServer({ catalog: g.catalog, defaults: g.defaults, invoke: pipeline(snap, calls), open: async () => caller });
+  const server = createMcpServer({
+    catalog: g.catalog,
+    defaults: g.defaults,
+    invoke: pipeline(snap, calls),
+    open: async () => caller,
+  });
   let n = 0;
   return async (name: string): Promise<{ allowed: boolean; code?: string; asksPerson?: boolean }> => {
-    const r = await server.handle({ method: "POST", headers: { authorization: "Bearer t" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++n, method: "tools/call", params: { name, arguments: {} } }) });
-    const res = (JSON.parse(r.body) as { result: { isError: boolean; structuredContent: { error?: { code: string }; asksPerson?: boolean } } }).result;
-    return res.isError ? { allowed: false, code: res.structuredContent.error?.code ?? "?", ...(res.structuredContent.asksPerson ? { asksPerson: true } : {}) } : { allowed: true };
+    const r = await server.handle({
+      method: "POST",
+      headers: { authorization: "Bearer t" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: ++n, method: "tools/call", params: { name, arguments: {} } }),
+    });
+    const res = (
+      JSON.parse(r.body) as {
+        result: { isError: boolean; structuredContent: { error?: { code: string }; asksPerson?: boolean } };
+      }
+    ).result;
+    return res.isError
+      ? {
+          allowed: false,
+          code: res.structuredContent.error?.code ?? "?",
+          ...(res.structuredContent.asksPerson ? { asksPerson: true } : {}),
+        }
+      : { allowed: true };
   };
 }
 
 /** Default tools that run through the pipeline (not on the agent computer) and whose capability has a level. */
-const sample = g.catalog.all.filter((t) => g.defaults.has(t.name) && t.local === "none" && t.toolset !== "engineer" && t.name !== "tool_search");
+const sample = g.catalog.all.filter(
+  (t) => g.defaults.has(t.name) && t.local === "none" && t.toolset !== "engineer" && t.name !== "tool_search",
+);
 
 test("a CLI engine's agent acting for a person is allowed exactly when both hold the level the tool needs (25 combinations)", async () => {
-  let allowed = 0, refused = 0;
-  for (const person of LEVELS) for (const agent of LEVELS) {
-    const calls: string[] = [];
-    const call = serverFor(world({ person, agent, actor: null }), callerOf("driver"), calls);
-    for (const t of sample) {
-      const need = rank(g.caps.get(t.cap)!.level);
-      const both = rank(person) >= need && rank(agent) >= need;
-      const r = await call(t.name);
-      assert.equal(r.allowed, both, `${t.name} needs ${g.caps.get(t.cap)!.level}; person ${person}, agent ${agent}: ${r.code ?? "allowed"}`);
-      if (r.allowed) { allowed++; assert.ok(rank(person) >= need && rank(agent) >= need, "never exceeds either"); } else refused++;
+  let allowed = 0,
+    refused = 0;
+  for (const person of LEVELS)
+    for (const agent of LEVELS) {
+      const calls: string[] = [];
+      const call = serverFor(world({ person, agent, actor: null }), callerOf("driver"), calls);
+      for (const t of sample) {
+        const need = rank(g.caps.get(t.cap)!.level);
+        const both = rank(person) >= need && rank(agent) >= need;
+        const r = await call(t.name);
+        assert.equal(
+          r.allowed,
+          both,
+          `${t.name} needs ${g.caps.get(t.cap)!.level}; person ${person}, agent ${agent}: ${r.code ?? "allowed"}`,
+        );
+        if (r.allowed) {
+          allowed++;
+          assert.ok(rank(person) >= need && rank(agent) >= need, "never exceeds either");
+        } else refused++;
+      }
     }
-  }
   assert.ok(allowed > 100 && refused > 100, `both outcomes are exercised (${allowed} allowed, ${refused} refused)`);
 });
 
 test("an outside agent acting for the person who allowed it never gets more than it or the person has (25 combinations)", async () => {
   let allowed = 0;
-  for (const person of LEVELS) for (const actor of LEVELS) {
-    const calls: string[] = [];
-    const call = serverFor(world({ person, agent: null, actor }), callerOf("outside"), calls);
-    for (const t of sample) {
-      const need = rank(g.caps.get(t.cap)!.level);
-      const r = await call(t.name);
-      if (r.allowed) {
-        allowed++;
-        assert.ok(rank(person) >= need, `${t.name}: allowed above the person (${person})`);
-        assert.ok(rank(actor) >= need, `${t.name}: allowed above the tool (${actor})`);
+  for (const person of LEVELS)
+    for (const actor of LEVELS) {
+      const calls: string[] = [];
+      const call = serverFor(world({ person, agent: null, actor }), callerOf("outside"), calls);
+      for (const t of sample) {
+        const need = rank(g.caps.get(t.cap)!.level);
+        const r = await call(t.name);
+        if (r.allowed) {
+          allowed++;
+          assert.ok(rank(person) >= need, `${t.name}: allowed above the person (${person})`);
+          assert.ok(rank(actor) >= need, `${t.name}: allowed above the tool (${actor})`);
+        }
       }
+      // Every call that got through is one the pipeline saw: the server added no path around it.
+      for (const c of calls)
+        assert.ok(
+          rank(g.caps.get(c)!.level) <= Math.min(rank(person), rank(actor)),
+          `${c} reached the pipeline above both`,
+        );
     }
-    // Every call that got through is one the pipeline saw: the server added no path around it.
-    for (const c of calls) assert.ok(rank(g.caps.get(c)!.level) <= Math.min(rank(person), rank(actor)), `${c} reached the pipeline above both`);
-  }
   assert.ok(allowed > 100);
 });
 
 test("with no person to act for, an agent is refused for every tool, before anything runs", async () => {
   const calls: string[] = [];
-  const call = serverFor(world({ person: "manage", agent: "manage", actor: "manage" }), callerOf("driver", false), calls);
+  const call = serverFor(
+    world({ person: "manage", agent: "manage", actor: "manage" }),
+    callerOf("driver", false),
+    calls,
+  );
   for (const t of sample.slice(0, 30)) {
     const r = await call(t.name);
-    assert.deepEqual(r, { allowed: false, code: "permission.no_grant" }, `${t.name} ran for an agent with nobody to act for`);
+    assert.deepEqual(
+      r,
+      { allowed: false, code: "permission.no_grant" },
+      `${t.name} ran for an agent with nobody to act for`,
+    );
   }
   assert.deepEqual(calls, []);
 });
@@ -135,9 +209,14 @@ test("what stays with people stays there: with every level at manage, an outside
   for (const t of g.catalog.all.filter((x) => g.defaults.has(x.name) && x.name !== "tool_search")) {
     const r = await call(t.name);
     if (r.allowed) assert.equal(outsideAllows(t), true, `${t.name} ran for an outside agent`);
-    else if (!outsideAllows(t)) assert.ok(r.code === "permission.role_lacks_permission" || r.code === "validation.bad_input" || r.asksPerson === true, `${t.name}: ${r.code}`);
+    else if (!outsideAllows(t))
+      assert.ok(
+        r.code === "permission.role_lacks_permission" || r.code === "validation.bad_input" || r.asksPerson === true,
+        `${t.name}: ${r.code}`,
+      );
   }
-  for (const c of calls) assert.equal(isPersonOnly(c, g.caps.get(c)!.effects), false, `${c} reached the pipeline from outside`);
+  for (const c of calls)
+    assert.equal(isPersonOnly(c, g.caps.get(c)!.effects), false, `${c} reached the pipeline from outside`);
 });
 
 test("the kernel's reason reaches the model as the error code", async () => {

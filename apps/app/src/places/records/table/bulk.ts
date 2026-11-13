@@ -14,10 +14,17 @@ export function chunks<T>(items: readonly T[], size: number = CHUNK): T[][] {
 }
 
 /** Every record id of the view, page by page (the ids are read before anything is deleted, so deleting cannot shift the pages). */
-export async function allIds(call: Call, spec: { type: string; filter?: unknown; sort?: unknown }, total: number, onProgress: (found: number) => void): Promise<string[]> {
+export async function allIds(
+  call: Call,
+  spec: { type: string; filter?: unknown; sort?: unknown },
+  total: number,
+  onProgress: (found: number) => void,
+): Promise<string[]> {
   const ids: string[] = [];
   while (ids.length < total) {
-    const out = (await call("records.query", { ...spec, offset: ids.length, limit: PAGE, fields: [] })) as { rows: { id: string }[] };
+    const out = (await call("records.query", { ...spec, offset: ids.length, limit: PAGE, fields: [] })) as {
+      rows: { id: string }[];
+    };
     if (out.rows.length === 0) break;
     for (const r of out.rows) ids.push(r.id);
     onProgress(ids.length);
@@ -26,14 +33,25 @@ export async function allIds(call: Call, spec: { type: string; filter?: unknown;
 }
 
 /** One capability for each id, a chunk at a time; the progress is told after every chunk. A failed id is counted and the rest go on. */
-export async function eachId(call: Call, cap: "records.delete" | "records.restore", type: string, ids: readonly string[], onProgress: (done: number, failed: number) => void): Promise<{ done: number; failed: number }> {
-  let done = 0, failed = 0;
+export async function eachId(
+  call: Call,
+  cap: "records.delete" | "records.restore",
+  type: string,
+  ids: readonly string[],
+  onProgress: (done: number, failed: number) => void,
+): Promise<{ done: number; failed: number }> {
+  let done = 0,
+    failed = 0;
   for (const part of chunks(ids)) {
     const results = await Promise.allSettled(part.map((recordId) => call(cap, { type, recordId })));
-    for (const r of results) { if (r.status === "fulfilled") done++; else failed++; }
+    for (const r of results) {
+      if (r.status === "fulfilled") done++;
+      else failed++;
+    }
     onProgress(done, failed);
   }
   return { done, failed };
 }
 
-export const recordsWord = (n: number, one: string, many: string): string => `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
+export const recordsWord = (n: number, one: string, many: string): string =>
+  `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;

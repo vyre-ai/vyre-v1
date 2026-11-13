@@ -14,7 +14,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { pullMailbox } from "../handlers/graph.ts";
 import { receiveNotification } from "../handlers/subscriptions.ts";
-import { userAppSet, userAppStatus, userComplete, userList, dropAccountsOf, userRemove, userSend, userStart } from "../handlers/personal.ts";
+import {
+  userAppSet,
+  userAppStatus,
+  userComplete,
+  userList,
+  dropAccountsOf,
+  userRemove,
+  userSend,
+  userStart,
+} from "../handlers/personal.ts";
 import { codeOf, fixture, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -22,9 +31,15 @@ const ME = "https://graph.microsoft.com/v1.0/me";
 const MAYA = "maya@outlook.test";
 const APP = "22222222-3333-4444-5555-666666666666";
 
-const app = async (h: Harness): Promise<void> => { await userAppSet(h.ctx, { vaultItem: "#Microsoft_Sign_In" }); };
+const app = async (h: Harness): Promise<void> => {
+  await userAppSet(h.ctx, { vaultItem: "#Microsoft_Sign_In" });
+};
 
-async function signIn(h: Harness, code = "c1", email = MAYA): Promise<{ accountId: string; email: string; mailboxId?: string }> {
+async function signIn(
+  h: Harness,
+  code = "c1",
+  email = MAYA,
+): Promise<{ accountId: string; email: string; mailboxId?: string }> {
   h.on("GET", `${ME}?`, { body: { mail: email, userPrincipalName: email } });
   const { state } = await userStart(h.ctx, {});
   return userComplete(h.ctx, { state, code });
@@ -39,7 +54,8 @@ function walk(h: Harness): void {
   h.on("GET", `${ME}/mailFolders/inbox/messages/delta?$select`, { body: fixture("graph/delta-inbox-1.json") });
   h.on("GET", /skiptoken=S2/, { body: fixture("graph/delta-inbox-2.json") });
   h.on("GET", `${ME}/mailFolders/sentitems/messages/delta?$select`, { body: fixture("graph/delta-sent.json") });
-  for (const id of ["g1", "g2", "g3", "g9"]) h.on("GET", `${ME}/messages/${id}?`, { body: fixture(`graph/message-${id}.json`) });
+  for (const id of ["g1", "g2", "g3", "g9"])
+    h.on("GET", `${ME}/messages/${id}?`, { body: fixture(`graph/message-${id}.json`) });
   h.on("GET", `${ME}/messages/g1/attachments?`, { body: fixture("graph/attachments-g1.json") });
   h.on("GET", `${ME}/messages/g1/attachments/a1`, { body: fixture("graph/attachment-a1.json") });
 }
@@ -50,7 +66,12 @@ test("app: status gives the redirect to register, set reads the client from the 
   await expectCode(userAppSet(h.ctx, { vaultItem: "Microsoft" }), "validation.bad_input");
   await expectCode(userAppSet(h.ctx, { vaultItem: "#Nothing" }), "provider.auth_failed");
   assert.deepEqual(await userAppSet(h.ctx, { vaultItem: "#Microsoft_Sign_In" }), { configured: true, clientId: APP });
-  assert.deepEqual(await userAppStatus(h.ctx), { configured: true, clientId: APP, vaultItem: "#Microsoft_Sign_In", redirectUri: "https://space.test/oauth/callback" });
+  assert.deepEqual(await userAppStatus(h.ctx), {
+    configured: true,
+    clientId: APP,
+    vaultItem: "#Microsoft_Sign_In",
+    redirectUri: "https://space.test/oauth/callback",
+  });
 });
 
 test("start: refuses without an app; the link carries the client, the exact redirect, offline access, S256, the tenant and the hint", async () => {
@@ -77,12 +98,21 @@ test("complete: the code is traded, the address is Graph's, the token is sealed,
   const out = await signIn(h);
   assert.equal(out.email, MAYA);
   assert.match(out.accountId, /^mua_[0-9a-f]{32}$/);
-  assert.deepEqual([h.exchanges.length, h.exchanges[0]!.code, h.exchanges[0]!.appHandle], [1, "c1", "#Microsoft_Sign_In"]);
+  assert.deepEqual(
+    [h.exchanges.length, h.exchanges[0]!.code, h.exchanges[0]!.appHandle],
+    [1, "c1", "#Microsoft_Sign_In"],
+  );
   assert.equal(h.hits(`${ME}?`)[0]!.headers["authorization"], "Bearer access-for-c1");
   const connect = h.calls("mail.connect")[0]!.input;
-  assert.deepEqual([connect["provider"], connect["address"], connect["connectionId"]], ["microsoft", MAYA, out.accountId]);
+  assert.deepEqual(
+    [connect["provider"], connect["address"], connect["connectionId"]],
+    ["microsoft", MAYA, out.accountId],
+  );
   assert.equal(h.calls("mail.sync_now").length, 1);
-  assert.deepEqual(h.named("microsoft.user_connected").map((e) => e.payload), [{ accountId: out.accountId, email: MAYA }]);
+  assert.deepEqual(
+    h.named("microsoft.user_connected").map((e) => e.payload),
+    [{ accountId: out.accountId, email: MAYA }],
+  );
   const row = h.rows(`SELECT * FROM microsoft_user_account`)[0]!;
   assert.ok(!String(row["refreshSealed"]).includes("refresh-for-c1"));
   const everything = JSON.stringify([out, h.emitted, h.called, h.scheduled]);
@@ -112,7 +142,10 @@ test("complete: a declined sign-in ends cleanly; a refused exchange or profile r
   const h = harness();
   await app(h);
   const a = await userStart(h.ctx, {});
-  await assert.rejects(userComplete(h.ctx, { state: a.state, error: "access_denied" }), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(
+    userComplete(h.ctx, { state: a.state, error: "access_denied" }),
+    (e) => codeOf(e) === "validation.precondition_failed",
+  );
   assert.equal(h.exchanges.length, 0);
 
   h.userState.exchangeFails = true;
@@ -172,15 +205,24 @@ test("pull: a personal mailbox is read through /me with the person's own token, 
   walk(h);
   const pull = await pullMailbox(h.ctx, { connectionId: out.accountId, mailbox: MAYA });
   assert.deepEqual([pull.ingested, pull.complete], [4, true]);
-  assert.deepEqual(h.ingests.map((i) => i.providerId), ["g1", "g2", "g3", "g9"]);
-  assert.deepEqual(h.refreshes.map((r) => [r.appHandle, r.refreshToken, r.cacheKey]), [["#Microsoft_Sign_In", "refresh-for-c1", out.accountId]]);
-  assert.equal(h.hits(/\/users\/[^?]*\/(messages|mailFolders)[^?]*\?\$select/).length, 0);   // every request we build is /me; later pages follow the links Graph hands back
-  assert.equal(h.hits(`${ME}/mailFolders/inbox/messages/delta?$select`)[0]!.headers["authorization"], "Bearer user-access-1");
+  assert.deepEqual(
+    h.ingests.map((i) => i.providerId),
+    ["g1", "g2", "g3", "g9"],
+  );
+  assert.deepEqual(
+    h.refreshes.map((r) => [r.appHandle, r.refreshToken, r.cacheKey]),
+    [["#Microsoft_Sign_In", "refresh-for-c1", out.accountId]],
+  );
+  assert.equal(h.hits(/\/users\/[^?]*\/(messages|mailFolders)[^?]*\?\$select/).length, 0); // every request we build is /me; later pages follow the links Graph hands back
+  assert.equal(
+    h.hits(`${ME}/mailFolders/inbox/messages/delta?$select`)[0]!.headers["authorization"],
+    "Bearer user-access-1",
+  );
 
   h.ctx.principal = { kind: "person", id: "usr_other01" };
   await expectCode(pullMailbox(h.ctx, { connectionId: out.accountId, mailbox: MAYA }), "validation.not_found");
   h.ctx.principal = { kind: "service", id: "svc_host" } as never;
-  h.on("GET", /deltatoken=/, { body: fixture("graph/delta-empty.json") });   // the recorded delta links name the recorded user; the next pass follows them as Graph gave them
+  h.on("GET", /deltatoken=/, { body: fixture("graph/delta-empty.json") }); // the recorded delta links name the recorded user; the next pass follows them as Graph gave them
   const next = await pullMailbox(h.ctx, { connectionId: out.accountId, mailbox: MAYA });
   assert.equal(next.ingested, 0);
 });
@@ -191,7 +233,13 @@ test("poll with nobody signed in: a personal address is pulled, no calendar or T
   const out = await signIn(h);
   h.ctx.principal = { kind: "service", id: "svc_host" } as never;
   walk(h);
-  const res = await receiveNotification(h.ctx, { notificationId: "n1", subscriptionId: "manual", resource: `users/${MAYA}/messages`, changeType: "updated", clientStateOk: true });
+  const res = await receiveNotification(h.ctx, {
+    notificationId: "n1",
+    subscriptionId: "manual",
+    resource: `users/${MAYA}/messages`,
+    changeType: "updated",
+    clientStateOk: true,
+  });
   assert.equal(res.accepted, true);
   assert.equal(h.ingests.length, 4);
   assert.ok(out.accountId);
@@ -222,13 +270,26 @@ test("a lost sign-in: the first failed poll marks the mailbox, makes one Needs y
   h.ctx.principal = { kind: "service", id: "svc_host" } as never;
   h.advance(2 * 3_600_000);
   h.userState.refreshFails = true;
-  const note = (id: string) => receiveNotification(h.ctx, { notificationId: id, subscriptionId: "poll", resource: `users/${MAYA}/messages`, changeType: "updated", clientStateOk: true });
+  const note = (id: string) =>
+    receiveNotification(h.ctx, {
+      notificationId: id,
+      subscriptionId: "poll",
+      resource: `users/${MAYA}/messages`,
+      changeType: "updated",
+      clientStateOk: true,
+    });
   await note("n-lost-1");
-  assert.deepEqual(h.calls("mail.mailbox.set_sync_state").map((c) => [c.input["mailboxId"], c.input["state"]]), [[out.mailboxId, "error"]]);
+  assert.deepEqual(
+    h.calls("mail.mailbox.set_sync_state").map((c) => [c.input["mailboxId"], c.input["state"]]),
+    [[out.mailboxId, "error"]],
+  );
   const made = h.calls("tasks.create");
   assert.equal(made.length, 1);
   assert.match(String(made[0]!.input["idempotencyKey"]), /-fix:/, "the call carries its idempotency key");
-  assert.deepEqual([made[0]!.input["kind"], made[0]!.input["assigned"]], ["unblock", { kind: "person", id: "usr_maya01" }]);
+  assert.deepEqual(
+    [made[0]!.input["kind"], made[0]!.input["assigned"]],
+    ["unblock", { kind: "person", id: "usr_maya01" }],
+  );
   assert.deepEqual((made[0]!.input["blocks"] as { type: string }[])[0]!.type, "mail_signin");
   assert.equal(h.scheduled.length, 0);
   await note("n-lost-2");
@@ -238,7 +299,10 @@ test("a lost sign-in: the first failed poll marks the mailbox, makes one Needs y
   h.ctx.principal = maya;
   const again = await signIn(h, "c2");
   assert.equal(again.accountId, out.accountId);
-  assert.deepEqual(h.calls("tasks.transition").map((c) => [c.input["taskId"], c.input["to"]]), [["tsk_fix1", "done"]]);
+  assert.deepEqual(
+    h.calls("tasks.transition").map((c) => [c.input["taskId"], c.input["to"]]),
+    [["tsk_fix1", "done"]],
+  );
   assert.equal(h.calls("mail.mailbox.set_sync_state").at(-1)!.input["state"], "syncing");
 });
 
@@ -247,12 +311,24 @@ test("send: the account's own Outlook sends through /me/sendMail with its token;
   await app(h);
   const out = await signIn(h);
   h.on("POST", `${ME}/sendMail`, { status: 202 });
-  assert.deepEqual(await userSend(h.ctx, { accountId: out.accountId, to: ["pat@acme.test"], subject: "Hello", text: "Hi Pat", idempotencyKey: "k1" }), { sent: true });
+  assert.deepEqual(
+    await userSend(h.ctx, {
+      accountId: out.accountId,
+      to: ["pat@acme.test"],
+      subject: "Hello",
+      text: "Hi Pat",
+      idempotencyKey: "k1",
+    }),
+    { sent: true },
+  );
   const req = h.hits(`${ME}/sendMail`, "POST")[0]!;
   assert.match(req.headers["authorization"] ?? "", /^Bearer user-access-\d+$/);
   assert.equal((req.body as { message: { subject: string } }).message.subject, "Hello");
   h.ctx.principal = { kind: "person", id: "usr_other01" };
-  await expectCode(userSend(h.ctx, { accountId: out.accountId, to: ["pat@acme.test"], subject: "x", text: "y", idempotencyKey: "k2" }), "validation.not_found");
+  await expectCode(
+    userSend(h.ctx, { accountId: out.accountId, to: ["pat@acme.test"], subject: "x", text: "y", idempotencyKey: "k2" }),
+    "validation.not_found",
+  );
 });
 
 test("the removal wizard ends a person's sign-ins with their mailbox connections: tokens gone, their Needs you item cancelled, nobody else's account touched", async () => {
@@ -263,7 +339,10 @@ test("the removal wizard ends a person's sign-ins with their mailbox connections
   const theirs = await signIn(h, "c2", "pat@outlook.test");
   h.ctx.principal = { kind: "service", id: "svc_admin" } as never;
   assert.equal(await dropAccountsOf(h.ctx, "usr_maya01"), 1);
-  assert.deepEqual(h.rows(`SELECT "accountId" FROM microsoft_user_account`).map((r) => r["accountId"]), [theirs.accountId]);
+  assert.deepEqual(
+    h.rows(`SELECT "accountId" FROM microsoft_user_account`).map((r) => r["accountId"]),
+    [theirs.accountId],
+  );
   assert.notEqual(mine.accountId, theirs.accountId);
   assert.equal(await dropAccountsOf(h.ctx, "usr_maya01"), 0);
 });
@@ -279,6 +358,13 @@ test("a refresh token Microsoft rotates is kept sealed in place of the old one, 
   h.on("GET", /deltatoken=/, { status: 401, body: "{}" });
   h.ctx.principal = { kind: "service", id: "svc_host" } as never;
   await pullMailbox(h.ctx, { connectionId: out.accountId, mailbox: MAYA }).catch(() => undefined);
-  assert.deepEqual(h.refreshes.map((r) => r.refreshToken).slice(0, 2), ["refresh-for-c1", "rotated-1"], "the second refresh used the token the first one handed back");
-  assert.ok(!JSON.stringify(h.rows(`SELECT * FROM microsoft_user_account`)).includes("rotated-1"), "kept sealed, never in the clear");
+  assert.deepEqual(
+    h.refreshes.map((r) => r.refreshToken).slice(0, 2),
+    ["refresh-for-c1", "rotated-1"],
+    "the second refresh used the token the first one handed back",
+  );
+  assert.ok(
+    !JSON.stringify(h.rows(`SELECT * FROM microsoft_user_account`)).includes("rotated-1"),
+    "kept sealed, never in the clear",
+  );
 });

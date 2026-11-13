@@ -10,8 +10,22 @@ import type { ShareRow } from "../../../ui/src/AccessSheet/index.tsx";
 
 export const title = "Folders, sharing and locked states";
 
-const node = (id: string, name: string, count: number, section: FolderNode["section"], over: Partial<FolderNode> = {}): FolderNode => ({
-  id, name, parentId: null, count, scope: section === "space" ? "space" : "personal", section, via: section === "space" ? "space" : section === "shared" ? "grant" : "owner", open: false, ...over,
+const node = (
+  id: string,
+  name: string,
+  count: number,
+  section: FolderNode["section"],
+  over: Partial<FolderNode> = {},
+): FolderNode => ({
+  id,
+  name,
+  parentId: null,
+  count,
+  scope: section === "space" ? "space" : "personal",
+  section,
+  via: section === "space" ? "space" : section === "shared" ? "grant" : "owner",
+  open: false,
+  ...over,
 });
 
 const NODES: FolderNode[] = [
@@ -24,7 +38,14 @@ const NODES: FolderNode[] = [
 ];
 
 const SHARES: ShareRow[] = [
-  { subjectKind: "person", subjectId: "prs_omar", name: "Omar Haddad", level: "edit", via: "grant", fromFolderId: null },
+  {
+    subjectKind: "person",
+    subjectId: "prs_omar",
+    name: "Omar Haddad",
+    level: "edit",
+    via: "grant",
+    fromFolderId: null,
+  },
   { subjectKind: "person", subjectId: "prs_lena", name: "Lena Ortiz", level: "view", via: "grant", fromFolderId: null },
 ];
 
@@ -34,20 +55,45 @@ export default function Mount() {
     return (
       <View style={{ flex: 1, justifyContent: "center", padding: 16 }}>
         <AccessSheet
-          mode="share" itemType="file" itemLabel="folder" resourceType="folder" resourceId="fld_intake" itemName="Intake" target="folder" ownerName="Irfad Imtiaz" onClose={() => undefined}
-          levels={["view", "edit", "manage"]} shares={SHARES} allowExternal={false} density="regular"
+          mode="share"
+          itemType="file"
+          itemLabel="folder"
+          resourceType="folder"
+          resourceId="fld_intake"
+          itemName="Intake"
+          target="folder"
+          ownerName="Irfad Imtiaz"
+          onClose={() => undefined}
+          levels={["view", "edit", "manage"]}
+          shares={SHARES}
+          allowExternal={false}
+          density="regular"
           directory={{ people: [{ id: "prs_maya", name: "Maya Chen", kind: "person" }] }}
         />
       </View>
     );
   }
   if (part === "needs") {
-    return <View style={{ flex: 1, justifyContent: "center", padding: 16 }}><NeedsTeamSpace what="Admin, webhooks and agent computers" density="regular" /></View>;
+    return (
+      <View style={{ flex: 1, justifyContent: "center", padding: 16 }}>
+        <NeedsTeamSpace what="Admin, webhooks and agent computers" density="regular" />
+      </View>
+    );
   }
   if (part === "locked") {
     return (
       <View style={{ flex: 1, justifyContent: "center", padding: 16 }}>
-        <LockedState resourceType="folder" resourceId="fld_clients" title="Clients" reason="no_grant" level="view" status="none" canRequest note="" density="regular" />
+        <LockedState
+          resourceType="folder"
+          resourceId="fld_clients"
+          title="Clients"
+          reason="no_grant"
+          level="view"
+          status="none"
+          canRequest
+          note=""
+          density="regular"
+        />
       </View>
     );
   }

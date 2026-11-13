@@ -8,7 +8,11 @@ const PASSWORD = "fixture password 123";
 
 test("production Automations: open a draft, then the Automations row goes back to the list", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
-  if (!dist) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
+  if (!dist) {
+    if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
+    t.skip("VYRE_APP_DIST required for production browser evidence");
+    return;
+  }
   const { chromium } = await import("playwright-core");
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
   assert.ok(fs.existsSync(exe), `Chromium is required at ${exe}`);
@@ -21,14 +25,23 @@ test("production Automations: open a draft, then the Automations row goes back t
   page.on("pageerror", (e) => errors.push(e.message));
   try {
     await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
-    await page.getByTestId("claim-name").fill("Olivia Owner"); await page.getByTestId("claim-username").fill("olivia");
-    await page.getByTestId("claim-password").fill(PASSWORD); await page.getByTestId("claim-confirm").fill(PASSWORD);
-    await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();
+    await page.getByTestId("claim-name").fill("Olivia Owner");
+    await page.getByTestId("claim-username").fill("olivia");
+    await page.getByTestId("claim-password").fill(PASSWORD);
+    await page.getByTestId("claim-confirm").fill(PASSWORD);
+    await page.getByTestId("claim-next").click();
+    await page.getByTestId("claim-saved").click();
+    await page.getByTestId("claim-create").click();
     // a new Space opens the first-run setup over everything; a person closes it with Finish later before using the app
     await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
-    const token = await page.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string);
-    const made = await context.request.post(`${web.origin}/v1/automations/create`, { headers: { authorization: `Bearer ${token}` }, data: { name: "Welcome new leads", idempotencyKey: "browser-home-draft" } });
+    const token = await page.evaluate(
+      () => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string,
+    );
+    const made = await context.request.post(`${web.origin}/v1/automations/create`, {
+      headers: { authorization: `Bearer ${token}` },
+      data: { name: "Welcome new leads", idempotencyKey: "browser-home-draft" },
+    });
     assert.equal(made.status(), 200);
 
     await page.goto(`${web.origin}/automations`, { waitUntil: "load" });
@@ -37,5 +50,9 @@ test("production Automations: open a draft, then the Automations row goes back t
     await page.getByTestId("nav-automations").click();
     await page.getByTestId("automations-start").waitFor({ timeout: 10_000 });
     assert.deepEqual(errors, [], "no page error while opening and leaving an automation");
-  } finally { await browser.close(); web.close(); await space.stop(); }
+  } finally {
+    await browser.close();
+    web.close();
+    await space.stop();
+  }
 });

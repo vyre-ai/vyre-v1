@@ -15,8 +15,10 @@ import { SITE, harness } from "../fixtures/world.ts";
 import type { World } from "../fixtures/world.ts";
 
 type Fn = (ctx: Ctx, input: unknown) => Promise<unknown>;
-const run = async <T>(ctx: Ctx, cap: keyof typeof handlers, input: unknown): Promise<T> => (await (handlers[cap] as Fn)(ctx, input)) as T;
-const extra = async <T>(ctx: Ctx, cap: keyof typeof extraHandlers, input: unknown): Promise<T> => (await (extraHandlers[cap] as Fn)(ctx, input)) as T;
+const run = async <T>(ctx: Ctx, cap: keyof typeof handlers, input: unknown): Promise<T> =>
+  (await (handlers[cap] as Fn)(ctx, input)) as T;
+const extra = async <T>(ctx: Ctx, cap: keyof typeof extraHandlers, input: unknown): Promise<T> =>
+  (await (extraHandlers[cap] as Fn)(ctx, input)) as T;
 
 async function code(p: Promise<unknown>): Promise<string> {
   try {
@@ -34,22 +36,49 @@ const RULES: RowRule[] = [
   { recordType: "matter", via: "client", linkedType: "contact", fields: ["title", "contract"] },
 ];
 
-interface FileInfo { label: number; deletedAt?: number }
+interface FileInfo {
+  label: number;
+  deletedAt?: number;
+}
 
 function rig() {
   const w: World = harness();
-  w.addRecord({ id: "rec_dana", type: "contact", fields: { name: "Dana", documents: ["fil_a", "fil_conf", "fil_gone"], private_note: "fil_hidden" } });
+  w.addRecord({
+    id: "rec_dana",
+    type: "contact",
+    fields: { name: "Dana", documents: ["fil_a", "fil_conf", "fil_gone"], private_note: "fil_hidden" },
+  });
   w.addRecord({ id: "rec_sam", type: "contact", fields: { name: "Sam", documents: ["fil_sam"] } });
-  w.addRecord({ id: "rec_m1", type: "matter", fields: { client: "rec_dana", title: "Estate plan", contract: "fil_c", channel: "chn_m1" } });
-  w.addRecord({ id: "rec_m2", type: "matter", fields: { client: "rec_dana", title: "No channel yet", contract: "fil_c2" } });
+  w.addRecord({
+    id: "rec_m1",
+    type: "matter",
+    fields: { client: "rec_dana", title: "Estate plan", contract: "fil_c", channel: "chn_m1" },
+  });
+  w.addRecord({
+    id: "rec_m2",
+    type: "matter",
+    fields: { client: "rec_dana", title: "No channel yet", contract: "fil_c2" },
+  });
   w.addRecord({ id: "rec_m3", type: "matter", fields: { client: "rec_dana", title: "Closed", channel: "chn_closed" } });
-  w.addRecord({ id: "rec_other", type: "matter", fields: { client: "rec_sam", title: "Sam's matter", contract: "fil_other", channel: "chn_other" } });
+  w.addRecord({
+    id: "rec_other",
+    type: "matter",
+    fields: { client: "rec_sam", title: "Sam's matter", contract: "fil_other", channel: "chn_other" },
+  });
   const files = new Map<string, FileInfo>([
-    ["fil_a", { label: 0 }], ["fil_conf", { label: 2 }], ["fil_gone", { label: 0, deletedAt: 5 }], ["fil_hidden", { label: 0 }], ["fil_c", { label: 1 }], ["fil_c2", { label: 0 }],
-    ["fil_other", { label: 0 }], ["fil_sam", { label: 0 }],
+    ["fil_a", { label: 0 }],
+    ["fil_conf", { label: 2 }],
+    ["fil_gone", { label: 0, deletedAt: 5 }],
+    ["fil_hidden", { label: 0 }],
+    ["fil_c", { label: 1 }],
+    ["fil_c2", { label: 0 }],
+    ["fil_other", { label: 0 }],
+    ["fil_sam", { label: 0 }],
   ]);
   const channels = new Map<string, { mainThreadId: string; archived: boolean }>([
-    ["chn_m1", { mainThreadId: "thr_m1", archived: false }], ["chn_closed", { mainThreadId: "thr_closed", archived: true }], ["chn_other", { mainThreadId: "thr_other", archived: false }],
+    ["chn_m1", { mainThreadId: "thr_m1", archived: false }],
+    ["chn_closed", { mainThreadId: "thr_closed", archived: true }],
+    ["chn_other", { mainThreadId: "thr_other", archived: false }],
   ]);
   const posts: { threadId: string; body: string; principal: string }[] = [];
   const state = { failPost: false };
@@ -59,12 +88,21 @@ function rig() {
     switch (cap) {
       case "records.query": {
         const filter = i.filter as { and: { field: string; value: unknown }[] };
-        const rows = [...w.records.values()].filter((r) => r.type === i.type && filter.and.every((f) => r.fields[f.field] === f.value));
+        const rows = [...w.records.values()].filter(
+          (r) => r.type === i.type && filter.and.every((f) => r.fields[f.field] === f.value),
+        );
         return { rows: rows.map((r) => ({ id: r.id, type: r.type, fields: r.fields })) };
       }
       case "files.get": {
         const f = files.get(String(i.fileId));
-        if (!f) throw new VyreErr({ code: "validation.not_found", message: "no file", retryable: false, traceId: "0123456789abcdef0123456789abcdef", next: [{ kind: "edit_input", label: "Fix the input" }] });
+        if (!f)
+          throw new VyreErr({
+            code: "validation.not_found",
+            message: "no file",
+            retryable: false,
+            traceId: "0123456789abcdef0123456789abcdef",
+            next: [{ kind: "edit_input", label: "Fix the input" }],
+          });
         return { file: { fileId: i.fileId, label: f.label, ...(f.deletedAt ? { deletedAt: f.deletedAt } : {}) } };
       }
       case "channels.get": {
@@ -87,15 +125,24 @@ type Rig = ReturnType<typeof rig>;
 
 async function linked(r: Rig, rules: RowRule[] = RULES, email = "dana@client.example"): Promise<string> {
   const { w } = r;
-  const acct = (await run<{ account: { accountId: string } }>(w.ctx, "portal.account_create", { siteId: SITE, email, method: "magic_link" })).account;
+  const acct = (
+    await run<{ account: { accountId: string } }>(w.ctx, "portal.account_create", {
+      siteId: SITE,
+      email,
+      method: "magic_link",
+    })
+  ).account;
   await run(w.ctx, "portal.sign_in", { siteId: SITE, email, token: w.mailer.last().token });
-  for (const rowRule of rules) await run(w.ctx, "portal.link_record", { accountId: acct.accountId, recordId: "rec_dana", rowRule });
+  for (const rowRule of rules)
+    await run(w.ctx, "portal.link_record", { accountId: acct.accountId, recordId: "rec_dana", rowRule });
   return acct.accountId;
 }
 
 const posted = (r: Rig) => r.w.events.filter((e) => e.name === "portal.message_posted");
-const link = (r: Rig, accountId: string, fileId: string, expiresInMinutes = 30) => extra<{ url: string; expiresAt: number }>(r.w.ctx, "portal.file_link", { accountId, fileId, expiresInMinutes });
-const post = (r: Rig, accountId: string, recordId: string, body = "Hello, a question about the plan.") => extra<{ messageId: string }>(r.w.ctx, "portal.post", { accountId, recordId, body });
+const link = (r: Rig, accountId: string, fileId: string, expiresInMinutes = 30) =>
+  extra<{ url: string; expiresAt: number }>(r.w.ctx, "portal.file_link", { accountId, fileId, expiresInMinutes });
+const post = (r: Rig, accountId: string, recordId: string, body = "Hello, a question about the plan.") =>
+  extra<{ messageId: string }>(r.w.ctx, "portal.post", { accountId, recordId, body });
 
 // ---- file_link -----------------------------------------------------------------------------------------------
 
@@ -121,7 +168,11 @@ test("file_link: a file no visible record names is not found, however it was gue
   const id = await linked(r);
   assert.equal(await code(link(r, id, "fil_other")), "permission.not_found", "another client's matter");
   assert.equal(await code(link(r, id, "fil_sam")), "permission.not_found", "another client's record");
-  assert.equal(await code(link(r, id, "fil_hidden")), "permission.not_found", "named only in a field the row rule hides");
+  assert.equal(
+    await code(link(r, id, "fil_hidden")),
+    "permission.not_found",
+    "named only in a field the row rule hides",
+  );
   assert.equal(await code(link(r, id, "fil_unknown")), "permission.not_found");
   assert.equal(await code(link(r, id, "not-a-file")), "validation.bad_input");
   assert.equal(r.w.db.rows("portal_magic").filter((m) => String(m.purpose).startsWith("file:")).length, 0);
@@ -141,9 +192,21 @@ test("file_link: Confidential and Restricted files are never linked, and a delet
 test("file_link: invited, disabled, unlinked and unknown accounts get nothing", async () => {
   const r = rig();
   const { w } = r;
-  const invited = (await run<{ account: { accountId: string } }>(w.ctx, "portal.account_create", { siteId: SITE, email: "new@client.example", method: "magic_link" })).account.accountId;
+  const invited = (
+    await run<{ account: { accountId: string } }>(w.ctx, "portal.account_create", {
+      siteId: SITE,
+      email: "new@client.example",
+      method: "magic_link",
+    })
+  ).account.accountId;
   assert.equal(await code(link(r, invited, "fil_a")), "permission.no_grant");
-  const active = (await run<{ account: { accountId: string } }>(w.ctx, "portal.account_create", { siteId: SITE, email: "free@client.example", method: "magic_link" })).account.accountId;
+  const active = (
+    await run<{ account: { accountId: string } }>(w.ctx, "portal.account_create", {
+      siteId: SITE,
+      email: "free@client.example",
+      method: "magic_link",
+    })
+  ).account.accountId;
   await run(w.ctx, "portal.sign_in", { siteId: SITE, email: "free@client.example", token: w.mailer.last().token });
   assert.equal(await code(link(r, active, "fil_a")), "validation.precondition_failed");
   assert.equal(await code(link(r, "pac_missing", "fil_a")), "validation.not_found");
@@ -155,10 +218,18 @@ test("file_link: invited, disabled, unlinked and unknown accounts get nothing", 
 test("file_link: lifetime is 1 minute to 24 hours", async () => {
   const r = rig();
   const id = await linked(r);
-  for (const bad of [0, -5, 1441, 1.5, "30", null]) assert.equal(await code(extra(r.w.ctx, "portal.file_link", { accountId: id, fileId: "fil_a", expiresInMinutes: bad })), "validation.bad_input", String(bad));
+  for (const bad of [0, -5, 1441, 1.5, "30", null])
+    assert.equal(
+      await code(extra(r.w.ctx, "portal.file_link", { accountId: id, fileId: "fil_a", expiresInMinutes: bad })),
+      "validation.bad_input",
+      String(bad),
+    );
   assert.equal((await link(r, id, "fil_a", 1)).expiresAt, r.w.ctx.now() + MINUTE);
   assert.equal((await link(r, id, "fil_a", 1440)).expiresAt, r.w.ctx.now() + 1440 * MINUTE);
-  assert.equal(await code(extra(r.w.ctx, "portal.file_link", { accountId: id, fileId: "fil_a" })), "validation.bad_input");
+  assert.equal(
+    await code(extra(r.w.ctx, "portal.file_link", { accountId: id, fileId: "fil_a" })),
+    "validation.bad_input",
+  );
 });
 
 test("redeemFileLink: expired, unknown, wrong-purpose and disabled-account links are all the same refusal", async () => {
@@ -187,8 +258,19 @@ test("file_link: expired links of the account are dropped on the next call", asy
   await link(r, id, "fil_c", 60);
   r.w.advance(5 * MINUTE);
   await link(r, id, "fil_a", 30);
-  assert.deepEqual(r.w.db.rows("portal_magic").filter((m) => String(m.purpose).startsWith("file:")).map((m) => m.purpose).sort(), ["file:fil_a", "file:fil_c"]);
-  assert.equal(r.w.db.rows("portal_magic").filter((m) => m.purpose === "invite").length, 1, "other tokens are left alone");
+  assert.deepEqual(
+    r.w.db
+      .rows("portal_magic")
+      .filter((m) => String(m.purpose).startsWith("file:"))
+      .map((m) => m.purpose)
+      .sort(),
+    ["file:fil_a", "file:fil_c"],
+  );
+  assert.equal(
+    r.w.db.rows("portal_magic").filter((m) => m.purpose === "invite").length,
+    1,
+    "other tokens are left alone",
+  );
 });
 
 // ---- post -----------------------------------------------------------------------------------------------------
@@ -201,8 +283,15 @@ test("post: lands in the record's channel main thread, names the outside account
   assert.equal(r.posts.length, 1);
   assert.equal(r.posts[0]!.threadId, "thr_m1");
   assert.equal(r.posts[0]!.body, "From dana@client.example (client portal)\n\nCan you check clause 4?");
-  assert.equal(r.posts[0]!.principal, "usr_owner", "the call runs as the site identity, not as a Space member named after the visitor");
-  assert.deepEqual(posted(r).map((e) => [e.name, e.subject, e.payload]), [["portal.message_posted", "record/rec_m1", { accountId: id, recordId: "rec_m1", messageId: "msg_1" }]]);
+  assert.equal(
+    r.posts[0]!.principal,
+    "usr_owner",
+    "the call runs as the site identity, not as a Space member named after the visitor",
+  );
+  assert.deepEqual(
+    posted(r).map((e) => [e.name, e.subject, e.payload]),
+    [["portal.message_posted", "record/rec_m1", { accountId: id, recordId: "rec_m1", messageId: "msg_1" }]],
+  );
 });
 
 test("post: only the account's own record or rows its rules show; anything else is not found", async () => {
@@ -228,9 +317,19 @@ test("post: a record with no channel, or a closed one, has no conversation to po
 test("post: empty, oversized and NUL bodies are refused; invited, disabled and unlinked accounts cannot post", async () => {
   const r = rig();
   const id = await linked(r);
-  for (const body of ["", "   ", "x".repeat(10_001), "a\u0000b"]) assert.equal(await code(post(r, id, "rec_m1", body)), "validation.bad_input");
-  assert.equal(await code(extra(r.w.ctx, "portal.post", { accountId: id, recordId: "rec_m1" })), "validation.bad_input");
-  const invited = (await run<{ account: { accountId: string } }>(r.w.ctx, "portal.account_create", { siteId: SITE, email: "new@client.example", method: "magic_link" })).account.accountId;
+  for (const body of ["", "   ", "x".repeat(10_001), "a\u0000b"])
+    assert.equal(await code(post(r, id, "rec_m1", body)), "validation.bad_input");
+  assert.equal(
+    await code(extra(r.w.ctx, "portal.post", { accountId: id, recordId: "rec_m1" })),
+    "validation.bad_input",
+  );
+  const invited = (
+    await run<{ account: { accountId: string } }>(r.w.ctx, "portal.account_create", {
+      siteId: SITE,
+      email: "new@client.example",
+      method: "magic_link",
+    })
+  ).account.accountId;
   assert.equal(await code(post(r, invited, "rec_m1")), "permission.no_grant");
   await run(r.w.ctx, "portal.account_disable", { accountId: id });
   assert.equal(await code(post(r, id, "rec_m1")), "permission.suspended");

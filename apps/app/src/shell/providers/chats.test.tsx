@@ -20,8 +20,10 @@ import { ShellRuntimeProvider } from "./runtime.tsx";
 import type { ShellRuntime, ShellTarget } from "./runtime.tsx";
 
 const PEOPLE: Principal[] = [
-  { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" }, { id: "usr_maya", name: "Maya Chen", kind: "person" },
-  { id: "agt_intake", name: "Intake", kind: "agent" }, { id: "agt_docs", name: "Docs", kind: "agent" },
+  { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+  { id: "usr_maya", name: "Maya Chen", kind: "person" },
+  { id: "agt_intake", name: "Intake", kind: "agent" },
+  { id: "agt_docs", name: "Docs", kind: "agent" },
 ];
 
 function runtime(): { rt: ShellRuntime; calls: { cap: string; input: unknown }[]; opened: ShellTarget[] } {
@@ -29,27 +31,73 @@ function runtime(): { rt: ShellRuntime; calls: { cap: string; input: unknown }[]
   const conv = createSample("idle");
   const calls: { cap: string; input: unknown }[] = [];
   const opened: ShellTarget[] = [];
-  const screens: ScreenHooks = { query: (id, name, state) => (id === "chats.conversation" ? conv.data.screens : side.data.screens).query(id, name, state) };
-  const principals: LiveQuery<Principal[]> = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "ready", data: PEOPLE }) };
+  const screens: ScreenHooks = {
+    query: (id, name, state) =>
+      (id === "chats.conversation" ? conv.data.screens : side.data.screens).query(id, name, state),
+  };
+  const principals: LiveQuery<Principal[]> = {
+    subscribe: () => () => undefined,
+    getSnapshot: () => ({ status: "ready", data: PEOPLE }),
+  };
   const rt: ShellRuntime = {
-    screens, call: async (cap, input) => { calls.push({ cap, input }); return conv.data.call(cap, input); }, connection: conv.data.connection, principals,
-    recordTitle: () => undefined, me: PEOPLE[0]!, clock: conv.data.clock,
-    space: { id: "northwind", kind: "team", name: "Northwind" }, assistant: { id: "agt_assistant", name: "Assistant" }, aiConnected: true, deferredModules: new Set<string>(), isDeferred: () => false, calendarConnected: true,
-    open: (t) => void opened.push(t), openUrl: () => undefined,
+    screens,
+    call: async (cap, input) => {
+      calls.push({ cap, input });
+      return conv.data.call(cap, input);
+    },
+    connection: conv.data.connection,
+    principals,
+    recordTitle: () => undefined,
+    me: PEOPLE[0]!,
+    clock: conv.data.clock,
+    space: { id: "northwind", kind: "team", name: "Northwind" },
+    assistant: { id: "agt_assistant", name: "Assistant" },
+    aiConnected: true,
+    deferredModules: new Set<string>(),
+    isDeferred: () => false,
+    calendarConnected: true,
+    open: (t) => void opened.push(t),
+    openUrl: () => undefined,
   };
   return { rt, calls, opened };
 }
 
 const html = (rt: ShellRuntime | null): string =>
-  renderToStaticMarkup(rt ? <ShellRuntimeProvider value={rt}><ChatsPlace /></ShellRuntimeProvider> : <ChatsPlace />).replaceAll("<!-- -->", "");
+  renderToStaticMarkup(
+    rt ? (
+      <ShellRuntimeProvider value={rt}>
+        <ChatsPlace />
+      </ShellRuntimeProvider>
+    ) : (
+      <ChatsPlace />
+    ),
+  ).replaceAll("<!-- -->", "");
 
 test("chats: with a runtime the sidebar lists the Space's chats and the first screen is a new chat", () => {
   const out = html(runtime().rt);
   assert.ok(out.includes('data-testid="chats-place"'));
-  assert.ok(out.includes('data-testid="landing-list"'), "with no shell around it (a phone) the list sits under the first screen");
-  const el = ChatsSidebarSlot({ data: createSampleSidebar().data, window: { start: 0, end: 500 } }) as ReactElement<{ title: string; children: (q: string, slot: SidebarSlotApi) => ReactElement }>;
+  assert.ok(
+    out.includes('data-testid="landing-list"'),
+    "with no shell around it (a phone) the list sits under the first screen",
+  );
+  const el = ChatsSidebarSlot({ data: createSampleSidebar().data, window: { start: 0, end: 500 } }) as ReactElement<{
+    title: string;
+    children: (q: string, slot: SidebarSlotApi) => ReactElement;
+  }>;
   assert.equal(el.type, SidebarContent, "the place registers its sidebar in the shared slot");
-  const side = renderToStaticMarkup(el.props.children("", { query: "", collapsed: false, setCollapsed: () => undefined, hasSidebar: true, compact: false, openBody: () => undefined, back: () => undefined, view: "body", title: "Chats" })).replaceAll("<!-- -->", "");
+  const side = renderToStaticMarkup(
+    el.props.children("", {
+      query: "",
+      collapsed: false,
+      setCollapsed: () => undefined,
+      hasSidebar: true,
+      compact: false,
+      openBody: () => undefined,
+      back: () => undefined,
+      view: "body",
+      title: "Chats",
+    }),
+  ).replaceAll("<!-- -->", "");
   assert.ok(side.includes("Tasks") && side.includes("Recent"), "the sidebar rows");
   assert.ok(out.includes('data-testid="chats-landing"') && out.includes("What are we working on?"), "the first screen");
   assert.ok(!out.includes("-loading"), "no loading frame once the Space is open");
@@ -63,7 +111,13 @@ test("chats: before the runtime exists the place draws its own loading frame, ne
 
 test("chats: the newest thread is the first of the starred, today, yesterday and earlier groups, and a local row is never picked", () => {
   const item = (threadId: string) => ({ threadId, kind: "chat" as const, title: threadId, unread: 0 }) as never;
-  const recent = { starred: [], today: [item("local_1"), item("t1")], yesterday: [item("t2")], earlier: [], nextUnread: null } as never;
+  const recent = {
+    starred: [],
+    today: [item("local_1"), item("t1")],
+    yesterday: [item("t2")],
+    earlier: [],
+    nextUnread: null,
+  } as never;
   assert.equal(newestThread(recent), "t1");
   assert.equal(newestThread(undefined), null);
 });
@@ -71,11 +125,24 @@ test("chats: the newest thread is the first of the starred, today, yesterday and
 test("chats: a send goes through the Space's call as chat.post, in the open thread, with a key", async () => {
   const { rt, calls } = runtime();
   const people = PEOPLE;
-  const data = conversationData(rt, { openThread: () => undefined, togglePane: () => undefined, openAgentChat: () => undefined, fillComposer: () => undefined }, "c1", people);
+  const data = conversationData(
+    rt,
+    {
+      openThread: () => undefined,
+      togglePane: () => undefined,
+      openAgentChat: () => undefined,
+      fillComposer: () => undefined,
+    },
+    "c1",
+    people,
+  );
   assert.equal(data.threadId, "c1");
   assert.equal(data.nameOf("agt_docs"), "Docs");
   assert.equal(data.kindOf("agt_docs"), "agent");
-  assert.ok(data.directory.every((c) => c.id !== "usr_irfad"), "you cannot @ yourself");
+  assert.ok(
+    data.directory.every((c) => c.id !== "usr_irfad"),
+    "you cannot @ yourself",
+  );
   await data.call("chat.post", { threadId: "c1", body: "hello", idempotencyKey: data.newKey() });
   assert.equal(calls[0]!.cap, "chat.post");
   assert.notEqual(data.newKey(), data.newKey());
@@ -83,10 +150,23 @@ test("chats: a send goes through the Space's call as chat.post, in the open thre
 
 test("chats: clicking an agent's name or a card asks the shell to open it", () => {
   const { rt, opened } = runtime();
-  const data = conversationData(rt, { openThread: () => undefined, togglePane: () => undefined, openAgentChat: () => undefined, fillComposer: () => undefined }, "c1", PEOPLE);
+  const data = conversationData(
+    rt,
+    {
+      openThread: () => undefined,
+      togglePane: () => undefined,
+      openAgentChat: () => undefined,
+      fillComposer: () => undefined,
+    },
+    "c1",
+    PEOPLE,
+  );
   data.nav.openAgent("agt_docs");
   data.nav.openBeside("file", "fil_1");
-  assert.deepEqual(opened, [{ screen: "chats.agent-page", args: { agentId: "agt_docs" } }, { subject: { type: "file", id: "fil_1" } }]);
+  assert.deepEqual(opened, [
+    { screen: "chats.agent-page", args: { agentId: "agt_docs" } },
+    { subject: { type: "file", id: "fil_1" } },
+  ]);
 });
 
 const GO: Go = new Proxy({} as Go, { get: () => () => undefined });
@@ -97,7 +177,10 @@ test("chats: Ask about this puts the text in the composer; a waiting ask is take
   fill.set("About rivera.docx: ");
   assert.equal(fill.take(), "About rivera.docx: ", "the ask waits for a conversation to open");
   assert.equal(fill.take(), undefined, "and is taken once");
-  const off = fill.subscribe(() => { const t = fill.take(); if (t) seen.push(t); });
+  const off = fill.subscribe(() => {
+    const t = fill.take();
+    if (t) seen.push(t);
+  });
   fill.set("Change the 9:00 routine: ");
   assert.deepEqual(seen, ["Change the 9:00 routine: "], "an open conversation takes it at once");
   off();
@@ -113,7 +196,12 @@ test("chats: the pane's Ask About This and the agent page's Change by Asking bot
   assert.equal(fill.take(), "About notes.md: ");
   const asked: string[] = [];
   const go = { ...GO, agentChat: (id: string) => void asked.push(id) } as Go;
-  const page = agentPageData(rt, go, { agent: { agentId: "agt_docs", name: "Docs" }, canEdit: true, nameOf: (id) => id, fill });
+  const page = agentPageData(rt, go, {
+    agent: { agentId: "agt_docs", name: "Docs" },
+    canEdit: true,
+    nameOf: (id) => id,
+    fill,
+  });
   page.nav.fillComposer("Change the weekly routine: ");
   assert.deepEqual(asked, ["agt_docs"], "the agent's page opens the chat with that agent");
   assert.equal(fill.take(), "Change the weekly routine: ", "and the text waits for it");
@@ -122,25 +210,66 @@ test("chats: the pane's Ask About This and the agent page's Change by Asking bot
 
 test("chats: the agent page offers Add a server only to who may add one (review F4): an owner or admin of a Team Space, never a member", () => {
   const { rt } = runtime();
-  const page = (perms: string[]) => agentPageData({ ...rt, space: { ...rt.space, kind: "team" }, permissions: new Set(perms) } as typeof rt, GO, { agent: { agentId: "agt_docs", name: "Docs" }, canEdit: true, nameOf: (id) => id });
+  const page = (perms: string[]) =>
+    agentPageData({ ...rt, space: { ...rt.space, kind: "team" }, permissions: new Set(perms) } as typeof rt, GO, {
+      agent: { agentId: "agt_docs", name: "Docs" },
+      canEdit: true,
+      nameOf: (id) => id,
+    });
   assert.equal(typeof page(["access.manage"]).nav.openAddServer, "function", "an admin is offered it");
   assert.equal(page([]).nav.openAddServer, undefined, "a member is not");
 });
 
 test("chats: the sidebar's dot says another Space needs you, from the Spaces the shell knows", () => {
   const { rt } = runtime();
-  const space = (spaceId: string, needsYou: boolean) => ({ spaceId, name: spaceId, kind: "team", address: "", role: "Owner", tint: ["#000", "#111"], kit: "x", skinDefault: "system", starred: false, needsYou, console: false, terminal: false, counts: {}, dots: {} }) as never;
+  const space = (spaceId: string, needsYou: boolean) =>
+    ({
+      spaceId,
+      name: spaceId,
+      kind: "team",
+      address: "",
+      role: "Owner",
+      tint: ["#000", "#111"],
+      kit: "x",
+      skinDefault: "system",
+      starred: false,
+      needsYou,
+      console: false,
+      terminal: false,
+      counts: {},
+      dots: {},
+    }) as never;
   const actions = chatsActions(GO);
   assert.equal(sidebarData(rt, actions).space.otherNeedsYou, false, "no other Spaces known");
-  assert.equal(sidebarData({ ...rt, knownSpaces: [space("northwind", true)] }, actions).space.otherNeedsYou, false, "this Space needing you is not another Space");
-  assert.equal(sidebarData({ ...rt, knownSpaces: [space("northwind", false), space("harbor", false)] }, actions).space.otherNeedsYou, false);
-  assert.equal(sidebarData({ ...rt, knownSpaces: [space("northwind", false), space("harbor", true)] }, actions).space.otherNeedsYou, true);
+  assert.equal(
+    sidebarData({ ...rt, knownSpaces: [space("northwind", true)] }, actions).space.otherNeedsYou,
+    false,
+    "this Space needing you is not another Space",
+  );
+  assert.equal(
+    sidebarData({ ...rt, knownSpaces: [space("northwind", false), space("harbor", false)] }, actions).space
+      .otherNeedsYou,
+    false,
+  );
+  assert.equal(
+    sidebarData({ ...rt, knownSpaces: [space("northwind", false), space("harbor", true)] }, actions).space
+      .otherNeedsYou,
+    true,
+  );
 });
 
 test("chats: the sidebar's nav opens a project by subject through rt.open (the wiring a real-browser walk found missing)", () => {
   const { rt } = runtime();
   const opened: ShellTarget[] = [];
-  const data = sidebarData({ ...rt, open: (t: ShellTarget) => { opened.push(t); } }, chatsActions(GO));
+  const data = sidebarData(
+    {
+      ...rt,
+      open: (t: ShellTarget) => {
+        opened.push(t);
+      },
+    },
+    chatsActions(GO),
+  );
   assert.equal(typeof data.nav.openProject, "function", "the sidebar can open a project");
   data.nav.openProject!("prj_1");
   assert.deepEqual(opened, [{ subject: { type: "project", id: "prj_1" } }]);

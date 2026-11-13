@@ -6,11 +6,28 @@
 // DECISION: cancelsOn names event types. An event of such a type cancels the wait when it is about the wait's subject (its subject or payload.recordId), or, for a wait with no subject,
 //   when its payload.runId is the wait's Run (run.stopped). A cancel stops the Run; a wait that matches and cancels in the same event is canceled.
 import {
-  durationMs, emitWait, endWait, filterMatches, findWait, newId, openEventWaits, openWaits, openWaitsOnRun, page, raise, readPolicy, saveWait, waitOut, waitsFor, idemFind, idemSave, clean,
+  durationMs,
+  emitWait,
+  endWait,
+  filterMatches,
+  findWait,
+  newId,
+  openEventWaits,
+  openWaits,
+  openWaitsOnRun,
+  page,
+  raise,
+  readPolicy,
+  saveWait,
+  waitOut,
+  waitsFor,
+  idemFind,
+  idemSave,
+  clean,
 } from "../projections.ts";
 import type { ResourceRef, SchedCtx, Wait, WaitOn } from "../projections.ts";
 
-type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 type Reason = "subject_deleted" | "left_stage" | "stopped" | "manual";
 const RUN_ENDED = new Set(["run.succeeded", "run.failed", "run.stopped"]);
 
@@ -29,13 +46,23 @@ export async function register(ctx: SchedCtx, input: In): Promise<unknown> {
   if ("at" in on) expiresAt = on.at;
   else {
     const ms = input.timeout === undefined ? readPolicy(ctx.db).defaultWaitMs : durationMs(String(input.timeout));
-    if (ms === undefined || ms <= 0) raise(ctx, "validation.precondition_failed", "A timeout is a number and a unit: 30s, 15m, 6h, 30d or 2w.", { reason: "bad_duration" });
+    if (ms === undefined || ms <= 0)
+      raise(ctx, "validation.precondition_failed", "A timeout is a number and a unit: 30s, 15m, 6h, 30d or 2w.", {
+        reason: "bad_duration",
+      });
     expiresAt = now + ms;
   }
   const w: Wait = {
-    id: newId("wat", now), runId: input.runId, on, expiresAt, cancelsOn: [...new Set<string>(input.cancelsOn ?? [])], state: "open", createdAt: now,
+    id: newId("wat", now),
+    runId: input.runId,
+    on,
+    expiresAt,
+    cancelsOn: [...new Set<string>(input.cancelsOn ?? [])],
+    state: "open",
+    createdAt: now,
     ...(input.subject ? { subject: { type: input.subject.type, id: input.subject.id } } : {}),
-    ...(input.threadId ? { threadId: input.threadId } : {}), ...(input.stepId ? { stepId: input.stepId } : {}),
+    ...(input.threadId ? { threadId: input.threadId } : {}),
+    ...(input.stepId ? { stepId: input.stepId } : {}),
   };
   saveWait(ctx.db, w);
   if (key) idemSave(ctx.db, `wait:${key}`, w.id);
@@ -45,18 +72,24 @@ export async function register(ctx: SchedCtx, input: In): Promise<unknown> {
 
 /** Run `f`; a Run that is gone or no longer waiting is not an error for the scheduler (someone else already woke or ended it). */
 async function quietly(f: () => Promise<unknown>): Promise<unknown> {
-  try { return await f(); } catch (e) {
+  try {
+    return await f();
+  } catch (e) {
     const code = (e as { error?: { code?: string } } | null)?.error?.code;
-    if (code === "validation.precondition_failed" || code === "validation.not_found" || code === "permission.not_found") return undefined;
+    if (code === "validation.precondition_failed" || code === "validation.not_found" || code === "permission.not_found")
+      return undefined;
     throw e;
   }
 }
 
 async function wake(ctx: SchedCtx, w: Wait, summary: string): Promise<void> {
   if (!ctx.call) raise(ctx, "internal.unavailable", "The scheduler cannot wake a run right now.");
-  const got = (await quietly(() => ctx.call!("runs.get", { runId: w.runId }))) as { run?: { kind?: string; status?: string } } | undefined;
+  const got = (await quietly(() => ctx.call!("runs.get", { runId: w.runId }))) as
+    | { run?: { kind?: string; status?: string } }
+    | undefined;
   if (!got?.run) return;
-  if (got.run.kind === "wait") await quietly(() => ctx.call!("runs.finish", { runId: w.runId, status: "succeeded", summary }));
+  if (got.run.kind === "wait")
+    await quietly(() => ctx.call!("runs.finish", { runId: w.runId, status: "succeeded", summary }));
   else await quietly(() => ctx.call!("runs.resume", { runId: w.runId, reason: "background" }));
 }
 
@@ -67,13 +100,20 @@ function reasonFor(type: string): Reason {
   return "manual";
 }
 
-interface Ev { id?: string; type: string; subject?: ResourceRef; payload?: unknown }
-const payloadOf = (ev: Ev): Record<string, unknown> => (ev.payload && typeof ev.payload === "object" ? ev.payload : {}) as Record<string, unknown>;
+interface Ev {
+  id?: string;
+  type: string;
+  subject?: ResourceRef;
+  payload?: unknown;
+}
+const payloadOf = (ev: Ev): Record<string, unknown> =>
+  (ev.payload && typeof ev.payload === "object" ? ev.payload : {}) as Record<string, unknown>;
 
 function cancels(w: Wait, ev: Ev): boolean {
   if (!w.cancelsOn.includes(ev.type)) return false;
   const p = payloadOf(ev);
-  if (w.subject) return (ev.subject?.type === w.subject.type && ev.subject.id === w.subject.id) || p.recordId === w.subject.id;
+  if (w.subject)
+    return (ev.subject?.type === w.subject.type && ev.subject.id === w.subject.id) || p.recordId === w.subject.id;
   return p.runId === w.runId;
 }
 function matches(w: Wait, ev: Ev): boolean {
@@ -101,7 +141,8 @@ export async function match(ctx: SchedCtx, input: In): Promise<unknown> {
   }
   const hits = new Map<string, Wait>();
   for (const w of openEventWaits(ctx.db, ev.type)) if (matches(w, ev)) hits.set(w.id, w);
-  if (RUN_ENDED.has(ev.type) && typeof payloadOf(ev).runId === "string") for (const w of openWaitsOnRun(ctx.db, payloadOf(ev).runId as string)) if (matches(w, ev)) hits.set(w.id, w);
+  if (RUN_ENDED.has(ev.type) && typeof payloadOf(ev).runId === "string")
+    for (const w of openWaitsOnRun(ctx.db, payloadOf(ev).runId as string)) if (matches(w, ev)) hits.set(w.id, w);
   let matched = 0;
   for (const w of hits.values()) {
     if (canceled.has(w.id)) continue;

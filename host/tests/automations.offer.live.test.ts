@@ -11,7 +11,13 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon, DaemonOptions } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const OWNER = "tok-usr_olivia";
 const SECRET = "sk_live_SECRET";
 
@@ -24,26 +30,35 @@ function seededDir(): string {
   return dir;
 }
 
-const boot = (dir: string): Promise<Daemon> => startDaemon({
-  config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
-  platform: fakePlatform({
-    os: "linux", hostname: "exec-live", free: 80e9,
-    commands: {
-      [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
-      "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
-      "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+const boot = (dir: string): Promise<Daemon> =>
+  startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux",
+      hostname: "exec-live",
+      free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    seams: { vaultSinks: { env: () => undefined } },
+    session: (h) => {
+      const token = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+      return token === OWNER
+        ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "exec-live" }
+        : null;
     },
-  }),
-  fetch: caddyFetch,
-  seams: { vaultSinks: { env: () => undefined } },
-  session: (h) => {
-    const token = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-    return token === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "exec-live" } : null;
-  },
-  intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
-} satisfies DaemonOptions);
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
+  } satisfies DaemonOptions);
 
-async function post(d: Daemon, route: string, body: unknown): Promise<{ status: number; data: Record<string, unknown>; text: string }> {
+async function post(
+  d: Daemon,
+  route: string,
+  body: unknown,
+): Promise<{ status: number; data: Record<string, unknown>; text: string }> {
   const response = await fetch(`${d.url}${route}`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` },
@@ -52,7 +67,11 @@ async function post(d: Daemon, route: string, body: unknown): Promise<{ status: 
   });
   const text = await response.text();
   let json: Record<string, unknown> = {};
-  try { json = JSON.parse(text) as Record<string, unknown>; } catch { /* the body is not JSON */ }
+  try {
+    json = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    /* the body is not JSON */
+  }
   return { status: response.status, data: (json["data"] as Record<string, unknown> | undefined) ?? {}, text };
 }
 
@@ -77,12 +96,20 @@ test("saving a Vault item offers a connector setup once, and declining is final"
   const dir = seededDir();
   const daemon = await boot(dir);
   try {
-    const folder = await post(daemon, "/v1/vault/folders/create", { name: "Keys", scope: "shared", idempotencyKey: "offer-folder" });
+    const folder = await post(daemon, "/v1/vault/folders/create", {
+      name: "Keys",
+      scope: "shared",
+      idempotencyKey: "offer-folder",
+    });
     assert.equal(folder.status, 200, folder.text);
     const folderId = String((folder.data["folder"] as { id?: string } | undefined)?.id ?? "");
     assert.match(folderId, /^vfd_/);
     const put = await post(daemon, "/v1/vault/item/put", {
-      folderId, name: "Stripe", kind: "api_key", fields: [{ key: "api_key", value: SECRET }], idempotencyKey: "offer-stripe",
+      folderId,
+      name: "Stripe",
+      kind: "api_key",
+      fields: [{ key: "api_key", value: SECRET }],
+      idempotencyKey: "offer-stripe",
     });
     assert.equal(put.status, 200, put.text);
     const stripe = await untilOffer(daemon, "Stripe");
@@ -92,17 +119,27 @@ test("saving a Vault item offers a connector setup once, and declining is final"
     const declined = await post(daemon, "/v1/automations/connector_offer/decline", { itemId: stripe.itemId });
     assert.equal(declined.status, 200, declined.text);
     assert.equal(declined.data["decision"], "declined");
-    assert.equal((await offers(daemon)).some((offer) => offer.itemId === stripe.itemId), false);
+    assert.equal(
+      (await offers(daemon)).some((offer) => offer.itemId === stripe.itemId),
+      false,
+    );
     const declinedAgain = await post(daemon, "/v1/automations/connector_offer/decline", { itemId: stripe.itemId });
     assert.equal(declinedAgain.data["decision"], "declined");
 
     const second = await post(daemon, "/v1/vault/item/put", {
-      folderId, name: "Notion", kind: "api_key", fields: [{ key: "api_key", value: SECRET }], idempotencyKey: "offer-notion",
+      folderId,
+      name: "Notion",
+      kind: "api_key",
+      fields: [{ key: "api_key", value: SECRET }],
+      idempotencyKey: "offer-notion",
     });
     assert.equal(second.status, 200, second.text);
     const notion = await untilOffer(daemon, "Notion");
     assert.equal(notion.text, "Set up Notion for Automations?");
-    assert.equal((await offers(daemon)).some((offer) => offer.itemId === stripe.itemId), false);
+    assert.equal(
+      (await offers(daemon)).some((offer) => offer.itemId === stripe.itemId),
+      false,
+    );
   } finally {
     await daemon.stop();
     fs.rmSync(dir, { recursive: true, force: true });

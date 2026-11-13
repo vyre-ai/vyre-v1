@@ -3,10 +3,22 @@ import assert from "node:assert/strict";
 import { counts, flowFor, isStepKey, nextAfter, resumeAt, shouldAutoOpen, stepsOf } from "./flow.ts";
 
 test("each flow has unique step keys and the owner flowchart order", () => {
-  for (const f of ["personal", "team", "member"] as const) assert.equal(new Set(stepsOf(f).map((s) => s.key)).size, stepsOf(f).length);
-  assert.deepEqual(stepsOf("personal").map((s) => s.key), ["ai", "interview", "sessions", "folders", "chrome", "phone", "win", "team"]);
-  assert.deepEqual(stepsOf("team").map((s) => s.key), ["org", "space_ai", "workspace", "sign_in", "people", "invites"], "the six team steps that have something real behind them: agents, shared data and the first win are not shown until they are built");
-  assert.deepEqual(stepsOf("member").map((s) => s.key), ["mine", "ai", "apps", "interview", "agents"], "a member is not offered a Personal Space step with nothing behind it");
+  for (const f of ["personal", "team", "member"] as const)
+    assert.equal(new Set(stepsOf(f).map((s) => s.key)).size, stepsOf(f).length);
+  assert.deepEqual(
+    stepsOf("personal").map((s) => s.key),
+    ["ai", "interview", "sessions", "folders", "chrome", "phone", "win", "team"],
+  );
+  assert.deepEqual(
+    stepsOf("team").map((s) => s.key),
+    ["org", "space_ai", "workspace", "sign_in", "people", "invites"],
+    "the six team steps that have something real behind them: agents, shared data and the first win are not shown until they are built",
+  );
+  assert.deepEqual(
+    stepsOf("member").map((s) => s.key),
+    ["mine", "ai", "apps", "interview", "agents"],
+    "a member is not offered a Personal Space step with nothing behind it",
+  );
   assert.equal(stepsOf("member")[1]!.card, "connect_ai", "a member's own AI account");
 });
 
@@ -22,7 +34,15 @@ test("skipping moves on and the skipped step stays on the rail as later", () => 
   const p = { ai: "later" as const };
   assert.equal(nextAfter("personal", p, "ai"), "interview");
   assert.deepEqual(counts("personal", p), { done: 0, later: 1, total: 8 });
-  assert.equal(nextAfter("personal", { ...Object.fromEntries(stepsOf("personal").map((s) => [s.key, "done"])), ai: "later" }, "team"), "ai", "wraps to a step put off");
+  assert.equal(
+    nextAfter(
+      "personal",
+      { ...Object.fromEntries(stepsOf("personal").map((s) => [s.key, "done"])), ai: "later" },
+      "team",
+    ),
+    "ai",
+    "wraps to a step put off",
+  );
 });
 
 test("which flow, and when it opens by itself", () => {
@@ -52,9 +72,13 @@ test("any step can be reopened whatever its state, and changing a choice keeps t
     for (const st of stepsOf(flow)) {
       for (const was of ["done", "later", "open"] as const) {
         const all = Object.fromEntries(stepsOf(flow).map((x) => [x.key, "done" as const]));
-        const reopened = { ...Object.fromEntries(Object.entries({ ...all, [st.key]: was }).filter(([, v]) => v !== "open")) };
+        const reopened = {
+          ...Object.fromEntries(Object.entries({ ...all, [st.key]: was }).filter(([, v]) => v !== "open")),
+        };
         assert.equal(stateOf(reopened, st.key), was);
-        for (const other of stepsOf(flow)) if (other.key !== st.key) assert.equal(stateOf(reopened, other.key), "done", `${flow}/${st.key}: ${other.key} is untouched`);
+        for (const other of stepsOf(flow))
+          if (other.key !== st.key)
+            assert.equal(stateOf(reopened, other.key), "done", `${flow}/${st.key}: ${other.key} is untouched`);
         assert.equal(resumeAt(flow, reopened), was === "done" ? null : st.key, `${flow}/${st.key} as ${was}`);
       }
     }
@@ -63,5 +87,6 @@ test("any step can be reopened whatever its state, and changing a choice keeps t
 
 test("a step with nothing behind it is not shown anywhere: no flow lists an unbuilt card", async () => {
   const { UNBUILT } = await import("./flow.ts");
-  for (const f of ["personal", "team", "member"] as const) for (const s of stepsOf(f)) assert.ok(!UNBUILT.has(s.card), `${f}: ${s.key}`);
+  for (const f of ["personal", "team", "member"] as const)
+    for (const s of stepsOf(f)) assert.ok(!UNBUILT.has(s.card), `${f}: ${s.key}`);
 });

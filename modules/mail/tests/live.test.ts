@@ -4,10 +4,14 @@ import assert from "node:assert/strict";
 import { registry } from "../../../generated/registry.ts";
 import { handlers } from "../impl.ts";
 
-const mine = registry.capabilities.filter((c) => c.module === "mail").map((c) => c.name).sort();
+const mine = registry.capabilities
+  .filter((c) => c.module === "mail")
+  .map((c) => c.name)
+  .sort();
 
 test("mail live: the handler map equals the manifest's 39 capabilities (mail.thread.get of l-inboxthreads among them)", () => {
   assert.equal(mine.length, 39);
   assert.deepEqual(Object.keys(handlers).sort(), mine);
-  for (const name of mine) assert.equal(typeof (handlers as Record<string, unknown>)[name], "function", `${name} has a handler function`);
+  for (const name of mine)
+    assert.equal(typeof (handlers as Record<string, unknown>)[name], "function", `${name} has a handler function`);
 });

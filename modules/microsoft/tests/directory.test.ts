@@ -19,25 +19,52 @@ function ready() {
 test("the directory lists the tenant's people at the domain, leaves out guests, and shows who is already matched", async () => {
   const h = ready();
   await consentSetup(h.ctx, setup);
-  h.on("GET", `${G}/users`, { body: { value: [
-    { displayName: "Maya Rivera", mail: "Maya@Vyre.test", accountEnabled: true }, { displayName: "New Person", userPrincipalName: "new@vyre.test", accountEnabled: false },
-    { displayName: "A Guest", mail: "guest@vyre.test", userType: "Guest" }, { displayName: "Outside", mail: "o@elsewhere.test" },
-  ], "@odata.nextLink": `${G}/users?$skiptoken=abc` } });
-  assert.deepEqual(await directoryList(h.ctx, {}), { people: [
-    { email: "maya@vyre.test", suspended: false, name: "Maya Rivera", userId: "usr_maya01" }, { email: "new@vyre.test", suspended: true, name: "New Person" },
-  ], nextSkipToken: "abc" });
+  h.on("GET", `${G}/users`, {
+    body: {
+      value: [
+        { displayName: "Maya Rivera", mail: "Maya@Vyre.test", accountEnabled: true },
+        { displayName: "New Person", userPrincipalName: "new@vyre.test", accountEnabled: false },
+        { displayName: "A Guest", mail: "guest@vyre.test", userType: "Guest" },
+        { displayName: "Outside", mail: "o@elsewhere.test" },
+      ],
+      "@odata.nextLink": `${G}/users?$skiptoken=abc`,
+    },
+  });
+  assert.deepEqual(await directoryList(h.ctx, {}), {
+    people: [
+      { email: "maya@vyre.test", suspended: false, name: "Maya Rivera", userId: "usr_maya01" },
+      { email: "new@vyre.test", suspended: true, name: "New Person" },
+    ],
+    nextSkipToken: "abc",
+  });
 });
 
 test("the directory needs the connection to be set up", async () => {
-  await assert.rejects(() => directoryList(ready().ctx, {}), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(
+    () => directoryList(ready().ctx, {}),
+    (e) => codeOf(e) === "validation.precondition_failed",
+  );
 });
 
 test("importing invites each chosen person once and returns the links; the rest are skipped with a reason", async () => {
   const h = ready();
   await consentSetup(h.ctx, setup);
-  const out = await directoryImport(h.ctx, { idempotencyKey: "imp1", people: [{ email: "new@vyre.test", role: "rol_member" }, { email: "maya@vyre.test", role: "rol_member" }, { email: "x@elsewhere.test", role: "rol_member" }, { email: "bad@vyre.test", role: "rol_member" }] });
-  assert.deepEqual(out.invited, [{ email: "new@vyre.test", inviteId: "inv_newvyretest", link: "https://space.test/join/new" }]);
-  assert.deepEqual(out.skipped.map((s) => s.email), ["maya@vyre.test", "x@elsewhere.test", "bad@vyre.test"]);
+  const out = await directoryImport(h.ctx, {
+    idempotencyKey: "imp1",
+    people: [
+      { email: "new@vyre.test", role: "rol_member" },
+      { email: "maya@vyre.test", role: "rol_member" },
+      { email: "x@elsewhere.test", role: "rol_member" },
+      { email: "bad@vyre.test", role: "rol_member" },
+    ],
+  });
+  assert.deepEqual(out.invited, [
+    { email: "new@vyre.test", inviteId: "inv_newvyretest", link: "https://space.test/join/new" },
+  ]);
+  assert.deepEqual(
+    out.skipped.map((s) => s.email),
+    ["maya@vyre.test", "x@elsewhere.test", "bad@vyre.test"],
+  );
 });
 
 test("sync matches the people who joined since consent, once, and connects their mail", async () => {

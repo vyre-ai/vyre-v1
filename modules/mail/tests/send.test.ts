@@ -11,7 +11,7 @@ import { rig, row, sendIn, seedDomain } from "./send.rig.test.ts";
 import type { Rig } from "./send.rig.test.ts";
 
 const TRACE = "0123456789abcdef0123456789abcdef";
-const SATURDAY_3AM = 1_760_151_600_000;   // 2025-10-11 03:00 UTC
+const SATURDAY_3AM = 1_760_151_600_000; // 2025-10-11 03:00 UTC
 
 async function refused(p: Promise<unknown>, code: string): Promise<void> {
   await assert.rejects(p, (e: unknown) => {
@@ -29,9 +29,29 @@ function seedParent(r: Rig, id: string, o: { inboxes: string[]; rfc: string; thr
       "fromAddress", "toAddresses", "ccAddresses", subject, snippet, body, "sentAt", "contactId",
       "isPrivate", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, o.inboxes[0] ?? "", JSON.stringify(o.inboxes), "pid_parent", o.rfc, o.thread, "in", "received",
-    "pat@acme.test", JSON.stringify([{ address: "hello@vyre.test" }]), "[]", "Question", "Question", "Question", NOW, null,
-    0, "[]", null, TRACE, 1, NOW, null,
+    id,
+    o.inboxes[0] ?? "",
+    JSON.stringify(o.inboxes),
+    "pid_parent",
+    o.rfc,
+    o.thread,
+    "in",
+    "received",
+    "pat@acme.test",
+    JSON.stringify([{ address: "hello@vyre.test" }]),
+    "[]",
+    "Question",
+    "Question",
+    "Question",
+    NOW,
+    null,
+    0,
+    "[]",
+    null,
+    TRACE,
+    1,
+    NOW,
+    null,
   );
 }
 
@@ -51,23 +71,32 @@ test("a Space send goes out through the Resend domain with the trace header, a s
   assert.equal(call.length, 1);
   assert.equal(r.calls("mailgun.send_email").length, 0);
   const body = call[0]!.input;
-  assert.deepEqual([body.from, body.to, body.subject, body.text], ["hello@vyre.test", ["pat@acme.test"], "Hello", "Hi Pat"]);
+  assert.deepEqual(
+    [body.from, body.to, body.subject, body.text],
+    ["hello@vyre.test", ["pat@acme.test"], "Hello", "Hi Pat"],
+  );
   assert.equal(body.replyTo, undefined);
   assert.equal(body.fromName, undefined);
   assert.deepEqual(body.headers, { [TRACE_HEADER]: TRACE, "Message-ID": `<${id}@vyre.test>` });
   assert.deepEqual(body.tags, [{ name: "message_id", value: id }]);
 
   const m = row(r, id)!;
-  assert.deepEqual([m.status, m.direction, m.providerId, m.rfcMessageId, m.traceId, m.fromAddress, m.version], ["sent", "out", "resend_1", `<${id}@vyre.test>`, TRACE, "hello@vyre.test", 2]);
+  assert.deepEqual(
+    [m.status, m.direction, m.providerId, m.rfcMessageId, m.traceId, m.fromAddress, m.version],
+    ["sent", "out", "resend_1", `<${id}@vyre.test>`, TRACE, "hello@vyre.test", 2],
+  );
   assert.deepEqual([m.contactId, m.threadId], ["rec_pat01", id]);
-  assert.deepEqual(JSON.parse(String(m.toAddresses)), [{ address: "pat@acme.test", name: "Pat Lee", contactId: "rec_pat01" }]);
-  assert.equal(body.idempotencyKey, id);   // the provider capability's own key: one delivery per message
+  assert.deepEqual(JSON.parse(String(m.toAddresses)), [
+    { address: "pat@acme.test", name: "Pat Lee", contactId: "rec_pat01" },
+  ]);
+  assert.equal(body.idempotencyKey, id); // the provider capability's own key: one delivery per message
   assert.equal(r.h.rows(`SELECT * FROM mail_body WHERE "messageId" = ?`, id)[0]!.text, "Hi Pat");
   assert.equal(r.h.rows(`SELECT * FROM mail_rfc WHERE "messageId" = ?`, id).length, 1);
   assert.equal(r.h.rows(`SELECT * FROM mail_seen WHERE "messageId" = ?`, id)[0]!.source, "resend");
-  assert.deepEqual(r.h.named("message.sent").map((e) => [e.subject, e.payload]), [
-    [`mail_message/${id}`, { messageId: id, channel: "email", mailboxId: "mbx_hello", contactId: "rec_pat01" }],
-  ]);
+  assert.deepEqual(
+    r.h.named("message.sent").map((e) => [e.subject, e.payload]),
+    [[`mail_message/${id}`, { messageId: id, channel: "email", mailboxId: "mbx_hello", contactId: "rec_pat01" }]],
+  );
 });
 
 test("the Mailgun provider setting sends through Mailgun on a Mailgun domain, with the mailbox as reply-to", async () => {
@@ -77,7 +106,10 @@ test("the Mailgun provider setting sends through Mailgun on a Mailgun domain, wi
   assert.equal(r.calls("resend.send_email").length, 0);
   const body = r.calls("mailgun.send_email")[0]!.input;
   // the shared inbox address is on vyre.test, which only has a Resend domain; the Mailgun domain carries the mail and hello@ stays reply-to
-  assert.deepEqual([body.domain, body.from, body.replyTo], ["mail.other.test", "hello@mail.other.test", "hello@vyre.test"]);
+  assert.deepEqual(
+    [body.domain, body.from, body.replyTo],
+    ["mail.other.test", "hello@mail.other.test", "hello@vyre.test"],
+  );
   assert.deepEqual(body.tags, [`message_id:${out.messageId}`]);
   assert.equal(r.h.rows(`SELECT * FROM mail_seen WHERE "messageId" = ?`, out.messageId ?? "")[0]!.source, "mailgun");
   assert.equal(row(r, out.messageId ?? "")!.providerId, "mailgun_1");
@@ -87,7 +119,12 @@ test("a mailbox on a verified Space domain sends from its own address; another m
   const r = rig();
   await send(r.ctx, sendIn());
   assert.equal(r.calls("resend.send_email")[0]!.input.from, "hello@vyre.test");
-  r.ctx.db.run(`UPDATE mail_mailbox SET address = ?, title = ? WHERE id = ?`, "ann@elsewhere.test", "Ann Cole", "mbx_hello");
+  r.ctx.db.run(
+    `UPDATE mail_mailbox SET address = ?, title = ? WHERE id = ?`,
+    "ann@elsewhere.test",
+    "Ann Cole",
+    "mbx_hello",
+  );
   await send(r.ctx, sendIn());
   const body = r.calls("resend.send_email")[1]!.input;
   assert.deepEqual([body.from, body.fromName, body.replyTo], ["ann@vyre.test", "Ann Cole", "ann@elsewhere.test"]);
@@ -106,10 +143,18 @@ test("a provider failure marks the row failed and writes no counter, and the sam
   const input = sendIn();
   r.state.failNext = "provider.rate_limited";
   await refused(send(r.ctx, input), "provider.rate_limited");
-  assert.deepEqual(rows(r, "mail_message").map((m) => m.status), ["failed"]);
+  assert.deepEqual(
+    rows(r, "mail_message").map((m) => m.status),
+    ["failed"],
+  );
   const out = await send(r.ctx, input);
   assert.equal(out.status, "sent");
-  assert.deepEqual(rows(r, "mail_message").map((m) => m.status).sort(), ["failed", "sent"]);
+  assert.deepEqual(
+    rows(r, "mail_message")
+      .map((m) => m.status)
+      .sort(),
+    ["failed", "sent"],
+  );
 });
 
 test("the same idempotency key runs the send once and returns the first answer", async () => {
@@ -126,14 +171,24 @@ test("the same idempotency key runs the send once and returns the first answer",
 test("attachments are named from Files and handed to the provider", async () => {
   const r = rig();
   const out = await send(r.ctx, sendIn({ attachments: ["fil_one"] }));
-  assert.deepEqual(r.calls("files.get").map((c) => c.input), [{ fileId: "fil_one" }]);
+  assert.deepEqual(
+    r.calls("files.get").map((c) => c.input),
+    [{ fileId: "fil_one" }],
+  );
   assert.deepEqual(r.calls("resend.send_email")[0]!.input.attachments, [{ name: "fil_one.pdf", fileId: "fil_one" }]);
   assert.equal(row(r, out.messageId ?? "")!.attachments, JSON.stringify([{ fileId: "fil_one" }]));
 });
 
 test("one recipient field: an address appears once, To before Cc before Bcc, and cc and bcc reach the provider", async () => {
   const r = rig();
-  await send(r.ctx, sendIn({ to: [{ address: "pat@acme.test" }], cc: [{ address: "PAT@acme.test" }, { address: "lee@acme.test" }], bcc: [{ address: "lee@acme.test" }, { address: "boss@acme.test" }] }));
+  await send(
+    r.ctx,
+    sendIn({
+      to: [{ address: "pat@acme.test" }],
+      cc: [{ address: "PAT@acme.test" }, { address: "lee@acme.test" }],
+      bcc: [{ address: "lee@acme.test" }, { address: "boss@acme.test" }],
+    }),
+  );
   const body = r.calls("resend.send_email")[0]!.input;
   assert.deepEqual([body.to, body.cc, body.bcc], [["pat@acme.test"], ["lee@acme.test"], ["boss@acme.test"]]);
 });
@@ -142,16 +197,26 @@ test("one recipient field: an address appears once, To before Cc before Bcc, and
 
 test("a suppressed address is left out, named in the answer and raises message.suppressed; the rest are sent", async () => {
   const r = rig({ suppressed: { "bounced@acme.test": "bounce_hard" } });
-  const out = await send(r.ctx, sendIn({ to: [{ address: "pat@acme.test" }, { address: "bounced@acme.test" }], cc: [{ address: "lee@acme.test" }] }));
+  const out = await send(
+    r.ctx,
+    sendIn({
+      to: [{ address: "pat@acme.test" }, { address: "bounced@acme.test" }],
+      cc: [{ address: "lee@acme.test" }],
+    }),
+  );
   assert.equal(out.status, "sent");
   assert.deepEqual(out.suppressed, ["bounced@acme.test"]);
   assert.deepEqual(contractErrors("mail.send", "out", out), []);
   const body = r.calls("resend.send_email")[0]!.input;
   assert.deepEqual([body.to, body.cc], [["pat@acme.test"], ["lee@acme.test"]]);
-  assert.deepEqual(r.h.named("message.suppressed").map((e) => [e.subject, e.payload]), [
-    ["address/bounced@acme.test", { channel: "email", address: "bounced@acme.test", reason: "bounce_hard" }],
-  ]);
-  assert.deepEqual(r.calls("contacts.suppression.check")[0]!.input, { channel: "email", addresses: ["pat@acme.test", "bounced@acme.test", "lee@acme.test"] });
+  assert.deepEqual(
+    r.h.named("message.suppressed").map((e) => [e.subject, e.payload]),
+    [["address/bounced@acme.test", { channel: "email", address: "bounced@acme.test", reason: "bounce_hard" }]],
+  );
+  assert.deepEqual(r.calls("contacts.suppression.check")[0]!.input, {
+    channel: "email",
+    addresses: ["pat@acme.test", "bounced@acme.test", "lee@acme.test"],
+  });
 });
 
 test("when every recipient is suppressed nothing is sent or stored", async () => {
@@ -162,11 +227,14 @@ test("when every recipient is suppressed nothing is sent or stored", async () =>
   assert.deepEqual(contractErrors("mail.send", "out", out), []);
   assert.equal(r.sent().length, 0);
   assert.equal(rows(r, "mail_message").length, 0);
-  assert.deepEqual(r.h.named("message.suppressed").map((e) => e.payload), [
-    { channel: "email", address: "bounced@acme.test", reason: "bounce_hard" },
-    { channel: "email", address: "gone@acme.test", reason: "unsubscribe" },
-  ]);
-  assert.deepEqual(await send(r.ctx, input), out);   // a replay answers the same and raises nothing more
+  assert.deepEqual(
+    r.h.named("message.suppressed").map((e) => e.payload),
+    [
+      { channel: "email", address: "bounced@acme.test", reason: "bounce_hard" },
+      { channel: "email", address: "gone@acme.test", reason: "unsubscribe" },
+    ],
+  );
+  assert.deepEqual(await send(r.ctx, input), out); // a replay answers the same and raises nothing more
   assert.equal(r.h.named("message.suppressed").length, 2);
 });
 
@@ -181,22 +249,37 @@ test("consent: denied, Do-not-contact and an email opt-out refuse; unknown conse
       rec_smsonly: { ...none, emailConsent: "granted", optedOut: ["sms"] },
     },
   });
-  const out = await send(r.ctx, sendIn({
-    to: [
-      { address: "a@acme.test", contactId: "rec_denied" }, { address: "b@acme.test", contactId: "rec_dnc" }, { address: "c@acme.test", contactId: "rec_optout" },
-      { address: "d@acme.test", contactId: "rec_unknown" }, { address: "e@acme.test", contactId: "rec_smsonly" }, { address: "f@acme.test", contactId: "rec_gone" },
-    ],
-  }));
+  const out = await send(
+    r.ctx,
+    sendIn({
+      to: [
+        { address: "a@acme.test", contactId: "rec_denied" },
+        { address: "b@acme.test", contactId: "rec_dnc" },
+        { address: "c@acme.test", contactId: "rec_optout" },
+        { address: "d@acme.test", contactId: "rec_unknown" },
+        { address: "e@acme.test", contactId: "rec_smsonly" },
+        { address: "f@acme.test", contactId: "rec_gone" },
+      ],
+    }),
+  );
   assert.deepEqual(out.suppressed, ["a@acme.test", "b@acme.test", "c@acme.test"]);
   assert.deepEqual(r.calls("resend.send_email")[0]!.input.to, ["d@acme.test", "e@acme.test", "f@acme.test"]);
-  assert.deepEqual(r.h.named("message.suppressed").map((e) => e.payload.reason), ["consent_denied", "do_not_contact", "opted_out"]);
+  assert.deepEqual(
+    r.h.named("message.suppressed").map((e) => e.payload.reason),
+    ["consent_denied", "do_not_contact", "opted_out"],
+  );
 });
 
 test("the top-level contact stands for the first recipient and its consent applies", async () => {
-  const r = rig({ prefs: { rec_denied: { emailConsent: "denied", smsConsent: "unknown", doNotContact: false, optedOut: [] } } });
+  const r = rig({
+    prefs: { rec_denied: { emailConsent: "denied", smsConsent: "unknown", doNotContact: false, optedOut: [] } },
+  });
   const out = await send(r.ctx, sendIn({ contactId: "rec_denied" }));
   assert.deepEqual(out, { status: "suppressed", suppressed: ["pat@acme.test"] });
-  assert.deepEqual(r.calls("contacts.preferences.get").map((c) => c.input), [{ contactId: "rec_denied" }]);
+  assert.deepEqual(
+    r.calls("contacts.preferences.get").map((c) => c.input),
+    [{ contactId: "rec_denied" }],
+  );
 });
 
 test("an address already on the suppression list is not asked about consent", async () => {
@@ -215,7 +298,10 @@ test("a message an agent sent carries the Drafted by an agent line in text and h
   assert.match(String(body.html), /<p>Hi Pat<\/p><p style="[^"]+">Drafted by an agent<\/p><\/body><\/html>$/);
   const m = row(r, out.messageId ?? "")!;
   assert.equal(m.draftedByAgent, "agt_scout01");
-  assert.equal(r.h.rows(`SELECT * FROM mail_body WHERE "messageId" = ?`, out.messageId ?? "")[0]!.text, "Hi Pat\n\n-- \nDrafted by an agent");
+  assert.equal(
+    r.h.rows(`SELECT * FROM mail_body WHERE "messageId" = ?`, out.messageId ?? "")[0]!.text,
+    "Hi Pat\n\n-- \nDrafted by an agent",
+  );
 });
 
 test("a person's own message has no agent line", async () => {
@@ -234,9 +320,21 @@ test("the Space setting can switch the agent line off", async () => {
 
 test("a person sending an agent's draft keeps the agent line and the agent's name on the row", async () => {
   const r = rig({ principal: { kind: "agent", id: "agt_scout01" } });
-  const made = await draft(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }], subject: "Follow up", text: "Hi Pat, checking in.", idempotencyKey: "draft-1" });
+  const made = await draft(r.ctx, {
+    mailboxId: "mbx_hello",
+    to: [{ address: "pat@acme.test" }],
+    subject: "Follow up",
+    text: "Hi Pat, checking in.",
+    idempotencyKey: "draft-1",
+  });
   r.ctx.principal = { kind: "person", id: "usr_maya01" };
-  const out = await send(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }], subject: "Follow up", draftId: made.draftId, idempotencyKey: "send-1" });
+  const out = await send(r.ctx, {
+    mailboxId: "mbx_hello",
+    to: [{ address: "pat@acme.test" }],
+    subject: "Follow up",
+    draftId: made.draftId,
+    idempotencyKey: "send-1",
+  });
   assert.equal(out.messageId, made.draftId);
   assert.equal(r.calls("resend.send_email")[0]!.input.text, "Hi Pat, checking in.\n\n-- \nDrafted by an agent");
   const m = row(r, made.draftId)!;
@@ -247,12 +345,30 @@ test("a person sending an agent's draft keeps the agent line and the agent's nam
 test("an agent's draft is sent as it is stored: its own recipients, Cc, subject and every character of its body, whatever the caller's input holds", async () => {
   const r = rig({ principal: { kind: "agent", id: "agt_scout01" } });
   const FULL = `Hi Osama,\n\nAgenda for the call:\n${"1. Instantly warm-up and sending limits for the new domains.\n".repeat(10)}Thanks, Irfad`;
-  const made = await draft(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "osama@mail.test" }], cc: [{ address: "aliza@mla.test" }], subject: "Cold email setup", text: FULL, idempotencyKey: "d-osama" });
+  const made = await draft(r.ctx, {
+    mailboxId: "mbx_hello",
+    to: [{ address: "osama@mail.test" }],
+    cc: [{ address: "aliza@mla.test" }],
+    subject: "Cold email setup",
+    text: FULL,
+    idempotencyKey: "d-osama",
+  });
   r.ctx.principal = { kind: "person", id: "usr_maya01" };
   // the caller (a card or a composer holding something else) names another person, another subject and a cut-off preview
-  await send(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "josh@jcs.test" }], cc: [], subject: "Replying in Claude in Chrome for Clio Grow", text: `${FULL.slice(0, 40)}...`, draftId: made.draftId, idempotencyKey: "s-osama" });
+  await send(r.ctx, {
+    mailboxId: "mbx_hello",
+    to: [{ address: "josh@jcs.test" }],
+    cc: [],
+    subject: "Replying in Claude in Chrome for Clio Grow",
+    text: `${FULL.slice(0, 40)}...`,
+    draftId: made.draftId,
+    idempotencyKey: "s-osama",
+  });
   const sent = r.calls("resend.send_email")[0]!.input as { to: unknown; cc?: unknown; subject: string; text: string };
-  assert.ok(String(JSON.stringify(sent.to)).includes("osama@mail.test") && !JSON.stringify(sent).includes("josh@jcs.test"), "to the draft's own recipient, never the composer's");
+  assert.ok(
+    String(JSON.stringify(sent.to)).includes("osama@mail.test") && !JSON.stringify(sent).includes("josh@jcs.test"),
+    "to the draft's own recipient, never the composer's",
+  );
   assert.ok(JSON.stringify(sent.cc ?? []).includes("aliza@mla.test"));
   assert.equal(sent.subject, "Cold email setup");
   assert.ok(sent.text.startsWith(FULL), "every character of the stored body");
@@ -260,18 +376,60 @@ test("an agent's draft is sent as it is stored: its own recipients, Cc, subject 
 
 test("an agent's draft that ends in a cut-off marker is refused until a person has saved it; a person's own draft is the person's", async () => {
   const r = rig({ principal: { kind: "agent", id: "agt_scout01" } });
-  const cut = await draft(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }], subject: "Follow up", text: "Agenda for the call: 1. Instantly...", idempotencyKey: "d-cut" });
+  const cut = await draft(r.ctx, {
+    mailboxId: "mbx_hello",
+    to: [{ address: "pat@acme.test" }],
+    subject: "Follow up",
+    text: "Agenda for the call: 1. Instantly...",
+    idempotencyKey: "d-cut",
+  });
   r.ctx.principal = { kind: "person", id: "usr_maya01" };
-  await assert.rejects(() => send(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }], subject: "Follow up", draftId: cut.draftId, idempotencyKey: "s-cut" }), /cut-off marker/);
+  await assert.rejects(
+    () =>
+      send(r.ctx, {
+        mailboxId: "mbx_hello",
+        to: [{ address: "pat@acme.test" }],
+        subject: "Follow up",
+        draftId: cut.draftId,
+        idempotencyKey: "s-cut",
+      }),
+    /cut-off marker/,
+  );
   assert.equal(r.calls("resend.send_email").length, 0, "nothing left");
   // the person edits it (their words, even ending in dots) and the stored draft is theirs
-  await draft(r.ctx, { mailboxId: "mbx_hello", draftId: cut.draftId, text: "Agenda for the call, to be continued...", idempotencyKey: "d-edit" });
-  await send(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }], subject: "Follow up", draftId: cut.draftId, idempotencyKey: "s-edit" });
+  await draft(r.ctx, {
+    mailboxId: "mbx_hello",
+    draftId: cut.draftId,
+    text: "Agenda for the call, to be continued...",
+    idempotencyKey: "d-edit",
+  });
+  await send(r.ctx, {
+    mailboxId: "mbx_hello",
+    to: [{ address: "pat@acme.test" }],
+    subject: "Follow up",
+    draftId: cut.draftId,
+    idempotencyKey: "s-edit",
+  });
   assert.equal(r.calls("resend.send_email").length, 1);
   // a person's own draft is sent with what the composer holds, as before
-  const own = await draft(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }], subject: "Hi", text: "Draft text", idempotencyKey: "d-own" });
-  await send(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }], subject: "Hi", text: "Edited in the composer...", draftId: own.draftId, idempotencyKey: "s-own" });
-  assert.ok(String((r.calls("resend.send_email")[1]!.input as { text: string }).text).startsWith("Edited in the composer..."));
+  const own = await draft(r.ctx, {
+    mailboxId: "mbx_hello",
+    to: [{ address: "pat@acme.test" }],
+    subject: "Hi",
+    text: "Draft text",
+    idempotencyKey: "d-own",
+  });
+  await send(r.ctx, {
+    mailboxId: "mbx_hello",
+    to: [{ address: "pat@acme.test" }],
+    subject: "Hi",
+    text: "Edited in the composer...",
+    draftId: own.draftId,
+    idempotencyKey: "s-own",
+  });
+  assert.ok(
+    String((r.calls("resend.send_email")[1]!.input as { text: string }).text).startsWith("Edited in the composer..."),
+  );
 });
 
 // ---- routes: the Space domain or the member's own mailbox
@@ -281,7 +439,14 @@ test("a person's own Gmail mailbox sends through Gmail as that person, with no w
   r.goto(SATURDAY_3AM);
   const out = await send(r.ctx, sendIn({ mailboxId: "mbx_maya", text: "Thanks!" }));
   assert.equal(out.status, "sent");
-  assert.deepEqual(r.calls("google.gmail.send_message")[0]!.input, { connectionId: "con_g1", as: "maya@vyre.test", to: ["pat@acme.test"], subject: "Hello", text: "Thanks!", idempotencyKey: out.messageId });
+  assert.deepEqual(r.calls("google.gmail.send_message")[0]!.input, {
+    connectionId: "con_g1",
+    as: "maya@vyre.test",
+    to: ["pat@acme.test"],
+    subject: "Hello",
+    text: "Thanks!",
+    idempotencyKey: out.messageId,
+  });
   assert.equal(r.calls("resend.send_email").length, 0);
   const m = row(r, out.messageId ?? "")!;
   assert.deepEqual([m.status, m.providerId, m.rfcMessageId], ["sent", "gm_1", null]);
@@ -293,7 +458,13 @@ test("a Microsoft mailbox sends through Graph; Graph returns no id", async () =>
   const out = await send(r.ctx, sendIn({ mailboxId: "mbx_sam", cc: [{ address: "lee@acme.test" }] }));
   assert.equal(out.status, "sent");
   assert.deepEqual(r.calls("ms.mail.send_message")[0]!.input, {
-    connectionId: "con_m1", as: "sam@vyre.test", to: ["pat@acme.test"], subject: "Hello", cc: ["lee@acme.test"], text: "Hi Pat", idempotencyKey: out.messageId,
+    connectionId: "con_m1",
+    as: "sam@vyre.test",
+    to: ["pat@acme.test"],
+    subject: "Hello",
+    cc: ["lee@acme.test"],
+    text: "Hi Pat",
+    idempotencyKey: out.messageId,
   });
   assert.equal(row(r, out.messageId ?? "")!.providerId, null);
 });
@@ -313,7 +484,13 @@ test("the mailbox route needs a mailbox that can send, and a connected one", asy
   await refused(send(r.ctx, sendIn({ mailboxId: "mbx_pat", route: "mailbox" })), "validation.precondition_failed");
   r.ctx.db.run(`UPDATE mail_mailbox SET paused = ?, state = ? WHERE id = ?`, 1, "paused", "mbx_maya");
   await refused(send(r.ctx, sendIn({ mailboxId: "mbx_maya" })), "validation.precondition_failed");
-  r.ctx.db.run(`UPDATE mail_mailbox SET paused = ?, state = ?, "connectionId" = ? WHERE id = ?`, 0, "syncing", null, "mbx_maya");
+  r.ctx.db.run(
+    `UPDATE mail_mailbox SET paused = ?, state = ?, "connectionId" = ? WHERE id = ?`,
+    0,
+    "syncing",
+    null,
+    "mbx_maya",
+  );
   await refused(send(r.ctx, sendIn({ mailboxId: "mbx_maya" })), "validation.precondition_failed");
   assert.equal(r.sent().length, 0);
 });
@@ -321,7 +498,11 @@ test("the mailbox route needs a mailbox that can send, and a connected one", asy
 // ---- who may send
 
 test("a Space Automation sends from a shared inbox on the use its press gave it; a person still needs comms.shared_send", async () => {
-  const flow = rig({ deniedPerms: ["comms.shared_send"], origin: "automation:aut_1", principal: { kind: "service", id: "svc_0123456789abcdef0123456789abcdef" } });
+  const flow = rig({
+    deniedPerms: ["comms.shared_send"],
+    origin: "automation:aut_1",
+    principal: { kind: "service", id: "svc_0123456789abcdef0123456789abcdef" },
+  });
   assert.equal((await send(flow.ctx, sendIn())).status, "sent");
 });
 
@@ -329,7 +510,10 @@ test("a Personal Automation runs as its owner and sends from their own Gmail; a 
   const mine = rig({ origin: "automation:aut_1" });
   assert.equal((await send(mine.ctx, sendIn({ mailboxId: "mbx_maya" }))).status, "sent");
   assert.equal(mine.calls("google.gmail.send_message").length, 1);
-  const space = rig({ origin: "automation:aut_1", principal: { kind: "service", id: "svc_0123456789abcdef0123456789abcdef" } });
+  const space = rig({
+    origin: "automation:aut_1",
+    principal: { kind: "service", id: "svc_0123456789abcdef0123456789abcdef" },
+  });
   assert.equal((await send(space.ctx, sendIn({ mailboxId: "mbx_maya" }))).status, "sent");
   assert.equal(space.calls("resend.send_email").length, 1);
 });
@@ -374,7 +558,7 @@ test("bad input is refused before anything is read or sent", async () => {
   await refused(send(r.ctx, sendIn({ contactId: "pat" })), "validation.bad_input");
   await refused(send(r.ctx, sendIn({ sendAt: 1.5 })), "validation.bad_input");
   await refused(send(r.ctx, { ...sendIn(), route: "bogus" as unknown as Route }), "validation.bad_input");
-  await refused(send(r.ctx, { ...sendIn(), text: undefined } as unknown as SendIn), "validation.bad_input");   // no body at all
+  await refused(send(r.ctx, { ...sendIn(), text: undefined } as unknown as SendIn), "validation.bad_input"); // no body at all
   await refused(send(r.ctx, { ...sendIn(), subject: undefined } as unknown as SendIn), "validation.bad_input");
   await refused(send(r.ctx, sendIn({ draftId: "draft-1" })), "validation.bad_input");
   await refused(send(r.ctx, sendIn({ draftId: "eml_nodraft" })), "validation.not_found");
@@ -386,7 +570,13 @@ test("a message that was already sent cannot be sent again as a draft, and a dra
   const r = rig();
   const out = await send(r.ctx, sendIn());
   await refused(send(r.ctx, sendIn({ draftId: out.messageId ?? "" })), "validation.precondition_failed");
-  const made = await draft(r.ctx, { mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: "Hi", text: "x", idempotencyKey: "d1" });
+  const made = await draft(r.ctx, {
+    mailboxId: "mbx_maya",
+    to: [{ address: "pat@acme.test" }],
+    subject: "Hi",
+    text: "x",
+    idempotencyKey: "d1",
+  });
   await refused(send(r.ctx, sendIn({ draftId: made.draftId })), "validation.bad_input");
 });
 
@@ -398,7 +588,9 @@ test("the preview names who would be sent to, who is suppressed and the route, a
   assert.deepEqual(contractErrors("mail.send_preview", "in", input), []);
   const out = await sendPreview(r.ctx, input);
   assert.deepEqual(out, {
-    allowed: ["pat@acme.test"], suppressed: [{ address: "bounced@acme.test", reason: "complaint" }], providerRoute: "space_domain",
+    allowed: ["pat@acme.test"],
+    suppressed: [{ address: "bounced@acme.test", reason: "complaint" }],
+    providerRoute: "space_domain",
   });
   assert.deepEqual(contractErrors("mail.send_preview", "out", out), []);
   assert.equal(r.sent().length, 0);
@@ -416,7 +608,10 @@ test("a paused mailbox does not stop the preview of a person's own mailbox", asy
 test("the preview checks the same recipients and mailbox as the send", async () => {
   const r = rig();
   await refused(sendPreview(r.ctx, { mailboxId: "mbx_hello", to: [] }), "validation.bad_input");
-  await refused(sendPreview(r.ctx, { mailboxId: "mbx_nobody", to: [{ address: "pat@acme.test" }] }), "validation.not_found");
+  await refused(
+    sendPreview(r.ctx, { mailboxId: "mbx_nobody", to: [{ address: "pat@acme.test" }] }),
+    "validation.not_found",
+  );
   await refused(sendPreview(r.ctx, { mailboxId: "bad", to: [{ address: "pat@acme.test" }] }), "validation.bad_input");
 });
 
@@ -424,32 +619,68 @@ test("the preview checks the same recipients and mailbox as the send", async () 
 
 test("send_as sends through the member's Gmail and answers with the Gmail id", async () => {
   const r = rig();
-  const input = { mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: "Re: Question", text: "Yes.", idempotencyKey: "as-1" };
+  const input = {
+    mailboxId: "mbx_maya",
+    to: [{ address: "pat@acme.test" }],
+    subject: "Re: Question",
+    text: "Yes.",
+    idempotencyKey: "as-1",
+  };
   assert.deepEqual(contractErrors("mail.send_as", "in", input), []);
   const out = await sendAs(r.ctx, input);
   assert.equal(out.providerId, "gm_1");
   assert.deepEqual(contractErrors("mail.send_as", "out", out), []);
   assert.deepEqual(r.calls("google.gmail.send_message")[0]!.input, {
-    connectionId: "con_g1", as: "maya@vyre.test", to: ["pat@acme.test"], subject: "Re: Question", text: "Yes.", idempotencyKey: out.messageId,
+    connectionId: "con_g1",
+    as: "maya@vyre.test",
+    to: ["pat@acme.test"],
+    subject: "Re: Question",
+    text: "Yes.",
+    idempotencyKey: out.messageId,
   });
   assert.equal(row(r, out.messageId)!.status, "sent");
-  assert.deepEqual(r.h.named("message.sent").map((e) => e.payload.messageId), [out.messageId]);
-  assert.deepEqual(await sendAs(r.ctx, input), out);   // the same key answers the same and sends once
+  assert.deepEqual(
+    r.h.named("message.sent").map((e) => e.payload.messageId),
+    [out.messageId],
+  );
+  assert.deepEqual(await sendAs(r.ctx, input), out); // the same key answers the same and sends once
   assert.equal(r.sent().length, 1);
 });
 
 test("send_as through a mailbox made by the person's own sign-in uses that account, not the Space's delegation", async () => {
   const r = rig();
-  r.h.ctx.db.run(`UPDATE mail_mailbox SET "connectionId" = ? WHERE id = ?`, "gua_0123456789abcdef0123456789abcdef", "mbx_maya");
-  const out = await sendAs(r.ctx, { mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: "Re: Own", text: "Yes.", idempotencyKey: "as-own" });
+  r.h.ctx.db.run(
+    `UPDATE mail_mailbox SET "connectionId" = ? WHERE id = ?`,
+    "gua_0123456789abcdef0123456789abcdef",
+    "mbx_maya",
+  );
+  const out = await sendAs(r.ctx, {
+    mailboxId: "mbx_maya",
+    to: [{ address: "pat@acme.test" }],
+    subject: "Re: Own",
+    text: "Yes.",
+    idempotencyKey: "as-own",
+  });
   assert.equal(out.providerId, "gu_1");
-  assert.deepEqual(r.calls("google.user.send_message")[0]!.input, { accountId: "gua_0123456789abcdef0123456789abcdef", to: ["pat@acme.test"], subject: "Re: Own", text: "Yes.", idempotencyKey: out.messageId });
+  assert.deepEqual(r.calls("google.user.send_message")[0]!.input, {
+    accountId: "gua_0123456789abcdef0123456789abcdef",
+    to: ["pat@acme.test"],
+    subject: "Re: Own",
+    text: "Yes.",
+    idempotencyKey: out.messageId,
+  });
   assert.equal(r.calls("google.gmail.send_message").length, 0);
 });
 
 test("send_as through Graph answers with the message id only", async () => {
   const r = rig();
-  const out = await sendAs(r.ctx, { mailboxId: "mbx_sam", to: [{ address: "pat@acme.test" }], subject: "Hi", html: "<p>Hi</p>", idempotencyKey: "as-2" });
+  const out = await sendAs(r.ctx, {
+    mailboxId: "mbx_sam",
+    to: [{ address: "pat@acme.test" }],
+    subject: "Hi",
+    html: "<p>Hi</p>",
+    idempotencyKey: "as-2",
+  });
   assert.deepEqual(Object.keys(out), ["messageId"]);
   assert.equal(r.calls("ms.mail.send_message").length, 1);
 });
@@ -457,8 +688,23 @@ test("send_as through Graph answers with the message id only", async () => {
 test("send_as is a person's own mail: never held by the window, but a suppressed recipient refuses the whole send", async () => {
   const r = rig({ suppressed: { "gone@acme.test": "unsubscribe" } });
   r.goto(SATURDAY_3AM);
-  await sendAs(r.ctx, { mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: "Hi", text: "x", idempotencyKey: "as-3" });
-  await refused(sendAs(r.ctx, { mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }, { address: "gone@acme.test" }], subject: "Hi", text: "x", idempotencyKey: "as-4" }), "validation.bad_input");
+  await sendAs(r.ctx, {
+    mailboxId: "mbx_maya",
+    to: [{ address: "pat@acme.test" }],
+    subject: "Hi",
+    text: "x",
+    idempotencyKey: "as-3",
+  });
+  await refused(
+    sendAs(r.ctx, {
+      mailboxId: "mbx_maya",
+      to: [{ address: "pat@acme.test" }, { address: "gone@acme.test" }],
+      subject: "Hi",
+      text: "x",
+      idempotencyKey: "as-4",
+    }),
+    "validation.bad_input",
+  );
   assert.equal(r.sent().length, 1);
   assert.equal(rows(r, "mail_message").length, 1);
 });
@@ -476,6 +722,12 @@ test("send_as cannot use an IMAP or inbound-only mailbox, a paused one, or witho
 
 test("send_as by an agent adds the agent line", async () => {
   const r = rig({ principal: { kind: "agent", id: "agt_scout01" } });
-  await sendAs(r.ctx, { mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: "Hi", text: "Hello", idempotencyKey: "as-8" });
+  await sendAs(r.ctx, {
+    mailboxId: "mbx_maya",
+    to: [{ address: "pat@acme.test" }],
+    subject: "Hi",
+    text: "Hello",
+    idempotencyKey: "as-8",
+  });
   assert.equal(r.calls("google.gmail.send_message")[0]!.input.text, "Hello\n\n-- \nDrafted by an agent");
 });

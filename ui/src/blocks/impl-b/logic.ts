@@ -17,7 +17,16 @@ export interface BlockHostB extends BlockHost {
   nameOf?: (id: string) => string | undefined;
 }
 
-export const PART_TWO_TYPES = ["memory_saved", "vault_used", "access_request", "secret_input", "talk_key", "model_switch", "helper", "diff_card"] as const;
+export const PART_TWO_TYPES = [
+  "memory_saved",
+  "vault_used",
+  "access_request",
+  "secret_input",
+  "talk_key",
+  "model_switch",
+  "helper",
+  "diff_card",
+] as const;
 export type PartTwoType = (typeof PART_TWO_TYPES)[number];
 
 export interface BlockSpecB {
@@ -30,7 +39,9 @@ export interface BlockSpecB {
 export const BLOCK_SPECS_B: Readonly<Record<PartTwoType, BlockSpecB>> = {
   memory_saved: {
     type: "memory_saved",
-    actions: [{ key: "propose_for_team", label: "Propose for team", cap: "memory.promote", input: { factId: "/factId" } }],
+    actions: [
+      { key: "propose_for_team", label: "Propose for team", cap: "memory.promote", input: { factId: "/factId" } },
+    ],
   },
   vault_used: {
     type: "vault_used",
@@ -40,13 +51,25 @@ export const BLOCK_SPECS_B: Readonly<Record<PartTwoType, BlockSpecB>> = {
   access_request: {
     type: "access_request",
     actions: [
-      { key: "approve", label: "Allow", cap: "access.requests.approve", input: { requestId: "/requestId", level: "/level" } },
+      {
+        key: "approve",
+        label: "Allow",
+        cap: "access.requests.approve",
+        input: { requestId: "/requestId", level: "/level" },
+      },
       { key: "decline", label: "Deny", cap: "access.requests.decline", input: { requestId: "/requestId" } },
     ],
   },
   secret_input: {
     type: "secret_input",
-    actions: [{ key: "save", label: "Save to Vault", cap: "vault.item.put", input: { folderId: "/folderId", kind: "/kind", name: "/name" } }],
+    actions: [
+      {
+        key: "save",
+        label: "Save to Vault",
+        cap: "vault.item.put",
+        input: { folderId: "/folderId", kind: "/kind", name: "/name" },
+      },
+    ],
   },
   talk_key: {
     type: "talk_key",
@@ -78,7 +101,13 @@ export function actionSpecB(type: PartTwoType, key: string): BlockActionSpec | u
 }
 
 /** Calls the capability a block action declares, with the block's own ids and any extra input. */
-export async function runActionB(host: BlockHost, type: PartTwoType, key: string, data: unknown, extra: Record<string, unknown> = {}): Promise<boolean> {
+export async function runActionB(
+  host: BlockHost,
+  type: PartTwoType,
+  key: string,
+  data: unknown,
+  extra: Record<string, unknown> = {},
+): Promise<boolean> {
   const spec = actionSpecB(type, key);
   if (spec === undefined) return false;
   await host.invoke(spec.cap, { ...resolveInput(data, spec.input), ...extra });
@@ -100,7 +129,12 @@ export function openTabB(host: BlockHost, type: PartTwoType, data: unknown): boo
 export type MemoryLayer = "person" | "agent" | "project" | "space";
 export type PromoteLayer = "agent" | "project" | "space";
 
-const LAYER_WORD: Readonly<Record<MemoryLayer, string>> = { person: "own", agent: "agent", project: "project", space: "Space" };
+const LAYER_WORD: Readonly<Record<MemoryLayer, string>> = {
+  person: "own",
+  agent: "agent",
+  project: "project",
+  space: "Space",
+};
 
 /** "Saved to your own layer" / "Saved to the Space layer". */
 export function memoryHead(layer: MemoryLayer): string {
@@ -130,7 +164,13 @@ export function vaultLine(handle: string, outcome: VaultOutcome): string {
 }
 
 export function vaultWhere(where: string | undefined): string {
-  return where === "device" ? "On your device" : where === "host" ? "On the server" : where === "computer" ? "On the agent computer" : "";
+  return where === "device"
+    ? "On your device"
+    : where === "host"
+      ? "On the server"
+      : where === "computer"
+        ? "On the agent computer"
+        : "";
 }
 
 /* ---------- access_request ---------- */
@@ -197,7 +237,12 @@ export const SECRET_NOTE = "Type the value here. It goes straight to the Vault a
 export function redactSecretInput(input: Record<string, unknown>): Record<string, unknown> {
   const fields = input["fields"];
   if (!Array.isArray(fields)) return input;
-  return { ...input, fields: fields.map((f) => (typeof f === "object" && f !== null ? { ...(f as Record<string, unknown>), value: "•••" } : f)) };
+  return {
+    ...input,
+    fields: fields.map((f) =>
+      typeof f === "object" && f !== null ? { ...(f as Record<string, unknown>), value: "•••" } : f,
+    ),
+  };
 }
 
 /* ---------- model_switch ---------- */
@@ -252,7 +297,19 @@ export function helperTrail(path: readonly { title: string }[]): string {
 export type DiffKind = "role" | "grant" | "schema" | "policy" | "setting" | "connector" | "config";
 
 export function diffKindWord(kind: DiffKind): string {
-  return kind === "role" ? "Role" : kind === "grant" ? "Grant" : kind === "schema" ? "Schema" : kind === "policy" ? "Policy" : kind === "setting" ? "Setting" : kind === "connector" ? "Connector" : "Config";
+  return kind === "role"
+    ? "Role"
+    : kind === "grant"
+      ? "Grant"
+      : kind === "schema"
+        ? "Schema"
+        : kind === "policy"
+          ? "Policy"
+          : kind === "setting"
+            ? "Setting"
+            : kind === "connector"
+              ? "Connector"
+              : "Config";
 }
 
 /** A before or after value as one short line. */

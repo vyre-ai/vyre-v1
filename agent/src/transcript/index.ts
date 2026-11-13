@@ -9,7 +9,15 @@ export { DEFAULT_INSTRUCTION, HANDOFF, buildHandoff, renderHandoff, transcriptPa
 export type { HandoffContext, HandoffOptions, HandoffTurn, Seed, SeedKind } from "./handoff.ts";
 export { engineTitle, switchEngine } from "./switch.ts";
 export type { ModelSwitchBlock, SwitchDeps, SwitchRequest, SwitchResult } from "./switch.ts";
-export { SUMMARY_CHARS, SUMMARY_EVERY, extractiveSummary, fit, refreshSummary, rollSeed, rolloverCheck } from "./compact.ts";
+export {
+  SUMMARY_CHARS,
+  SUMMARY_EVERY,
+  extractiveSummary,
+  fit,
+  refreshSummary,
+  rollSeed,
+  rolloverCheck,
+} from "./compact.ts";
 export type { RefreshOptions, RolloverCheck, SummarizeInput, Summarizer } from "./compact.ts";
 export { ROLL, contextOf, cutTo, decide, pointersOf, quote } from "./rollover.ts";
 export type { Context, RollDecision, RollLimits } from "./rollover.ts";

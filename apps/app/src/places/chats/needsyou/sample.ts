@@ -15,53 +15,293 @@ const at = (m: number, d: number, h: number, min = 0): number => Date.UTC(2025, 
 export type Variant = "northwind" | "harbor";
 
 export const ME = "usr_irfad";
-export const NAMES: Record<string, string> = { ...namesFor("harbor"), ...namesFor("northwind", { usr_irfad: "You", role_finance: "Finance" }) };
-const SOURCES: Record<string, string> = { "chat:c3": "October invoices", "chat:c4": "Rivera engagement letter", "chat:c6": "County records search", "chat:c1": "Rivera intake", "chat:c2": "Competitor pricing", "chat:c7": "Plan the Q4 offsite", "chat:h1": "Moreno shoot Saturday", "chat:h2": "Moreno gallery" };
+export const NAMES: Record<string, string> = {
+  ...namesFor("harbor"),
+  ...namesFor("northwind", { usr_irfad: "You", role_finance: "Finance" }),
+};
+const SOURCES: Record<string, string> = {
+  "chat:c3": "October invoices",
+  "chat:c4": "Rivera engagement letter",
+  "chat:c6": "County records search",
+  "chat:c1": "Rivera intake",
+  "chat:c2": "Competitor pricing",
+  "chat:c7": "Plan the Q4 offsite",
+  "chat:h1": "Moreno shoot Saturday",
+  "chat:h2": "Moreno gallery",
+};
 
-const approve = [{ key: "approve", label: "Allow" }, { key: "send_back", label: "Deny", note: "required" as const }];
-const review = [{ key: "review", label: "Looks good" }, { key: "send_back", label: "Send back", note: "required" as const }];
+const approve = [
+  { key: "approve", label: "Allow" },
+  { key: "send_back", label: "Deny", note: "required" as const },
+];
+const review = [
+  { key: "review", label: "Looks good" },
+  { key: "send_back", label: "Send back", note: "required" as const },
+];
 
-function task(id: string, kind: Task["kind"], by: string, title: string, summary: string, why: string, chat: string, updatedAt: number, o: Partial<Task> = {}): Task {
+function task(
+  id: string,
+  kind: Task["kind"],
+  by: string,
+  title: string,
+  summary: string,
+  why: string,
+  chat: string,
+  updatedAt: number,
+  o: Partial<Task> = {},
+): Task {
   return {
-    id, kind, title, summary, why, state: kind === "approve" ? "awaiting_approval" : kind === "review" ? "in_review" : "doing", blocked: false, blocks: [], actions: kind === "approve" ? approve : review,
-    assigned: { kind: "agent", id: by }, approver: { kind: "person", id: ME }, fileIds: [], source: { kind: "chat", id: chat }, dependsOn: [], followers: [], workingNotes: {}, reviewLoops: 0,
-    createdBy: by, createdAt: updatedAt - 600_000, updatedAt, ...o,
+    id,
+    kind,
+    title,
+    summary,
+    why,
+    state: kind === "approve" ? "awaiting_approval" : kind === "review" ? "in_review" : "doing",
+    blocked: false,
+    blocks: [],
+    actions: kind === "approve" ? approve : review,
+    assigned: { kind: "agent", id: by },
+    approver: { kind: "person", id: ME },
+    fileIds: [],
+    source: { kind: "chat", id: chat },
+    dependsOn: [],
+    followers: [],
+    workingNotes: {},
+    reviewLoops: 0,
+    createdBy: by,
+    createdAt: updatedAt - 600_000,
+    updatedAt,
+    ...o,
   };
 }
 
 export function northwindTasks(): { task: Task; reason: Reason; handledBy?: string }[] {
   return [
-    { reason: "due_today", task: task("n1", "approve", "agt_billing", "Send 12 invoices", "$18,420 total · due Friday", "The monthly run, same as September. Two clients have new rates since last month; both are marked.", "c3", at(10, 24, 9, 12), {
-      due: at(10, 24, 17), blocks: [{ type: "table", v: 1, data: { columns: ["Client", "Amount", "Due"], rows: [["Harlow & Price", "$2,400", "Oct 31"], ["Grant Legal", "$1,850", "Oct 31"], ["Meyer Law", "$3,100", "Nov 1"], ["Ardent Partners", "$960", "Nov 1"], ["Brook Studio", "$1,200", "Nov 2"]], more: 7, tags: ["", "new rate", "", "", "new rate"] } }],
-    }) },
-    { reason: "ready", task: task("n2", "review", "agt_docs", "Rivera engagement letter", "Draft from the standard template", "Filled from Elena's record and the consult booking. Three values came from the record; please check the fee.", "c4", at(10, 24, 8, 50), {
-      fileIds: ["doc1"], blocks: [{ type: "document", v: 1, data: { lines: ["This letter confirms that Elena Rivera engages Northwind for the matter described below.", "The consult fee is $250, due at the consult on Tuesday, Oct 28."], file: "engagement-letter.docx" } }],
-    }) },
-    { reason: "blocking", task: task("n3", "unblock", "agt_scout", "County records search", "Needs a login for the county site", "It reached the county records portal and hit a sign-in page. Lend it a login from the Vault and it carries on from the same step; it never sees the password.", "c6", at(10, 24, 8, 31), {
-      blocked: true, actions: [{ key: "lend", label: "Lend a login…" }], blocks: [{ type: "screenshot", v: 1, data: { caption: "records.county.gov/search, sign-in page" } }],
-    }) },
-    { reason: "ready", task: task("n4", "review", "agt_intake", "Pruitt intake summary", "Form came back, 2 fields unclear", "Marcus Pruitt returned the intake form. The property address and the other party's name were unclear, so I left them blank.", "c1", at(10, 24, 9, 10)) },
-    { reason: "ready", task: task("n5", "approve", "agt_research", "Send the ATP reminder to Harlow & Price", "Quarterly worksheet, due Nov 12", "A standard reminder with the worksheet link. It goes from your address.", "c2", at(10, 23, 16, 5), {
-      blocks: [{ type: "doc_excerpt", v: 1, data: { act: "send", cap: "mail.send", input: { to: [{ address: "accounts@harlowprice.test", name: "Harlow & Price", contactId: "rec_hp" }], subject: "ATP worksheet due Nov 12", text: "Hello,\n\nThe quarterly worksheet is due Nov 12. The link is below; it takes about ten minutes.\n\nThanks,\nIrfad", contactId: "rec_hp" } } }],
-    }) },
-    { reason: "ready", task: task("n6", "review", "agt_assistant", "Problem report from Omar", "The intake form would not send", "Omar pressed Report a problem on the Rivera intake form. The bundle holds the last 20 trace ids, recent errors and a window picture. Sealed values are redacted.", "c7", at(10, 24, 9, 36), {
-      blocks: [{ type: "pairs", v: 1, data: { pairs: [["Item", "forms/rivera-intake · e41c"], ["Trace ids", "20 · last tr_91ac07"], ["Errors", "1 · form.send 503"], ["Versions", "app 1.0.0 · server 1.0.0"], ["Device", "MacBook · macOS 26"]] } }],
-    }) },
+    {
+      reason: "due_today",
+      task: task(
+        "n1",
+        "approve",
+        "agt_billing",
+        "Send 12 invoices",
+        "$18,420 total · due Friday",
+        "The monthly run, same as September. Two clients have new rates since last month; both are marked.",
+        "c3",
+        at(10, 24, 9, 12),
+        {
+          due: at(10, 24, 17),
+          blocks: [
+            {
+              type: "table",
+              v: 1,
+              data: {
+                columns: ["Client", "Amount", "Due"],
+                rows: [
+                  ["Harlow & Price", "$2,400", "Oct 31"],
+                  ["Grant Legal", "$1,850", "Oct 31"],
+                  ["Meyer Law", "$3,100", "Nov 1"],
+                  ["Ardent Partners", "$960", "Nov 1"],
+                  ["Brook Studio", "$1,200", "Nov 2"],
+                ],
+                more: 7,
+                tags: ["", "new rate", "", "", "new rate"],
+              },
+            },
+          ],
+        },
+      ),
+    },
+    {
+      reason: "ready",
+      task: task(
+        "n2",
+        "review",
+        "agt_docs",
+        "Rivera engagement letter",
+        "Draft from the standard template",
+        "Filled from Elena's record and the consult booking. Three values came from the record; please check the fee.",
+        "c4",
+        at(10, 24, 8, 50),
+        {
+          fileIds: ["doc1"],
+          blocks: [
+            {
+              type: "document",
+              v: 1,
+              data: {
+                lines: [
+                  "This letter confirms that Elena Rivera engages Northwind for the matter described below.",
+                  "The consult fee is $250, due at the consult on Tuesday, Oct 28.",
+                ],
+                file: "engagement-letter.docx",
+              },
+            },
+          ],
+        },
+      ),
+    },
+    {
+      reason: "blocking",
+      task: task(
+        "n3",
+        "unblock",
+        "agt_scout",
+        "County records search",
+        "Needs a login for the county site",
+        "It reached the county records portal and hit a sign-in page. Lend it a login from the Vault and it carries on from the same step; it never sees the password.",
+        "c6",
+        at(10, 24, 8, 31),
+        {
+          blocked: true,
+          actions: [{ key: "lend", label: "Lend a login…" }],
+          blocks: [{ type: "screenshot", v: 1, data: { caption: "records.county.gov/search, sign-in page" } }],
+        },
+      ),
+    },
+    {
+      reason: "ready",
+      task: task(
+        "n4",
+        "review",
+        "agt_intake",
+        "Pruitt intake summary",
+        "Form came back, 2 fields unclear",
+        "Marcus Pruitt returned the intake form. The property address and the other party's name were unclear, so I left them blank.",
+        "c1",
+        at(10, 24, 9, 10),
+      ),
+    },
+    {
+      reason: "ready",
+      task: task(
+        "n5",
+        "approve",
+        "agt_research",
+        "Send the ATP reminder to Harlow & Price",
+        "Quarterly worksheet, due Nov 12",
+        "A standard reminder with the worksheet link. It goes from your address.",
+        "c2",
+        at(10, 23, 16, 5),
+        {
+          blocks: [
+            {
+              type: "doc_excerpt",
+              v: 1,
+              data: {
+                act: "send",
+                cap: "mail.send",
+                input: {
+                  to: [{ address: "accounts@harlowprice.test", name: "Harlow & Price", contactId: "rec_hp" }],
+                  subject: "ATP worksheet due Nov 12",
+                  text: "Hello,\n\nThe quarterly worksheet is due Nov 12. The link is below; it takes about ten minutes.\n\nThanks,\nIrfad",
+                  contactId: "rec_hp",
+                },
+              },
+            },
+          ],
+        },
+      ),
+    },
+    {
+      reason: "ready",
+      task: task(
+        "n6",
+        "review",
+        "agt_assistant",
+        "Problem report from Omar",
+        "The intake form would not send",
+        "Omar pressed Report a problem on the Rivera intake form. The bundle holds the last 20 trace ids, recent errors and a window picture. Sealed values are redacted.",
+        "c7",
+        at(10, 24, 9, 36),
+        {
+          blocks: [
+            {
+              type: "pairs",
+              v: 1,
+              data: {
+                pairs: [
+                  ["Item", "forms/rivera-intake · e41c"],
+                  ["Trace ids", "20 · last tr_91ac07"],
+                  ["Errors", "1 · form.send 503"],
+                  ["Versions", "app 1.0.0 · server 1.0.0"],
+                  ["Device", "MacBook · macOS 26"],
+                ],
+              },
+            },
+          ],
+        },
+      ),
+    },
     // Withdrawn by its source: the fee changed and Docs is redrafting it. It sits under Withdrawn and does not count.
-    { reason: "ready", task: task("n8", "approve", "agt_docs", "Send the Pruitt fee letter", "Withdrawn: the fee changed and Docs is redrafting it.", "", "c4", at(10, 24, 8, 10), { state: "canceled", actions: [{ key: "dismiss", label: "Dismiss" }] }) },
-    { reason: "blocking", task: task("n7", "unblock", "agt_billing", "Month-end export is waiting on a sign-in", "The wait outlived your Claude sign-in", "The export has waited 14 hours for the bank to finish. Your Claude sign-in ran out meanwhile. Sign in again and Billing carries on, or let it use its backup key. The run shows Waiting, not Failed.", "c3", at(10, 24, 9, 14), {
-      blocked: true, actions: [{ key: "signin", label: "Sign in again" }, { key: "backup", label: "Use the backup key" }],
-    }) },
+    {
+      reason: "ready",
+      task: task(
+        "n8",
+        "approve",
+        "agt_docs",
+        "Send the Pruitt fee letter",
+        "Withdrawn: the fee changed and Docs is redrafting it.",
+        "",
+        "c4",
+        at(10, 24, 8, 10),
+        { state: "canceled", actions: [{ key: "dismiss", label: "Dismiss" }] },
+      ),
+    },
+    {
+      reason: "blocking",
+      task: task(
+        "n7",
+        "unblock",
+        "agt_billing",
+        "Month-end export is waiting on a sign-in",
+        "The wait outlived your Claude sign-in",
+        "The export has waited 14 hours for the bank to finish. Your Claude sign-in ran out meanwhile. Sign in again and Billing carries on, or let it use its backup key. The run shows Waiting, not Failed.",
+        "c3",
+        at(10, 24, 9, 14),
+        {
+          blocked: true,
+          actions: [
+            { key: "signin", label: "Sign in again" },
+            { key: "backup", label: "Use the backup key" },
+          ],
+        },
+      ),
+    },
   ];
 }
 
 /** Harbor Studio's two Needs you, as the prototype's Harbor has them (read through the shared fixtures for the ids and titles). */
 export function harborTasks(): { task: Task; reason: Reason; handledBy?: string }[] {
   const needs = fixtureFor("harbor").needs;
-  const n1 = needs.find((n) => n.id === "n1")!, n2 = needs.find((n) => n.id === "n2")!;
+  const n1 = needs.find((n) => n.id === "n1")!,
+    n2 = needs.find((n) => n.id === "n2")!;
   return [
-    { reason: "ready", task: task("n1", "approve", n1.agent, n1.title, n1.sub, "The client picked 84 favourites. This sends the gallery link from the studio address.", n1.chat, at(10, 24, 9, 5)) },
-    { reason: "ready", task: task("n2", "review", n2.agent, n2.title, n2.sub, "Times, addresses and the shot list from the brief. Check the second shooter's start time.", n2.chat, at(10, 24, 8, 41)) },
+    {
+      reason: "ready",
+      task: task(
+        "n1",
+        "approve",
+        n1.agent,
+        n1.title,
+        n1.sub,
+        "The client picked 84 favourites. This sends the gallery link from the studio address.",
+        n1.chat,
+        at(10, 24, 9, 5),
+      ),
+    },
+    {
+      reason: "ready",
+      task: task(
+        "n2",
+        "review",
+        n2.agent,
+        n2.title,
+        n2.sub,
+        "Times, addresses and the shot list from the brief. Check the second shooter's start time.",
+        n2.chat,
+        at(10, 24, 8, 41),
+      ),
+    },
   ];
 }
 
@@ -85,10 +325,16 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
   const listeners = new Set<() => void>();
   let online = o.online ?? true;
   const seed = o.empty === true ? [] : variant === "northwind" ? northwindTasks() : harborTasks();
-  replica.put("needs", seed.map((x) => ({ id: x.task.id, ...x })));
+  replica.put(
+    "needs",
+    seed.map((x) => ({ id: x.task.id, ...x })),
+  );
 
   const rows = (): (Item & Row)[] => replica.rows("needs") as unknown as (Item & Row)[];
-  const clean = (x: Item & Row): Item => { const { id: _id, ...rest } = x; return rest as Item; };
+  const clean = (x: Item & Row): Item => {
+    const { id: _id, ...rest } = x;
+    return rest as Item;
+  };
   replica.resolve("tasks.needs_you", (_t, input) => {
     const items = rows().map(clean);
     return { items: items.slice(0, input.limit ?? 50), total: items.filter((i) => i.task.state !== "canceled").length };
@@ -111,7 +357,19 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     // the record a held send is about, for its peek
     "records.get": (i: { type: string; recordId: string }) => {
       if (i.type !== "company") throw new Error("not a contact");
-      return { record: { id: i.recordId, type: "company", fields: { name: "Harlow & Price", email: "accounts@harlowprice.test", owner: "Maya Cole", status: "active", billing_terms: "Net 30" } } };
+      return {
+        record: {
+          id: i.recordId,
+          type: "company",
+          fields: {
+            name: "Harlow & Price",
+            email: "accounts@harlowprice.test",
+            owner: "Maya Cole",
+            status: "active",
+            billing_terms: "Net 30",
+          },
+        },
+      };
     },
     "tasks.act": (i: { taskId: string; action: string; note?: string }) => {
       const t = patch(i.taskId, { state: "done" });
@@ -132,7 +390,13 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     openComputer: (id) => void opened.push(`computer:${id}`),
     openSignIn: () => void opened.push("sign-in"),
   };
-  const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };
+  const connection: Connection = {
+    get: () => (online ? "online" : "offline"),
+    subscribe: (l) => {
+      listeners.add(l);
+      return () => void listeners.delete(l);
+    },
+  };
   const data: NeedsYouData = {
     screens: createScreenHooks(replica, screensById),
     async call(cap, input) {
@@ -151,8 +415,16 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
   };
   return {
-    data, replica, calls, opened,
-    setOnline(v) { online = v; for (const l of [...listeners]) l(); },
-    failNext(cap) { failing.add(cap); },
+    data,
+    replica,
+    calls,
+    opened,
+    setOnline(v) {
+      online = v;
+      for (const l of [...listeners]) l();
+    },
+    failNext(cap) {
+      failing.add(cap);
+    },
   };
 }

@@ -14,13 +14,23 @@ export function modelName(slug: string | undefined): string {
   if (m) return `GLM ${m[1]}${m[2] ? ` ${CAP(m[2].toLowerCase())}` : ""}`;
   m = /^deepseek-?v?(\d+(?:\.\d+)?)(?:-(flash|pro|chat|reasoner))?/i.exec(s);
   if (m) return `DeepSeek V${m[1]}${m[2] ? ` ${CAP(m[2].toLowerCase())}` : ""}`;
-  return s.split(/[-_/]/).filter((w) => w !== "").map((w) => (/^\d/.test(w) ? w : CAP(w))).join(" ");
+  return s
+    .split(/[-_/]/)
+    .filter((w) => w !== "")
+    .map((w) => (/^\d/.test(w) ? w : CAP(w)))
+    .join(" ");
 }
 
 /** "claude-code · Maya_Claude" becomes "Maya Claude": the engine is dropped, a handle's underscores are spaces. */
 export function accountName(label: string | undefined): string {
   if (!label) return "";
-  const parts = label.split("·").map((p) => p.trim()).filter((p) => p !== "");
+  const parts = label
+    .split("·")
+    .map((p) => p.trim())
+    .filter((p) => p !== "");
   const named = parts.filter((p) => !/^(claude-code|codex|claude|chatgpt|opencode-go|anthropic|openai)$/i.test(p));
-  return (named.length > 0 ? named[named.length - 1]! : parts[parts.length - 1] ?? "").replace(/^#/, "").replace(/_/g, " ").trim();
+  return (named.length > 0 ? named[named.length - 1]! : (parts[parts.length - 1] ?? ""))
+    .replace(/^#/, "")
+    .replace(/_/g, " ")
+    .trim();
 }

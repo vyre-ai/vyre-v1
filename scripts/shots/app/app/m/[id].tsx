@@ -11,11 +11,18 @@ export function generateStaticParams(): { id: string }[] {
 
 export default function MountRoute() {
   const { id = "" } = useLocalSearchParams<{ id: string }>();
-  if (!mountIds().includes(id)) return <View accessibilityRole="alert"><Text>No mount {id}</Text></View>;
+  if (!mountIds().includes(id))
+    return (
+      <View accessibilityRole="alert">
+        <Text>No mount {id}</Text>
+      </View>
+    );
   const Mount = loadMount(id).default;
   return (
     <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} testID={`mount-${id}`}>
-      <ClientOnly><Mount /></ClientOnly>
+      <ClientOnly>
+        <Mount />
+      </ClientOnly>
     </View>
   );
 }

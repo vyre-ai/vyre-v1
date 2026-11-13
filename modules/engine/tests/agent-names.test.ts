@@ -3,10 +3,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { UNNAMED_AGENT, agentDisplay } from "../agent-names.ts";
 
-const refuse = (): Promise<never> => Promise.reject(Object.assign(new Error("That agent is private to the person it belongs to."), { code: "validation.not_found" }));
+const refuse = (): Promise<never> =>
+  Promise.reject(
+    Object.assign(new Error("That agent is private to the person it belongs to."), { code: "validation.not_found" }),
+  );
 
 test("an agent the reader may see is named by agents.get, with its face", async () => {
-  const call = async (cap: string): Promise<unknown> => (cap === "agents.get" ? { agent: { name: "Docs", face: "pick-3" } } : refuse());
+  const call = async (cap: string): Promise<unknown> =>
+    cap === "agents.get" ? { agent: { name: "Docs", face: "pick-3" } } : refuse();
   assert.deepEqual(await agentDisplay(call, "agt_docs"), { name: "Docs", face: "pick-3" });
 });
 

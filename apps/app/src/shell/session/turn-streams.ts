@@ -22,9 +22,23 @@ export interface LiveTurn {
 }
 
 /** What a turn is doing right now, from the host's step and thinking frames: for the live line under a reply being written. Never persisted, never logged. */
-export interface ActivityStep { id: string; name: string; state: "live" | "done" | "failed"; /** what it touches, from the host in safe words ("model.ts", "stream pacing") */ detail?: string }
-export interface ActivitySnapshot { startedAt: number; thinking: string; steps: readonly ActivityStep[]; version: number; /** the turn has ended: the mark settles */ done?: boolean }
-export interface ActivityStore { get(): ActivitySnapshot; subscribe(l: () => void): () => void }
+export interface ActivityStep {
+  id: string;
+  name: string;
+  state: "live" | "done" | "failed";
+  /** what it touches, from the host in safe words ("model.ts", "stream pacing") */ detail?: string;
+}
+export interface ActivitySnapshot {
+  startedAt: number;
+  thinking: string;
+  steps: readonly ActivityStep[];
+  version: number;
+  /** the turn has ended: the mark settles */ done?: boolean;
+}
+export interface ActivityStore {
+  get(): ActivitySnapshot;
+  subscribe(l: () => void): () => void;
+}
 
 const THINKING_KEPT = 1_200;
 
@@ -75,7 +89,13 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
   const quietMs = o.quietMs ?? 90_000;
   const settleMs = o.settleMs ?? 10_000;
   const makeStore = o.makeStore ?? (() => createStreamStore());
-  const setT = o.setTimer ?? ((fn, ms) => { const h = setTimeout(fn, ms) as unknown as { unref?: () => void }; h.unref?.(); return h; });   // unref: a quiet turn's timer never keeps a server-side render or a test process alive
+  const setT =
+    o.setTimer ??
+    ((fn, ms) => {
+      const h = setTimeout(fn, ms) as unknown as { unref?: () => void };
+      h.unref?.();
+      return h;
+    }); // unref: a quiet turn's timer never keeps a server-side render or a test process alive
   const clearT = o.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
   const turns = new Map<string, LiveTurn>();
   const timers = new Map<string, unknown>();
@@ -85,7 +105,13 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
   const acts = new Map<string, { snap: ActivitySnapshot; ls: Set<() => void> }>();
   const actOf = (turnId: string): { snap: ActivitySnapshot; ls: Set<() => void> } => {
     let a = acts.get(turnId);
-    if (!a) { a = { snap: { startedAt: turns.get(turnId)?.startedAt ?? now(), thinking: "", steps: [], version: 0 }, ls: new Set() }; acts.set(turnId, a); }
+    if (!a) {
+      a = {
+        snap: { startedAt: turns.get(turnId)?.startedAt ?? now(), thinking: "", steps: [], version: 0 },
+        ls: new Set(),
+      };
+      acts.set(turnId, a);
+    }
     return a;
   };
   const touchAct = (turnId: string, patch: (s: ActivitySnapshot) => ActivitySnapshot): void => {
@@ -93,36 +119,50 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
     a.snap = { ...patch(a.snap), version: a.snap.version + 1 };
     for (const l of [...a.ls]) l();
   };
-  const have = new Map<string, number>();                  // turnId -> characters held in its store
-  const held = new Map<string, Array<{ at: number; text: string }>>();   // pieces that arrived before the text so far
+  const have = new Map<string, number>(); // turnId -> characters held in its store
+  const held = new Map<string, Array<{ at: number; text: string }>>(); // pieces that arrived before the text so far
   // What a provider sends in a piece may be a whole sentence (a fast model answers in three or four chunks, a short reply in one); the screen shows it word by word, a few words each beat, faster the more
   // is waiting. Pacing is only for words arriving while someone watches. Words already received show at once the moment a row first looks at its store (a first render, a remount, a reload), so text a
   // person saw is never blanked; and a turn that ends while nobody watches shows everything at once. A watched turn that ends with words still waiting finishes them at the same pace, inside TAIL_MS.
-  const waiting = new Map<string, string[]>();               // turnId -> words received and not yet shown
+  const waiting = new Map<string, string[]>(); // turnId -> words received and not yet shown
   const beats = new Map<string, unknown>();
   const PACE_MS = 45;
   const TAIL_MS = 1_500;
-  const ending = new Map<string, number>();                  // turnId -> the most words a beat must show now the turn is over; its store ends with the last word
-  const settled = new Set<string>();                         // turns whose saved row is on screen and is only waiting for the last words
-  const watchers = new Map<string, number>();                // turnId -> rows looking at its store now
+  const ending = new Map<string, number>(); // turnId -> the most words a beat must show now the turn is over; its store ends with the last word
+  const settled = new Set<string>(); // turns whose saved row is on screen and is only waiting for the last words
+  const watchers = new Map<string, number>(); // turnId -> rows looking at its store now
   const watched = (turnId: string): boolean => (watchers.get(turnId) ?? 0) > 0;
   const beat = (turnId: string): void => {
     beats.delete(turnId);
-    const t = turns.get(turnId), q = waiting.get(turnId);
+    const t = turns.get(turnId),
+      q = waiting.get(turnId);
     if (!t || !q || q.length === 0) return;
     t.store.push(q.splice(0, Math.max(ending.get(turnId) ?? 1, Math.ceil(q.length / 10))).join(""));
-    if (q.length > 0) { beats.set(turnId, setT(() => beat(turnId), PACE_MS)); return; }
+    if (q.length > 0) {
+      beats.set(
+        turnId,
+        setT(() => beat(turnId), PACE_MS),
+      );
+      return;
+    }
     if (!ending.has(turnId)) return;
     ending.delete(turnId);
     t.store.end();
     if (settled.delete(turnId)) drop(turnId);
   };
   const reveal = (t: LiveTurn, text: string, instant: boolean): void => {
-    if (instant) { t.store.push(text); return; }
+    if (instant) {
+      t.store.push(text);
+      return;
+    }
     const q = waiting.get(t.turnId) ?? [];
     q.push(...(text.match(/\S+\s*|\s+/g) ?? []));
     waiting.set(t.turnId, q);
-    if (!beats.has(t.turnId)) beats.set(t.turnId, setT(() => beat(t.turnId), PACE_MS));
+    if (!beats.has(t.turnId))
+      beats.set(
+        t.turnId,
+        setT(() => beat(t.turnId), PACE_MS),
+      );
   };
   const showAll = (t: LiveTurn): void => {
     const h = beats.get(t.turnId);
@@ -144,16 +184,25 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
   /** The turn is over: end its store, now when nothing waits or nobody watches, else with the last paced word. */
   const finish = (t: LiveTurn): void => {
     const q = waiting.get(t.turnId);
-    if (!q || q.length <= 3 || !watched(t.turnId)) { showAll(t); t.store.end(); return; }   // a last word or two has nothing to pace, and nobody watching sees no pace
+    if (!q || q.length <= 3 || !watched(t.turnId)) {
+      showAll(t);
+      t.store.end();
+      return;
+    } // a last word or two has nothing to pace, and nobody watching sees no pace
     ending.set(t.turnId, Math.ceil(q.length / Math.floor(TAIL_MS / PACE_MS)));
   };
   const add = (t: LiveTurn, at: number | undefined, text: string, instant = false): boolean => {
     const n = have.get(t.turnId) ?? 0;
-    if (at === undefined) { reveal(t, text, instant); have.set(t.turnId, n + text.length); return true; }
+    if (at === undefined) {
+      reveal(t, text, instant);
+      have.set(t.turnId, n + text.length);
+      return true;
+    }
     if (at > n) return false;
     if (at + text.length <= n) return true;
     const rest = text.slice(n - at);
-    reveal(t, rest, instant); have.set(t.turnId, n + rest.length);
+    reveal(t, rest, instant);
+    have.set(t.turnId, n + rest.length);
     return true;
   };
 
@@ -161,11 +210,17 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
     const list = [...turns.values()].filter((t) => t.threadId === threadId).sort((a, b) => a.startedAt - b.startedAt);
     byThread.set(threadId, list.length > 0 ? list : NONE);
   };
-  const tell = (threadId: string): void => { rebuild(threadId); for (const l of [...listeners]) l(); };
+  const tell = (threadId: string): void => {
+    rebuild(threadId);
+    for (const l of [...listeners]) l();
+  };
   const arm = (turnId: string, ms: number): void => {
     const old = timers.get(turnId);
     if (old !== undefined) clearT(old);
-    timers.set(turnId, setT(() => drop(turnId), ms));
+    timers.set(
+      turnId,
+      setT(() => drop(turnId), ms),
+    );
   };
   function drop(turnId: string): void {
     const t = turns.get(turnId);
@@ -173,26 +228,53 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
     if (h !== undefined) clearT(h);
     timers.delete(turnId);
     if (!t) return;
-    { const bh = beats.get(turnId); if (bh !== undefined) clearT(bh); beats.delete(turnId); waiting.delete(turnId); ending.delete(turnId); settled.delete(turnId); watchers.delete(turnId); }
-    turns.delete(turnId); have.delete(turnId); held.delete(turnId); acts.delete(turnId);
+    {
+      const bh = beats.get(turnId);
+      if (bh !== undefined) clearT(bh);
+      beats.delete(turnId);
+      waiting.delete(turnId);
+      ending.delete(turnId);
+      settled.delete(turnId);
+      watchers.delete(turnId);
+    }
+    turns.delete(turnId);
+    have.delete(turnId);
+    held.delete(turnId);
+    acts.delete(turnId);
     tell(t.threadId);
   }
   /** The store as rows see it: the first row to look shows what was already received, at once. */
   const lookedAt = (turnId: string, store: StreamStore): StreamStore => ({
-    push: (d) => store.push(d), end: () => store.end(), reset: () => store.reset(), getSnapshot: () => store.getSnapshot(), stats: () => store.stats(),
+    push: (d) => store.push(d),
+    end: () => store.end(),
+    reset: () => store.reset(),
+    getSnapshot: () => store.getSnapshot(),
+    stats: () => store.stats(),
     subscribe(l) {
       const n = (watchers.get(turnId) ?? 0) + 1;
       watchers.set(turnId, n);
       if (n === 1) catchUp(turnId);
       const off = store.subscribe(l);
       let on = true;
-      return () => { if (!on) return; on = false; off(); if (watchers.has(turnId)) watchers.set(turnId, Math.max(0, (watchers.get(turnId) ?? 1) - 1)); };
+      return () => {
+        if (!on) return;
+        on = false;
+        off();
+        if (watchers.has(turnId)) watchers.set(turnId, Math.max(0, (watchers.get(turnId) ?? 1) - 1));
+      };
     },
   });
   const ensure = (turnId: string, threadId: string, agentId: string): LiveTurn => {
     const have = turns.get(turnId);
     if (have) return have;
-    const t: LiveTurn = { turnId, threadId, agentId, store: lookedAt(turnId, makeStore()), state: "writing", startedAt: now() };
+    const t: LiveTurn = {
+      turnId,
+      threadId,
+      agentId,
+      store: lookedAt(turnId, makeStore()),
+      state: "writing",
+      startedAt: now(),
+    };
     turns.set(turnId, t);
     return t;
   };
@@ -203,7 +285,9 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
       const f = frame as { t?: unknown; turn?: unknown; delta?: unknown };
       if (f.t !== "turn" || typeof f.turn !== "string" || typeof f.delta !== "object" || f.delta === null) return;
       const d = f.delta as Record<string, unknown>;
-      const threadId = str(d["threadId"]), agentId = str(d["agentId"]), kind = str(d["kind"]);
+      const threadId = str(d["threadId"]),
+        agentId = str(d["agentId"]),
+        kind = str(d["kind"]);
       if (threadId === "" || agentId === "") return;
       const turnId = f.turn;
       if (kind === "step" || kind === "steps" || kind === "thinking") {
@@ -215,12 +299,29 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
           if (text !== "") touchAct(turnId, (s) => ({ ...s, thinking: (s.thinking + text).slice(-THINKING_KEPT) }));
         } else {
           // the server gathers a busy turn's steps into one frame a second (modules/engine/live-coalesce.ts)
-          for (const raw of kind === "steps" && Array.isArray(d["steps"]) ? (d["steps"] as Array<Record<string, unknown>>) : [d]) {
-            const id = str(raw["id"]), name = str(raw["name"]);
+          for (const raw of kind === "steps" && Array.isArray(d["steps"])
+            ? (d["steps"] as Array<Record<string, unknown>>)
+            : [d]) {
+            const id = str(raw["id"]),
+              name = str(raw["name"]);
             if (id === "") continue;
-            if (raw["phase"] === "input") { const detail = str(raw["detail"]); if (detail !== "") touchAct(turnId, (s) => ({ ...s, steps: s.steps.map((x) => (x.id === id ? { ...x, detail } : x)) })); }
-            else if (raw["phase"] === "call") touchAct(turnId, (s) => (s.steps.some((x) => x.id === id) ? s : { ...s, steps: [...s.steps, { id, name, state: "live" as const }] }));
-            else touchAct(turnId, (s) => ({ ...s, steps: s.steps.map((x) => (x.id === id ? { ...x, state: raw["ok"] === false ? ("failed" as const) : ("done" as const) } : x)) }));
+            if (raw["phase"] === "input") {
+              const detail = str(raw["detail"]);
+              if (detail !== "")
+                touchAct(turnId, (s) => ({ ...s, steps: s.steps.map((x) => (x.id === id ? { ...x, detail } : x)) }));
+            } else if (raw["phase"] === "call")
+              touchAct(turnId, (s) =>
+                s.steps.some((x) => x.id === id)
+                  ? s
+                  : { ...s, steps: [...s.steps, { id, name, state: "live" as const }] },
+              );
+            else
+              touchAct(turnId, (s) => ({
+                ...s,
+                steps: s.steps.map((x) =>
+                  x.id === id ? { ...x, state: raw["ok"] === false ? ("failed" as const) : ("done" as const) } : x,
+                ),
+              }));
           }
         }
         return;
@@ -228,7 +329,8 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
       if (kind === "start" || kind === "delta") {
         const fresh = !turns.has(turnId);
         const t = ensure(turnId, threadId, agentId);
-        if (kind === "start" && typeof d["triggerId"] === "string" && t.triggerId === undefined) t.triggerId = d["triggerId"];
+        if (kind === "start" && typeof d["triggerId"] === "string" && t.triggerId === undefined)
+          t.triggerId = d["triggerId"];
         if (kind === "start" && typeof d["asker"] === "string") t.asker = d["asker"];
         if (kind === "delta") {
           const text = str(d["text"]);
@@ -249,7 +351,10 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
         if (!t || t.state === "ended") return;
         // a reply that finished paces out its last words; a stopped or failed one shows what it has at once
         if (d["state"] === "done") finish(t);
-        else { showAll(t); t.store.end(); }
+        else {
+          showAll(t);
+          t.store.end();
+        }
         if (acts.has(turnId)) touchAct(turnId, (s) => ({ ...s, done: true }));
         turns.set(turnId, { ...t, state: "ended" });
         arm(turnId, settleMs);
@@ -259,15 +364,24 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
       if (kind === "final") {
         const t = turns.get(turnId);
         if (!t) return;
-        const messageId = typeof d["messageId"] === "string" && d["messageId"] !== "" ? (d["messageId"] as string) : null;
-        if (messageId === null) { drop(turnId); return; }
+        const messageId =
+          typeof d["messageId"] === "string" && d["messageId"] !== "" ? (d["messageId"] as string) : null;
+        if (messageId === null) {
+          drop(turnId);
+          return;
+        }
         if (t.state === "writing") finish(t);
         turns.set(turnId, { ...t, state: "ended", messageId });
         arm(turnId, settleMs);
         tell(threadId);
       }
     },
-    onGap(l) { gapListeners.add(l); return () => { gapListeners.delete(l); }; },
+    onGap(l) {
+      gapListeners.add(l);
+      return () => {
+        gapListeners.delete(l);
+      };
+    },
     seed(threadId, list) {
       for (const s of list) {
         if (s.turnId === "" || s.agentId === "") continue;
@@ -276,15 +390,29 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
         if (t.state === "ended") continue;
         add(t, 0, s.text, true);
         const q = held.get(s.turnId);
-        if (q) { held.delete(s.turnId); for (const p of q) add(t, p.at, p.text); }
+        if (q) {
+          held.delete(s.turnId);
+          for (const p of q) add(t, p.at, p.text);
+        }
         arm(s.turnId, quietMs);
         if (fresh) tell(threadId);
       }
     },
     activityOf(rowId) {
-      const turnId = rowId.startsWith("turn:") ? rowId.slice(5) : [...turns.values()].find((x) => x.messageId === rowId)?.turnId;
+      const turnId = rowId.startsWith("turn:")
+        ? rowId.slice(5)
+        : [...turns.values()].find((x) => x.messageId === rowId)?.turnId;
       if (turnId === undefined || !turns.has(turnId)) return undefined;
-      return { get: () => actOf(turnId).snap, subscribe: (l) => { const a = actOf(turnId); a.ls.add(l); return () => { a.ls.delete(l); }; } };
+      return {
+        get: () => actOf(turnId).snap,
+        subscribe: (l) => {
+          const a = actOf(turnId);
+          a.ls.add(l);
+          return () => {
+            a.ls.delete(l);
+          };
+        },
+      };
     },
     turnsOf: (threadId) => byThread.get(threadId) ?? NONE,
     streamOf(rowId) {
@@ -293,23 +421,53 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
       return undefined;
     },
     settle(messageId) {
-      for (const t of turns.values()) if (t.messageId === messageId) {
-        // the row is on screen, and it reads this store until the last word is out
-        if (ending.has(t.turnId)) settled.add(t.turnId); else drop(t.turnId);
-        return;
-      }
+      for (const t of turns.values())
+        if (t.messageId === messageId) {
+          // the row is on screen, and it reads this store until the last word is out
+          if (ending.has(t.turnId)) settled.add(t.turnId);
+          else drop(t.turnId);
+          return;
+        }
     },
-    subscribe(l) { listeners.add(l); return () => { listeners.delete(l); }; },
+    subscribe(l) {
+      listeners.add(l);
+      return () => {
+        listeners.delete(l);
+      };
+    },
     reset() {
       const ids = [...turns.keys()];
       const threads = new Set([...turns.values()].map((t) => t.threadId));
-      for (const id of ids) { const h = timers.get(id); if (h !== undefined) clearT(h); timers.delete(id); }
+      for (const id of ids) {
+        const h = timers.get(id);
+        if (h !== undefined) clearT(h);
+        timers.delete(id);
+      }
       for (const h of beats.values()) clearT(h);
-      beats.clear(); waiting.clear(); ending.clear(); settled.clear(); watchers.clear(); acts.clear();
-      turns.clear(); have.clear(); held.clear();
+      beats.clear();
+      waiting.clear();
+      ending.clear();
+      settled.clear();
+      watchers.clear();
+      acts.clear();
+      turns.clear();
+      have.clear();
+      held.clear();
       for (const th of threads) rebuild(th);
       if (ids.length) for (const l of [...listeners]) l();
     },
-    dispose() { for (const h of [...timers.values(), ...beats.values()]) clearT(h); beats.clear(); waiting.clear(); ending.clear(); settled.clear(); watchers.clear(); timers.clear(); turns.clear(); byThread.clear(); listeners.clear(); gapListeners.clear(); },
+    dispose() {
+      for (const h of [...timers.values(), ...beats.values()]) clearT(h);
+      beats.clear();
+      waiting.clear();
+      ending.clear();
+      settled.clear();
+      watchers.clear();
+      timers.clear();
+      turns.clear();
+      byThread.clear();
+      listeners.clear();
+      gapListeners.clear();
+    },
   };
 }

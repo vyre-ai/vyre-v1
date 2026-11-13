@@ -9,9 +9,14 @@ import type { EngineCtx } from "../projections.ts";
 function rig(fail = false) {
   const h = harness();
   const asked: Array<{ cap: string; input: unknown; as: string | undefined }> = [];
-  const call = async (cap: string, input: unknown, as?: string): Promise<unknown> => { asked.push({ cap, input, as }); if (fail) throw new Error("gone"); return { proposed: 0, merged: 0 }; };
+  const call = async (cap: string, input: unknown, as?: string): Promise<unknown> => {
+    asked.push({ cap, input, as });
+    if (fail) throw new Error("gone");
+    return { proposed: 0, merged: 0 };
+  };
   const ctx = h.ctx as EngineCtx;
-  const wrote = (threadId: string, person = "usr_dana", kind = "person"): string[] => noteActivity(ctx, { at: h.clock.t, payload: { threadId, author: { kind, id: person } } });
+  const wrote = (threadId: string, person = "usr_dana", kind = "person"): string[] =>
+    noteActivity(ctx, { at: h.clock.t, payload: { threadId, author: { kind, id: person } } });
   return { h, ctx, call, asked, wrote };
 }
 

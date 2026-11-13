@@ -7,7 +7,15 @@ import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import { keyPair, manifestText, NOW, SHA, world } from "../fixtures/world.ts";
 import type { World } from "../fixtures/world.ts";
 import { configureUpdates, handlers } from "../handlers/index.ts";
-import { appSupported, appWindow, compareVersions, fromBase64, parseManifest, parseVersion, verifySignature } from "../handlers/channels.ts";
+import {
+  appSupported,
+  appWindow,
+  compareVersions,
+  fromBase64,
+  parseManifest,
+  parseVersion,
+  verifySignature,
+} from "../handlers/channels.ts";
 import type { UpdateCtx } from "../handlers/channels.ts";
 import * as impl from "../impl.ts";
 
@@ -18,14 +26,23 @@ const call = (name: string, ctx: UpdateCtx, input: unknown): Promise<unknown> =>
   return fn(ctx, input as never);
 };
 const failed = async (p: Promise<unknown>): Promise<VyreErr> => {
-  try { await p; } catch (e) { assert.ok(e instanceof VyreErr, "a typed error"); return e; }
+  try {
+    await p;
+  } catch (e) {
+    assert.ok(e instanceof VyreErr, "a typed error");
+    return e;
+  }
   throw new Error("expected the call to fail");
 };
 
 async function ready(): Promise<World> {
   const w = await world({ version: "1.2.0" });
   configureUpdates(w.drivers);
-  await w.publish({ version: "1.3.0", notes: "Faster sync.", apps: { mac: "1.3.0", ios: "1.1.0", android: "0.9.0", web: "1.3.2" } });
+  await w.publish({
+    version: "1.3.0",
+    notes: "Faster sync.",
+    apps: { mac: "1.3.0", ios: "1.1.0", android: "0.9.0", web: "1.3.2" },
+  });
   return w;
 }
 
@@ -72,7 +89,8 @@ test("a manifest changed after it was signed is refused", async () => {
 
 test("a signed manifest for another channel, or in a shape this server does not read, is refused", async () => {
   const w = await ready();
-  const sign = async (text: string) => w.feed.answers.set("stable", { manifest: text, signature: await w.key.sign(text) });
+  const sign = async (text: string) =>
+    w.feed.answers.set("stable", { manifest: text, signature: await w.key.sign(text) });
   const refuse = async (why: RegExp): Promise<void> => {
     const err = await failed(call("updates.check", w.ctx, {}));
     assert.equal(err.error.code, "provider.bad_response");
@@ -92,17 +110,30 @@ test("a signed manifest for another channel, or in a shape this server does not 
 });
 
 test("the manifest reader keeps the server entry and the apps on offer, and ignores kits and connectors", () => {
-  const parsed = parseManifest(manifestText({ version: "1.3.0", security: true, notes: "n", apps: { mac: "1.3.0", bad: "x" } }), "stable");
+  const parsed = parseManifest(
+    manifestText({ version: "1.3.0", security: true, notes: "n", apps: { mac: "1.3.0", bad: "x" } }),
+    "stable",
+  );
   assert.ok("manifest" in parsed);
   if ("manifest" in parsed) {
-    assert.deepEqual(parsed.manifest.server, { version: "1.3.0", tarball: "https://releases.example/vyre-1.3.0.tgz", sha256: SHA, notes: "n", security: true });
+    assert.deepEqual(parsed.manifest.server, {
+      version: "1.3.0",
+      tarball: "https://releases.example/vyre-1.3.0.tgz",
+      sha256: SHA,
+      notes: "n",
+      security: true,
+    });
     assert.deepEqual(parsed.manifest.apps, [{ platform: "mac", version: "1.3.0" }]);
   }
 });
 
 test("check reports a newer version, its notes and the apps the new server will serve", async () => {
   const w = await ready();
-  const out = await call("updates.check", w.ctx, {}) as { available?: string; notes?: string; supportedApps: string[] };
+  const out = (await call("updates.check", w.ctx, {})) as {
+    available?: string;
+    notes?: string;
+    supportedApps: string[];
+  };
   assert.equal(out.available, "1.3.0");
   assert.equal(out.notes, "Faster sync.");
   // server 1.3.0 serves apps on minors 1 to 5: mac 1.3.0, ios 1.1.0 and web 1.3.2 are in; android 0.9.0 is not
@@ -116,11 +147,15 @@ test("check with nothing newer says so, and an older manifest never counts as an
   const w = await ready();
   await call("updates.check", w.ctx, {});
   await w.publish({ version: "1.2.0" });
-  const same = await call("updates.check", w.ctx, {}) as { available?: string; notes?: string };
+  const same = (await call("updates.check", w.ctx, {})) as { available?: string; notes?: string };
   assert.equal(same.available, undefined);
-  assert.equal((await call("updates.status", w.ctx, {}) as { available?: string }).available, undefined, "the earlier answer was cleared");
+  assert.equal(
+    ((await call("updates.status", w.ctx, {})) as { available?: string }).available,
+    undefined,
+    "the earlier answer was cleared",
+  );
   await w.publish({ version: "1.1.5" });
-  const older = await call("updates.check", w.ctx, {}) as { available?: string };
+  const older = (await call("updates.check", w.ctx, {})) as { available?: string };
   assert.equal(older.available, undefined);
 });
 
@@ -134,33 +169,40 @@ test("a feed that cannot be reached is a provider error and changes nothing", as
 
 test("the channel is chosen on its own: stable by default, beta and nightly on request, and the old answer is dropped", async () => {
   const w = await ready();
-  assert.equal((await call("updates.status", w.ctx, {}) as { channel: string }).channel, "stable");
+  assert.equal(((await call("updates.status", w.ctx, {})) as { channel: string }).channel, "stable");
   await call("updates.check", w.ctx, {});
   assert.deepEqual(await call("updates.channel_set", w.ctx, { channel: "beta" }), { ok: true });
-  const status = await call("updates.status", w.ctx, {}) as { channel: string; available?: string };
+  const status = (await call("updates.status", w.ctx, {})) as { channel: string; available?: string };
   assert.deepEqual([status.channel, status.available], ["beta", undefined], "the stable answer does not carry over");
   await assert.rejects(call("updates.check", w.ctx, {}), VyreErr, "the beta channel has no release yet and says so");
   assert.deepEqual(w.feed.asked, ["stable", "beta"]);
   await w.publish({ version: "1.4.0-beta.2", channel: "beta" });
-  const out = await call("updates.check", w.ctx, {}) as { available?: string };
+  const out = (await call("updates.check", w.ctx, {})) as { available?: string };
   assert.equal(out.available, "1.4.0-beta.2");
   await call("updates.channel_set", w.ctx, { channel: "nightly" });
-  assert.equal((await call("updates.status", w.ctx, {}) as { channel: string }).channel, "nightly");
+  assert.equal(((await call("updates.status", w.ctx, {})) as { channel: string }).channel, "nightly");
   const err = await failed(call("updates.channel_set", w.ctx, { channel: "weekly" }));
   assert.equal(err.error.code, "validation.bad_input");
   // setting the same channel again keeps the last answer
   await w.publish({ version: "1.5.0-nightly.1", channel: "nightly" });
   await call("updates.check", w.ctx, {});
   await call("updates.channel_set", w.ctx, { channel: "nightly" });
-  assert.equal((await call("updates.status", w.ctx, {}) as { available?: string }).available, "1.5.0-nightly.1");
+  assert.equal(((await call("updates.status", w.ctx, {})) as { available?: string }).available, "1.5.0-nightly.1");
 });
 
 test("apply backs up first: the backup is taken and listed before the update starts, and the install comes after", async () => {
   const w = await ready();
   await call("updates.apply", w.ctx, {});
-  assert.deepEqual(w.backups.calls, ["backup.run@0", "backup.list@0"], "both backup calls happened before the installer was touched");
+  assert.deepEqual(
+    w.backups.calls,
+    ["backup.run@0", "backup.list@0"],
+    "both backup calls happened before the installer was touched",
+  );
   assert.deepEqual(w.installer.log, ["install 1.3.0"]);
-  assert.deepEqual(w.events.map((e) => e.name), ["update.started", "update.completed"]);
+  assert.deepEqual(
+    w.events.map((e) => e.name),
+    ["update.started", "update.completed"],
+  );
   assert.equal(w.raw.rows("updates_history")[0]!["backup_id"], "bkp_first1");
 });
 
@@ -187,11 +229,23 @@ test("a backup that ran but did not finish does not count", async () => {
 
 test("app compatibility: the server supports apps within two minor versions, older apps update first", async () => {
   const w = await ready();
-  assert.deepEqual(await call("updates.app_compat", w.ctx, {}), { min: "1.0.0", max: "1.4.9999", updateRequiredBelow: "1.0.0" });
+  assert.deepEqual(await call("updates.app_compat", w.ctx, {}), {
+    min: "1.0.0",
+    max: "1.4.9999",
+    updateRequiredBelow: "1.0.0",
+  });
   w.installer.version = "2.5.1";
-  assert.deepEqual(await call("updates.app_compat", w.ctx, {}), { min: "2.3.0", max: "2.7.9999", updateRequiredBelow: "2.3.0" });
+  assert.deepEqual(await call("updates.app_compat", w.ctx, {}), {
+    min: "2.3.0",
+    max: "2.7.9999",
+    updateRequiredBelow: "2.3.0",
+  });
   w.installer.version = "0.1.0";
-  assert.deepEqual(await call("updates.app_compat", w.ctx, {}), { min: "0.0.0", max: "0.3.9999", updateRequiredBelow: "0.0.0" });
+  assert.deepEqual(await call("updates.app_compat", w.ctx, {}), {
+    min: "0.0.0",
+    max: "0.3.9999",
+    updateRequiredBelow: "0.0.0",
+  });
   assert.equal(appWindow("nope"), null);
   assert.equal(appSupported("1.4.0", "1.2.9"), true);
   assert.equal(appSupported("1.4.0", "1.1.9"), false, "three minors behind");
@@ -219,31 +273,51 @@ test("history lists updates newest first", async () => {
   w.backups.runs.push({ backupId: "bkp_second" });
   w.backups.listed = ["bkp_second"];
   await call("updates.rollback", w.ctx, { to: "1.2.0" });
-  const out = await call("updates.history", w.ctx, {}) as { updates: { from: string; to: string; result: string; at: number; seconds: number }[] };
-  assert.deepEqual(out.updates.map((u) => [u.from, u.to, u.result]), [["1.3.0", "1.2.0", "rolled_back"], ["1.2.0", "1.3.0", "ok"]]);
+  const out = (await call("updates.history", w.ctx, {})) as {
+    updates: { from: string; to: string; result: string; at: number; seconds: number }[];
+  };
+  assert.deepEqual(
+    out.updates.map((u) => [u.from, u.to, u.result]),
+    [
+      ["1.3.0", "1.2.0", "rolled_back"],
+      ["1.2.0", "1.3.0", "ok"],
+    ],
+  );
   assert.equal(out.updates[0]!.at, NOW + 60_000);
 });
 
 test("status: a server without vyre-server answers that it is updated outside Vyre, not a refusal", async () => {
   const w = await ready();
-  const normal = await call("updates.status", w.ctx, {}) as { current?: string; managedElsewhere?: boolean };
+  const normal = (await call("updates.status", w.ctx, {})) as { current?: string; managedElsewhere?: boolean };
   assert.equal(typeof normal.current, "string");
   assert.equal(normal.managedElsewhere, undefined);
-  w.installer.current = async () => { throw Object.assign(new Error("vyre-server is not installed on this server"), { code: "ENOENT" }); };
-  const r = await call("updates.status", w.ctx, {}) as { current?: string; managedElsewhere?: boolean; channel: string };
+  w.installer.current = async () => {
+    throw Object.assign(new Error("vyre-server is not installed on this server"), { code: "ENOENT" });
+  };
+  const r = (await call("updates.status", w.ctx, {})) as {
+    current?: string;
+    managedElsewhere?: boolean;
+    channel: string;
+  };
   assert.deepEqual([r.managedElsewhere, r.current, typeof r.channel], [true, undefined, "string"]);
-  w.installer.current = async () => { throw new Error("vyre-server could not say which version is running"); };
+  w.installer.current = async () => {
+    throw new Error("vyre-server could not say which version is running");
+  };
   await assert.rejects(call("updates.status", w.ctx, {}), "any other failure is still a failure");
 });
 
 test("health: a missing vyre-server reads healthy with a hint; any other failure to check is degraded with the reason", async () => {
   const w = await ready();
-  w.installer.current = async () => { throw Object.assign(new Error("vyre-server is not installed on this server"), { code: "ENOENT" }); };
-  const r = await call("updates.health", w.ctx, {}) as { state: string; detail: string };
+  w.installer.current = async () => {
+    throw Object.assign(new Error("vyre-server is not installed on this server"), { code: "ENOENT" });
+  };
+  const r = (await call("updates.health", w.ctx, {})) as { state: string; detail: string };
   assert.equal(r.state, "healthy");
   assert.match(r.detail, /vyre-server, which is not installed/);
-  w.installer.current = async () => { throw new Error("vyre-server could not say which version is running"); };
-  const bad = await call("updates.health", w.ctx, {}) as { state: string; detail: string };
+  w.installer.current = async () => {
+    throw new Error("vyre-server could not say which version is running");
+  };
+  const bad = (await call("updates.health", w.ctx, {})) as { state: string; detail: string };
   assert.equal(bad.state, "degraded", "any other failure is a real one, never healthy");
   assert.match(bad.detail, /Could not check updates: vyre-server could not say/);
 });
@@ -253,19 +327,19 @@ test("health: failed last update, a waiting security update and a stale check ar
   assert.deepEqual(await call("updates.health", w.ctx, {}), { state: "healthy", latencyMs: 0 });
   await w.publish({ version: "1.3.1", security: true });
   await call("updates.check", w.ctx, {});
-  const sec = await call("updates.health", w.ctx, {}) as { state: string; detail: string };
+  const sec = (await call("updates.health", w.ctx, {})) as { state: string; detail: string };
   assert.equal(sec.state, "degraded");
   assert.match(sec.detail, /security update \(1\.3\.1\)/);
   w.installer.health = [false, true];
   await call("updates.apply", w.ctx, {});
-  const bad = await call("updates.health", w.ctx, {}) as { state: string; detail: string };
+  const bad = (await call("updates.health", w.ctx, {})) as { state: string; detail: string };
   assert.equal(bad.state, "degraded");
   assert.match(bad.detail, /last update to 1\.3\.1 failed/);
   // a clean state with an old look
   const fresh = await ready();
   await call("updates.check", fresh.ctx, {});
   fresh.setNow(NOW + 8 * 86_400_000);
-  const stale = await call("updates.health", fresh.ctx, {}) as { state: string; detail: string };
+  const stale = (await call("updates.health", fresh.ctx, {})) as { state: string; detail: string };
   assert.equal(stale.state, "degraded");
   assert.match(stale.detail, /over a week/);
 });
@@ -284,5 +358,14 @@ test("impl.ts exposes every updates handler, the host wiring and no projections"
   assert.deepEqual(impl.inline, {});
   assert.deepEqual(impl.consumers, {});
   assert.deepEqual(impl.codecs, {});
-  assert.deepEqual(Object.keys(impl.handlers).sort(), ["updates.app_compat", "updates.apply", "updates.channel_set", "updates.check", "updates.health", "updates.history", "updates.rollback", "updates.status"]);
+  assert.deepEqual(Object.keys(impl.handlers).sort(), [
+    "updates.app_compat",
+    "updates.apply",
+    "updates.channel_set",
+    "updates.check",
+    "updates.health",
+    "updates.history",
+    "updates.rollback",
+    "updates.status",
+  ]);
 });

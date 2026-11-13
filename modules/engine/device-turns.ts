@@ -8,7 +8,13 @@
 //                  said and which steps were already done, and resumes its own session for the chat when it has one. Nothing done is done again.
 //   This computer  the chat says the turn waits for the computer, with "Run it on the server instead". It goes on when the computer is back (on it), or on the server when the person presses the
 //                  button, or ends when they press Stop. While it waits the live line says so; nothing pretends to be working.
-import type { DriverEvent, EngineSession, StoredMessage, ToolResult, TurnInput } from "../../agent/src/turn-engine/types.ts";
+import type {
+  DriverEvent,
+  EngineSession,
+  StoredMessage,
+  ToolResult,
+  TurnInput,
+} from "../../agent/src/turn-engine/types.ts";
 
 /** The live step of a turn waiting for the person's computer: the activity line reads it as "Waiting for your computer" (apps/app/src/places/chats/conversation/activity.ts). */
 export const DEVICE_WAIT_STEP = "device_wait";
@@ -57,64 +63,94 @@ export function handoverSession(first: EngineSession, d: HandoverDeps): EngineSe
   let onDevice = true;
   const stop = new AbortController();
   let closed = false;
-  const send = (input: TurnInput): AsyncIterable<DriverEvent> => (async function* () {
-    let said = "";
-    const steps: string[] = [];
-    let now: TurnInput = input;
-    for (;;) {
-      let lost = false;
-      try {
-        for await (const ev of cur.send(now)) {
-          // the engine ended because the computer went away: not the turn's failure, a move
-          if (ev.type === "error" && onDevice && !d.linkUp() && !stop.signal.aborted) { lost = true; break; }
-          if (ev.type === "text") said += ev.text;
-          else if (ev.type === "block" && ev.kind === "tool_call") {
-            const p = (ev.payload ?? {}) as { name?: unknown };
-            if (typeof p.name === "string" && p.name !== "") steps.push(p.name);
+  const send = (input: TurnInput): AsyncIterable<DriverEvent> =>
+    (async function* () {
+      let said = "";
+      const steps: string[] = [];
+      let now: TurnInput = input;
+      for (;;) {
+        let lost = false;
+        try {
+          for await (const ev of cur.send(now)) {
+            // the engine ended because the computer went away: not the turn's failure, a move
+            if (ev.type === "error" && onDevice && !d.linkUp() && !stop.signal.aborted) {
+              lost = true;
+              break;
+            }
+            if (ev.type === "text") said += ev.text;
+            else if (ev.type === "block" && ev.kind === "tool_call") {
+              const p = (ev.payload ?? {}) as { name?: unknown };
+              if (typeof p.name === "string" && p.name !== "") steps.push(p.name);
+            }
+            yield ev;
           }
-          yield ev;
+        } catch (e) {
+          if (!(onDevice && !d.linkUp() && !stop.signal.aborted)) throw e;
+          lost = true;
         }
-      } catch (e) {
-        if (!(onDevice && !d.linkUp() && !stop.signal.aborted)) throw e;
-        lost = true;
-      }
-      if (!lost) return;
-      const gone = cur;
-      void gone.close().catch(() => undefined);
-      let to: "server" | "device";
-      if (!d.pinned) to = "server";
-      else {
-        d.note(SLEPT_WAIT_LINE);
-        d.live?.("call");
-        const waiting = d.waitFor(stop.signal);
-        // the engine's quiet-session check: an empty usage reading is the turn saying it is still there, and adds nothing to what it used
-        let answer: "device" | "server" | "cancelled" | undefined;
-        void waiting.then((a) => { answer = a; });
-        while (answer === undefined) {
-          const beat = new Promise<void>((r) => { const t = setTimeout(r, d.beatMs ?? BEAT_MS); t.unref?.(); void waiting.then(() => { clearTimeout(t); r(); }); });
-          await beat;
-          if (answer === undefined) yield { type: "usage", inputTokens: 0, outputTokens: 0 };
+        if (!lost) return;
+        const gone = cur;
+        void gone.close().catch(() => undefined);
+        let to: "server" | "device";
+        if (!d.pinned) to = "server";
+        else {
+          d.note(SLEPT_WAIT_LINE);
+          d.live?.("call");
+          const waiting = d.waitFor(stop.signal);
+          // the engine's quiet-session check: an empty usage reading is the turn saying it is still there, and adds nothing to what it used
+          let answer: "device" | "server" | "cancelled" | undefined;
+          void waiting.then((a) => {
+            answer = a;
+          });
+          while (answer === undefined) {
+            const beat = new Promise<void>((r) => {
+              const t = setTimeout(r, d.beatMs ?? BEAT_MS);
+              t.unref?.();
+              void waiting.then(() => {
+                clearTimeout(t);
+                r();
+              });
+            });
+            await beat;
+            if (answer === undefined) yield { type: "usage", inputTokens: 0, outputTokens: 0 };
+          }
+          d.live?.("result");
+          if (answer === "cancelled") return;
+          to = answer;
         }
-        d.live?.("result");
-        if (answer === "cancelled") return;
-        to = answer;
+        if (to === "server") {
+          const next = await d.openServer();
+          cur = next.session;
+          d.note(sleptLine(next.name));
+        } else cur = await d.reopenDevice();
+        onDevice = to === "device";
+        d.moved(to);
+        if (closed || stop.signal.aborted) {
+          await cur.cancel().catch(() => undefined);
+          return;
+        }
+        now = continued(input, d.from, said, steps);
       }
-      if (to === "server") { const next = await d.openServer(); cur = next.session; d.note(sleptLine(next.name)); }
-      else cur = await d.reopenDevice();
-      onDevice = to === "device";
-      d.moved(to);
-      if (closed || stop.signal.aborted) { await cur.cancel().catch(() => undefined); return; }
-      now = continued(input, d.from, said, steps);
-    }
-  })();
+    })();
   return {
     send,
     sendToolResult: (callId: string, result: ToolResult) => cur.sendToolResult(callId, result),
     inject: (msg: StoredMessage) => cur.inject(msg),
-    async cancel() { stop.abort(); await cur.cancel(); },
-    async close() { closed = true; stop.abort(); await cur.close(); },
-    get warm() { return cur.warm; },
-    get model() { return (cur as { model?: string }).model; },
+    async cancel() {
+      stop.abort();
+      await cur.cancel();
+    },
+    async close() {
+      closed = true;
+      stop.abort();
+      await cur.close();
+    },
+    get warm() {
+      return cur.warm;
+    },
+    get model() {
+      return (cur as { model?: string }).model;
+    },
     ...(first.providerLatencyMs !== undefined ? { providerLatencyMs: first.providerLatencyMs } : {}),
   };
 }

@@ -32,29 +32,64 @@ import type { ShellRuntime } from "./runtime.tsx";
 
 // the Console's pages load the first time one opens, so Settings itself stays light
 
-export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["manageSecurity"], security?: SettingsData["security"], consoleAllowed = false, companyAllowed = consoleAllowed): SettingsData {
+export function settingsData(
+  rt: ShellRuntime,
+  manageSecurity?: SettingsNav["manageSecurity"],
+  security?: SettingsData["security"],
+  consoleAllowed = false,
+  companyAllowed = consoleAllowed,
+): SettingsData {
   return {
     ...(security ? { security } : {}),
     // Ask about a Settings page opens the pane beside it, about that page; the person's own settings are theirs to change, so the assistant may propose changes they then approve
-    ask: (page) => { openAskPane({ thing: { kind: "settings_page", id: page.key, title: page.title }, context: { actions: ["explain a setting", "find a setting", "change a setting after the person says yes"] } }, "settings"); },
+    ask: (page) => {
+      openAskPane(
+        {
+          thing: { kind: "settings_page", id: page.key, title: page.title },
+          context: { actions: ["explain a setting", "find a setting", "change a setting after the person says yes"] },
+        },
+        "settings",
+      );
+    },
     ...(consoleAllowed ? { openConsole: () => rt.open({ screen: "console.overview" }) } : {}),
     // Connect your company is its own Console page: the door is there only for a person who can open it (reach)
     ...(companyAllowed ? { openCompany: () => rt.open({ screen: "company.setup" }) } : {}),
-    screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name, ...(rt.me.username ? { username: rt.me.username } : {}) }, space: { id: rt.space.id, name: rt.space.name },
-    spaces: rt.knownSpaces?.map(space=>({id:space.spaceId,name:space.name,addr:space.address,kind:space.kind,role:space.role,needsYou:space.needsYou?1:0,current:space.spaceId===rt.space.id}))??[{ id: rt.space.id, name: rt.space.name, addr: "", kind: rt.space.kind, role: "", needsYou: 0, current: true }],
+    screens: rt.screens,
+    call: rt.call,
+    me: { id: rt.me.id, name: rt.me.name, ...(rt.me.username ? { username: rt.me.username } : {}) },
+    space: { id: rt.space.id, name: rt.space.name },
+    spaces: rt.knownSpaces?.map((space) => ({
+      id: space.spaceId,
+      name: space.name,
+      addr: space.address,
+      kind: space.kind,
+      role: space.role,
+      needsYou: space.needsYou ? 1 : 0,
+      current: space.spaceId === rt.space.id,
+    })) ?? [
+      { id: rt.space.id, name: rt.space.name, addr: "", kind: rt.space.kind, role: "", needsYou: 0, current: true },
+    ],
     name: nameOf(rt),
     sessionImporter: rt.space.kind === "personal" ? desktopSessionImporter() : undefined,
     desktopUpdater: desktopUpdates(),
     async continueSession(conversationId) {
       if (rt.space.kind !== "personal") throw new Error("Open your Personal Space to continue this session.");
-      const out = await rt.call("sessions.continue", { conversationId, destinationSpaceId: rt.space.id, destinationScope: "personal", agentId: rt.assistant.id }) as { threadId: string };
+      const out = (await rt.call("sessions.continue", {
+        conversationId,
+        destinationSpaceId: rt.space.id,
+        destinationScope: "personal",
+        agentId: rt.assistant.id,
+      })) as { threadId: string };
       rt.open({ screen: "chats.conversation", args: { threadId: out.threadId } });
     },
     nav: {
       openVault: () => rt.open({ screen: "vault.layout" }),
       openConnections: () => rt.open(connectionsTarget()),
       openSpace: (id) => rt.open({ screen: "spaces.switcher", args: { id } }),
-      connect: (kind) => kind === "twilio" ? rt.open({ screen: "vault.layout", args: { add: "twilio" } }) : rt.open({ screen: "settings.page", args: { page: "mail" } }),
+      connect: (kind) =>
+        kind === "twilio"
+          ? rt.open({ screen: "vault.layout", args: { add: "twilio" } })
+          : rt.open({ screen: "settings.page", args: { page: "mail" } }),
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
       openLink: (link) => rt.openUrl(link),
       choosePhoto: () => chooseProfilePhoto(rt),
@@ -72,18 +107,32 @@ const appliers = new Map<string, ReturnType<typeof lookApplier>>();
 function look_(rt: ShellRuntime): ReturnType<typeof lookApplier> {
   const k = `${rt.me.id}/${rt.space.id}`;
   let a = appliers.get(k);
-  if (!a) { a = lookApplier(rt); appliers.set(k, a); }
+  if (!a) {
+    a = lookApplier(rt);
+    appliers.set(k, a);
+  }
   return a;
 }
 
 const isDesktopWindow = (): boolean => !!(globalThis as { __TAURI__?: unknown }).__TAURI__;
 
 /** Every Space this device is in, this one first, for "Use one account everywhere" (rc.17). */
-export function linkSpaces(rt: ShellRuntime): { name: string; spaceId: string; call: (cap: string, input: unknown) => Promise<unknown> }[] {
+export function linkSpaces(
+  rt: ShellRuntime,
+): { name: string; spaceId: string; call: (cap: string, input: unknown) => Promise<unknown> }[] {
   const callIn = rt.callIn;
   const here = { name: rt.space.name, spaceId: rt.space.id, call: rt.call };
   if (!callIn || !rt.knownSpaces) return [here];
-  return [here, ...rt.knownSpaces.filter((x) => x.spaceId !== rt.space.id).map((x) => ({ name: x.name, spaceId: x.spaceId, call: (cap: string, input: unknown) => callIn(x.spaceId, cap, input) }))];
+  return [
+    here,
+    ...rt.knownSpaces
+      .filter((x) => x.spaceId !== rt.space.id)
+      .map((x) => ({
+        name: x.name,
+        spaceId: x.spaceId,
+        call: (cap: string, input: unknown) => callIn(x.spaceId, cap, input),
+      })),
+  ];
 }
 
 /** A Space that took the kept account answered with a new session for this device (its old ones ended): store it; the open Space reloads on it. */
@@ -94,10 +143,14 @@ export function storeLinkedSession(spaceId: string, token: string, username: str
 }
 
 /** The other Spaces this device is in, reached as the same person: a new recovery code replaces the old one there too. */
-export function otherSpaces(rt: ShellRuntime): { name: string; call: (cap: string, input: unknown) => Promise<unknown> }[] {
+export function otherSpaces(
+  rt: ShellRuntime,
+): { name: string; call: (cap: string, input: unknown) => Promise<unknown> }[] {
   const callIn = rt.callIn;
   if (!callIn || !rt.knownSpaces) return [];
-  return rt.knownSpaces.filter((x) => x.spaceId !== rt.space.id).map((x) => ({ name: x.name, call: (cap: string, input: unknown) => callIn(x.spaceId, cap, input) }));
+  return rt.knownSpaces
+    .filter((x) => x.spaceId !== rt.space.id)
+    .map((x) => ({ name: x.name, call: (cap: string, input: unknown) => callIn(x.spaceId, cap, input) }));
 }
 
 export default function SettingsShellPlace(_props: { place: string }): ReactElement {
@@ -108,13 +161,21 @@ export default function SettingsShellPlace(_props: { place: string }): ReactElem
   useEffect(() => {
     if (!rt) return undefined;
     let live = true;
-    void loadSecurity(rt.call, rt.space, rt.clock().now).then((x) => { if (live) setSignIn(x); }, () => undefined);
-    return () => { live = false; };
+    void loadSecurity(rt.call, rt.space, rt.clock().now).then(
+      (x) => {
+        if (live) setSignIn(x);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
   }, [rt, security]);
   const nonce = useAddServerNonce();
   // a link into Settings names its page ({ page } or the mail connections screen); without this it always opened Profile
   const { target } = usePlaceHash();
-  const raw = target.screen === "mail.connections" ? "mail" : typeof target.args["page"] === "string" ? target.args["page"] : "";
+  const raw =
+    target.screen === "mail.connections" ? "mail" : typeof target.args["page"] === "string" ? target.args["page"] : "";
   const asked = OLD_PAGES[raw] ?? raw;
   const page = PAGES.some((x) => x.key === asked) ? (asked as PageKey) : undefined;
   const { page: _page, admin: askedAdmin, account: askedAccount, ...adminArgs } = target.args as Record<string, string>;
@@ -127,9 +188,38 @@ export default function SettingsShellPlace(_props: { place: string }): ReactElem
     if (rt && screen) rt.open(adminTarget(screen, adminArgs));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rt, askedAdmin]);
-  const data = useMemo(() => (rt ? settingsData(rt, (kind) => setSecurity(kind), signIn, consoleAllowed, pages?.has("company") === true) : null), [rt, signIn, consoleAllowed, pages]);
+  const data = useMemo(
+    () =>
+      rt ? settingsData(rt, (kind) => setSecurity(kind), signIn, consoleAllowed, pages?.has("company") === true) : null,
+    [rt, signIn, consoleAllowed, pages],
+  );
   if (!data) return <View style={s.page} testID="settings-loading" />;
-  return <SettingsDataProvider value={data}><SettingsPlace key={`${nonce}:${page ?? ""}:${askedAdmin ?? ""}:${askedAccount ?? ""}`} {...(askedAccount ? { initialAccount: askedAccount } : {})} {...(addServerAsked() ? { initialPage: "computer" as const } : page ? { initialPage: page } : {})} />{security === "link" ? <LinkSheet spaces={linkSpaces(rt!)} device={deviceFor(isDesktopWindow() ? "desktop" : "web")} onSession={(id, token, username) => storeLinkedSession(id, token, username, rt!.space.id)} onClose={() => setSecurity(null)} /> : security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} spaceName={rt!.space.name} others={otherSpaces(rt!)} /> : null}</SettingsDataProvider>;
+  return (
+    <SettingsDataProvider value={data}>
+      <SettingsPlace
+        key={`${nonce}:${page ?? ""}:${askedAdmin ?? ""}:${askedAccount ?? ""}`}
+        {...(askedAccount ? { initialAccount: askedAccount } : {})}
+        {...(addServerAsked() ? { initialPage: "computer" as const } : page ? { initialPage: page } : {})}
+      />
+      {security === "link" ? (
+        <LinkSheet
+          spaces={linkSpaces(rt!)}
+          device={deviceFor(isDesktopWindow() ? "desktop" : "web")}
+          onSession={(id, token, username) => storeLinkedSession(id, token, username, rt!.space.id)}
+          onClose={() => setSecurity(null)}
+        />
+      ) : security ? (
+        <SecuritySheet
+          key={security}
+          action={security}
+          call={rt!.call}
+          onClose={() => setSecurity(null)}
+          spaceName={rt!.space.name}
+          others={otherSpaces(rt!)}
+        />
+      ) : null}
+    </SettingsDataProvider>
+  );
 }
 
 const s = StyleSheet.create({ page: { flex: 1, backgroundColor: "var(--win)" as string } });

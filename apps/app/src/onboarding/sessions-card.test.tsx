@@ -14,22 +14,53 @@ test.beforeEach(() => draftClear());
 const HOUR = 3_600_000;
 // The clock reads midday today, so "2 hours ago" never crosses midnight into "Yesterday" whenever the suite runs.
 const realNow = Date.now;
-const MIDDAY = new Date(); MIDDAY.setHours(12, 0, 0, 0);
+const MIDDAY = new Date();
+MIDDAY.setHours(12, 0, 0, 0);
 Date.now = () => MIDDAY.getTime();
-test.after(() => { Date.now = realNow; });
+test.after(() => {
+  Date.now = realNow;
+});
 const found = () => [
-  { provider: "claude", sessionId: "a1", sessionKey: "claude:a1", projectKey: "p", cwd: "/Users/maya/code/site", title: "Fix the login bug", updatedAt: String(Date.now() - 2 * HOUR) },
-  { provider: "codex", sessionId: "b2", sessionKey: "codex:b2", projectKey: "q", cwd: "/Users/maya/code/api", title: "Add dark mode", updatedAt: String(Date.now() - 30 * HOUR) },
-  { provider: "claude", sessionId: "c3", sessionKey: "claude:c3", projectKey: "p", cwd: "/Users/maya/code/site", title: "Older note", updatedAt: String(Date.now() - 400 * HOUR) },
+  {
+    provider: "claude",
+    sessionId: "a1",
+    sessionKey: "claude:a1",
+    projectKey: "p",
+    cwd: "/Users/maya/code/site",
+    title: "Fix the login bug",
+    updatedAt: String(Date.now() - 2 * HOUR),
+  },
+  {
+    provider: "codex",
+    sessionId: "b2",
+    sessionKey: "codex:b2",
+    projectKey: "q",
+    cwd: "/Users/maya/code/api",
+    title: "Add dark mode",
+    updatedAt: String(Date.now() - 30 * HOUR),
+  },
+  {
+    provider: "claude",
+    sessionId: "c3",
+    sessionKey: "claude:c3",
+    projectKey: "p",
+    cwd: "/Users/maya/code/site",
+    title: "Older note",
+    updatedAt: String(Date.now() - 400 * HOUR),
+  },
 ];
 
 async function open() {
-  draftClear();   // a card reopened keeps its ticks (drafts.ts); each test starts from a first visit
+  draftClear(); // a card reopened keeps its ticks (drafts.ts); each test starts from a first visit
   installDom();
-  (globalThis as { __TAURI__?: unknown }).__TAURI__ = { core: { invoke: async (cmd: string) => (cmd === "discover_session_sources" ? found().reverse() : {}) } };
+  (globalThis as { __TAURI__?: unknown }).__TAURI__ = {
+    core: { invoke: async (cmd: string) => (cmd === "discover_session_sources" ? found().reverse() : {}) },
+  };
   const call = (async () => ({})) as unknown as CapCall;
   const r = createRoot();
-  await act(async () => { r.render(<SessionsCard call={call} onDone={() => undefined} />); });
+  await act(async () => {
+    r.render(<SessionsCard call={call} onDone={() => undefined} />);
+  });
   await flush();
   return r.container as never;
 }
@@ -47,11 +78,27 @@ const order = (root: never): string[] => {
 
 test("each row shows the session name, its folder, a relative date and the source, newest first", async () => {
   const root = await open();
-  assert.deepEqual(order(root), ["claude:a1", "codex:b2", "claude:c3"], "newest first, though discovery gave them oldest first");
+  assert.deepEqual(
+    order(root),
+    ["claude:a1", "codex:b2", "claude:c3"],
+    "newest first, though discovery gave them oldest first",
+  );
   const first = textOf(find(root, "row-session-claude:a1"));
-  assert.ok(first.includes("Fix the login bug") && first.includes("site") && first.includes("2 hours ago") && first.includes("Claude Code"), first);
+  assert.ok(
+    first.includes("Fix the login bug") &&
+      first.includes("site") &&
+      first.includes("2 hours ago") &&
+      first.includes("Claude Code"),
+    first,
+  );
   const second = textOf(find(root, "row-session-codex:b2"));
-  assert.ok(second.includes("Add dark mode") && second.includes("api") && second.includes("Yesterday") && second.includes("Codex"), second);
+  assert.ok(
+    second.includes("Add dark mode") &&
+      second.includes("api") &&
+      second.includes("Yesterday") &&
+      second.includes("Codex"),
+    second,
+  );
   assert.ok(!textOf(root).includes("Local session"));
 });
 
@@ -78,7 +125,9 @@ test("the folder filter is a Folder: All button opening the app menu, with count
   await flush();
   assert.ok(find(root, "menu"), "the button opens ui/Menu");
   assert.ok(find(root, "menu-item-All folders") && find(root, "menu-item-site") && find(root, "menu-item-api"));
-  assert.ok(textOf(find(root, "menu-count-site")).includes("2") && textOf(find(root, "menu-count-All folders")).includes("3"));
+  assert.ok(
+    textOf(find(root, "menu-count-site")).includes("2") && textOf(find(root, "menu-count-All folders")).includes("3"),
+  );
   await press(find(root, "menu-item-api"));
   await flush();
   assert.equal(find(root, "menu"), null, "a pick closes the menu");
@@ -96,29 +145,63 @@ test("the folder filter is a Folder: All button opening the app menu, with count
 
 test("when the import is done the card says Imported 3, They are in Chats, links there, and Continue (the gate) finishes the step", async () => {
   installDom();
-  (globalThis as { __TAURI__?: unknown }).__TAURI__ = { core: { invoke: async (cmd: string, args?: { sessionKey?: string }) => {
-    if (cmd === "discover_session_sources") return found();
-    // read_session_source answers { source, text }: the transcript as the provider's own JSON lines
-    const source = found().find((s) => s.sessionKey === args?.sessionKey)!;
-    const line = source.provider === "codex"
-      ? { type: "response_item", timestamp: "2026-01-01T00:00:00Z", payload: { type: "message", id: "m1", role: "user", content: [{ type: "input_text", text: "hi" }] } }
-      : { type: "user", uuid: "m1", timestamp: "2026-01-01T00:00:00Z", message: { role: "user", content: "hi" } };
-    return { source, text: JSON.stringify(line) };
-  } } };
+  (globalThis as { __TAURI__?: unknown }).__TAURI__ = {
+    core: {
+      invoke: async (cmd: string, args?: { sessionKey?: string }) => {
+        if (cmd === "discover_session_sources") return found();
+        // read_session_source answers { source, text }: the transcript as the provider's own JSON lines
+        const source = found().find((s) => s.sessionKey === args?.sessionKey)!;
+        const line =
+          source.provider === "codex"
+            ? {
+                type: "response_item",
+                timestamp: "2026-01-01T00:00:00Z",
+                payload: { type: "message", id: "m1", role: "user", content: [{ type: "input_text", text: "hi" }] },
+              }
+            : { type: "user", uuid: "m1", timestamp: "2026-01-01T00:00:00Z", message: { role: "user", content: "hi" } };
+        return { source, text: JSON.stringify(line) };
+      },
+    },
+  };
   const calls: string[] = [];
-  const call = (async (cap: string) => { calls.push(cap); return {}; }) as unknown as CapCall;
-  let done = 0, chats = 0;
+  const call = (async (cap: string) => {
+    calls.push(cap);
+    return {};
+  }) as unknown as CapCall;
+  let done = 0,
+    chats = 0;
   const gates: { save: (() => Promise<boolean>) | null; label: string | undefined }[] = [];
   const r = createRoot();
-  await act(async () => { r.render(<SessionsCard call={call} onDone={() => { done++; }} gate={(save, label) => { gates.push({ save, label }); }} onOpenChats={() => { chats++; }} />); });
+  await act(async () => {
+    r.render(
+      <SessionsCard
+        call={call}
+        onDone={() => {
+          done++;
+        }}
+        gate={(save, label) => {
+          gates.push({ save, label });
+        }}
+        onOpenChats={() => {
+          chats++;
+        }}
+      />,
+    );
+  });
   await flush();
   const root = r.container as never;
-  assert.equal(find(root, "sessions-import"), null, "in the onboarding bar the main button imports, so the card has no second Import");
+  assert.equal(
+    find(root, "sessions-import"),
+    null,
+    "in the onboarding bar the main button imports, so the card has no second Import",
+  );
   assert.equal(gates.at(-1)?.save, null, "nothing ticked: nothing to do yet");
   await press(find(root, "sessions-all"));
   assert.equal(gates.at(-1)?.label, "Import 3");
   let stayed: boolean | undefined;
-  await act(async () => { stayed = await gates.at(-1)!.save!(); });
+  await act(async () => {
+    stayed = await gates.at(-1)!.save!();
+  });
   await flush();
   assert.equal(stayed, false, "the import stays on the step so the card can say where they went");
   assert.equal(calls.filter((c) => c === "sessions.import").length, 3);
@@ -131,30 +214,59 @@ test("when the import is done the card says Imported 3, They are in Chats, links
 });
 
 function tauriImporter(): void {
-  (globalThis as { __TAURI__?: unknown }).__TAURI__ = { core: { invoke: async (cmd: string, args?: { sessionKey?: string }) => {
-    if (cmd === "discover_session_sources") return found();
-    const source = found().find((x) => x.sessionKey === args?.sessionKey)!;
-    const line = source.provider === "codex"
-      ? { type: "response_item", timestamp: "2026-01-01T00:00:00Z", payload: { type: "message", id: "m1", role: "user", content: [{ type: "input_text", text: "hi" }] } }
-      : { type: "user", uuid: "m1", timestamp: "2026-01-01T00:00:00Z", message: { role: "user", content: "hi" } };
-    return { source, text: JSON.stringify(line) };
-  } } };
+  (globalThis as { __TAURI__?: unknown }).__TAURI__ = {
+    core: {
+      invoke: async (cmd: string, args?: { sessionKey?: string }) => {
+        if (cmd === "discover_session_sources") return found();
+        const source = found().find((x) => x.sessionKey === args?.sessionKey)!;
+        const line =
+          source.provider === "codex"
+            ? {
+                type: "response_item",
+                timestamp: "2026-01-01T00:00:00Z",
+                payload: { type: "message", id: "m1", role: "user", content: [{ type: "input_text", text: "hi" }] },
+              }
+            : { type: "user", uuid: "m1", timestamp: "2026-01-01T00:00:00Z", message: { role: "user", content: "hi" } };
+        return { source, text: JSON.stringify(line) };
+      },
+    },
+  };
 }
 
 test("in the onboarding screen the bar's main button reads Import 2, imports, then reads Continue and finishes the step", async () => {
   installDom();
   tauriImporter();
   const calls: string[] = [];
-  const call = (async (cap: string) => { calls.push(cap); return {}; }) as unknown as CapCall;
-  const steps: string[] = [], opened: string[] = [];
+  const call = (async (cap: string) => {
+    calls.push(cap);
+    return {};
+  }) as unknown as CapCall;
+  const steps: string[] = [],
+    opened: string[] = [];
   const r = createRoot();
   await act(async () => {
-    r.render(<OnboardingScreen flow="personal" spaceName="Maya" progress={{ ai: "done", interview: "done" }} stepKey="sessions" device="mac" onStep={(k, st) => steps.push(`${k}:${st}`)} onOpenStep={(k) => opened.push(k)} onClose={() => undefined}
-      renderCard={(card, ctx) => (card === "import_sessions" ? <SessionsCard call={call} onDone={ctx.done} gate={ctx.gate} /> : null)} />);
+    r.render(
+      <OnboardingScreen
+        flow="personal"
+        spaceName="Maya"
+        progress={{ ai: "done", interview: "done" }}
+        stepKey="sessions"
+        device="mac"
+        onStep={(k, st) => steps.push(`${k}:${st}`)}
+        onOpenStep={(k) => opened.push(k)}
+        onClose={() => undefined}
+        renderCard={(card, ctx) =>
+          card === "import_sessions" ? <SessionsCard call={call} onDone={ctx.done} gate={ctx.gate} /> : null
+        }
+      />,
+    );
   });
   await flush();
   const root = r.container as never;
-  assert.ok(textOf(find(root, "step-next")).includes("Continue") && find(root, "step-next")?.props["aria-disabled"] === true, "nothing ticked: Continue waits, Skip for now is there");
+  assert.ok(
+    textOf(find(root, "step-next")).includes("Continue") && find(root, "step-next")?.props["aria-disabled"] === true,
+    "nothing ticked: Continue waits, Skip for now is there",
+  );
   assert.ok(find(root, "step-later"));
   await press(find(root, "row-session-claude:a1"));
   await press(find(root, "row-session-codex:b2"));
@@ -177,8 +289,22 @@ test("with no sessions on this computer the card says so and Continue moves on",
   const steps: string[] = [];
   const r = createRoot();
   await act(async () => {
-    r.render(<OnboardingScreen flow="personal" spaceName="Maya" progress={{}} stepKey="sessions" device="mac" onStep={(k, st) => steps.push(`${k}:${st}`)} onClose={() => undefined}
-      renderCard={(card, ctx) => (card === "import_sessions" ? <SessionsCard call={(async () => ({})) as never} onDone={ctx.done} gate={ctx.gate} /> : null)} />);
+    r.render(
+      <OnboardingScreen
+        flow="personal"
+        spaceName="Maya"
+        progress={{}}
+        stepKey="sessions"
+        device="mac"
+        onStep={(k, st) => steps.push(`${k}:${st}`)}
+        onClose={() => undefined}
+        renderCard={(card, ctx) =>
+          card === "import_sessions" ? (
+            <SessionsCard call={(async () => ({})) as never} onDone={ctx.done} gate={ctx.gate} />
+          ) : null
+        }
+      />,
+    );
   });
   await flush();
   const root = r.container as never;
@@ -193,31 +319,89 @@ test("a failed session does not stop the rest: empty ones are left out, a refuse
   const sources = found();
   const reads: Record<string, number> = {};
   const docs: Record<string, string> = {
-    "claude:a1": JSON.stringify({ type: "user", uuid: "u", timestamp: "2026-11-04T10:00:00Z", message: { role: "user", content: "Fix the login bug" } }),
-    "codex:b2": JSON.stringify({ type: "session_meta", payload: { id: "b2" } }),   // nothing readable when it is imported
-    "claude:c3": JSON.stringify({ type: "user", uuid: "w", timestamp: "2026-11-04T10:00:00Z", message: { role: "user", content: "Older note" } }),
+    "claude:a1": JSON.stringify({
+      type: "user",
+      uuid: "u",
+      timestamp: "2026-11-04T10:00:00Z",
+      message: { role: "user", content: "Fix the login bug" },
+    }),
+    "codex:b2": JSON.stringify({ type: "session_meta", payload: { id: "b2" } }), // nothing readable when it is imported
+    "claude:c3": JSON.stringify({
+      type: "user",
+      uuid: "w",
+      timestamp: "2026-11-04T10:00:00Z",
+      message: { role: "user", content: "Older note" },
+    }),
   };
-  (globalThis as { __TAURI__?: unknown }).__TAURI__ = { core: { invoke: async (cmd: string, args?: { sessionKey?: string }) => (cmd === "discover_session_sources" ? sources : { source: sources.find((x) => x.sessionKey === args?.sessionKey), documents: [{ namespace: "main", text: reads[args!.sessionKey!] = (reads[args!.sessionKey!] ?? 0) + 1, ...{} && "", ...{} }].map((d) => ({ namespace: d.namespace, text: args!.sessionKey === "codex:b2" && reads["codex:b2"]! <= 1 ? JSON.stringify({ type: "response_item", payload: { type: "message", id: "m", role: "user", content: [{ type: "input_text", text: "Looked fine until now" }] } }) : docs[args!.sessionKey!] })) }) } };
+  (globalThis as { __TAURI__?: unknown }).__TAURI__ = {
+    core: {
+      invoke: async (cmd: string, args?: { sessionKey?: string }) =>
+        cmd === "discover_session_sources"
+          ? sources
+          : {
+              source: sources.find((x) => x.sessionKey === args?.sessionKey),
+              documents: [
+                {
+                  namespace: "main",
+                  text: (reads[args!.sessionKey!] = (reads[args!.sessionKey!] ?? 0) + 1),
+                  ...({} && ""),
+                  ...{},
+                },
+              ].map((d) => ({
+                namespace: d.namespace,
+                text:
+                  args!.sessionKey === "codex:b2" && reads["codex:b2"]! <= 1
+                    ? JSON.stringify({
+                        type: "response_item",
+                        payload: {
+                          type: "message",
+                          id: "m",
+                          role: "user",
+                          content: [{ type: "input_text", text: "Looked fine until now" }],
+                        },
+                      })
+                    : docs[args!.sessionKey!],
+              })),
+            },
+    },
+  };
   const imports: string[] = [];
   let refuse = true;
   const call = (async (cap: string, input: { sourceKey: string }) => {
     if (cap !== "sessions.import") return {};
-    if (input.sourceKey === "claude:c3" && refuse) throw new Error("Open your Personal Space to import or read local history.");
+    if (input.sourceKey === "claude:c3" && refuse)
+      throw new Error("Open your Personal Space to import or read local history.");
     imports.push(input.sourceKey);
     return {};
   }) as unknown as CapCall;
   const r = createRoot();
-  await act(async () => { r.render(<SessionsCard call={call} onDone={() => undefined} />); });
+  await act(async () => {
+    r.render(<SessionsCard call={call} onDone={() => undefined} />);
+  });
   await flush();
   const root = r.container as never;
   await press(find(root, "sessions-all"));
-  await press(find(root, "sessions-import")); await flush(); await flush();
-  assert.deepEqual(imports, ["claude:a1"], "the readable one went in; the empty one was left out; the refused one did not stop anything");
+  await press(find(root, "sessions-import"));
+  await flush();
+  await flush();
+  assert.deepEqual(
+    imports,
+    ["claude:a1"],
+    "the readable one went in; the empty one was left out; the refused one did not stop anything",
+  );
   const err = textOf(find(root, "sessions-error"));
-  assert.ok(err.includes("Imported 1.") && err.includes("Older note could not be imported: Open your Personal Space"), err);
-  assert.ok(textOf(find(root, "sessions-import")).includes("Retry 1"), "only the failed one is ticked, and the button says Retry");
+  assert.ok(
+    err.includes("Imported 1.") && err.includes("Older note could not be imported: Open your Personal Space"),
+    err,
+  );
+  assert.ok(
+    textOf(find(root, "sessions-import")).includes("Retry 1"),
+    "only the failed one is ticked, and the button says Retry",
+  );
   refuse = false;
-  await press(find(root, "sessions-import")); await flush(); await flush();
+  await press(find(root, "sessions-import"));
+  await flush();
+  await flush();
   assert.deepEqual(imports, ["claude:a1", "claude:c3"], "Retry imports only the failed session");
   const done = textOf(find(root, "sessions-imported"));
   assert.ok(done.includes("Imported 2.") && done.includes("1 session had nothing to read and was left out."), done);

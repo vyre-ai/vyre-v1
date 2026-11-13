@@ -10,15 +10,34 @@ import type { GlyphName } from "./parts.tsx";
 import { iconMarkup } from "../../../shell/rail/icons.tsx";
 
 export type Target = "device" | "space" | "server";
-export interface RunsOnOption { target: Target; serverId?: string; deviceId?: string; current?: boolean; name: string; online: boolean; reason?: string }
-export interface RunsOnState { private: boolean; pinned?: boolean; effective: { target: Target; serverId?: string; deviceId?: string }; /** where Automatic would run the next turn now */ automatic?: { target: Target; serverId?: string; deviceId?: string }; options: readonly RunsOnOption[] }
+export interface RunsOnOption {
+  target: Target;
+  serverId?: string;
+  deviceId?: string;
+  current?: boolean;
+  name: string;
+  online: boolean;
+  reason?: string;
+}
+export interface RunsOnState {
+  private: boolean;
+  pinned?: boolean;
+  effective: { target: Target; serverId?: string; deviceId?: string };
+  /** where Automatic would run the next turn now */ automatic?: {
+    target: Target;
+    serverId?: string;
+    deviceId?: string;
+  };
+  options: readonly RunsOnOption[];
+}
 
 type Place = { target: Target; serverId?: string; deviceId?: string };
 /** Two places are the same machine. A place that names no computer (an older pin) is the computer the person is on. */
 function same(a: Place & { current?: boolean }, b: Place): boolean {
   if (a.target !== b.target) return false;
   if (a.target === "server") return (a.serverId ?? "") === (b.serverId ?? "");
-  if (a.target === "device") return b.deviceId === undefined ? a.current === true || a.deviceId === undefined : a.deviceId === b.deviceId;
+  if (a.target === "device")
+    return b.deviceId === undefined ? a.current === true || a.deviceId === undefined : a.deviceId === b.deviceId;
   return true;
 }
 
@@ -30,14 +49,20 @@ export function currentOption(s: RunsOnState): RunsOnOption {
   return s.options.find((o) => same(o, s.effective)) ?? s.options[0]!;
 }
 
-export const iconOf = (o: Pick<RunsOnOption, "target">): GlyphName => (o.target === "device" ? "monitor" : o.target === "space" ? "cloud" : "server");
+export const iconOf = (o: Pick<RunsOnOption, "target">): GlyphName =>
+  o.target === "device" ? "monitor" : o.target === "space" ? "cloud" : "server";
 
 export function runsOnEntries(s: RunsOnState, pick: (o: RunsOnOption) => void): MenuEntry[] {
   const now = currentOption(s);
-  return s.options.map((o): MenuEntry => ({
-    label: o.name, checked: same(o, now), icon: iconMarkup(iconOf(o)), ...(o.online ? {} : { disabled: true, ...(o.reason ? { reason: o.reason } : {}) }),
-    onSelect: () => pick(o),
-  }));
+  return s.options.map(
+    (o): MenuEntry => ({
+      label: o.name,
+      checked: same(o, now),
+      icon: iconMarkup(iconOf(o)),
+      ...(o.online ? {} : { disabled: true, ...(o.reason ? { reason: o.reason } : {}) }),
+      onSelect: () => pick(o),
+    }),
+  );
 }
 
 const keyOf = (o: Place): string => `${o.target}:${o.serverId ?? o.deviceId ?? ""}`;
@@ -56,38 +81,93 @@ export function runsOptions(s: RunsOnState): PanelRuns["options"] {
   return [
     { key: AUTOMATIC, name: "Automatic", note: automaticNote(s), online: true },
     ...s.options.map((o) => {
-      const what = o.target === "server" ? "Your server" : o.target === "device" && o.deviceId !== undefined && o.current !== true ? "Your computer" : "";
+      const what =
+        o.target === "server"
+          ? "Your server"
+          : o.target === "device" && o.deviceId !== undefined && o.current !== true
+            ? "Your computer"
+            : "";
       // an off place says so on its row, beside what it is: the menu never shows a machine as ready when it is not
       const note = [what, !o.online && o.reason ? o.reason : ""].filter((x) => x !== "").join(" · ");
-      return { key: keyOf(o), name: o.name, online: o.online, ...(note ? { note } : {}), ...(o.reason ? { reason: o.reason } : {}) };
+      return {
+        key: keyOf(o),
+        name: o.name,
+        online: o.online,
+        ...(note ? { note } : {}),
+        ...(o.reason ? { reason: o.reason } : {}),
+      };
     }),
   ];
 }
 
 /** Where this chat runs, for the model menu and the pill: read from engine.placement.options, pinned with engine.placement.set. A chat with other people has no choice: it always runs on the Space. */
-export function useRunsOn({ call, threadId, agentId, spaceName, say }: { call(cap: string, input: unknown): Promise<unknown>; threadId: string; agentId?: string | undefined; spaceName: string; say?: (text: string) => void }): { runs: PanelRuns | undefined; chip: string | undefined } {
+export function useRunsOn({
+  call,
+  threadId,
+  agentId,
+  spaceName,
+  say,
+}: {
+  call(cap: string, input: unknown): Promise<unknown>;
+  threadId: string;
+  agentId?: string | undefined;
+  spaceName: string;
+  say?: (text: string) => void;
+}): { runs: PanelRuns | undefined; chip: string | undefined } {
   const [state, setState] = useState<RunsOnState | null>(null);
   const load = useCallback(async (): Promise<void> => {
-    try { setState((await call("engine.placement.options", { threadId, ...(agentId ? { agentId } : {}) })) as RunsOnState); } catch { setState(null); }
+    try {
+      setState((await call("engine.placement.options", { threadId, ...(agentId ? { agentId } : {}) })) as RunsOnState);
+    } catch {
+      setState(null);
+    }
   }, [call, threadId, agentId]);
   // the options are live state (a computer's link, a server's connection): read again while the chat is open
   // (unref: a reader that is never unmounted, a test's render, does not keep Node running; a browser has no unref and nothing changes there)
-  useEffect(() => { void load(); const t = setInterval(() => { void load(); }, 15_000); (t as { unref?: () => void }).unref?.(); return () => clearInterval(t); }, [load]);
+  useEffect(() => {
+    void load();
+    const t = setInterval(() => {
+      void load();
+    }, 15_000);
+    (t as { unref?: () => void }).unref?.();
+    return () => clearInterval(t);
+  }, [load]);
   if (state === null) return { runs: undefined, chip: undefined };
-  if (!state.private) return { runs: { value: spaceName, current: null, options: [], fixed: { name: spaceName, note: "Space computer", line: "Chats with other people always run on the Space." }, onPick: () => undefined }, chip: undefined };
+  if (!state.private)
+    return {
+      runs: {
+        value: spaceName,
+        current: null,
+        options: [],
+        fixed: { name: spaceName, note: "Space computer", line: "Chats with other people always run on the Space." },
+        onPick: () => undefined,
+      },
+      chip: undefined,
+    };
   const now = currentOption(state);
   const pick = (key: string): void => {
     const o = state.options.find((x) => keyOf(x) === key);
     if (!o && key !== AUTOMATIC) return;
-    Promise.resolve(call("engine.placement.set", { threadId, target: o?.target ?? "auto", ...(o?.serverId ? { serverId: o.serverId } : {}), ...(o?.deviceId ? { deviceId: o.deviceId } : {}) })).then(() => load(), () => say?.("Could not change where this chat runs."));
+    Promise.resolve(
+      call("engine.placement.set", {
+        threadId,
+        target: o?.target ?? "auto",
+        ...(o?.serverId ? { serverId: o.serverId } : {}),
+        ...(o?.deviceId ? { deviceId: o.deviceId } : {}),
+      }),
+    ).then(
+      () => load(),
+      () => say?.("Could not change where this chat runs."),
+    );
   };
   return {
     runs: {
-      value: state.pinned === true ? now.name : "Automatic", current: state.pinned === true ? keyOf(now) : AUTOMATIC, onPick: pick,
+      value: state.pinned === true ? now.name : "Automatic",
+      current: state.pinned === true ? keyOf(now) : AUTOMATIC,
+      onPick: pick,
       options: runsOptions(state),
     },
     // the pill names a place only when it is not the computer the person is on
     chip: now.target === "device" && (now.current === true || now.deviceId === undefined) ? undefined : now.name,
   };
 }
-

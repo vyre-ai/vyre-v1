@@ -20,12 +20,26 @@ export default function Mount(): ReactNode {
   const popup = useMemo(() => createPopupSample("takeover"), []);
   const [open, setOpen] = useState(true);
   if (search === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  if (params.get("popup") === "takeover") return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}><ComputerPopup data={popup.data} /></View>;
+  if (params.get("popup") === "takeover")
+    return (
+      <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}>
+        <ComputerPopup data={popup.data} />
+      </View>
+    );
   const tabParam = params.get("tab") ?? "";
   const routine = params.get("routine");
   return (
-    <View style={{ flex: 1, flexDirection: "row", justifyContent: "flex-end", backgroundColor: "var(--win)" as string }}>
-      <ChatRightPane data={sample.data} open={open} onToggle={() => setOpen((o) => !o)} initialTab={isTabKey(tabParam) ? tabParam : DEFAULT_TAB} window={{ start: 0, end: 500 }} {...(routine ? { openRoutine: routine } : {})} />
+    <View
+      style={{ flex: 1, flexDirection: "row", justifyContent: "flex-end", backgroundColor: "var(--win)" as string }}
+    >
+      <ChatRightPane
+        data={sample.data}
+        open={open}
+        onToggle={() => setOpen((o) => !o)}
+        initialTab={isTabKey(tabParam) ? tabParam : DEFAULT_TAB}
+        window={{ start: 0, end: 500 }}
+        {...(routine ? { openRoutine: routine } : {})}
+      />
     </View>
   );
 }

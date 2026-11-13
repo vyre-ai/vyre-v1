@@ -7,18 +7,30 @@ import { createComputeStream } from "../src/routes/compute-stream.ts";
 import type { DeviceLink } from "../src/routes/compute-stream.ts";
 import { platformSocket } from "../src/compute/node.ts";
 
-const wait = async (ok: () => boolean, ms = 2000): Promise<void> => { const end = Date.now() + ms; while (!ok() && Date.now() < end) await new Promise((r) => setTimeout(r, 10)); };
+const wait = async (ok: () => boolean, ms = 2000): Promise<void> => {
+  const end = Date.now() + ms;
+  while (!ok() && Date.now() < end) await new Promise((r) => setTimeout(r, 10));
+};
 
 test("report frames reach the host with the device or the server id they came from", async () => {
   const got: Array<{ nodeId: string; serverId?: string; device?: DeviceLink; report: unknown }> = [];
   const stream = createComputeStream({
     poll: async (c) => (c === "vcc_node" ? { serverId: "srv_box" } : null),
     device: async (t) => (t === "vst_maya" ? { person: "usr_maya", device: "dev_ab12", name: "Maya's MacBook" } : null),
-    open: async () => null, mayInput: async () => false,
-    report: (from, report) => { got.push({ ...from, report }); },
+    open: async () => null,
+    mayInput: async () => false,
+    report: (from, report) => {
+      got.push({ ...from, report });
+    },
   });
-  const server = http.createServer((_q, r) => { r.statusCode = 404; r.end(); });
-  server.on("upgrade", (req, socket, head) => { if (stream.claims(req)) stream.upgrade(req, socket, head); else socket.destroy(); });
+  const server = http.createServer((_q, r) => {
+    r.statusCode = 404;
+    r.end();
+  });
+  server.on("upgrade", (req, socket, head) => {
+    if (stream.claims(req)) stream.upgrade(req, socket, head);
+    else socket.destroy();
+  });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const url = `ws://127.0.0.1:${(server.address() as AddressInfo).port}/compute/stream`;
   try {
@@ -27,7 +39,8 @@ test("report frames reach the host with the device or the server id they came fr
       await new Promise<void>((r) => s.onOpen(r));
       return s;
     };
-    const mine = await dial("vst_maya"), node = await dial("vcc_node");
+    const mine = await dial("vst_maya"),
+      node = await dial("vcc_node");
     mine.send(JSON.stringify({ t: "hello", engines: ["claude_code"], name: "Maya's MacBook" }));
     mine.send(JSON.stringify({ t: "report", report: { n: 1 } }));
     node.send(JSON.stringify({ t: "report", report: { n: 2 } }));
@@ -40,9 +53,17 @@ test("report frames reach the host with the device or the server id they came fr
     assert.equal(byNode["srv_box"]?.device, undefined);
     // a socket that was not admitted never gets as far as a frame
     const bad = platformSocket(url, { authorization: "Bearer nobody" });
-    let opened = false; bad.onOpen(() => { opened = true; });
+    let opened = false;
+    bad.onOpen(() => {
+      opened = true;
+    });
     await new Promise((r) => setTimeout(r, 150));
     assert.equal(opened, false);
-    mine.close(); node.close(); bad.close();
-  } finally { stream.close(); server.close(); }
+    mine.close();
+    node.close();
+    bad.close();
+  } finally {
+    stream.close();
+    server.close();
+  }
 });

@@ -14,8 +14,14 @@ import type { FetchLike } from "./ctx/http.ts";
 import type { Handler, InvokeDeps } from "./invoke.ts";
 import type { SeamSetters } from "./seams/index.ts";
 
-export interface ModuleListEntry { id: string; owner: string; status: string }
-export interface ModuleList { modules: ModuleListEntry[] }
+export interface ModuleListEntry {
+  id: string;
+  owner: string;
+  status: string;
+}
+export interface ModuleList {
+  modules: ModuleListEntry[];
+}
 type Owned = { module: string };
 export interface RegistryLike {
   modules: { id: string; owner: string; kind?: string }[];
@@ -72,16 +78,27 @@ export function fileImporter(root: string): Importer {
 export function fileSeamImporter(root: string): SeamImporter {
   return async (id) => {
     try {
-      const m = (await import(pathToFileURL(`${root.replace(/\/$/, "")}/modules/${id}/impl.ts`).href)) as { hostSeams?: SeamSetters };
+      const m = (await import(pathToFileURL(`${root.replace(/\/$/, "")}/modules/${id}/impl.ts`).href)) as {
+        hostSeams?: SeamSetters;
+      };
       return m.hostSeams;
-    } catch { return undefined; }
+    } catch {
+      return undefined;
+    }
   };
 }
 
 /** modules/<id>/impl.ts as a whole. The same file the handlers import, so a setter called on it reaches the instance the handlers run. */
 export function fileExportsImporter(root: string): ExportsImporter {
   return async (id) => {
-    try { return (await import(pathToFileURL(`${root.replace(/\/$/, "")}/modules/${id}/impl.ts`).href)) as Record<string, unknown>; } catch { return undefined; }
+    try {
+      return (await import(pathToFileURL(`${root.replace(/\/$/, "")}/modules/${id}/impl.ts`).href)) as Record<
+        string,
+        unknown
+      >;
+    } catch {
+      return undefined;
+    }
   };
 }
 
@@ -92,27 +109,36 @@ export async function loadHost(o: LoaderOptions): Promise<LoadedHost> {
   // 1 the frozen list and the registry agree
   const listed = new Map(o.modulesJson.modules.map((m) => [m.id, m]));
   for (const m of o.registry.modules) {
-    if (m.kind !== undefined && m.kind !== "module") continue;   // host/modules.json freezes the 72 modules; connectors and kits are not in it
+    if (m.kind !== undefined && m.kind !== "module") continue; // host/modules.json freezes the 72 modules; connectors and kits are not in it
     const l = listed.get(m.id);
     if (!l) problems.push(`module ${m.id} is in the registry but not in host/modules.json`);
-    else if (l.owner !== m.owner) problems.push(`module ${m.id}: owner ${m.owner} in the registry, ${l.owner} in host/modules.json`);
+    else if (l.owner !== m.owner)
+      problems.push(`module ${m.id}: owner ${m.owner} in the registry, ${l.owner} in host/modules.json`);
   }
   const regIds = new Set(o.registry.modules.map((m) => m.id));
-  for (const id of listed.keys()) if (!regIds.has(id)) problems.push(`host/modules.json lists ${id}, which has no manifest`);
+  for (const id of listed.keys())
+    if (!regIds.has(id)) problems.push(`host/modules.json lists ${id}, which has no manifest`);
   // 2 every route names a capability that exists
   const caps = new Map(o.registry.capabilities.map((c) => [`${c.name}@${c.v}`, c]));
-  for (const r of o.routes) if (!caps.has(`${r.cap}@${r.v}`)) problems.push(`route ${r.method} ${r.path} names unknown capability ${r.cap}@${r.v}`);
+  for (const r of o.routes)
+    if (!caps.has(`${r.cap}@${r.v}`))
+      problems.push(`route ${r.method} ${r.path} names unknown capability ${r.cap}@${r.v}`);
   const match = indexRoutes(o.routes);
 
   // 3 handlers, by the status in host/modules.json (ruling 25: runtime state, not contract)
   const handlers = new Map<string, Handler>();
   const serving = new Map<string, "stub" | "live">();
   for (const m of o.registry.modules) {
-    if (!o.registry.capabilities.some((c) => c.module === m.id)) continue;   // a kit has no capabilities and nothing to load
-    const kind = listed.get(m.id)?.status === "live" ? "live" : "stub";   // a kit is not listed and has no capabilities, so it never gets here
+    if (!o.registry.capabilities.some((c) => c.module === m.id)) continue; // a kit has no capabilities and nothing to load
+    const kind = listed.get(m.id)?.status === "live" ? "live" : "stub"; // a kit is not listed and has no capabilities, so it never gets here
     serving.set(m.id, kind);
     let map: HandlerMap;
-    try { map = await o.importer(m.id, kind); } catch (e) { problems.push(`module ${m.id}: cannot load ${kind} handlers (${e instanceof Error ? e.message : String(e)})`); continue; }
+    try {
+      map = await o.importer(m.id, kind);
+    } catch (e) {
+      problems.push(`module ${m.id}: cannot load ${kind} handlers (${e instanceof Error ? e.message : String(e)})`);
+      continue;
+    }
     for (const c of o.registry.capabilities) {
       if (c.module !== m.id) continue;
       const h = map[c.name];
@@ -129,7 +155,8 @@ export async function loadHost(o: LoaderOptions): Promise<LoadedHost> {
       const s = await o.seamImporter(m.id);
       for (const [k, fn] of Object.entries(s ?? {})) {
         if (typeof fn !== "function") continue;
-        if ((hostSeams as Record<string, unknown>)[k]) problems.push(`module ${m.id} offers ${k}, which another module already offers`);
+        if ((hostSeams as Record<string, unknown>)[k])
+          problems.push(`module ${m.id} offers ${k}, which another module already offers`);
         (hostSeams as Record<string, unknown>)[k] = fn;
         seamOwners.set(k, m.id);
       }
@@ -148,9 +175,12 @@ export async function loadHost(o: LoaderOptions): Promise<LoadedHost> {
 
   // 4 per-module egress lists
   const domains = new Map<string, string[]>();
-  for (const c of o.registry.connectors ?? []) domains.set(c.module, [...(domains.get(c.module) ?? []), ...(c.domains ?? [])]);
+  for (const c of o.registry.connectors ?? [])
+    domains.set(c.module, [...(domains.get(c.module) ?? []), ...(c.domains ?? [])]);
   const capModule = new Map([...caps].map(([k, c]) => [k, c.module]));
-  const refuse = (what: string) => (): never => { throw fail("internal.not_implemented", "0".repeat(32), { details: { service: what } }); };
+  const refuse = (what: string) => (): never => {
+    throw fail("internal.not_implemented", "0".repeat(32), { details: { service: what } });
+  };
 
   return {
     handler: (cap, v) => handlers.get(`${cap}@${v}`),
@@ -164,7 +194,9 @@ export async function loadHost(o: LoaderOptions): Promise<LoadedHost> {
     },
     match,
     serving,
-    hostSeams, seamOwners, moduleExports,
+    hostSeams,
+    seamOwners,
+    moduleExports,
     stubModules: () => [...serving].filter(([, k]) => k === "stub").map(([id]) => id),
   };
 }

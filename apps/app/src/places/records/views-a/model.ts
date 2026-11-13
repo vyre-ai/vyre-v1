@@ -11,7 +11,12 @@ export type { Clause, FieldDef, RecordRow, TableViewState, TypeDef };
 
 /** The kinds this part draws. The table is the table packet's; calendar, timeline, map and charts come from part B through `extraKinds`. */
 export type ViewKind = "table" | "board" | "gallery" | "list";
-export const KIND_LABEL: Record<ViewKind, string> = { table: "Table", board: "Board", gallery: "Gallery", list: "List" };
+export const KIND_LABEL: Record<ViewKind, string> = {
+  table: "Table",
+  board: "Board",
+  gallery: "Gallery",
+  list: "List",
+};
 export const KIND_ORDER: readonly ViewKind[] = ["table", "board", "gallery", "list"];
 
 /** The kind a saved view opens as; a kind this part does not know is read as the table. */
@@ -27,7 +32,12 @@ export const NONE_KEY = "";
 export const LANE_PAGE = 40;
 export const LANE_W = 276;
 
-export interface Lane { key: string; title: string; color?: string; none: boolean }
+export interface Lane {
+  key: string;
+  title: string;
+  color?: string;
+  none: boolean;
+}
 
 /** A field a board can make lanes from: its options are the lanes. */
 export const isLaneField = (f: FieldDef): boolean => f.type === "status" || f.type === "choice";
@@ -35,7 +45,11 @@ export const isLaneField = (f: FieldDef): boolean => f.type === "status" || f.ty
 /**
  * The field a board runs on: the saved view's `config.lane`, then its group, then the first status field, then the first choice field. A key that names no lane field falls through.
  */
-export function laneFieldOf(def: TypeDef, saved?: Pick<ViewRow, "config" | "group">, picked?: string | null): FieldDef | undefined {
+export function laneFieldOf(
+  def: TypeDef,
+  saved?: Pick<ViewRow, "config" | "group">,
+  picked?: string | null,
+): FieldDef | undefined {
   const lanes = def.fields.filter(isLaneField);
   const cfg = saved?.config?.["lane"];
   for (const key of [picked, typeof cfg === "string" ? cfg : null, saved?.group]) {
@@ -48,11 +62,20 @@ export function laneFieldOf(def: TypeDef, saved?: Pick<ViewRow, "config" | "grou
 }
 
 /** A choice field people set by hand. The system writes the others (a field only some service may write, a contact's deliverability, its consent and opt-out flags), so a board does not group by them until someone picks one. */
-export const isPersonField = (f: FieldDef): boolean => isLaneField(f) && !(Array.isArray(f.writeOnlyBy) && f.writeOnlyBy.length > 0) && f.key !== "deliverability" && !f.key.startsWith("pref_");
+export const isPersonField = (f: FieldDef): boolean =>
+  isLaneField(f) &&
+  !(Array.isArray(f.writeOnlyBy) && f.writeOnlyBy.length > 0) &&
+  f.key !== "deliverability" &&
+  !f.key.startsWith("pref_");
 
 /** The lanes of a field, in the order of its options, then the lane for records with no value. */
 export function lanesOf(f: FieldDef): Lane[] {
-  const out: Lane[] = optionsOf(f).map((o) => ({ key: o.key, title: o.title, ...(o.color ? { color: o.color } : {}), none: false }));
+  const out: Lane[] = optionsOf(f).map((o) => ({
+    key: o.key,
+    title: o.title,
+    ...(o.color ? { color: o.color } : {}),
+    none: false,
+  }));
   out.push({ key: NONE_KEY, title: `No ${f.title.toLowerCase()}`, none: true });
   return out;
 }
@@ -69,12 +92,31 @@ function inLane(v: TableViewState, titleField: string, f: FieldDef, lane: Lane):
 }
 
 /** What one lane asks the local copy for: its cards, a page at a time, in the view's sort. */
-export function laneSpec(type: string, v: TableViewState, titleField: string, f: FieldDef, lane: Lane, limit: number): CapMap["records.query"]["in"] {
-  return { type, filter: inLane(v, titleField, f, lane), ...(v.sort.length ? { sort: v.sort.map((s) => ({ ...s })) } : {}), offset: 0, limit };
+export function laneSpec(
+  type: string,
+  v: TableViewState,
+  titleField: string,
+  f: FieldDef,
+  lane: Lane,
+  limit: number,
+): CapMap["records.query"]["in"] {
+  return {
+    type,
+    filter: inLane(v, titleField, f, lane),
+    ...(v.sort.length ? { sort: v.sort.map((s) => ({ ...s })) } : {}),
+    offset: 0,
+    limit,
+  };
 }
 
 /** The cached count of one lane, for its header. */
-export function laneCountSpec(type: string, v: TableViewState, titleField: string, f: FieldDef, lane: Lane): CapMap["records.counts"]["in"] {
+export function laneCountSpec(
+  type: string,
+  v: TableViewState,
+  titleField: string,
+  f: FieldDef,
+  lane: Lane,
+): CapMap["records.counts"]["in"] {
   return { type, filter: inLane(v, titleField, f, lane) };
 }
 
@@ -90,7 +132,12 @@ export function movePatch(f: FieldDef, lane: Lane): Record<string, unknown> {
 }
 
 /** The lane beside this one. The empty lane only takes part when it holds cards. */
-export function neighbour(lanes: readonly Lane[], key: string, dir: 1 | -1, shown: (l: Lane) => boolean = () => true): Lane | undefined {
+export function neighbour(
+  lanes: readonly Lane[],
+  key: string,
+  dir: 1 | -1,
+  shown: (l: Lane) => boolean = () => true,
+): Lane | undefined {
   const from = lanes.findIndex((l) => l.key === key);
   for (let i = from + dir; i >= 0 && i < lanes.length; i += dir) if (shown(lanes[i]!)) return lanes[i];
   return undefined;
@@ -98,15 +145,36 @@ export function neighbour(lanes: readonly Lane[], key: string, dir: 1 | -1, show
 
 // ---------------------------------------------------------------- what a card shows
 
-const RANK: Record<string, number> = { person: 0, money: 1, date: 2, datetime: 2, rating: 3, number: 4, choice: 5, status: 5, checkbox: 6, text: 7, email: 8, phone: 9, url: 9, duration: 10 };
+const RANK: Record<string, number> = {
+  person: 0,
+  money: 1,
+  date: 2,
+  datetime: 2,
+  rating: 3,
+  number: 4,
+  choice: 5,
+  status: 5,
+  checkbox: 6,
+  text: 7,
+  email: 8,
+  phone: 9,
+  url: 9,
+  duration: 10,
+};
 
 /**
  * The fields under a card's title: up to `max`, from those the type has, leaving out the title, the lane (or badge) field and the fields the view hides. Long text, files, sealed values and
  * relations never sit on a card. People first, then money and dates, then the rest in the type's order.
  */
 export function cardFields(def: TypeDef, hidden: readonly string[], skip: string | null, max = 3): FieldDef[] {
-  const ok = def.fields.filter((f) => f.key !== def.titleField && f.key !== skip && !hidden.includes(f.key) && RANK[f.type] !== undefined);
-  return ok.map((f, i) => ({ f, i })).sort((a, b) => RANK[a.f.type]! - RANK[b.f.type]! || a.i - b.i).slice(0, max).map((x) => x.f);
+  const ok = def.fields.filter(
+    (f) => f.key !== def.titleField && f.key !== skip && !hidden.includes(f.key) && RANK[f.type] !== undefined,
+  );
+  return ok
+    .map((f, i) => ({ f, i }))
+    .sort((a, b) => RANK[a.f.type]! - RANK[b.f.type]! || a.i - b.i)
+    .slice(0, max)
+    .map((x) => x.f);
 }
 
 /** The field a gallery card and a list row show as a tag: the type's first status, else its first choice. */
@@ -139,7 +207,10 @@ export function galleryLayout(width: number): { cols: number; cardW: number } {
 }
 
 const IMAGE = /\.(png|jpe?g|gif|webp|avif|svg)$/i;
-export interface Cover { url: string; name: string }
+export interface Cover {
+  url: string;
+  name: string;
+}
 
 /** The first image in a record's files, if any. A cover is drawn in the card's fixed box and loaded only when it nears the screen. */
 export function coverOf(def: TypeDef, row: RecordRow): Cover | null {
@@ -151,7 +222,8 @@ export function coverOf(def: TypeDef, row: RecordRow): Cover | null {
       if (!x || typeof x !== "object") continue;
       const file = x as { name?: unknown; url?: unknown; mime?: unknown };
       if (typeof file.url !== "string" || typeof file.name !== "string") continue;
-      if ((typeof file.mime === "string" && file.mime.startsWith("image/")) || IMAGE.test(file.name)) return { url: file.url, name: file.name };
+      if ((typeof file.mime === "string" && file.mime.startsWith("image/")) || IMAGE.test(file.name))
+        return { url: file.url, name: file.name };
     }
   }
   return null;
@@ -165,7 +237,12 @@ export function coverHue(row: RecordRow, titleField: string): number {
 /** The record's initials for a cover with no person to show. */
 export function initialsOf(text: string): string {
   const words = text.trim().split(/\s+/).filter(Boolean);
-  return words.slice(0, 2).map((w) => (w[0] ?? "").toUpperCase()).join("") || "?";
+  return (
+    words
+      .slice(0, 2)
+      .map((w) => (w[0] ?? "").toUpperCase())
+      .join("") || "?"
+  );
 }
 
 // ---------------------------------------------------------------- list
@@ -180,9 +257,20 @@ export function noteOf(parts: readonly string[]): string {
 }
 
 /** The spec a gallery or a list asks with: the view's filter and sort over the first `limit` records. */
-export function pageSpec(type: string, v: TableViewState, titleField: string, limit: number): CapMap["records.query"]["in"] {
+export function pageSpec(
+  type: string,
+  v: TableViewState,
+  titleField: string,
+  limit: number,
+): CapMap["records.query"]["in"] {
   const filter = filterOf(v, titleField);
-  return { type, ...(filter === undefined ? {} : { filter }), ...(v.sort.length ? { sort: v.sort.map((s) => ({ ...s })) } : {}), offset: 0, limit };
+  return {
+    type,
+    ...(filter === undefined ? {} : { filter }),
+    ...(v.sort.length ? { sort: v.sort.map((s) => ({ ...s })) } : {}),
+    offset: 0,
+    limit,
+  };
 }
 
 /** A list mapped with a plain loop: a card, a lane, a menu entry or a tag is not a list row, and the rows lint reads every `.map(` as one. */

@@ -22,7 +22,13 @@ test("withinBudget needs enough frames and a p95 at the ceiling plus vsync jitte
 });
 
 test("startupMs reads app.start to app.usable", () => {
-  assert.equal(startupMs([{ name: "app.start", startTime: 5 }, { name: "app.usable", startTime: 305 }]), 300);
+  assert.equal(
+    startupMs([
+      { name: "app.start", startTime: 5 },
+      { name: "app.usable", startTime: 305 },
+    ]),
+    300,
+  );
   assert.equal(startupMs([]), null);
 });
 
@@ -38,24 +44,40 @@ test("median takes the middle of three, so one slow sample does not decide", () 
 });
 
 test("theme_flash passes when one of three apply samples is slow (ruling 37)", () => {
-  const c = summarizeCombo([{ wrong: 0, apply_ms: 104.1 }, { wrong: 0, apply_ms: 20 }, { wrong: 0, apply_ms: 30 }]);
+  const c = summarizeCombo([
+    { wrong: 0, apply_ms: 104.1 },
+    { wrong: 0, apply_ms: 20 },
+    { wrong: 0, apply_ms: 30 },
+  ]);
   assert.equal(c.apply_ms_median, 30);
   assert.equal(comboOk(c, flashBudget), true);
 });
 
 test("theme_flash fails when the median apply time is over the budget", () => {
-  const c = summarizeCombo([{ wrong: 0, apply_ms: 140 }, { wrong: 0, apply_ms: 120 }, { wrong: 0, apply_ms: 30 }]);
+  const c = summarizeCombo([
+    { wrong: 0, apply_ms: 140 },
+    { wrong: 0, apply_ms: 120 },
+    { wrong: 0, apply_ms: 30 },
+  ]);
   assert.equal(comboOk(c, flashBudget), false);
 });
 
 test("theme_flash fails on a single wrong frame, however fast the apply", () => {
-  const c = summarizeCombo([{ wrong: 1, apply_ms: 5 }, { wrong: 0, apply_ms: 5 }, { wrong: 0, apply_ms: 5 }]);
+  const c = summarizeCombo([
+    { wrong: 1, apply_ms: 5 },
+    { wrong: 0, apply_ms: 5 },
+    { wrong: 0, apply_ms: 5 },
+  ]);
   assert.equal(c.wrong, 1);
   assert.equal(comboOk(c, flashBudget), false);
 });
 
 test("theme_flash fails when the apply mark is missing", () => {
-  const c = summarizeCombo([{ wrong: 0, apply_ms: -1 }, { wrong: 0, apply_ms: 5 }, { wrong: 0, apply_ms: 5 }]);
+  const c = summarizeCombo([
+    { wrong: 0, apply_ms: -1 },
+    { wrong: 0, apply_ms: 5 },
+    { wrong: 0, apply_ms: 5 },
+  ]);
   assert.equal(c.missing, true);
   assert.equal(comboOk(c, flashBudget), false);
 });

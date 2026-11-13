@@ -5,7 +5,10 @@ import { resolveEntities } from "./ddl.ts";
 import { LABEL_RANK, ReplicaError } from "./types.ts";
 import type { DeviceClass, EntityInfo, ProfileMode } from "./types.ts";
 
-interface RawField { type?: string; label?: string | null }
+interface RawField {
+  type?: string;
+  label?: string | null;
+}
 interface RawEntity {
   kind?: string;
   key?: string;
@@ -37,7 +40,8 @@ function entityOf(raw: RawEntity): EntityInfo {
   const key = raw.key;
   const table = raw.table;
   const profileRaw = raw.sync?.profile;
-  if (raw.kind !== "entity" && raw.kind !== "record_type") throw new ReplicaError("bad_catalog", "entity kind is missing");
+  if (raw.kind !== "entity" && raw.kind !== "record_type")
+    throw new ReplicaError("bad_catalog", "entity kind is missing");
   if (!key || !table || !profileRaw) throw new ReplicaError("bad_catalog", "entity key, table or profile is missing");
   const fieldLabels: Record<string, number> = {};
   const datetimeFields: string[] = [];

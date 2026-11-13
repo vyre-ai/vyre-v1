@@ -6,7 +6,13 @@ import type { Hlc } from "../hlc.ts";
 // Seeded generator (mulberry32) so a failure replays.
 function rng(seed: number) {
   let a = seed >>> 0;
-  return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 const NOW = 1_800_000_000_000;
 
@@ -18,7 +24,8 @@ test("format and parse round-trip, including device ids with dashes", () => {
 });
 
 test("order is (ms, counter, deviceId)", () => {
-  const a: Hlc = { ms: 5, counter: 9, deviceId: "z" }, b: Hlc = { ms: 6, counter: 0, deviceId: "a" };
+  const a: Hlc = { ms: 5, counter: 9, deviceId: "z" },
+    b: Hlc = { ms: 6, counter: 0, deviceId: "a" };
   assert.ok(compareHlc(a, b) < 0 && compareHlc(b, a) > 0);
   assert.ok(compareHlc({ ms: 5, counter: 1, deviceId: "a" }, { ms: 5, counter: 2, deviceId: "a" }) < 0);
   assert.ok(compareHlc({ ms: 5, counter: 1, deviceId: "a" }, { ms: 5, counter: 1, deviceId: "b" }) < 0);
@@ -48,7 +55,8 @@ test("tick is strictly increasing even when the wall clock stands still or runs 
 });
 
 test("receive: the result is after both local and remote", () => {
-  const local: Hlc = { ms: 100, counter: 4, deviceId: "me" }, remote: Hlc = { ms: 120, counter: 1, deviceId: "srv" };
+  const local: Hlc = { ms: 100, counter: 4, deviceId: "me" },
+    remote: Hlc = { ms: 120, counter: 1, deviceId: "srv" };
   const r = receiveHlc("me", 90, local, remote);
   assert.ok(compareHlc(r, local) > 0 && compareHlc(r, remote) > 0);
   assert.equal(r.deviceId, "me");
@@ -83,6 +91,10 @@ test("clock skew property: 200 seeded cases keep order, bound and idempotence", 
     const sorted = [...accepted].sort(compareHlc);
     for (let i = 1; i < sorted.length; i++) assert.ok(compareHlc(sorted[i - 1]!, sorted[i]!) <= 0);
     const ids = new Set(accepted.map(formatHlc));
-    assert.equal(ids.size, new Set(accepted.map((h) => JSON.stringify(h))).size, `seed ${seed}: distinct hlcs format distinctly`);
+    assert.equal(
+      ids.size,
+      new Set(accepted.map((h) => JSON.stringify(h))).size,
+      `seed ${seed}: distinct hlcs format distinctly`,
+    );
   }
 });

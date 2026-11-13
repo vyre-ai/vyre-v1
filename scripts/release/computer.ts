@@ -17,8 +17,13 @@ export function stageChrome(root: string): string[] {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       if (rel === "" && SKIP.has(e.name)) continue;
       const r = rel === "" ? e.name : `${rel}/${e.name}`;
-      if (e.isDirectory()) { fs.mkdirSync(path.join(to, r), { recursive: true }); walk(path.join(dir, e.name), r); }
-      else { fs.copyFileSync(path.join(dir, e.name), path.join(to, r)); out.push(r); }
+      if (e.isDirectory()) {
+        fs.mkdirSync(path.join(to, r), { recursive: true });
+        walk(path.join(dir, e.name), r);
+      } else {
+        fs.copyFileSync(path.join(dir, e.name), path.join(to, r));
+        out.push(r);
+      }
     }
   };
   walk(from, "");
@@ -45,11 +50,23 @@ const real: Run = (cmd, args) => execFileSync(cmd, args, { encoding: "utf8", std
 /** The image must hold /opt/vyre-chrome/manifest.json, a valid manifest with a version, and the same source files. Throws naming what is missing. */
 export function imageHasChrome(image: string, expectedFiles: readonly string[], run: Run = real): void {
   let manifest: string;
-  try { manifest = run("docker", ["run", "--rm", "--entrypoint", "cat", image, "/opt/vyre-chrome/manifest.json"]); } catch { throw new Error(`${image} has no /opt/vyre-chrome/manifest.json: Vyre for Chrome is not in the image`); }
+  try {
+    manifest = run("docker", ["run", "--rm", "--entrypoint", "cat", image, "/opt/vyre-chrome/manifest.json"]);
+  } catch {
+    throw new Error(`${image} has no /opt/vyre-chrome/manifest.json: Vyre for Chrome is not in the image`);
+  }
   let version: unknown;
-  try { version = (JSON.parse(manifest) as { version?: unknown }).version; } catch { throw new Error(`${image}: /opt/vyre-chrome/manifest.json is not JSON`); }
+  try {
+    version = (JSON.parse(manifest) as { version?: unknown }).version;
+  } catch {
+    throw new Error(`${image}: /opt/vyre-chrome/manifest.json is not JSON`);
+  }
   if (typeof version !== "string" || version === "") throw new Error(`${image}: the baked manifest has no version`);
-  const listed = run("docker", ["run", "--rm", "--entrypoint", "find", image, "/opt/vyre-chrome", "-type", "f"]).split("\n").map((l) => l.replace(/^\/opt\/vyre-chrome\//, "")).filter((l) => l !== "" && l !== ".gitkeep");
+  const listed = run("docker", ["run", "--rm", "--entrypoint", "find", image, "/opt/vyre-chrome", "-type", "f"])
+    .split("\n")
+    .map((l) => l.replace(/^\/opt\/vyre-chrome\//, ""))
+    .filter((l) => l !== "" && l !== ".gitkeep");
   const missing = expectedFiles.filter((f) => !listed.includes(f));
-  if (missing.length > 0) throw new Error(`${image} is missing ${missing.length} extension file(s): ${missing.slice(0, 5).join(", ")}`);
+  if (missing.length > 0)
+    throw new Error(`${image} is missing ${missing.length} extension file(s): ${missing.slice(0, 5).join(", ")}`);
 }

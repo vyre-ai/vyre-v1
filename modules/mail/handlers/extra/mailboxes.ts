@@ -3,11 +3,30 @@
 // the owner's controls (rename, privacy, pause, resume, disconnect) and the Pending connections auto-connect creates for mapped members.
 // Who may do what is the host's job (the capabilities bind to the mailbox resource and carry the level); the list filters by view access.
 import {
-  bad, can, EMAIL, first, isId, missing, newId, normalizeEmail, num, rowsOf, str, strOrNull,
+  bad,
+  can,
+  EMAIL,
+  first,
+  isId,
+  missing,
+  newId,
+  normalizeEmail,
+  num,
+  rowsOf,
+  str,
+  strOrNull,
 } from "../../projections.ts";
 import type { MailCtx, Row } from "../../projections.ts";
 import {
-  duplicate, ensureAll, idemRef, liveMailbox, mailboxRow, pageOf, parsePage, preconditionFailed, rememberIdem,
+  duplicate,
+  ensureAll,
+  idemRef,
+  liveMailbox,
+  mailboxRow,
+  pageOf,
+  parsePage,
+  preconditionFailed,
+  rememberIdem,
 } from "./common.ts";
 import type { MailboxRow, PageIn } from "./common.ts";
 
@@ -32,7 +51,10 @@ function bump(ctx: MailCtx, row: Row, set: Record<string, string | number | null
   const now = ctx.now();
   ctx.db.run(
     `UPDATE mail_mailbox SET ${cols.map((c) => `"${c}" = ?`).join(", ")}, version = ?, updated_at = ? WHERE id = ?`,
-    ...cols.map((c) => set[c] ?? null), num(row, "version") + 1, now, str(row, "id"),
+    ...cols.map((c) => set[c] ?? null),
+    num(row, "version") + 1,
+    now,
+    str(row, "id"),
   );
 }
 
@@ -55,11 +77,24 @@ export async function mailboxList(
     : rowsOf(ctx.db.all(`SELECT * FROM mail_mailbox WHERE deleted_at IS NULL`));
   const me = ctx.principal.id;
   const mine = (r: Row): boolean => strOrNull(r, "ownerId") === me || strOrNull(r, "agentId") === me;
-  const wanted = rows.filter((r) => (scope === "mine" ? mine(r) : scope === "shared" ? !mine(r) && str(r, "privacy") !== "private" : true));
+  const wanted = rows.filter((r) =>
+    scope === "mine" ? mine(r) : scope === "shared" ? !mine(r) && str(r, "privacy") !== "private" : true,
+  );
   const visible = wanted.filter((r) => mine(r) || can(ctx, "view", { type: "mailbox", id: str(r, "id") }));
-  visible.sort((a, b) => (str(a, "address") < str(b, "address") ? -1 : str(a, "address") > str(b, "address") ? 1 : str(a, "id") < str(b, "id") ? -1 : 1));
+  visible.sort((a, b) =>
+    str(a, "address") < str(b, "address")
+      ? -1
+      : str(a, "address") > str(b, "address")
+        ? 1
+        : str(a, "id") < str(b, "id")
+          ? -1
+          : 1,
+  );
   const page = pageOf(visible, offset, limit);
-  const out: { mailboxes: MailboxRow[]; next?: string; total: number } = { mailboxes: page.items.map(mailboxRow), total: page.total };
+  const out: { mailboxes: MailboxRow[]; next?: string; total: number } = {
+    mailboxes: page.items.map(mailboxRow),
+    total: page.total,
+  };
   if (page.next) out.next = page.next;
   return out;
 }
@@ -93,11 +128,13 @@ export async function mailboxCreate(ctx: MailCtx, input: MailboxCreateIn): Promi
   if (!EMAIL.test(address)) bad(ctx, "Address is not an email.");
   if (typeof input.title !== "string") bad(ctx, "Title is required.");
   const provider = input.provider ?? "inbound_only";
-  if (!CREATE_PROVIDERS.has(provider)) bad(ctx, "An IMAP mailbox is connected with mail.connect. Choose inbound only, Google or Microsoft here.");
+  if (!CREATE_PROVIDERS.has(provider))
+    bad(ctx, "An IMAP mailbox is connected with mail.connect. Choose inbound only, Google or Microsoft here.");
   const privacy = input.privacy ?? "space";
   if (!PRIVACY.has(privacy)) bad(ctx, "Privacy is not supported.");
   if (input.agentId !== undefined && !isId("agt", input.agentId)) bad(ctx, "Agent id is not valid.");
-  if (input.kind === "agent" && input.agentId === undefined) bad(ctx, "An agent mailbox needs the agent it belongs to.");
+  if (input.kind === "agent" && input.agentId === undefined)
+    bad(ctx, "An agent mailbox needs the agent it belongs to.");
   if (input.kind !== "agent" && input.agentId !== undefined) bad(ctx, "Only an agent mailbox takes an agent.");
   if (first(ctx.db.all(`SELECT id FROM mail_mailbox WHERE address = ? AND deleted_at IS NULL`, address))) {
     duplicate(ctx, "A mailbox with that address already exists.");
@@ -114,7 +151,21 @@ export async function mailboxCreate(ctx: MailCtx, input: MailboxCreateIn): Promi
     `INSERT INTO mail_mailbox (
       id, kind, address, title, "ownerId", "agentId", provider, privacy, state, "connectionId", "lastSyncAt", paused, version, updated_at, deleted_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, input.kind, address, title, ownerId, input.agentId ?? null, provider, privacy, state, null, null, 0, 1, now, null,
+    id,
+    input.kind,
+    address,
+    title,
+    ownerId,
+    input.agentId ?? null,
+    provider,
+    privacy,
+    state,
+    null,
+    null,
+    0,
+    1,
+    now,
+    null,
   );
   rememberIdem(ctx, input.idempotencyKey, "mbxcreate", id);
   ctx.emit("mailbox.created", `mailbox/${id}`, { mailboxId: id, kind: input.kind, address });
@@ -123,7 +174,10 @@ export async function mailboxCreate(ctx: MailCtx, input: MailboxCreateIn): Promi
 
 // ---- mail.mailbox.update
 
-export async function mailboxUpdate(ctx: MailCtx, input: { mailboxId: string; title?: string; agentId?: string }): Promise<{ mailbox: MailboxRow }> {
+export async function mailboxUpdate(
+  ctx: MailCtx,
+  input: { mailboxId: string; title?: string; agentId?: string },
+): Promise<{ mailbox: MailboxRow }> {
   ensureAll(ctx);
   const id = mbxId(ctx, input.mailboxId);
   const row = loadLive(ctx, id);
@@ -134,7 +188,8 @@ export async function mailboxUpdate(ctx: MailCtx, input: { mailboxId: string; ti
   }
   if (input.agentId !== undefined) {
     if (!isId("agt", input.agentId)) bad(ctx, "Agent id is not valid.");
-    if (str(row, "kind") === "personal") preconditionFailed(ctx, "A personal mailbox belongs to its owner. Create an agent mailbox for an agent.");
+    if (str(row, "kind") === "personal")
+      preconditionFailed(ctx, "A personal mailbox belongs to its owner. Create an agent mailbox for an agent.");
     if (input.agentId !== strOrNull(row, "agentId")) set.agentId = input.agentId;
   }
   if (Object.keys(set).length > 0) bump(ctx, row, set);
@@ -143,22 +198,33 @@ export async function mailboxUpdate(ctx: MailCtx, input: { mailboxId: string; ti
 
 // ---- mail.mailbox.set_privacy
 
-export async function mailboxSetPrivacy(ctx: MailCtx, input: { mailboxId: string; privacy: "private" | "space" | "people" }): Promise<{ mailbox: MailboxRow }> {
+export async function mailboxSetPrivacy(
+  ctx: MailCtx,
+  input: { mailboxId: string; privacy: "private" | "space" | "people" },
+): Promise<{ mailbox: MailboxRow }> {
   ensureAll(ctx);
   const id = mbxId(ctx, input.mailboxId);
   if (!PRIVACY.has(input.privacy)) bad(ctx, "Privacy is not supported.");
   const row = loadLive(ctx, id);
-  if (str(row, "privacy") === input.privacy) return answer(ctx, id);   // nothing changed, nothing announced
+  if (str(row, "privacy") === input.privacy) return answer(ctx, id); // nothing changed, nothing announced
   // Mail already stored keeps the mark it got when it arrived; the new setting governs what arrives next.
   bump(ctx, row, { privacy: input.privacy });
-  ctx.emit("mailbox.privacy_changed", `mailbox/${id}`, { mailboxId: id, privacy: input.privacy }, { vis: "participants" });
+  ctx.emit(
+    "mailbox.privacy_changed",
+    `mailbox/${id}`,
+    { mailboxId: id, privacy: input.privacy },
+    { vis: "participants" },
+  );
   return answer(ctx, id);
 }
 
 // ---- mail.mailbox.set_sync_state
 
 /** A connection that owns its own sign-in (the google and microsoft modules) says it lost it, or has it again. A paused or disconnected mailbox keeps its state. */
-export async function mailboxSetSyncState(ctx: MailCtx, input: { mailboxId: string; state: "error" | "syncing"; reason?: string }): Promise<{ mailbox: MailboxRow }> {
+export async function mailboxSetSyncState(
+  ctx: MailCtx,
+  input: { mailboxId: string; state: "error" | "syncing"; reason?: string },
+): Promise<{ mailbox: MailboxRow }> {
   ensureAll(ctx);
   const id = mbxId(ctx, input.mailboxId);
   if (input.state !== "error" && input.state !== "syncing") bad(ctx, "State is not supported.");
@@ -167,7 +233,12 @@ export async function mailboxSetSyncState(ctx: MailCtx, input: { mailboxId: stri
   if (now === "paused" || now === "disconnected" || now === input.state) return answer(ctx, id);
   bump(ctx, row, { state: input.state });
   if (input.state === "error") {
-    ctx.emit("mailbox.sync_failed", `mailbox/${id}`, { mailboxId: id, reason: (input.reason ?? "The sign-in was lost. Sign in again.").slice(0, 200) }, { vis: "participants" });
+    ctx.emit(
+      "mailbox.sync_failed",
+      `mailbox/${id}`,
+      { mailboxId: id, reason: (input.reason ?? "The sign-in was lost. Sign in again.").slice(0, 200) },
+      { vis: "participants" },
+    );
   }
   return answer(ctx, id);
 }
@@ -202,23 +273,37 @@ export async function mailboxResume(ctx: MailCtx, input: { mailboxId: string }):
  * Remove a connection. The mailbox row is soft-removed so the same address can be connected again, its IMAP settings are deleted so nothing
  * can sign in, and sync stops because the mailbox no longer resolves. Mail already filed to records keeps its links.
  */
-export async function mailboxDisconnect(ctx: MailCtx, input: { mailboxId: string }): Promise<{ disconnected: boolean }> {
+export async function mailboxDisconnect(
+  ctx: MailCtx,
+  input: { mailboxId: string },
+): Promise<{ disconnected: boolean }> {
   ensureAll(ctx);
   const id = mbxId(ctx, input.mailboxId);
   const existing = first(ctx.db.all(`SELECT * FROM mail_mailbox WHERE id = ?`, id));
   if (!existing) missing(ctx, "Mailbox does not exist.");
-  if (existing.deleted_at !== null && existing.deleted_at !== undefined) return { disconnected: true };   // already gone: a retry succeeds quietly
+  if (existing.deleted_at !== null && existing.deleted_at !== undefined) return { disconnected: true }; // already gone: a retry succeeds quietly
   const now = ctx.now();
   ctx.db.run(`DELETE FROM mail_imap WHERE "mailboxId" = ?`, id);
   ctx.db.run(
     `UPDATE mail_mailbox SET state = ?, paused = ?, deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`,
-    "disconnected", 1, now, num(existing, "version") + 1, now, id,
+    "disconnected",
+    1,
+    now,
+    num(existing, "version") + 1,
+    now,
+    id,
   );
   // a mailbox that read and sent through a person's own sign-in ends that sign-in too: Google or Microsoft is told, and the sealed token goes
   const own = typeof existing.connectionId === "string" ? existing.connectionId : "";
   if (own.startsWith("gua_") || own.startsWith("mua_")) {
-    try { await ctx.call(own.startsWith("gua_") ? "google.user.remove" : "ms.user.remove", { accountId: own }); }
-    catch (e) { ctx.log.warn("mail: a person's sign-in was not removed with its mailbox", { mailboxId: id, error: e instanceof Error ? e.name : "unknown" }); }
+    try {
+      await ctx.call(own.startsWith("gua_") ? "google.user.remove" : "ms.user.remove", { accountId: own });
+    } catch (e) {
+      ctx.log.warn("mail: a person's sign-in was not removed with its mailbox", {
+        mailboxId: id,
+        error: e instanceof Error ? e.name : "unknown",
+      });
+    }
   }
   ctx.emit("mailbox.disconnected", `mailbox/${id}`, { mailboxId: id }, { vis: "participants" });
   return { disconnected: true };
@@ -227,15 +312,29 @@ export async function mailboxDisconnect(ctx: MailCtx, input: { mailboxId: string
 // ---- mail.member_pause
 
 /** The connector stops a member's mailbox (excluded, gone from the directory, or the company turned Mail off), or starts it again. What is already here stays theirs. Asked by the connector, which decided; a person pauses their own with mail.mailbox.pause. */
-export async function memberPause(ctx: MailCtx, input: { provider: "google" | "microsoft"; address: string; paused: boolean }): Promise<{ changed: number }> {
+export async function memberPause(
+  ctx: MailCtx,
+  input: { provider: "google" | "microsoft"; address: string; paused: boolean },
+): Promise<{ changed: number }> {
   ensureAll(ctx);
   const address = normalizeEmail(input.address ?? "");
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM mail_mailbox WHERE address = ? AND provider = ? AND "connectionId" IS NULL AND deleted_at IS NULL`, address, input.provider));
+  const rows = rowsOf(
+    ctx.db.all(
+      `SELECT * FROM mail_mailbox WHERE address = ? AND provider = ? AND "connectionId" IS NULL AND deleted_at IS NULL`,
+      address,
+      input.provider,
+    ),
+  );
   let changed = 0;
   for (const row of rows) {
     if ((num(row, "paused") === 1) === input.paused) continue;
     bump(ctx, row, { paused: input.paused ? 1 : 0, state: input.paused ? "paused" : "pending" });
-    ctx.emit(input.paused ? "mailbox.paused" : "mailbox.resumed", `mailbox/${str(row, "id")}`, { mailboxId: str(row, "id") }, { vis: "participants" });
+    ctx.emit(
+      input.paused ? "mailbox.paused" : "mailbox.resumed",
+      `mailbox/${str(row, "id")}`,
+      { mailboxId: str(row, "id") },
+      { vis: "participants" },
+    );
     changed += 1;
   }
   return { changed };
@@ -249,7 +348,11 @@ export interface AutoConnectIn {
   idempotencyKey: string;
 }
 
-interface AutoConnectOut { created: number; notified: number; skipped: number }
+interface AutoConnectOut {
+  created: number;
+  notified: number;
+  skipped: number;
+}
 
 /**
  * Pending mail connections for mapped members (spec 2.18). The connector decides who is mapped and who is excluded and whether auto-connect is on;
@@ -262,8 +365,11 @@ export async function autoConnectMembers(ctx: MailCtx, input: AutoConnectIn): Pr
   if (prior) {
     try {
       const o = JSON.parse(prior) as Partial<AutoConnectOut>;
-      if (typeof o.created === "number" && typeof o.notified === "number" && typeof o.skipped === "number") return { created: o.created, notified: o.notified, skipped: o.skipped };
-    } catch { /* fall through and run it again */ }
+      if (typeof o.created === "number" && typeof o.notified === "number" && typeof o.skipped === "number")
+        return { created: o.created, notified: o.notified, skipped: o.skipped };
+    } catch {
+      /* fall through and run it again */
+    }
   }
   if (input.provider !== "google" && input.provider !== "microsoft") bad(ctx, "Provider must be google or microsoft.");
   if (!Array.isArray(input.members)) bad(ctx, "Members must be a list.");
@@ -271,21 +377,52 @@ export async function autoConnectMembers(ctx: MailCtx, input: AutoConnectIn): Pr
   const seen = new Set<string>();
   for (const m of input.members) {
     const address = normalizeEmail(m?.email ?? "");
-    if (!EMAIL.test(address) || !isId("usr", m?.userId) || seen.has(address)) { out.skipped += 1; continue; }
+    if (!EMAIL.test(address) || !isId("usr", m?.userId) || seen.has(address)) {
+      out.skipped += 1;
+      continue;
+    }
     seen.add(address);
-    const have = first(ctx.db.all(`SELECT id FROM mail_mailbox WHERE address = ? AND provider = ? AND deleted_at IS NULL`, address, input.provider));
-    if (have) { out.skipped += 1; continue; }
+    const have = first(
+      ctx.db.all(
+        `SELECT id FROM mail_mailbox WHERE address = ? AND provider = ? AND deleted_at IS NULL`,
+        address,
+        input.provider,
+      ),
+    );
+    if (have) {
+      out.skipped += 1;
+      continue;
+    }
     const id = newId("mbx", ctx.now());
     const now = ctx.now();
     ctx.db.run(
       `INSERT INTO mail_mailbox (
         id, kind, address, title, "ownerId", "agentId", provider, privacy, state, "connectionId", "lastSyncAt", paused, version, updated_at, deleted_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id, "personal", address, address.split("@")[0] || address, m.userId, null, input.provider, "private", "pending", null, null, 0, 1, now, null,
+      id,
+      "personal",
+      address,
+      address.split("@")[0] || address,
+      m.userId,
+      null,
+      input.provider,
+      "private",
+      "pending",
+      null,
+      null,
+      0,
+      1,
+      now,
+      null,
     );
     out.created += 1;
     // `private` decides who can reach the mailbox: it is what keeps a member's own mail from inheriting the Space's access (host/src/gateway/resources.ts). The row's `privacy` decides only whether its mail files to records.
-    ctx.emit("mailbox.connected", `mailbox/${id}`, { mailboxId: id, memberId: m.userId, provider: input.provider, auto: true, private: true }, { vis: "participants" });
+    ctx.emit(
+      "mailbox.connected",
+      `mailbox/${id}`,
+      { mailboxId: id, memberId: m.userId, provider: input.provider, auto: true, private: true },
+      { vis: "participants" },
+    );
     out.notified += 1;
   }
   rememberIdem(ctx, input.idempotencyKey, "autoconnect", JSON.stringify(out));

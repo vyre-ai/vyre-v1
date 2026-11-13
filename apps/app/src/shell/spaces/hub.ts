@@ -71,7 +71,7 @@ export interface HubOptions {
   openId: string;
   personId: string;
   /** A person can have a distinct identity on each server. */
-  personIds?: Readonly<Record<string,string>>;
+  personIds?: Readonly<Record<string, string>>;
   deviceId: string;
   /** This device's storage for tabs; null keeps them in memory. */
   storage: TabsStorage | null;
@@ -159,7 +159,14 @@ export function createShellHub(options: HubOptions): ShellHub {
   const sessions = new Map<string, SpaceSession>();
 
   for (const def of defs) {
-    const tabs = createTabsController({ deviceId: options.deviceId, personId: options.personIds?.[def.spaceId] ?? options.personId, spaceId: def.spaceId, storage: options.storage, start: kitById(def.kit).start, hidden: def.kind === "personal" ? (["apps", "console", ...NO_SCREEN_PLACES] as const) : NO_SCREEN_PLACES });
+    const tabs = createTabsController({
+      deviceId: options.deviceId,
+      personId: options.personIds?.[def.spaceId] ?? options.personId,
+      spaceId: def.spaceId,
+      storage: options.storage,
+      start: kitById(def.kit).start,
+      hidden: def.kind === "personal" ? (["apps", "console", ...NO_SCREEN_PLACES] as const) : NO_SCREEN_PLACES,
+    });
     const first = activeEntry(tabs.state());
     sessions.set(def.spaceId, {
       def,
@@ -172,7 +179,8 @@ export function createShellHub(options: HubOptions): ShellHub {
       skin: def.skinDefault,
     });
   }
-  if (!sessions.has(options.openId)) throw new Error(`the shell cannot open ${options.openId}: it is not one of this person's Spaces`);
+  if (!sessions.has(options.openId))
+    throw new Error(`the shell cannot open ${options.openId}: it is not one of this person's Spaces`);
 
   // the open Space and every starred Space come up now, so switching to a starred Space needs no wait
   for (const s of sessions.values()) {
@@ -247,7 +255,9 @@ export function createShellHub(options: HubOptions): ShellHub {
     error = null;
     phase = "skeleton";
     const wait = bringUp(target);
-    const minimum = new Promise<void>((resolve) => { later(resolve, skeletonMs); });
+    const minimum = new Promise<void>((resolve) => {
+      later(resolve, skeletonMs);
+    });
     Promise.all([minimum, ...wait]).then(
       () => {
         if (epoch !== mine) return;
@@ -269,13 +279,23 @@ export function createShellHub(options: HubOptions): ShellHub {
     state: () => snap,
     subscribe(listener) {
       listeners.add(listener);
-      return () => { listeners.delete(listener); };
+      return () => {
+        listeners.delete(listener);
+      };
     },
     spaces: () => defs,
     session: (spaceId) => (spaceId === undefined ? open() : (sessions.get(spaceId) ?? open())),
     rail() {
       const s = open();
-      return railFor({ kit: s.kit, console: s.def.console, ...(s.def.hidden ? { hidden: s.def.hidden } : {}), ...(s.def.inbox === undefined ? {} : { inbox: s.def.inbox }), counts: s.def.counts, dots: s.def.dots, active: s.place });
+      return railFor({
+        kit: s.kit,
+        console: s.def.console,
+        ...(s.def.hidden ? { hidden: s.def.hidden } : {}),
+        ...(s.def.inbox === undefined ? {} : { inbox: s.def.inbox }),
+        counts: s.def.counts,
+        dots: s.def.dots,
+        active: s.place,
+      });
     },
     switchTo(spaceId) {
       const next = sessions.get(spaceId);
@@ -299,7 +319,11 @@ export function createShellHub(options: HubOptions): ShellHub {
       return true;
     },
     whenReady() {
-      return phase === "ready" ? Promise.resolve() : new Promise<void>((resolve) => { waiters.push(resolve); });
+      return phase === "ready"
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => {
+            waiters.push(resolve);
+          });
     },
     placeDrawn(forEpoch) {
       if (forEpoch !== epoch || drawn || phase !== "ready") return;
@@ -337,7 +361,8 @@ export function createShellHub(options: HubOptions): ShellHub {
     },
     setFace(face) {
       const s = open();
-      if ((s.def.imageKey ?? null) === (face?.imageKey ?? null) && (s.def.image ?? null) === (face?.image ?? null)) return;
+      if ((s.def.imageKey ?? null) === (face?.imageKey ?? null) && (s.def.image ?? null) === (face?.image ?? null))
+        return;
       const { image: _image, imageKey: _key, ...rest } = s.def;
       s.def = face ? { ...rest, image: face.image, imageKey: face.imageKey } : rest;
       emit();
@@ -362,14 +387,15 @@ export function createShellHub(options: HubOptions): ShellHub {
       const s = open();
       if (!background && (place !== s.place || (hash ?? "") !== s.hash)) holder?.();
       // an address with no item (hash "") asks for the place's landing: its own tab shows it. A place asked for with no hash at all (the rail) goes to the tab the place has.
-      if (!background && hash === "") s.tabs.land(place); else s.tabs.openPlace(place, hash, screenTitle(hash), background);
+      if (!background && hash === "") s.tabs.land(place);
+      else s.tabs.openPlace(place, hash, screenTitle(hash), background);
       if (!background) {
         // the page shows what the selected tab shows, so a tab never names one thing over another
         const now = s.tabs.state();
         const t = now.tabs.find((x) => x.key === now.active);
         const same = t !== undefined && t.isNew !== true && t.place === place;
         s.place = same ? t.place : place;
-        s.hash = same ? t.hash ?? "" : hash ?? "";
+        s.hash = same ? (t.hash ?? "") : (hash ?? "");
       }
       emit();
     },
@@ -385,8 +411,12 @@ export function createShellHub(options: HubOptions): ShellHub {
       }
       emit();
     },
-    hold() { holder?.(); },
-    setHolder(fn) { holder = fn; },
+    hold() {
+      holder?.();
+    },
+    setHolder(fn) {
+      holder = fn;
+    },
     showTab(tab) {
       const s = open();
       holder?.();
@@ -428,11 +458,14 @@ export function createShellHub(options: HubOptions): ShellHub {
         subs.set(space, mine);
       }
       mine.set(id, key);
-      return () => { subs.get(space)?.delete(id); };
+      return () => {
+        subs.get(space)?.delete(id);
+      };
     },
     subscriptions(spaceId) {
       const out: (readonly string[])[] = [];
-      for (const [space, keys] of subs) if (spaceId === undefined || space === spaceId) for (const k of keys.values()) out.push(k);
+      for (const [space, keys] of subs)
+        if (spaceId === undefined || space === spaceId) for (const k of keys.values()) out.push(k);
       return out;
     },
     refused: () => refusals,
@@ -452,12 +485,15 @@ export function createShellHub(options: HubOptions): ShellHub {
       statusUndo = undo ?? null;
       cancelStatus?.();
       const mine = statusId;
-      cancelStatus = later(() => {
-        if (statusId !== mine) return;
-        status = null;
-        statusUndo = null;
-        emit();
-      }, undo === undefined ? 2400 : 5000);
+      cancelStatus = later(
+        () => {
+          if (statusId !== mine) return;
+          status = null;
+          statusUndo = null;
+          emit();
+        },
+        undo === undefined ? 2400 : 5000,
+      );
       emit();
     },
     undoStatus() {

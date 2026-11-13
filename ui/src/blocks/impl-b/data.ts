@@ -2,7 +2,15 @@
 // The field names are the ones in manifests/chat.ts, vault, memory and access (generated/registry.json blocks[].data).
 // A field the sender left out becomes an empty value, so a card never throws on a thin payload.
 
-import type { AccessLevel, DiffKind, HelperStatus, MemoryLayer, ModelRef, RequestState, VaultOutcome } from "./logic.ts";
+import type {
+  AccessLevel,
+  DiffKind,
+  HelperStatus,
+  MemoryLayer,
+  ModelRef,
+  RequestState,
+  VaultOutcome,
+} from "./logic.ts";
 
 function rec(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -29,7 +37,11 @@ function strings(value: unknown): string[] {
 function modelRef(value: unknown): ModelRef {
   const r = rec(value);
   const effort = r["effort"];
-  return { provider: str(r["provider"]), model: str(r["model"], "a model"), ...(typeof effort === "string" && effort !== "" ? { effort } : {}) };
+  return {
+    provider: str(r["provider"]),
+    model: str(r["model"], "a model"),
+    ...(typeof effort === "string" && effort !== "" ? { effort } : {}),
+  };
 }
 
 export interface MemorySavedData {
@@ -41,7 +53,12 @@ export interface MemorySavedData {
 
 export function memorySavedData(data: unknown): MemorySavedData {
   const d = rec(data);
-  return { factId: str(d["factId"]), layer: oneOf(d["layer"], ["person", "agent", "project", "space"] as const, "person"), text: str(d["text"]), canPromote: d["canPromote"] === true };
+  return {
+    factId: str(d["factId"]),
+    layer: oneOf(d["layer"], ["person", "agent", "project", "space"] as const, "person"),
+    text: str(d["text"]),
+    canPromote: d["canPromote"] === true,
+  };
 }
 
 export interface VaultUsedData {
@@ -56,7 +73,14 @@ export interface VaultUsedData {
 export function vaultUsedData(data: unknown): VaultUsedData {
   const d = rec(data);
   const name = str(d["name"], "an item");
-  return { itemId: str(d["itemId"]), name, handle: str(d["handle"], name), fields: strings(d["fields"]), outcome: oneOf(d["outcome"], ["used", "filled", "blocked"] as const, "used"), where: str(d["where"]) };
+  return {
+    itemId: str(d["itemId"]),
+    name,
+    handle: str(d["handle"], name),
+    fields: strings(d["fields"]),
+    outcome: oneOf(d["outcome"], ["used", "filled", "blocked"] as const, "used"),
+    where: str(d["where"]),
+  };
 }
 
 export interface AccessRequestData {
@@ -96,7 +120,13 @@ export interface SecretInputData {
 export function secretInputData(data: unknown): SecretInputData {
   const d = rec(data);
   const fields = strings(d["fields"]);
-  return { name: str(d["name"], "a secret"), kind: str(d["kind"], "other"), folderId: str(d["folderId"]), fields: fields.length > 0 ? fields : ["value"], hint: str(d["hint"]) };
+  return {
+    name: str(d["name"], "a secret"),
+    kind: str(d["kind"], "other"),
+    folderId: str(d["folderId"]),
+    fields: fields.length > 0 ? fields : ["value"],
+    hint: str(d["hint"]),
+  };
 }
 
 export interface ModelSwitchData {
@@ -110,7 +140,14 @@ export interface ModelSwitchData {
 
 export function modelSwitchData(data: unknown): ModelSwitchData {
   const d = rec(data);
-  return { threadId: str(d["threadId"]), agentId: str(d["agentId"]), scope: oneOf(d["scope"], ["sub_task", "thread"] as const, "sub_task"), from: modelRef(d["from"]), to: modelRef(d["to"]), reason: str(d["reason"]) };
+  return {
+    threadId: str(d["threadId"]),
+    agentId: str(d["agentId"]),
+    scope: oneOf(d["scope"], ["sub_task", "thread"] as const, "sub_task"),
+    from: modelRef(d["from"]),
+    to: modelRef(d["to"]),
+    reason: str(d["reason"]),
+  };
 }
 
 export interface HelperData {
@@ -132,7 +169,17 @@ export function helperData(data: unknown): HelperData {
     const r = rec(p);
     return { title: str(r["title"]), threadId: str(r["threadId"]) };
   });
-  return { threadId: str(d["threadId"]), title: str(d["title"], "Helper"), status: oneOf(d["status"], ["running", "done", "failed", "stopped"] as const, "running"), agentId: str(d["agentId"]), model: str(d["model"]), path, found: str(d["found"]), startedAt: typeof d["startedAt"] === "number" ? d["startedAt"] : null, finishedAt: typeof d["finishedAt"] === "number" ? d["finishedAt"] : null };
+  return {
+    threadId: str(d["threadId"]),
+    title: str(d["title"], "Helper"),
+    status: oneOf(d["status"], ["running", "done", "failed", "stopped"] as const, "running"),
+    agentId: str(d["agentId"]),
+    model: str(d["model"]),
+    path,
+    found: str(d["found"]),
+    startedAt: typeof d["startedAt"] === "number" ? d["startedAt"] : null,
+    finishedAt: typeof d["finishedAt"] === "number" ? d["finishedAt"] : null,
+  };
 }
 
 export interface DiffChange {
@@ -155,5 +202,11 @@ export function diffCardData(data: unknown): DiffCardData {
     const r = rec(c);
     return { path: str(r["path"]), before: r["before"], after: r["after"] };
   });
-  return { diffId: str(d["diffId"]), kind: oneOf(d["kind"], ["role", "grant", "schema", "policy", "setting", "connector", "config"] as const, "config"), title: str(d["title"], "Proposed change"), changes, affects: str(d["affects"]) };
+  return {
+    diffId: str(d["diffId"]),
+    kind: oneOf(d["kind"], ["role", "grant", "schema", "policy", "setting", "connector", "config"] as const, "config"),
+    title: str(d["title"], "Proposed change"),
+    changes,
+    affects: str(d["affects"]),
+  };
 }

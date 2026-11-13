@@ -8,12 +8,39 @@ import { MarkdownEditor } from "../ui/src/RichEditor/index.tsx";
 import { Viewer } from "../ui/src/Viewer/index.tsx";
 import { Prose } from "../apps/app/src/places/files/runbook/Prose.tsx";
 
-const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
-const MD = "# Plan\n\n| Step | Owner |\n|---|---|\n| Draft | Dex |\n\n- [x] Pick the host\n- [ ] Move the data\n\n> [!WARNING]\n> Careful.\n\n```ts\nconst a = 1;\n```\n\n```chart\n{\"type\":\"bar\",\"labels\":[\"a\",\"b\"],\"series\":[{\"data\":[1,2]}]}\n```\n";
-const PARTS = ['data-testid="thead-b1"', 'data-testid="sort-b1-0"', 'aria-label="Done"', 'aria-label="Not done"', 'data-callout="warning"', 'data-testid="copy-b4"', 'data-testid="chart-error-b5"'];
+const clean = (s: string): string =>
+  s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+const MD =
+  '# Plan\n\n| Step | Owner |\n|---|---|\n| Draft | Dex |\n\n- [x] Pick the host\n- [ ] Move the data\n\n> [!WARNING]\n> Careful.\n\n```ts\nconst a = 1;\n```\n\n```chart\n{"type":"bar","labels":["a","b"],"series":[{"data":[1,2]}]}\n```\n';
+const PARTS = [
+  'data-testid="thead-b1"',
+  'data-testid="sort-b1-0"',
+  'aria-label="Done"',
+  'aria-label="Not done"',
+  'data-callout="warning"',
+  'data-testid="copy-b4"',
+  'data-testid="chart-error-b5"',
+];
 
-const asReply = (): string => { const p = createIncrementalMarkdown(); p.append(MD); p.finish(); return clean(renderToStaticMarkup(<MarkdownBlocks blocks={p.view().blocks} />)); };
-const viewer = (extra: Record<string, unknown> = {}): string => clean(renderToStaticMarkup(<Viewer fileId="f" title="plan.md" kind="document" blocks={[{ id: "b0", tag: "h1", text: "Plan" }]} markdown={MD} {...extra} />));
+const asReply = (): string => {
+  const p = createIncrementalMarkdown();
+  p.append(MD);
+  p.finish();
+  return clean(renderToStaticMarkup(<MarkdownBlocks blocks={p.view().blocks} />));
+};
+const viewer = (extra: Record<string, unknown> = {}): string =>
+  clean(
+    renderToStaticMarkup(
+      <Viewer
+        fileId="f"
+        title="plan.md"
+        kind="document"
+        blocks={[{ id: "b0", tag: "h1", text: "Plan" }]}
+        markdown={MD}
+        {...extra}
+      />,
+    ),
+  );
 
 test("a reply, a note read, a runbook's prose and a file in the viewer all draw the same blocks", () => {
   const reply = asReply();
@@ -23,8 +50,11 @@ test("a reply, a note read, a runbook's prose and a file in the viewer all draw 
     ["Prose", clean(renderToStaticMarkup(<Prose text={MD} />))],
     ["the viewer", viewer()],
   ];
-  for (const part of PARTS.filter((p) => !p.includes("chart-error"))) assert.ok(reply.includes(part), `the reply has ${part}`);
-  for (const [name, html] of surfaces) for (const part of PARTS.filter((p) => !p.includes("chart-error"))) assert.ok(html.includes(part), `${name} has ${part}`);
+  for (const part of PARTS.filter((p) => !p.includes("chart-error")))
+    assert.ok(reply.includes(part), `the reply has ${part}`);
+  for (const [name, html] of surfaces)
+    for (const part of PARTS.filter((p) => !p.includes("chart-error")))
+      assert.ok(html.includes(part), `${name} has ${part}`);
   assert.ok(viewer().includes('data-testid="vw-markdown"'));
 });
 
@@ -36,8 +66,14 @@ test("the viewer keeps its own blocks while a comment is pinned or the page is e
 });
 
 test("front matter of a SKILL.md shows as the YAML it is, and a file name in a note still opens its file", () => {
-  const html = clean(renderToStaticMarkup(<MarkdownText text={"---\nname: write-brief\ndescription: Write the brief\n---\n\n# Write brief\n"} />));
+  const html = clean(
+    renderToStaticMarkup(
+      <MarkdownText text={"---\nname: write-brief\ndescription: Write the brief\n---\n\n# Write brief\n"} />,
+    ),
+  );
   assert.ok(html.includes("name: write-brief") && html.includes("yaml"), "the header is a yaml block");
-  const named = clean(renderToStaticMarkup(<MarkdownText text="See notes.md" renderText={(t) => t.replace("notes.md", "[FILE]")} />));
+  const named = clean(
+    renderToStaticMarkup(<MarkdownText text="See notes.md" renderText={(t) => t.replace("notes.md", "[FILE]")} />),
+  );
   assert.ok(named.includes("[FILE]"), "renderText draws the plain words its own way");
 });

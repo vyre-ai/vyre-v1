@@ -24,7 +24,7 @@ const HANDSHAKE_MS = 15_000;
 const ROUTE_RE = /^[a-z2-7]{26}$/;
 
 /** The WebSocket API accepts only 1000 and 3000 to 4999 from an application. */
-const closeCode = c => c === 1000 || (c >= 3000 && c <= 4999) ? c : 4000;
+const closeCode = (c) => (c === 1000 || (c >= 3000 && c <= 4999) ? c : 4000);
 const abortError = () => Object.assign(new Error("aborted"), { name: "AbortError" });
 
 /**
@@ -38,10 +38,26 @@ export function parsePairUrl(url, base = PAIR_BASE) {
   const at = u.indexOf("#");
   if (at < 0 || !base || !u.startsWith(base)) return null;
   let o;
-  try { o = JSON.parse(fromUtf8(fromBase64url(u.slice(at + 1)))); } catch { return null; }
-  if (!o || o.v !== 1 || typeof o.r !== "string" || !ROUTE_RE.test(o.i) || typeof o.s !== "string" || typeof o.k !== "string") return null;
+  try {
+    o = JSON.parse(fromUtf8(fromBase64url(u.slice(at + 1))));
+  } catch {
+    return null;
+  }
+  if (
+    !o ||
+    o.v !== 1 ||
+    typeof o.r !== "string" ||
+    !ROUTE_RE.test(o.i) ||
+    typeof o.s !== "string" ||
+    typeof o.k !== "string"
+  )
+    return null;
   let box;
-  try { box = fromBase64url(o.k); } catch { return null; }
+  try {
+    box = fromBase64url(o.k);
+  } catch {
+    return null;
+  }
   if (box.length !== 32 || !/^wss?:\/\/[^\s/]+/.test(o.r)) return null;
   return { relay: o.r, route: o.i, box, secret: o.s, name: typeof o.n === "string" ? o.n.slice(0, 64) : "" };
 }
@@ -57,7 +73,10 @@ export function defaultVisibility() {
   if (!doc || typeof doc.addEventListener !== "function") return { hidden: () => false, on: () => () => {} };
   return {
     hidden: () => doc.visibilityState === "hidden",
-    on(fn) { doc.addEventListener("visibilitychange", fn); return () => doc.removeEventListener("visibilitychange", fn); },
+    on(fn) {
+      doc.addEventListener("visibilitychange", fn);
+      return () => doc.removeEventListener("visibilitychange", fn);
+    },
   };
 }
 
@@ -75,17 +94,26 @@ const heldKeys = new WeakMap();
  */
 export async function deviceKey({ keyStore, crypto }) {
   const k = await keyStore.get();
-  if (k) { heldKeys.set(keyStore, Promise.resolve(k)); return k; }
+  if (k) {
+    heldKeys.set(keyStore, Promise.resolve(k));
+    return k;
+  }
   let made = heldKeys.get(keyStore);
   if (!made) {
-    made = (async () => { const n = await crypto.generateKeyPair(); await keyStore.set(n); return n; })();
+    made = (async () => {
+      const n = await crypto.generateKeyPair();
+      await keyStore.set(n);
+      return n;
+    })();
     heldKeys.set(keyStore, made);
-    made.catch(() => { if (heldKeys.get(keyStore) === made) heldKeys.delete(keyStore); });
+    made.catch(() => {
+      if (heldKeys.get(keyStore) === made) heldKeys.delete(keyStore);
+    });
   }
   return made;
 }
 
-const defaults = o => ({
+const defaults = (o) => ({
   crypto: o.crypto || webCrypto(),
   keyStore: o.keyStore || indexedDbKeyStore(),
   WebSocket: o.WebSocket || globalThis.WebSocket,
@@ -98,39 +126,87 @@ const defaults = o => ({
 export function openChannel(o) {
   return new Promise((resolve, reject) => {
     const WS = o.WebSocket;
-    if (!WS) { reject(new Error("no WebSocket here: pass one")); return; }
+    if (!WS) {
+      reject(new Error("no WebSocket here: pass one"));
+      return;
+    }
     let ws;
-    try { ws = new WS(`${String(o.relay).replace(/\/+$/, "")}/v1/device?route=${encodeURIComponent(o.route)}`); } catch (e) { reject(e); return; }
-    try { ws.binaryType = "arraybuffer"; } catch {}
+    try {
+      ws = new WS(`${String(o.relay).replace(/\/+$/, "")}/v1/device?route=${encodeURIComponent(o.route)}`);
+    } catch (e) {
+      reject(e);
+      return;
+    }
+    try {
+      ws.binaryType = "arraybuffer";
+    } catch {}
     /** @type {ReturnType<typeof dial> | null} */
     let side = null;
     let done = false;
-    const fail = msg => { if (done) return; done = true; globalThis.clearTimeout(timer); reject(new Error(msg)); };
-    const timer = globalThis.setTimeout(() => { fail("the box did not answer"); try { ws.close(4000, "timeout"); } catch {} }, o.timeout ?? HANDSHAKE_MS);
-    ws.onopen = () => {
-      side = dial({
-        send: b => { try { ws.send(b); } catch {} },
-        close: (c, r) => { try { ws.close(closeCode(c), String(r || "").slice(0, 120)); } catch {} },
-      }, { crypto: o.crypto, s: o.keys, box: o.box, route: o.route, hello: o.hello, rekeyEvery: o.rekeyEvery });
-      side.ready.then(({ channel, reply }) => {
-        if (done) { channel.close(1000, "too late"); return; }
-        done = true;
-        globalThis.clearTimeout(timer);
-        resolve({ channel, reply, ws });
-      }, e => fail(e.message));
+    const fail = (msg) => {
+      if (done) return;
+      done = true;
+      globalThis.clearTimeout(timer);
+      reject(new Error(msg));
     };
-    ws.onmessage = e => {
+    const timer = globalThis.setTimeout(() => {
+      fail("the box did not answer");
+      try {
+        ws.close(4000, "timeout");
+      } catch {}
+    }, o.timeout ?? HANDSHAKE_MS);
+    ws.onopen = () => {
+      side = dial(
+        {
+          send: (b) => {
+            try {
+              ws.send(b);
+            } catch {}
+          },
+          close: (c, r) => {
+            try {
+              ws.close(closeCode(c), String(r || "").slice(0, 120));
+            } catch {}
+          },
+        },
+        { crypto: o.crypto, s: o.keys, box: o.box, route: o.route, hello: o.hello, rekeyEvery: o.rekeyEvery },
+      );
+      side.ready.then(
+        ({ channel, reply }) => {
+          if (done) {
+            channel.close(1000, "too late");
+            return;
+          }
+          done = true;
+          globalThis.clearTimeout(timer);
+          resolve({ channel, reply, ws });
+        },
+        (e) => fail(e.message),
+      );
+    };
+    ws.onmessage = (e) => {
       const d = e.data;
-      if (typeof d === "string") { if (d === "pong") o.onpong?.(); return; }
+      if (typeof d === "string") {
+        if (d === "pong") o.onpong?.();
+        return;
+      }
       if (side) side.receive(toBytes(d));
     };
-    ws.onclose = e => {
+    ws.onclose = (e) => {
       const reason = (e && e.reason) || `closed ${e && e.code}`;
-      if (side) side.gone(reason); else fail(reason);
+      if (side) side.gone(reason);
+      else fail(reason);
     };
     // On Node 22 a refused WebSocket fires only `error`, never `close`: before the socket opens,
     // that is a failed dial, so the backoff runs now rather than after the handshake timeout.
-    ws.onerror = () => { if (!side) { fail("could not reach the relay"); try { ws.close(); } catch {} } };
+    ws.onerror = () => {
+      if (!side) {
+        fail("could not reach the relay");
+        try {
+          ws.close();
+        } catch {}
+      }
+    };
   });
 }
 
@@ -139,7 +215,7 @@ export function openChannel(o) {
  * kind "web" and the release and manifest hash it loaded, so the box can show the build.
  * @param {{ kind?: "app"|"web", release?: string, manifest?: string } | undefined} a
  */
-const about = a => ({
+const about = (a) => ({
   ...(a && (a.kind === "web" || a.kind === "app") ? { kind: a.kind } : {}),
   ...(a && typeof a.release === "string" ? { release: a.release } : {}),
   ...(a && typeof a.manifest === "string" ? { manifest: a.manifest } : {}),
@@ -161,18 +237,47 @@ export async function pairOffer(offer, o = {}) {
   const keys = await deviceKey(d);
   // The box's screen shows this phone's fingerprint beside Confirm (pairing.requested). Hand the same one to the app before the
   // handshake, which waits for that Confirm, so this phone's own screen shows it too and the person compares two.
-  if (typeof o.onFingerprint === "function") { try { o.onFingerprint(await keyFingerprint(keys.publicKey, d.crypto)); } catch {} }
-  const hello = { v: 1, ...about(o.about), pair: offer.secret, name: o.name || "a device", ...(o.presenceKey ? { presenceKey: o.presenceKey } : {}), ...(o.passkey ? { passkey: o.passkey } : {}), ...(o.enroll ? { enroll: true } : {}) };
+  if (typeof o.onFingerprint === "function") {
+    try {
+      o.onFingerprint(await keyFingerprint(keys.publicKey, d.crypto));
+    } catch {}
+  }
+  const hello = {
+    v: 1,
+    ...about(o.about),
+    pair: offer.secret,
+    name: o.name || "a device",
+    ...(o.presenceKey ? { presenceKey: o.presenceKey } : {}),
+    ...(o.passkey ? { passkey: o.passkey } : {}),
+    ...(o.enroll ? { enroll: true } : {}),
+  };
   let channel, reply;
-  try { ({ channel, reply } = await openChannel({ ...d, relay: offer.relay, route: offer.route, box: offer.box, keys, hello, timeout: o.timeout })); }
-  catch (e) { throw /** @type {any} */ (e).code ? e : fail("pair_failed", /** @type {Error} */ (e).message); }
+  try {
+    ({ channel, reply } = await openChannel({
+      ...d,
+      relay: offer.relay,
+      route: offer.route,
+      box: offer.box,
+      keys,
+      hello,
+      timeout: o.timeout,
+    }));
+  } catch (e) {
+    throw /** @type {any} */ (e).code ? e : fail("pair_failed", /** @type {Error} */ (e).message);
+  }
   channel.close(1000, "paired");
   return {
-    relay: offer.relay, route: offer.route, box: base64url(offer.box),
+    relay: offer.relay,
+    route: offer.route,
+    box: base64url(offer.box),
     name: promptSafe((reply && reply.box && reply.box.name) || offer.name, "a Vyre box"),
     // A gated ticket (the box's QR for a phone or a server) makes no device until its person confirms: the reply then names the id this device WILL have (`pending`), `pending: true` here,
     // and the wink calls that finish the pairing run over a channel that can reach only the one tool they need. Once confirmed, an ordinary connect is a paired device.
-    device: reply && (reply.device || reply.pending), ...(reply && reply.pending ? { pending: true, ...(typeof reply.gate === "string" ? { gate: reply.gate.slice(0, 16) } : {}) } : {}), presence: (reply && reply.presence) || null,
+    device: reply && (reply.device || reply.pending),
+    ...(reply && reply.pending
+      ? { pending: true, ...(typeof reply.gate === "string" ? { gate: reply.gate.slice(0, 16) } : {}) }
+      : {}),
+    presence: (reply && reply.presence) || null,
     // Only when asked (o.enroll) and the box has an address: the one-time grant to enroll this
     // device's own passkey there (core/relay), { grant, expires, rpId }; null otherwise.
     enroll: o.enroll ? enrollOf(reply && reply.enroll) : null,
@@ -182,7 +287,8 @@ export async function pairOffer(offer, o = {}) {
 /** The box's enrolment grant when it is well formed (a base64url grant, a time, a bare host), else null. @param {any} e */
 function enrollOf(e) {
   if (!e || typeof e.grant !== "string" || !/^[A-Za-z0-9_-]{16,128}$/.test(e.grant)) return null;
-  if (typeof e.rpId !== "string" || !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i.test(e.rpId) || e.rpId.length > 253) return null;
+  if (typeof e.rpId !== "string" || !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i.test(e.rpId) || e.rpId.length > 253)
+    return null;
   return { grant: e.grant, expires: Number(e.expires) || 0, rpId: e.rpId.toLowerCase() };
 }
 
@@ -193,11 +299,14 @@ function enrollOf(e) {
  */
 export function sameRelay(named, asked) {
   try {
-    const a = new URL(String(named)), b = new URL(String(asked).replace(/\/+$/, ""));
+    const a = new URL(String(named)),
+      b = new URL(String(asked).replace(/\/+$/, ""));
     if (a.protocol !== "wss:" && a.protocol !== "ws:") return false;
     if (a.username || a.password || a.search || a.hash || (a.pathname !== "/" && a.pathname !== "")) return false;
     return a.protocol === b.protocol && a.host === b.host;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -241,7 +350,14 @@ const ticketDerive = (crypto, which, ticket) => crypto.sha256(concat(utf8(`${TIC
 // by the box itself in the handshake reply: same stripping as core/relay/index.js's promptSafe,
 // so a name shown in a confirm line can't carry a control character, a bidi override or the like.
 const PROMPT_UNSAFE = /[\u0000-\u001f\u007f-\u009f\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]+/g;
-const promptSafe = (s, fallback, max = 64) => { const t = String(s || "").replace(PROMPT_UNSAFE, " ").replace(/ {2,}/g, " ").trim().slice(0, max); return t || fallback; };
+const promptSafe = (s, fallback, max = 64) => {
+  const t = String(s || "")
+    .replace(PROMPT_UNSAFE, " ")
+    .replace(/ {2,}/g, " ")
+    .trim()
+    .slice(0, max);
+  return t || fallback;
+};
 
 /**
  * Look up a compact pairing ticket (ADR 0045, "Wink") against the relay, verify it, and hand back
@@ -261,8 +377,9 @@ const promptSafe = (s, fallback, max = 64) => { const t = String(s || "").replac
  * @returns {Promise<{ offer: { relay: string, route: string, box: Uint8Array, secret: string }, name: string, fingerprint: string, handle: string|null, identity: string|null, invite: object|null }>}
  */
 export async function resolveTicket(ticket, o) {
-  if (!o || !/^wss?:\/\/[^\s/]+/.test(String(o.relay))) throw fail("bad_input", "resolveTicket needs the relay this ticket's box registered with");
-  const cryptoP = (o.crypto) || webCrypto();
+  if (!o || !/^wss?:\/\/[^\s/]+/.test(String(o.relay)))
+    throw fail("bad_input", "resolveTicket needs the relay this ticket's box registered with");
+  const cryptoP = o.crypto || webCrypto();
   const fetchFn = o.fetch || globalThis.fetch;
   if (!fetchFn) throw fail("bad_input", "no fetch here: pass one");
   const loc = await ticketDerive(cryptoP, "loc", ticket);
@@ -270,7 +387,11 @@ export async function resolveTicket(ticket, o) {
   const macKey = await ticketDerive(cryptoP, "mac", ticket);
   const encKey = await ticketDerive(cryptoP, "enc", ticket);
   const base = String(o.relay).replace(/\/+$/, "").replace(/^ws/, "http");
-  const res = await fetchFn(`${base}/v1/pair`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ loc: base64url(loc) }) });
+  const res = await fetchFn(`${base}/v1/pair`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ loc: base64url(loc) }),
+  });
   if (res.status === 404) throw fail("ticket_gone", "this pairing code has expired or was already used");
   if (res.status === 429) throw fail("rate_limited", "too many pairing attempts; wait a minute");
   // Two boxes registered this locator (first writer wins on the relay): the setup page's "Two servers used this code".
@@ -278,42 +399,81 @@ export async function resolveTicket(ticket, o) {
   if (!res.ok) throw fail("pair_failed", `the relay would not resolve this pairing code (${res.status})`);
   const notValid = () => fail("bad_record", "the relay's answer for this pairing code is not valid");
   let body, mac;
-  try { body = await res.json(); mac = fromBase64url(String((body && body.mac) || "")); } catch { throw notValid(); }
+  try {
+    body = await res.json();
+    mac = fromBase64url(String((body && body.mac) || ""));
+  } catch {
+    throw notValid();
+  }
   const recordText = String((body && body.record) || "");
   const wantMac = await cryptoP.hmacSha256(macKey, utf8(recordText));
-  if (!equal(mac, wantMac)) throw fail("bad_record", "the relay's answer for this pairing code does not check out; refusing to pair");
+  if (!equal(mac, wantMac))
+    throw fail("bad_record", "the relay's answer for this pairing code does not check out; refusing to pair");
   // The MAC passed, so these are the box's own bytes; opening them is what the relay can't do.
   let record;
   try {
     const key = cryptoP.aesKey ? await cryptoP.aesKey(encKey) : encKey;
     const sealed = fromBase64url(recordText);
     if (sealed.length < 28) throw new Error("too short");
-    record = JSON.parse(fromUtf8(await cryptoP.aesGcmDecrypt(key, sealed.subarray(0, 12), utf8(TICKET_SEAL_AD), sealed.subarray(12))));
-  } catch { throw notValid(); }
-  if (!record || typeof record !== "object" || record.v !== 1 || typeof record.relay !== "string" || !ROUTE_RE.test(record.route) || typeof record.box !== "string") throw fail("bad_record", "the relay's answer for this pairing code is not shaped like an offer");
+    record = JSON.parse(
+      fromUtf8(await cryptoP.aesGcmDecrypt(key, sealed.subarray(0, 12), utf8(TICKET_SEAL_AD), sealed.subarray(12))),
+    );
+  } catch {
+    throw notValid();
+  }
+  if (
+    !record ||
+    typeof record !== "object" ||
+    record.v !== 1 ||
+    typeof record.relay !== "string" ||
+    !ROUTE_RE.test(record.route) ||
+    typeof record.box !== "string"
+  )
+    throw fail("bad_record", "the relay's answer for this pairing code is not shaped like an offer");
   // The record names the relay the phone will connect to after it is confirmed. It comes from the box, so it is held to the relay that
   // actually answered: the same host and scheme, no path, credentials, query or fragment. A box cannot send a phone to another server.
-  if (!sameRelay(record.relay, o.relay)) throw fail("bad_record", "this pairing code names a different relay than the one that holds it; refusing to pair");
+  if (!sameRelay(record.relay, o.relay))
+    throw fail("bad_record", "this pairing code names a different relay than the one that holds it; refusing to pair");
   // The MAC only proves the relay's answer is unmodified from whatever the box minted; an expiry
   // in the past is still a legitimate, unmodified record for a ticket that should have been gone.
-  if (typeof record.exp !== "number" || record.exp < Date.now()) throw fail("ticket_gone", "this pairing code has expired or was already used");
+  if (typeof record.exp !== "number" || record.exp < Date.now())
+    throw fail("ticket_gone", "this pairing code has expired or was already used");
   let box;
-  try { box = fromBase64url(record.box); } catch { throw fail("bad_record", "the relay's answer for this pairing code is not shaped like an offer"); }
-  if (box.length !== 32) throw fail("bad_record", "the relay's answer for this pairing code is not shaped like an offer");
+  try {
+    box = fromBase64url(record.box);
+  } catch {
+    throw fail("bad_record", "the relay's answer for this pairing code is not shaped like an offer");
+  }
+  if (box.length !== 32)
+    throw fail("bad_record", "the relay's answer for this pairing code is not shaped like an offer");
   // Cleaned the same way the box itself validates a claimed name (core/names/service.js), not
   // just stripped like a free-text name: a handle only means something as a real subdomain, so
   // a bad shape becomes null (no redirect offered) rather than a sanitised-but-wrong string.
-  const handle = typeof record.handle === "string" && /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/i.test(record.handle) ? record.handle.slice(0, 32) : null;
+  const handle =
+    typeof record.handle === "string" && /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/i.test(record.handle)
+      ? record.handle.slice(0, 32)
+      : null;
   // The avatar's own seed (the lead's ruling, 28 Sep): 8 bytes, base64url, or null on a box that
   // hasn't got an owner.id yet (anywhere's core/onboard, not landed everywhere), never guessed.
   // The box's own https origin, from the MAC-covered record: the only source an app may pin (null when none).
   let address = null;
-  try { if (typeof record.address === "string") { const u = new URL(record.address); if (u.protocol === "https:" && u.origin === record.address) address = u.origin; } } catch {}
+  try {
+    if (typeof record.address === "string") {
+      const u = new URL(record.address);
+      if (u.protocol === "https:" && u.origin === record.address) address = u.origin;
+    }
+  } catch {}
   let identity = null;
-  try { const b = fromBase64url(String(record.identity || "")); if (b.length === 8) identity = base64url(b); } catch {}
+  try {
+    const b = fromBase64url(String(record.identity || ""));
+    if (b.length === 8) identity = base64url(b);
+  } catch {}
   // An invitation rides inside the sealed record (core/wink): plain JSON of at most 2 KB, never executed, shown on a card after a person looks at it.
   let invite = null;
-  try { if (record.offer && typeof record.offer === "object" && JSON.stringify(record.offer).length <= 2048) invite = JSON.parse(JSON.stringify(record.offer)); } catch {}
+  try {
+    if (record.offer && typeof record.offer === "object" && JSON.stringify(record.offer).length <= 2048)
+      invite = JSON.parse(JSON.stringify(record.offer));
+  } catch {}
   return {
     offer: { relay: record.relay, route: record.route, box, secret: base64url(secret) },
     name: promptSafe(record.name, "a Vyre box"),
@@ -357,7 +517,8 @@ export function connect(o) {
 export class Connection {
   /** @param {Parameters<typeof connect>[0]} o */
   constructor(o) {
-    if (!o || !ROUTE_RE.test(String(o.route)) || !/^wss?:\/\/[^\s/]+/.test(String(o.relay))) throw new Error("connect needs the relay, route and box from pair()");
+    if (!o || !ROUTE_RE.test(String(o.route)) || !/^wss?:\/\/[^\s/]+/.test(String(o.relay)))
+      throw new Error("connect needs the relay, route and box from pair()");
     const box = typeof o.box === "string" ? fromBase64url(o.box) : toBytes(o.box);
     if (box.length !== 32) throw new Error("the box key is 32 bytes");
     this.o = { ...o, ...defaults(o), box };
@@ -391,47 +552,79 @@ export class Connection {
     this.offVisible = this.visibility.on(() => this.visibleChanged());
     const g = /** @type {any} */ (globalThis);
     const online = () => this.wake();
-    if (typeof g.addEventListener === "function") { g.addEventListener("online", online); this.offOnline = () => g.removeEventListener("online", online); }
-    else this.offOnline = () => {};
+    if (typeof g.addEventListener === "function") {
+      g.addEventListener("online", online);
+      this.offOnline = () => g.removeEventListener("online", online);
+    } else this.offOnline = () => {};
     Promise.resolve().then(() => this.dial());
   }
 
-  get open() { return this.state === "open"; }
+  get open() {
+    return this.state === "open";
+  }
 
   setState(s) {
     if (this.state === s) return;
     this.state = s;
-    try { this.onstate(s); } catch {}
+    try {
+      this.onstate(s);
+    } catch {}
   }
 
   async dial() {
     if (this.closed || this.dialing || this.channel) return;
-    if (this.visibility.hidden()) { this.setState("offline"); return; }
+    if (this.visibility.hidden()) {
+      this.setState("offline");
+      return;
+    }
     this.dialing = true;
     this.setState("connecting");
     try {
       const keys = await deviceKey(this.o);
-      const hello = { v: 1, ...about(this.o.about), ...(this.o.name ? { name: this.o.name } : {}), ...(this.o.invitee === true ? { invitee: true } : {}), ...(this.o.homeMove === true ? { homeMove: true } : {}) };
+      const hello = {
+        v: 1,
+        ...about(this.o.about),
+        ...(this.o.name ? { name: this.o.name } : {}),
+        ...(this.o.invitee === true ? { invitee: true } : {}),
+        ...(this.o.homeMove === true ? { homeMove: true } : {}),
+      };
       // Design B: a device the person's identity chain lists says so in this hello, signed fresh for this dial (relay/client/chainhello.js). `chainHello(devicePub)` gives the object.
-      if (typeof this.o.chainHello === "function") /** @type {any} */ (hello).chain = await this.o.chainHello(keys.publicKey ?? keys.pub);
+      if (typeof this.o.chainHello === "function")
+        /** @type {any} */ (hello).chain = await this.o.chainHello(keys.publicKey ?? keys.pub);
       // the presence key the chain hello bound by its hash: offered with it so the server can enrol it and the device can open its person session (presence.person.chain-grant)
-      if (typeof this.o.chainHello === "function" && this.o.presenceKey) /** @type {any} */ (hello).presenceKey = typeof this.o.presenceKey === "function" ? await this.o.presenceKey() : this.o.presenceKey;
-      const { channel, reply, ws } = await openChannel({ ...this.o, keys, hello, onpong: () => { this.outstanding = false; this.missed = 0; } });
+      if (typeof this.o.chainHello === "function" && this.o.presenceKey)
+        /** @type {any} */ (hello).presenceKey =
+          typeof this.o.presenceKey === "function" ? await this.o.presenceKey() : this.o.presenceKey;
+      const { channel, reply, ws } = await openChannel({
+        ...this.o,
+        keys,
+        hello,
+        onpong: () => {
+          this.outstanding = false;
+          this.missed = 0;
+        },
+      });
       this.dialing = false;
-      if (this.closed) { channel.close(1000, "closed"); return; }
+      if (this.closed) {
+        channel.close(1000, "closed");
+        return;
+      }
       this.channel = channel;
       this.ws = ws;
       this.reply = reply;
       this.backoff = this.min;
       this.lastError = null;
-      channel.onclose = reason => this.lost(channel, reason);
+      channel.onclose = (reason) => this.lost(channel, reason);
       this.setState("open");
       this.keepalive();
       for (const w of this.waiters.splice(0)) w.resolve(channel);
     } catch (e) {
       this.dialing = false;
       this.lastError = /** @type {Error} */ (e);
-      if (/** @type {Error} */ (e).message === REMOVED) { this.removed(); return; }
+      if (/** @type {Error} */ (e).message === REMOVED) {
+        this.removed();
+        return;
+      }
       this.retry();
     }
   }
@@ -443,7 +636,10 @@ export class Connection {
     this.ws = null;
     globalThis.clearInterval(this.pinger);
     this.pinger = null;
-    if (reason === REMOVED) { this.removed(); return; }
+    if (reason === REMOVED) {
+      this.removed();
+      return;
+    }
     this.retry();
   }
 
@@ -471,10 +667,13 @@ export class Connection {
     this.setState("offline");
     globalThis.clearTimeout(this.retryTimer);
     this.retryTimer = null;
-    if (this.visibility.hidden()) return;               // coming back to the front dials
+    if (this.visibility.hidden()) return; // coming back to the front dials
     const delay = this.backoff * (0.8 + 0.4 * this.random());
     this.backoff = Math.min(this.backoff * 2, this.max);
-    this.retryTimer = globalThis.setTimeout(() => { this.retryTimer = null; this.dial(); }, delay);
+    this.retryTimer = globalThis.setTimeout(() => {
+      this.retryTimer = null;
+      this.dial();
+    }, delay);
     // a pause between tries never keeps a Node process alive by itself (an open socket does); a browser timer has no unref
     if (this.retryTimer && typeof this.retryTimer.unref === "function") this.retryTimer.unref();
   }
@@ -495,7 +694,9 @@ export class Connection {
     this.dial();
   }
 
-  visibleChanged() { if (!this.visibility.hidden()) this.wake(); }
+  visibleChanged() {
+    if (!this.visibility.hidden()) this.wake();
+  }
 
   keepalive() {
     globalThis.clearInterval(this.pinger);
@@ -516,7 +717,9 @@ export class Connection {
   ping() {
     if (!this.ws) return;
     this.outstanding = true;
-    try { this.ws.send("ping"); } catch {}
+    try {
+      this.ws.send("ping");
+    } catch {}
   }
 
   /** The open channel, now or when the next one opens. */
@@ -524,10 +727,20 @@ export class Connection {
     if (this.closed) return Promise.reject(new Error("connection closed"));
     if (this.channel) return Promise.resolve(this.channel);
     return new Promise((resolve, reject) => {
-      if (signal?.aborted) { reject(abortError()); return; }
+      if (signal?.aborted) {
+        reject(abortError());
+        return;
+      }
       const w = { resolve, reject };
       this.waiters.push(w);
-      signal?.addEventListener?.("abort", () => { this.waiters = this.waiters.filter(x => x !== w); reject(abortError()); }, { once: true });
+      signal?.addEventListener?.(
+        "abort",
+        () => {
+          this.waiters = this.waiters.filter((x) => x !== w);
+          reject(abortError());
+        },
+        { once: true },
+      );
     });
   }
 
@@ -540,13 +753,18 @@ export class Connection {
   async fetch(path, init = {}) {
     const method = String(init.method || "GET").toUpperCase();
     const headers = lowerHeaders(init.headers);
-    if (method !== "GET" && method !== "HEAD" && !headers["idempotency-key"]) headers["idempotency-key"] = await newKey(this.o.crypto);
+    if (method !== "GET" && method !== "HEAD" && !headers["idempotency-key"])
+      headers["idempotency-key"] = await newKey(this.o.crypto);
     const body = init.body == null ? EMPTY : toBytes(init.body);
     const head = { method, path, headers };
     for (let attempt = 0; ; attempt++) {
       const ch = await this.ready(init.signal);
-      try { return await request(ch, head, body, init.signal); }
-      catch (e) { if (/** @type {any} */ (e)?.lost && attempt === 0 && !this.closed) continue; throw e; }
+      try {
+        return await request(ch, head, body, init.signal);
+      } catch (e) {
+        if (/** @type {any} */ (e)?.lost && attempt === 0 && !this.closed) continue;
+        throw e;
+      }
     }
   }
 
@@ -557,7 +775,16 @@ export class Connection {
    */
   events(path, o) {
     const f = followEvents((p, init) => this.fetch(p, init), path, { random: this.random, ...o });
-    const handle = { get lastEventId() { return f.lastEventId; }, reopen: () => f.reopen(), close: () => { f.close(); this.follows.delete(handle); } };
+    const handle = {
+      get lastEventId() {
+        return f.lastEventId;
+      },
+      reopen: () => f.reopen(),
+      close: () => {
+        f.close();
+        this.follows.delete(handle);
+      },
+    };
     this.follows.add(handle);
     return handle;
   }
@@ -570,8 +797,12 @@ export class Connection {
    */
   socket(path, o = {}) {
     const sock = new RelaySocket();
-    this.ready().then(ch => { if (sock.readyState === 0) sock.attach(ch, path, lowerHeaders(o.headers)); },
-      e => sock.finish(1006, String(e.message)));
+    this.ready().then(
+      (ch) => {
+        if (sock.readyState === 0) sock.attach(ch, path, lowerHeaders(o.headers));
+      },
+      (e) => sock.finish(1006, String(e.message)),
+    );
     return sock;
   }
 
@@ -604,27 +835,48 @@ async function newKey(crypto) {
  */
 export function request(ch, head, body, signal) {
   return new Promise((resolve, reject) => {
-    if (signal?.aborted) { reject(abortError()); return; }
+    if (signal?.aborted) {
+      reject(abortError());
+      return;
+    }
     let s;
-    try { s = ch.open(head); } catch (e) { reject(e); return; }
+    try {
+      s = ch.open(head);
+    } catch (e) {
+      reject(e);
+      return;
+    }
     const pipe = new Pipe();
     let answered = false;
-    const onAbort = () => { s.reset("cancelled"); const e = abortError(); if (answered) pipe.fail(e); else reject(e); };
+    const onAbort = () => {
+      s.reset("cancelled");
+      const e = abortError();
+      if (answered) pipe.fail(e);
+      else reject(e);
+    };
     signal?.addEventListener?.("abort", onAbort, { once: true });
     const cleanup = () => signal?.removeEventListener?.("abort", onAbort);
-    pipe.oncancel = () => { cleanup(); s.reset("cancelled"); };
-    s.onhead = h => {
+    pipe.oncancel = () => {
+      cleanup();
+      s.reset("cancelled");
+    };
+    s.onhead = (h) => {
       if (answered) return;
       answered = true;
       resolve(makeResponse(Number(h && h.status) || 0, (h && h.headers) || {}, pipe, { path: head.path }));
     };
-    s.ondata = c => pipe.push(c);
-    s.onend = () => { cleanup(); if (!answered) reject(new Error("the box ended the stream without a response")); pipe.end(); };
-    s.onreset = reason => {
+    s.ondata = (c) => pipe.push(c);
+    s.onend = () => {
+      cleanup();
+      if (!answered) reject(new Error("the box ended the stream without a response"));
+      pipe.end();
+    };
+    s.onreset = (reason) => {
       cleanup();
       const lost = ch.closed;
       const e = Object.assign(new Error(lost ? `connection lost: ${reason}` : `request reset: ${reason}`), { lost });
-      if (answered) pipe.fail(e); else reject(e);
+      if (answered) pipe.fail(e);
+      else reject(e);
     };
     if (body.length) s.write(body);
     s.end();
@@ -645,21 +897,30 @@ export class RelaySocket {
   /** @param {import("./channel.js").Channel} ch @param {string} path @param {Record<string, string>} headers */
   attach(ch, path, headers) {
     let s;
-    try { s = ch.open({ ws: path, headers }); } catch (e) { this.finish(1006, "connection lost"); return; }
+    try {
+      s = ch.open({ ws: path, headers });
+    } catch (e) {
+      this.finish(1006, "connection lost");
+      return;
+    }
     this.stream = s;
-    s.onhead = h => {
-      if (h && h.status === 101) { this.readyState = 1; this.onopen?.({}); return; }
+    s.onhead = (h) => {
+      if (h && h.status === 101) {
+        this.readyState = 1;
+        this.onopen?.({});
+        return;
+      }
       this.onerror?.({ status: h && h.status });
       s.reset("refused");
       this.finish(1006, `refused: ${h && h.status}`);
     };
-    s.ondata = c => {
+    s.ondata = (c) => {
       if (this.readyState !== 1 || !c.length) return;
       const m = c.subarray(1);
       this.onmessage?.({ data: c[0] === 1 ? fromUtf8(m) : Uint8Array.prototype.slice.call(m).buffer });
     };
     s.onend = () => this.finish(1000, "");
-    s.onreset = r => this.finish(1006, r);
+    s.onreset = (r) => this.finish(1006, r);
   }
   /** One message, one frame: a WebSocket message is never split. @param {string|Uint8Array|ArrayBuffer} data */
   send(data) {

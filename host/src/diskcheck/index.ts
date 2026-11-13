@@ -13,7 +13,11 @@ export interface DiskVerdict {
   /** one sentence for the person, with the next step when it is not healthy */
   detail: string;
   /** what was looked at, for the support bundle: the mount source, the volume, the method */
-  evidence: { method: "filevault" | "diskutil" | "luks" | "zfs" | "ecryptfs" | "none"; volume?: string; fsType?: string };
+  evidence: {
+    method: "filevault" | "diskutil" | "luks" | "zfs" | "ecryptfs" | "none";
+    volume?: string;
+    fsType?: string;
+  };
 }
 
 export interface Probe {
@@ -42,11 +46,16 @@ export function parseDiskutil(out: string): boolean | null {
   return /^\s*Volume Name:/im.test(out) ? false : null;
 }
 
-export interface Mount { source: string; target: string; fsType: string }
+export interface Mount {
+  source: string;
+  target: string;
+  fsType: string;
+}
 
 /** /proc/mounts: "source target fstype options 0 0", with spaces in paths written as \040. */
 export function parseMounts(text: string): Mount[] {
-  const unescape = (s: string): string => s.replace(/\\([0-7]{3})/g, (_m, o: string) => String.fromCharCode(parseInt(o, 8)));
+  const unescape = (s: string): string =>
+    s.replace(/\\([0-7]{3})/g, (_m, o: string) => String.fromCharCode(parseInt(o, 8)));
   const out: Mount[] = [];
   for (const line of text.split("\n")) {
     const f = line.trim().split(/\s+/);
@@ -86,7 +95,10 @@ const FIX_MAC = "Turn on FileVault in System Settings, Privacy and Security, the
 const FIX_LINUX = "Put the data directory on a LUKS or dm-crypt volume, then run vyre-server doctor.";
 
 const verdict = (encrypted: boolean | null, detail: string, evidence: DiskVerdict["evidence"]): DiskVerdict => ({
-  encrypted, state: encrypted === true ? "healthy" : encrypted === false ? "down" : "degraded", detail, evidence,
+  encrypted,
+  state: encrypted === true ? "healthy" : encrypted === false ? "down" : "degraded",
+  detail,
+  evidence,
 });
 
 async function onMac(p: Probe, dataDir: string): Promise<DiskVerdict> {
@@ -95,7 +107,12 @@ async function onMac(p: Probe, dataDir: string): Promise<DiskVerdict> {
     const enc = d.code === 0 ? parseDiskutil(d.stdout) : null;
     const vol = dataDir.split("/").slice(0, 3).join("/");
     if (enc === true) return verdict(true, `${vol} is an encrypted volume.`, { method: "diskutil", volume: vol });
-    if (enc === false) return verdict(false, `${vol} is not encrypted. Encrypt the volume in Disk Utility or keep the data directory on the startup disk with FileVault on.`, { method: "diskutil", volume: vol });
+    if (enc === false)
+      return verdict(
+        false,
+        `${vol} is not encrypted. Encrypt the volume in Disk Utility or keep the data directory on the startup disk with FileVault on.`,
+        { method: "diskutil", volume: vol },
+      );
     return verdict(null, `Could not read the encryption state of ${vol}.`, { method: "diskutil", volume: vol });
   }
   const r = await p.run("fdesetup", ["status"]);
@@ -110,17 +127,27 @@ async function onLinux(p: Probe, dataDir: string): Promise<DiskVerdict> {
   const m = text === null ? null : mountFor(parseMounts(text), dataDir);
   if (!m) return verdict(null, "Could not find the volume that holds the data directory.", { method: "none" });
   const ev = { volume: m.source, fsType: m.fsType };
-  if (m.fsType === "ecryptfs" || m.fsType === "fuse.gocryptfs" || m.fsType === "fuse.encfs") return verdict(true, `${m.target} is an encrypted file system (${m.fsType}).`, { method: "ecryptfs", ...ev });
+  if (m.fsType === "ecryptfs" || m.fsType === "fuse.gocryptfs" || m.fsType === "fuse.encfs")
+    return verdict(true, `${m.target} is an encrypted file system (${m.fsType}).`, { method: "ecryptfs", ...ev });
   if (m.fsType === "zfs") {
     const z = await p.run("zfs", ["get", "-H", "-o", "value", "encryption", m.source]);
     const enc = z.code === 0 ? parseZfsEncryption(z.stdout) : null;
     if (enc === true) return verdict(true, `${m.source} is an encrypted ZFS dataset.`, { method: "zfs", ...ev });
-    if (enc === false) return verdict(false, `${m.source} is a ZFS dataset without encryption. Create an encrypted dataset for the data directory.`, { method: "zfs", ...ev });
+    if (enc === false)
+      return verdict(
+        false,
+        `${m.source} is a ZFS dataset without encryption. Create an encrypted dataset for the data directory.`,
+        { method: "zfs", ...ev },
+      );
     return verdict(null, `Could not read the encryption of ${m.source}.`, { method: "zfs", ...ev });
   }
   if (!m.source.startsWith("/dev/")) {
     // overlay, tmpfs, nfs, fuse: there is no block device to look under
-    return verdict(null, `The data directory is on ${m.fsType} (${m.source}), which cannot be checked from here. Mount an encrypted volume at the data directory.`, { method: "none", ...ev });
+    return verdict(
+      null,
+      `The data directory is on ${m.fsType} (${m.source}), which cannot be checked from here. Mount an encrypted volume at the data directory.`,
+      { method: "none", ...ev },
+    );
   }
   const t = await p.run("lsblk", ["-s", "-n", "-o", "TYPE", m.source]);
   if (t.code !== 0) return verdict(null, `Could not inspect ${m.source}.`, { method: "luks", ...ev });
@@ -132,7 +159,9 @@ async function onLinux(p: Probe, dataDir: string): Promise<DiskVerdict> {
 export async function checkDiskEncryption(p: Probe, dataDir: string): Promise<DiskVerdict> {
   if (p.os === "darwin") return onMac(p, dataDir);
   if (p.os === "linux") return onLinux(p, dataDir);
-  return verdict(null, `Disk encryption cannot be checked on ${p.os}. Vyre Server runs on Linux or Mac.`, { method: "none" });
+  return verdict(null, `Disk encryption cannot be checked on ${p.os}. Vyre Server runs on Linux or Mac.`, {
+    method: "none",
+  });
 }
 
 /** The installer's gate: only a proven encrypted volume lets it continue. */

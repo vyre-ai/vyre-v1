@@ -13,6 +13,8 @@ export function createSourcesSecretResolver(vault: Pick<VaultPort, "secret">, sp
     try {
       const value = await vault.secret(handle, space);
       return value ? value : undefined;
-    } catch { return undefined; }
+    } catch {
+      return undefined;
+    }
   };
 }

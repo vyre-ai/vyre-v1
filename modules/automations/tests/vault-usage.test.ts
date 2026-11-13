@@ -7,24 +7,62 @@ import { vaultUsage } from "../handlers/vault-usage.ts";
 
 const SENTINEL = "sk_live_SECRET_VALUE";
 
-async function mk(h: ReturnType<typeof harness>, name: string, nodes: ReturnType<typeof node>[], who = alice): Promise<string> {
+async function mk(
+  h: ReturnType<typeof harness>,
+  name: string,
+  nodes: ReturnType<typeof node>[],
+  who = alice,
+): Promise<string> {
   const def = goodDefinition({ nodes });
   return (await h.call("automations.create", create({ name, definition: def }), who)).automation.id as string;
 }
 
 test("a step that names #Acme_API.api_key counts as a use of the item #Acme_API, with the step title", async () => {
   const h = harness();
-  const id = await mk(h, "Sync invoices", [node("n1", "http_request", { method: "GET", url: "https://api.acme.example/v1/invoices", auth: { kind: "bearer", handle: "#Acme_API.api_key" } }, { title: "Read invoices" })]);
+  const id = await mk(h, "Sync invoices", [
+    node(
+      "n1",
+      "http_request",
+      {
+        method: "GET",
+        url: "https://api.acme.example/v1/invoices",
+        auth: { kind: "bearer", handle: "#Acme_API.api_key" },
+      },
+      { title: "Read invoices" },
+    ),
+  ]);
   const out = await vaultUsage(h.ctxFor("automations.vault_usage", alice), {});
-  assert.deepEqual(out, { uses: [{ handle: "#Acme_API", automations: [{ automationId: id, name: "Sync invoices", status: "draft", steps: [{ nodeId: "n1", title: "Read invoices" }] }] }] });
+  assert.deepEqual(out, {
+    uses: [
+      {
+        handle: "#Acme_API",
+        automations: [
+          {
+            automationId: id,
+            name: "Sync invoices",
+            status: "draft",
+            steps: [{ nodeId: "n1", title: "Read invoices" }],
+          },
+        ],
+      },
+    ],
+  });
   assert.equal(JSON.stringify(out).includes(SENTINEL), false);
 });
 
 test("one item asked for returns only that item; a step without a title shows its kind", async () => {
   const h = harness();
   await mk(h, "Two keys", [
-    node("n1", "http_request", { method: "GET", url: "https://a.example/x", auth: { kind: "bearer", handle: "#Acme_API" } }),
-    node("n2", "http_request", { method: "GET", url: "https://b.example/x", auth: { kind: "bearer", handle: "#Other_Key.token" } }),
+    node("n1", "http_request", {
+      method: "GET",
+      url: "https://a.example/x",
+      auth: { kind: "bearer", handle: "#Acme_API" },
+    }),
+    node("n2", "http_request", {
+      method: "GET",
+      url: "https://b.example/x",
+      auth: { kind: "bearer", handle: "#Other_Key.token" },
+    }),
   ]);
   const one = await vaultUsage(h.ctxFor("automations.vault_usage", alice), { handle: "#Acme_API.api_key" });
   assert.equal(one.uses.length, 1);
@@ -35,32 +73,99 @@ test("one item asked for returns only that item; a step without a title shows it
 
 test("an Automation the caller cannot see is not listed", async () => {
   const h = harness();
-  await mk(h, "Private", [node("n1", "http_request", { method: "GET", url: "https://a.example/x", auth: { kind: "bearer", handle: "#Acme_API" } })]);
+  await mk(h, "Private", [
+    node("n1", "http_request", {
+      method: "GET",
+      url: "https://a.example/x",
+      auth: { kind: "bearer", handle: "#Acme_API" },
+    }),
+  ]);
   assert.deepEqual(await vaultUsage(h.ctxFor("automations.vault_usage", bob), {}), { uses: [] });
 });
 
 test("a connector step counts as a use of the Vault item behind its connection", async () => {
-  const h = harness({ calls: {
-    "connections.list": () => ({ connections: [{ connectionId: "con_acme", handles: ["#Acme_API.api_key"] }, { connectionId: "con_other", handles: ["#Other"] }] }),
-    // the person who builds the step may use the key behind the connection
-    "vault.items.list": () => ({ items: [{ id: "vit_acme", handle: "#Acme_API", yourLevel: "use" }] }),
-  } });
-  const id = await mk(h, "Invoices", [node("n1", "connector_request", { connector: "acme", action: "list_invoices", connectionId: "con_acme" }, { title: "Acme: List invoices" })]);
+  const h = harness({
+    calls: {
+      "connections.list": () => ({
+        connections: [
+          { connectionId: "con_acme", handles: ["#Acme_API.api_key"] },
+          { connectionId: "con_other", handles: ["#Other"] },
+        ],
+      }),
+      // the person who builds the step may use the key behind the connection
+      "vault.items.list": () => ({ items: [{ id: "vit_acme", handle: "#Acme_API", yourLevel: "use" }] }),
+    },
+  });
+  const id = await mk(h, "Invoices", [
+    node(
+      "n1",
+      "connector_request",
+      { connector: "acme", action: "list_invoices", connectionId: "con_acme" },
+      { title: "Acme: List invoices" },
+    ),
+  ]);
   const out = await vaultUsage(h.ctxFor("automations.vault_usage", alice), { handle: "#Acme_API" });
-  assert.deepEqual(out.uses.map((u) => [u.handle, u.automations[0]!.automationId, u.automations[0]!.steps[0]!.title]), [["#Acme_API", id, "Acme: List invoices"]]);
+  assert.deepEqual(
+    out.uses.map((u) => [u.handle, u.automations[0]!.automationId, u.automations[0]!.steps[0]!.title]),
+    [["#Acme_API", id, "Acme: List invoices"]],
+  );
   assert.deepEqual((await vaultUsage(h.ctxFor("automations.vault_usage", alice), { handle: "#Other" })).uses, []);
 });
 
 test("asked about one item it can see, the caller also learns how many Automations it cannot open use it; never for an item it cannot see", async () => {
   // alice keeps the key and may use it; bob sees the handles listed here
-  const sees = (handles: string[]) => ({ "vault.items.list": (_i: unknown, who: { id: string }) => ({ items: (who.id === alice.id ? ["#Acme_API"] : handles).map((h, i) => ({ id: `vit_${i}`, handle: h, yourLevel: "use" })) }) });
+  const sees = (handles: string[]) => ({
+    "vault.items.list": (_i: unknown, who: { id: string }) => ({
+      items: (who.id === alice.id ? ["#Acme_API"] : handles).map((h, i) => ({
+        id: `vit_${i}`,
+        handle: h,
+        yourLevel: "use",
+      })),
+    }),
+  });
   const h = harness({ calls: sees(["#Acme_API"]) });
-  await mk(h, "Private one", [node("n1", "http_request", { method: "GET", url: "https://a.example/x", auth: { kind: "bearer", handle: "#Acme_API" } })]);
-  await mk(h, "Private two", [node("n1", "http_request", { method: "GET", url: "https://a.example/y", auth: { kind: "bearer", handle: "#Acme_API.api_key" } })]);
-  const mine = await mk(h, "Bob's own", [node("n1", "http_request", { method: "GET", url: "https://a.example/z", auth: { kind: "bearer", handle: "#Acme_API" } })], bob);
+  await mk(h, "Private one", [
+    node("n1", "http_request", {
+      method: "GET",
+      url: "https://a.example/x",
+      auth: { kind: "bearer", handle: "#Acme_API" },
+    }),
+  ]);
+  await mk(h, "Private two", [
+    node("n1", "http_request", {
+      method: "GET",
+      url: "https://a.example/y",
+      auth: { kind: "bearer", handle: "#Acme_API.api_key" },
+    }),
+  ]);
+  const mine = await mk(
+    h,
+    "Bob's own",
+    [
+      node("n1", "http_request", {
+        method: "GET",
+        url: "https://a.example/z",
+        auth: { kind: "bearer", handle: "#Acme_API" },
+      }),
+    ],
+    bob,
+  );
   const out = await vaultUsage(h.ctxFor("automations.vault_usage", bob), { handle: "#Acme_API" });
-  assert.deepEqual(out.uses.map((u) => [u.handle, u.automations.map((a) => a.automationId), u.hidden]), [["#Acme_API", [mine], 2]]);
+  assert.deepEqual(
+    out.uses.map((u) => [u.handle, u.automations.map((a) => a.automationId), u.hidden]),
+    [["#Acme_API", [mine], 2]],
+  );
   const blind = harness({ calls: sees([]) });
-  await mk(blind, "Private", [node("n1", "http_request", { method: "GET", url: "https://a.example/x", auth: { kind: "bearer", handle: "#Acme_API" } })]);
-  assert.deepEqual(await vaultUsage(blind.ctxFor("automations.vault_usage", bob), { handle: "#Acme_API" }), { uses: [] }, "an item the caller cannot see gets no count");
+  await mk(blind, "Private", [
+    node("n1", "http_request", {
+      method: "GET",
+      url: "https://a.example/x",
+      auth: { kind: "bearer", handle: "#Acme_API" },
+    }),
+  ]);
+  assert.deepEqual(
+    await vaultUsage(blind.ctxFor("automations.vault_usage", bob), { handle: "#Acme_API" }),
+    { uses: [] },
+    "an item the caller cannot see gets no count",
+  );
 });

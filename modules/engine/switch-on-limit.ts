@@ -30,15 +30,20 @@ export interface LimitSwitchDeps {
 export const LIMIT_REST_MS = 10 * 60_000;
 
 /** A key billed by use, unlike a subscription already paid for or a local model. */
-export const isPaid = (a: Pick<ResolvedAccount, "kind" | "keyless">): boolean => a.kind === "api_key" && a.keyless !== true;
+export const isPaid = (a: Pick<ResolvedAccount, "kind" | "keyless">): boolean =>
+  a.kind === "api_key" && a.keyless !== true;
 /** The turn ends with this: the next account would cost money and nobody has said yes. */
 export const PAID_FALLBACK = "paid_fallback";
 /** What the model_switch card says when the first account ran out. */
 export const LIMIT_LINE = "The first account ran out of its limit, so this answer came from the next one.";
 /** What it says when the vendor was busy (owner ruling, 3 Nov 2026: overloaded is not a limit; Vyre tried the same account once more first). */
-export const OVERLOADED_LINE = "The first account's service was overloaded, so after one more try this answer came from the next one.";
+export const OVERLOADED_LINE =
+  "The first account's service was overloaded, so after one more try this answer came from the next one.";
 
-export function createLimitSwitch(d: LimitSwitchDeps): { resolve(q: AccountQuery): Promise<ResolvedAccount | null>; next(q: AccountQuery): Promise<ResolvedAccount | null> } {
+export function createLimitSwitch(d: LimitSwitchDeps): {
+  resolve(q: AccountQuery): Promise<ResolvedAccount | null>;
+  next(q: AccountQuery): Promise<ResolvedAccount | null>;
+} {
   const now = d.now ?? Date.now;
   const resting = new Map<string, Map<string, number>>();
   const key = (q: AccountQuery): string => `${q.threadId}|${q.agentId}`;
@@ -56,9 +61,13 @@ export function createLimitSwitch(d: LimitSwitchDeps): { resolve(q: AccountQuery
 
   async function mayAct(q: AccountQuery): Promise<boolean> {
     try {
-      const a = (await d.call("agents.get", { agentId: q.agentId }, q.askerId)) as { agent?: { switchOnLimit?: boolean } };
+      const a = (await d.call("agents.get", { agentId: q.agentId }, q.askerId)) as {
+        agent?: { switchOnLimit?: boolean };
+      };
       return a.agent?.switchOnLimit !== false;
-    } catch { return true; }
+    } catch {
+      return true;
+    }
   }
 
   /**
@@ -70,7 +79,14 @@ export function createLimitSwitch(d: LimitSwitchDeps): { resolve(q: AccountQuery
     return isPaid(to) && fellBack && to.reason !== "backup_key" && d.paidOk?.(q, to.ref) !== true;
   }
   async function stopFor(q: AccountQuery, to: ResolvedAccount): Promise<never> {
-    try { await d.askToPay?.(q, to); } catch (e) { d.log?.("the paid key could not be offered", { threadId: q.threadId, error: e instanceof Error ? e.message : String(e) }); }
+    try {
+      await d.askToPay?.(q, to);
+    } catch (e) {
+      d.log?.("the paid key could not be offered", {
+        threadId: q.threadId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
     throw Object.assign(new Error("A paid key could answer, and that is yours to decide."), { code: PAID_FALLBACK });
   }
 
@@ -83,19 +99,44 @@ export function createLimitSwitch(d: LimitSwitchDeps): { resolve(q: AccountQuery
       const fromProvider = (await d.providerOf?.(failed, q.askerId).catch(() => undefined)) ?? "unknown";
       const side = (provider: string) => ({ provider, model, ...(s.effort !== undefined ? { effort: s.effort } : {}) });
       await d.postAs(q.agentId, {
-        actingFor: q.askerId, threadId: q.threadId, body: "", mentions: [], clientId: BRIDGE_PREFIX + mintId("b").slice(2),
-        blocks: [{ type: "model_switch", v: 1, data: { threadId: q.threadId, agentId: q.agentId, scope: "thread", from: side(fromProvider), to: side(to.provider), reason } }],
+        actingFor: q.askerId,
+        threadId: q.threadId,
+        body: "",
+        mentions: [],
+        clientId: BRIDGE_PREFIX + mintId("b").slice(2),
+        blocks: [
+          {
+            type: "model_switch",
+            v: 1,
+            data: {
+              threadId: q.threadId,
+              agentId: q.agentId,
+              scope: "thread",
+              from: side(fromProvider),
+              to: side(to.provider),
+              reason,
+            },
+          },
+        ],
       });
-    } catch (e) { d.log?.("the account switch could not be shown in the chat", { threadId: q.threadId, error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e) {
+      d.log?.("the account switch could not be shown in the chat", {
+        threadId: q.threadId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
 
   return {
     /** Before every turn: the account that pays, skipping the ones that just ran out in this chat. */
     resolve: async (q) => {
-      const first = (await d.accountFor(withResting(q))) ?? (restingRefs(q).length > 0 ? await d.accountFor(q) : null);   // nothing else left: try the resting account again rather than stop
+      const first = (await d.accountFor(withResting(q))) ?? (restingRefs(q).length > 0 ? await d.accountFor(q) : null); // nothing else left: try the resting account again rather than stop
       if (!first || !(await mustAsk(q, first))) return first;
       // the account that ran out may be back: try it before asking anyone to pay
-      if (restingRefs(q).length > 0) { const rested = await d.accountFor(q); if (rested && !(await mustAsk(q, rested))) return rested; }
+      if (restingRefs(q).length > 0) {
+        const rested = await d.accountFor(q);
+        if (rested && !(await mustAsk(q, rested))) return rested;
+      }
       return stopFor(q, first);
     },
     /** After a limit or sign-in failure: the next usable account, or null when the agent keeps to one account or none is left. */

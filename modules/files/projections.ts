@@ -12,7 +12,9 @@ export interface ProjEvent {
   payload: Uint8Array;
 }
 
-interface RecentRow { at?: unknown }
+interface RecentRow {
+  at?: unknown;
+}
 
 function fileIdOf(payload: Uint8Array): string | null {
   try {

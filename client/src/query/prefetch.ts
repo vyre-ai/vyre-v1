@@ -9,11 +9,23 @@ import type { ListDef, QueryDef } from "./types.ts";
 export const HOVER_DELAY_MS = 50;
 
 export type Def = ({ kind: "query" } & QueryDef<never, unknown>) | ({ kind: "list" } & ListDef<never, unknown>);
-export const asQuery = <I, O>(d: QueryDef<I, O>): Def => ({ kind: "query", ...(d as unknown as QueryDef<never, unknown>) });
+export const asQuery = <I, O>(d: QueryDef<I, O>): Def => ({
+  kind: "query",
+  ...(d as unknown as QueryDef<never, unknown>),
+});
 export const asList = <I, R>(d: ListDef<I, R>): Def => ({ kind: "list", ...(d as unknown as ListDef<never, unknown>) });
 
-export interface OpenResult { prefetched: boolean; firstPaintMs: number; served: number; skipped: string[] }
-export interface PrefetchStats { opens: number; hits: number; hitRate: number }
+export interface OpenResult {
+  prefetched: boolean;
+  firstPaintMs: number;
+  served: number;
+  skipped: string[];
+}
+export interface PrefetchStats {
+  opens: number;
+  hits: number;
+  hitRate: number;
+}
 
 export interface Prefetcher {
   /** Pointer entered a link or row for this screen. Starts the 50 ms timer. */
@@ -54,28 +66,41 @@ export function createPrefetcher(o: {
   const warmed = new Set<string>();
   const counts = { opens: 0, hits: 0 };
 
-  const run = (screenId: string, args: Record<string, unknown>, warm: boolean): { served: number; skipped: string[] } => {
+  const run = (
+    screenId: string,
+    args: Record<string, unknown>,
+    warm: boolean,
+  ): { served: number; skipped: string[] } => {
     const screen = o.screens.get(screenId);
     if (!screen) throw new Error(`unknown screen ${screenId}`);
     let served = 0;
     const skipped: string[] = [];
     for (const [name, q] of Object.entries(screen.queries)) {
       const def = o.defs.get(q.cap);
-      if (!q.live || !def) { skipped.push(name); continue; }
+      if (!q.live || !def) {
+        skipped.push(name);
+        continue;
+      }
       const input = inputOf(q.input, args);
       if (def.kind === "query") {
         const d = def as unknown as QueryDef<unknown, unknown>;
-        if (warm) o.client.prefetch(d, input); else o.client.query(d, input).getSnapshot();
+        if (warm) o.client.prefetch(d, input);
+        else o.client.query(d, input).getSnapshot();
       } else {
         const d = def as unknown as ListDef<unknown, unknown>;
-        if (warm) o.client.prefetchList(d, input); else { const s = o.client.list(d, input).getSnapshot(); if (s.status === "ready") s.data.rows(0, 50); }
+        if (warm) o.client.prefetchList(d, input);
+        else {
+          const s = o.client.list(d, input).getSnapshot();
+          if (s.status === "ready") s.data.rows(0, 50);
+        }
       }
       served++;
     }
     return { served, skipped };
   };
 
-  const keyOf = (screenId: string, args: Record<string, unknown>): string => screenKey(o.client.spaceId, screenId, args);
+  const keyOf = (screenId: string, args: Record<string, unknown>): string =>
+    screenKey(o.client.spaceId, screenId, args);
 
   const warm = (screenId: string, args: Record<string, unknown>): void => {
     run(screenId, args, true);
@@ -87,7 +112,13 @@ export function createPrefetcher(o: {
     hover(screenId, args = {}) {
       const k = keyOf(screenId, args);
       if (timers.has(k) || warmed.has(k)) return;
-      timers.set(k, o.scheduler.after(delay, () => { timers.delete(k); warm(screenId, args); }));
+      timers.set(
+        k,
+        o.scheduler.after(delay, () => {
+          timers.delete(k);
+          warm(screenId, args);
+        }),
+      );
     },
     leave(screenId, args = {}) {
       const k = keyOf(screenId, args);

@@ -4,13 +4,25 @@ import type { ReactElement } from "react";
 import { Card, CardActions, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 import type { QuestionOption } from "./model.ts";
 
-export function QuestionCard({ id, prompt, options, onAnswer }: { id: string; prompt: string; options: readonly QuestionOption[]; onAnswer: (optionId: string) => void }): ReactElement {
+export function QuestionCard({
+  id,
+  prompt,
+  options,
+  onAnswer,
+}: {
+  id: string;
+  prompt: string;
+  options: readonly QuestionOption[];
+  onAnswer: (optionId: string) => void;
+}): ReactElement {
   const [first, ...rest] = options;
   return (
     <Card kind="decision" size="compact" testID={`question-card-${id}`} label={prompt}>
       <CardHead title={prompt} />
       <CardActions
-        {...(first ? { primary: { label: first.label, testID: `option-${id}-${first.id}`, onPress: () => onAnswer(first.id) } } : {})}
+        {...(first
+          ? { primary: { label: first.label, testID: `option-${id}-${first.id}`, onPress: () => onAnswer(first.id) } }
+          : {})}
         secondary={rest.map((o) => ({ label: o.label, testID: `option-${id}-${o.id}`, onPress: () => onAnswer(o.id) }))}
       />
     </Card>

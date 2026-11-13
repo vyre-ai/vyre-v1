@@ -10,6 +10,12 @@ export const title = "Cmd-K";
 const data = createSampleData({ serverDelayMs: 30 }).data;
 
 export default function Mount(): ReactNode {
-  const q = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("q") ?? "referral";
-  return <View style={{ flex: 1, backgroundColor: "var(--win)" }}><CmdK data={data} initialQuery={q} /></View>;
+  const q =
+    new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("q") ??
+    "referral";
+  return (
+    <View style={{ flex: 1, backgroundColor: "var(--win)" }}>
+      <CmdK data={data} initialQuery={q} />
+    </View>
+  );
 }

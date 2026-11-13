@@ -9,7 +9,7 @@ export type Scope =
   | { kind: "mailbox"; id: string }
   | { kind: "number"; id: string }
   | { kind: "starred" }
-  | { kind: "follow" }
+  | { kind: "follow" };
 export type MainView = "list" | "calendar" | "connect" | "meetings" | "replies";
 
 export interface InboxState {
@@ -28,7 +28,16 @@ export interface InboxState {
 }
 
 export const INITIAL_STATE: InboxState = {
-  main: "list", view: "contact", scope: { kind: "all" }, channels: [], inboxes: [], needsMatch: false, query: "", selected: null, closed: [], hiddenCalendars: [],
+  main: "list",
+  view: "contact",
+  scope: { kind: "all" },
+  channels: [],
+  inboxes: [],
+  needsMatch: false,
+  query: "",
+  selected: null,
+  closed: [],
+  hiddenCalendars: [],
 };
 
 export type ContactRow = CapMap["inbox.list_by_contact"]["out"]["rows"][number];
@@ -40,7 +49,11 @@ export type Counts = CapMap["inbox.counts"]["out"];
 
 export const SCREENS = { sidebar: "inbox.sidebar", list: "inbox.contact-list" } as const;
 
-export const VIEW_LABEL: Record<View, string> = { contact: "By contact", thread: "By conversation", calls: "Calls only" };
+export const VIEW_LABEL: Record<View, string> = {
+  contact: "By contact",
+  thread: "By conversation",
+  calls: "Calls only",
+};
 export const CHANNEL_LABEL: Record<Channel, string> = { email: "Email", sms: "Text", call: "Call" };
 export const CHANNELS: readonly Channel[] = ["email", "sms", "call"];
 
@@ -103,17 +116,42 @@ export function inboxName(id: string | undefined, mailboxes: readonly Mailbox[])
 
 export function contactEntry(r: ContactRow, mailboxes: readonly Mailbox[]): Entry {
   return {
-    key: r.id, kind: "contact", name: r.displayName || r.address, snippet: r.lastPreview, at: r.lastMessageAt, unread: r.unreadCount, channel: r.lastChannel,
-    via: inboxName(r.mailboxIds[0], mailboxes), inboxIds: r.mailboxIds, needsMatch: r.needsMatch, followed: r.followed, starred: r.starred === true,
-    missed: false, openId: r.id, ...(r.contactId ? { contactId: r.contactId } : {}),
+    key: r.id,
+    kind: "contact",
+    name: r.displayName || r.address,
+    snippet: r.lastPreview,
+    at: r.lastMessageAt,
+    unread: r.unreadCount,
+    channel: r.lastChannel,
+    via: inboxName(r.mailboxIds[0], mailboxes),
+    inboxIds: r.mailboxIds,
+    needsMatch: r.needsMatch,
+    followed: r.followed,
+    starred: r.starred === true,
+    missed: false,
+    openId: r.id,
+    ...(r.contactId ? { contactId: r.contactId } : {}),
   };
 }
 
 export function threadEntry(t: ThreadRow, mailboxes: readonly Mailbox[], names: ReadonlyMap<string, string>): Entry {
   const who = (t.contactId ? names.get(t.contactId) : undefined) ?? t.participants[0] ?? "Unknown";
   return {
-    key: t.threadId, kind: "thread", name: who, snippet: t.subject ?? "", at: t.lastAt, unread: t.unread, channel: t.channel, via: inboxName(t.mailboxId, mailboxes),
-    inboxIds: t.mailboxId ? [t.mailboxId] : [], needsMatch: false, followed: false, starred: false, missed: false, openId: t.threadId, ...(t.contactId ? { contactId: t.contactId } : {}),
+    key: t.threadId,
+    kind: "thread",
+    name: who,
+    snippet: t.subject ?? "",
+    at: t.lastAt,
+    unread: t.unread,
+    channel: t.channel,
+    via: inboxName(t.mailboxId, mailboxes),
+    inboxIds: t.mailboxId ? [t.mailboxId] : [],
+    needsMatch: false,
+    followed: false,
+    starred: false,
+    missed: false,
+    openId: t.threadId,
+    ...(t.contactId ? { contactId: t.contactId } : {}),
     // an email thread opens in its conversation, where it is one card; a text thread opens as before
     ...(t.channel === "email" && t.conversationId ? { conversationId: t.conversationId } : {}),
   };
@@ -121,7 +159,8 @@ export function threadEntry(t: ThreadRow, mailboxes: readonly Mailbox[], names: 
 
 export function duration(sec: number | undefined): string {
   if (sec === undefined) return "";
-  const m = Math.floor(sec / 60), s = sec % 60;
+  const m = Math.floor(sec / 60),
+    s = sec % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
@@ -133,8 +172,21 @@ export function callEntry(c: CallRow, names: ReadonlyMap<string, string>): Entry
   if (!missed && c.durationSec !== undefined) bits.push(duration(c.durationSec));
   if (c.summary) bits.push(c.summary);
   return {
-    key: c.id, kind: "call", name: (c.contactId ? names.get(c.contactId) : undefined) ?? other, snippet: bits.join(" · "), at: c.startedAt, unread: missed ? 1 : 0,
-    channel: "call", via: c.numberId, inboxIds: [c.numberId], needsMatch: c.contactId === undefined, followed: false, starred: false, missed, openId: c.id, ...(c.contactId ? { contactId: c.contactId } : {}),
+    key: c.id,
+    kind: "call",
+    name: (c.contactId ? names.get(c.contactId) : undefined) ?? other,
+    snippet: bits.join(" · "),
+    at: c.startedAt,
+    unread: missed ? 1 : 0,
+    channel: "call",
+    via: c.numberId,
+    inboxIds: [c.numberId],
+    needsMatch: c.contactId === undefined,
+    followed: false,
+    starred: false,
+    missed,
+    openId: c.id,
+    ...(c.contactId ? { contactId: c.contactId } : {}),
   };
 }
 
@@ -147,7 +199,11 @@ export function pinned(e: Entry): boolean {
 export function narrow(entries: readonly Entry[], s: InboxState): Entry[] {
   const out: Entry[] = [];
   for (const e of entries) {
-    if (s.channels.length > 0 && !(s.channels as readonly string[]).includes(e.channel === "meeting" ? "call" : e.channel)) continue;
+    if (
+      s.channels.length > 0 &&
+      !(s.channels as readonly string[]).includes(e.channel === "meeting" ? "call" : e.channel)
+    )
+      continue;
     if (s.inboxes.length > 0 && !e.inboxIds.some((id) => s.inboxes.includes(id))) continue;
     if (s.scope.kind === "starred" && !e.starred) continue;
     if (s.scope.kind === "follow" && !e.followed) continue;
@@ -162,11 +218,16 @@ export function narrow(entries: readonly Entry[], s: InboxState): Entry[] {
 
 export function scopeTitle(scope: Scope, mailboxes: readonly Mailbox[]): string {
   switch (scope.kind) {
-    case "all": return "All inboxes";
-    case "starred": return "Starred";
-    case "follow": return "Following";
-    case "mailbox": return inboxName(scope.id, mailboxes);
-    case "number": return scope.id;
+    case "all":
+      return "All inboxes";
+    case "starred":
+      return "Starred";
+    case "follow":
+      return "Following";
+    case "mailbox":
+      return inboxName(scope.id, mailboxes);
+    case "number":
+      return scope.id;
   }
 }
 
@@ -203,7 +264,8 @@ export function listTime(at: number, now: number, offsetMin: number): string {
   const age = dayOf(now, offsetMin) - dayOf(at, offsetMin);
   const local = new Date(at + offsetMin * 60_000);
   if (age <= 0) {
-    const h = local.getUTCHours(), m = local.getUTCMinutes();
+    const h = local.getUTCHours(),
+      m = local.getUTCMinutes();
     return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
   }
   if (age === 1) return "Yesterday";
@@ -213,25 +275,67 @@ export function listTime(at: number, now: number, offsetMin: number): string {
 
 // ---------------------------------------------------------------- the sidebar
 
-export interface NavGroup { key: "mine" | "shared" | "agent"; label: string; items: NavInbox[] }
+export interface NavGroup {
+  key: "mine" | "shared" | "agent";
+  label: string;
+  items: NavInbox[];
+}
 /** Whether a mailbox row wears the private-mailbox lock: only in a shared group (under Mine every mailbox is the person's alone, and a lock there read as a Vault lock). */
 export const showsLock = (group: string, b: { lock: boolean }): boolean => b.lock && group !== "mine";
-export interface NavInbox { id: string; label: string; scope: Scope; unread: number; lock: boolean; agent: boolean; channel: "email" | "sms" }
+export interface NavInbox {
+  id: string;
+  label: string;
+  scope: Scope;
+  unread: number;
+  lock: boolean;
+  agent: boolean;
+  channel: "email" | "sms";
+}
 
 /** Mine, Shared and Agents: mailboxes by kind, numbers under Mine (a number is assigned to one person). Unread counts come from inbox.counts. */
-export function navGroups(mailboxes: readonly Mailbox[], counts: Counts | null, numberInfo?: ReadonlyMap<string, { label: string; group: "mine" | "agent" }>): NavGroup[] {
+export function navGroups(
+  mailboxes: readonly Mailbox[],
+  counts: Counts | null,
+  numberInfo?: ReadonlyMap<string, { label: string; group: "mine" | "agent" }>,
+): NavGroup[] {
   const unread = new Map<string, number>();
   const numbers: string[] = [];
-  if (counts) for (const c of counts.byInbox) { unread.set(c.id, c.unread); if (c.kind === "number") numbers.push(c.id); }
-  const groups: NavGroup[] = [{ key: "mine", label: "Mine", items: [] }, { key: "shared", label: "Shared", items: [] }, { key: "agent", label: "Agents", items: [] }];
-  const put = (key: NavGroup["key"], item: NavInbox): void => { groups.find((g) => g.key === key)?.items.push(item); };
+  if (counts)
+    for (const c of counts.byInbox) {
+      unread.set(c.id, c.unread);
+      if (c.kind === "number") numbers.push(c.id);
+    }
+  const groups: NavGroup[] = [
+    { key: "mine", label: "Mine", items: [] },
+    { key: "shared", label: "Shared", items: [] },
+    { key: "agent", label: "Agents", items: [] },
+  ];
+  const put = (key: NavGroup["key"], item: NavInbox): void => {
+    groups.find((g) => g.key === key)?.items.push(item);
+  };
   for (const m of mailboxes) {
     const key = m.kind === "personal" ? "mine" : m.kind === "agent" ? "agent" : "shared";
-    put(key, { id: m.id, label: m.title, scope: { kind: "mailbox", id: m.id }, unread: unread.get(m.id) ?? 0, lock: m.privacy === "private", agent: m.kind === "agent", channel: "email" });
+    put(key, {
+      id: m.id,
+      label: m.title,
+      scope: { kind: "mailbox", id: m.id },
+      unread: unread.get(m.id) ?? 0,
+      lock: m.privacy === "private",
+      agent: m.kind === "agent",
+      channel: "email",
+    });
   }
   for (const id of numbers) {
     const info = numberInfo?.get(id);
-    put(info?.group ?? "mine", { id, label: info?.label ?? id, scope: { kind: "number", id }, unread: unread.get(id) ?? 0, lock: false, agent: info?.group === "agent", channel: "sms" });
+    put(info?.group ?? "mine", {
+      id,
+      label: info?.label ?? id,
+      scope: { kind: "number", id },
+      unread: unread.get(id) ?? 0,
+      lock: false,
+      agent: info?.group === "agent",
+      channel: "sms",
+    });
   }
   return groups.filter((g) => g.items.length > 0);
 }
@@ -239,7 +343,12 @@ export function navGroups(mailboxes: readonly Mailbox[], counts: Counts | null, 
 // ---------------------------------------------------------------- channels
 
 /** The ways to bring mail or texts in. `kind` is what InboxNav.connect takes; each opens the flow that already exists (mail connections, or the Vault's Twilio form). */
-export interface ConnectTile { kind: "gmail" | "outlook" | "imap" | "twilio"; brand: string; label: string; hint: string }
+export interface ConnectTile {
+  kind: "gmail" | "outlook" | "imap" | "twilio";
+  brand: string;
+  label: string;
+  hint: string;
+}
 export const CONNECT_TILES: readonly ConnectTile[] = [
   { kind: "gmail", brand: "gmail", label: "Gmail", hint: "Sign in with Google" },
   { kind: "outlook", brand: "microsoft", label: "Outlook", hint: "Sign in with Microsoft" },
@@ -287,20 +396,35 @@ export type Action =
 
 export function reduce(s: InboxState, a: Action): InboxState {
   switch (a.type) {
-    case "view": return { ...s, main: "list", view: a.view, selected: null };
-    case "scope": return { ...s, main: "list", scope: a.scope, selected: null };
-    case "channel": return { ...s, channels: toggled(s.channels, a.channel), selected: null };
-    case "inbox": return { ...s, inboxes: toggled(s.inboxes, a.id), selected: null };
-    case "needsMatch": return { ...s, needsMatch: !s.needsMatch, selected: null };
-    case "query": return { ...s, query: a.query, selected: null };
-    case "showAll": return { ...s, channels: [], inboxes: [], needsMatch: false, query: "", selected: null };
-    case "select": return { ...s, selected: a.key };
-    case "section": return { ...s, closed: toggled(s.closed, a.key) };
-    case "calendar": return { ...s, main: "calendar", selected: null };
-    case "meetings": return { ...s, main: "meetings", selected: null };
-    case "replies": return { ...s, main: "replies", selected: null };
-    case "connect": return { ...s, main: "connect", selected: null };
-    case "calendarVisible": return { ...s, hiddenCalendars: toggled(s.hiddenCalendars, a.id) };
-    case "calendarOnly": return { ...s, hiddenCalendars: a.all.filter((id) => id !== a.id) };
+    case "view":
+      return { ...s, main: "list", view: a.view, selected: null };
+    case "scope":
+      return { ...s, main: "list", scope: a.scope, selected: null };
+    case "channel":
+      return { ...s, channels: toggled(s.channels, a.channel), selected: null };
+    case "inbox":
+      return { ...s, inboxes: toggled(s.inboxes, a.id), selected: null };
+    case "needsMatch":
+      return { ...s, needsMatch: !s.needsMatch, selected: null };
+    case "query":
+      return { ...s, query: a.query, selected: null };
+    case "showAll":
+      return { ...s, channels: [], inboxes: [], needsMatch: false, query: "", selected: null };
+    case "select":
+      return { ...s, selected: a.key };
+    case "section":
+      return { ...s, closed: toggled(s.closed, a.key) };
+    case "calendar":
+      return { ...s, main: "calendar", selected: null };
+    case "meetings":
+      return { ...s, main: "meetings", selected: null };
+    case "replies":
+      return { ...s, main: "replies", selected: null };
+    case "connect":
+      return { ...s, main: "connect", selected: null };
+    case "calendarVisible":
+      return { ...s, hiddenCalendars: toggled(s.hiddenCalendars, a.id) };
+    case "calendarOnly":
+      return { ...s, hiddenCalendars: a.all.filter((id) => id !== a.id) };
   }
 }

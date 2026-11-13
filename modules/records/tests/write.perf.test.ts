@@ -15,7 +15,13 @@ const pct = (xs: number[], p: number) => {
 };
 
 /** 200 creates at 5 ms spacing against one store; returns the latencies and the wall time. */
-async function drive(store: { create(type: string, id: string, data: Record<string, unknown>): Promise<unknown>; define(d: never): Promise<unknown> }, tag: string): Promise<{ lat: number[]; wall: number }> {
+async function drive(
+  store: {
+    create(type: string, id: string, data: Record<string, unknown>): Promise<unknown>;
+    define(d: never): Promise<unknown>;
+  },
+  tag: string,
+): Promise<{ lat: number[]; wall: number }> {
   await store.define({ add_types: [ITEM] } as never);
   for (let i = 0; i < 20; i++) await store.create("item", mintRecordId(), { name: `w${i}` });
   const N = 200;
@@ -41,12 +47,22 @@ test("server_write p95 under 10 ms at 200 records creates per second", async () 
   const r = await drive(rec.store as never, "n");
   console.log(line("server_write", r));
   // a passing test prints nothing in the shard log, so the numbers also go to the job summary when CI gives one
-  if (process.env["GITHUB_STEP_SUMMARY"]) appendFileSync(process.env["GITHUB_STEP_SUMMARY"], `${line("server_write", r)}\n${line("server_write kernel only", base)}\n`);
+  if (process.env["GITHUB_STEP_SUMMARY"])
+    appendFileSync(
+      process.env["GITHUB_STEP_SUMMARY"],
+      `${line("server_write", r)}\n${line("server_write kernel only", base)}\n`,
+    );
   const p95 = pct(r.lat, 0.95);
   assert.ok(200 / r.wall >= 150, `the pacer kept up (${(200 / r.wall).toFixed(0)}/s)`);
-  assert.ok(p95 < 10, `p95 ${p95.toFixed(2)} ms must be under 10 ms (${line("server_write", r)}; ${line("kernel only", base)})`);
+  assert.ok(
+    p95 < 10,
+    `p95 ${p95.toFixed(2)} ms must be under 10 ms (${line("server_write", r)}; ${line("kernel only", base)})`,
+  );
   // Headroom: the budget is 10 ms, the runner must stay well inside it.
-  assert.ok(p95 < 7, `p95 ${p95.toFixed(2)} ms leaves too little headroom (${line("server_write", r)}; ${line("kernel only", base)})`);
+  assert.ok(
+    p95 < 7,
+    `p95 ${p95.toFixed(2)} ms leaves too little headroom (${line("server_write", r)}; ${line("kernel only", base)})`,
+  );
 });
 // run 1
 // run 2

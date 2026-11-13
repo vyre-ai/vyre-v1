@@ -12,7 +12,20 @@ import { viewing } from "./viewing.ts";
 import type { OsBanner } from "../notifications/os-banner.ts";
 import type { Notification } from "../notifications/model.ts";
 
-const note = (id: string, thread: string, over: Partial<Notification> = {}): Notification => ({ id, kind: "mention", level: "interrupt", place: "chats", title: `Dana mentioned you (${id})`, count: 1, at: 1, subject: { type: "thread", id: thread }, actions: [], spaceId: "spc_1", ...over }) as Notification;
+const note = (id: string, thread: string, over: Partial<Notification> = {}): Notification =>
+  ({
+    id,
+    kind: "mention",
+    level: "interrupt",
+    place: "chats",
+    title: `Dana mentioned you (${id})`,
+    count: 1,
+    at: 1,
+    subject: { type: "thread", id: thread },
+    actions: [],
+    spaceId: "spc_1",
+    ...over,
+  }) as Notification;
 
 function setup(focused: boolean) {
   const store = createNoticeStore();
@@ -20,13 +33,32 @@ function setup(focused: boolean) {
   let items: Notification[] = [];
   const shown: OsBanner[] = [];
   const p = {
-    query: () => ({ subscribe: (l: () => void) => { listeners.add(l); return () => void listeners.delete(l); }, getSnapshot: () => ({ status: "ready", data: { notifications: items, hasMore: false } }) }),
+    query: () => ({
+      subscribe: (l: () => void) => {
+        listeners.add(l);
+        return () => void listeners.delete(l);
+      },
+      getSnapshot: () => ({ status: "ready", data: { notifications: items, hasMore: false } }),
+    }),
     call: async (cap: string) => (cap === "threads.get" ? { thread: {} } : {}),
     open: () => undefined,
-    os: { view: () => ({ focused, address: "https://northwind.example", spaceName: "Northwind", now: 1_000_000 }), show: (b: OsBanner) => { shown.push(b); } },
+    os: {
+      view: () => ({ focused, address: "https://northwind.example", spaceName: "Northwind", now: 1_000_000 }),
+      show: (b: OsBanner) => {
+        shown.push(b);
+      },
+    },
   } as unknown as NotificationNoticesProps;
-  function Probe(): null { useNotificationNotices(p, store); return null; }
-  const arrive = async (next: Notification[]): Promise<void> => { items = next; for (const l of [...listeners]) l(); await flush(); await flush(); };
+  function Probe(): null {
+    useNotificationNotices(p, store);
+    return null;
+  }
+  const arrive = async (next: Notification[]): Promise<void> => {
+    items = next;
+    for (const l of [...listeners]) l();
+    await flush();
+    await flush();
+  };
   return { Probe, shown, arrive };
 }
 
@@ -47,7 +79,10 @@ test("in the background: a new notice gets one banner with no content, once", as
   await mount(createRoot, <s.Probe />);
   await flush();
   await s.arrive([note("ntf_a", "thr_a")]);
-  assert.deepEqual(s.shown.map((b) => [b.title, b.body]), [["Northwind needs you", ""]]);
+  assert.deepEqual(
+    s.shown.map((b) => [b.title, b.body]),
+    [["Northwind needs you", ""]],
+  );
   await s.arrive([note("ntf_a", "thr_a", { count: 2 })]);
   assert.equal(s.shown.length, 1, "not again for the same notice, nor when its count rises");
 });

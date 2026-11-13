@@ -5,10 +5,18 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
-import { RecordsDataProvider, RecordsSidebar, RecordsStateProvider } from "../../../apps/app/src/places/records/sidebar/index.ts";
+import {
+  RecordsDataProvider,
+  RecordsSidebar,
+  RecordsStateProvider,
+} from "../../../apps/app/src/places/records/sidebar/index.ts";
 import { TableView } from "../../../apps/app/src/places/records/table/index.ts";
 import type { TableViewState } from "../../../apps/app/src/places/records/table/index.ts";
-import { createSampleRecords, protoHarborSpace, protoNorthwindSpace } from "../../../apps/app/src/places/records/table/sample.ts";
+import {
+  createSampleRecords,
+  protoHarborSpace,
+  protoNorthwindSpace,
+} from "../../../apps/app/src/places/records/table/sample.ts";
 
 export const title = "Records";
 
@@ -18,13 +26,30 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
   const bulk = Math.min(200_000, Number(q.get("rows") ?? 0) || 0);
   const space = q.get("space") === "harbor" ? protoHarborSpace : protoNorthwindSpace;
   const sample = useMemo(() => createSampleRecords(space, { bulk }), [space, bulk]);
-  const initial = useMemo(() => ({ ...(q.get("type") ? { type: q.get("type") as string } : {}), ...(q.get("view") ? { viewId: q.get("view") as string } : {}) }), [q]);
-  const view = useMemo<Partial<TableViewState>>(() => ({
-    ...(q.get("group") ? { group: q.get("group") as string } : {}),
-    // the prototype's Northwind Clients open sorted by Client since, newest first
-    ...(q.get("sort") ? { sort: [{ field: q.get("sort") as string, dir: q.get("dir") === "desc" ? ("desc" as const) : ("asc" as const) }] } : space === protoNorthwindSpace ? { sort: [{ field: "since", dir: "desc" as const }] } : {}),
-    ...(q.get("find") ? { find: q.get("find") as string } : {}),
-  }), [q, space]);
+  const initial = useMemo(
+    () => ({
+      ...(q.get("type") ? { type: q.get("type") as string } : {}),
+      ...(q.get("view") ? { viewId: q.get("view") as string } : {}),
+    }),
+    [q],
+  );
+  const view = useMemo<Partial<TableViewState>>(
+    () => ({
+      ...(q.get("group") ? { group: q.get("group") as string } : {}),
+      // the prototype's Northwind Clients open sorted by Client since, newest first
+      ...(q.get("sort")
+        ? {
+            sort: [
+              { field: q.get("sort") as string, dir: q.get("dir") === "desc" ? ("desc" as const) : ("asc" as const) },
+            ],
+          }
+        : space === protoNorthwindSpace
+          ? { sort: [{ field: "since", dir: "desc" as const }] }
+          : {}),
+      ...(q.get("find") ? { find: q.get("find") as string } : {}),
+    }),
+    [q, space],
+  );
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 720; // 0 is "not measured yet" (the static page)
   useEffect(() => {
@@ -38,7 +63,11 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
     <RecordsDataProvider value={sample.data}>
       <RecordsStateProvider initial={initial}>
         <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          {phone || q.get("sidebar") === "0" ? null : <View style={{ width: 240 }}><RecordsSidebar /></View>}
+          {phone || q.get("sidebar") === "0" ? null : (
+            <View style={{ width: 240 }}>
+              <RecordsSidebar />
+            </View>
+          )}
           <TableView view={view} />
         </View>
       </RecordsStateProvider>
@@ -50,6 +79,8 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
 // that swap was the whole layout shift the scroll probe saw on the 100,000-row target.
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  useEffect(() => {
+    setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""));
+  }, []);
   return q ? <Page q={q} /> : null;
 }

@@ -64,7 +64,9 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
     const at = { i: 0 };
     const pred = compile(sel[2], args, at);
     if (at.i !== args.length) throw new Error(`unused sql values: ${text}`);
-    return bag(name).filter(pred).map((row) => ({ ...row }));
+    return bag(name)
+      .filter(pred)
+      .map((row) => ({ ...row }));
   };
   const run = (sql: string, ...args: unknown[]): { changes: number } => {
     const text = sql.replace(/\s+/g, " ").trim();
@@ -74,10 +76,12 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
       const name = insert[1];
       const colSql = insert[2];
       const valSql = insert[3];
-      if (name === undefined || colSql === undefined || valSql === undefined) throw new Error(`unsupported sql: ${text}`);
+      if (name === undefined || colSql === undefined || valSql === undefined)
+        throw new Error(`unsupported sql: ${text}`);
       const cols = colSql.split(",").map((col) => col.trim());
       const marks = valSql.split(",").map((mark) => mark.trim());
-      if (marks.some((mark) => mark !== "?") || marks.length !== cols.length) throw new Error(`unsupported sql: ${text}`);
+      if (marks.some((mark) => mark !== "?") || marks.length !== cols.length)
+        throw new Error(`unsupported sql: ${text}`);
       const row: Row = {};
       for (const col of cols) row[col] = take(args, at);
       if (at.i !== args.length) throw new Error(`unused sql values: ${text}`);
@@ -89,7 +93,8 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
       const name = update[1];
       const setSql = update[2];
       const where = update[3];
-      if (name === undefined || setSql === undefined || where === undefined) throw new Error(`unsupported sql: ${text}`);
+      if (name === undefined || setSql === undefined || where === undefined)
+        throw new Error(`unsupported sql: ${text}`);
       const assigns: { col: string; val: unknown }[] = [];
       for (const part of setSql.split(", ")) {
         const m = /^(\w+) = \?$/.exec(part);
@@ -134,13 +139,19 @@ function spaceSeal(key: Uint8Array): Ctx["seal"] {
       const parsed: unknown = JSON.parse(sealed.bytes);
       if (parsed === null || typeof parsed !== "object") throw new Error("bad box");
       const box = parsed as { ct?: unknown; tag?: unknown; aad?: unknown };
-      if (typeof box.ct !== "string" || typeof box.tag !== "string" || typeof box.aad !== "string") throw new Error("bad box");
+      if (typeof box.ct !== "string" || typeof box.tag !== "string" || typeof box.aad !== "string")
+        throw new Error("bad box");
       return aesUnwrap(key, { iv: sealed.nonce, ct: box.ct, tag: box.tag }, box.aad);
     },
   };
 }
 
-function open(answers: Record<string, unknown> = {}): { ctx: Ctx; events: { name: string; payload: unknown }[]; db: ReturnType<typeof memoryDb>; calls: { cap: string; input: unknown }[] } {
+function open(answers: Record<string, unknown> = {}): {
+  ctx: Ctx;
+  events: { name: string; payload: unknown }[];
+  db: ReturnType<typeof memoryDb>;
+  calls: { cap: string; input: unknown }[];
+} {
   const db = memoryDb();
   const calls: { cap: string; input: unknown }[] = [];
   const events: { name: string; payload: unknown }[] = [];
@@ -211,10 +222,15 @@ function idOf(v: string | undefined, label: string): string {
 
 const lines = (n: number, edits: Record<number, string> = {}): string =>
   Array.from({ length: n }, (_, i) => edits[i + 1] ?? `line ${i + 1}`).join("\n");
-const agentOf = (ctx: Ctx, id = "agt_intake"): Ctx => ({ ...ctx, principal: { kind: "agent", id }, actingFor: "per_maya", thread: "thr_1" });
+const agentOf = (ctx: Ctx, id = "agt_intake"): Ctx => ({
+  ...ctx,
+  principal: { kind: "agent", id },
+  actingFor: "per_maya",
+  thread: "thr_1",
+});
 const personOf = (ctx: Ctx, id: string): Ctx => ({ ...ctx, principal: { kind: "person", id } });
-const eventsOf = (events: { name: string; payload: unknown }[], name: string): unknown[] => events.filter((e) => e.name === name).map((e) => e.payload);
-
+const eventsOf = (events: { name: string; payload: unknown }[], name: string): unknown[] =>
+  events.filter((e) => e.name === name).map((e) => e.payload);
 
 // ---- the world: Docs (Review changes on) with plan.txt and notes.txt, Docs/sub, and a Free folder without Review changes ----
 
@@ -222,28 +238,44 @@ async function setup(answers: Record<string, unknown> = {}) {
   const k = open(answers);
   const tree = await handlers["files.tree"](k.ctx, {});
   const personal = idOf(tree.roots.find((r) => r.key === "personal")?.folderId, "personal");
-  const docs = (await handlers["files.folder.create"](k.ctx, { parentId: personal, name: "Docs", reviewChanges: true })).folder.folderId;
+  const docs = (await handlers["files.folder.create"](k.ctx, { parentId: personal, name: "Docs", reviewChanges: true }))
+    .folder.folderId;
   const sub = (await handlers["files.folder.create"](k.ctx, { parentId: docs, name: "sub" })).folder.folderId;
   const free = (await handlers["files.folder.create"](k.ctx, { parentId: personal, name: "Free" })).folder.folderId;
-  const plan = (await handlers["files.create"](k.ctx, { folderId: docs, name: "plan.txt", content: { text: lines(10) } })).file.fileId;
-  const notes = (await handlers["files.create"](k.ctx, { folderId: docs, name: "notes.txt", content: { text: "n1\nn2\n" } })).file.fileId;
-  const loose = (await handlers["files.create"](k.ctx, { folderId: free, name: "loose.txt", content: { text: "l" } })).file.fileId;
+  const plan = (
+    await handlers["files.create"](k.ctx, { folderId: docs, name: "plan.txt", content: { text: lines(10) } })
+  ).file.fileId;
+  const notes = (
+    await handlers["files.create"](k.ctx, { folderId: docs, name: "notes.txt", content: { text: "n1\nn2\n" } })
+  ).file.fileId;
+  const loose = (await handlers["files.create"](k.ctx, { folderId: free, name: "loose.txt", content: { text: "l" } }))
+    .file.fileId;
   return { k, ctx: k.ctx, agent: agentOf(k.ctx), personal, docs, sub, free, plan, notes, loose };
 }
 type W = Awaited<ReturnType<typeof setup>>;
-const textOf = async (ctx: Ctx, fileId: string): Promise<string> => (await handlers["files.read"](ctx, { fileId, as: "text" })).text ?? "";
-const versionsOf = async (ctx: Ctx, fileId: string): Promise<number> => (await handlers["files.versions"](ctx, { fileId })).versions.length;
+const textOf = async (ctx: Ctx, fileId: string): Promise<string> =>
+  (await handlers["files.read"](ctx, { fileId, as: "text" })).text ?? "";
+const versionsOf = async (ctx: Ctx, fileId: string): Promise<number> =>
+  (await handlers["files.versions"](ctx, { fileId })).versions.length;
 
 type Staged<T> = T & { changesetId?: string };
-const del = async (ctx: Ctx, fileId: string): Promise<Staged<{ deleted: boolean }>> => handlers["files.delete"](ctx, { fileId });
-const ren = async (ctx: Ctx, fileId: string, name: string) => (await handlers["files.rename"](ctx, { fileId, name })) as Staged<{ file: { fileId: string; name: string; folderId: string; version: number } }>;
+const del = async (ctx: Ctx, fileId: string): Promise<Staged<{ deleted: boolean }>> =>
+  handlers["files.delete"](ctx, { fileId });
+const ren = async (ctx: Ctx, fileId: string, name: string) =>
+  (await handlers["files.rename"](ctx, { fileId, name })) as Staged<{
+    file: { fileId: string; name: string; folderId: string; version: number };
+  }>;
 const mov = async (ctx: Ctx, fileId: string, toFolderId: string, name?: string) =>
-  (await handlers["files.move"](ctx, { fileId, toFolderId, ...(name ? { name } : {}) })) as Staged<{ file: { fileId: string; name: string; folderId: string; version: number } }>;
-const fileRow = (k: W["k"], id: string): Record<string, unknown> | undefined => k.db.rows("files_file").find((r) => r["id"] === id);
+  (await handlers["files.move"](ctx, { fileId, toFolderId, ...(name ? { name } : {}) })) as Staged<{
+    file: { fileId: string; name: string; folderId: string; version: number };
+  }>;
+const fileRow = (k: W["k"], id: string): Record<string, unknown> | undefined =>
+  k.db.rows("files_file").find((r) => r["id"] === id);
 /** Everything a direct write would move: the files, their versions, the blobs, the trash. */
 // files_folder is left out: the first call by a new principal makes that principal a Personal root (ensurePersonal), which is not a change to any file
 const TREE_TABLES = ["files_file", "files_file_version", "files_blob", "files_trash"];
-const treeState = (k: W["k"]): Record<string, string[]> => Object.fromEntries(TREE_TABLES.map((t) => [t, k.db.rows(t).map((r) => JSON.stringify(r))]));
+const treeState = (k: W["k"]): Record<string, string[]> =>
+  Object.fromEntries(TREE_TABLES.map((t) => [t, k.db.rows(t).map((r) => JSON.stringify(r))]));
 /** Fails with the table and the first row that differs, not with two long strings. */
 function sameTree(k: W["k"], before: Record<string, string[]>, why: string): void {
   const now = treeState(k);
@@ -251,11 +283,16 @@ function sameTree(k: W["k"], before: Record<string, string[]>, why: string): voi
     const a = before[t] ?? [];
     const b = now[t] ?? [];
     const at = a.findIndex((row, i) => row !== b[i]);
-    if (a.length !== b.length || at >= 0) assert.fail(`${why}: ${t} changed (${a.length} rows before, ${b.length} after)${at >= 0 ? `\n before ${a[at]}\n after  ${b[at]}` : ""}`);
+    if (a.length !== b.length || at >= 0)
+      assert.fail(
+        `${why}: ${t} changed (${a.length} rows before, ${b.length} after)${at >= 0 ? `\n before ${a[at]}\n after  ${b[at]}` : ""}`,
+      );
   }
 }
-const changesetFiles = async (ctx: Ctx, id: string) => (await handlers["changesets.get"](ctx, { changesetId: id })).files;
-const stateOf = async (ctx: Ctx, id: string) => (await handlers["changesets.get"](ctx, { changesetId: id })).changeset["state"];
+const changesetFiles = async (ctx: Ctx, id: string) =>
+  (await handlers["changesets.get"](ctx, { changesetId: id })).files;
+const stateOf = async (ctx: Ctx, id: string) =>
+  (await handlers["changesets.get"](ctx, { changesetId: id })).changeset["state"];
 
 test("an agent delete in a Review changes folder is staged: the file stays, Trash is empty, Discard keeps it and Approve moves it to Trash", async () => {
   const { k, ctx, agent, docs, plan } = await setup();
@@ -266,8 +303,12 @@ test("an agent delete in a Review changes folder is staged: the file stays, Tras
   sameTree(k, before, "nothing in the tree moved");
   assert.equal(eventsOf(k.events, "file.deleted").length, 0);
   assert.equal(fileRow(k, plan)?.["deleted_at"] ?? null, null);
-  assert.deepEqual(await changesetFiles(ctx, out.changesetId!), [{ path: "plan.txt", fileId: plan, status: "deleted", added: 0, removed: 10, conflict: false }]);
-  assert.deepEqual(eventsOf(k.events, "changeset.opened"), [{ changesetId: out.changesetId, folderId: docs, by: "agt_intake", fileCount: 1, threadId: "thr_1" }]);
+  assert.deepEqual(await changesetFiles(ctx, out.changesetId!), [
+    { path: "plan.txt", fileId: plan, status: "deleted", added: 0, removed: 10, conflict: false },
+  ]);
+  assert.deepEqual(eventsOf(k.events, "changeset.opened"), [
+    { changesetId: out.changesetId, folderId: docs, by: "agt_intake", fileCount: 1, threadId: "thr_1" },
+  ]);
 
   // staging it again changes nothing; the file still reads
   assert.equal((await del(agent, plan)).changesetId, out.changesetId);
@@ -291,7 +332,9 @@ test("a person deletes straight away, an agent outside Review changes too, and a
   assert.deepEqual(await del(ctx, plan), { deleted: true });
   assert.equal(k.db.rows("files_changeset").length, 0, "no changeset opened");
   const svc = await setup();
-  assert.deepEqual(await del({ ...svc.ctx, principal: { kind: "service", id: "svc_cron" } }, svc.plan), { deleted: true });
+  assert.deepEqual(await del({ ...svc.ctx, principal: { kind: "service", id: "svc_cron" } }, svc.plan), {
+    deleted: true,
+  });
   assert.equal(svc.k.db.rows("files_changeset").length, 0);
   await expectCode("validation.not_found", () => del(svc.agent, "fil_nothere"));
 });
@@ -314,7 +357,9 @@ test("an agent rename is staged and applied on Approve; renaming again edits the
   assert.match(r.changesetId ?? "", /^chg_/);
   sameTree(k, before, "the tree");
   assert.equal(eventsOf(k.events, "file.renamed").length, 0);
-  assert.deepEqual(await changesetFiles(ctx, r.changesetId!), [{ path: "plan.txt", fileId: plan, status: "renamed", added: 0, removed: 0, conflict: false }]);
+  assert.deepEqual(await changesetFiles(ctx, r.changesetId!), [
+    { path: "plan.txt", fileId: plan, status: "renamed", added: 0, removed: 0, conflict: false },
+  ]);
 
   const r2 = await ren(agent, plan, "plan-v3.txt");
   assert.equal(r2.changesetId, r.changesetId);
@@ -359,10 +404,16 @@ test("rename: a bad name, a taken name (file or folder) and a file already delet
 
 test("a rename staged after a write keeps the staged text: Approve renames and then writes one version", async () => {
   const { k, ctx, agent, plan } = await setup();
-  const w = await handlers["files.write"](agent, { fileId: plan, content: { text: lines(10, { 1: "ONE" }) }, baseVersion: 1 });
+  const w = await handlers["files.write"](agent, {
+    fileId: plan,
+    content: { text: lines(10, { 1: "ONE" }) },
+    baseVersion: 1,
+  });
   const r = await ren(agent, plan, "plan-new.txt");
   assert.equal(r.changesetId, w.changesetId);
-  assert.deepEqual(await changesetFiles(ctx, w.changesetId!), [{ path: "plan.txt", fileId: plan, status: "renamed", added: 1, removed: 1, conflict: false }]);
+  assert.deepEqual(await changesetFiles(ctx, w.changesetId!), [
+    { path: "plan.txt", fileId: plan, status: "renamed", added: 1, removed: 1, conflict: false },
+  ]);
   const res = await handlers["changesets.approve"](ctx, { changesetId: w.changesetId! });
   assert.equal(res.approved, true);
   assert.equal(fileRow(k, plan)?.["name"], "plan-new.txt");
@@ -372,7 +423,10 @@ test("a rename staged after a write keeps the staged text: Approve renames and t
   const w2 = await handlers["files.write"](agent, { fileId: plan, content: { text: "two" } });
   await ren(agent, plan, "elsewhere.txt");
   await ren(agent, plan, "plan-new.txt");
-  assert.deepEqual((await changesetFiles(ctx, w2.changesetId!)).map((f) => f.status), ["modified"]);
+  assert.deepEqual(
+    (await changesetFiles(ctx, w2.changesetId!)).map((f) => f.status),
+    ["modified"],
+  );
 });
 
 test("an agent move is staged: the file keeps its folder, Approve moves it and gives the new name", async () => {
@@ -383,10 +437,15 @@ test("an agent move is staged: the file keeps its folder, Approve moves it and g
   assert.match(m.changesetId ?? "", /^chg_/);
   sameTree(k, before, "the tree");
   assert.equal(eventsOf(k.events, "file.moved").length, 0);
-  assert.deepEqual(await changesetFiles(ctx, m.changesetId!), [{ path: "plan.txt", fileId: plan, status: "renamed", added: 0, removed: 0, conflict: false }]);
+  assert.deepEqual(await changesetFiles(ctx, m.changesetId!), [
+    { path: "plan.txt", fileId: plan, status: "renamed", added: 0, removed: 0, conflict: false },
+  ]);
   // a rename after a move keeps the destination
   await ren(agent, plan, "plan-in-sub.txt");
-  assert.equal(k.db.rows("files_changeset_file").find((e) => e["path"] === "plan.txt")?.["new_name"], `${sub}/plan-in-sub.txt`);
+  assert.equal(
+    k.db.rows("files_changeset_file").find((e) => e["path"] === "plan.txt")?.["new_name"],
+    `${sub}/plan-in-sub.txt`,
+  );
   await mov(agent, notes, sub, "n.txt");
   const res = await handlers["changesets.approve"](ctx, { changesetId: m.changesetId! });
   assert.deepEqual([res.approved, res.conflicts], [true, []]);
@@ -422,7 +481,13 @@ test("Approve refuses a move whose destination name was taken meanwhile, and app
   assert.deepEqual([res.approved, res.conflicts], [false, ["plan.txt"]]);
   assert.notEqual(fileRow(k, notes)?.["folder_id"], sub, "the clean entry waits with the conflicting one");
   assert.equal(fileRow(k, plan)?.["name"], "plan.txt");
-  assert.deepEqual((await changesetFiles(ctx, m.changesetId!)).map((f) => [f.path, f.conflict]), [["notes.txt", false], ["plan.txt", true]]);
+  assert.deepEqual(
+    (await changesetFiles(ctx, m.changesetId!)).map((f) => [f.path, f.conflict]),
+    [
+      ["notes.txt", false],
+      ["plan.txt", true],
+    ],
+  );
 });
 
 test("Approve refuses a delete when the file changed after the changeset started", async () => {
@@ -441,10 +506,16 @@ test("a file the agent added in the changeset can be renamed, moved inside the c
   const cs = made.changesetId!;
   const r = await ren(agent, id, "final.md");
   assert.deepEqual([r.changesetId, r.file.name], [cs, "final.md"]);
-  assert.deepEqual((await changesetFiles(ctx, cs)).map((f) => f.path), ["final.md"]);
+  assert.deepEqual(
+    (await changesetFiles(ctx, cs)).map((f) => f.path),
+    ["final.md"],
+  );
   const m = await mov(agent, id, sub);
   assert.equal(m.changesetId, cs);
-  assert.deepEqual((await changesetFiles(ctx, cs)).map((f) => f.path), ["sub/final.md"]);
+  assert.deepEqual(
+    (await changesetFiles(ctx, cs)).map((f) => f.path),
+    ["sub/final.md"],
+  );
   await expectCode("validation.precondition_failed", () => mov(agent, id, free));
   const other = await handlers["files.create"](agent, { folderId: sub, name: "other.md", content: { text: "o" } });
   await expectCode("validation.duplicate", () => ren(agent, other.file.fileId, "final.md"));
@@ -459,7 +530,10 @@ test("a file the agent added in the changeset can be renamed, moved inside the c
   const dropped = await del(agent, gone.file.fileId);
   assert.deepEqual([dropped.deleted, dropped.changesetId], [true, gone.changesetId]);
   assert.equal(await stateOf(ctx, gone.changesetId!), "discarded", "nothing left for the reviewer");
-  assert.equal(k.db.rows("files_file").some((f) => f["name"] === "scrap.md"), false);
+  assert.equal(
+    k.db.rows("files_file").some((f) => f["name"] === "scrap.md"),
+    false,
+  );
 });
 
 // ---- save ----
@@ -469,28 +543,58 @@ function saveSetup(lint: unknown = OK_LINT) {
   const direct: { input: unknown }[] = [];
   const staging = async () => {
     const w = await setup({ "files.lint": () => lint });
-    const saved = withAgentStaging({ ...handlers, "files.save": async (_c: Ctx, input: unknown) => { direct.push({ input }); return { versionId: "ver_direct", n: 9, lint: OK_LINT, added: 0, removed: 0 }; } });
+    const saved = withAgentStaging({
+      ...handlers,
+      "files.save": async (_c: Ctx, input: unknown) => {
+        direct.push({ input });
+        return { versionId: "ver_direct", n: 9, lint: OK_LINT, added: 0, removed: 0 };
+      },
+    });
     return { ...w, saved, direct };
   };
   return staging;
 }
-const save = (h: { saved: { "files.save": (c: Ctx, i: unknown) => Promise<unknown> } }, ctx: Ctx, input: Record<string, unknown>) =>
-  h.saved["files.save"](ctx, input) as Promise<{ versionId: string; n: number; lint: unknown; added: number; removed: number; changesetId?: string }>;
+const save = (
+  h: { saved: { "files.save": (c: Ctx, i: unknown) => Promise<unknown> } },
+  ctx: Ctx,
+  input: Record<string, unknown>,
+) =>
+  h.saved["files.save"](ctx, input) as Promise<{
+    versionId: string;
+    n: number;
+    lint: unknown;
+    added: number;
+    removed: number;
+    changesetId?: string;
+  }>;
 
 test("an agent save in a Review changes folder is staged after the lint passes: no version is made until Approve", async () => {
   const h = await saveSetup()();
   const { k, ctx, agent, plan, docs } = h;
   const before = treeState(k);
-  const out = await save(h, agent, { fileId: plan, text: lines(10, { 1: "ONE", 2: "TWO" }), baseVersion: 1, reason: "tidy" });
+  const out = await save(h, agent, {
+    fileId: plan,
+    text: lines(10, { 1: "ONE", 2: "TWO" }),
+    baseVersion: 1,
+    reason: "tidy",
+  });
   assert.match(out.changesetId ?? "", /^chg_/);
   assert.deepEqual([out.n, out.added, out.removed], [1, 2, 2]);
-  assert.equal(out.versionId, k.db.rows("files_file_version").find((v) => v["file_id"] === plan && v["n"] === 1)?.["id"], "the version it would replace");
+  assert.equal(
+    out.versionId,
+    k.db.rows("files_file_version").find((v) => v["file_id"] === plan && v["n"] === 1)?.["id"],
+    "the version it would replace",
+  );
   assert.deepEqual(out.lint, OK_LINT);
   assert.equal(h.direct.length, 0, "the plain save never ran");
   sameTree(k, before, "the tree");
   assert.equal(await versionsOf(ctx, plan), 1);
-  assert.deepEqual(eventsOf(k.events, "changeset.opened"), [{ changesetId: out.changesetId, folderId: docs, by: "agt_intake", fileCount: 1, threadId: "thr_1" }]);
-  assert.deepEqual(await changesetFiles(ctx, out.changesetId!), [{ path: "plan.txt", fileId: plan, status: "modified", added: 2, removed: 2, conflict: false }]);
+  assert.deepEqual(eventsOf(k.events, "changeset.opened"), [
+    { changesetId: out.changesetId, folderId: docs, by: "agt_intake", fileCount: 1, threadId: "thr_1" },
+  ]);
+  assert.deepEqual(await changesetFiles(ctx, out.changesetId!), [
+    { path: "plan.txt", fileId: plan, status: "modified", added: 2, removed: 2, conflict: false },
+  ]);
 
   const again = await save(h, agent, { fileId: plan, text: lines(10, { 1: "ONE" }) });
   assert.equal(again.changesetId, out.changesetId);
@@ -502,8 +606,16 @@ test("an agent save in a Review changes folder is staged after the lint passes: 
 });
 
 test("save: a lint error, an unaccepted warning, a non-guidance file and a stale base are refused before anything is staged", async () => {
-  const bad = { ...OK_LINT, state: "red", problems: [{ severity: "error", rule: "secret", message: "line 2 holds a secret" }] };
-  const warn = { ...OK_LINT, state: "amber", problems: [{ severity: "warn", rule: "long", message: "VYRE.md is long" }] };
+  const bad = {
+    ...OK_LINT,
+    state: "red",
+    problems: [{ severity: "error", rule: "secret", message: "line 2 holds a secret" }],
+  };
+  const warn = {
+    ...OK_LINT,
+    state: "amber",
+    problems: [{ severity: "warn", rule: "long", message: "VYRE.md is long" }],
+  };
   for (const [lint, code, input] of [
     [bad, "validation.precondition_failed", {}],
     [warn, "validation.precondition_failed", {}],
@@ -520,7 +632,10 @@ test("save: a lint error, an unaccepted warning, a non-guidance file and a stale
     assert.equal(h.direct.length, 0, "and never written directly");
   }
   const h = await saveSetup(warn)();
-  assert.match((await save(h, h.agent, { fileId: h.plan, text: "x", acceptWarnings: true })).changesetId ?? "", /^chg_/);
+  assert.match(
+    (await save(h, h.agent, { fileId: h.plan, text: "x", acceptWarnings: true })).changesetId ?? "",
+    /^chg_/,
+  );
 });
 
 test("save: a person, an agent outside Review changes and a bad input go to the plain save", async () => {
@@ -565,7 +680,11 @@ test("an agent changes no file, version, blob or Trash row by any of write, crea
     sameTree(k, before, `${name} left the tree as it was`);
   }
   assert.equal(h.direct.length, 0);
-  assert.deepEqual(k.events.slice(eventsBefore).filter((e) => e.name.startsWith("file.")), [], "no file event: nothing happened to a file");
+  assert.deepEqual(
+    k.events.slice(eventsBefore).filter((e) => e.name.startsWith("file.")),
+    [],
+    "no file event: nothing happened to a file",
+  );
   // one changeset holds all of it, and Discard returns to the start
   const open = await handlers["changesets.list"](ctx, { state: "open" });
   assert.equal(open.total, 1);
@@ -589,8 +708,9 @@ test("the staging survives a host that refuses changeset events the capability d
   const { k, ctx, plan, notes, docs } = await setup();
   const refuse = (names: string[], why: string): Ctx => ({
     ...agentOf(ctx),
-    emit: <T,>(name: string, subject: string, payload: T) => {
-      if (names.includes(name)) throw Object.assign(new Error("refused"), { error: { code: "internal.unexpected", details: { why } } });
+    emit: <T>(name: string, subject: string, payload: T) => {
+      if (names.includes(name))
+        throw Object.assign(new Error("refused"), { error: { code: "internal.unexpected", details: { why } } });
       return ctx.emit(name as never, subject, payload);
     },
   });
@@ -601,9 +721,13 @@ test("the staging survives a host that refuses changeset events the capability d
   assert.equal(eventsOf(k.events, "changeset.opened").length, 0);
   assert.equal((await changesetFiles(ctx, first.changesetId!)).length, 2, "the reviewer still sees it");
   assert.equal((await handlers["changesets.list"](ctx, { folderId: docs, state: "open" })).total, 1);
-  const third = (await handlers["files.create"](ctx, { folderId: docs, name: "third.txt", content: { text: "t" } })).file.fileId;
+  const third = (await handlers["files.create"](ctx, { folderId: docs, name: "third.txt", content: { text: "t" } }))
+    .file.fileId;
   const broken = refuse(["changeset.opened", "changeset.updated"], "something else");
-  await assert.rejects(ren(broken, third, "x.txt"), (e: unknown) => (e as { error?: { details?: { why?: string } } }).error?.details?.why === "something else");
+  await assert.rejects(
+    ren(broken, third, "x.txt"),
+    (e: unknown) => (e as { error?: { details?: { why?: string } } }).error?.details?.why === "something else",
+  );
 });
 
 // Run on the final commit together with changesets.test.ts (P-L4_04b).

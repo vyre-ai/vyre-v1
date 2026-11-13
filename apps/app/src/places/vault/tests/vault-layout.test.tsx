@@ -17,39 +17,99 @@ import { createSampleVault, harbor, northwind } from "../layout/sample.ts";
 import type { SampleSpace, SampleVault } from "../layout/sample.ts";
 import { MASK, createRevealStore } from "../itemenv/index.ts";
 
-const VaultProviderWrapper = ({ data, children }: { data: VaultData; children: ReactNode }): ReactElement => <VaultDataProvider value={data}>{children}</VaultDataProvider>;
-const size = (width: number): void => Dimensions.set({ window: { width, height: 800, scale: 1, fontScale: 1 }, screen: { width, height: 800, scale: 1, fontScale: 1 } });
+const VaultProviderWrapper = ({ data, children }: { data: VaultData; children: ReactNode }): ReactElement => (
+  <VaultDataProvider value={data}>{children}</VaultDataProvider>
+);
+const size = (width: number): void =>
+  Dimensions.set({
+    window: { width, height: 800, scale: 1, fontScale: 1 },
+    screen: { width, height: 800, scale: 1, fontScale: 1 },
+  });
 size(1280);
 
 const clean = (s: string): string => s.replaceAll("<!-- -->", "");
-const html = (v: SampleVault, props: Record<string, unknown> = {}): string => clean(renderToStaticMarkup(<Vault data={v.data} {...props} />));
-const at = (s: string, needle: string): number => { const i = s.indexOf(needle); assert.ok(i >= 0, `expected ${needle}`); return i; };
+const html = (v: SampleVault, props: Record<string, unknown> = {}): string =>
+  clean(renderToStaticMarkup(<Vault data={v.data} {...props} />));
+const at = (s: string, needle: string): number => {
+  const i = s.indexOf(needle);
+  assert.ok(i >= 0, `expected ${needle}`);
+  return i;
+};
 const has = (s: string, needle: string): boolean => s.includes(needle);
-const allValues = (sp: SampleSpace): string[] => sp.items.flatMap((i) => i.fields.map((f) => f[1])).filter((v) => v.length >= 6);
+const allValues = (sp: SampleSpace): string[] =>
+  sp.items.flatMap((i) => i.fields.map((f) => f[1])).filter((v) => v.length >= 6);
 const queryOf = <T,>(v: SampleVault, screen: string, name: string, state: Record<string, unknown> = {}): T => {
   const snap = v.data.screens.query(screen, name, state).getSnapshot();
   assert.equal(snap.status, "ready");
   return (snap as { data: T }).data;
 };
-const itemNames = (v: SampleVault): string[] => queryOf<{ items: { name: string }[] }>(v, "vault.layout", "items").items.map((i) => i.name);
+const itemNames = (v: SampleVault): string[] =>
+  queryOf<{ items: { name: string }[] }>(v, "vault.layout", "items").items.map((i) => i.name);
 
 function failQuery(v: SampleVault, screen: string, name: string): { retries(): number } {
   const base = v.data.screens;
-  const failure: QueryState<unknown> = { status: "loading", error: { message: "The Space could not answer", code: "gateway.unavailable", traceId: "trace-vault-read" } };
+  const failure: QueryState<unknown> = {
+    status: "loading",
+    error: { message: "The Space could not answer", code: "gateway.unavailable", traceId: "trace-vault-read" },
+  };
   let retried = 0;
-  v.data = { ...v.data, screens: {
-    query(screenId, queryName, state) { return screenId === screen && queryName === name ? { subscribe: () => () => undefined, getSnapshot: () => failure } : base.query(screenId, queryName, state); },
-    invalidate() { retried++; },
-  } as ScreenHooks };
+  v.data = {
+    ...v.data,
+    screens: {
+      query(screenId, queryName, state) {
+        return screenId === screen && queryName === name
+          ? { subscribe: () => () => undefined, getSnapshot: () => failure }
+          : base.query(screenId, queryName, state);
+      },
+      invalidate() {
+        retried++;
+      },
+    } as ScreenHooks,
+  };
   return { retries: () => retried };
 }
 
 test("sidebar: sections in the prototype's order with counts, Requested and Health only when they have something", () => {
   const out = html(createSampleVault());
-  const order = ["nav-requested", "nav-all", "nav-providers", "nav-keys", "nav-logins", "nav-cards", "nav-health", "nav-folder-fld_marketing", "nav-folder-fld_finance", "nav-folder-fld_ops", "nav-mine", "nav-advanced"].map((id) => at(out, `data-testid="row-${id}"`));
-  assert.deepEqual([...order].sort((a, b) => a - b), order, "Requested, All, AI providers, Keys, Logins, Cards, Health, Shared folders, Mine, Advanced");
-  for (const label of ["All", "AI accounts", "Google and Microsoft", "Connections", "Everything else", "Keys", "Logins", "Cards", "Health", "Marketing", "Finance", "Operations", "Mine", "Advanced", "Shared"]) assert.ok(has(out, label), label);
-  const nav = (id: string): string => out.slice(at(out, `data-testid="row-${id}-trailing"`), at(out, `data-testid="row-${id}-trailing"`) + 400);
+  const order = [
+    "nav-requested",
+    "nav-all",
+    "nav-providers",
+    "nav-keys",
+    "nav-logins",
+    "nav-cards",
+    "nav-health",
+    "nav-folder-fld_marketing",
+    "nav-folder-fld_finance",
+    "nav-folder-fld_ops",
+    "nav-mine",
+    "nav-advanced",
+  ].map((id) => at(out, `data-testid="row-${id}"`));
+  assert.deepEqual(
+    [...order].sort((a, b) => a - b),
+    order,
+    "Requested, All, AI providers, Keys, Logins, Cards, Health, Shared folders, Mine, Advanced",
+  );
+  for (const label of [
+    "All",
+    "AI accounts",
+    "Google and Microsoft",
+    "Connections",
+    "Everything else",
+    "Keys",
+    "Logins",
+    "Cards",
+    "Health",
+    "Marketing",
+    "Finance",
+    "Operations",
+    "Mine",
+    "Advanced",
+    "Shared",
+  ])
+    assert.ok(has(out, label), label);
+  const nav = (id: string): string =>
+    out.slice(at(out, `data-testid="row-${id}-trailing"`), at(out, `data-testid="row-${id}-trailing"`) + 400);
   assert.ok(has(nav("nav-all"), ">16<"), "16 items in All");
   assert.ok(has(nav("nav-providers"), ">3<"), "three providers");
   assert.ok(has(nav("nav-health"), ">2<"), "two items past their rotation date");
@@ -65,13 +125,26 @@ test("list: newest use first, field names on the second line, Used 14 min ago, a
   // Mine first, then what is shared with the person, then the Space's; inside each section the most recently used first
   const names = ["Claude", "GoHighLevel", "Northwind Forms", "Stripe", "Stripe webhooks", "Google Workspace"];
   const rows = names.map((n) => at(out, `aria-label="${n}"`));
-  assert.deepEqual([...rows].sort((a, b) => a - b), rows, "Mine, then the shared sections, each newest use first");
-  assert.ok(has(out, 'data-testid="vault-section-mine"') && has(out, 'data-testid="vault-section-with-me"'), "the sections are headed");
-  assert.ok(at(out, 'data-testid="vault-section-mine"') < at(out, 'aria-label="Claude"') && at(out, 'aria-label="Claude"') < at(out, 'data-testid="vault-section-with-me"'));
+  assert.deepEqual(
+    [...rows].sort((a, b) => a - b),
+    rows,
+    "Mine, then the shared sections, each newest use first",
+  );
+  assert.ok(
+    has(out, 'data-testid="vault-section-mine"') && has(out, 'data-testid="vault-section-with-me"'),
+    "the sections are headed",
+  );
+  assert.ok(
+    at(out, 'data-testid="vault-section-mine"') < at(out, 'aria-label="Claude"') &&
+      at(out, 'aria-label="Claude"') < at(out, 'data-testid="vault-section-with-me"'),
+  );
   assert.ok(has(out, "GHL_PIT · GHL_LOCATION_ID"), "field names, joined");
   assert.ok(has(out, "Login · USERNAME · PASSWORD"), "a login reads Login then its fields");
   assert.ok(has(out, "Used 14 min ago") && has(out, "Used 2 h ago") && has(out, "Used 3 h ago"));
-  assert.ok(has(out, 'data-testid="look-vit_ghl"') && has(out, 'data-testid="look-vit_stripe"'), "the two past their rotation date carry the dot");
+  assert.ok(
+    has(out, 'data-testid="look-vit_ghl"') && has(out, 'data-testid="look-vit_stripe"'),
+    "the two past their rotation date carry the dot",
+  );
   assert.ok(!has(out, 'data-testid="look-vit_forms"'));
 });
 
@@ -81,7 +154,8 @@ test("the open item is a .env block of hidden values: names and metadata only un
   assert.ok(has(out, 'data-testid="env-card"') && has(out, "# GoHighLevel · agents ask for #Northwind_GHL"));
   assert.ok(has(out, 'data-testid="env-line-GHL_PIT"') && has(out, 'data-testid="env-line-GHL_LOCATION_ID"'));
   assert.equal(out.split(MASK).length - 1 >= 2, true, "each field shows the mask");
-  for (const value of [...allValues(northwind), ...allValues(harbor)]) assert.ok(!has(out, value), `no value in the markup: ${value.slice(0, 4)}...`);
+  for (const value of [...allValues(northwind), ...allValues(harbor)])
+    assert.ok(!has(out, value), `no value in the markup: ${value.slice(0, 4)}...`);
   assert.ok(has(out, "#Northwind_GHL") && has(out, "API key"));
   assert.ok(has(out, "You can manage it · Shared › Marketing"), "the access line names where it sits");
   assert.ok(has(out, "Rotated 214 days ago · every 90 days · due"), "rotation line");
@@ -100,7 +174,15 @@ test("Fields view lists key, Secret or Plain, and the hidden value", () => {
 test("reveal asks once, then each reveal is one logged capability call and the value shows", async () => {
   const v = createSampleVault();
   const timers: (() => void)[] = [];
-  const store = createRevealStore({ itemId: "vit_ghl", call: v.data.call, copy: (t) => { v.copied.push(t); }, setTimer: (fn) => timers.push(fn), clearTimer: () => undefined });
+  const store = createRevealStore({
+    itemId: "vit_ghl",
+    call: v.data.call,
+    copy: (t) => {
+      v.copied.push(t);
+    },
+    setTimer: (fn) => timers.push(fn),
+    clearTimer: () => undefined,
+  });
   await store.reveal(["GHL_PIT"]);
   assert.equal(v.calls.length, 0, "the first reveal stops at the agreement");
   assert.deepEqual(store.get().asking, { keys: ["GHL_PIT"], then: "show" });
@@ -112,8 +194,16 @@ test("reveal asks once, then each reveal is one logged capability call and the v
   await store.reveal(["GHL_LOCATION_ID"]);
   assert.equal(v.calls.filter((c) => c.cap === "vault.item.reveal").length, 2, "no second agreement for the same item");
   assert.equal(store.get().shown.get("GHL_LOCATION_ID"), "nwLoc7Kq2mXpR4vLnTzB");
-  const log = queryOf<{ entries: { action: string; field?: string; actor: { id: string } }[] }>(v, "vault.item", "history", { itemId: "vit_ghl" }).entries;
-  assert.ok(log.some((e) => e.action === "revealed" && e.field === "GHL_PIT" && e.actor.id === "usr_irfad"), "the item's history shows the reveal under my name");
+  const log = queryOf<{ entries: { action: string; field?: string; actor: { id: string } }[] }>(
+    v,
+    "vault.item",
+    "history",
+    { itemId: "vit_ghl" },
+  ).entries;
+  assert.ok(
+    log.some((e) => e.action === "revealed" && e.field === "GHL_PIT" && e.actor.id === "usr_irfad"),
+    "the item's history shows the reveal under my name",
+  );
   store.hide(["GHL_PIT"]);
   assert.ok(!store.get().shown.has("GHL_PIT"), "hide puts the mask back");
   timers.forEach((t) => t());
@@ -123,7 +213,13 @@ test("reveal asks once, then each reveal is one logged capability call and the v
 
 test("a declined agreement makes no call; copy reveals first and leaves nothing on screen", async () => {
   const v = createSampleVault();
-  const store = createRevealStore({ itemId: "vit_ghl", call: v.data.call, copy: (t) => { v.copied.push(t); } });
+  const store = createRevealStore({
+    itemId: "vit_ghl",
+    call: v.data.call,
+    copy: (t) => {
+      v.copied.push(t);
+    },
+  });
   await store.reveal(["GHL_PIT"]);
   store.decline();
   assert.equal(v.calls.length, 0);
@@ -149,11 +245,18 @@ test("a provider sign-in is never revealed; a Use-level item cannot be revealed;
   await rivera.agree();
   assert.equal(rivera.get().shown.size, 0);
   assert.match(rivera.get().error ?? "", /use this item but not see/);
-  const out = clean(renderToStaticMarkup(<VaultProviderWrapper data={v.data}><ItemEnv itemId="vit_rivera" onEdit={() => undefined} onGone={() => undefined} onNote={() => undefined} /></VaultProviderWrapper>));
+  const out = clean(
+    renderToStaticMarkup(
+      <VaultProviderWrapper data={v.data}>
+        <ItemEnv itemId="vit_rivera" onEdit={() => undefined} onGone={() => undefined} onNote={() => undefined} />
+      </VaultProviderWrapper>,
+    ),
+  );
   assert.ok(!has(out, 'data-testid="env-reveal-all"'), "a Use-level item offers no Reveal all");
   assert.ok(has(out, "You can use it"), "and says what you can do");
   assert.ok(has(out, "opacity:0") || has(out, "opacity: 0"), "the per-line tools stay hidden");
-  claude.dispose(); rivera.dispose();
+  claude.dispose();
+  rivera.dispose();
 });
 
 test("offline: the place opens from the saved copy and says so; reveal waits for a connection", () => {
@@ -181,15 +284,23 @@ test("request and export query failures render truthful errors with a working re
   const requestRetry = failQuery(requests, "vault_requests.list", "requests");
   const requestOut = html(requests, { route: { surface: "requests" } });
   assert.ok(has(requestOut, "Couldn&#x27;t load Vault requests") && has(requestOut, "The Space could not answer"));
-  assert.ok(has(requestOut, 'data-testid="state-retry"') && has(requestOut, 'data-testid="state-details"'), "Retry and Details show");
+  assert.ok(
+    has(requestOut, 'data-testid="state-retry"') && has(requestOut, 'data-testid="state-details"'),
+    "Retry and Details show",
+  );
   assert.ok(!has(requestOut, "trace-vault-read"), "the trace id waits behind Details");
   const restore = installDom();
   try {
     const opened = await mount(createRoot, <Vault data={requests.data} route={{ surface: "requests" }} />);
     await press(find(opened, "state-details"));
     const shown = textOf(opened);
-    assert.ok(shown.includes("trace-vault-read") && shown.includes("Copy trace id"), "Details shows the trace id and Copy trace id");
-  } finally { restore(); }
+    assert.ok(
+      shown.includes("trace-vault-read") && shown.includes("Copy trace id"),
+      "Details shows the trace id and Copy trace id",
+    );
+  } finally {
+    restore();
+  }
   assert.equal(retryVaultQueries(requests.data.screens), true);
   assert.equal(requestRetry.retries(), 1);
 
@@ -203,16 +314,27 @@ test("request and export query failures render truthful errors with a working re
 
 test("sections filter the list: Keys, Logins, Cards, AI providers, a folder, Mine", () => {
   const v = createSampleVault();
-  const list = (sel: object): string => { const out = html(v, { initial: sel }); return out.slice(at(out, 'data-testid="vault-list"')); };
+  const list = (sel: object): string => {
+    const out = html(v, { initial: sel });
+    return out.slice(at(out, 'data-testid="vault-list"'));
+  };
   const keys = list({ kind: "keys" });
-  assert.ok(has(keys, "GoHighLevel") && has(keys, "Postgres · Northwind prod") && !has(keys, "Northwind Forms") && !has(keys, "Northwind Visa"));
+  assert.ok(
+    has(keys, "GoHighLevel") &&
+      has(keys, "Postgres · Northwind prod") &&
+      !has(keys, "Northwind Forms") &&
+      !has(keys, "Northwind Visa"),
+  );
   const logins = list({ kind: "logins" });
   assert.ok(has(logins, "GitHub") && !has(logins, "GoHighLevel"));
   // an item is shown in its one primary section: the Google Workspace login is under Google and Microsoft, not Logins
   assert.ok(!has(logins, "Google Workspace") && has(html(v, { initial: { kind: "google" } }), "Google Workspace"));
   assert.ok(has(list({ kind: "cards" }), "Northwind Visa"));
   const prov = list({ kind: "providers" });
-  assert.ok(has(prov, "Claude") && has(prov, "OpenCode Go key") && !has(prov, "OpenAI key") && !has(prov, "Stripe"), "My AI accounts: the person's own; the shared OpenAI key is under Space AI accounts");
+  assert.ok(
+    has(prov, "Claude") && has(prov, "OpenCode Go key") && !has(prov, "OpenAI key") && !has(prov, "Stripe"),
+    "My AI accounts: the person's own; the shared OpenAI key is under Space AI accounts",
+  );
   assert.ok(has(prov, "Sign in with Claude Max · Mine"), "a provider row says how it signs in and Mine or Shared");
   const fin = list({ kind: "folder", folderId: "fld_finance" });
   assert.ok(has(fin, "Stripe") && has(fin, "Northwind Visa") && !has(fin, "GoHighLevel"));
@@ -231,11 +353,29 @@ test("writes change what the next render shows: new folder, move to Trash and ba
   assert.ok(itemNames(v).includes("Resend"), "and back");
   await v.data.call("vault.item.mark_rotated", { itemId: "vit_ghl" });
   assert.ok(!has(html(v), 'data-testid="look-vit_ghl"'), "a rotated item loses its dot");
-  const put = (await v.data.call("vault.item.put", { folderId: "fld_ops", name: "Clio", kind: "api_key", fields: [{ key: "CLIO_API_KEY", value: "fake-clio-key-123", secret: true }] })) as { item: { id: string } };
+  const put = (await v.data.call("vault.item.put", {
+    folderId: "fld_ops",
+    name: "Clio",
+    kind: "api_key",
+    fields: [{ key: "CLIO_API_KEY", value: "fake-clio-key-123", secret: true }],
+  })) as { item: { id: string } };
   assert.ok(itemNames(v).includes("Clio"));
-  await assert.rejects(() => v.data.call("vault.item.put", { folderId: "fld_ops", name: "clio", kind: "api_key", fields: [{ key: "A", value: "b" }] }), /duplicate/, "a name already in the folder is refused");
+  await assert.rejects(
+    () =>
+      v.data.call("vault.item.put", {
+        folderId: "fld_ops",
+        name: "clio",
+        kind: "api_key",
+        fields: [{ key: "A", value: "b" }],
+      }),
+    /duplicate/,
+    "a name already in the folder is refused",
+  );
   const out = html(v);
-  assert.ok(has(out, `aria-label="Clio"`) && !has(out, "fake-clio-key-123"), "the new item shows by name, never by value");
+  assert.ok(
+    has(out, `aria-label="Clio"`) && !has(out, "fake-clio-key-123"),
+    "the new item shows by name, never by value",
+  );
   assert.ok(put.item.id.startsWith("vit_new"));
 });
 
@@ -254,7 +394,10 @@ test("a Personal Space has no Shared section and no sharing: sharing has no mean
   const team = html(v);
   assert.ok(has(team, 'data-testid="vault-folders"') && has(team, ">Shared<"), "a team Space shows the Shared section");
   const solo = clean(renderToStaticMarkup(<Vault data={{ ...v.data, personal: true }} />));
-  assert.ok(!has(solo, 'data-testid="vault-folders"') && !has(solo, ">Shared<") && !has(solo, "New shared folder"), "a Personal Space draws no Shared section");
+  assert.ok(
+    !has(solo, 'data-testid="vault-folders"') && !has(solo, ">Shared<") && !has(solo, "New shared folder"),
+    "a Personal Space draws no Shared section",
+  );
   assert.ok(!has(solo, 'data-testid="row-nav-mine"'), "and no Mine: everything in a Personal Space is yours");
   assert.ok(has(solo, ">AI accounts<") && has(solo, ">Keys<"), "the sections stay");
 });

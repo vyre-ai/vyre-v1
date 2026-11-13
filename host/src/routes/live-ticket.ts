@@ -6,7 +6,8 @@ import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 
 export const LIVE_TICKET_TTL_MS = 30_000;
 const MOST_WAITING = 1024;
-const fresh = (): string => `lvt_${Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(24))).toString("base64url")}`;
+const fresh = (): string =>
+  `lvt_${Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(24))).toString("base64url")}`;
 
 export interface LiveTickets {
   mint(token: string): string;
@@ -21,13 +22,14 @@ export function createLiveTickets(o: { now: () => number; ttlMs?: number }): Liv
     mint(token) {
       const now = o.now();
       for (const [k, v] of waiting) if (v.until <= now) waiting.delete(k);
-      while (waiting.size >= MOST_WAITING) waiting.delete(waiting.keys().next().value as string);   // the oldest goes first: the client whose ticket it was asks again
+      while (waiting.size >= MOST_WAITING) waiting.delete(waiting.keys().next().value as string); // the oldest goes first: the client whose ticket it was asks again
       const ticket = fresh();
       waiting.set(sha256Hex(ticket), { token, until: now + ttl });
       return ticket;
     },
     spend(ticket) {
-      const key = sha256Hex(ticket), got = waiting.get(key);
+      const key = sha256Hex(ticket),
+        got = waiting.get(key);
       if (!got) return null;
       waiting.delete(key);
       return got.until > o.now() ? got.token : null;
@@ -37,7 +39,11 @@ export function createLiveTickets(o: { now: () => number; ttlMs?: number }): Liv
 
 const NO_STORE = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 
-export function createLiveTicketRoute(o: { tickets: LiveTickets; known(token: string): boolean; bearer(header: string | undefined): string | null }): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
+export function createLiveTicketRoute(o: {
+  tickets: LiveTickets;
+  known(token: string): boolean;
+  bearer(header: string | undefined): string | null;
+}): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
   return {
     handle(req, res) {
       if (req.method !== "POST" || (req.url ?? "").split("?")[0] !== "/sync/v1/ticket") return false;

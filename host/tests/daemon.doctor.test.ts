@@ -28,24 +28,44 @@ function deadServerDir(): string {
   return dir;
 }
 
-const machine = (dir: string, o: { encrypted?: boolean; docker?: boolean; free?: number } = {}) => fakePlatform({
-  os: "linux", free: o.free ?? 60e9,
-  commands: {
-    [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
-    "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: o.encrypted === false ? "part\ndisk\n" : "crypt\ndisk\n" },
-    ...(o.docker === false ? {} : { "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" } }),
-  },
-});
-const caddyOk: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const machine = (dir: string, o: { encrypted?: boolean; docker?: boolean; free?: number } = {}) =>
+  fakePlatform({
+    os: "linux",
+    free: o.free ?? 60e9,
+    commands: {
+      [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+      "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: o.encrypted === false ? "part\ndisk\n" : "crypt\ndisk\n" },
+      ...(o.docker === false ? {} : { "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" } }),
+    },
+  });
+const caddyOk: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const caddyDown: FetchFn = () => Promise.reject(new Error("ECONNREFUSED"));
 const by = (r: Awaited<ReturnType<typeof runDoctor>>, key: string) => r.findings.find((f) => f.key === key)!;
-const snapshot = (dir: string): string => fs.readdirSync(dir).sort().map((f) => { const s = fs.statSync(path.join(dir, f)); return `${f}:${s.size}:${s.mtimeMs}`; }).join("|");
+const snapshot = (dir: string): string =>
+  fs
+    .readdirSync(dir)
+    .sort()
+    .map((f) => {
+      const s = fs.statSync(path.join(dir, f));
+      return `${f}:${s.size}:${s.mtimeMs}`;
+    })
+    .join("|");
 
 test("doctor runs with only events.db and logs.db: it verifies the chain, reads the log, writes nothing, and says the daemon is not running", async () => {
   const dir = deadServerDir();
   try {
     const before = snapshot(dir);
-    assert.deepEqual(fs.readdirSync(dir).sort(), ["events.db", "logs.db"], "no pid file, no modules.db, no token: a dead server");
+    assert.deepEqual(
+      fs.readdirSync(dir).sort(),
+      ["events.db", "logs.db"],
+      "no pid file, no modules.db, no token: a dead server",
+    );
     const r = await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyOk });
     assert.equal(by(r, "kernel.events_db").state, "healthy");
     assert.match(by(r, "kernel.events_db").detail, /Chain verifies through event \d+/);
@@ -59,25 +79,37 @@ test("doctor runs with only events.db and logs.db: it verifies the chain, reads 
     assert.match(proc.next, /vyre server start/);
     assert.equal(r.ok, false, "a stopped server is not everything checking out");
     assert.equal(snapshot(dir), before, "doctor changed nothing in the data directory");
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("a live pid file makes the process check healthy and the whole report ok", async () => {
   const dir = deadServerDir();
   try {
-    writeInfo(pathsFor(dir), { pid: process.pid, url: "http://127.0.0.1:1", port: 1, roles: ["space"], space: "spc_core", version: "1", startedAt: 1 });
+    writeInfo(pathsFor(dir), {
+      pid: process.pid,
+      url: "http://127.0.0.1:1",
+      port: 1,
+      roles: ["space"],
+      space: "spc_core",
+      version: "1",
+      startedAt: 1,
+    });
     const r = await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyOk });
     assert.equal(by(r, "daemon.process").state, "healthy");
     assert.equal(r.ok, true);
     assert.match(formatDoctor(r), /Everything checks out/);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("an edited event fails the chain and the finding names the restore", async () => {
   const dir = deadServerDir();
   try {
     const db = openDb(path.join(dir, "events.db"));
-    db.run("UPDATE events SET event = replace(event, '\"actor\":\"svc_seed\"', '\"actor\":\"svc_evil\"') WHERE seq = 4");
+    db.run('UPDATE events SET event = replace(event, \'"actor":"svc_seed"\', \'"actor":"svc_evil"\') WHERE seq = 4');
     db.close();
     const r = await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyOk });
     const f = by(r, "kernel.events_db");
@@ -86,7 +118,9 @@ test("an edited event fails the chain and the finding names the restore", async 
     assert.match(f.next, /Restore from the last backup/);
     assert.match(formatDoctor(r), /Next: Restore from the last backup/);
     assert.equal(verifyChainReadOnly(path.join(dir, "events.db")).ok, false);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("a log cut short at the end is caught by the head the last commit recorded", async () => {
@@ -99,7 +133,9 @@ test("a log cut short at the end is caught by the head the last commit recorded"
     const r = verifyChainReadOnly(path.join(dir, "events.db"));
     assert.equal(r.ok, false);
     assert.match(r.why ?? "", /events but \d+ were recorded/);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("a gap in the sequence, a broken prev link and a file that is not an event log are each reported", () => {
@@ -114,10 +150,14 @@ test("a gap in the sequence, a broken prev link and a file that is not an event 
     assert.match(gap.why ?? "", /not contiguous/);
     const other = path.join(dir, "other.db");
     const o = openDb(other);
-    o.exec("CREATE TABLE log_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE events (seq INTEGER PRIMARY KEY, event TEXT, payload BLOB)");
+    o.exec(
+      "CREATE TABLE log_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE events (seq INTEGER PRIMARY KEY, event TEXT, payload BLOB)",
+    );
     o.close();
     assert.match(verifyChainReadOnly(other).why ?? "", /no Space id/);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("the quick pass re-verifies only the newest events, linked to the one before them, and still catches a change among them", async () => {
@@ -130,14 +170,16 @@ test("the quick pass re-verifies only the newest events, linked to the one befor
     const quick = verifyChainReadOnly(file, 2);
     assert.deepEqual(quick, { ok: true, seq: full.seq }, "the tail reaches the same head");
     const db = openDb(file);
-    db.run("UPDATE events SET event = replace(event, '\"actor\":\"svc_seed\"', '\"actor\":\"svc_evil\"') WHERE seq = 4");
+    db.run('UPDATE events SET event = replace(event, \'"actor":"svc_seed"\', \'"actor":"svc_evil"\') WHERE seq = 4');
     db.close();
     assert.equal(verifyChainReadOnly(file).ok, false, "the full pass still reads the whole history");
     assert.equal(verifyChainReadOnly(file, 2).ok, true, "an old event is outside the quick pass");
     const r = await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyOk, chainTail: full.seq - 3 });
     assert.equal(by(r, "kernel.events_db").state, "down", "a changed event inside the tail is caught");
     assert.match(by(r, "kernel.events_db").detail, /event 4 was changed|event 5 does not follow/);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("errors in the last day are counted by message; old ones are not", async () => {
@@ -147,7 +189,9 @@ test("errors in the last day are counted by message; old ones are not", async ()
     for (let i = 0; i < 3; i++) sink.log({ space: "spc_core", level: 40, msg: "provider.timeout" });
     sink.log({ space: "spc_core", level: 40, msg: "disk.write_failed" });
     sink.log({ space: "spc_core", level: 30, msg: "just a warning" });
-    sink.db.prepare("INSERT INTO logs (at, level, space, msg) VALUES (?, 40, 'spc_core', 'ancient')").run(Date.now() - 3 * 86_400_000);
+    sink.db
+      .prepare("INSERT INTO logs (at, level, space, msg) VALUES (?, 40, 'spc_core', 'ancient')")
+      .run(Date.now() - 3 * 86_400_000);
     sink.close();
     const r = await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyOk });
     const f = by(r, "logs.errors");
@@ -155,13 +199,19 @@ test("errors in the last day are counted by message; old ones are not", async ()
     assert.match(f.detail, /4 errors in the last 24 hours \(provider\.timeout x3, disk\.write_failed x1\)/);
     assert.ok(!f.detail.includes("ancient"));
     assert.match(f.next, /vyre logs --level error/);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("an unencrypted volume is degraded; a full disk, no Docker and no Caddy are down, each with its own next step", async () => {
   const dir = deadServerDir();
   try {
-    const r = await runDoctor({ dataDir: dir, platform: machine(dir, { encrypted: false, docker: false, free: 3e8 }), fetch: caddyDown });
+    const r = await runDoctor({
+      dataDir: dir,
+      platform: machine(dir, { encrypted: false, docker: false, free: 3e8 }),
+      fetch: caddyDown,
+    });
     assert.equal(by(r, "host.disk_encrypted").state, "degraded");
     assert.match(by(r, "host.disk_encrypted").next, /FileVault or LUKS/);
     assert.equal(by(r, "host.disk_space").state, "down");
@@ -174,15 +224,24 @@ test("an unencrypted volume is degraded; a full disk, no Docker and no Caddy are
     const text = formatDoctor(r);
     assert.match(text, /degraded\s+host\.disk_encrypted/);
     assert.match(text, /Some checks need attention\./);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("a custom disk check replaces the default one", async () => {
   const dir = deadServerDir();
   try {
-    const r = await runDoctor({ dataDir: dir, platform: machine(dir, { encrypted: false }), fetch: caddyOk, diskEncrypted: () => Promise.resolve({ state: "healthy", detail: "recorded output says encrypted" }) });
+    const r = await runDoctor({
+      dataDir: dir,
+      platform: machine(dir, { encrypted: false }),
+      fetch: caddyOk,
+      diskEncrypted: () => Promise.resolve({ state: "healthy", detail: "recorded output says encrypted" }),
+    });
     assert.equal(by(r, "host.disk_encrypted").detail, "recorded output says encrypted");
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("a data directory with no event log yet is degraded with a plain next step; the device role skips the Space checks", async () => {
@@ -192,17 +251,41 @@ test("a data directory with no event log yet is degraded with a plain next step;
     assert.equal(by(space, "kernel.events_db").state, "degraded");
     assert.match(by(space, "kernel.events_db").detail, /no event log/);
     const device = await runDoctor({ dataDir: dir, role: "device", platform: machine(dir) });
-    assert.deepEqual(device.findings.map((f) => f.key), ["daemon.process", "host.disk_encrypted", "host.disk_space", "logs.errors"]);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+    assert.deepEqual(
+      device.findings.map((f) => f.key),
+      ["daemon.process", "host.disk_encrypted", "host.disk_space", "logs.errors"],
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // ---- through the CLI
 
 function cliIo(dir: string, platform = machine(dir)) {
-  let out = "", err = "";
+  let out = "",
+    err = "";
   const io: CliIo = {
-    out: (t) => { out += t; }, err: (t) => { err += t; }, env: { VYRE_DATA_DIR: dir }, cwd: dir, platform, tty: false, now: Date.now,
-    fetch: (url) => (url.includes("2019") ? Promise.resolve({ status: 200, ok: true, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{}}') }) : Promise.reject(new Error("ECONNREFUSED"))),
+    out: (t) => {
+      out += t;
+    },
+    err: (t) => {
+      err += t;
+    },
+    env: { VYRE_DATA_DIR: dir },
+    cwd: dir,
+    platform,
+    tty: false,
+    now: Date.now,
+    fetch: (url) =>
+      url.includes("2019")
+        ? Promise.resolve({
+            status: 200,
+            ok: true,
+            headers: { get: () => null },
+            text: () => Promise.resolve('{"apps":{}}'),
+          })
+        : Promise.reject(new Error("ECONNREFUSED")),
     sleep: () => Promise.resolve(),
   };
   return { io, out: () => out, err: () => err };
@@ -220,41 +303,104 @@ test("`vyre-server doctor` and `vyre doctor --offline` print the local report an
     const report = JSON.parse(b.out()) as { ok: boolean; findings: { key: string }[] };
     assert.equal(report.ok, false);
     assert.ok(report.findings.some((f) => f.key === "kernel.events_db"));
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("`vyre doctor` with no reachable server falls back to the local doctor and says so", async () => {
   const dir = deadServerDir();
   try {
     fs.writeFileSync(path.join(dir, "admin.token"), "tok\n");
-    writeInfo(pathsFor(dir), { pid: 999_999_999, url: "http://127.0.0.1:1", port: 1, roles: ["space"], space: "spc_core", version: "1", startedAt: 1 });
+    writeInfo(pathsFor(dir), {
+      pid: 999_999_999,
+      url: "http://127.0.0.1:1",
+      port: 1,
+      roles: ["space"],
+      space: "spc_core",
+      version: "1",
+      startedAt: 1,
+    });
     const c = cliIo(dir);
     assert.equal(await main(["doctor"], c.io), 1);
     assert.match(c.err(), /The server does not answer\. Running the local doctor instead\./);
     assert.match(c.out(), /kernel\.events_db/);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("a Space with its own domain is checked for its Caddy route: missing is down with the next step, present is healthy, a relay Space has no such check", async () => {
   const dir = deadServerDir();
   try {
     const modules = openDb(path.join(dir, "modules.db"));
-    modules.exec("CREATE TABLE network_config (id INTEGER PRIMARY KEY, address TEXT NOT NULL, mode TEXT NOT NULL, domain TEXT, relay_address TEXT, public_ingress INTEGER NOT NULL, ingress_detail TEXT, reported_at INTEGER NOT NULL)");
-    modules.run("INSERT INTO network_config (id, address, mode, domain, public_ingress, reported_at) VALUES (1, 'mla.example.com', 'own_domain', 'mla.example.com', 1, 1)");
+    modules.exec(
+      "CREATE TABLE network_config (id INTEGER PRIMARY KEY, address TEXT NOT NULL, mode TEXT NOT NULL, domain TEXT, relay_address TEXT, public_ingress INTEGER NOT NULL, ingress_detail TEXT, reported_at INTEGER NOT NULL)",
+    );
+    modules.run(
+      "INSERT INTO network_config (id, address, mode, domain, public_ingress, reported_at) VALUES (1, 'mla.example.com', 'own_domain', 'mla.example.com', 1, 1)",
+    );
     modules.close();
-    const caddyWith = (config: unknown): FetchFn => () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve(JSON.stringify(config)) });
+    const caddyWith =
+      (config: unknown): FetchFn =>
+      () =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          headers: { get: () => null },
+          text: () => Promise.resolve(JSON.stringify(config)),
+        });
     const before = snapshot(dir);
-    const missing = by(await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyWith({ admin: { listen: "127.0.0.1:2019" } }) }), "host.ingress");
+    const missing = by(
+      await runDoctor({
+        dataDir: dir,
+        platform: machine(dir),
+        fetch: caddyWith({ admin: { listen: "127.0.0.1:2019" } }),
+      }),
+      "host.ingress",
+    );
     assert.equal(missing.state, "down");
     assert.match(missing.detail, /no route for mla\.example\.com/);
     assert.match(missing.next, /vyre-server restart/);
-    const routed = { apps: { http: { servers: { vyre: { listen: [":443"], routes: [{ "@id": "vyre-route-mla.example.com", match: [{ host: ["mla.example.com"] }], handle: [], terminal: true }] } } } } };
-    assert.equal(by(await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyWith(routed) }), "host.ingress").state, "healthy");
-    assert.equal(by(await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyDown }), "host.ingress").state, "degraded", "Caddy down is the caddy finding's to call down");
+    const routed = {
+      apps: {
+        http: {
+          servers: {
+            vyre: {
+              listen: [":443"],
+              routes: [
+                {
+                  "@id": "vyre-route-mla.example.com",
+                  match: [{ host: ["mla.example.com"] }],
+                  handle: [],
+                  terminal: true,
+                },
+              ],
+            },
+          },
+        },
+      },
+    };
+    assert.equal(
+      by(await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyWith(routed) }), "host.ingress").state,
+      "healthy",
+    );
+    assert.equal(
+      by(await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyDown }), "host.ingress").state,
+      "degraded",
+      "Caddy down is the caddy finding's to call down",
+    );
     assert.equal(snapshot(dir), before, "modules.db was only read");
     const relay = openDb(path.join(dir, "modules.db"));
     relay.run("UPDATE network_config SET mode = 'relay', address = 'mla.vyre.run'");
     relay.close();
-    assert.equal((await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyOk })).findings.some((f) => f.key === "host.ingress"), false);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+    assert.equal(
+      (await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyOk })).findings.some(
+        (f) => f.key === "host.ingress",
+      ),
+      false,
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

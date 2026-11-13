@@ -18,7 +18,7 @@ type Row = Record<string, unknown>;
 
 /** Makes the Space roots and the caller's Personal root exist as access resources. Parents first, so a child never names a folder access does not know. */
 export async function registerRoots(ctx: Ctx): Promise<void> {
-  ensureReady(ctx);   // every files capability makes the root rows, whether or not a host is there to register them
+  ensureReady(ctx); // every files capability makes the root rows, whether or not a host is there to register them
   const host = filesHost();
   if (!host) return;
   const rows = ctx.db.all(
@@ -29,10 +29,15 @@ export async function registerRoots(ctx: Ctx): Promise<void> {
   for (const row of rows) {
     const id = String(row["id"]);
     const key = typeof row["root_key"] === "string" ? row["root_key"] : "";
-    if (key.startsWith("personal:") && key !== mine) continue;   // somebody else's Personal root is registered when they call
+    if (key.startsWith("personal:") && key !== mine) continue; // somebody else's Personal root is registered when they call
     if (registered.has(id)) continue;
     const personal = key === mine;
-    await host.resources.ensure({ id, type: "folder", parentId: typeof row["parent_id"] === "string" ? row["parent_id"] : null, ...(personal ? { ownerId: holder, privateRoot: true } : {}) });
+    await host.resources.ensure({
+      id,
+      type: "folder",
+      parentId: typeof row["parent_id"] === "string" ? row["parent_id"] : null,
+      ...(personal ? { ownerId: holder, privateRoot: true } : {}),
+    });
     registered.add(id);
   }
 }
@@ -44,6 +49,10 @@ type Handler = (ctx: Ctx, input: unknown) => Promise<unknown> | unknown;
 /** Every files handler registers the roots first. */
 export function withRoots<T extends Record<string, Handler>>(handlers: T): T {
   const out: Record<string, Handler> = {};
-  for (const [name, h] of Object.entries(handlers)) out[name] = async (ctx, input) => { await registerRoots(ctx); return h(ctx, input); };
+  for (const [name, h] of Object.entries(handlers))
+    out[name] = async (ctx, input) => {
+      await registerRoots(ctx);
+      return h(ctx, input);
+    };
   return out as T;
 }

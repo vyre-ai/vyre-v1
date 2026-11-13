@@ -4,24 +4,49 @@ import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
 import { lastMessages, threadBy, threadOut } from "../projections.ts";
 import { isDirect } from "../handlers/post.ts";
-import { DANA, DRAFTER, INTAKE, LEO, MAYA, REVIEWER, assertEventsConform, failure, harness } from "../fixtures/harness.ts";
+import {
+  DANA,
+  DRAFTER,
+  INTAKE,
+  LEO,
+  MAYA,
+  REVIEWER,
+  assertEventsConform,
+  failure,
+  harness,
+} from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 let n = 0;
-const start = (ctx: Harness["ctx"], input: Record<string, unknown>) => h["chat.start"]!(ctx, { kind: "chat", agentIds: [], idempotencyKey: `s${++n}`, ...input });
+const start = (ctx: Harness["ctx"], input: Record<string, unknown>) =>
+  h["chat.start"]!(ctx, { kind: "chat", agentIds: [], idempotencyKey: `s${++n}`, ...input });
 
 test("a chat with one agent: the agent leads, the person owns it, and it shows in Recent", async () => {
   const hn = harness();
-  const { thread } = await start(hn.ctx, { agentIds: [INTAKE], title: "Plan the launch", model: "claude-sonnet-5-5", provider: "anthropic", effort: "high", first: "Where do we start?" });
+  const { thread } = await start(hn.ctx, {
+    agentIds: [INTAKE],
+    title: "Plan the launch",
+    model: "claude-sonnet-5-5",
+    provider: "anthropic",
+    effort: "high",
+    first: "Where do we start?",
+  });
   assert.equal(thread.kind, "chat");
   assert.equal(thread.starter, DANA);
   assert.equal(thread.listed, true);
   assert.equal(thread.planMode, false);
   assert.deepEqual(thread.members, [{ kind: "person", id: DANA }]);
-  assert.deepEqual(thread.agents, [{ agentId: INTAKE, mode: "lead", model: "claude-sonnet-5-5", provider: "anthropic", effort: "high" }]);
+  assert.deepEqual(thread.agents, [
+    { agentId: INTAKE, mode: "lead", model: "claude-sonnet-5-5", provider: "anthropic", effort: "high" },
+  ]);
   assert.deepEqual(hn.names(), ["thread.started", "agent.engaged", "message.received"]);
-  assert.deepEqual(hn.named("agent.engaged")[0]!.payload, { threadId: thread.threadId, agentId: INTAKE, mode: "lead", by: DANA });
+  assert.deepEqual(hn.named("agent.engaged")[0]!.payload, {
+    threadId: thread.threadId,
+    agentId: INTAKE,
+    mode: "lead",
+    by: DANA,
+  });
   assert.equal(lastMessages(hn.db, thread.threadId)[0]!.body, "Where do we start?");
   assert.deepEqual(assertEventsConform(hn), []);
 });
@@ -29,16 +54,32 @@ test("a chat with one agent: the agent leads, the person owns it, and it shows i
 test("several agents: the first leads and the rest listen; with a second person all agents listen", async () => {
   const hn = harness();
   const a = (await start(hn.ctx, { agentIds: [INTAKE, DRAFTER, REVIEWER, INTAKE] })).thread;
-  assert.deepEqual(a.agents.map((x: any) => [x.agentId, x.mode]), [[INTAKE, "lead"], [DRAFTER, "listen"], [REVIEWER, "listen"]]);
+  assert.deepEqual(
+    a.agents.map((x: any) => [x.agentId, x.mode]),
+    [
+      [INTAKE, "lead"],
+      [DRAFTER, "listen"],
+      [REVIEWER, "listen"],
+    ],
+  );
   const b = (await start(hn.ctx, { agentIds: [INTAKE], personId: MAYA })).thread;
-  assert.deepEqual(b.agents.map((x: any) => x.mode), ["listen"]);
-  assert.deepEqual(b.members.map((m: any) => m.id), [DANA, MAYA]);
+  assert.deepEqual(
+    b.agents.map((x: any) => x.mode),
+    ["listen"],
+  );
+  assert.deepEqual(
+    b.members.map((m: any) => m.id),
+    [DANA, MAYA],
+  );
 });
 
 test("a direct message is one conversation per pair of people", async () => {
   const hn = harness();
   const first = (await start(hn.ctx, { personId: MAYA, first: "Hi Maya" })).thread;
-  assert.deepEqual(first.members.map((m: any) => m.id), [DANA, MAYA]);
+  assert.deepEqual(
+    first.members.map((m: any) => m.id),
+    [DANA, MAYA],
+  );
   hn.clear();
   const again = (await start(hn.person(MAYA), { personId: DANA, first: "Hi back" })).thread;
   assert.equal(again.threadId, first.threadId, "started from the other side it is the same conversation");
@@ -63,7 +104,10 @@ test("a chat of two people with an agent in it is not their direct message (lane
   const dm = (await start(hn.ctx, { personId: MAYA })).thread;
   assert.notEqual(dm.threadId, billing.threadId, "the person's row opens a direct message, never the older group chat");
   assert.notEqual(dm.threadId, withAgent.threadId);
-  assert.deepEqual(dm.members.map((m: any) => m.id), [DANA, MAYA]);
+  assert.deepEqual(
+    dm.members.map((m: any) => m.id),
+    [DANA, MAYA],
+  );
   assert.deepEqual(dm.agents, []);
   assert.ok(isDirect(hn.ctx, threadBy(hn.db, dm.threadId)!));
   // found again from either side
@@ -83,22 +127,38 @@ test("twenty group chats with the same person cannot hide the direct message", a
   }
   const dm = (await start(hn.ctx, { personId: MAYA })).thread;
   assert.deepEqual(dm.agents, []);
-  assert.equal((await start(hn.person(MAYA), { personId: DANA })).thread.threadId, dm.threadId, "found past the first twenty chats the two share");
+  assert.equal(
+    (await start(hn.person(MAYA), { personId: DANA })).thread.threadId,
+    dm.threadId,
+    "found past the first twenty chats the two share",
+  );
 });
 
 test("an Ask pane is private, scoped to an object and out of Recent until it is opened as a chat", async () => {
   const hn = harness();
-  const { thread } = await start(hn.ctx, { kind: "ask", agentIds: [INTAKE], scopeType: "record", scopeId: "rec_a1", recordId: "rec_a1", first: "What is this?" });
+  const { thread } = await start(hn.ctx, {
+    kind: "ask",
+    agentIds: [INTAKE],
+    scopeType: "record",
+    scopeId: "rec_a1",
+    recordId: "rec_a1",
+    first: "What is this?",
+  });
   assert.equal(thread.kind, "ask");
   assert.equal(thread.listed, false);
   assert.equal(thread.scopeType, "record");
   assert.equal(thread.scopeId, "rec_a1");
-  assert.deepEqual(thread.agents.map((x: any) => x.mode), ["lead"], "the agent leads in an Ask pane");
+  assert.deepEqual(
+    thread.agents.map((x: any) => x.mode),
+    ["lead"],
+    "the agent leads in an Ask pane",
+  );
   const msg = lastMessages(hn.db, thread.threadId)[0]!;
   const post = await h["chat.post"]!(hn.ctx, { threadId: thread.threadId, body: "More", idempotencyKey: "p" });
   assert.equal(post.message.enc, 2, "an Ask pane is enc=2 like any private chat");
   assert.ok(msg.id);
-  const second = (await start(hn.ctx, { kind: "ask", agentIds: [INTAKE], scopeType: "record", scopeId: "rec_a1" })).thread;
+  const second = (await start(hn.ctx, { kind: "ask", agentIds: [INTAKE], scopeType: "record", scopeId: "rec_a1" }))
+    .thread;
   assert.notEqual(second.threadId, thread.threadId, "each Ask is its own pane in the object's history");
 });
 
@@ -110,8 +170,16 @@ test("what is refused", async () => {
   assert.equal(await bad({ personId: INTAKE }), "validation.bad_input", "an agent id is not a person");
   assert.equal(await bad({ agentIds: [MAYA] }), "validation.bad_input", "a person id is not an agent");
   assert.equal(await bad({ kind: "ask", agentIds: [INTAKE] }), "validation.bad_input", "an Ask is about something");
-  assert.equal(await bad({ kind: "ask", scopeType: "record", scopeId: "rec_a1" }), "validation.bad_input", "an Ask needs an agent");
-  assert.equal(await bad({ kind: "ask", agentIds: [INTAKE], personId: MAYA, scopeType: "record", scopeId: "rec_a1" }), "validation.bad_input", "an Ask is private");
+  assert.equal(
+    await bad({ kind: "ask", scopeType: "record", scopeId: "rec_a1" }),
+    "validation.bad_input",
+    "an Ask needs an agent",
+  );
+  assert.equal(
+    await bad({ kind: "ask", agentIds: [INTAKE], personId: MAYA, scopeType: "record", scopeId: "rec_a1" }),
+    "validation.bad_input",
+    "an Ask is private",
+  );
   assert.equal(await bad({ agentIds: [INTAKE], scopeId: "rec_a1" }), "validation.bad_input", "scope needs both parts");
   assert.equal(await bad({ agentIds: Array.from({ length: 21 }, (_, i) => `agt_a${i}`) }), "validation.bad_input");
   assert.equal(hn.rows("SELECT id FROM chat_thread").length, 0);
@@ -127,20 +195,38 @@ test("an agent that starts a chat for a person starts it as that person's chat",
 // ---- chat.thread -----------------------------------------------------------------------------------------------------------------------------------
 
 async function channelWith(hn: Harness) {
-  return (await h["channels.create"]!(hn.ctx, { name: "intake", visibility: "public", memberIds: [MAYA], agentIds: [INTAKE], idempotencyKey: `c${++n}` })).channel;
+  return (
+    await h["channels.create"]!(hn.ctx, {
+      name: "intake",
+      visibility: "public",
+      memberIds: [MAYA],
+      agentIds: [INTAKE],
+      idempotencyKey: `c${++n}`,
+    })
+  ).channel;
 }
 
 test("the thread under a message is made once and reopened after that", async () => {
   const hn = harness();
   const c = await channelWith(hn);
-  const msg = (await h["chat.post"]!(hn.person(MAYA), { threadId: c.mainThreadId, body: "Can someone look at this?", idempotencyKey: "p1" })).message;
+  const msg = (
+    await h["chat.post"]!(hn.person(MAYA), {
+      threadId: c.mainThreadId,
+      body: "Can someone look at this?",
+      idempotencyKey: "p1",
+    })
+  ).message;
   hn.clear();
   const { thread } = await h["chat.thread"]!(hn.ctx, { threadId: c.mainThreadId, messageId: msg.messageId });
   assert.equal(thread.kind, "thread");
   assert.equal(thread.parentThreadId, c.mainThreadId);
   assert.equal(thread.parentMessageId, msg.messageId);
   assert.equal(thread.listed, false);
-  assert.deepEqual(thread.agents.map((a: any) => [a.agentId, a.mode]), [[INTAKE, "listen"]], "agents reply in a channel's threads (the default), so the channel's agents are in the thread, listening, and answer when asked there");
+  assert.deepEqual(
+    thread.agents.map((a: any) => [a.agentId, a.mode]),
+    [[INTAKE, "listen"]],
+    "agents reply in a channel's threads (the default), so the channel's agents are in the thread, listening, and answer when asked there",
+  );
   assert.deepEqual(hn.names(), ["thread.started"]);
   assert.deepEqual(assertEventsConform(hn), []);
   hn.clear();
@@ -152,23 +238,46 @@ test("the thread under a message is made once and reopened after that", async ()
 test("the thread under an agent's message is worked by that agent, who leads it", async () => {
   const hn = harness();
   const c = await channelWith(hn);
-  const line = (await h["chat.post"]!(hn.agent(INTAKE), { threadId: c.mainThreadId, body: "Intake is on it", idempotencyKey: "p1" })).message;
+  const line = (
+    await h["chat.post"]!(hn.agent(INTAKE), { threadId: c.mainThreadId, body: "Intake is on it", idempotencyKey: "p1" })
+  ).message;
   const { thread } = await h["chat.thread"]!(hn.ctx, { threadId: c.mainThreadId, messageId: line.messageId });
-  assert.deepEqual(thread.agents.map((a: any) => [a.agentId, a.mode]), [[INTAKE, "lead"]]);
+  assert.deepEqual(
+    thread.agents.map((a: any) => [a.agentId, a.mode]),
+    [[INTAKE, "lead"]],
+  );
   // an agent that opens a thread under a person's message leads it too
-  const ask = (await h["chat.post"]!(hn.person(MAYA), { threadId: c.mainThreadId, body: "Draft a reply", idempotencyKey: "p2" })).message;
+  const ask = (
+    await h["chat.post"]!(hn.person(MAYA), { threadId: c.mainThreadId, body: "Draft a reply", idempotencyKey: "p2" })
+  ).message;
   const mine = await h["chat.thread"]!(hn.agent(DRAFTER), { threadId: c.mainThreadId, messageId: ask.messageId });
-  assert.deepEqual(mine.thread.agents.map((a: any) => [a.agentId, a.mode]), [[DRAFTER, "lead"], [INTAKE, "listen"]]);
+  assert.deepEqual(
+    mine.thread.agents.map((a: any) => [a.agentId, a.mode]),
+    [
+      [DRAFTER, "lead"],
+      [INTAKE, "listen"],
+    ],
+  );
 });
 
 test("a thread needs a message of that thread, and a private chat's messages are private", async () => {
   const hn = harness();
   const c = await channelWith(hn);
   const other = (await start(hn.ctx, { agentIds: [INTAKE] })).thread;
-  const mine = (await h["chat.post"]!(hn.ctx, { threadId: other.threadId, body: "private", idempotencyKey: "p" })).message;
-  assert.equal(await failure(() => h["chat.thread"]!(hn.ctx, { threadId: c.mainThreadId, messageId: mine.messageId })), "validation.not_found");
-  assert.equal(await failure(() => h["chat.thread"]!(hn.ctx, { threadId: "thr_none", messageId: mine.messageId })), "validation.not_found");
-  assert.equal(await failure(() => h["chat.thread"]!(hn.person(MAYA), { threadId: other.threadId, messageId: mine.messageId })), "validation.not_found");
+  const mine = (await h["chat.post"]!(hn.ctx, { threadId: other.threadId, body: "private", idempotencyKey: "p" }))
+    .message;
+  assert.equal(
+    await failure(() => h["chat.thread"]!(hn.ctx, { threadId: c.mainThreadId, messageId: mine.messageId })),
+    "validation.not_found",
+  );
+  assert.equal(
+    await failure(() => h["chat.thread"]!(hn.ctx, { threadId: "thr_none", messageId: mine.messageId })),
+    "validation.not_found",
+  );
+  assert.equal(
+    await failure(() => h["chat.thread"]!(hn.person(MAYA), { threadId: other.threadId, messageId: mine.messageId })),
+    "validation.not_found",
+  );
 });
 
 test("a thread carries its reply count and the time of its last message, and a deleted message is not counted (P-CC_34)", async () => {
@@ -179,7 +288,7 @@ test("a thread carries its reply count and the time of its last message, and a d
   await h["chat.post"]!(hn.ctx, { threadId: thread.threadId, body: "one", idempotencyKey: `rc${++n}` });
   hn.advance(5000);
   await h["chat.post"]!(hn.ctx, { threadId: thread.threadId, body: "two", idempotencyKey: `rc${++n}` });
-  const got = threadOut(hn.db, threadBy(hn.db, thread.threadId)!);   // what threads.get returns for it
+  const got = threadOut(hn.db, threadBy(hn.db, thread.threadId)!); // what threads.get returns for it
   assert.equal(got.replyCount, 2);
   assert.equal(got.lastMessageAt, hn.clock.t);
   const other = (await start(hn.ctx, { agentIds: [INTAKE] })).thread;

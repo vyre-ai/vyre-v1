@@ -61,7 +61,14 @@ export interface AgentSettings {
   style: AgentStyle;
 }
 
-export const DEFAULT_AGENT_SETTINGS: AgentSettings = { how: "tag", when: "always", topics: "", hoursFrom: "09:00", hoursTo: "17:00", style: "short" };
+export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
+  how: "tag",
+  when: "always",
+  topics: "",
+  hoursFrom: "09:00",
+  hoursTo: "17:00",
+  style: "short",
+};
 
 /* ---------- picks ---------- */
 
@@ -117,7 +124,17 @@ export type ShareLevel = "view" | "use" | "edit" | "manage";
 export type ShareSubjectKind = "person" | "group" | "role" | "agent" | "link";
 export type ShareVia = "owner" | "grant" | "folder" | "space";
 
-export type ShareItemType = "note" | "file" | "record" | "rtype" | "artifact" | "project" | "vault" | "agent" | "automation" | "skill";
+export type ShareItemType =
+  | "note"
+  | "file"
+  | "record"
+  | "rtype"
+  | "artifact"
+  | "project"
+  | "vault"
+  | "agent"
+  | "automation"
+  | "skill";
 
 /** One row of "Who has access". */
 export interface ShareRow {
@@ -296,10 +313,25 @@ export const frozenShareSheetProps = {
   resourceId: "fld_clients",
   itemType: "file",
   itemName: "Q4 invoices",
-  shares: [{ subjectKind: "person", subjectId: "usr_omar", name: "Omar Reyes", level: "edit", via: "grant", fromFolderId: null }],
+  shares: [
+    {
+      subjectKind: "person",
+      subjectId: "usr_omar",
+      name: "Omar Reyes",
+      level: "edit",
+      via: "grant",
+      fromFolderId: null,
+    },
+  ],
   directory: {
     people: [{ id: "usr_sara", name: "Sara Malik", sub: "Space member", kind: "person" }],
-    space: { id: "space", name: "Anyone in the Space", sub: "Everyone who is in Northwind", kind: "space", subject: { kind: "group", id: "space" } },
+    space: {
+      id: "space",
+      name: "Anyone in the Space",
+      sub: "Everyone who is in Northwind",
+      kind: "space",
+      subject: { kind: "group", id: "space" },
+    },
   },
   onClose: () => undefined,
 } as const satisfies ShareSheetProps;

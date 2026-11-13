@@ -14,10 +14,14 @@ const skip: string | false = ON ? false : "needs VYRE_HEAVY_DOCKER=1 (the CLI ru
 const FAKE_CLI = fileURLToPath(new URL("../../host/tests/fixtures/fake-cli-driver/fake-cli.mjs", import.meta.url));
 const KEY = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
 
-test("golden 7: a person talks to an agent and the reply streams back from the sandboxed CLI", { skip, todo: todoOf(REPLY_GAPS) }, async () => {
-  const { trail } = await runAgentReply(LIVE_FOR_REPLY, {
-    vault: { secret: async () => KEY, signRs256: async () => "" },
-    engineCli: { command: { claude: [process.execPath, FAKE_CLI, "claude"] }, programRead: [path.dirname(FAKE_CLI)] },
-  });
-  assert.deepEqual(trail.failures, [], `\n${trail.report()}`);
-});
+test(
+  "golden 7: a person talks to an agent and the reply streams back from the sandboxed CLI",
+  { skip, todo: todoOf(REPLY_GAPS) },
+  async () => {
+    const { trail } = await runAgentReply(LIVE_FOR_REPLY, {
+      vault: { secret: async () => KEY, signRs256: async () => "" },
+      engineCli: { command: { claude: [process.execPath, FAKE_CLI, "claude"] }, programRead: [path.dirname(FAKE_CLI)] },
+    });
+    assert.deepEqual(trail.failures, [], `\n${trail.report()}`);
+  },
+);

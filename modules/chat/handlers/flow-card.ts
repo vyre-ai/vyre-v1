@@ -8,20 +8,40 @@ import type { ChatCtx } from "../projections.ts";
 import { load } from "./g24a.ts";
 import { postLinkCard } from "./link-card.ts";
 
-export async function flowCard(ctx: ChatCtx, input: { threadId: string; automationId: string; idempotencyKey: string }) {
+export async function flowCard(
+  ctx: ChatCtx,
+  input: { threadId: string; automationId: string; idempotencyKey: string },
+) {
   ensure(ctx.db);
   const t = load(ctx, input.threadId);
   if (!ctx.call) raise(ctx, "internal.unavailable", "Automations are not available just now.");
-  const got = (await ctx.call("automations.get", { automationId: input.automationId })) as { automation?: { id: string; name: string; status: string; definition: { triggers: { key: string }[]; nodes: { id: string; key: string }[] } } };
+  const got = (await ctx.call("automations.get", { automationId: input.automationId })) as {
+    automation?: {
+      id: string;
+      name: string;
+      status: string;
+      definition: { triggers: { key: string }[]; nodes: { id: string; key: string }[] };
+    };
+  };
   const a = got.automation;
   if (!a) raise(ctx, "validation.not_found", "That Flow is not here.");
-  if (a!.status !== "draft") raise(ctx, "validation.bad_input", "Only a draft Flow gets a card; this one is already running.");
-  const m = postLinkCard(ctx, t.id, {
-    icon: "flow", lead: "Flow drafted", title: a!.name, body: describeFlow(a!.definition, registry).join("\n"), target: { type: "automation", id: a!.id },
-    actions: [
-      { key: "on", label: "Turn on", cap: "automations.set_enabled", input: { automationId: a!.id, enabled: true } },
-      { key: "test", label: "Test", cap: "automations.test", input: { automationId: a!.id } },
-    ],
-  } as never, `Flow drafted: ${a!.name}`);
+  if (a!.status !== "draft")
+    raise(ctx, "validation.bad_input", "Only a draft Flow gets a card; this one is already running.");
+  const m = postLinkCard(
+    ctx,
+    t.id,
+    {
+      icon: "flow",
+      lead: "Flow drafted",
+      title: a!.name,
+      body: describeFlow(a!.definition, registry).join("\n"),
+      target: { type: "automation", id: a!.id },
+      actions: [
+        { key: "on", label: "Turn on", cap: "automations.set_enabled", input: { automationId: a!.id, enabled: true } },
+        { key: "test", label: "Test", cap: "automations.test", input: { automationId: a!.id } },
+      ],
+    } as never,
+    `Flow drafted: ${a!.name}`,
+  );
   return { messageId: m.id };
 }

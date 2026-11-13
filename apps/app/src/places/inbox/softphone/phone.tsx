@@ -4,8 +4,20 @@
 // passes `device` (the real Twilio Voice SDK Device, or a fake in tests), because the SDK is never imported here.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { IDLE_STATE, Softphone, createPhoneController, stateToProps, useSoftphoneShortcut } from "../../../../../../ui/src/Softphone/index.tsx";
-import type { PhoneController, PhoneDeviceLike, PhoneState, SoftphoneViewProps, TransferTarget } from "../../../../../../ui/src/Softphone/index.tsx";
+import {
+  IDLE_STATE,
+  Softphone,
+  createPhoneController,
+  stateToProps,
+  useSoftphoneShortcut,
+} from "../../../../../../ui/src/Softphone/index.tsx";
+import type {
+  PhoneController,
+  PhoneDeviceLike,
+  PhoneState,
+  SoftphoneViewProps,
+  TransferTarget,
+} from "../../../../../../ui/src/Softphone/index.tsx";
 import { useInboxData, useScreenQuery } from "../sidebar/data.tsx";
 import type { ContactRow } from "../sidebar/model.ts";
 import { SCREENS } from "../sidebar/model.ts";
@@ -39,18 +51,27 @@ export interface InboxPhone {
 }
 
 /** What identifies the conversation a call can belong to. */
-export interface ConversationKey { id: string; contactId?: string | undefined; address: string; /** other phones the person is known by (from their thread) */ numbers?: readonly string[] | undefined }
+export interface ConversationKey {
+  id: string;
+  contactId?: string | undefined;
+  address: string;
+  /** other phones the person is known by (from their thread) */ numbers?: readonly string[] | undefined;
+}
 
 /** The dock's context. Exported so a screen test can stand a call in without a Voice device. */
 export const InboxPhoneContext = createContext<InboxPhone | null>(null);
 const Ctx = InboxPhoneContext;
 
 /** Does the floating dock draw? Not while the conversation the call is with is open and shows the call itself. */
-export const dockFloats = (claimed: boolean, phase: string): boolean => !(claimed && (phase === "live" || phase === "held" || phase === "ended"));
+export const dockFloats = (claimed: boolean, phase: string): boolean =>
+  !(claimed && (phase === "live" || phase === "held" || phase === "ended"));
 /** The dock's controls, or null when no dock is mounted (the Call button then asks the shell to open the dialer). */
 export const usePhone = (): InboxPhone | null => useContext(Ctx);
 
-export interface PhoneTarget extends TransferTarget { id: string; kind2: "person" | "agent" }
+export interface PhoneTarget extends TransferTarget {
+  id: string;
+  kind2: "person" | "agent";
+}
 
 export interface InboxPhoneProps {
   device: PhoneDeviceLike;
@@ -63,7 +84,12 @@ export interface InboxPhoneProps {
 /** The provider and the dock in one: children may call `usePhone()`. */
 const NO_TARGETS: readonly PhoneTarget[] = [];
 
-export function InboxPhoneDock({ device, targets = NO_TARGETS, children, placement = "dock" }: InboxPhoneProps): ReactElement {
+export function InboxPhoneDock({
+  device,
+  targets = NO_TARGETS,
+  children,
+  placement = "dock",
+}: InboxPhoneProps): ReactElement {
   const data = useInboxData();
   const numbersQ = useScreenQuery<NumbersOut>(SOFTPHONE_SCREEN, "numbers");
   const callsQ = useScreenQuery<CallsOut>(SOFTPHONE_SCREEN, "calls");
@@ -86,18 +112,48 @@ export function InboxPhoneDock({ device, targets = NO_TARGETS, children, placeme
   const opened = useRef<string>("");
 
   // an incoming call arrives with the id the server opened for it (the voice webhook): keep it so hangup, hold and record reach the server
-  const watched = useMemo<PhoneDeviceLike>(() => ({
-    connect: (o) => device.connect(o),
-    destroy: () => device.destroy(),
-    on: (ev, h) => device.on(ev, (c) => { if (c.parameters.CallSid) call.current.id = c.parameters.CallSid; h(c); }),
-  }), [device]);
-  const controller = useMemo<PhoneController>(() => createPhoneController(watched, phoneHooks(
-    (cap, input) => data.call(cap, input),
-    { numberId: () => live.current.from, callId: () => call.current.id, setCallId: (id) => { call.current.id = id; }, contactId: () => call.current.contactId },
-    { targets, onHungUp: (c: CallOut) => { setSaved(savedLine(live.current.rows.find((r) => r.contactId === c.contactId)?.displayName)); setSummary(c.summary); } },
-  )), [watched, data, targets]);
+  const watched = useMemo<PhoneDeviceLike>(
+    () => ({
+      connect: (o) => device.connect(o),
+      destroy: () => device.destroy(),
+      on: (ev, h) =>
+        device.on(ev, (c) => {
+          if (c.parameters.CallSid) call.current.id = c.parameters.CallSid;
+          h(c);
+        }),
+    }),
+    [device],
+  );
+  const controller = useMemo<PhoneController>(
+    () =>
+      createPhoneController(
+        watched,
+        phoneHooks(
+          (cap, input) => data.call(cap, input),
+          {
+            numberId: () => live.current.from,
+            callId: () => call.current.id,
+            setCallId: (id) => {
+              call.current.id = id;
+            },
+            contactId: () => call.current.contactId,
+          },
+          {
+            targets,
+            onHungUp: (c: CallOut) => {
+              setSaved(savedLine(live.current.rows.find((r) => r.contactId === c.contactId)?.displayName));
+              setSummary(c.summary);
+            },
+          },
+        ),
+      ),
+    [watched, data, targets],
+  );
 
-  useEffect(() => { setState(controller.state()); return controller.subscribe(setState); }, [controller]);
+  useEffect(() => {
+    setState(controller.state());
+    return controller.subscribe(setState);
+  }, [controller]);
   useEffect(() => () => controller.destroy(), [controller]);
   // the clock of a live call
   useEffect(() => {
@@ -108,17 +164,36 @@ export function InboxPhoneDock({ device, targets = NO_TARGETS, children, placeme
   // a call the other side ended: it was saved all the same
   useEffect(() => {
     if (state.phase === "ended" && state.ended?.reason === "remote" && call.current.id && saved === undefined) {
-      void data.call("telephony.hangup", { callId: call.current.id }).then((out) => setSaved(savedLine(live.current.rows.find((r) => r.contactId === (out as { call: CallOut }).call.contactId)?.displayName)));
+      void data
+        .call("telephony.hangup", { callId: call.current.id })
+        .then((out) =>
+          setSaved(
+            savedLine(
+              live.current.rows.find((r) => r.contactId === (out as { call: CallOut }).call.contactId)?.displayName,
+            ),
+          ),
+        );
     }
-    if (state.phase === "idle") { call.current = {}; setSaved(undefined); setSummary(undefined); }
+    if (state.phase === "idle") {
+      call.current = {};
+      setSaved(undefined);
+      setSummary(undefined);
+    }
   }, [state.phase, state.ended, data, saved]);
 
   useSoftphoneShortcut(useCallback(() => controller.dispatch({ type: "toggle_dialer" }), [controller]));
 
   const base = stateToProps(state);
   const caller = state.peer ? callerOf(state.peer, calls, rows) : undefined;
-  const rowOf = (n: string, recordId?: string): ContactRow | undefined => rows.find((r) => (recordId !== undefined && r.contactId === recordId) || sameNumber(r.address, n));
-  const claimed = claims.some((c) => state.peer !== "" && ((caller?.recordId !== undefined && c.contactId === caller.recordId) || sameNumber(c.address, state.peer) || (c.numbers ?? []).some((n) => sameNumber(n, state.peer))));
+  const rowOf = (n: string, recordId?: string): ContactRow | undefined =>
+    rows.find((r) => (recordId !== undefined && r.contactId === recordId) || sameNumber(r.address, n));
+  const claimed = claims.some(
+    (c) =>
+      state.peer !== "" &&
+      ((caller?.recordId !== undefined && c.contactId === caller.recordId) ||
+        sameNumber(c.address, state.peer) ||
+        (c.numbers ?? []).some((n) => sameNumber(n, state.peer))),
+  );
 
   const view: SoftphoneViewProps = {
     ...base,
@@ -138,47 +213,91 @@ export function InboxPhoneDock({ device, targets = NO_TARGETS, children, placeme
     onClose: () => controller.dispatch({ type: "close_dialer" }),
     onFrom: setFromId,
     onType: setTyped,
-    onDial: (n) => { call.current = (callerOf(n, calls, rows).recordId ? { contactId: callerOf(n, calls, rows).recordId as string } : {}); void controller.dial(n); },
+    onDial: (n) => {
+      call.current = callerOf(n, calls, rows).recordId
+        ? { contactId: callerOf(n, calls, rows).recordId as string }
+        : {};
+      void controller.dial(n);
+    },
     onAnswer: () => controller.answer(),
     onDecline: () => controller.decline(),
     onHangup: () => controller.hangup(),
     onMute: () => controller.mute(),
-    onHold: () => { void controller.hold(); },
-    onRecord: () => { void controller.record(); },
-    onTransfer: (name) => { void controller.transfer(name); },
+    onHold: () => {
+      void controller.hold();
+    },
+    onRecord: () => {
+      void controller.record();
+    },
+    onTransfer: (name) => {
+      void controller.transfer(name);
+    },
     onDigit: (k) => controller.sendDigit(k),
     onDismiss: () => controller.dispatch({ type: "dismiss" }),
-    onLogTask: (title) => { if (call.current.id) void data.call("telephony.call.log_task", { callId: call.current.id, title }); },
-    ...(caller?.recordId ? { onOpenRecord: () => data.nav.openConversation(rowOf(state.peer, caller.recordId)?.id ?? "") } : {}),
+    onLogTask: (title) => {
+      if (call.current.id) void data.call("telephony.call.log_task", { callId: call.current.id, title });
+    },
+    ...(caller?.recordId
+      ? { onOpenRecord: () => data.nav.openConversation(rowOf(state.peer, caller.recordId)?.id ?? "") }
+      : {}),
   };
 
   // a call that connects opens the caller's conversation (once per call), so the call bar sits in its header
   useEffect(() => {
-    if (state.phase !== "live" || opened.current === `${state.peer}` ) return;
+    if (state.phase !== "live" || opened.current === `${state.peer}`) return;
     opened.current = state.peer;
     const r = rowOf(state.peer, caller?.recordId);
     if (r && !claimed) data.nav.openConversation(r.id);
   }, [state.phase, state.peer]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (state.phase === "idle") { opened.current = ""; setNotes(""); } }, [state.phase]);
+  useEffect(() => {
+    if (state.phase === "idle") {
+      opened.current = "";
+      setNotes("");
+    }
+  }, [state.phase]);
 
   const latest = useRef({ view, claimed, notes });
   latest.current = { view, claimed, notes };
-  const api = useMemo<InboxPhone>(() => ({
-    dial(number, contactId) { call.current = contactId ? { contactId } : {}; void controller.dial(number); },
-    toggle() { controller.dispatch({ type: "toggle_dialer" }); },
-    state: () => controller.state(),
-    view: () => latest.current.view,
-    claim(c) { setClaims((cs) => [...cs, c]); return () => setClaims((cs) => cs.filter((x) => x !== c)); },
-    isClaimed: () => latest.current.claimed,
-    pill: () => (latest.current.claimed || (state.phase !== "live" && state.phase !== "held") ? null : { name: latest.current.view.caller?.name ?? latest.current.view.caller?.number ?? state.peer, secs: state.secs }),
-    holdPill() { setPills((n) => n + 1); return () => setPills((n) => n - 1); },
-    openCall() { const r = rowOf(state.peer, caller?.recordId); if (r) data.nav.openConversation(r.id); },
-    notes: () => latest.current.notes,
-    setNotes,
-  // a new object whenever the call, the claims or the notes change, so a conversation that reads the call re-renders with it
-  }), [controller, state, claimed, claims, notes, saved, summary, pills]); // eslint-disable-line react-hooks/exhaustive-deps
+  const api = useMemo<InboxPhone>(
+    () => ({
+      dial(number, contactId) {
+        call.current = contactId ? { contactId } : {};
+        void controller.dial(number);
+      },
+      toggle() {
+        controller.dispatch({ type: "toggle_dialer" });
+      },
+      state: () => controller.state(),
+      view: () => latest.current.view,
+      claim(c) {
+        setClaims((cs) => [...cs, c]);
+        return () => setClaims((cs) => cs.filter((x) => x !== c));
+      },
+      isClaimed: () => latest.current.claimed,
+      pill: () =>
+        latest.current.claimed || (state.phase !== "live" && state.phase !== "held")
+          ? null
+          : {
+              name: latest.current.view.caller?.name ?? latest.current.view.caller?.number ?? state.peer,
+              secs: state.secs,
+            },
+      holdPill() {
+        setPills((n) => n + 1);
+        return () => setPills((n) => n - 1);
+      },
+      openCall() {
+        const r = rowOf(state.peer, caller?.recordId);
+        if (r) data.nav.openConversation(r.id);
+      },
+      notes: () => latest.current.notes,
+      setNotes,
+      // a new object whenever the call, the claims or the notes change, so a conversation that reads the call re-renders with it
+    }),
+    [controller, state, claimed, claims, notes, saved, summary, pills],
+  ); // eslint-disable-line react-hooks/exhaustive-deps
   // while the conversation is open the call lives in its header; the floating dock is for the dialer, an incoming ring and a call whose conversation is not open
-  const floating = dockFloats(claimed, state.phase) && !(pills > 0 && (state.phase === "live" || state.phase === "held"));
+  const floating =
+    dockFloats(claimed, state.phase) && !(pills > 0 && (state.phase === "live" || state.phase === "held"));
   return (
     <Ctx.Provider value={api}>
       {children}

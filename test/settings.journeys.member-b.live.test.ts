@@ -2,4 +2,6 @@
 import test from "node:test";
 import { walkSettings } from "./support/settings-walk.ts";
 
-test("settings journey: part b of the pages as Member, the look and a channel saved on the server", async (t) => { await walkSettings(t, "member", "b"); });
+test("settings journey: part b of the pages as Member, the look and a channel saved on the server", async (t) => {
+  await walkSettings(t, "member", "b");
+});

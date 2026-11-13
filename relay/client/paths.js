@@ -50,8 +50,8 @@ export function createPaths(o) {
   /** @type {Set<ReturnType<typeof followEvents>>} */
   const follows = new Set();
 
-  const paths = o.paths.map((p, i) => p.kind === "direct" ? directPath(p, i) : relayPath(p, i));
-  const device = (o.paths.find(p => p.kind === "relay" && typeof p.device === "string") || {}).device || null;
+  const paths = o.paths.map((p, i) => (p.kind === "direct" ? directPath(p, i) : relayPath(p, i)));
+  const device = (o.paths.find((p) => p.kind === "relay" && typeof p.device === "string") || {}).device || null;
   const reporting = o.report !== false && Boolean(device);
   /** The code from the last relay report, until a direct report spends it. */
   let linkCode = null;
@@ -65,11 +65,21 @@ export function createPaths(o) {
     try {
       const t0 = Date.now();
       const probe = await p.fetch(probePath, { method: "GET", headers: {} });
-      try { await probe.text(); } catch {}
+      try {
+        await probe.text();
+      } catch {}
       const rtt = Date.now() - t0;
       const direct = p.kind === "direct";
-      const body = { path: direct ? "direct" : "relay", rtt, ...(direct && linkCode ? { id: device, code: linkCode } : {}) };
-      const res = await p.fetch("/v1/tools/relay.devices.path", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": newKey() }, body: JSON.stringify(body) });
+      const body = {
+        path: direct ? "direct" : "relay",
+        rtt,
+        ...(direct && linkCode ? { id: device, code: linkCode } : {}),
+      };
+      const res = await p.fetch("/v1/tools/relay.devices.path", {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": newKey() },
+        body: JSON.stringify(body),
+      });
       const r = await res.json().catch(() => null);
       if (!direct && r && r.data && r.data.link) linkCode = r.data.link;
       if (direct && res.status === 200) linkCode = null;
@@ -79,7 +89,9 @@ export function createPaths(o) {
   function directPath(p, i) {
     const base = String(p.base).replace(/\/+$/, "");
     const path = {
-      kind: "direct", index: i, base,
+      kind: "direct",
+      index: i,
+      base,
       /** null: not tried; true: answered lately; false: failed */
       /** @type {boolean|null} */ good: null,
       async probe() {
@@ -87,21 +99,30 @@ export function createPaths(o) {
         const t = globalThis.setTimeout(() => ac.abort(), directTimeout);
         try {
           const res = await nativeFetch(base + probePath, { signal: ac.signal });
-          try { await res.body?.cancel(); } catch {}
+          try {
+            await res.body?.cancel();
+          } catch {}
           path.good = true;
-        } catch { path.good = false; }
-        finally { globalThis.clearTimeout(t); }
+        } catch {
+          path.good = false;
+        } finally {
+          globalThis.clearTimeout(t);
+        }
         return path.good;
       },
       async fetch(p2, init) {
         let res;
-        try { res = await nativeFetch(base + p2, init); } catch (e) {
+        try {
+          res = await nativeFetch(base + p2, init);
+        } catch (e) {
           if (init.signal?.aborted) throw e;
           path.good = false;
           throw Object.assign(/** @type {Error} */ (e), { transport: true });
         }
         path.good = true;
-        return fromNative(res, () => { path.good = false; });
+        return fromNative(res, () => {
+          path.good = false;
+        });
       },
       socket(p2) {
         const WS = o.WebSocket || globalThis.WebSocket;
@@ -117,9 +138,14 @@ export function createPaths(o) {
     let conn = null;
     const get = () => conn || (conn = connectRelay({ WebSocket: o.WebSocket, visibility, ...p }));
     return {
-      kind: "relay", index: i,
-      get good() { return conn ? conn.state === "open" : null; },
-      get connection() { return conn; },
+      kind: "relay",
+      index: i,
+      get good() {
+        return conn ? conn.state === "open" : null;
+      },
+      get connection() {
+        return conn;
+      },
       async probe() {
         const c = get();
         if (c.state === "open") return true;
@@ -127,16 +153,23 @@ export function createPaths(o) {
         return false;
       },
       fetch: (p2, init) => get().fetch(p2, init),
-      socket: p2 => get().socket(p2),
-      close() { conn?.close(); conn = null; },
+      socket: (p2) => get().socket(p2),
+      close() {
+        conn?.close();
+        conn = null;
+      },
     };
   }
 
   const api = {
     /** @type {(s: { kind: string, index: number, state: string }) => void} */
     onstate: o.onstate || (() => {}),
-    get current() { return paths[index].kind; },
-    get index() { return index; },
+    get current() {
+      return paths[index].kind;
+    },
+    get index() {
+      return index;
+    },
     paths,
 
     /**
@@ -156,7 +189,10 @@ export function createPaths(o) {
         const p = paths[i];
         const last = i === paths.length - 1;
         if (p.kind === "direct" && p.good !== true && !last) {
-          if (!(await p.probe())) { moveTo(i + 1, "direct did not answer"); continue; }
+          if (!(await p.probe())) {
+            moveTo(i + 1, "direct did not answer");
+            continue;
+          }
         }
         // Each request gets its own abort, so a move can pull it off the old path.
         const ac = new AbortController();
@@ -165,7 +201,10 @@ export function createPaths(o) {
         const onOuter = () => ac.abort();
         outer?.addEventListener?.("abort", onOuter, { once: true });
         live.add(entry);
-        const done = () => { live.delete(entry); outer?.removeEventListener?.("abort", onOuter); };
+        const done = () => {
+          live.delete(entry);
+          outer?.removeEventListener?.("abort", onOuter);
+        };
         try {
           const res = await p.fetch(path, { ...init, method, headers, signal: ac.signal });
           if (!reported && reporting) report();
@@ -174,8 +213,11 @@ export function createPaths(o) {
           done();
           if (outer?.aborted) throw e;
           const moved = index !== i;
-          if (moved) continue;                                   // the connection moved under us: send it on the new path
-          if (/** @type {any} */ (e)?.transport && !last) { moveTo(i + 1, String(/** @type {any} */ (e)?.message || e)); continue; }
+          if (moved) continue; // the connection moved under us: send it on the new path
+          if (/** @type {any} */ (e)?.transport && !last) {
+            moveTo(i + 1, String(/** @type {any} */ (e)?.message || e));
+            continue;
+          }
           throw e;
         }
       }
@@ -185,11 +227,22 @@ export function createPaths(o) {
     events(path, eo) {
       const f = followEvents((p, init) => api.fetch(p, init), path, eo);
       follows.add(f);
-      return { get lastEventId() { return f.lastEventId; }, reopen: () => f.reopen(), close: () => { f.close(); follows.delete(f); } };
+      return {
+        get lastEventId() {
+          return f.lastEventId;
+        },
+        reopen: () => f.reopen(),
+        close: () => {
+          f.close();
+          follows.delete(f);
+        },
+      };
     },
 
     /** A WebSocket on the current path. It does not move: on close, open another. */
-    socket(path) { return paths[index].socket(path); },
+    socket(path) {
+      return paths[index].socket(path);
+    },
 
     /** Probe the better paths now (the app came to the front, the network changed). */
     probe: () => probeBetter(),
@@ -208,18 +261,48 @@ export function createPaths(o) {
   function track(res, done) {
     const body = res.body;
     let finished = false;
-    const fin = () => { if (!finished) { finished = true; done(); } };
+    const fin = () => {
+      if (!finished) {
+        finished = true;
+        done();
+      }
+    };
     const wrapped = {
       [Symbol.asyncIterator]() {
         const it = body[Symbol.asyncIterator]();
         return {
-          async next() { try { const r = await it.next(); if (r.done) fin(); return r; } catch (e) { fin(); throw e; } },
-          async return() { fin(); return it.return ? it.return() : { done: true, value: undefined }; },
+          async next() {
+            try {
+              const r = await it.next();
+              if (r.done) fin();
+              return r;
+            } catch (e) {
+              fin();
+              throw e;
+            }
+          },
+          async return() {
+            fin();
+            return it.return ? it.return() : { done: true, value: undefined };
+          },
         };
       },
     };
-    const read = fn => async () => { try { return await fn(); } finally { fin(); } };
-    return { ...res, body: wrapped, text: read(res.text), json: read(res.json), bytes: read(res.bytes), arrayBuffer: read(res.arrayBuffer) };
+    const read = (fn) => async () => {
+      try {
+        return await fn();
+      } finally {
+        fin();
+      }
+    };
+    return {
+      ...res,
+      body: wrapped,
+      text: read(res.text),
+      json: read(res.json),
+      bytes: read(res.bytes),
+      arrayBuffer: read(res.arrayBuffer),
+    };
   }
 
   function moveTo(i, why) {
@@ -231,7 +314,9 @@ export function createPaths(o) {
     for (const f of follows) f.reopen();
     // Back on a better path: drop the relay's channel rather than keep it warm.
     if (i < old && paths[old].kind === "relay") paths[old].close();
-    try { api.onstate({ kind: paths[i].kind, index: i, state: why }); } catch {}
+    try {
+      api.onstate({ kind: paths[i].kind, index: i, state: why });
+    } catch {}
     schedule();
     report();
   }
@@ -239,17 +324,28 @@ export function createPaths(o) {
   async function probeBetter() {
     if (closed || visibility.hidden()) return;
     for (let j = 0; j < index; j++) {
-      if (await paths[j].probe()) { moveTo(j, "a better path answered"); return; }
+      if (await paths[j].probe()) {
+        moveTo(j, "a better path answered");
+        return;
+      }
     }
   }
 
   function schedule() {
     globalThis.clearInterval(prober);
     prober = null;
-    if (index > 0 && !closed) prober = globalThis.setInterval(() => { probeBetter(); }, probeMs);
+    if (index > 0 && !closed)
+      prober = globalThis.setInterval(() => {
+        probeBetter();
+      }, probeMs);
   }
 
-  const offVisible = visibility.on(() => { if (!visibility.hidden()) { probeBetter(); if (reported) report(); } });
+  const offVisible = visibility.on(() => {
+    if (!visibility.hidden()) {
+      probeBetter();
+      if (reported) report();
+    }
+  });
 
   return api;
 }

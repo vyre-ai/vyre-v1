@@ -10,13 +10,20 @@ const OUT = "shots-evidence/people-popover";
 
 test("people popover, team: a chat and a project show People and agents with roles and their own footer", async (t) => {
   const env = await browserOrSkip();
-  if (typeof env === "string") { t.skip(env); return; }
+  if (typeof env === "string") {
+    t.skip(env);
+    return;
+  }
   const s = await bootScreens({ kind: "team" }, env);
   try {
     const w = s.world;
-    const agent = (await w.owner.ok("agents.create", { name: "Ember", role: "You help.", idempotencyKey: "pp-agent" })).agent.agentId as string;
-    const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agent], idempotencyKey: "pp-chat" })).thread.threadId as string;
-    const projectId = (await w.owner.ok("projects.create", { type: "project", title: "Rivera account", idempotencyKey: "pp-project" })).projectId as string;
+    const agent = (await w.owner.ok("agents.create", { name: "Ember", role: "You help.", idempotencyKey: "pp-agent" }))
+      .agent.agentId as string;
+    const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agent], idempotencyKey: "pp-chat" }))
+      .thread.threadId as string;
+    const projectId = (
+      await w.owner.ok("projects.create", { type: "project", title: "Rivera account", idempotencyKey: "pp-project" })
+    ).projectId as string;
     const me = await seat(s, w.owner, "Owner");
     const guard = guardCrashes(me.page);
 
@@ -26,9 +33,9 @@ test("people popover, team: a chat and a project show People and agents with rol
     const pop = me.page.getByTestId("people-popover");
     await pop.waitFor({ timeout: 15_000 });
     assert.equal((await me.page.getByTestId("people-title").innerText()).trim(), "People and agents");
-    assert.ok(await me.page.locator('[data-testid^="people-row-"]').count() >= 2, "a row per member");
+    assert.ok((await me.page.locator('[data-testid^="people-row-"]').count()) >= 2, "a row per member");
     assert.equal((await me.page.getByTestId("people-footer").innerText()).trim(), "Add people and agents");
-    await me.page.waitForTimeout(1500);   // the faces draw a moment after the popover: shoot them drawn
+    await me.page.waitForTimeout(1500); // the faces draw a moment after the popover: shoot them drawn
     await shoot(me.page, OUT, "chat-people");
     await me.page.keyboard.press("ArrowDown");
     await me.page.keyboard.press("Escape");
@@ -43,7 +50,7 @@ test("people popover, team: a chat and a project show People and agents with rol
     await me.page.getByTestId("project-members").click();
     await me.page.getByTestId("people-popover").waitFor({ timeout: 15_000 });
     assert.equal((await me.page.getByTestId("people-footer").innerText()).trim(), "Manage on the Overview");
-    await me.page.waitForTimeout(1500);   // the faces draw a moment after the popover: shoot them drawn
+    await me.page.waitForTimeout(1500); // the faces draw a moment after the popover: shoot them drawn
     await shoot(me.page, OUT, "project-people");
     await me.page.getByTestId("people-footer").click();
     await me.page.getByTestId("people-popover").waitFor({ state: "detached", timeout: 10_000 });
@@ -56,18 +63,27 @@ test("people popover, team: a chat and a project show People and agents with rol
     await open(me, s, `/records#subject=project:${projectId}`);
     await me.page.getByTestId("project-members").click();
     await me.page.getByTestId("people-popover").waitFor({ timeout: 15_000 });
-    assert.equal(await me.page.getByTestId("people-popover").getAttribute("data-sheet"), "phone", "a phone gets the bottom sheet");
-    await me.page.waitForTimeout(1500);   // the faces draw a moment after the popover: shoot them drawn
+    assert.equal(
+      await me.page.getByTestId("people-popover").getAttribute("data-sheet"),
+      "phone",
+      "a phone gets the bottom sheet",
+    );
+    await me.page.waitForTimeout(1500); // the faces draw a moment after the popover: shoot them drawn
     await shoot(me.page, OUT, "project-people-phone");
     // the Add people and agents sheet at the same size, for the comparison
     await me.page.keyboard.press("Escape");
     await me.page.getByTestId("people-popover").waitFor({ state: "detached", timeout: 10_000 });
     // Teammates is out of the tab row (rc21): Add people is the project menu's item
     await me.page.getByTestId("project-menu").click();
-    await me.page.getByText(/^Add people/i).first().click();
+    await me.page
+      .getByText(/^Add people/i)
+      .first()
+      .click();
     await me.page.getByTestId("add-sheet").waitFor({ timeout: 15_000 });
     await shoot(me.page, OUT, "add-sheet-phone");
     await guard.check("end of the walk");
     assert.deepEqual(me.errors, [], "no page errors");
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });

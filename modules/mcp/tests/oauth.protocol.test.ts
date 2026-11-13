@@ -5,7 +5,24 @@ import { createHash } from "node:crypto";
 import { harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { ensure } from "../projections.ts";
-import { ACCESS_MS, CODE_MS, REFRESH_MS, REQUEST_MS, beginAuthorize, challengeOf, cleanClientName, collect, exchange, grantForAccess, protectedResource, redirectKind, registerClient, revokeGrant, sameRedirect, serverMetadata } from "../oauth.ts";
+import {
+  ACCESS_MS,
+  CODE_MS,
+  REFRESH_MS,
+  REQUEST_MS,
+  beginAuthorize,
+  challengeOf,
+  cleanClientName,
+  collect,
+  exchange,
+  grantForAccess,
+  protectedResource,
+  redirectKind,
+  registerClient,
+  revokeGrant,
+  sameRedirect,
+  serverMetadata,
+} from "../oauth.ts";
 import { allowTab, refusalPage } from "../allow-page.ts";
 import { handlers } from "../impl.ts";
 
@@ -20,13 +37,36 @@ function client(hn: Harness, redirect = "http://127.0.0.1:4100/cb", name: unknow
   assert.ok("client" in r);
   return String((r as { client: { client_id: string } }).client.client_id);
 }
-const query = (clientId: string, over: Record<string, string | undefined> = {}, redirect = "http://127.0.0.1:4100/cb") => ({
-  client_id: clientId, redirect_uri: redirect, response_type: "code", code_challenge: challengeOf(VERIFIER), code_challenge_method: "S256", state: "st8", resource: RESOURCE, ...over,
+const query = (
+  clientId: string,
+  over: Record<string, string | undefined> = {},
+  redirect = "http://127.0.0.1:4100/cb",
+) => ({
+  client_id: clientId,
+  redirect_uri: redirect,
+  response_type: "code",
+  code_challenge: challengeOf(VERIFIER),
+  code_challenge_method: "S256",
+  state: "st8",
+  resource: RESOURCE,
+  ...over,
 });
-const people = (hn: Harness) => ({ ...hn.ctx, call: async (cap: string) => (cap === "agents.outside.connect" ? { agentId: "agt_out", name: "Claude Code" } : cap === "agents.get" ? { agent: { name: "Claude Code" } } : { space: { name: "Acme" } }) });
+const people = (hn: Harness) => ({
+  ...hn.ctx,
+  call: async (cap: string) =>
+    cap === "agents.outside.connect"
+      ? { agentId: "agt_out", name: "Claude Code" }
+      : cap === "agents.get"
+        ? { agent: { name: "Claude Code" } }
+        : { space: { name: "Acme" } },
+});
 
 /** Register, ask, press Allow, collect: the code the client's redirect receives. */
-async function code(hn: Harness, redirect = "http://127.0.0.1:4100/cb", id = client(hn, redirect)): Promise<{ clientId: string; code: string; redirect: string }> {
+async function code(
+  hn: Harness,
+  redirect = "http://127.0.0.1:4100/cb",
+  id = client(hn, redirect),
+): Promise<{ clientId: string; code: string; redirect: string }> {
   const b = beginAuthorize(hn.db, query(id, {}, redirect), ORIGIN, hn.clock.t);
   assert.equal(b.kind, "page");
   if (b.kind !== "page") throw new Error("no page");
@@ -40,14 +80,31 @@ async function code(hn: Harness, redirect = "http://127.0.0.1:4100/cb", id = cli
 }
 async function tokens(hn: Harness): Promise<{ clientId: string; access: string; refresh: string }> {
   const c = await code(hn);
-  const r = exchange(hn.db, { grant_type: "authorization_code", client_id: c.clientId, code: c.code, redirect_uri: c.redirect, code_verifier: VERIFIER, resource: RESOURCE }, ORIGIN, hn.clock.t);
+  const r = exchange(
+    hn.db,
+    {
+      grant_type: "authorization_code",
+      client_id: c.clientId,
+      code: c.code,
+      redirect_uri: c.redirect,
+      code_verifier: VERIFIER,
+      resource: RESOURCE,
+    },
+    ORIGIN,
+    hn.clock.t,
+  );
   assert.ok("tokens" in r);
   return { clientId: c.clientId, access: r.tokens.access_token, refresh: r.tokens.refresh_token };
 }
 const failure = (r: ReturnType<typeof exchange>): string => ("error" in r ? r.error : "no error");
 
 test("metadata says what a client must see: this address, S256 only, the iss parameter, and no password grant", () => {
-  assert.deepEqual(protectedResource(ORIGIN), { resource: RESOURCE, authorization_servers: [ORIGIN], bearer_methods_supported: ["header"], resource_name: "Vyre" });
+  assert.deepEqual(protectedResource(ORIGIN), {
+    resource: RESOURCE,
+    authorization_servers: [ORIGIN],
+    bearer_methods_supported: ["header"],
+    resource_name: "Vyre",
+  });
   const m = serverMetadata(ORIGIN);
   assert.equal(m["issuer"], ORIGIN);
   assert.deepEqual(m["code_challenge_methods_supported"], ["S256"]);
@@ -59,7 +116,14 @@ test("metadata says what a client must see: this address, S256 only, the iss par
 test("registration takes https and loopback only, and a client's words are made safe to show", () => {
   const hn = harness();
   ensure(hn.db);
-  for (const bad of ["http://example.com/cb", "javascript:alert(1)", "https://a.example/cb#frag", "https://user:pw@a.example/cb", "cursor://x/cb", "not a url"]) {
+  for (const bad of [
+    "http://example.com/cb",
+    "javascript:alert(1)",
+    "https://a.example/cb#frag",
+    "https://user:pw@a.example/cb",
+    "cursor://x/cb",
+    "not a url",
+  ]) {
     const r = registerClient(hn.db, { redirect_uris: [bad] }, hn.clock.t);
     assert.equal("error" in r && r.error, "invalid_redirect_uri", bad);
   }
@@ -77,7 +141,13 @@ test("registration takes https and loopback only, and a client's words are made 
 test("wrong redirect: an address the client did not register is a page, never a redirect", () => {
   const hn = harness();
   const id = client(hn, "https://tools.example.com/cb");
-  for (const wrong of ["https://evil.example/cb", "https://tools.example.com/cb2", "https://tools.example.com:8443/cb", "https://tools.example.com/cb?x=1", "http://127.0.0.1:1/cb"]) {
+  for (const wrong of [
+    "https://evil.example/cb",
+    "https://tools.example.com/cb2",
+    "https://tools.example.com:8443/cb",
+    "https://tools.example.com/cb?x=1",
+    "http://127.0.0.1:1/cb",
+  ]) {
     const b = beginAuthorize(hn.db, query(id, {}, wrong), ORIGIN, hn.clock.t);
     assert.equal(b.kind, "refuse", wrong);
   }
@@ -111,53 +181,202 @@ test("after the redirect is known, every other mistake goes back to the client, 
 test("wrong PKCE: a verifier that does not match gets nothing, and the code is burned", async () => {
   const hn = harness();
   const c = await code(hn);
-  const wrong = exchange(hn.db, { grant_type: "authorization_code", client_id: c.clientId, code: c.code, redirect_uri: c.redirect, code_verifier: "w".repeat(60) }, ORIGIN, hn.clock.t);
+  const wrong = exchange(
+    hn.db,
+    {
+      grant_type: "authorization_code",
+      client_id: c.clientId,
+      code: c.code,
+      redirect_uri: c.redirect,
+      code_verifier: "w".repeat(60),
+    },
+    ORIGIN,
+    hn.clock.t,
+  );
   assert.equal(failure(wrong), "invalid_grant");
-  const right = exchange(hn.db, { grant_type: "authorization_code", client_id: c.clientId, code: c.code, redirect_uri: c.redirect, code_verifier: VERIFIER }, ORIGIN, hn.clock.t);
+  const right = exchange(
+    hn.db,
+    {
+      grant_type: "authorization_code",
+      client_id: c.clientId,
+      code: c.code,
+      redirect_uri: c.redirect,
+      code_verifier: VERIFIER,
+    },
+    ORIGIN,
+    hn.clock.t,
+  );
   assert.equal(failure(right), "invalid_grant", "a burned code does not work with the right verifier either");
   const c2 = await code(hn);
-  assert.equal(failure(exchange(hn.db, { grant_type: "authorization_code", client_id: c2.clientId, code: c2.code, redirect_uri: c2.redirect }, ORIGIN, hn.clock.t)), "invalid_grant", "no verifier at all");
-  assert.equal(challengeOf("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"), createHash("sha256").update("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk").digest("base64url"));
-  assert.equal(challengeOf("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"), "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", "the vector of RFC 7636");
+  assert.equal(
+    failure(
+      exchange(
+        hn.db,
+        { grant_type: "authorization_code", client_id: c2.clientId, code: c2.code, redirect_uri: c2.redirect },
+        ORIGIN,
+        hn.clock.t,
+      ),
+    ),
+    "invalid_grant",
+    "no verifier at all",
+  );
+  assert.equal(
+    challengeOf("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
+    createHash("sha256").update("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk").digest("base64url"),
+  );
+  assert.equal(
+    challengeOf("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
+    "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+    "the vector of RFC 7636",
+  );
 });
 
 test("the token request must name the redirect and the client the code was made for", async () => {
   const hn = harness();
   const c = await code(hn);
-  assert.equal(failure(exchange(hn.db, { grant_type: "authorization_code", client_id: c.clientId, code: c.code, redirect_uri: "http://127.0.0.1:9999/other", code_verifier: VERIFIER }, ORIGIN, hn.clock.t)), "invalid_grant");
+  assert.equal(
+    failure(
+      exchange(
+        hn.db,
+        {
+          grant_type: "authorization_code",
+          client_id: c.clientId,
+          code: c.code,
+          redirect_uri: "http://127.0.0.1:9999/other",
+          code_verifier: VERIFIER,
+        },
+        ORIGIN,
+        hn.clock.t,
+      ),
+    ),
+    "invalid_grant",
+  );
   const c2 = await code(hn);
   const stranger = client(hn);
-  assert.equal(failure(exchange(hn.db, { grant_type: "authorization_code", client_id: stranger, code: c2.code, redirect_uri: c2.redirect, code_verifier: VERIFIER }, ORIGIN, hn.clock.t)), "invalid_grant");
-  assert.equal(failure(exchange(hn.db, { grant_type: "authorization_code", client_id: "mcl_unknown", code: c2.code, redirect_uri: c2.redirect, code_verifier: VERIFIER }, ORIGIN, hn.clock.t)), "invalid_client");
-  assert.equal(failure(exchange(hn.db, { grant_type: "password", client_id: c2.clientId }, ORIGIN, hn.clock.t)), "unsupported_grant_type");
-  assert.equal(failure(exchange(hn.db, { grant_type: "authorization_code", client_id: c2.clientId, code: c2.code, redirect_uri: c2.redirect, code_verifier: VERIFIER, resource: "https://other.vyre.run/mcp" }, ORIGIN, hn.clock.t)), "invalid_target");
+  assert.equal(
+    failure(
+      exchange(
+        hn.db,
+        {
+          grant_type: "authorization_code",
+          client_id: stranger,
+          code: c2.code,
+          redirect_uri: c2.redirect,
+          code_verifier: VERIFIER,
+        },
+        ORIGIN,
+        hn.clock.t,
+      ),
+    ),
+    "invalid_grant",
+  );
+  assert.equal(
+    failure(
+      exchange(
+        hn.db,
+        {
+          grant_type: "authorization_code",
+          client_id: "mcl_unknown",
+          code: c2.code,
+          redirect_uri: c2.redirect,
+          code_verifier: VERIFIER,
+        },
+        ORIGIN,
+        hn.clock.t,
+      ),
+    ),
+    "invalid_client",
+  );
+  assert.equal(
+    failure(exchange(hn.db, { grant_type: "password", client_id: c2.clientId }, ORIGIN, hn.clock.t)),
+    "unsupported_grant_type",
+  );
+  assert.equal(
+    failure(
+      exchange(
+        hn.db,
+        {
+          grant_type: "authorization_code",
+          client_id: c2.clientId,
+          code: c2.code,
+          redirect_uri: c2.redirect,
+          code_verifier: VERIFIER,
+          resource: "https://other.vyre.run/mcp",
+        },
+        ORIGIN,
+        hn.clock.t,
+      ),
+    ),
+    "invalid_target",
+  );
 });
 
 test("replayed code: the second use fails and ends everything the first use got", async () => {
   const hn = harness();
   const c = await code(hn);
-  const form = { grant_type: "authorization_code", client_id: c.clientId, code: c.code, redirect_uri: c.redirect, code_verifier: VERIFIER };
+  const form = {
+    grant_type: "authorization_code",
+    client_id: c.clientId,
+    code: c.code,
+    redirect_uri: c.redirect,
+    code_verifier: VERIFIER,
+  };
   const first = exchange(hn.db, form, ORIGIN, hn.clock.t);
   assert.ok("tokens" in first);
   assert.ok(grantForAccess(hn.db, first.tokens.access_token, ORIGIN, hn.clock.t));
   const replay = exchange(hn.db, form, ORIGIN, hn.clock.t);
   assert.equal(failure(replay), "invalid_grant");
   assert.ok("replayed" in replay && replay.replayed);
-  assert.equal(grantForAccess(hn.db, first.tokens.access_token, ORIGIN, hn.clock.t), null, "the token from the first use is gone");
-  assert.equal(failure(exchange(hn.db, { grant_type: "refresh_token", client_id: c.clientId, refresh_token: first.tokens.refresh_token }, ORIGIN, hn.clock.t)), "invalid_grant");
+  assert.equal(
+    grantForAccess(hn.db, first.tokens.access_token, ORIGIN, hn.clock.t),
+    null,
+    "the token from the first use is gone",
+  );
+  assert.equal(
+    failure(
+      exchange(
+        hn.db,
+        { grant_type: "refresh_token", client_id: c.clientId, refresh_token: first.tokens.refresh_token },
+        ORIGIN,
+        hn.clock.t,
+      ),
+    ),
+    "invalid_grant",
+  );
 });
 
 test("a code lasts a minute", async () => {
   const hn = harness();
   const c = await code(hn);
   hn.advance(CODE_MS);
-  assert.equal(failure(exchange(hn.db, { grant_type: "authorization_code", client_id: c.clientId, code: c.code, redirect_uri: c.redirect, code_verifier: VERIFIER }, ORIGIN, hn.clock.t)), "invalid_grant");
+  assert.equal(
+    failure(
+      exchange(
+        hn.db,
+        {
+          grant_type: "authorization_code",
+          client_id: c.clientId,
+          code: c.code,
+          redirect_uri: c.redirect,
+          code_verifier: VERIFIER,
+        },
+        ORIGIN,
+        hn.clock.t,
+      ),
+    ),
+    "invalid_grant",
+  );
 });
 
 test("refresh rotates: the old token is spent and the new pair works", async () => {
   const hn = harness();
   const t = await tokens(hn);
-  const r = exchange(hn.db, { grant_type: "refresh_token", client_id: t.clientId, refresh_token: t.refresh, resource: RESOURCE }, ORIGIN, hn.clock.t);
+  const r = exchange(
+    hn.db,
+    { grant_type: "refresh_token", client_id: t.clientId, refresh_token: t.refresh, resource: RESOURCE },
+    ORIGIN,
+    hn.clock.t,
+  );
   assert.ok("tokens" in r);
   assert.notEqual(r.tokens.refresh_token, t.refresh);
   assert.ok(grantForAccess(hn.db, r.tokens.access_token, ORIGIN, hn.clock.t));
@@ -166,12 +385,33 @@ test("refresh rotates: the old token is spent and the new pair works", async () 
 test("replayed refresh: a spent refresh token ends the sign-in, for the thief and the client alike", async () => {
   const hn = harness();
   const t = await tokens(hn);
-  const r = exchange(hn.db, { grant_type: "refresh_token", client_id: t.clientId, refresh_token: t.refresh }, ORIGIN, hn.clock.t);
+  const r = exchange(
+    hn.db,
+    { grant_type: "refresh_token", client_id: t.clientId, refresh_token: t.refresh },
+    ORIGIN,
+    hn.clock.t,
+  );
   assert.ok("tokens" in r);
-  const replay = exchange(hn.db, { grant_type: "refresh_token", client_id: t.clientId, refresh_token: t.refresh }, ORIGIN, hn.clock.t);
+  const replay = exchange(
+    hn.db,
+    { grant_type: "refresh_token", client_id: t.clientId, refresh_token: t.refresh },
+    ORIGIN,
+    hn.clock.t,
+  );
   assert.equal(failure(replay), "invalid_grant");
   assert.equal(grantForAccess(hn.db, r.tokens.access_token, ORIGIN, hn.clock.t), null);
-  assert.equal(failure(exchange(hn.db, { grant_type: "refresh_token", client_id: t.clientId, refresh_token: r.tokens.refresh_token }, ORIGIN, hn.clock.t)), "invalid_grant", "the rotated token went with it");
+  assert.equal(
+    failure(
+      exchange(
+        hn.db,
+        { grant_type: "refresh_token", client_id: t.clientId, refresh_token: r.tokens.refresh_token },
+        ORIGIN,
+        hn.clock.t,
+      ),
+    ),
+    "invalid_grant",
+    "the rotated token went with it",
+  );
 });
 
 test("expired token: an access token stops at 15 minutes, a refresh token at 30 days", async () => {
@@ -182,7 +422,17 @@ test("expired token: an access token stops at 15 minutes, a refresh token at 30 
   hn.advance(1);
   assert.equal(grantForAccess(hn.db, t.access, ORIGIN, hn.clock.t), null);
   hn.advance(REFRESH_MS);
-  assert.equal(failure(exchange(hn.db, { grant_type: "refresh_token", client_id: t.clientId, refresh_token: t.refresh }, ORIGIN, hn.clock.t)), "invalid_grant");
+  assert.equal(
+    failure(
+      exchange(
+        hn.db,
+        { grant_type: "refresh_token", client_id: t.clientId, refresh_token: t.refresh },
+        ORIGIN,
+        hn.clock.t,
+      ),
+    ),
+    "invalid_grant",
+  );
 });
 
 test("a token is for one address: another Space's, or a refresh token used as an access token, opens nothing", async () => {
@@ -191,13 +441,27 @@ test("a token is for one address: another Space's, or a refresh token used as an
   assert.equal(grantForAccess(hn.db, t.access, "https://other.vyre.run", hn.clock.t), null);
   assert.equal(grantForAccess(hn.db, t.access, undefined, hn.clock.t), null);
   assert.equal(grantForAccess(hn.db, t.refresh, ORIGIN, hn.clock.t), null);
-  assert.equal(failure(exchange(hn.db, { grant_type: "refresh_token", client_id: t.clientId, refresh_token: t.refresh }, "https://other.vyre.run", hn.clock.t)), "invalid_grant");
+  assert.equal(
+    failure(
+      exchange(
+        hn.db,
+        { grant_type: "refresh_token", client_id: t.clientId, refresh_token: t.refresh },
+        "https://other.vyre.run",
+        hn.clock.t,
+      ),
+    ),
+    "invalid_grant",
+  );
 });
 
 test("nothing kept is a secret: codes and tokens are hashes", async () => {
   const hn = harness();
   const t = await tokens(hn);
-  const all = JSON.stringify([...hn.rows("SELECT * FROM mcp_oauth_tokens"), ...hn.rows("SELECT * FROM mcp_oauth_grants"), ...hn.rows("SELECT * FROM mcp_oauth_requests")]);
+  const all = JSON.stringify([
+    ...hn.rows("SELECT * FROM mcp_oauth_tokens"),
+    ...hn.rows("SELECT * FROM mcp_oauth_grants"),
+    ...hn.rows("SELECT * FROM mcp_oauth_requests"),
+  ]);
   assert.equal(all.includes(t.access), false);
   assert.equal(all.includes(t.refresh), false);
 });
@@ -219,7 +483,11 @@ test("only the tab that asked collects the code, once; a press alone gives nobod
   assert.deepEqual(collect(hn.db, b.request.requestId, b.proof, ORIGIN, hn.clock.t), { status: "waiting" });
   await h["mcp.oauth.allow"]!(people(hn), { requestId: b.request.requestId });
   assert.equal(collect(hn.db, b.request.requestId, "vyp_wrong", ORIGIN, hn.clock.t), null);
-  assert.equal(hn.rows("SELECT COUNT(*) AS n FROM mcp_oauth_tokens WHERE kind = 'code'")[0]!["n"], 0, "no code exists until the tab collects it");
+  assert.equal(
+    hn.rows("SELECT COUNT(*) AS n FROM mcp_oauth_tokens WHERE kind = 'code'")[0]!["n"],
+    0,
+    "no code exists until the tab collects it",
+  );
   assert.equal(collect(hn.db, b.request.requestId, b.proof, ORIGIN, hn.clock.t)?.status, "allowed");
   assert.equal(collect(hn.db, b.request.requestId, b.proof, ORIGIN, hn.clock.t)?.status, "done");
 });
@@ -248,7 +516,13 @@ test("a request ends in five minutes, a no goes back to the client, and a press 
 test("the same app signing in again stays the same agent, and the old sign-in ends", async () => {
   const hn = harness();
   const a = await code(hn);
-  const form = { grant_type: "authorization_code", client_id: a.clientId, code: a.code, redirect_uri: a.redirect, code_verifier: VERIFIER };
+  const form = {
+    grant_type: "authorization_code",
+    client_id: a.clientId,
+    code: a.code,
+    redirect_uri: a.redirect,
+    code_verifier: VERIFIER,
+  };
   const first = exchange(hn.db, form, ORIGIN, hn.clock.t);
   assert.ok("tokens" in first);
   const before = grantForAccess(hn.db, first.tokens.access_token, ORIGIN, hn.clock.t)!;
@@ -268,17 +542,32 @@ test("an agent cannot answer: Allow, decline and reading a request are a person'
   if (b.kind !== "page") throw new Error("no page");
   const agent = { ...people(hn), principal: { kind: "agent", id: "agt_x" }, actingFor: "usr_dana" };
   const through = { ...people(hn), actingFor: "usr_sam" };
-  for (const ctx of [agent, through]) for (const cap of ["mcp.oauth.allow", "mcp.oauth.decline", "mcp.oauth.request"]) {
-    await assert.rejects(async () => h[cap]!(ctx, { requestId: b.request.requestId }), (e: { error?: { code?: string } }) => e.error?.code === "permission.no_grant", cap);
-  }
-  await assert.rejects(async () => h["mcp.connected.remove"]!(agent, { agentId: "agt_x" }), (e: { error?: { code?: string } }) => e.error?.code === "permission.no_grant");
+  for (const ctx of [agent, through])
+    for (const cap of ["mcp.oauth.allow", "mcp.oauth.decline", "mcp.oauth.request"]) {
+      await assert.rejects(
+        async () => h[cap]!(ctx, { requestId: b.request.requestId }),
+        (e: { error?: { code?: string } }) => e.error?.code === "permission.no_grant",
+        cap,
+      );
+    }
+  await assert.rejects(
+    async () => h["mcp.connected.remove"]!(agent, { agentId: "agt_x" }),
+    (e: { error?: { code?: string } }) => e.error?.code === "permission.no_grant",
+  );
 });
 
 test("Remove: only its owner or an admin, and the sign-in ends", async () => {
   const hn = harness();
   const t = await tokens(hn);
-  const stranger = { ...people(hn), principal: { kind: "person", id: "usr_sam" }, authorize: () => ({ effect: "deny" }) };
-  await assert.rejects(async () => h["mcp.connected.remove"]!(stranger, { agentId: "agt_out" }), (e: { error?: { code?: string } }) => e.error?.code === "validation.not_found");
+  const stranger = {
+    ...people(hn),
+    principal: { kind: "person", id: "usr_sam" },
+    authorize: () => ({ effect: "deny" }),
+  };
+  await assert.rejects(
+    async () => h["mcp.connected.remove"]!(stranger, { agentId: "agt_out" }),
+    (e: { error?: { code?: string } }) => e.error?.code === "validation.not_found",
+  );
   assert.ok(grantForAccess(hn.db, t.access, ORIGIN, hn.clock.t));
   await h["mcp.connected.remove"]!(people(hn), { agentId: "agt_out" });
   assert.equal(grantForAccess(hn.db, t.access, ORIGIN, hn.clock.t), null);
@@ -286,7 +575,15 @@ test("Remove: only its owner or an admin, and the sign-in ends", async () => {
 });
 
 test("the tab: no Allow button, framed by nobody, a hostile name inert and marked, and the host named when it is not this computer", () => {
-  const page = allowTab({ clientName: '<script>alert(1)</script>"', spaceName: "Acme", match: "4821", requestId: "oar_1", proof: "vyp_1", origin: ORIGIN, redirectHost: "evil.example" });
+  const page = allowTab({
+    clientName: '<script>alert(1)</script>"',
+    spaceName: "Acme",
+    match: "4821",
+    requestId: "oar_1",
+    proof: "vyp_1",
+    origin: ORIGIN,
+    redirectHost: "evil.example",
+  });
   assert.equal(page.body.includes("<script>alert(1)"), false);
   assert.match(page.body, /That name is what the app calls itself\. Vyre has not checked it\./);
   assert.match(page.body, /<b>evil\.example<\/b>, not an app on this computer/);
@@ -299,6 +596,17 @@ test("the tab: no Allow button, framed by nobody, a hostile name inert and marke
   assert.equal(page.headers["cache-control"], "no-store");
   const script = /<script nonce="[^"]+">([\s\S]*?)<\/script>/.exec(page.body)?.[1] ?? "";
   assert.equal(script.includes("</script"), false);
-  assert.equal(allowTab({ clientName: "Claude Code", spaceName: "Acme", match: "4821", requestId: "oar_1", proof: "vyp_1", origin: ORIGIN }).body.includes("not an app on this computer"), false, "a loopback redirect stays quiet");
+  assert.equal(
+    allowTab({
+      clientName: "Claude Code",
+      spaceName: "Acme",
+      match: "4821",
+      requestId: "oar_1",
+      proof: "vyp_1",
+      origin: ORIGIN,
+    }).body.includes("not an app on this computer"),
+    false,
+    "a loopback redirect stays quiet",
+  );
   assert.equal(refusalPage("<b>x", "y").body.includes("<b>x"), false);
 });

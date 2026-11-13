@@ -22,13 +22,45 @@ import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts"
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 
 /** The part of the host Ctx the backup handlers use. The full Ctx satisfies it. */
-export type BackupCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "call" | "seal" | "schedule" | "run" | "authorize"> & {ownerArchive?:{collect?():Promise<SnapshotEntry[]>;saveZip?(runId:string,name:string,bytes:Uint8Array):Promise<{fileId:string}>;status?(runId:string):Promise<unknown>}};
+export type BackupCtx = Pick<
+  Ctx,
+  | "space"
+  | "principal"
+  | "actingFor"
+  | "trace"
+  | "now"
+  | "db"
+  | "emit"
+  | "call"
+  | "seal"
+  | "schedule"
+  | "run"
+  | "authorize"
+> & {
+  ownerArchive?: {
+    collect?(): Promise<SnapshotEntry[]>;
+    saveZip?(runId: string, name: string, bytes: Uint8Array): Promise<{ fileId: string }>;
+    status?(runId: string): Promise<unknown>;
+  };
+};
 
 // ---- the drivers the host supplies
 
-export interface Tombstone { kind: string; subject: string; at: number }
-export interface SnapshotEntry { path: string; bytes: Uint8Array }
-export interface SpaceSnapshot { fromSeq: number; toSeq: number; headHash: string; entries: SnapshotEntry[] }
+export interface Tombstone {
+  kind: string;
+  subject: string;
+  at: number;
+}
+export interface SnapshotEntry {
+  path: string;
+  bytes: Uint8Array;
+}
+export interface SpaceSnapshot {
+  fromSeq: number;
+  toSeq: number;
+  headHash: string;
+  entries: SnapshotEntry[];
+}
 export interface ApplyResult {
   /** events whose hash chain was checked after the data was put back */
   checkedEvents: number;
@@ -50,7 +82,12 @@ export interface SpaceSource {
    * Put a snapshot back and replay `tombstones` over it before anything reads it. "scratch" restores into a throwaway directory and only checks the chain;
    * "live" replaces the Space's data and opens it for traffic once the tombstones are applied.
    */
-  restore(snapshot: SpaceSnapshot, tombstones: Tombstone[], mode: "scratch" | "live", traceId?: string): Promise<ApplyResult>;
+  restore(
+    snapshot: SpaceSnapshot,
+    tombstones: Tombstone[],
+    mode: "scratch" | "live",
+    traceId?: string,
+  ): Promise<ApplyResult>;
   /** What the owner may take with them: records, files, shared chats. The host never includes private chats or personal memory; this module enforces that again. */
   exportEntries(): Promise<SnapshotEntry[]>;
   /** The person who owns the Space, from the access layer; only they may take a full export. A source that cannot say refuses every export (fail closed). */
@@ -59,7 +96,9 @@ export interface SpaceSource {
   secretValues(): Promise<string[]>;
 }
 
-export interface ExportSink { save(name: string, bytes: Uint8Array): Promise<{ fileId: string }> }
+export interface ExportSink {
+  save(name: string, bytes: Uint8Array): Promise<{ fileId: string }>;
+}
 
 export interface BackupTarget {
   put(key: string, bytes: Uint8Array): Promise<void>;
@@ -69,10 +108,25 @@ export interface BackupTarget {
   ping(): Promise<void>;
 }
 
-export interface S3Credentials { key: string; secret: string; endpoint?: string }
-export type S3Transport = (req: { method: string; url: string; headers: Record<string, string>; body?: Uint8Array }) => Promise<{ status: number; body: Uint8Array }>;
+export interface S3Credentials {
+  key: string;
+  secret: string;
+  endpoint?: string;
+}
+export type S3Transport = (req: {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body?: Uint8Array;
+}) => Promise<{ status: number; body: Uint8Array }>;
 
-export interface TargetConfig { kind: "s3" | "drive" | "local"; bucket?: string; region?: string; path?: string; vaultName?: string }
+export interface TargetConfig {
+  kind: "s3" | "drive" | "local";
+  bucket?: string;
+  region?: string;
+  path?: string;
+  vaultName?: string;
+}
 
 export interface BackupDrivers {
   source: SpaceSource;
@@ -93,9 +147,16 @@ export function configureBackup(d: BackupDrivers | null): void {
 // ---- errors, ids and small readers
 
 const NEXT_LABEL: Record<NextStep["kind"], string> = {
-  retry: "Try again", switch_model: "Use another model", use_backup_key: "Use the backup key", ask_access: "Ask for access",
-  open_settings: "Open settings", reconnect: "Reconnect", edit_input: "Change what you sent", wait: "Wait a moment",
-  contact_admin: "Contact an admin", report: "Report a problem",
+  retry: "Try again",
+  switch_model: "Use another model",
+  use_backup_key: "Use the backup key",
+  ask_access: "Ask for access",
+  open_settings: "Open settings",
+  reconnect: "Reconnect",
+  edit_input: "Change what you sent",
+  wait: "Wait a moment",
+  contact_admin: "Contact an admin",
+  report: "Report a problem",
 };
 
 /** Throw a typed error from the global catalogue with the trace id and the catalogue's next steps. */
@@ -103,7 +164,10 @@ export function failWith(traceId: string, code: ErrorCode, message?: string, det
   const def = ERROR_CODES.find((e) => e.code === code) ?? ERROR_CODES.find((e) => e.code === "internal.unexpected");
   if (!def) throw new Error("error catalogue is empty");
   const error: VyreError = {
-    code: def.code, message: message ?? def.what, retryable: def.retryable, traceId,
+    code: def.code,
+    message: message ?? def.what,
+    retryable: def.retryable,
+    traceId,
     next: def.next.map((kind) => ({ kind, label: NEXT_LABEL[kind] })),
   };
   if (details) error.details = details;
@@ -135,13 +199,17 @@ const TOMBSTONE_KEY = "tombstones.vybk";
 const LIST_DEFAULT = 50;
 
 export function need(ctx: BackupCtx): BackupDrivers {
-  if (!drivers) return failWith(ctx.trace.traceId, "internal.unavailable", "Backups are not available on this server yet.", { service: "backup" });
+  if (!drivers)
+    return failWith(ctx.trace.traceId, "internal.unavailable", "Backups are not available on this server yet.", {
+      service: "backup",
+    });
   return drivers;
 }
 
 // ---- hashing and signing over Web Crypto (no node:crypto, B3)
 
-const hex = (b: ArrayBuffer | Uint8Array): string => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, "0")).join("");
+const hex = (b: ArrayBuffer | Uint8Array): string =>
+  Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, "0")).join("");
 const asBuf = (d: Uint8Array | string) => {
   const src = typeof d === "string" ? enc.encode(d) : d;
   const out = new Uint8Array(new ArrayBuffer(src.byteLength));
@@ -154,7 +222,9 @@ export async function sha256Hex(d: Uint8Array | string): Promise<string> {
 }
 
 async function hmac(key: Uint8Array | string, data: string): Promise<Uint8Array> {
-  const k = await globalThis.crypto.subtle.importKey("raw", asBuf(key), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const k = await globalThis.crypto.subtle.importKey("raw", asBuf(key), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
   return new Uint8Array(await globalThis.crypto.subtle.sign("HMAC", k, asBuf(data)));
 }
 
@@ -163,20 +233,46 @@ export async function signingKey(secret: string, day: string, region: string, se
   return hmac(await hmac(await hmac(await hmac(`AWS4${secret}`, day), region), service), "aws4_request");
 }
 
-const uriEnc = (s: string): string => encodeURIComponent(s).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+const uriEnc = (s: string): string =>
+  encodeURIComponent(s).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
 
 /** Headers for one path-style S3 request, signed with AWS Signature V4. */
-export async function signV4(o: { method: string; host: string; path: string; payloadHash: string; region: string; key: string; secret: string; headers?: Record<string, string>; now: number }): Promise<Record<string, string>> {
+export async function signV4(o: {
+  method: string;
+  host: string;
+  path: string;
+  payloadHash: string;
+  region: string;
+  key: string;
+  secret: string;
+  headers?: Record<string, string>;
+  now: number;
+}): Promise<Record<string, string>> {
   const amz = new Date(o.now).toISOString().replace(/[:-]|\.\d{3}/g, "");
   const day = amz.slice(0, 8);
-  const h: Record<string, string> = { ...(o.headers ?? {}), host: o.host, "x-amz-date": amz, "x-amz-content-sha256": o.payloadHash };
-  const names = Object.keys(h).map((x) => x.toLowerCase()).sort();
+  const h: Record<string, string> = {
+    ...(o.headers ?? {}),
+    host: o.host,
+    "x-amz-date": amz,
+    "x-amz-content-sha256": o.payloadHash,
+  };
+  const names = Object.keys(h)
+    .map((x) => x.toLowerCase())
+    .sort();
   const lower = new Map(Object.entries(h).map(([k, v]) => [k.toLowerCase(), v] as const));
-  const canon = [o.method, o.path.split("/").map(uriEnc).join("/"), "", names.map((n) => `${n}:${String(lower.get(n)).trim()}\n`).join(""), names.join(";"), o.payloadHash].join("\n");
+  const canon = [
+    o.method,
+    o.path.split("/").map(uriEnc).join("/"),
+    "",
+    names.map((n) => `${n}:${String(lower.get(n)).trim()}\n`).join(""),
+    names.join(";"),
+    o.payloadHash,
+  ].join("\n");
   const scope = `${day}/${o.region}/s3/aws4_request`;
   const sts = ["AWS4-HMAC-SHA256", amz, scope, await sha256Hex(canon)].join("\n");
   const sig = hex(await hmac(await signingKey(o.secret, day, o.region), sts));
-  h["authorization"] = `AWS4-HMAC-SHA256 Credential=${o.key}/${scope}, SignedHeaders=${names.join(";")}, Signature=${sig}`;
+  h["authorization"] =
+    `AWS4-HMAC-SHA256 Credential=${o.key}/${scope}, SignedHeaders=${names.join(";")}, Signature=${sig}`;
   return h;
 }
 
@@ -200,9 +296,16 @@ export function dirTarget(root: string): BackupTarget {
       renameSync(tmp, f);
     },
     async get(k) {
-      try { return new Uint8Array(readFileSync(at(k))); } catch (e) { if ((e as { code?: string }).code === "ENOENT") return null; throw e; }
+      try {
+        return new Uint8Array(readFileSync(at(k)));
+      } catch (e) {
+        if ((e as { code?: string }).code === "ENOENT") return null;
+        throw e;
+      }
     },
-    async del(k) { rmSync(at(k), { force: true }); },
+    async del(k) {
+      rmSync(at(k), { force: true });
+    },
     async ping() {
       mkdirSync(root, { recursive: true, mode: 0o700 });
       accessSync(root, constants.W_OK);
@@ -212,19 +315,60 @@ export function dirTarget(root: string): BackupTarget {
 }
 
 /** S3 or any S3-compatible bucket (SeaweedFS, Garage, MinIO), path-style, every request signed with Signature V4. */
-export function s3Target(o: { endpoint: string; bucket: string; region: string; prefix: string; creds: S3Credentials; transport: S3Transport; now: () => number }): BackupTarget {
+export function s3Target(o: {
+  endpoint: string;
+  bucket: string;
+  region: string;
+  prefix: string;
+  creds: S3Credentials;
+  transport: S3Transport;
+  now: () => number;
+}): BackupTarget {
   const u = new URL(o.endpoint);
-  const call = async (method: string, objKey: string, body?: Uint8Array): Promise<{ status: number; body: Uint8Array }> => {
+  const call = async (
+    method: string,
+    objKey: string,
+    body?: Uint8Array,
+  ): Promise<{ status: number; body: Uint8Array }> => {
     const p = `/${o.bucket}${objKey ? `/${o.prefix}${objKey}` : ""}`;
     const payload = body ?? new Uint8Array(0);
-    const headers = await signV4({ method, host: u.host, path: p, payloadHash: await sha256Hex(payload), region: o.region, key: o.creds.key, secret: o.creds.secret, headers: body ? { "content-length": String(body.length) } : {}, now: o.now() });
-    return o.transport({ method, url: `${u.origin}${p.split("/").map(uriEnc).join("/")}`, headers, ...(body ? { body } : {}) });
+    const headers = await signV4({
+      method,
+      host: u.host,
+      path: p,
+      payloadHash: await sha256Hex(payload),
+      region: o.region,
+      key: o.creds.key,
+      secret: o.creds.secret,
+      headers: body ? { "content-length": String(body.length) } : {},
+      now: o.now(),
+    });
+    return o.transport({
+      method,
+      url: `${u.origin}${p.split("/").map(uriEnc).join("/")}`,
+      headers,
+      ...(body ? { body } : {}),
+    });
   };
   return {
-    async put(k, bytes) { const r = await call("PUT", safeKey(k), bytes); if (r.status >= 300) throw new Error(`s3 put ${r.status}`); },
-    async get(k) { const r = await call("GET", safeKey(k)); if (r.status === 404) return null; if (r.status >= 300) throw new Error(`s3 get ${r.status}`); return r.body; },
-    async del(k) { const r = await call("DELETE", safeKey(k)); if (r.status >= 300 && r.status !== 404) throw new Error(`s3 del ${r.status}`); },
-    async ping() { const r = await call("HEAD", ""); if (r.status >= 300) throw new Error(`s3 head ${r.status}`); },
+    async put(k, bytes) {
+      const r = await call("PUT", safeKey(k), bytes);
+      if (r.status >= 300) throw new Error(`s3 put ${r.status}`);
+    },
+    async get(k) {
+      const r = await call("GET", safeKey(k));
+      if (r.status === 404) return null;
+      if (r.status >= 300) throw new Error(`s3 get ${r.status}`);
+      return r.body;
+    },
+    async del(k) {
+      const r = await call("DELETE", safeKey(k));
+      if (r.status >= 300 && r.status !== 404) throw new Error(`s3 del ${r.status}`);
+    },
+    async ping() {
+      const r = await call("HEAD", "");
+      if (r.status >= 300) throw new Error(`s3 head ${r.status}`);
+    },
   };
 }
 
@@ -242,7 +386,10 @@ export function parseTarget(v: unknown): TargetConfig | null {
   const kind = r["kind"];
   if (kind !== "s3" && kind !== "drive" && kind !== "local") return null;
   const t: TargetConfig = { kind };
-  for (const k of ["bucket", "region", "path", "vaultName"] as const) { const s = str(r[k]); if (s) t[k] = s; }
+  for (const k of ["bucket", "region", "path", "vaultName"] as const) {
+    const s = str(r[k]);
+    if (s) t[k] = s;
+  }
   return t;
 }
 
@@ -256,7 +403,8 @@ export function targetProblem(t: TargetConfig): string | null {
     if (!t.bucket) return "Name the bucket.";
     if (!t.region) return "Name the region.";
     if (!t.vaultName) return "Choose the Vault item that holds the access key and secret.";
-    if (t.path && (t.path.startsWith("/") || t.path.split("/").includes(".."))) return "The folder inside the bucket is a plain name like backups/vyre.";
+    if (t.path && (t.path.startsWith("/") || t.path.split("/").includes("..")))
+      return "The folder inside the bucket is a plain name like backups/vyre.";
     return null;
   }
   if (!t.path) return "Choose the folder.";
@@ -269,12 +417,32 @@ export async function openTarget(ctx: BackupCtx, cfg: TargetConfig): Promise<Bac
   const problem = targetProblem(cfg);
   if (problem) return failWith(ctx.trace.traceId, "validation.bad_input", problem);
   if (cfg.kind !== "s3") return dirTarget(cfg.path ?? "");
-  if (!d.transport || !d.credentials) return failWith(ctx.trace.traceId, "internal.unavailable", "S3 backups need the server's network and Vault wiring, which is not on yet.", { service: "s3" });
+  if (!d.transport || !d.credentials)
+    return failWith(
+      ctx.trace.traceId,
+      "internal.unavailable",
+      "S3 backups need the server's network and Vault wiring, which is not on yet.",
+      { service: "s3" },
+    );
   const creds = await d.credentials(cfg.vaultName ?? "").catch(() => null);
-  if (!creds) return failWith(ctx.trace.traceId, "provider.auth_failed", "The Vault item for the backup bucket could not be read.", { vaultName: cfg.vaultName });
+  if (!creds)
+    return failWith(
+      ctx.trace.traceId,
+      "provider.auth_failed",
+      "The Vault item for the backup bucket could not be read.",
+      { vaultName: cfg.vaultName },
+    );
   const region = cfg.region ?? "us-east-1";
   const prefix = cfg.path ? `${cfg.path.replace(/\/+$/, "")}/` : "";
-  return s3Target({ endpoint: creds.endpoint ?? `https://s3.${region}.amazonaws.com`, bucket: cfg.bucket ?? "", region, prefix, creds, transport: d.transport, now: ctx.now });
+  return s3Target({
+    endpoint: creds.endpoint ?? `https://s3.${region}.amazonaws.com`,
+    bucket: cfg.bucket ?? "",
+    region,
+    prefix,
+    creds,
+    transport: d.transport,
+    now: ctx.now,
+  });
 }
 
 // ---- the archive
@@ -293,9 +461,13 @@ export interface ArchiveHeader {
 const MAGIC = enc.encode("VYBK1\n");
 
 /** Header, then the entries back to back. The header names each entry's size and sha256, so a changed byte is found on unpack. */
-export async function pack(meta: Omit<ArchiveHeader, "v" | "entries">, entries: readonly SnapshotEntry[]): Promise<Uint8Array> {
+export async function pack(
+  meta: Omit<ArchiveHeader, "v" | "entries">,
+  entries: readonly SnapshotEntry[],
+): Promise<Uint8Array> {
   const header: ArchiveHeader = { v: 1, ...meta, entries: [] };
-  for (const e of entries) header.entries.push({ path: e.path, size: e.bytes.length, sha256: await sha256Hex(e.bytes) });
+  for (const e of entries)
+    header.entries.push({ path: e.path, size: e.bytes.length, sha256: await sha256Hex(e.bytes) });
   const head = enc.encode(JSON.stringify(header));
   const total = MAGIC.length + 4 + head.length + entries.reduce((n, e) => n + e.bytes.length, 0);
   const out = new Uint8Array(total);
@@ -303,12 +475,16 @@ export async function pack(meta: Omit<ArchiveHeader, "v" | "entries">, entries: 
   new DataView(out.buffer).setUint32(MAGIC.length, head.length);
   out.set(head, MAGIC.length + 4);
   let at = MAGIC.length + 4 + head.length;
-  for (const e of entries) { out.set(e.bytes, at); at += e.bytes.length; }
+  for (const e of entries) {
+    out.set(e.bytes, at);
+    at += e.bytes.length;
+  }
   return out;
 }
 
 export async function unpack(bytes: Uint8Array): Promise<{ header: ArchiveHeader; entries: SnapshotEntry[] }> {
-  if (bytes.length < MAGIC.length + 4 || !MAGIC.every((b, i) => bytes[i] === b)) throw new Error("not a Vyre backup archive");
+  if (bytes.length < MAGIC.length + 4 || !MAGIC.every((b, i) => bytes[i] === b))
+    throw new Error("not a Vyre backup archive");
   const hl = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(MAGIC.length);
   const start = MAGIC.length + 4;
   if (start + hl > bytes.length) throw new Error("the archive header is cut short");
@@ -332,9 +508,12 @@ const SEAL_SCOPE = "backup";
 
 /** Seal under the Space key (or, with the setting off, write plain) and frame as one JSON document. */
 export function wrap(ctx: BackupCtx, plain: Uint8Array, encrypted: boolean): Uint8Array {
-  if (!encrypted) return enc.encode(JSON.stringify({ vybk: 1, enc: false, body: Buffer.from(plain).toString("base64") }));
+  if (!encrypted)
+    return enc.encode(JSON.stringify({ vybk: 1, enc: false, body: Buffer.from(plain).toString("base64") }));
   const sealed = ctx.seal.seal(plain, SEAL_SCOPE);
-  return enc.encode(JSON.stringify({ vybk: 1, enc: true, keyId: sealed.keyId, nonce: sealed.nonce, bytes: sealed.bytes }));
+  return enc.encode(
+    JSON.stringify({ vybk: 1, enc: true, keyId: sealed.keyId, nonce: sealed.nonce, bytes: sealed.bytes }),
+  );
 }
 
 export function unwrap(ctx: BackupCtx, blob: Uint8Array): Uint8Array {
@@ -345,23 +524,44 @@ export function unwrap(ctx: BackupCtx, blob: Uint8Array): Uint8Array {
 }
 
 export function isEncrypted(blob: Uint8Array): boolean {
-  try { return asRow(JSON.parse(dec.decode(blob)))?.["enc"] !== false; } catch { return true; }
+  try {
+    return asRow(JSON.parse(dec.decode(blob)))?.["enc"] !== false;
+  } catch {
+    return true;
+  }
 }
 
 // ---- config rows
 
-export interface Config { target: TargetConfig | null; schedule: string; enabled: boolean; nextAt: number | null; lastOkAt: number | null }
+export interface Config {
+  target: TargetConfig | null;
+  schedule: string;
+  enabled: boolean;
+  nextAt: number | null;
+  lastOkAt: number | null;
+}
 
 export function readConfig(ctx: BackupCtx): Config {
   const rows = ctx.db.all("SELECT key, value FROM backup_config");
   const m = new Map<string, string>();
-  for (const r of rows) { const x = asRow(r); if (x && typeof x["key"] === "string" && typeof x["value"] === "string") m.set(x["key"], x["value"]); }
+  for (const r of rows) {
+    const x = asRow(r);
+    if (x && typeof x["key"] === "string" && typeof x["value"] === "string") m.set(x["key"], x["value"]);
+  }
   let target: TargetConfig | null = null;
-  try { target = parseTarget(JSON.parse(m.get("target") ?? "null")); } catch { target = null; }
-  const nextAt = Number(m.get("next_at")), lastOk = Number(m.get("last_ok_at"));
+  try {
+    target = parseTarget(JSON.parse(m.get("target") ?? "null"));
+  } catch {
+    target = null;
+  }
+  const nextAt = Number(m.get("next_at")),
+    lastOk = Number(m.get("last_ok_at"));
   return {
-    target, schedule: m.get("schedule") ?? DEFAULT_SCHEDULE, enabled: m.get("enabled") === "1",
-    nextAt: Number.isFinite(nextAt) && m.has("next_at") ? nextAt : null, lastOkAt: Number.isFinite(lastOk) && m.has("last_ok_at") ? lastOk : null,
+    target,
+    schedule: m.get("schedule") ?? DEFAULT_SCHEDULE,
+    enabled: m.get("enabled") === "1",
+    nextAt: Number.isFinite(nextAt) && m.has("next_at") ? nextAt : null,
+    lastOkAt: Number.isFinite(lastOk) && m.has("last_ok_at") ? lastOk : null,
   };
 }
 
@@ -388,7 +588,8 @@ function fieldSet(spec: string, min: number, max: number): Set<number> | null {
     if (!m) return null;
     const step = m[2] ? Number(m[2]) : 1;
     if (step < 1) return null;
-    let lo = min, hi = max;
+    let lo = min,
+      hi = max;
     if (m[1] !== "*") {
       const [a, b] = m[1]!.split("-");
       lo = Number(a);
@@ -400,12 +601,24 @@ function fieldSet(spec: string, min: number, max: number): Set<number> | null {
   return out;
 }
 
-export interface Cron { minute: Set<number>; hour: Set<number>; dom: Set<number>; month: Set<number>; dow: Set<number>; domAny: boolean; dowAny: boolean }
+export interface Cron {
+  minute: Set<number>;
+  hour: Set<number>;
+  dom: Set<number>;
+  month: Set<number>;
+  dow: Set<number>;
+  domAny: boolean;
+  dowAny: boolean;
+}
 
 export function parseCron(line: string): Cron | null {
   const f = line.trim().split(/\s+/);
   if (f.length !== 5) return null;
-  const minute = fieldSet(f[0]!, 0, 59), hour = fieldSet(f[1]!, 0, 23), dom = fieldSet(f[2]!, 1, 31), month = fieldSet(f[3]!, 1, 12), dow = fieldSet(f[4]!.replace(/7/g, "0"), 0, 6);
+  const minute = fieldSet(f[0]!, 0, 59),
+    hour = fieldSet(f[1]!, 0, 23),
+    dom = fieldSet(f[2]!, 1, 31),
+    month = fieldSet(f[3]!, 1, 12),
+    dow = fieldSet(f[4]!.replace(/7/g, "0"), 0, 6);
   if (!minute || !hour || !dom || !month || !dow) return null;
   return { minute, hour, dom, month, dow, domAny: f[2] === "*", dowAny: f[4] === "*" };
 }
@@ -415,12 +628,27 @@ export function nextRun(cron: Cron, after: number): number | null {
   const t = new Date(Math.floor(after / 60_000) * 60_000 + 60_000);
   const limit = after + 4 * 366 * DAY_MS;
   while (t.getTime() < limit) {
-    if (!cron.month.has(t.getUTCMonth() + 1)) { t.setUTCMonth(t.getUTCMonth() + 1, 1); t.setUTCHours(0, 0, 0, 0); continue; }
-    const domOk = cron.dom.has(t.getUTCDate()), dowOk = cron.dow.has(t.getUTCDay());
+    if (!cron.month.has(t.getUTCMonth() + 1)) {
+      t.setUTCMonth(t.getUTCMonth() + 1, 1);
+      t.setUTCHours(0, 0, 0, 0);
+      continue;
+    }
+    const domOk = cron.dom.has(t.getUTCDate()),
+      dowOk = cron.dow.has(t.getUTCDay());
     const dayOk = cron.domAny || cron.dowAny ? domOk && dowOk : domOk || dowOk;
-    if (!dayOk) { t.setUTCDate(t.getUTCDate() + 1); t.setUTCHours(0, 0, 0, 0); continue; }
-    if (!cron.hour.has(t.getUTCHours())) { t.setUTCHours(t.getUTCHours() + 1, 0, 0, 0); continue; }
-    if (!cron.minute.has(t.getUTCMinutes())) { t.setUTCMinutes(t.getUTCMinutes() + 1, 0, 0); continue; }
+    if (!dayOk) {
+      t.setUTCDate(t.getUTCDate() + 1);
+      t.setUTCHours(0, 0, 0, 0);
+      continue;
+    }
+    if (!cron.hour.has(t.getUTCHours())) {
+      t.setUTCHours(t.getUTCHours() + 1, 0, 0, 0);
+      continue;
+    }
+    if (!cron.minute.has(t.getUTCMinutes())) {
+      t.setUTCMinutes(t.getUTCMinutes() + 1, 0, 0);
+      continue;
+    }
     return t.getTime();
   }
   return null;
@@ -437,7 +665,19 @@ async function armSchedule(ctx: BackupCtx, cfg: Config): Promise<number | null> 
 
 // ---- index and tombstones on the target
 
-export interface IndexItem { backupId: string; at: number; seq: number; fromSeq: number; sizeBytes: number; kind: string; objectKey: string; headHash: string; encrypted: boolean; tombstones: number; verified: boolean }
+export interface IndexItem {
+  backupId: string;
+  at: number;
+  seq: number;
+  fromSeq: number;
+  sizeBytes: number;
+  kind: string;
+  objectKey: string;
+  headHash: string;
+  encrypted: boolean;
+  tombstones: number;
+  verified: boolean;
+}
 
 export async function readIndex(ctx: BackupCtx, target: BackupTarget): Promise<IndexItem[]> {
   const blob = await target.get(INDEX_KEY);
@@ -450,12 +690,29 @@ export async function readIndex(ctx: BackupCtx, target: BackupTarget): Promise<I
     const r = asRow(it);
     const id = str(r?.["backupId"]);
     if (!r || !id) continue;
-    out.push({ backupId: id, at: num(r["at"]), seq: num(r["seq"]), fromSeq: num(r["fromSeq"]), sizeBytes: num(r["sizeBytes"]), kind: str(r["kind"]) ?? "manual", objectKey: str(r["objectKey"]) ?? `${OBJECT_PREFIX}${id}.vybk`, headHash: str(r["headHash"]) ?? "", encrypted: r["encrypted"] !== false, tombstones: num(r["tombstones"]), verified: r["verified"] === true });
+    out.push({
+      backupId: id,
+      at: num(r["at"]),
+      seq: num(r["seq"]),
+      fromSeq: num(r["fromSeq"]),
+      sizeBytes: num(r["sizeBytes"]),
+      kind: str(r["kind"]) ?? "manual",
+      objectKey: str(r["objectKey"]) ?? `${OBJECT_PREFIX}${id}.vybk`,
+      headHash: str(r["headHash"]) ?? "",
+      encrypted: r["encrypted"] !== false,
+      tombstones: num(r["tombstones"]),
+      verified: r["verified"] === true,
+    });
   }
   return out;
 }
 
-export async function writeIndex(ctx: BackupCtx, target: BackupTarget, items: readonly IndexItem[], encrypted: boolean): Promise<void> {
+export async function writeIndex(
+  ctx: BackupCtx,
+  target: BackupTarget,
+  items: readonly IndexItem[],
+  encrypted: boolean,
+): Promise<void> {
   await target.put(INDEX_KEY, wrap(ctx, enc.encode(JSON.stringify({ v: 1, items })), encrypted));
 }
 
@@ -480,19 +737,29 @@ export async function readTombstones(ctx: BackupCtx, target: BackupTarget): Prom
   const out: Tombstone[] = [];
   for (const it of list) {
     const r = asRow(it);
-    const kind = str(r?.["kind"]), subject = str(r?.["subject"]);
+    const kind = str(r?.["kind"]),
+      subject = str(r?.["subject"]);
     if (r && kind && subject) out.push({ kind, subject, at: num(r["at"]) });
   }
   return out;
 }
 
-export async function writeTombstones(ctx: BackupCtx, target: BackupTarget, list: readonly Tombstone[], encrypted: boolean): Promise<void> {
+export async function writeTombstones(
+  ctx: BackupCtx,
+  target: BackupTarget,
+  list: readonly Tombstone[],
+  encrypted: boolean,
+): Promise<void> {
   await target.put(TOMBSTONE_KEY, wrap(ctx, enc.encode(JSON.stringify({ v: 1, tombstones: list })), encrypted));
 }
 
 // ---- backup rows
 
-export interface Item extends IndexItem { state: string; target: string; reason?: string }
+export interface Item extends IndexItem {
+  state: string;
+  target: string;
+  reason?: string;
+}
 
 export function itemOf(r: unknown): Item | null {
   const x = asRow(r);
@@ -500,14 +767,28 @@ export function itemOf(r: unknown): Item | null {
   if (!x || !id) return null;
   const reason = str(x["reason"]);
   return {
-    backupId: id, at: num(x["at"]), seq: num(x["seq"]), fromSeq: num(x["from_seq"]), sizeBytes: num(x["size_bytes"]), kind: str(x["kind"]) ?? "manual",
-    objectKey: str(x["object_key"]) ?? "", headHash: str(x["head_hash"]) ?? "", encrypted: num(x["encrypted"]) === 1, tombstones: num(x["tombstones"]),
-    verified: num(x["verified"]) === 1, state: str(x["state"]) ?? "done", target: str(x["target"]) ?? "", ...(reason ? { reason } : {}),
+    backupId: id,
+    at: num(x["at"]),
+    seq: num(x["seq"]),
+    fromSeq: num(x["from_seq"]),
+    sizeBytes: num(x["size_bytes"]),
+    kind: str(x["kind"]) ?? "manual",
+    objectKey: str(x["object_key"]) ?? "",
+    headHash: str(x["head_hash"]) ?? "",
+    encrypted: num(x["encrypted"]) === 1,
+    tombstones: num(x["tombstones"]),
+    verified: num(x["verified"]) === 1,
+    state: str(x["state"]) ?? "done",
+    target: str(x["target"]) ?? "",
+    ...(reason ? { reason } : {}),
   };
 }
 
 export function doneItems(ctx: BackupCtx): Item[] {
-  return ctx.db.all("SELECT * FROM backup_item WHERE state = ? ORDER BY at DESC", "done").map(itemOf).filter((i): i is Item => i !== null);
+  return ctx.db
+    .all("SELECT * FROM backup_item WHERE state = ? ORDER BY at DESC", "done")
+    .map(itemOf)
+    .filter((i): i is Item => i !== null);
 }
 
 export function findItem(ctx: BackupCtx, backupId: string): Item | null {
@@ -519,12 +800,30 @@ export function findItem(ctx: BackupCtx, backupId: string): Item | null {
 function saveItem(ctx: BackupCtx, i: Item): void {
   ctx.db.run(
     "INSERT OR REPLACE INTO backup_item (backup_id, at, state, kind, seq, from_seq, size_bytes, verified, target, object_key, head_hash, encrypted, tombstones, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    i.backupId, i.at, i.state, i.kind, i.seq, i.fromSeq, i.sizeBytes, i.verified ? 1 : 0, i.target, i.objectKey, i.headHash, i.encrypted ? 1 : 0, i.tombstones, i.reason ?? null,
+    i.backupId,
+    i.at,
+    i.state,
+    i.kind,
+    i.seq,
+    i.fromSeq,
+    i.sizeBytes,
+    i.verified ? 1 : 0,
+    i.target,
+    i.objectKey,
+    i.headHash,
+    i.encrypted ? 1 : 0,
+    i.tombstones,
+    i.reason ?? null,
   );
 }
 
 /** A backup the local table does not know (a new machine): take it from the target's index. */
-export async function findItemOrIndex(ctx: BackupCtx, target: BackupTarget, backupId: string, label: string): Promise<Item | null> {
+export async function findItemOrIndex(
+  ctx: BackupCtx,
+  target: BackupTarget,
+  backupId: string,
+  label: string,
+): Promise<Item | null> {
   const local = findItem(ctx, backupId);
   if (local) return local;
   const found = (await readIndex(ctx, target)).find((i) => i.backupId === backupId);
@@ -546,10 +845,14 @@ export type Kind = "scheduled" | "manual" | "pre_update";
  * Take a backup now. A pre-flight problem (no target) throws. A failure while copying is recorded, emits backup.failed (which health turns into a notice)
  * and answers with the id of the failed attempt, so the event is committed; the attempt is never listed and cannot be restored.
  */
-export async function runBackup(ctx: BackupCtx, kind: Kind): Promise<{ backupId: string; ok: boolean; reason?: string }> {
+export async function runBackup(
+  ctx: BackupCtx,
+  kind: Kind,
+): Promise<{ backupId: string; ok: boolean; reason?: string }> {
   const d = need(ctx);
   const cfg = readConfig(ctx);
-  if (!cfg.target) return failWith(ctx.trace.traceId, "validation.precondition_failed", "Choose where backups go first.");
+  if (!cfg.target)
+    return failWith(ctx.trace.traceId, "validation.precondition_failed", "Choose where backups go first.");
   const label = describeTarget(cfg.target);
   const backupId = mint("bkp");
   const at = ctx.now();
@@ -558,11 +861,28 @@ export async function runBackup(ctx: BackupCtx, kind: Kind): Promise<{ backupId:
     const encrypted = await encryptOn(ctx);
     const snap = await d.source.snapshot();
     const tombs = mergeTombstones(await d.source.tombstones(), await readTombstones(ctx, target).catch(() => []));
-    const archive = await pack({ backupId, at, fromSeq: snap.fromSeq, toSeq: snap.toSeq, headHash: snap.headHash, tombstones: tombs }, snap.entries);
+    const archive = await pack(
+      { backupId, at, fromSeq: snap.fromSeq, toSeq: snap.toSeq, headHash: snap.headHash, tombstones: tombs },
+      snap.entries,
+    );
     const blob = wrap(ctx, archive, encrypted);
     const objectKey = `${OBJECT_PREFIX}${backupId}.vybk`;
     await target.put(objectKey, blob);
-    const item: Item = { backupId, at, state: "done", kind, seq: snap.toSeq, fromSeq: snap.fromSeq, sizeBytes: blob.length, verified: false, target: label, objectKey, headHash: snap.headHash, encrypted, tombstones: tombs.length };
+    const item: Item = {
+      backupId,
+      at,
+      state: "done",
+      kind,
+      seq: snap.toSeq,
+      fromSeq: snap.fromSeq,
+      sizeBytes: blob.length,
+      verified: false,
+      target: label,
+      objectKey,
+      headHash: snap.headHash,
+      encrypted,
+      tombstones: tombs.length,
+    };
     saveItem(ctx, item);
     await writeTombstones(ctx, target, tombs, encrypted);
     await rotate(ctx, target, tombs, encrypted, backupId);
@@ -571,14 +891,35 @@ export async function runBackup(ctx: BackupCtx, kind: Kind): Promise<{ backupId:
     return { backupId, ok: true };
   } catch (e) {
     const reason = e instanceof VyreErr ? e.error.message : e instanceof Error ? e.message : "The backup failed.";
-    saveItem(ctx, { backupId, at, state: "failed", kind, seq: 0, fromSeq: 0, sizeBytes: 0, verified: false, target: label, objectKey: "", headHash: "", encrypted: false, tombstones: 0, reason });
+    saveItem(ctx, {
+      backupId,
+      at,
+      state: "failed",
+      kind,
+      seq: 0,
+      fromSeq: 0,
+      sizeBytes: 0,
+      verified: false,
+      target: label,
+      objectKey: "",
+      headHash: "",
+      encrypted: false,
+      tombstones: 0,
+      reason,
+    });
     ctx.emit("backup.failed" as never, `entity/${backupId}`, { backupId, reason });
     return { backupId, ok: false, reason };
   }
 }
 
 /** Keep the newest KEEP backups and drop any that predate the newest tombstone (erase purges the next rotation); the backup just taken (keepId) always stays. */
-async function rotate(ctx: BackupCtx, target: BackupTarget, tombs: readonly Tombstone[], encrypted: boolean, keepId: string): Promise<void> {
+async function rotate(
+  ctx: BackupCtx,
+  target: BackupTarget,
+  tombs: readonly Tombstone[],
+  encrypted: boolean,
+  keepId: string,
+): Promise<void> {
   const items = doneItems(ctx);
   const newestErase = tombs.reduce((m, t) => Math.max(m, t.at), 0);
   const drop = items.filter((it, i) => it.backupId !== keepId && (i >= KEEP || it.at < newestErase));
@@ -586,7 +927,12 @@ async function rotate(ctx: BackupCtx, target: BackupTarget, tombs: readonly Tomb
     await target.del(it.objectKey).catch(() => undefined);
     ctx.db.run("DELETE FROM backup_item WHERE backup_id = ?", it.backupId);
   }
-  await writeIndex(ctx, target, items.filter((it) => !drop.includes(it)), encrypted);
+  await writeIndex(
+    ctx,
+    target,
+    items.filter((it) => !drop.includes(it)),
+    encrypted,
+  );
 }
 
 // ---- handlers
@@ -615,20 +961,33 @@ export async function config_set(ctx: BackupCtx, input: { target: unknown; sched
   const problem = targetProblem(target);
   if (problem) return failWith(ctx.trace.traceId, "validation.bad_input", problem, { errors: [`target: ${problem}`] });
   const cron = parseCron(input.schedule);
-  if (!cron) return failWith(ctx.trace.traceId, "validation.bad_input", "The schedule is five fields: minute hour day month weekday, for example 0 3 * * *.", { errors: ["schedule: not a cron line"] });
+  if (!cron)
+    return failWith(
+      ctx.trace.traceId,
+      "validation.bad_input",
+      "The schedule is five fields: minute hour day month weekday, for example 0 3 * * *.",
+      { errors: ["schedule: not a cron line"] },
+    );
   // prove the target takes a write before the switch is saved, so a typo shows now and not at 3 in the morning
   try {
     await (await openTarget(ctx, target)).ping();
   } catch (e) {
     if (e instanceof VyreErr) throw e;
-    return failWith(ctx.trace.traceId, "provider.unavailable", `The backup target did not accept a test write: ${e instanceof Error ? e.message : "unknown error"}`);
+    return failWith(
+      ctx.trace.traceId,
+      "provider.unavailable",
+      `The backup target did not accept a test write: ${e instanceof Error ? e.message : "unknown error"}`,
+    );
   }
   writeConfig(ctx, "target", JSON.stringify(target));
   writeConfig(ctx, "schedule", input.schedule.trim());
   writeConfig(ctx, "enabled", input.enabled ? "1" : "0");
   if (input.enabled) await armSchedule(ctx, readConfig(ctx));
   else ctx.db.run("DELETE FROM backup_config WHERE key = ?", "next_at");
-  ctx.emit("backup.config_changed" as never, `entity/${encodeURIComponent(describeTarget(target))}`, { target: describeTarget(target), schedule: input.enabled ? input.schedule.trim() : "off" });
+  ctx.emit("backup.config_changed" as never, `entity/${encodeURIComponent(describeTarget(target))}`, {
+    target: describeTarget(target),
+    schedule: input.enabled ? input.schedule.trim() : "off",
+  });
   return { ok: true };
 }
 
@@ -642,10 +1001,20 @@ export async function list(ctx: BackupCtx, input: { cursor?: string; limit?: num
       const label = describeTarget(cfg.target);
       for (const found of await readIndex(ctx, target)) saveItem(ctx, { ...found, state: "done", target: label });
       items = doneItems(ctx);
-    } catch { /* an unreachable target shows an empty list; backups.recent says why */ }
+    } catch {
+      /* an unreachable target shows an empty list; backups.recent says why */
+    }
   }
   const { offset, size } = page(input.cursor, input.limit);
-  const rows = items.slice(offset, offset + size).map((i) => ({ backupId: i.backupId, at: i.at, sizeBytes: i.sizeBytes, seq: i.seq, kind: i.kind, verified: i.verified, target: i.target }));
+  const rows = items.slice(offset, offset + size).map((i) => ({
+    backupId: i.backupId,
+    at: i.at,
+    sizeBytes: i.sizeBytes,
+    seq: i.seq,
+    kind: i.kind,
+    verified: i.verified,
+    target: i.target,
+  }));
   const more = offset + size < items.length;
   return { backups: rows, ...(more ? { next: String(offset + size) } : {}), total: items.length };
 }
@@ -664,7 +1033,10 @@ export async function run(ctx: BackupCtx, _input: Record<string, unknown>) {
 export async function del(ctx: BackupCtx, input: { backupId: string }) {
   const cfg = readConfig(ctx);
   const item = findItem(ctx, input.backupId);
-  if (!item) return failWith(ctx.trace.traceId, "validation.not_found", "There is no backup with that id.", { backupId: input.backupId });
+  if (!item)
+    return failWith(ctx.trace.traceId, "validation.not_found", "There is no backup with that id.", {
+      backupId: input.backupId,
+    });
   if (cfg.target) {
     const target = await openTarget(ctx, cfg.target);
     await target.del(item.objectKey);
@@ -683,64 +1055,146 @@ export async function health(ctx: BackupCtx, _input: Record<string, unknown>) {
   const cfg = readConfig(ctx);
   if (!cfg.target) {
     // a Space that has just been set up has nothing worth losing yet: say plainly that there are no backups, and only start asking once it has been around for a day
-    const firstSeen = Number((ctx.db.all("SELECT value FROM backup_config WHERE key = ?", "health_first_seen")[0] as { value?: string } | undefined)?.value);
-    if (!Number.isFinite(firstSeen)) { writeConfig(ctx, "health_first_seen", String(ctx.now())); }
+    const firstSeen = Number(
+      (
+        ctx.db.all("SELECT value FROM backup_config WHERE key = ?", "health_first_seen")[0] as
+          | { value?: string }
+          | undefined
+      )?.value,
+    );
+    if (!Number.isFinite(firstSeen)) {
+      writeConfig(ctx, "health_first_seen", String(ctx.now()));
+    }
     const age = ctx.now() - (Number.isFinite(firstSeen) ? firstSeen : ctx.now());
     return age < FRESH_SPACE_MS
       ? { state: "healthy" as const, detail: "No backups yet. Set up backups in Console, Infrastructure, Backups." }
-      : { state: "degraded" as const, detail: "No backup target is set. Set up backups in Console, Infrastructure, Backups." };
+      : {
+          state: "degraded" as const,
+          detail: "No backup target is set. Set up backups in Console, Infrastructure, Backups.",
+        };
   }
   const started = ctx.now();
   try {
     await (await openTarget(ctx, cfg.target)).ping();
   } catch (e) {
-    return { state: "down" as const, detail: `The backup target cannot be written: ${e instanceof Error ? e.message : "unknown error"}`, latencyMs: Math.max(0, ctx.now() - started) };
+    return {
+      state: "down" as const,
+      detail: `The backup target cannot be written: ${e instanceof Error ? e.message : "unknown error"}`,
+      latencyMs: Math.max(0, ctx.now() - started),
+    };
   }
   const latencyMs = Math.max(0, ctx.now() - started);
   if (cfg.lastOkAt === null) return { state: "degraded" as const, detail: "No backup has finished yet.", latencyMs };
   const ageHours = Math.floor((ctx.now() - cfg.lastOkAt) / 3_600_000);
   const state = ageHours > 72 ? ("down" as const) : ageHours > 30 ? ("degraded" as const) : ("healthy" as const);
-  return { state, ageHours, latencyMs, ...(state === "healthy" ? {} : { detail: `The last good backup is ${ageHours} hours old.` }) };
+  return {
+    state,
+    ageHours,
+    latencyMs,
+    ...(state === "healthy" ? {} : { detail: `The last good backup is ${ageHours} hours old.` }),
+  };
 }
 
 // ---- the owner export
 
 /** Paths that are never exported: secrets, keys, and what belongs to one person alone. */
 const BLOCKED_PATH = [
-  /(^|\/)vault(\/|$)/i, /(^|\/)secrets?(\/|$)/i, /(^|\/)keys?(\/|$)/i, /(^|\/)private(\/|$)/i, /(^|\/)memory\/(personal|mine)(\/|$)/i, /(^|\/)chats\/(private|dm)(\/|$)/i,
-  /(^|\/)\.env(\.|$)/i, /\.(pem|key|p12|pfx)$/i, /(^|\/)(id_rsa|id_ed25519)$/i,
+  /(^|\/)vault(\/|$)/i,
+  /(^|\/)secrets?(\/|$)/i,
+  /(^|\/)keys?(\/|$)/i,
+  /(^|\/)private(\/|$)/i,
+  /(^|\/)memory\/(personal|mine)(\/|$)/i,
+  /(^|\/)chats\/(private|dm)(\/|$)/i,
+  /(^|\/)\.env(\.|$)/i,
+  /\.(pem|key|p12|pfx)$/i,
+  /(^|\/)(id_rsa|id_ed25519)$/i,
 ];
 export const exportBlocked = (path: string): boolean => BLOCKED_PATH.some((re) => re.test(path));
 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
   return t;
 })();
-const crc32 = (b: Uint8Array): number => { let c = 0xffffffff; for (const x of b) c = CRC_TABLE[(c ^ x) & 0xff]! ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+const crc32 = (b: Uint8Array): number => {
+  let c = 0xffffffff;
+  for (const x of b) c = CRC_TABLE[(c ^ x) & 0xff]! ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+};
 
 /** A zip with every entry stored (no compression), so the file is plain to inspect and to test. */
 export function zip(entries: readonly SnapshotEntry[], at: number): Uint8Array {
   const d = new Date(at);
   const time = (d.getUTCHours() << 11) | (d.getUTCMinutes() << 5) | (d.getUTCSeconds() >> 1);
   const date = (Math.max(0, d.getUTCFullYear() - 1980) << 9) | ((d.getUTCMonth() + 1) << 5) | d.getUTCDate();
-  const parts: Uint8Array[] = [], central: Uint8Array[] = [];
+  const parts: Uint8Array[] = [],
+    central: Uint8Array[] = [];
   let offset = 0;
   const u16 = (v: number): number[] => [v & 0xff, (v >>> 8) & 0xff];
   const u32 = (v: number): number[] => [v & 0xff, (v >>> 8) & 0xff, (v >>> 16) & 0xff, (v >>> 24) & 0xff];
   for (const e of entries) {
-    const name = enc.encode(e.path), crc = crc32(e.bytes);
-    const local = Uint8Array.from([...u32(0x04034b50), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(time), ...u16(date), ...u32(crc), ...u32(e.bytes.length), ...u32(e.bytes.length), ...u16(name.length), ...u16(0)]);
+    const name = enc.encode(e.path),
+      crc = crc32(e.bytes);
+    const local = Uint8Array.from([
+      ...u32(0x04034b50),
+      ...u16(20),
+      ...u16(0x0800),
+      ...u16(0),
+      ...u16(time),
+      ...u16(date),
+      ...u32(crc),
+      ...u32(e.bytes.length),
+      ...u32(e.bytes.length),
+      ...u16(name.length),
+      ...u16(0),
+    ]);
     parts.push(local, name, e.bytes);
-    central.push(Uint8Array.from([...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(time), ...u16(date), ...u32(crc), ...u32(e.bytes.length), ...u32(e.bytes.length), ...u16(name.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(offset)]), name);
+    central.push(
+      Uint8Array.from([
+        ...u32(0x02014b50),
+        ...u16(20),
+        ...u16(20),
+        ...u16(0x0800),
+        ...u16(0),
+        ...u16(time),
+        ...u16(date),
+        ...u32(crc),
+        ...u32(e.bytes.length),
+        ...u32(e.bytes.length),
+        ...u16(name.length),
+        ...u16(0),
+        ...u16(0),
+        ...u16(0),
+        ...u16(0),
+        ...u32(0),
+        ...u32(offset),
+      ]),
+      name,
+    );
     offset += local.length + name.length + e.bytes.length;
   }
   const cdSize = central.reduce((n, p) => n + p.length, 0);
-  const end = Uint8Array.from([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(entries.length), ...u16(entries.length), ...u32(cdSize), ...u32(offset), ...u16(0)]);
+  const end = Uint8Array.from([
+    ...u32(0x06054b50),
+    ...u16(0),
+    ...u16(0),
+    ...u16(entries.length),
+    ...u16(entries.length),
+    ...u32(cdSize),
+    ...u32(offset),
+    ...u16(0),
+  ]);
   const all = [...parts, ...central, end];
   const out = new Uint8Array(all.reduce((n, p) => n + p.length, 0));
   let at2 = 0;
-  for (const p of all) { out.set(p, at2); at2 += p.length; }
+  for (const p of all) {
+    out.set(p, at2);
+    at2 += p.length;
+  }
   return out;
 }
 
@@ -760,34 +1214,55 @@ export async function export_start(ctx: BackupCtx, _input: Record<string, unknow
   const runId = ctx.run ?? mint("run");
   // A full export is complete or it does not happen: it is never filtered per item (a silently partial export is its own harm). So it is the Space owner's alone, who holds every clearance (P-SEC_07).
   // Fail closed: no authorize, a deny, a hold, or any other person (an admin included) is refused and nothing is packed.
-  const refused = (): never => failWith(ctx.trace.traceId, "permission.no_grant", "Only the Space owner can take a full export.");
+  const refused = (): never =>
+    failWith(ctx.trace.traceId, "permission.no_grant", "Only the Space owner can take a full export.");
   if (typeof ctx.authorize !== "function") return refused();
-  if (ctx.authorize({ perm: "records.export", level: "manage" }, { type: "space", id: ctx.space }).effect !== "allow") return refused();
+  if (ctx.authorize({ perm: "records.export", level: "manage" }, { type: "space", id: ctx.space }).effect !== "allow")
+    return refused();
   if (ctx.principal.kind !== "person" || ctx.principal.id !== (await d.source.owner?.())) return refused();
   const at = ctx.now();
   const secrets = (await d.source.secretValues()).filter((s) => s.length >= 6);
   const keep: SnapshotEntry[] = [];
   let skipped = 0;
-  const collected=ctx.ownerArchive?.collect!==undefined;
+  const collected = ctx.ownerArchive?.collect !== undefined;
   for (const e of await (collected ? ctx.ownerArchive!.collect!() : d.source.exportEntries())) {
     if (exportBlocked(e.path) || secrets.some((s) => contains(e.bytes, s) || e.path.includes(s))) {
-      if(collected)return failWith(ctx.trace.traceId,"validation.precondition_failed","A prohibited entry was detected after snapshot collection. No partial archive was created.");
-      skipped++; continue;
+      if (collected)
+        return failWith(
+          ctx.trace.traceId,
+          "validation.precondition_failed",
+          "A prohibited entry was detected after snapshot collection. No partial archive was created.",
+        );
+      skipped++;
+      continue;
     }
     keep.push(e);
   }
-  const readme = enc.encode(`Vyre export of ${ctx.space}\n${collected ? "Scope: shared Space. Current records and schema, retained Files versions, public channels and Space settings. See manifest.json for exact inclusions, exclusions and hashes. Private/group chats, Personal files, personal memory and secret values are excluded.\n" : ""}Taken ${new Date(at).toISOString()} by ${ctx.principal.id}.\n${keep.length} files. ${skipped} left out (secrets, keys and private items are never exported).\n`);
+  const readme = enc.encode(
+    `Vyre export of ${ctx.space}\n${collected ? "Scope: shared Space. Current records and schema, retained Files versions, public channels and Space settings. See manifest.json for exact inclusions, exclusions and hashes. Private/group chats, Personal files, personal memory and secret values are excluded.\n" : ""}Taken ${new Date(at).toISOString()} by ${ctx.principal.id}.\n${keep.length} files. ${skipped} left out (secrets, keys and private items are never exported).\n`,
+  );
   const bytes = zip([{ path: "README.txt", bytes: readme }, ...keep], at);
-  const name=`vyre-export-${new Date(at).toISOString().slice(0, 10)}.zip`;
-  const saved = ctx.ownerArchive?.saveZip ? await ctx.ownerArchive.saveZip(runId,name,bytes) : await d.exports.save(name,bytes);
+  const name = `vyre-export-${new Date(at).toISOString().slice(0, 10)}.zip`;
+  const saved = ctx.ownerArchive?.saveZip
+    ? await ctx.ownerArchive.saveZip(runId, name, bytes)
+    : await d.exports.save(name, bytes);
   ctx.db.run(
     "INSERT OR REPLACE INTO backup_export (run_id, at, by_principal, on_behalf, state, file_id, size_bytes, entries, skipped) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    runId, at, ctx.principal.id, ctx.actingFor ?? null, "done", saved.fileId, bytes.length, keep.length, skipped,
+    runId,
+    at,
+    ctx.principal.id,
+    ctx.actingFor ?? null,
+    "done",
+    saved.fileId,
+    bytes.length,
+    keep.length,
+    skipped,
   );
   return { runId };
 }
 
-export async function export_status(ctx:BackupCtx,input:{runId:string}){
- if(!ctx.ownerArchive?.status)return failWith(ctx.trace.traceId,'internal.unavailable','Space export readback is unavailable.');
- return ctx.ownerArchive.status(input.runId);
+export async function export_status(ctx: BackupCtx, input: { runId: string }) {
+  if (!ctx.ownerArchive?.status)
+    return failWith(ctx.trace.traceId, "internal.unavailable", "Space export readback is unavailable.");
+  return ctx.ownerArchive.status(input.runId);
 }

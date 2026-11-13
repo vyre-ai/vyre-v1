@@ -14,24 +14,35 @@ const ENDS = /(^|[._])(deleted|dropped|removed|purged|erased|destroyed|revoked|e
 
 export function checkMakeEmits(caps: readonly Cap[], events: readonly Ev[]): MakeFinding[] {
   const subjectOf = new Map<string, string>();
-  for (const e of events) if (e.subject && e.subject.type !== "entity" && !ENDS.test(e.name)) subjectOf.set(e.name, e.subject.type);
+  for (const e of events)
+    if (e.subject && e.subject.type !== "entity" && !ENDS.test(e.name)) subjectOf.set(e.name, e.subject.type);
   const out: MakeFinding[] = [];
   for (const c of caps) {
     if (c.resource?.create !== true || !c.resource.type) continue;
     const type = c.resource.type;
     const emits = c.emits ?? [];
     if (emits.some((n) => subjectOf.get(n) === type)) continue;
-    out.push({ cap: c.name, type, emits, message: `${c.name} makes a ${type} but emits no event whose subject is a ${type}${emits.length ? ` (emits: ${emits.join(", ")})` : " (emits nothing)"}, so the gateway registers no resource` });
+    out.push({
+      cap: c.name,
+      type,
+      emits,
+      message: `${c.name} makes a ${type} but emits no event whose subject is a ${type}${emits.length ? ` (emits: ${emits.join(", ")})` : " (emits nothing)"}, so the gateway registers no resource`,
+    });
   }
   return out;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-  const reg = JSON.parse(fs.readFileSync(path.join(repo, "generated/registry.json"), "utf8")) as { capabilities: Cap[]; events: Ev[] };
+  const reg = JSON.parse(fs.readFileSync(path.join(repo, "generated/registry.json"), "utf8")) as {
+    capabilities: Cap[];
+    events: Ev[];
+  };
   const hits = checkMakeEmits(reg.capabilities, reg.events);
   const enforce = process.argv.includes("--enforce");
   for (const h of hits) console.log(`make-emits ${h.cap}: ${h.message}`);
-  console.log(`make-emits: ${hits.length} of ${reg.capabilities.filter((c) => c.resource?.create === true).length} creating capabilities have no registering event${enforce ? "" : " (report mode, exit 0)"}`);
+  console.log(
+    `make-emits: ${hits.length} of ${reg.capabilities.filter((c) => c.resource?.create === true).length} creating capabilities have no registering event${enforce ? "" : " (report mode, exit 0)"}`,
+  );
   if (enforce && hits.length) process.exit(1);
 }

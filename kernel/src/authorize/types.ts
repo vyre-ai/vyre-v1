@@ -6,17 +6,51 @@ export const LEVEL_BY_RANK: readonly Level[] = Object.freeze(["view", "view", "u
 
 /** 0.6 codes kept (4.5.1), plus the five the v1 rules add, plus `agent_needs_actor` for an agent call with nobody to act for. */
 export type ReasonCode =
-  | "ok" | "no_grant" | "expired" | "wrong_space" | "needs_approval" | "limit" | "not_a_member" | "revoked" | "unknown_action" | "bad_input" | "not_found" | "not_contained"
-  | "role_lacks_permission" | "above_clearance" | "on_hold" | "suspended" | "provider_label" | "agent_needs_actor";
+  | "ok"
+  | "no_grant"
+  | "expired"
+  | "wrong_space"
+  | "needs_approval"
+  | "limit"
+  | "not_a_member"
+  | "revoked"
+  | "unknown_action"
+  | "bad_input"
+  | "not_found"
+  | "not_contained"
+  | "role_lacks_permission"
+  | "above_clearance"
+  | "on_hold"
+  | "suspended"
+  | "provider_label"
+  | "agent_needs_actor";
 
 export type PrincipalKind = "person" | "agent" | "svc";
-export interface PrincipalRow { id: string; kind: PrincipalKind; owner?: string | null; status: "active" | "suspended" | "removed"; name?: string;
+export interface PrincipalRow {
+  id: string;
+  kind: PrincipalKind;
+  owner?: string | null;
+  status: "active" | "suspended" | "removed";
+  name?: string;
   /** An agent that is its person's own Assistant (not a Space agent, not an outside agent): it is their hands on what they own (owner ruling 4 Nov 2026). Set from agent.privacy_set. */
-  assistant?: boolean }
-export interface RoleRow { id: string; clearance: number; perms: readonly string[]; name?: string; assignableToAgents?: boolean }
-export interface GroupMemberRow { group: string; member: string }
+  assistant?: boolean;
+}
+export interface RoleRow {
+  id: string;
+  clearance: number;
+  perms: readonly string[];
+  name?: string;
+  assignableToAgents?: boolean;
+}
+export interface GroupMemberRow {
+  group: string;
+  member: string;
+}
 /** `holder` is a person, an agent, a svc or a group id. */
-export interface PrincipalRoleRow { holder: string; role: string }
+export interface PrincipalRoleRow {
+  holder: string;
+  role: string;
+}
 
 /** Row-filter expressions: the subset that compiles to SQL (ARCH 4.5 "Scope compilation"). */
 export type Expr =
@@ -40,20 +74,40 @@ export interface Conditions {
 export type SubjectKind = "actor" | "role" | "group";
 /** No `effect` column: there are no explicit deny grants (ARCH 4.5). `resource_id` null means type-wide. */
 export interface GrantRow {
-  id: string; subject_kind: SubjectKind; subject_id: string; resource_type: string; resource_id: string | null;
-  level: Level; conditions?: Conditions | undefined; expires_at?: number | null | undefined; by?: string | undefined;
+  id: string;
+  subject_kind: SubjectKind;
+  subject_id: string;
+  resource_type: string;
+  resource_id: string | null;
+  level: Level;
+  conditions?: Conditions | undefined;
+  expires_at?: number | null | undefined;
+  by?: string | undefined;
   /** Where the grant came from ('project:prj_...', 'through-agent:...'). Only a key approved for an agent's request reads it here (THROUGH_AGENT). */
   source?: string | undefined;
   /**
    * A permission exception (owner, 3 Nov 2026): this person or group differs from their role on these permission keys. It is never a grant on a resource: it reaches no chain and only
    * changes which permissions the subject holds (SubjectInfo.perms). A person's own exception beats a group's, which beats the role; among peers Allow wins; the Owner is never restricted.
    */
-  exception?: { readonly perms: readonly string[]; readonly effect: "allow" | "deny" | "own" | "ask"; /** effect own: these keys are allowed, the rest of `perms` refused (Own only) */ readonly own?: readonly string[] | undefined } | undefined;
+  exception?:
+    | {
+        readonly perms: readonly string[];
+        readonly effect: "allow" | "deny" | "own" | "ask";
+        /** effect own: these keys are allowed, the rest of `perms` refused (Own only) */ readonly own?:
+          | readonly string[]
+          | undefined;
+      }
+    | undefined;
 }
 
 export { THROUGH_AGENT, THROUGH_ANYONE } from "../../../lib/through-agent.ts";
 export interface ResourceRow {
-  id: string; type: string; parent_id: string | null; label: number; owner_id: string | null; holds: number;
+  id: string;
+  type: string;
+  parent_id: string | null;
+  label: number;
+  owner_id: string | null;
+  holds: number;
   /** Set when the access module cut this resource off from its container (Only people added, Only me): the container it came from. Grants above it no longer reach it. */
   home?: string | undefined;
   /** Anyone who can view this resource may also export it (the Who can export setting on a record type). */
@@ -62,10 +116,28 @@ export interface ResourceRow {
 
 export type Policy =
   | { key: string; kind: "provider_label"; allow: Readonly<Record<string, number>>; defaultMax?: number | undefined }
-  | { key: string; kind: "spend"; meter: string; limitMicros: number; principalKinds?: readonly PrincipalKind[] | undefined }
-  | { key: string; kind: "gate"; act: string; approver: string; caps: readonly string[]; humanToo?: boolean | undefined; checker_must_be_person?: boolean | undefined };
+  | {
+      key: string;
+      kind: "spend";
+      meter: string;
+      limitMicros: number;
+      principalKinds?: readonly PrincipalKind[] | undefined;
+    }
+  | {
+      key: string;
+      kind: "gate";
+      act: string;
+      approver: string;
+      caps: readonly string[];
+      humanToo?: boolean | undefined;
+      checker_must_be_person?: boolean | undefined;
+    };
 
-export interface ResourceRef { type: string; id: string | null; /** for create: the container the new thing goes into */ parent?: string | undefined }
+export interface ResourceRef {
+  type: string;
+  id: string | null;
+  /** for create: the container the new thing goes into */ parent?: string | undefined;
+}
 export type RowCtx = Readonly<Record<string, unknown>>;
 
 export interface Req {
@@ -88,8 +160,16 @@ export interface Req {
   now: number;
 }
 
-export interface Step { ok: boolean; text: string }
-export interface Scope { level: Level; rowFilter: Expr | null; hiddenFields: readonly string[]; labelCeiling: number }
+export interface Step {
+  ok: boolean;
+  text: string;
+}
+export interface Scope {
+  level: Level;
+  rowFilter: Expr | null;
+  hiddenFields: readonly string[];
+  labelCeiling: number;
+}
 export type Obligation =
   | { type: "gate"; act: string; approver: string; checker_must_be_person: boolean }
   | { type: "spend"; meter: string }

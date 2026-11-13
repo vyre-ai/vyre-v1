@@ -29,7 +29,12 @@ interface Posted {
   };
 }
 
-function harness(): { browser: ShotBrowser; views: { width: number; height: number; html: string }[]; posts: Posted[]; fetchImpl: ProofFetch } {
+function harness(): {
+  browser: ShotBrowser;
+  views: { width: number; height: number; html: string }[];
+  posts: Posted[];
+  fetchImpl: ProofFetch;
+} {
   const views: { width: number; height: number; html: string }[] = [];
   const posts: Posted[] = [];
   const browser: ShotBrowser = {
@@ -90,8 +95,14 @@ test("composer sample arguments are valid", () => {
 });
 
 test("unknown screen ids and unknown skins throw", async () => {
-  await assert.rejects(() => renderScreenPage({ screenId: "missing", skin: "Northwind", width: PHONE_WIDTH }), /Unknown screen id/);
-  await assert.rejects(() => renderScreenPage({ screenId: "batch1", skin: "Graphite", width: PHONE_WIDTH }), /Unknown skin/);
+  await assert.rejects(
+    () => renderScreenPage({ screenId: "missing", skin: "Northwind", width: PHONE_WIDTH }),
+    /Unknown screen id/,
+  );
+  await assert.rejects(
+    () => renderScreenPage({ screenId: "batch1", skin: "Graphite", width: PHONE_WIDTH }),
+    /Unknown skin/,
+  );
 });
 
 test("captures the batch1 screen page in Northwind and Harbor Studio skins", async () => {
@@ -186,7 +197,12 @@ test("screenshot of the screens page in both skins", async () => {
 });
 
 test("an explicit density overrides the width default", async () => {
-  const html = await renderScreenPage({ screenId: "batch1", skin: "Northwind", width: PHONE_WIDTH, density: "regular" });
+  const html = await renderScreenPage({
+    screenId: "batch1",
+    skin: "Northwind",
+    width: PHONE_WIDTH,
+    density: "regular",
+  });
   assert.match(html, /data-width="390"/);
   assert.match(html, /data-density="regular"/);
 });

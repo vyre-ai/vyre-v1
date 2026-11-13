@@ -44,14 +44,33 @@ export const BOX_AUTH_TAG = "vyre-relay-box-v1";
 const SIGNIN = { watchMs: 10 * 60_000, locPerMin: 3 };
 export const FEATURES = Object.freeze(["registered", "revoke", "code", "signin"]);
 export const LIMITS = Object.freeze({ waiting: 8, open: 32, buffered: 64, frame: 1 << 20 });
-export const CLOSE = Object.freeze({ boxOffline: 4404, busy: 4429, refused: 4401, replaced: 4409, boxGone: 4410, deviceGone: 4411, tooBig: 1009 });
+export const CLOSE = Object.freeze({
+  boxOffline: 4404,
+  busy: 4429,
+  refused: 4401,
+  replaced: 4409,
+  boxGone: 4410,
+  deviceGone: 4411,
+  tooBig: 1009,
+});
 export const ROUTE_RE = /^[a-z2-7]{26}$/;
 /** The typed Wink code's limits and alphabet; these repeat relay/node/wire.js (worker.test.js checks they match). */
-export const CODE = Object.freeze({ ttl: 10 * 60_000, sessionPerMin: 10, stepPerMin: 30, missPerMin: 30, msg: 200, waitMs: 10_000, pending: 64, allocPerMin: 20, graceMs: 90_000 });
+export const CODE = Object.freeze({
+  ttl: 10 * 60_000,
+  sessionPerMin: 10,
+  stepPerMin: 30,
+  missPerMin: 30,
+  msg: 200,
+  waitMs: 10_000,
+  pending: 64,
+  allocPerMin: 20,
+  graceMs: 90_000,
+});
 /** Base64 of some bytes, in slices small enough for String.fromCharCode. @param {Uint8Array} u */
 function bytesToB64(u) {
   let s = "";
-  for (let at = 0; at < u.length; at += 0x8000) s += String.fromCharCode.apply(null, /** @type {any} */ (u.subarray(at, at + 0x8000)));
+  for (let at = 0; at < u.length; at += 0x8000)
+    s += String.fromCharCode.apply(null, /** @type {any} */ (u.subarray(at, at + 0x8000)));
   return btoa(s);
 }
 /** @param {string} s */
@@ -79,11 +98,16 @@ const ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
 
 /** RFC 4648 base32, lowercase, no padding. @param {Uint8Array} buf */
 export function base32(buf) {
-  let bits = 0, value = 0, out = "";
+  let bits = 0,
+    value = 0,
+    out = "";
   for (const byte of buf) {
     value = (value << 8) | byte;
     bits += 8;
-    while (bits >= 5) { out += ALPHABET[(value >>> (bits - 5)) & 31]; bits -= 5; }
+    while (bits >= 5) {
+      out += ALPHABET[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
   }
   if (bits > 0) out += ALPHABET[(value << (5 - bits)) & 31];
   return out;
@@ -101,12 +125,14 @@ export function unb64url(s) {
   if (!/^[A-Za-z0-9_-]*$/.test(s)) return null;
   try {
     const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
-    return Uint8Array.from(bin, ch => ch.charCodeAt(0));
-  } catch { return null; }
+    return Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
+  } catch {
+    return null;
+  }
 }
 
 const enc = new TextEncoder();
-const random = n => crypto.getRandomValues(new Uint8Array(n));
+const random = (n) => crypto.getRandomValues(new Uint8Array(n));
 
 /** The route id: the first 26 base32 characters of sha256 of the Ed25519 route key. @param {Uint8Array} pub */
 export async function routeId(pub) {
@@ -128,12 +154,15 @@ export async function verifyRoute(pub, message, sig) {
   try {
     const key = await crypto.subtle.importKey("raw", pub, { name: "Ed25519" }, false, ["verify"]);
     return await crypto.subtle.verify({ name: "Ed25519" }, key, sig, message);
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 /** Compares two strings in time that depends only on their length. @param {string} a @param {string} b */
 export function sameTicket(a, b) {
-  const x = enc.encode(a), y = enc.encode(b);
+  const x = enc.encode(a),
+    y = enc.encode(b);
   if (x.length !== y.length || x.length === 0) return false;
   let d = 0;
   for (let i = 0; i < x.length; i++) d |= x[i] ^ y[i];
@@ -141,7 +170,7 @@ export function sameTicket(a, b) {
 }
 
 /** @param {string|ArrayBuffer|ArrayBufferView} m */
-const size = m => typeof m === "string" ? enc.encode(m).length : m.byteLength;
+const size = (m) => (typeof m === "string" ? enc.encode(m).length : m.byteLength);
 
 /** ADR 0045's own ticket TTL (relay/node/wire.js's TICKET_TTL); repeated here so a box that ever
  * sent a wildly long exp cannot make a PairTicket object outlive what the mechanism promises. */
@@ -158,24 +187,45 @@ const SEALED = /^[A-Za-z0-9_-]{22,2048}$/;
 // (an opaque locator, a sealed and MAC'd record), never the caller's origin. No credentials: it
 // reads no cookies and sets none. Every other route stays without CORS.
 const PAIR_CORS = { "access-control-allow-origin": "*" };
-const PAIR_PREFLIGHT = { ...PAIR_CORS, "access-control-allow-methods": "POST", "access-control-allow-headers": "content-type", "access-control-max-age": "600" };
+const PAIR_PREFLIGHT = {
+  ...PAIR_CORS,
+  "access-control-allow-methods": "POST",
+  "access-control-allow-headers": "content-type",
+  "access-control-max-age": "600",
+};
 /** @param {Response} r */
-const withPairCors = r => { const out = new Response(r.body, r); for (const [k, v] of Object.entries(PAIR_CORS)) out.headers.set(k, v); return out; };
+const withPairCors = (r) => {
+  const out = new Response(r.body, r);
+  for (const [k, v] of Object.entries(PAIR_CORS)) out.headers.set(k, v);
+  return out;
+};
 /** The setup mailbox is read by the setup page from vyre.run, so it answers any origin too, and for the same reason: its safety is a signature and a MAC'd, sealed stream, never the origin. */
 const MBX_CORS = { "access-control-allow-origin": "*" };
-const MBX_PREFLIGHT = { ...MBX_CORS, "access-control-allow-methods": "GET, POST", "access-control-allow-headers": "content-type, x-vyre-setup-key, x-vyre-setup-ts, x-vyre-setup-sig", "access-control-max-age": "600" };
-const withMbxCors = r => { const out = new Response(r.body, r); for (const [k, v] of Object.entries(MBX_CORS)) out.headers.set(k, v); return out; };
+const MBX_PREFLIGHT = {
+  ...MBX_CORS,
+  "access-control-allow-methods": "GET, POST",
+  "access-control-allow-headers": "content-type, x-vyre-setup-key, x-vyre-setup-ts, x-vyre-setup-sig",
+  "access-control-max-age": "600",
+};
+const withMbxCors = (r) => {
+  const out = new Response(r.body, r);
+  for (const [k, v] of Object.entries(MBX_CORS)) out.headers.set(k, v);
+  return out;
+};
 /** Mailbox limits, repeated from relay/node/wire.js (worker.test.js checks the line size). */
 const MBX = Object.freeze({ bytes: 64 * 1024, line: 2048, lines: 512, skew: 120_000, batch: 64, waitMax: 25 });
-const SETUP_TAG_KEY = "vyre-setup-key", SETUP_TAG_READ = "vyre-setup-read";
+const SETUP_TAG_KEY = "vyre-setup-key",
+  SETUP_TAG_READ = "vyre-setup-read";
 const P256_HEAD = "3059301306072a8648ce3d020106082a8648ce3d030107034200";
 /** @param {Uint8Array} spki */
-const isP256Spki = spki => spki.length === 91 && spki[26] === 4 && P256_HEAD.match(/../g).every((h, i) => spki[i] === parseInt(h, 16));
+const isP256Spki = (spki) =>
+  spki.length === 91 && spki[26] === 4 && P256_HEAD.match(/../g).every((h, i) => spki[i] === parseInt(h, 16));
 /** sha256("vyre-setup-key\n" || spki)[0:16], base64url: the fingerprint a setup code carries. @param {Uint8Array} spki */
 export async function setupFingerprint(spki) {
   const head = enc.encode(`${SETUP_TAG_KEY}\n`);
   const all = new Uint8Array(head.length + spki.length);
-  all.set(head); all.set(spki, head.length);
+  all.set(head);
+  all.set(spki, head.length);
   return b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", all)).slice(0, 16));
 }
 /** @param {string} loc @param {number} ts @param {number} after */
@@ -186,10 +236,13 @@ async function verifyP256(spki, message, sig) {
   try {
     const key = await crypto.subtle.importKey("spki", spki, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
     return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, sig, message);
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
-const sha256b64 = async s => b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(s))));
-const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const sha256b64 = async (s) => b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(s))));
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 /**
  * The Worker: health, request checks, per-address limiting, then the route's Durable Object.
@@ -202,21 +255,36 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const gateway = gatewayOf(url, env);
-    if (gateway) return "name" in gateway ? onHost(request, env, gateway.name, gateway.artifact === true) : passthrough(request, env);
-    if (url.pathname === "/health") return new Response(JSON.stringify({ ok: true, version: String(env.RELAY_VERSION || "dev") }), { headers: { "content-type": "application/json" } });
+    if (gateway)
+      return "name" in gateway
+        ? onHost(request, env, gateway.name, gateway.artifact === true)
+        : passthrough(request, env);
+    if (url.pathname === "/health")
+      return new Response(JSON.stringify({ ok: true, version: String(env.RELAY_VERSION || "dev") }), {
+        headers: { "content-type": "application/json" },
+      });
     if (!url.pathname.startsWith("/v1/")) return new Response(null, { status: 404 });
-    if (url.pathname === "/v1/pair" && request.method === "OPTIONS") return new Response(null, { status: 204, headers: PAIR_PREFLIGHT });
-    if (url.pathname === "/v1/pair" && request.method === "POST") return withPairCors(await onPairResolve(request, env));
-    if (url.pathname === "/v1/wink/code" && request.method === "OPTIONS") return new Response(null, { status: 204, headers: PAIR_PREFLIGHT });
-    if (url.pathname === "/v1/wink/code" && request.method === "POST") return withPairCors(await onCodeStep(request, env));
-    if (url.pathname === "/v1/signin" && request.method === "OPTIONS") return new Response(null, { status: 204, headers: PAIR_PREFLIGHT });
+    if (url.pathname === "/v1/pair" && request.method === "OPTIONS")
+      return new Response(null, { status: 204, headers: PAIR_PREFLIGHT });
+    if (url.pathname === "/v1/pair" && request.method === "POST")
+      return withPairCors(await onPairResolve(request, env));
+    if (url.pathname === "/v1/wink/code" && request.method === "OPTIONS")
+      return new Response(null, { status: 204, headers: PAIR_PREFLIGHT });
+    if (url.pathname === "/v1/wink/code" && request.method === "POST")
+      return withPairCors(await onCodeStep(request, env));
+    if (url.pathname === "/v1/signin" && request.method === "OPTIONS")
+      return new Response(null, { status: 204, headers: PAIR_PREFLIGHT });
     if (url.pathname === "/v1/signin" && request.method === "POST") return withPairCors(await onSignin(request, env));
     if (url.pathname.startsWith("/v1/github/")) return onGithub(request, url, env);
-    if (url.pathname === "/v1/setup/mbx" && request.method === "OPTIONS") return new Response(null, { status: 204, headers: MBX_PREFLIGHT });
-    if (url.pathname === "/v1/setup/mbx" && (request.method === "POST" || request.method === "GET")) return withMbxCors(await onSetupMbx(request, url, env));
-    if (String(request.headers.get("upgrade")).toLowerCase() !== "websocket") return new Response(null, { status: 426 });
+    if (url.pathname === "/v1/setup/mbx" && request.method === "OPTIONS")
+      return new Response(null, { status: 204, headers: MBX_PREFLIGHT });
+    if (url.pathname === "/v1/setup/mbx" && (request.method === "POST" || request.method === "GET"))
+      return withMbxCors(await onSetupMbx(request, url, env));
+    if (String(request.headers.get("upgrade")).toLowerCase() !== "websocket")
+      return new Response(null, { status: 426 });
     const route = url.searchParams.get("route") || "";
-    if ((url.pathname !== "/v1/box" && url.pathname !== "/v1/device") || !ROUTE_RE.test(route)) return new Response(null, { status: 400 });
+    if ((url.pathname !== "/v1/box" && url.pathname !== "/v1/device") || !ROUTE_RE.test(route))
+      return new Response(null, { status: 400 });
     if (url.pathname === "/v1/device" && env.DEVICE_LIMITER) {
       const who = request.headers.get("cf-connecting-ip") || "unknown";
       const { success } = await env.DEVICE_LIMITER.limit({ key: who });
@@ -243,14 +311,21 @@ async function onPairResolve(request, env) {
   const who = request.headers.get("cf-connecting-ip") || "unknown";
   if (!env.TICKETS) return json(404, { error: "this relay does not support scan-to-pair" });
   let body;
-  try { body = await request.json(); } catch { return json(400, { error: "bad request" }); }
+  try {
+    body = await request.json();
+  } catch {
+    return json(400, { error: "bad request" });
+  }
   const loc = String((body && body.loc) || "");
   if (!LOC_RE.test(loc)) return json(400, { error: "bad request" });
   const res = await env.TICKETS.get(env.TICKETS.idFromName(loc)).fetch("https://ticket/resolve", { method: "POST" });
   if (res.status === 200) return json(200, await res.json());
   if (res.status === 409) return json(409, { error: "contested" });
   // A miss: charged to this address only.
-  if (env.PAIR_LIMITER) { const { success } = await env.PAIR_LIMITER.limit({ key: who }); if (!success) return json(429, { error: "too many pairing attempts; wait a minute" }); }
+  if (env.PAIR_LIMITER) {
+    const { success } = await env.PAIR_LIMITER.limit({ key: who });
+    if (!success) return json(429, { error: "too many pairing attempts; wait a minute" });
+  }
   return json(404, { error: "this pairing code has expired or was already used" });
 }
 
@@ -275,9 +350,23 @@ async function onCodeStep(request, env) {
   const text = await request.text();
   if (text.length > 1024) return json(400, { error: "bad request" });
   let m;
-  try { m = JSON.parse(text); } catch { return json(400, { error: "bad request" }); }
-  const rv = String((m && m.rv) || ""), sid = String((m && m.s) || ""), n = Number(m && m.n), msg = String((m && m.m) || "");
-  if (!CODE_RV_RE.test(rv) || !/^[A-Za-z0-9_-]{22}$/.test(sid) || (n !== 1 && n !== 3) || !/^[A-Za-z0-9_-]+$/.test(msg) || msg.length > CODE.msg) return json(400, { error: "bad request" });
+  try {
+    m = JSON.parse(text);
+  } catch {
+    return json(400, { error: "bad request" });
+  }
+  const rv = String((m && m.rv) || ""),
+    sid = String((m && m.s) || ""),
+    n = Number(m && m.n),
+    msg = String((m && m.m) || "");
+  if (
+    !CODE_RV_RE.test(rv) ||
+    !/^[A-Za-z0-9_-]{22}$/.test(sid) ||
+    (n !== 1 && n !== 3) ||
+    !/^[A-Za-z0-9_-]+$/.test(msg) ||
+    msg.length > CODE.msg
+  )
+    return json(400, { error: "bad request" });
   // Charged to the address that asked, before anything is looked up, whether or not the code is live.
   const limiter = n === 1 ? env.CODE_LIMITER : env.CODE_STEP_LIMITER;
   if (limiter && !(await limiter.limit({ key: who })).success) return busy();
@@ -291,17 +380,25 @@ async function onCodeStep(request, env) {
     return refused();
   }
   const relay = env.ROUTES.get(env.ROUTES.idFromName(route));
-  const sent = await relay.fetch("https://route/code/send", { method: "POST", body: JSON.stringify({ rv, s: sid, n, m: msg }) });
+  const sent = await relay.fetch("https://route/code/send", {
+    method: "POST",
+    body: JSON.stringify({ rv, s: sid, n, m: msg }),
+  });
   if (sent.status !== 200) return refused();
   const q = String(/** @type {any} */ (await sent.json()).q || "");
-  const deadline = Date.now() + (Number(env.CODE_WAIT_MS) || CODE.waitMs), tick = Number(env.CODE_POLL_MS) || 250;
+  const deadline = Date.now() + (Number(env.CODE_WAIT_MS) || CODE.waitMs),
+    tick = Number(env.CODE_POLL_MS) || 250;
   for (;;) {
     const res = await relay.fetch("https://route/code/take", { method: "POST", body: JSON.stringify({ q }) });
     const out = res.status === 200 ? /** @type {any} */ (await res.json()) : { state: "gone" };
-    if (out.state === "answer") return out.m ? json(200, { m: out.m, route, ...(slotExp ? { exp: slotExp } : {}) }) : refused();
+    if (out.state === "answer")
+      return out.m ? json(200, { m: out.m, route, ...(slotExp ? { exp: slotExp } : {}) }) : refused();
     if (out.state === "gone") return refused();
-    if (Date.now() + tick > deadline) { await relay.fetch("https://route/code/drop", { method: "POST", body: JSON.stringify({ q }) }); return refused(); }
-    await new Promise(r => setTimeout(r, tick));
+    if (Date.now() + tick > deadline) {
+      await relay.fetch("https://route/code/drop", { method: "POST", body: JSON.stringify({ q }) });
+      return refused();
+    }
+    await new Promise((r) => setTimeout(r, tick));
   }
 }
 
@@ -317,9 +414,15 @@ async function onSignin(request, env) {
   const text = await request.text();
   if (text.length > 512) return json(400, { error: "bad request" });
   let m;
-  try { m = JSON.parse(text); } catch { return json(400, { error: "bad request" }); }
-  const loc = String((m && m.loc) || ""), sd = String((m && m.s) || "");
-  if (!/^[A-Za-z0-9_-]{43}$/.test(loc) || !/^[A-Za-z0-9_-]{22,43}$/.test(sd)) return json(400, { error: "bad request" });
+  try {
+    m = JSON.parse(text);
+  } catch {
+    return json(400, { error: "bad request" });
+  }
+  const loc = String((m && m.loc) || ""),
+    sd = String((m && m.s) || "");
+  if (!/^[A-Za-z0-9_-]{43}$/.test(loc) || !/^[A-Za-z0-9_-]{22,43}$/.test(sd))
+    return json(400, { error: "bad request" });
   const busy = () => json(429, { error: "too many sign-in requests; wait a minute" });
   if (env.SIGNIN_LIMITER && !(await env.SIGNIN_LIMITER.limit({ key: who })).success) return busy();
   const r = await env.SIGNIN.get(env.SIGNIN.idFromName(`si:${loc}`)).fetch("https://signin/ask", { method: "POST" });
@@ -327,7 +430,14 @@ async function onSignin(request, env) {
   if (out.limited) return busy();
   for (const route of Array.isArray(out.routes) ? out.routes : []) {
     if (!ROUTE_RE.test(String(route))) continue;
-    try { await env.ROUTES.get(env.ROUTES.idFromName(String(route))).fetch("https://route/signin/ask", { method: "POST", body: JSON.stringify({ loc, s: sd }) }); } catch { /* a route that cannot be reached is the same answer */ }
+    try {
+      await env.ROUTES.get(env.ROUTES.idFromName(String(route))).fetch("https://route/signin/ask", {
+        method: "POST",
+        body: JSON.stringify({ loc, s: sd }),
+      });
+    } catch {
+      /* a route that cannot be reached is the same answer */
+    }
   }
   return json(202, { ok: true });
 }
@@ -361,17 +471,29 @@ async function onSetupMbx(request, url, env) {
   const who = request.headers.get("cf-connecting-ip") || "unknown";
   const busy = () => json(429, { error: "too many setup requests; wait a minute" });
   if (!env.TICKETS) return json(404, { error: "this relay does not support setup" });
-  const stub = loc => env.TICKETS.get(env.TICKETS.idFromName(loc));
+  const stub = (loc) => env.TICKETS.get(env.TICKETS.idFromName(loc));
   if (request.method === "POST") {
     if (env.SETUP_LIMITER && !(await env.SETUP_LIMITER.limit({ key: who })).success) return busy();
     const text = await request.text();
     if (text.length > 8 * 1024) return json(413, { error: "too big" });
     let m;
-    try { m = JSON.parse(text); } catch { return json(400, { error: "bad request" }); }
+    try {
+      m = JSON.parse(text);
+    } catch {
+      return json(400, { error: "bad request" });
+    }
     const loc = String((m && m.loc) || "");
-    if (!LOC_RE.test(loc) || !/^[A-Za-z0-9_-]{22}$/.test(String(m.fp || "")) || !/^[A-Za-z0-9_-]{43}$/.test(String(m.wtok || ""))) return json(400, { error: "bad request" });
+    if (
+      !LOC_RE.test(loc) ||
+      !/^[A-Za-z0-9_-]{22}$/.test(String(m.fp || "")) ||
+      !/^[A-Za-z0-9_-]{43}$/.test(String(m.wtok || ""))
+    )
+      return json(400, { error: "bad request" });
     if (env.SETUP_LOC_LIMITER && !(await env.SETUP_LOC_LIMITER.limit({ key: loc })).success) return busy();
-    const res = await stub(loc).fetch("https://ticket/mbx/append", { method: "POST", body: JSON.stringify({ fp: m.fp, wtok: m.wtok, line: m.line === undefined ? null : String(m.line) }) });
+    const res = await stub(loc).fetch("https://ticket/mbx/append", {
+      method: "POST",
+      body: JSON.stringify({ fp: m.fp, wtok: m.wtok, line: m.line === undefined ? null : String(m.line) }),
+    });
     return new Response(res.body, { status: res.status, headers: { "content-type": "application/json" } });
   }
   if (env.SETUP_READ_LIMITER && !(await env.SETUP_READ_LIMITER.limit({ key: who })).success) return busy();
@@ -379,14 +501,22 @@ async function onSetupMbx(request, url, env) {
   const after = Number(url.searchParams.get("after") || 0);
   const wait = Math.min(Math.max(Number(url.searchParams.get("wait") || 0), 0), MBX.waitMax);
   if (!LOC_RE.test(loc) || !Number.isInteger(after) || after < 0) return json(400, { error: "bad request" });
-  const read = { key: request.headers.get("x-vyre-setup-key") || "", ts: Number(request.headers.get("x-vyre-setup-ts") || 0), sig: request.headers.get("x-vyre-setup-sig") || "", after, loc };
-  const deadline = Date.now() + wait * 1000, tick = Number(env.SETUP_POLL_MS) || 1000;
+  const read = {
+    key: request.headers.get("x-vyre-setup-key") || "",
+    ts: Number(request.headers.get("x-vyre-setup-ts") || 0),
+    sig: request.headers.get("x-vyre-setup-sig") || "",
+    after,
+    loc,
+  };
+  const deadline = Date.now() + wait * 1000,
+    tick = Number(env.SETUP_POLL_MS) || 1000;
   for (;;) {
     const res = await stub(loc).fetch("https://ticket/mbx/read", { method: "POST", body: JSON.stringify(read) });
     const body = /** @type {any} */ (await res.json());
     // Nothing yet (no mailbox, or no new line) is the only answer that waits.
-    if (res.status !== 200 || (body.lines && body.lines.length > 0) || Date.now() + tick > deadline) return json(res.status, body);
-    await new Promise(r => setTimeout(r, tick));
+    if (res.status !== 200 || (body.lines && body.lines.length > 0) || Date.now() + tick > deadline)
+      return json(res.status, body);
+    await new Promise((r) => setTimeout(r, tick));
   }
 }
 
@@ -402,7 +532,9 @@ async function onSetupMbx(request, url, env) {
  */
 export class PairTicket {
   /** @param {any} ctx */
-  constructor(ctx) { this.ctx = ctx; }
+  constructor(ctx) {
+    this.ctx = ctx;
+  }
 
   /** Set an alarm no earlier than the one already there. @param {number} at */
   async alarmAtLeast(at) {
@@ -423,8 +555,13 @@ export class PairTicket {
     const now = Date.now();
     if (request.method === "PUT" && url.pathname === "/register") {
       let body;
-      try { body = await request.json(); } catch { return new Response(null, { status: 400 }); }
-      const record = String((body && body.record) || ""), mac = String((body && body.mac) || "");
+      try {
+        body = await request.json();
+      } catch {
+        return new Response(null, { status: 400 });
+      }
+      const record = String((body && body.record) || ""),
+        mac = String((body && body.mac) || "");
       const setup = Boolean(body && body.setup);
       const exp = Math.min(Number(body && body.exp) || 0, now + (setup ? SETUP_TTL_MAX : TICKET_TTL_MAX));
       if (!SEALED.test(record) || !LOC_RE.test(mac) || exp <= now) return new Response(null, { status: 400 });
@@ -435,7 +572,13 @@ export class PairTicket {
         await this.ctx.storage.put("t", { ...cur, contested: true });
         return json(200, { status: 409 });
       }
-      await this.ctx.storage.put("t", { record, mac, exp, ...(body && typeof body.route === "string" && body.route ? { owner: await sha256b64(body.route) } : {}), ...(setup ? { setup: true } : {}) });
+      await this.ctx.storage.put("t", {
+        record,
+        mac,
+        exp,
+        ...(body && typeof body.route === "string" && body.route ? { owner: await sha256b64(body.route) } : {}),
+        ...(setup ? { setup: true } : {}),
+      });
       // A locator nobody ever resolves would otherwise sit in storage forever (reviewer's LOW,
       // 28 Sep): clean it up at its own exp either way, resolved or not.
       await this.alarmAtLeast(exp);
@@ -443,9 +586,21 @@ export class PairTicket {
     }
     if (request.method === "POST" && url.pathname === "/revoke") {
       let body;
-      try { body = await request.json(); } catch { return new Response(null, { status: 400 }); }
+      try {
+        body = await request.json();
+      } catch {
+        return new Response(null, { status: 400 });
+      }
       const t = await this.ctx.storage.get("t");
-      if (!t || t.setup || t.revoked || t.exp <= now || !t.owner || t.owner !== await sha256b64(String((body && body.route) || ""))) return json(200, { status: 404 });
+      if (
+        !t ||
+        t.setup ||
+        t.revoked ||
+        t.exp <= now ||
+        !t.owner ||
+        t.owner !== (await sha256b64(String((body && body.route) || "")))
+      )
+        return json(200, { status: 404 });
       // The owner's withdrawal leaves a tombstone until the ticket's own exp (its alarm stays): nobody, an outsider least of all, may register this locator again, and it resolves to nothing.
       await this.ctx.storage.put("t", { exp: t.exp, revoked: true });
       return json(200, { status: 200 });
@@ -454,22 +609,39 @@ export class PairTicket {
       const t = await this.ctx.storage.get("t");
       if (t && t.exp > now && t.contested) return new Response(null, { status: 409 });
       if (t && t.revoked) return new Response(null, { status: 404 });
-      if (t && !t.setup) { await this.ctx.storage.deleteAll(); await this.ctx.storage.deleteAlarm(); }
+      if (t && !t.setup) {
+        await this.ctx.storage.deleteAll();
+        await this.ctx.storage.deleteAlarm();
+      }
       if (!t || t.exp <= now || !t.record) return new Response(null, { status: 404 });
       return json(200, { record: t.record, mac: t.mac });
     }
     if (request.method === "POST" && url.pathname === "/mbx/append") {
       let body;
-      try { body = await request.json(); } catch { return json(400, { error: "bad request" }); }
+      try {
+        body = await request.json();
+      } catch {
+        return json(400, { error: "bad request" });
+      }
       const t = await this.ctx.storage.get("t");
       if (t && t.exp > now && t.contested) return json(409, { error: "contested" });
       const wh = await sha256b64(String(body.wtok));
       let m = await this.ctx.storage.get("m");
-      if (m && m.exp <= now) { await this.ctx.storage.deleteAll(); m = undefined; }
-      if (m && !(sameTicket(m.fp, String(body.fp)) && sameTicket(m.wh, wh))) { await this.contest(m.exp); return json(409, { error: "contested" }); }
+      if (m && m.exp <= now) {
+        await this.ctx.storage.deleteAll();
+        m = undefined;
+      }
+      if (m && !(sameTicket(m.fp, String(body.fp)) && sameTicket(m.wh, wh))) {
+        await this.contest(m.exp);
+        return json(409, { error: "contested" });
+      }
       const line = body.line;
-      if (line !== null && line !== undefined && !(/^[A-Za-z0-9_-]{64,}$/.test(line) && line.length <= MBX.line)) return json(400, { error: "bad line" });
-      if (!m) { m = { fp: String(body.fp), wh, exp: now + SETUP_TTL_MAX, n: 0, bytes: 0 }; await this.alarmAtLeast(m.exp); }
+      if (line !== null && line !== undefined && !(/^[A-Za-z0-9_-]{64,}$/.test(line) && line.length <= MBX.line))
+        return json(400, { error: "bad line" });
+      if (!m) {
+        m = { fp: String(body.fp), wh, exp: now + SETUP_TTL_MAX, n: 0, bytes: 0 };
+        await this.alarmAtLeast(m.exp);
+      }
       if (line !== null && line !== undefined) {
         if (m.bytes + line.length > MBX.bytes || m.n >= MBX.lines) return json(413, { error: "mailbox full" });
         await this.ctx.storage.put(`m/${String(m.n).padStart(5, "0")}`, line);
@@ -480,26 +652,38 @@ export class PairTicket {
     }
     if (request.method === "POST" && url.pathname === "/mbx/read") {
       let q;
-      try { q = await request.json(); } catch { return json(400, { error: "bad request" }); }
+      try {
+        q = await request.json();
+      } catch {
+        return json(400, { error: "bad request" });
+      }
       const t = await this.ctx.storage.get("t");
       if (t && t.exp > now && t.contested) return json(409, { error: "contested" });
       const m = await this.ctx.storage.get("m");
       if (!m || m.exp <= now) return json(200, { n: 0, lines: [], absent: true });
       const spki = unb64url(String(q.key || "")) || new Uint8Array(0);
       const sig = unb64url(String(q.sig || "")) || new Uint8Array(0);
-      const ts = Number(q.ts), after = Number(q.after);
-      const good = isP256Spki(spki) && sameTicket(await setupFingerprint(spki), m.fp) && Number.isFinite(ts) && Math.abs(now - ts) <= MBX.skew
-        && await verifyP256(spki, mbxReadMessage(String(q.loc), ts, after), sig);
+      const ts = Number(q.ts),
+        after = Number(q.after);
+      const good =
+        isP256Spki(spki) &&
+        sameTicket(await setupFingerprint(spki), m.fp) &&
+        Number.isFinite(ts) &&
+        Math.abs(now - ts) <= MBX.skew &&
+        (await verifyP256(spki, mbxReadMessage(String(q.loc), ts, after), sig));
       if (!good) return json(401, { error: "not the setup page's key" });
       const lines = [];
-      for (let i = after; i < Math.min(m.n, after + MBX.batch); i++) lines.push({ i, line: await this.ctx.storage.get(`m/${String(i).padStart(5, "0")}`) });
+      for (let i = after; i < Math.min(m.n, after + MBX.batch); i++)
+        lines.push({ i, line: await this.ctx.storage.get(`m/${String(i).padStart(5, "0")}`) });
       return json(200, { n: m.n, lines });
     }
     return new Response(null, { status: 404 });
   }
 
   /** The alarm set at register time: gone by its own exp either way (reviewer's LOW, 28 Sep). */
-  async alarm() { await this.ctx.storage.deleteAll(); }
+  async alarm() {
+    await this.ctx.storage.deleteAll();
+  }
 }
 
 /**
@@ -510,7 +694,9 @@ export class PairTicket {
  */
 export class CodeSlot {
   /** @param {any} ctx */
-  constructor(ctx) { this.ctx = ctx; }
+  constructor(ctx) {
+    this.ctx = ctx;
+  }
 
   /** @param {Request} request */
   async fetch(request) {
@@ -520,8 +706,13 @@ export class CodeSlot {
     const live = cur && cur.exp > now ? cur : null;
     if (request.method === "PUT" && url.pathname === "/claim") {
       let body;
-      try { body = await request.json(); } catch { return new Response(null, { status: 400 }); }
-      const route = String((body && body.route) || ""), exp = Math.min(Number(body && body.exp) || 0, now + CODE.ttl);
+      try {
+        body = await request.json();
+      } catch {
+        return new Response(null, { status: 400 });
+      }
+      const route = String((body && body.route) || ""),
+        exp = Math.min(Number(body && body.exp) || 0, now + CODE.ttl);
       if (!ROUTE_RE.test(route) || exp <= now) return new Response(null, { status: 400 });
       if (live) return json(409, { ok: false });
       await this.ctx.storage.put("c", { route, exp });
@@ -530,18 +721,33 @@ export class CodeSlot {
     }
     if (request.method === "POST" && url.pathname === "/release") {
       let body;
-      try { body = await request.json(); } catch { return new Response(null, { status: 400 }); }
-      if (cur && cur.route === String((body && body.route) || "")) { await this.ctx.storage.deleteAll(); await this.ctx.storage.deleteAlarm(); }
+      try {
+        body = await request.json();
+      } catch {
+        return new Response(null, { status: 400 });
+      }
+      if (cur && cur.route === String((body && body.route) || "")) {
+        await this.ctx.storage.deleteAll();
+        await this.ctx.storage.deleteAlarm();
+      }
       return json(200, { ok: true });
     }
     if (request.method === "POST" && url.pathname === "/lookup") {
-      if (!live) { if (cur) { await this.ctx.storage.deleteAll(); await this.ctx.storage.deleteAlarm(); } return new Response(null, { status: 404 }); }
+      if (!live) {
+        if (cur) {
+          await this.ctx.storage.deleteAll();
+          await this.ctx.storage.deleteAlarm();
+        }
+        return new Response(null, { status: 404 });
+      }
       return json(200, { route: live.route, exp: live.exp });
     }
     return new Response(null, { status: 404 });
   }
 
-  async alarm() { await this.ctx.storage.deleteAll(); }
+  async alarm() {
+    await this.ctx.storage.deleteAll();
+  }
 }
 
 /**
@@ -549,7 +755,9 @@ export class CodeSlot {
  */
 export class SigninSlot {
   /** @param {any} ctx */
-  constructor(ctx) { this.ctx = ctx; }
+  constructor(ctx) {
+    this.ctx = ctx;
+  }
 
   /** @param {Request} request */
   async fetch(request) {
@@ -560,7 +768,11 @@ export class SigninSlot {
     for (const k of Object.keys(routes)) if (routes[k] <= now) delete routes[k];
     if (request.method === "POST" && url.pathname === "/watch") {
       let body;
-      try { body = await request.json(); } catch { return new Response(null, { status: 400 }); }
+      try {
+        body = await request.json();
+      } catch {
+        return new Response(null, { status: 400 });
+      }
       const route = String((body && body.route) || "");
       if (!ROUTE_RE.test(route)) return new Response(null, { status: 400 });
       if (Object.keys(routes).length < 16 || routes[route]) routes[route] = now + SIGNIN.watchMs;
@@ -571,7 +783,10 @@ export class SigninSlot {
     if (request.method === "POST" && url.pathname === "/ask") {
       const minute = Math.floor(now / 60_000);
       const c = (await this.ctx.storage.get("c")) || { minute, n: 0 };
-      if (c.minute !== minute) { c.minute = minute; c.n = 0; }
+      if (c.minute !== minute) {
+        c.minute = minute;
+        c.n = 0;
+      }
       c.n++;
       await this.ctx.storage.put("c", c);
       if (c.n > SIGNIN.locPerMin) return json(200, { limited: true });
@@ -584,8 +799,10 @@ export class SigninSlot {
     const now = Date.now();
     const routes = (await this.ctx.storage.get("r")) || {};
     for (const k of Object.keys(routes)) if (routes[k] <= now) delete routes[k];
-    if (Object.keys(routes).length) { await this.ctx.storage.put("r", routes); await this.ctx.storage.setAlarm(now + SIGNIN.watchMs + 1000); }
-    else await this.ctx.storage.deleteAll();
+    if (Object.keys(routes).length) {
+      await this.ctx.storage.put("r", routes);
+      await this.ctx.storage.setAlarm(now + SIGNIN.watchMs + 1000);
+    } else await this.ctx.storage.deleteAll();
   }
 }
 
@@ -617,35 +834,57 @@ export class RouteRelay {
   /** @returns {boolean} under the per-route cap on code allocations a minute */
   codeAllocAllowed() {
     const minute = Math.floor(Date.now() / 60_000);
-    if (minute !== this.codeAllocWindow) { this.codeAllocWindow = minute; this.codeAllocs = 0; }
+    if (minute !== this.codeAllocWindow) {
+      this.codeAllocWindow = minute;
+      this.codeAllocs = 0;
+    }
     this.codeAllocs++;
     return this.codeAllocs <= (Number(this.env && this.env.CODE_ALLOC_PER_MIN) || CODE.allocPerMin);
   }
 
   /** @returns {boolean} under the 60/route/minute registration cap */
   ticketRegAllowed() {
-    const now = Date.now(), minute = Math.floor(now / 60_000);
-    if (minute !== this.ticketRegWindow) { this.ticketRegWindow = minute; this.ticketRegs = 0; }
+    const now = Date.now(),
+      minute = Math.floor(now / 60_000);
+    if (minute !== this.ticketRegWindow) {
+      this.ticketRegWindow = minute;
+      this.ticketRegs = 0;
+    }
     this.ticketRegs++;
     return this.ticketRegs <= 60;
   }
 
   /** @param {any} ws @returns {Role} */
-  role(ws) { return ws.deserializeAttachment() || { k: "gone" }; }
+  role(ws) {
+    return ws.deserializeAttachment() || { k: "gone" };
+  }
 
   /** @param {string} tag @param {(r: Role) => boolean} [pred] */
-  live(tag, pred = () => true) { return this.ctx.getWebSockets(tag).filter(ws => { const r = this.role(ws); return r.k !== "gone" && pred(r); }); }
+  live(tag, pred = () => true) {
+    return this.ctx.getWebSockets(tag).filter((ws) => {
+      const r = this.role(ws);
+      return r.k !== "gone" && pred(r);
+    });
+  }
 
   /** The authed control socket, if any. */
-  control() { return this.live("box", r => r.k === "control")[0] || null; }
+  control() {
+    return this.live("box", (r) => r.k === "control")[0] || null;
+  }
 
   /** @param {any} ws @param {any} v */
-  json(ws, v) { try { ws.send(JSON.stringify(v)); } catch {} }
+  json(ws, v) {
+    try {
+      ws.send(JSON.stringify(v));
+    } catch {}
+  }
 
   /** Marks a socket gone (so its later close event is ignored) and closes it. */
   end(ws, code, reason) {
     ws.serializeAttachment({ k: "gone" });
-    try { ws.close(code, reason); } catch {}
+    try {
+      ws.close(code, reason);
+    } catch {}
   }
 
   /** @param {Request} request */
@@ -653,13 +892,21 @@ export class RouteRelay {
     const url = new URL(request.url);
     // Typed-code messages come from the Worker over the object binding (never from the internet: the
     // Worker routes no public path here).
-    if (url.pathname.startsWith("/code/") && request.method === "POST") return this.onCodeRequest(url.pathname, request);
+    if (url.pathname.startsWith("/code/") && request.method === "POST")
+      return this.onCodeRequest(url.pathname, request);
     // whether the box is on now, and when it was last on: the gateway lists every computer of a Personal Space with this on the asleep page
-    if (url.pathname === "/online" && request.method === "GET") { const on = Boolean(this.control()); return json(200, { online: on, seenAt: on ? Date.now() : ((await this.ctx.storage.get("seen")) || null) }); }
+    if (url.pathname === "/online" && request.method === "GET") {
+      const on = Boolean(this.control());
+      return json(200, { online: on, seenAt: on ? Date.now() : (await this.ctx.storage.get("seen")) || null });
+    }
     if (url.pathname === "/p" && request.method === "POST") return this.onPublic(request);
     if (url.pathname === "/signin/ask" && request.method === "POST") {
       let body;
-      try { body = await request.json(); } catch { return new Response(null, { status: 400 }); }
+      try {
+        body = await request.json();
+      } catch {
+        return new Response(null, { status: 400 });
+      }
       const control = this.control();
       if (control) this.json(control, { t: "signin.ask", loc: String(body.loc), s: String(body.s) });
       return json(200, { ok: true });
@@ -689,11 +936,13 @@ export class RouteRelay {
     if (!control) return new Response(null, { status: 599 });
     const head = JSON.parse(request.headers.get("x-vyre-p") || "{}");
     const now = Date.now();
-    if (!this.publicWindow || now - this.publicWindow.at >= 60_000) this.publicWindow = { at: now, n: 0, ips: new Map() };
+    if (!this.publicWindow || now - this.publicWindow.at >= 60_000)
+      this.publicWindow = { at: now, n: 0, ips: new Map() };
     const w = this.publicWindow;
     const ip = String(head.ip || "");
     const seen = w.ips.get(ip) || 0;
-    if (w.n >= PUBLIC.perMinute || seen >= PUBLIC.ipPerMinute) return new Response(null, { status: 429, headers: { "retry-after": "60" } });
+    if (w.n >= PUBLIC.perMinute || seen >= PUBLIC.ipPerMinute)
+      return new Response(null, { status: 429, headers: { "retry-after": "60" } });
     // a web request trigger has its own minute, in two counts. ACCEPTED requests (the box answered 200): 120 for the Space, 30 for one hook, 20 for one address on one hook, so a busy
     // sender on a shared address is limited only on its own hook. REFUSED requests (any other answer): 20 for one address across the Space, so a stranger spraying ids or secrets stops after
     // 20 (a 429 for that Space until the minute ends, the same answer for every id) and never spends the accepted budget.
@@ -701,33 +950,57 @@ export class RouteRelay {
     const hook = typeof head.hook === "string" ? head.hook : null;
     if (hook) {
       if (!w.hooks) w.hooks = { n: 0, per: new Map(), pair: new Map(), refused: new Map() };
-      const h = w.hooks, pk = `${ip}|${hook}`;
-      const over = h.n >= HOOKS.perMinute || (h.per.get(hook) || 0) >= HOOKS.perHookPerMinute || (h.pair.get(pk) || 0) >= HOOKS.perVisitorPerMinute
-        || (h.refused.get(ip) || 0) >= HOOKS.refusedPerVisitor;
+      const h = w.hooks,
+        pk = `${ip}|${hook}`;
+      const over =
+        h.n >= HOOKS.perMinute ||
+        (h.per.get(hook) || 0) >= HOOKS.perHookPerMinute ||
+        (h.pair.get(pk) || 0) >= HOOKS.perVisitorPerMinute ||
+        (h.refused.get(ip) || 0) >= HOOKS.refusedPerVisitor;
       if (over) return new Response(null, { status: 429, headers: { "retry-after": "60" } });
     }
     w.n++;
     w.ips.set(ip, seen + 1);
     if (!this.publicOpen) this.publicOpen = new Map();
-    if (this.publicOpen.size >= PUBLIC.concurrent) return new Response(null, { status: 503, headers: { "retry-after": "5" } });
+    if (this.publicOpen.size >= PUBLIC.concurrent)
+      return new Response(null, { status: 503, headers: { "retry-after": "5" } });
     const body = new Uint8Array(await request.arrayBuffer());
     const id = b64url(random(9));
-    const answered = new Promise(resolve => {
+    const answered = new Promise((resolve) => {
       const flow = new TransformStream();
       const writer = flow.writable.getWriter();
-      const entry = { resolve, writer, readable: flow.readable, answered: false, size: 0, timer: /** @type {any} */ (null) };
-      entry.timer = setTimeout(() => this.publicEnd(id, 504), head.door === true ? PUBLIC.doorTimeoutMs : PUBLIC.timeoutMs);
+      const entry = {
+        resolve,
+        writer,
+        readable: flow.readable,
+        answered: false,
+        size: 0,
+        timer: /** @type {any} */ (null),
+      };
+      entry.timer = setTimeout(
+        () => this.publicEnd(id, 504),
+        head.door === true ? PUBLIC.doorTimeoutMs : PUBLIC.timeoutMs,
+      );
       this.publicOpen.set(id, entry);
       this.json(control, { t: "p.req", id, ...head, more: body.length > 0 });
       for (let at = 0; at < body.length; at += PUBLIC.chunk) {
-        this.json(control, { t: "p.body", id, b: bytesToB64(body.subarray(at, at + PUBLIC.chunk)), end: at + PUBLIC.chunk >= body.length });
+        this.json(control, {
+          t: "p.body",
+          id,
+          b: bytesToB64(body.subarray(at, at + PUBLIC.chunk)),
+          end: at + PUBLIC.chunk >= body.length,
+        });
       }
     });
     if (!hook) return answered;
     const res = /** @type {Response} */ (await answered);
-    const h = w.hooks, pk = `${ip}|${hook}`;
-    if (res.status === 200) { h.n++; h.per.set(hook, (h.per.get(hook) || 0) + 1); h.pair.set(pk, (h.pair.get(pk) || 0) + 1); }
-    else if (res.status !== 429) h.refused.set(ip, (h.refused.get(ip) || 0) + 1);
+    const h = w.hooks,
+      pk = `${ip}|${hook}`;
+    if (res.status === 200) {
+      h.n++;
+      h.per.set(hook, (h.per.get(hook) || 0) + 1);
+      h.pair.set(pk, (h.pair.get(pk) || 0) + 1);
+    } else if (res.status !== 429) h.refused.set(ip, (h.refused.get(ip) || 0) + 1);
     return res;
   }
 
@@ -737,7 +1010,10 @@ export class RouteRelay {
     if (!e) return;
     this.publicOpen.delete(id);
     clearTimeout(e.timer);
-    if (e.answered) { e.writer.abort("ended").catch(() => {}); return; }
+    if (e.answered) {
+      e.writer.abort("ended").catch(() => {});
+      return;
+    }
     e.writer.close().catch(() => {});
     e.resolve(new Response(null, { status }));
   }
@@ -751,9 +1027,20 @@ export class RouteRelay {
       const status = Number(m.status);
       if (!Number.isInteger(status) || status < 200 || status > 599) return this.publicEnd(id, 502);
       const headers = new Headers();
-      for (const [k, v] of Object.entries(/** @type {Record<string, unknown>} */ (m.headers) || {})) if (typeof v === "string") { try { headers.append(k, v); } catch { /* not a header */ } }
+      for (const [k, v] of Object.entries(/** @type {Record<string, unknown>} */ (m.headers) || {}))
+        if (typeof v === "string") {
+          try {
+            headers.append(k, v);
+          } catch {
+            /* not a header */
+          }
+        }
       e.answered = true;
-      if ([204, 205, 304].includes(status)) { e.writer.close().catch(() => {}); e.resolve(new Response(null, { status, headers })); return; }
+      if ([204, 205, 304].includes(status)) {
+        e.writer.close().catch(() => {});
+        e.resolve(new Response(null, { status, headers }));
+        return;
+      }
       e.resolve(new Response(e.readable, { status, headers }));
     } else if (m.t === "p.data" && e.answered) {
       const bytes = b64ToBytes(String(m.b));
@@ -764,7 +1051,10 @@ export class RouteRelay {
       this.publicOpen.delete(id);
       clearTimeout(e.timer);
       if (e.answered) e.writer.close().catch(() => {});
-      else { e.writer.close().catch(() => {}); e.resolve(new Response(null, { status: 502 })); }
+      else {
+        e.writer.close().catch(() => {});
+        e.resolve(new Response(null, { status: 502 }));
+      }
     } else if (m.t === "p.err") this.publicEnd(id, 502);
   }
 
@@ -776,9 +1066,10 @@ export class RouteRelay {
 
   async onDevice(server) {
     if (!this.control()) return this.refuse(server, CLOSE.boxOffline, "box offline");
-    const devices = this.live("device").map(ws => /** @type {any} */ (this.role(ws)));
-    const waiting = devices.filter(r => !r.piped).length;
-    if (devices.length >= this.limits.open || waiting >= this.limits.waiting) return this.refuse(server, CLOSE.busy, "too many connections");
+    const devices = this.live("device").map((ws) => /** @type {any} */ (this.role(ws)));
+    const waiting = devices.filter((r) => !r.piped).length;
+    if (devices.length >= this.limits.open || waiting >= this.limits.waiting)
+      return this.refuse(server, CLOSE.busy, "too many connections");
     const c = b64url(random(12));
     this.ctx.acceptWebSocket(server, ["device", `dev:${c}`]);
     server.serializeAttachment({ k: "device", c, piped: false, n: 0 });
@@ -791,11 +1082,16 @@ export class RouteRelay {
     const r = control && /** @type {any} */ (this.role(control));
     const device = this.live(`dev:${c}`)[0];
     const d = device && /** @type {any} */ (this.role(device));
-    if (!r || !sameTicket(ticket, r.ticket) || !d || d.piped) return this.refuse(server, CLOSE.refused, "unknown connection");
+    if (!r || !sameTicket(ticket, r.ticket) || !d || d.piped)
+      return this.refuse(server, CLOSE.refused, "unknown connection");
     this.ctx.acceptWebSocket(server, ["data", `data:${c}`]);
     server.serializeAttachment({ k: "data", c });
     device.serializeAttachment({ ...d, piped: true, n: 0 });
-    for (const frame of await this.takeBuffer(c)) { try { server.send(frame); } catch {} }
+    for (const frame of await this.takeBuffer(c)) {
+      try {
+        server.send(frame);
+      } catch {}
+    }
   }
 
   /** @param {any} ws @param {string|ArrayBuffer} message */
@@ -805,19 +1101,32 @@ export class RouteRelay {
     if (size(message) > this.limits.frame) return this.drop(ws, CLOSE.tooBig, "frame too big");
     const binary = typeof message !== "string";
     // The edge answers "ping"; this covers a runtime that delivers it anyway.
-    if (message === "ping") { try { ws.send("pong"); } catch {} return; }
+    if (message === "ping") {
+      try {
+        ws.send("pong");
+      } catch {}
+      return;
+    }
     if (r.k === "pending") return this.onAuth(ws, r, message);
     if (r.k === "control") return this.onTicket(ws, message);
     if (!binary) return;
     if (r.k === "data") {
       const device = this.live(`dev:${r.c}`)[0];
-      if (device) { try { device.send(message); } catch {} }
+      if (device) {
+        try {
+          device.send(message);
+        } catch {}
+      }
       return;
     }
     if (r.k === "device") {
       if (r.piped) {
         const data = this.live(`data:${r.c}`)[0];
-        if (data) { try { data.send(message); } catch {} }
+        if (data) {
+          try {
+            data.send(message);
+          } catch {}
+        }
         return;
       }
       if (r.n >= this.limits.buffered) return this.drop(ws, CLOSE.busy, "box is not answering");
@@ -829,11 +1138,20 @@ export class RouteRelay {
   /** @param {any} ws @param {{ n: string, route: string }} r @param {string|ArrayBuffer} message */
   async onAuth(ws, r, message) {
     let m;
-    try { if (typeof message !== "string") throw 0; m = JSON.parse(message); } catch { return this.end(ws, CLOSE.refused, "expected auth"); }
+    try {
+      if (typeof message !== "string") throw 0;
+      m = JSON.parse(message);
+    } catch {
+      return this.end(ws, CLOSE.refused, "expected auth");
+    }
     const pub = unb64url(String(m?.pub || "")) || new Uint8Array(0);
     const sig = unb64url(String(m?.sig || "")) || new Uint8Array(0);
     const challenge = /** @type {Uint8Array} */ (unb64url(r.n));
-    if (m?.t !== "auth" || (await routeId(pub)) !== r.route || !(await verifyRoute(pub, authMessage(r.route, challenge), sig))) {
+    if (
+      m?.t !== "auth" ||
+      (await routeId(pub)) !== r.route ||
+      !(await verifyRoute(pub, authMessage(r.route, challenge), sig))
+    ) {
       return this.end(ws, CLOSE.refused, "bad signature");
     }
     const old = this.control();
@@ -846,7 +1164,9 @@ export class RouteRelay {
     const ticket = b64url(random(18));
     ws.serializeAttachment({ k: "control", ticket, route: r.route });
     await this.ctx.storage.put("seen", Date.now());
-    const waiting = this.live("device", x => !(/** @type {any} */ (x).piped)).map(d => /** @type {any} */ (this.role(d)).c);
+    const waiting = this.live("device", (x) => !(/** @type {any} */ (x).piped)).map(
+      (d) => /** @type {any} */ (this.role(d)).c,
+    );
     this.json(ws, { t: "ready", ticket, waiting, features: [...FEATURES] });
   }
 
@@ -866,38 +1186,70 @@ export class RouteRelay {
     if (typeof message !== "string") return;
     if (message.startsWith('{"t":"p.')) {
       let c;
-      try { c = JSON.parse(message); } catch { return; }
+      try {
+        c = JSON.parse(message);
+      } catch {
+        return;
+      }
       return this.onPublicReply(c);
     }
     if (message.includes('"signin.watch"')) {
       let c;
-      try { c = JSON.parse(message); } catch { return; }
+      try {
+        c = JSON.parse(message);
+      } catch {
+        return;
+      }
       if (c && c.t === "signin.watch" && this.env.SIGNIN && /^[A-Za-z0-9_-]{43}$/.test(String(c.loc || ""))) {
         const route = String(/** @type {any} */ (this.role(ws)).route || "");
-        try { await this.env.SIGNIN.get(this.env.SIGNIN.idFromName(`si:${c.loc}`)).fetch("https://signin/watch", { method: "POST", body: JSON.stringify({ route }) }); } catch { /* the box renews in a few minutes */ }
+        try {
+          await this.env.SIGNIN.get(this.env.SIGNIN.idFromName(`si:${c.loc}`)).fetch("https://signin/watch", {
+            method: "POST",
+            body: JSON.stringify({ route }),
+          });
+        } catch {
+          /* the box renews in a few minutes */
+        }
       }
       return;
     }
     if (message.includes('"host.')) {
       let c;
-      try { c = JSON.parse(message); } catch { return; }
-      if (c && typeof c.t === "string" && /^host\.(claim|release|status|members)$/.test(c.t)) { if (this.ticketRegAllowed()) await hostControl(this, ws, c); return; }
+      try {
+        c = JSON.parse(message);
+      } catch {
+        return;
+      }
+      if (c && typeof c.t === "string" && /^host\.(claim|release|status|members)$/.test(c.t)) {
+        if (this.ticketRegAllowed()) await hostControl(this, ws, c);
+        return;
+      }
     }
     if (message.includes('"code.')) {
       let c;
-      try { c = JSON.parse(message); } catch { return; }
+      try {
+        c = JSON.parse(message);
+      } catch {
+        return;
+      }
       if (c && typeof c.t === "string" && c.t.startsWith("code.")) return this.onCodeControl(ws, c);
     }
     if (!this.ticketRegAllowed()) return;
     let m;
-    try { m = JSON.parse(message); } catch { return; }
+    try {
+      m = JSON.parse(message);
+    } catch {
+      return;
+    }
     if (m?.t === "revoke") {
       // A box withdraws a ticket it registered (a renewal replaces the previous one). Only the route that registered it may.
       const rloc = String(m.loc || "");
       if (!/^[A-Za-z0-9_-]{20,64}$/.test(rloc) || !this.env.TICKETS) return;
       try {
         const res = await this.env.TICKETS.get(this.env.TICKETS.idFromName(rloc)).fetch("https://ticket/revoke", {
-          method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ route: String(/** @type {any} */ (this.role(ws)).route || "") }),
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ route: String(/** @type {any} */ (this.role(ws)).route || "") }),
         });
         const out = res.status === 200 ? /** @type {any} */ (await res.json()) : null;
         if (out) this.json(ws, { t: "revoked", loc: rloc, status: out.status });
@@ -906,13 +1258,23 @@ export class RouteRelay {
     }
     if (m?.t !== "ticket" && m?.t !== "setup") return;
     const setup = m.t === "setup";
-    const loc = String(m.loc || ""), record = String(m.record || ""), mac = String(m.mac || "");
+    const loc = String(m.loc || ""),
+      record = String(m.record || ""),
+      mac = String(m.mac || "");
     if (!/^[A-Za-z0-9_-]{20,64}$/.test(loc) || !/^[A-Za-z0-9_-]{20,64}$/.test(mac) || !SEALED.test(record)) return;
     const exp = Math.min(Number(m.exp) || 0, Date.now() + (setup ? SETUP_TTL_MAX : TICKET_TTL_MAX));
     if (exp <= Date.now() || !this.env.TICKETS) return;
     try {
       const res = await this.env.TICKETS.get(this.env.TICKETS.idFromName(loc)).fetch("https://ticket/register", {
-        method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ record, mac, exp, setup, route: String(/** @type {any} */ (this.role(ws)).route || "") }),
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          record,
+          mac,
+          exp,
+          setup,
+          route: String(/** @type {any} */ (this.role(ws)).route || ""),
+        }),
       });
       const out = res.status === 200 ? /** @type {any} */ (await res.json()) : null;
       if (out) this.json(ws, { t: "registered", loc, status: out.status });
@@ -932,17 +1294,26 @@ export class RouteRelay {
       await this.releaseCode();
       const route = String(/** @type {any} */ (this.role(ws)).route || "");
       const exp = Date.now() + CODE.ttl;
-      const claim = async rv => {
-        const res = await this.env.CODES.get(this.env.CODES.idFromName(`rv:${rv}`)).fetch("https://code/claim", { method: "PUT", body: JSON.stringify({ route, exp }) });
+      const claim = async (rv) => {
+        const res = await this.env.CODES.get(this.env.CODES.idFromName(`rv:${rv}`)).fetch("https://code/claim", {
+          method: "PUT",
+          body: JSON.stringify({ route, exp }),
+        });
         return res.status === 200;
       };
       // Random among the free: random tries first, then a run from a random start, so it only fails when the namespace is full.
-      const start = (random(2)[0] << 8 | random(2)[1]) & 1023;
+      const start = ((random(2)[0] << 8) | random(2)[1]) & 1023;
       const order = [];
-      for (let i = 0; i < 16; i++) order.push((random(2)[0] << 8 | random(2)[1]) & 1023);
+      for (let i = 0; i < 16; i++) order.push(((random(2)[0] << 8) | random(2)[1]) & 1023);
       for (let i = 0; i < 96; i++) order.push((start + i) & 1023);
       let got = "";
-      for (const i of order) { const rv = CODE_ALPHABET[i >> 5] + CODE_ALPHABET[i & 31]; if (await claim(rv)) { got = rv; break; } }
+      for (const i of order) {
+        const rv = CODE_ALPHABET[i >> 5] + CODE_ALPHABET[i & 31];
+        if (await claim(rv)) {
+          got = rv;
+          break;
+        }
+      }
       if (!got) return busy();
       await this.ctx.storage.put("code", { rv: got, exp, route });
       this.json(ws, { t: "code.allocated", rv: got, exp });
@@ -950,7 +1321,10 @@ export class RouteRelay {
     else if (m.t === "code.reply") {
       const q = String(m.q || "");
       if (!/^[A-Za-z0-9_-]{8,16}$/.test(q) || !(await this.ctx.storage.get(`code/q/${q}`))) return;
-      const ans = typeof m.m === "string" && m.m.length > 0 && m.m.length <= CODE.msg && /^[A-Za-z0-9_-]+$/.test(m.m) ? m.m : null;
+      const ans =
+        typeof m.m === "string" && m.m.length > 0 && m.m.length <= CODE.msg && /^[A-Za-z0-9_-]+$/.test(m.m)
+          ? m.m
+          : null;
       await this.ctx.storage.put(`code/a/${q}`, { m: ans });
     }
   }
@@ -965,8 +1339,14 @@ export class RouteRelay {
   async alarm() {
     const g = await this.ctx.storage.get("codeGrace");
     if (g === undefined) return;
-    if (this.control()) { await this.ctx.storage.delete("codeGrace"); return; }
-    if (Date.now() < g) { await this.ctx.storage.setAlarm(g); return; }
+    if (this.control()) {
+      await this.ctx.storage.delete("codeGrace");
+      return;
+    }
+    if (Date.now() < g) {
+      await this.ctx.storage.setAlarm(g);
+      return;
+    }
     await this.ctx.storage.delete("codeGrace");
     await this.releaseCode();
   }
@@ -978,21 +1358,35 @@ export class RouteRelay {
     await this.ctx.storage.delete(["code", "codeGrace"]);
     const stale = [...(await this.ctx.storage.list({ prefix: "code/" })).keys()];
     for (let k = 0; k < stale.length; k += 128) await this.ctx.storage.delete(stale.slice(k, k + 128));
-    if (this.env.CODES) { try { await this.env.CODES.get(this.env.CODES.idFromName(`rv:${cur.rv}`)).fetch("https://code/release", { method: "POST", body: JSON.stringify({ route: cur.route }) }); } catch {} }
+    if (this.env.CODES) {
+      try {
+        await this.env.CODES.get(this.env.CODES.idFromName(`rv:${cur.rv}`)).fetch("https://code/release", {
+          method: "POST",
+          body: JSON.stringify({ route: cur.route }),
+        });
+      } catch {}
+    }
   }
 
   /** The Worker's calls: send a message to the box, take its answer, drop a request. @param {string} path @param {Request} request */
   async onCodeRequest(path, request) {
     let body;
-    try { body = await request.json(); } catch { return new Response(null, { status: 400 }); }
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(null, { status: 400 });
+    }
     const now = Date.now();
     if (path === "/code/send") {
       const cur = await this.ctx.storage.get("code");
       const control = this.control();
       if (!cur || cur.exp <= now || cur.rv !== String(body.rv) || !control) return new Response(null, { status: 404 });
       const waiting = await this.ctx.storage.list({ prefix: "code/q/" });
-      for (const [k, v] of waiting) if (v.at + 2 * (Number(this.env.CODE_WAIT_MS) || CODE.waitMs) < now) await this.ctx.storage.delete([k, `code/a/${k.slice(7)}`]);
-      if ((await this.ctx.storage.list({ prefix: "code/q/" })).size >= CODE.pending) return new Response(null, { status: 404 });
+      for (const [k, v] of waiting)
+        if (v.at + 2 * (Number(this.env.CODE_WAIT_MS) || CODE.waitMs) < now)
+          await this.ctx.storage.delete([k, `code/a/${k.slice(7)}`]);
+      if ((await this.ctx.storage.list({ prefix: "code/q/" })).size >= CODE.pending)
+        return new Response(null, { status: 404 });
       const q = b64url(random(9));
       await this.ctx.storage.put(`code/q/${q}`, { at: now });
       this.json(control, { t: "code.msg", q, rv: cur.rv, s: String(body.s), n: Number(body.n), m: String(body.m) });
@@ -1007,7 +1401,10 @@ export class RouteRelay {
       await this.ctx.storage.delete([`code/q/${q}`, `code/a/${q}`]);
       return json(200, { state: "answer", m: a.m });
     }
-    if (path === "/code/drop") { await this.ctx.storage.delete([`code/q/${q}`, `code/a/${q}`]); return json(200, { ok: true }); }
+    if (path === "/code/drop") {
+      await this.ctx.storage.delete([`code/q/${q}`, `code/a/${q}`]);
+      return json(200, { ok: true });
+    }
     return new Response(null, { status: 404 });
   }
 
@@ -1017,11 +1414,15 @@ export class RouteRelay {
     // The one thing a box may tell the device it was serving through its own close: "device removed"
     // (4401). Nothing else the box writes is forwarded, so a box cannot put words in a device's ear.
     await this.gone(ws, code === CLOSE.refused && reason === "device removed" ? { code, reason } : null);
-    try { ws.close(code === 1005 || code === 1006 ? 1000 : code, reason); } catch {}
+    try {
+      ws.close(code === 1005 || code === 1006 ? 1000 : code, reason);
+    } catch {}
   }
 
   /** @param {any} ws */
-  async webSocketError(ws) { await this.gone(ws); }
+  async webSocketError(ws) {
+    await this.gone(ws);
+  }
 
   /** Closes a socket from this side and runs what its close would. */
   async drop(ws, code, reason) {
@@ -1067,7 +1468,11 @@ export class RouteRelay {
     /** @type {Record<string, Uint8Array>} */
     const parts = {};
     const n = Math.max(1, Math.ceil(frame.length / PART));
-    for (let j = 0; j < n; j++) parts[`b/${c}/${String(i).padStart(3, "0")}.${String(j).padStart(2, "0")}`] = frame.slice(j * PART, (j + 1) * PART);
+    for (let j = 0; j < n; j++)
+      parts[`b/${c}/${String(i).padStart(3, "0")}.${String(j).padStart(2, "0")}`] = frame.slice(
+        j * PART,
+        (j + 1) * PART,
+      );
     await this.ctx.storage.put(parts);
   }
 
@@ -1084,10 +1489,13 @@ export class RouteRelay {
     }
     const keys = [...stored.keys()];
     for (let k = 0; k < keys.length; k += 128) await this.ctx.storage.delete(keys.slice(k, k + 128));
-    return [...frames.values()].map(parts => {
+    return [...frames.values()].map((parts) => {
       const out = new Uint8Array(parts.reduce((s, p) => s + p.length, 0));
       let at = 0;
-      for (const p of parts) { out.set(p, at); at += p.length; }
+      for (const p of parts) {
+        out.set(p, at);
+        at += p.length;
+      }
       return out;
     });
   }

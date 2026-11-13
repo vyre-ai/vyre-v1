@@ -13,7 +13,8 @@ test("a known person's id in a reply shows as their name; an unknown one and pla
 
 import { stoppedWords } from "./status.ts";
 test("a stopped turn always says why", () => {
-  for (const r of ["interrupt", "stop", "limit", "left", "moved", "lease", ""]) assert.notEqual(stoppedWords(r), "Stopped.", `reason "${r}"`);
+  for (const r of ["interrupt", "stop", "limit", "left", "moved", "lease", ""])
+    assert.notEqual(stoppedWords(r), "Stopped.", `reason "${r}"`);
   assert.match(stoppedWords("interrupt"), /new message/);
   assert.match(stoppedWords(""), /no reason was recorded/);
 });

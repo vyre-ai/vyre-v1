@@ -27,14 +27,22 @@ export function createTransport(ext, o) {
 
   /** @param {BridgeFailure} why */
   function failAll(why) {
-    for (const [id, p] of pending) { clearTimer(p.timer); p.reject(why); pending.delete(id); }
+    for (const [id, p] of pending) {
+      clearTimer(p.timer);
+      p.reject(why);
+      pending.delete(id);
+    }
   }
 
   function connect() {
     if (port || stopped) return;
     /** @type {NativePort} */
     let p;
-    try { p = ext.runtime.connectNative(HOST_NAME); } catch { return; }
+    try {
+      p = ext.runtime.connectNative(HOST_NAME);
+    } catch {
+      return;
+    }
     p.onMessage.addListener((raw) => {
       online = true;
       const m = parseIncoming(raw);
@@ -43,7 +51,8 @@ export function createTransport(ext, o) {
         if (!wait) return;
         pending.delete(m.id);
         clearTimer(wait.timer);
-        if (m.ok) wait.resolve(m.output); else wait.reject(new BridgeFailure(m.error.code || "error", m.error.message));
+        if (m.ok) wait.resolve(m.output);
+        else wait.reject(new BridgeFailure(m.error.code || "error", m.error.message));
         return;
       }
       // Everything else (fill pushes, agent commands) goes to the control, which knows which it wants.
@@ -70,21 +79,36 @@ export function createTransport(ext, o) {
 
   return {
     connect,
-    get online() { return online && port !== null; },
+    get online() {
+      return online && port !== null;
+    },
     /** A capability call as the signed-in person or agent: `extra` rides beside it (which agent, which Space). @param {"invoke" | "bridge"} type @param {string} name @param {Record<string, any>} input @param {Record<string, any>} [extra] */
     call(type, name, input, extra = {}) {
       const id = `a${++seq}`;
       const message = { ...request(id, type, name, input), ...extra };
       return new Promise((resolve, reject) => {
-        const timer = setTimer(() => { pending.delete(id); reject(new BridgeFailure("timeout", `no answer to ${name}`)); }, timeoutMs);
+        const timer = setTimer(() => {
+          pending.delete(id);
+          reject(new BridgeFailure("timeout", `no answer to ${name}`));
+        }, timeoutMs);
         pending.set(id, { resolve, reject, timer });
-        try { post(message); } catch (e) { pending.delete(id); clearTimer(timer); reject(e instanceof Error ? e : new BridgeFailure("offline", "")); }
+        try {
+          post(message);
+        } catch (e) {
+          pending.delete(id);
+          clearTimer(timer);
+          reject(e instanceof Error ? e : new BridgeFailure("offline", ""));
+        }
       });
     },
     /** One message to the app that wants no answer beyond an acknowledgement: a tool result, or an event under an agent. @param {"agent.result" | "agent.event"} op @param {Record<string, any>} input */
     tell(op, input) {
       const id = `a${++seq}`;
-      try { post({ id, type: "bridge", op, input }); } catch { /* the app is away: the result had nobody waiting */ }
+      try {
+        post({ id, type: "bridge", op, input });
+      } catch {
+        /* the app is away: the result had nobody waiting */
+      }
     },
     close() {
       stopped = true;
@@ -93,7 +117,11 @@ export function createTransport(ext, o) {
       port = null;
       online = false;
       failAll(new BridgeFailure("offline", "closed"));
-      try { p?.disconnect(); } catch { /* already gone */ }
+      try {
+        p?.disconnect();
+      } catch {
+        /* already gone */
+      }
     },
   };
 }

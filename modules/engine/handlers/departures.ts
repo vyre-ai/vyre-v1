@@ -6,53 +6,114 @@ import type { EngineCtx } from "../projections.ts";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
-const isOpen = (engine: TurnEngine, threadId: string): boolean => { try { engine.agents(threadId); return true; } catch { return false; } };
+const isOpen = (engine: TurnEngine, threadId: string): boolean => {
+  try {
+    engine.agents(threadId);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 /** Stop one agent in one thread: through the engine when the thread is open here (a turn may be running), straight on the rows otherwise (nothing is running, the rows are what is left). */
-async function stopAgentIn(ctx: EngineCtx, engine: TurnEngine | null, threadId: string, agentId: string): Promise<void> {
+async function stopAgentIn(
+  ctx: EngineCtx,
+  engine: TurnEngine | null,
+  threadId: string,
+  agentId: string,
+): Promise<void> {
   if (engine && isOpen(engine, threadId)) {
     const r = await engine.stop(threadId, { agentId, reason: "left" });
-    for (const c of [...r.stopped, ...r.released]) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by: ctx.principal.id, pressed: true });
+    for (const c of [...r.stopped, ...r.released])
+      ctx.emit("turn.cancelled", threadId, {
+        turnId: c.turnId,
+        threadId,
+        agentId: c.agentId,
+        by: ctx.principal.id,
+        pressed: true,
+      });
     return;
   }
   sqlQueue(ctx.db).cancelQueued(threadId, agentId);
-  ctx.db.run("UPDATE engine_thread_queue SET state = 'cancelled' WHERE thread_id = ? AND agent_id = ? AND state IN ('running', 'stopping')", threadId, agentId);
+  ctx.db.run(
+    "UPDATE engine_thread_queue SET state = 'cancelled' WHERE thread_id = ? AND agent_id = ? AND state IN ('running', 'stopping')",
+    threadId,
+    agentId,
+  );
   ctx.db.run("DELETE FROM engine_waits WHERE thread_id = ? AND agent_id = ?", threadId, agentId);
 }
 
 function workOf(ctx: EngineCtx, where: string, ...args: unknown[]): Array<{ threadId: string; agentId: string }> {
-  const rows = ctx.db.all(`SELECT DISTINCT thread_id, agent_id FROM engine_thread_queue WHERE state IN ('queued', 'running') AND ${where}`, ...args) as Row[];
+  const rows = ctx.db.all(
+    `SELECT DISTINCT thread_id, agent_id FROM engine_thread_queue WHERE state IN ('queued', 'running') AND ${where}`,
+    ...args,
+  ) as Row[];
   return rows.map((r) => ({ threadId: str(r["thread_id"]), agentId: str(r["agent_id"]) }));
 }
 function parkedOf(ctx: EngineCtx, where: string, ...args: unknown[]): Array<{ threadId: string; agentId: string }> {
-  return (ctx.db.all(`SELECT DISTINCT thread_id, agent_id FROM engine_waits WHERE ${where}`, ...args) as Row[]).map((r) => ({ threadId: str(r["thread_id"]), agentId: str(r["agent_id"]) }));
+  return (ctx.db.all(`SELECT DISTINCT thread_id, agent_id FROM engine_waits WHERE ${where}`, ...args) as Row[]).map(
+    (r) => ({ threadId: str(r["thread_id"]), agentId: str(r["agent_id"]) }),
+  );
 }
 
 /** Everything an agent has running stops. A deleted agent's Jobs end; a paused agent's Jobs wait for it. */
-export async function stopAgent(ctx: EngineCtx, engine: TurnEngine | null, agentId: string, jobs: "stopped" | "paused"): Promise<string[]> {
+export async function stopAgent(
+  ctx: EngineCtx,
+  engine: TurnEngine | null,
+  agentId: string,
+  jobs: "stopped" | "paused",
+): Promise<string[]> {
   const hit = [...workOf(ctx, "agent_id = ?", agentId), ...parkedOf(ctx, "agent_id = ?", agentId)];
   const threads = [...new Set(hit.map((h) => h.threadId))];
   for (const t of threads) await stopAgentIn(ctx, engine, t, agentId);
   const now = ctx.now();
   if (jobs === "stopped") {
-    ctx.db.run("UPDATE engine_crew_job SET state = 'stopped', ended_at = ? WHERE agent_id = ? AND state IN ('working', 'waiting', 'paused', 'lost')", now, agentId);
-    ctx.db.run("UPDATE engine_crew_wait SET state = 'stopped', ended_at = ? WHERE agent_id = ? AND state = 'pending'", now, agentId);
-  } else ctx.db.run("UPDATE engine_crew_job SET state = 'paused' WHERE agent_id = ? AND state IN ('working', 'waiting')", agentId);
+    ctx.db.run(
+      "UPDATE engine_crew_job SET state = 'stopped', ended_at = ? WHERE agent_id = ? AND state IN ('working', 'waiting', 'paused', 'lost')",
+      now,
+      agentId,
+    );
+    ctx.db.run(
+      "UPDATE engine_crew_wait SET state = 'stopped', ended_at = ? WHERE agent_id = ? AND state = 'pending'",
+      now,
+      agentId,
+    );
+  } else
+    ctx.db.run(
+      "UPDATE engine_crew_job SET state = 'paused' WHERE agent_id = ? AND state IN ('working', 'waiting')",
+      agentId,
+    );
   return threads;
 }
 
 /** An agent came back: a Job that paused with it carries on in its own thread. */
-export async function resumeAgent(ctx: EngineCtx, engine: TurnEngine | null, agentId: string, open: (threadId: string, asker: string) => Promise<void>): Promise<string[]> {
+export async function resumeAgent(
+  ctx: EngineCtx,
+  engine: TurnEngine | null,
+  agentId: string,
+  open: (threadId: string, asker: string) => Promise<void>,
+): Promise<string[]> {
   // the Job rows move to working before the agent is woken: with no engine because the server is stopping, they are left paused and the event is kept, so the next start wakes the agent
   if (!engine) keepForRestart(ctx);
-  const rows = ctx.db.all("SELECT job_id, thread_id, asker FROM engine_crew_job WHERE agent_id = ? AND state = 'paused'", agentId) as Row[];
+  const rows = ctx.db.all(
+    "SELECT job_id, thread_id, asker FROM engine_crew_job WHERE agent_id = ? AND state = 'paused'",
+    agentId,
+  ) as Row[];
   const woken: string[] = [];
   for (const r of rows) {
     const threadId = str(r["thread_id"]);
     ctx.db.run("UPDATE engine_crew_job SET state = 'working' WHERE job_id = ? AND state = 'paused'", str(r["job_id"]));
     if (!engine) continue;
-    try { await open(threadId, str(r["asker"])); engine.wake(threadId, agentId); woken.push(threadId); }
-    catch (e) { ctx.log.warn("a paused teammate could not pick up again", { threadId, error: e instanceof Error ? e.message : String(e) }); }
+    try {
+      await open(threadId, str(r["asker"]));
+      engine.wake(threadId, agentId);
+      woken.push(threadId);
+    } catch (e) {
+      ctx.log.warn("a paused teammate could not pick up again", {
+        threadId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
   return woken;
 }
@@ -62,10 +123,22 @@ export async function stopPerson(ctx: EngineCtx, engine: TurnEngine | null, pers
   const hit = [...workOf(ctx, "from_principal = ?", person), ...parkedOf(ctx, "asker = ?", person)];
   for (const h of hit) await stopAgentIn(ctx, engine, h.threadId, h.agentId);
   // said in the log, with who and where: the person is gone, so there is nobody in the chat to tell, and a dropped turn must never be silent
-  if (hit.length > 0) ctx.log.warn("a queued turn was not run: the person who asked for it can no longer use this Space", { person, threads: [...new Set(hit.map((h) => h.threadId))] });
+  if (hit.length > 0)
+    ctx.log.warn("a queued turn was not run: the person who asked for it can no longer use this Space", {
+      person,
+      threads: [...new Set(hit.map((h) => h.threadId))],
+    });
   const now = ctx.now();
-  ctx.db.run("UPDATE engine_crew_job SET state = 'stopped', ended_at = ? WHERE asker = ? AND state IN ('working', 'waiting', 'paused', 'lost')", now, person);
-  ctx.db.run("UPDATE engine_crew_wait SET state = 'stopped', ended_at = ? WHERE asker = ? AND state = 'pending'", now, person);
+  ctx.db.run(
+    "UPDATE engine_crew_job SET state = 'stopped', ended_at = ? WHERE asker = ? AND state IN ('working', 'waiting', 'paused', 'lost')",
+    now,
+    person,
+  );
+  ctx.db.run(
+    "UPDATE engine_crew_wait SET state = 'stopped', ended_at = ? WHERE asker = ? AND state = 'pending'",
+    now,
+    person,
+  );
   ctx.db.run("DELETE FROM engine_unblock WHERE asker = ?", person);
   return [...new Set(hit.map((h) => h.threadId))];
 }
@@ -86,9 +159,15 @@ export function markLostJobs(ctx: EngineCtx): string[] {
   const rows = ctx.db.all(
     `SELECT j.job_id AS id FROM engine_crew_job j WHERE j.state = 'working' AND j.started_at < ?
        AND NOT EXISTS (SELECT 1 FROM engine_thread_queue q WHERE q.thread_id = j.thread_id AND q.state IN ('queued', 'running', 'stopping'))
-       AND NOT EXISTS (SELECT 1 FROM engine_waits w WHERE w.thread_id = j.thread_id)`, ctx.now() - LOST_AFTER_MS,
+       AND NOT EXISTS (SELECT 1 FROM engine_waits w WHERE w.thread_id = j.thread_id)`,
+    ctx.now() - LOST_AFTER_MS,
   ) as Row[];
   const ids = rows.map((r) => str(r["id"]));
-  for (const id of ids) ctx.db.run("UPDATE engine_crew_job SET state = 'lost', ended_at = ? WHERE job_id = ? AND state = 'working'", ctx.now(), id);
+  for (const id of ids)
+    ctx.db.run(
+      "UPDATE engine_crew_job SET state = 'lost', ended_at = ? WHERE job_id = ? AND state = 'working'",
+      ctx.now(),
+      id,
+    );
   return ids;
 }

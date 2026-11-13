@@ -9,4 +9,7 @@ export { publicFormView, publicFormViewTyped, recordUpload, reserveUpload } from
 export { inline, consumers } from "./projections.ts";
 
 /** Ruling 32: the loader collects this. The daemon calls setFormsHost with the public address of the Space (when it has one) and with null at shutdown. */
-export const hostSeams = { setFormsHost: (host: Parameters<typeof configureForms>[0]): void => configureForms(host), configureFormsAsk: (o: Parameters<typeof configureFormsAsk>[0]): void => configureFormsAsk(o) };
+export const hostSeams = {
+  setFormsHost: (host: Parameters<typeof configureForms>[0]): void => configureForms(host),
+  configureFormsAsk: (o: Parameters<typeof configureFormsAsk>[0]): void => configureFormsAsk(o),
+};

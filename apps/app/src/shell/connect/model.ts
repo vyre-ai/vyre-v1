@@ -25,7 +25,13 @@ export type OpenConnect = (need: ConnectNeed) => Promise<Connected | null>;
 
 export const CONNECT_ANOTHER = "+ Connect another";
 
-const SERVICE_WORDS: Readonly<Record<string, string>> = { google: "Google", microsoft: "Microsoft", github: "GitHub", ms: "Microsoft", dropbox: "Dropbox" };
+const SERVICE_WORDS: Readonly<Record<string, string>> = {
+  google: "Google",
+  microsoft: "Microsoft",
+  github: "GitHub",
+  ms: "Microsoft",
+  dropbox: "Dropbox",
+};
 
 function serviceWord(service: string): string {
   return SERVICE_WORDS[service] ?? service.charAt(0).toUpperCase() + service.slice(1);
@@ -35,22 +41,32 @@ function serviceWord(service: string): string {
 export function connectLabel(need: ConnectNeed, empty: boolean): string {
   if (!empty) return CONNECT_ANOTHER;
   switch (need.kind) {
-    case "mailbox": return "Connect a mailbox";
-    case "ai": return "Add an AI account";
-    case "key": return "Add a key";
-    case "number": return "Connect Twilio";
-    case "connector": return `Connect ${serviceWord(need.service)}`;
+    case "mailbox":
+      return "Connect a mailbox";
+    case "ai":
+      return "Add an AI account";
+    case "key":
+      return "Add a key";
+    case "number":
+      return "Connect Twilio";
+    case "connector":
+      return `Connect ${serviceWord(need.service)}`;
   }
 }
 
 /** The group a finished account belongs to, as the account pickers name it. */
 export function appOfNeed(need: ConnectNeed): string {
   switch (need.kind) {
-    case "mailbox": return "mail";
-    case "ai": return "ai";
-    case "key": return need.app ?? "key";
-    case "number": return "twilio";
-    case "connector": return need.service;
+    case "mailbox":
+      return "mail";
+    case "ai":
+      return "ai";
+    case "key":
+      return need.app ?? "key";
+    case "number":
+      return "twilio";
+    case "connector":
+      return need.service;
   }
 }
 
@@ -67,25 +83,44 @@ export function connectEntries(
   empty = false,
 ): MenuEntry[] {
   if (!open) return [...entries];
-  const item: MenuItem = { label: connectLabel(need, empty), onSelect: () => { void connectThen(open, need, onConnected); } };
+  const item: MenuItem = {
+    label: connectLabel(need, empty),
+    onSelect: () => {
+      void connectThen(open, need, onConnected);
+    },
+  };
   return entries.length === 0 ? [item] : [...entries, { separator: true }, item];
 }
 
 /** Open the flow, and when it finishes hand the new account on. Resolves true when an account came back. */
-export async function connectThen(open: OpenConnect, need: ConnectNeed, apply: (account: Connected) => void): Promise<boolean> {
+export async function connectThen(
+  open: OpenConnect,
+  need: ConnectNeed,
+  apply: (account: Connected) => void,
+): Promise<boolean> {
   let account: Connected | null = null;
-  try { account = await open(need); } catch { account = null; }
+  try {
+    account = await open(need);
+  } catch {
+    account = null;
+  }
   if (!account) return false;
   apply(account);
   return true;
 }
 
-interface StepLike { key: string; input?: Record<string, unknown>; ai?: { keyId?: string } }
+interface StepLike {
+  key: string;
+  input?: Record<string, unknown>;
+  ai?: { keyId?: string };
+}
 
 function schemaHas(schema: unknown, name: string): boolean {
   if (!schema || typeof schema !== "object" || Array.isArray(schema)) return false;
   const props = (schema as { properties?: unknown }).properties;
-  return !!props && typeof props === "object" && !Array.isArray(props) && Object.prototype.hasOwnProperty.call(props, name);
+  return (
+    !!props && typeof props === "object" && !Array.isArray(props) && Object.prototype.hasOwnProperty.call(props, name)
+  );
 }
 
 function filled(v: unknown): boolean {
@@ -96,10 +131,16 @@ function filled(v: unknown): boolean {
  * What a step is waiting for, from the step itself (its key, its input, its catalog schema), never from the wording of a problem.
  * Undefined when the step needs no account, already has one, or the missing thing has no flow to open.
  */
-export function stepNeed(step: StepLike, schema?: unknown, kind: "personal" | "space" = "personal"): ConnectNeed | undefined {
+export function stepNeed(
+  step: StepLike,
+  schema?: unknown,
+  kind: "personal" | "space" = "personal",
+): ConnectNeed | undefined {
   const input = step.input ?? {};
-  if (step.key === "send_email" || schemaHas(schema, "mailboxId")) return filled(input["mailboxId"]) ? undefined : { kind: "mailbox" };
-  if (step.key === "send_sms" || schemaHas(schema, "numberId")) return filled(input["numberId"]) ? undefined : { kind: "number" };
+  if (step.key === "send_email" || schemaHas(schema, "mailboxId"))
+    return filled(input["mailboxId"]) ? undefined : { kind: "mailbox" };
+  if (step.key === "send_sms" || schemaHas(schema, "numberId"))
+    return filled(input["numberId"]) ? undefined : { kind: "number" };
   if (step.key === "ai") return kind === "space" && !filled(step.ai?.keyId) ? { kind: "ai" } : undefined;
   const prefixed = step.key.startsWith("google.") ? "google" : step.key.startsWith("ms.") ? "microsoft" : undefined;
   if (prefixed || schemaHas(schema, "connectionId")) {
@@ -111,9 +152,13 @@ export function stepNeed(step: StepLike, schema?: unknown, kind: "personal" | "s
 }
 
 /** A lost mailbox sign-in leaves an unblock task with a mail_signin block (modules/google and microsoft handlers/personal.ts): which provider's sign-in to repeat, or null for any other task. */
-export function mailFixOf(t: { kind: string; blocks: readonly { type: string; data?: unknown }[] }): "google" | "microsoft" | null {
+export function mailFixOf(t: {
+  kind: string;
+  blocks: readonly { type: string; data?: unknown }[];
+}): "google" | "microsoft" | null {
   if (t.kind !== "unblock") return null;
   const d = t.blocks.find((x) => x.type === "mail_signin")?.data;
-  const provider = typeof d === "object" && d !== null && !Array.isArray(d) ? (d as Record<string, unknown>)["provider"] : undefined;
+  const provider =
+    typeof d === "object" && d !== null && !Array.isArray(d) ? (d as Record<string, unknown>)["provider"] : undefined;
   return provider === "google" || provider === "microsoft" ? provider : null;
 }

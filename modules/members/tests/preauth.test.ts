@@ -8,7 +8,10 @@ import { preAuthSession } from "../../../host/src/daemon/preauth.ts";
 
 test("an invite preview exposes only public routing data to pending and anonymous callers", async () => {
   const h = harness();
-  const made = await handlers["members.invites.create"](h.as("usr_admin"), { role: "rol_member", idempotencyKey: "pre-1" });
+  const made = await handlers["members.invites.create"](h.as("usr_admin"), {
+    role: "rol_member",
+    idempotencyKey: "pre-1",
+  });
   const code = /\/join\/([A-Z0-9-]+)#fp=/.exec(made.link)![1]!;
   for (const caller of ["pending", "anonymous"] as const) {
     const who = preAuthSession("spc_x", caller, { "x-vyre-remote": "203.0.113.9" }).principal;

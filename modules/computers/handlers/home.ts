@@ -27,31 +27,64 @@ const SKIP = /\.(crdownload|part|tmp)$/i;
 
 export interface HomeDeps {
   /** One call to a Files, agents or tasks capability as the agent principal. Throws on a refusal. */
-  callAs(agentId: string, cap: string, input: unknown): Promise<any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+  callAs(agentId: string, cap: string, input: unknown): Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   /** Send bytes to an upload url from files.upload_url. */
   putBytes(url: string, bytes: Uint8Array): Promise<void>;
   now(): number;
   log(level: "info" | "warn", msg: string, attrs?: Record<string, unknown>): void;
 }
 
-interface ManifestEntry { fileId: string; version: number; sha: string }
-interface Manifest { files: Record<string, ManifestEntry>; folders: Record<string, string> }
-interface RemoteFile { fileId: string; name: string; folderId: string; version: number; size: number; path: string }
-interface LocalFile { rel: string; bytes: Buffer; mtimeMs: number }
+interface ManifestEntry {
+  fileId: string;
+  version: number;
+  sha: string;
+}
+interface Manifest {
+  files: Record<string, ManifestEntry>;
+  folders: Record<string, string>;
+}
+interface RemoteFile {
+  fileId: string;
+  name: string;
+  folderId: string;
+  version: number;
+  size: number;
+  path: string;
+}
+interface LocalFile {
+  rel: string;
+  bytes: Buffer;
+  mtimeMs: number;
+}
 
 export interface HomeSync {
   /** One pass; passes of one home never overlap. Answers what it did. */
   pass(): Promise<HomeReport>;
 }
 /** `failed` counts what a pass could not do (a call refused or lost, a removal that did not happen): a pass with any is not a finished sync. */
-export interface HomeReport { down: number; up: number; conflicts: number; removed: number; refused: string[]; suggested: number; failed: number;
+export interface HomeReport {
+  down: number;
+  up: number;
+  conflicts: number;
+  removed: number;
+  refused: string[];
+  suggested: number;
+  failed: number;
   /** Files the read gate kept off the computer (Not available to AI, waiting for review, or a picture with parts hidden from AI). */
   hidden?: number;
   /** The files the agent made on the computer in this pass (new in Files, not edits), for the chat to say so. Recordings and hidden paths are left out. */
-  made: MadeFile[] }
-export interface MadeFile { fileId: string; name: string; kind: string; size: number; version: number }
+  made: MadeFile[];
+}
+export interface MadeFile {
+  fileId: string;
+  name: string;
+  kind: string;
+  size: number;
+  version: number;
+}
 /** A file the agent made for the person, not the computer's own housekeeping: not a recording, not under a hidden folder. */
-export const worthSaying = (rel: string): boolean => !rel.startsWith("work/recordings/") && !rel.split("/").some((seg) => seg.startsWith("."));
+export const worthSaying = (rel: string): boolean =>
+  !rel.startsWith("work/recordings/") && !rel.split("/").some((seg) => seg.startsWith("."));
 
 const emptyManifest = (): Manifest => ({ files: {}, folders: {} });
 
@@ -71,11 +104,27 @@ export function conflictName(name: string): string {
  * `rootFolder` and `plain` make it the mirror of a project's shared folder instead of an agent's home (agent workspaces, 6 Nov): the root is that Files folder, nothing in it is read-only (an AGENT.md in a
  * project is a file like another), and `reason` says where an edit came from in the file's history. Every call still runs as `agentId`, so the history names the agent that made the change.
  */
-export function createHomeSync(o: { agentId: string; computerId: string; fs: HomeFs; manifest: string; rootFolder?: string; plain?: boolean; reason?: string }, d: HomeDeps): HomeSync {
+export function createHomeSync(
+  o: {
+    agentId: string;
+    computerId: string;
+    fs: HomeFs;
+    manifest: string;
+    rootFolder?: string;
+    plain?: boolean;
+    reason?: string;
+  },
+  d: HomeDeps,
+): HomeSync {
   let running: Promise<HomeReport> | null = null;
 
   function load(): Manifest {
-    try { const m = JSON.parse(fs.readFileSync(o.manifest, "utf8")) as Manifest; if (m && typeof m === "object" && m.files && m.folders) return m; } catch { /* first pass */ }
+    try {
+      const m = JSON.parse(fs.readFileSync(o.manifest, "utf8")) as Manifest;
+      if (m && typeof m === "object" && m.files && m.folders) return m;
+    } catch {
+      /* first pass */
+    }
     return emptyManifest();
   }
   function save(m: Manifest): void {
@@ -87,20 +136,40 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
 
   // ---- the two sides
 
-  async function remote(rootFolder: string): Promise<{ files: Map<string, RemoteFile>; folders: Map<string, string>; complete: boolean }> {
+  async function remote(
+    rootFolder: string,
+  ): Promise<{ files: Map<string, RemoteFile>; folders: Map<string, string>; complete: boolean }> {
     const files = new Map<string, RemoteFile>();
-    const folders = new Map<string, string>();   // path -> folder id
+    const folders = new Map<string, string>(); // path -> folder id
     folders.set("", rootFolder);
     const queue: Array<{ id: string; rel: string }> = [{ id: rootFolder, rel: "" }];
     while (queue.length > 0 && files.size < MAX_FILES) {
       const here = queue.shift()!;
       let cursor: string | undefined;
       do {
-        const r = await d.callAs(o.agentId, "files.list", { folder: here.id, ...(cursor ? { cursor } : {}), limit: 200 });
-        for (const f of (r.files ?? []) as Array<{ fileId: string; name: string; folderId: string; version: number; size: number; deletedAt?: number }>) {
+        const r = await d.callAs(o.agentId, "files.list", {
+          folder: here.id,
+          ...(cursor ? { cursor } : {}),
+          limit: 200,
+        });
+        for (const f of (r.files ?? []) as Array<{
+          fileId: string;
+          name: string;
+          folderId: string;
+          version: number;
+          size: number;
+          deletedAt?: number;
+        }>) {
           if (f.deletedAt || !cleanName(f.name)) continue;
           const rel = here.rel ? `${here.rel}/${f.name}` : f.name;
-          files.set(rel, { fileId: f.fileId, name: f.name, folderId: f.folderId, version: f.version, size: f.size, path: rel });
+          files.set(rel, {
+            fileId: f.fileId,
+            name: f.name,
+            folderId: f.folderId,
+            version: f.version,
+            size: f.size,
+            path: rel,
+          });
         }
         for (const g of (r.folders ?? []) as Array<{ folderId: string; name: string }>) {
           if (!cleanName(g.name)) continue;
@@ -118,7 +187,12 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
   function gateRefused(e: unknown): boolean {
     const x = e as { error?: { details?: { reason?: unknown } }; details?: { reason?: unknown } } | null;
     const reason = x?.error?.details?.reason ?? x?.details?.reason;
-    return reason === "agent_access_off" || reason === "needs_review" || reason === "redacted_binary" || reason === "redacted_file";
+    return (
+      reason === "agent_access_off" ||
+      reason === "needs_review" ||
+      reason === "redacted_binary" ||
+      reason === "redacted_file"
+    );
   }
   async function download(f: RemoteFile): Promise<Buffer> {
     const parts: Buffer[] = [];
@@ -141,23 +215,51 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
   // ---- the pass
 
   async function run(): Promise<HomeReport> {
-    const report: HomeReport = { down: 0, up: 0, conflicts: 0, removed: 0, refused: [], suggested: 0, failed: 0, made: [] };
-    const agent = (await d.callAs(o.agentId, "agents.get", { agentId: o.agentId })).agent as { folderId: string; ownerId: string };
+    const report: HomeReport = {
+      down: 0,
+      up: 0,
+      conflicts: 0,
+      removed: 0,
+      refused: [],
+      suggested: 0,
+      failed: 0,
+      made: [],
+    };
+    const agent = (await d.callAs(o.agentId, "agents.get", { agentId: o.agentId })).agent as {
+      folderId: string;
+      ownerId: string;
+    };
     const m = load();
     const R = await remote(o.rootFolder ?? agent.folderId);
     const snap = await o.fs.snapshot();
-    if (!snap.complete) { report.failed++; d.log("warn", "computers.home.too_big", { computer: o.computerId }); return report; }
+    if (!snap.complete) {
+      report.failed++;
+      d.log("warn", "computers.home.too_big", { computer: o.computerId });
+      return report;
+    }
     report.refused = snap.refused;
-    const L = { files: new Map<string, LocalFile>([...snap.files].map(([rel, f]) => [rel, { rel, bytes: f.bytes, mtimeMs: f.mtimeMs }])), dirs: snap.dirs };
+    const L = {
+      files: new Map<string, LocalFile>(
+        [...snap.files].map(([rel, f]) => [rel, { rel, bytes: f.bytes, mtimeMs: f.mtimeMs }]),
+      ),
+      dirs: snap.dirs,
+    };
     const settled = (f: LocalFile): boolean => d.now() - f.mtimeMs >= SETTLE_MS;
-    const removeFiles: string[] = [], removeDirs: string[] = [], afterRemove: Array<() => void> = [];
-    const writeLocal = (rel: string, bytes: Uint8Array, readOnly: boolean): Promise<void> => o.fs.put([{ rel, bytes, readOnly }]);
+    const removeFiles: string[] = [],
+      removeDirs: string[] = [],
+      afterRemove: Array<() => void> = [];
+    const writeLocal = (rel: string, bytes: Uint8Array, readOnly: boolean): Promise<void> =>
+      o.fs.put([{ rel, bytes, readOnly }]);
 
     const folderFor = async (rel: string): Promise<string> => {
       const known = R.folders.get(rel);
       if (known) return known;
       const parent = await folderFor(dirOf(rel));
-      const made = await d.callAs(o.agentId, "files.folder.create", { parentId: parent, name: baseOf(rel), idempotencyKey: `home:${o.computerId}:mkdir:${rel}` });
+      const made = await d.callAs(o.agentId, "files.folder.create", {
+        parentId: parent,
+        name: baseOf(rel),
+        idempotencyKey: `home:${o.computerId}:mkdir:${rel}`,
+      });
       const id = String(made.folder?.folderId ?? made.folderId);
       R.folders.set(rel, id);
       m.folders[rel] = id;
@@ -169,13 +271,19 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
 
     const paths = new Set<string>([...R.files.keys(), ...L.files.keys(), ...Object.keys(m.files)]);
     for (const rel of [...paths].sort()) {
-      const r = R.files.get(rel), l = L.files.get(rel), prev = m.files[rel];
+      const r = R.files.get(rel),
+        l = L.files.get(rel),
+        prev = m.files[rel];
       const readOnly = o.plain !== true && !rel.includes("/") && READ_ONLY.has(rel);
       try {
         if (r && !l) {
           if (prev && prev.version === r.version) {
             // gone from the disk, unchanged in Files: the agent deleted it
-            if (readOnly) { await writeLocal(rel, await download(r), true); report.down++; continue; }
+            if (readOnly) {
+              await writeLocal(rel, await download(r), true);
+              report.down++;
+              continue;
+            }
             await d.callAs(o.agentId, "files.delete", { fileId: r.fileId });
             delete m.files[rel];
             report.removed++;
@@ -188,20 +296,40 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
         } else if (!r && l) {
           if (prev) {
             // gone from Files (deleted, or access taken away): it leaves the computer, unless it was changed here
-            if (!R.complete) continue;   // the listing was cut short: never read a missing file as a revoked one
-            if (sha256b64(l.bytes) !== prev.sha) d.log("warn", "computers.home.revoked_with_edits", { computer: o.computerId, path: rel });
+            if (!R.complete) continue; // the listing was cut short: never read a missing file as a revoked one
+            if (sha256b64(l.bytes) !== prev.sha)
+              d.log("warn", "computers.home.revoked_with_edits", { computer: o.computerId, path: rel });
             removeFiles.push(rel);
-            afterRemove.push(() => { delete m.files[rel]; report.removed++; });
+            afterRemove.push(() => {
+              delete m.files[rel];
+              report.removed++;
+            });
           } else {
             if (!settled(l)) continue;
             const bytes = l.bytes;
-            if (readOnly) { removeFiles.push(rel); afterRemove.push(() => undefined); continue; }
+            if (readOnly) {
+              removeFiles.push(rel);
+              afterRemove.push(() => undefined);
+              continue;
+            }
             const folderId = await folderFor(dirOf(rel));
-            const made = await d.callAs(o.agentId, "files.create", { folderId, name: baseOf(rel), content: await content(bytes), idempotencyKey: `home:${o.computerId}:create:${rel}:${sha256b64(bytes)}` });
+            const made = await d.callAs(o.agentId, "files.create", {
+              folderId,
+              name: baseOf(rel),
+              content: await content(bytes),
+              idempotencyKey: `home:${o.computerId}:create:${rel}:${sha256b64(bytes)}`,
+            });
             const f = made.file as { fileId: string; version: number; kind?: string; size?: number };
             m.files[rel] = { fileId: f.fileId, version: f.version, sha: sha256b64(bytes) };
             report.up++;
-            if (worthSaying(rel)) report.made.push({ fileId: f.fileId, name: baseOf(rel), kind: f.kind ?? "other", size: f.size ?? bytes.length, version: f.version });
+            if (worthSaying(rel))
+              report.made.push({
+                fileId: f.fileId,
+                name: baseOf(rel),
+                kind: f.kind ?? "other",
+                size: f.size ?? bytes.length,
+                version: f.version,
+              });
           }
         } else if (r && l) {
           const bytes = l.bytes;
@@ -212,10 +340,20 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
           if (readOnly) {
             if (localChanged) {
               const theirs = await download(r);
-              await d.callAs(o.agentId, "agents.suggestion.propose", {
-                agentId: o.agentId, file: rel, diff: `--- ${rel}\n+++ ${rel} (edited on the computer)\n${bytes.toString("utf8").slice(0, 20_000)}`,
-                reason: "Edited on the agent's computer, where this file is read-only.", idempotencyKey: `home:${o.computerId}:suggest:${rel}:${sha}`,
-              }).then(() => { report.suggested++; }, () => undefined);
+              await d
+                .callAs(o.agentId, "agents.suggestion.propose", {
+                  agentId: o.agentId,
+                  file: rel,
+                  diff: `--- ${rel}\n+++ ${rel} (edited on the computer)\n${bytes.toString("utf8").slice(0, 20_000)}`,
+                  reason: "Edited on the agent's computer, where this file is read-only.",
+                  idempotencyKey: `home:${o.computerId}:suggest:${rel}:${sha}`,
+                })
+                .then(
+                  () => {
+                    report.suggested++;
+                  },
+                  () => undefined,
+                );
               await writeLocal(rel, theirs, true);
               m.files[rel] = { fileId: r.fileId, version: r.version, sha: sha256b64(theirs) };
               continue;
@@ -223,7 +361,12 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
           }
           if (localChanged && !remoteChanged) {
             if (!settled(l)) continue;
-            const w = await d.callAs(o.agentId, "files.write", { fileId: r.fileId, content: await content(bytes), baseVersion: r.version, reason: o.reason ?? "edited on the computer" });
+            const w = await d.callAs(o.agentId, "files.write", {
+              fileId: r.fileId,
+              content: await content(bytes),
+              baseVersion: r.version,
+              reason: o.reason ?? "edited on the computer",
+            });
             m.files[rel] = { fileId: r.fileId, version: Number(w.file?.version ?? r.version + 1), sha };
             report.up++;
           } else if (!localChanged && remoteChanged) {
@@ -236,52 +379,104 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
             const theirs = await download(r);
             const copy = conflictName(baseOf(rel));
             const copyRel = dirOf(rel) ? `${dirOf(rel)}/${copy}` : copy;
-            const made = await d.callAs(o.agentId, "files.create", { folderId: r.folderId, name: copy, content: await content(bytes), idempotencyKey: `home:${o.computerId}:conflict:${rel}:${sha}` });
+            const made = await d.callAs(o.agentId, "files.create", {
+              folderId: r.folderId,
+              name: copy,
+              content: await content(bytes),
+              idempotencyKey: `home:${o.computerId}:conflict:${rel}:${sha}`,
+            });
             const cf = made.file as { fileId: string; version: number };
             await writeLocal(rel, theirs, readOnly);
             await writeLocal(copyRel, bytes, false);
             m.files[rel] = { fileId: r.fileId, version: r.version, sha: sha256b64(theirs) };
             m.files[copyRel] = { fileId: cf.fileId, version: cf.version, sha };
-            await d.callAs(o.agentId, "tasks.create", {
-              title: `A file changed in two places: ${rel}`, summary: `${rel} was edited on the agent's computer and in Vyre Files at the same time. Vyre Files kept its version. The computer's version is saved beside it as ${copy}.`,
-              assigned: { kind: "person", id: agent.ownerId }, fileIds: [r.fileId, cf.fileId], source: { kind: "manual", id: o.computerId }, idempotencyKey: `home:${o.computerId}:conflict-task:${rel}:${sha}`,
-            }).catch((e: unknown) => { d.log("warn", "computers.home.conflict_task_failed", { computer: o.computerId, error: e instanceof Error ? e.message.slice(0, 120) : "unknown" }); });
+            await d
+              .callAs(o.agentId, "tasks.create", {
+                title: `A file changed in two places: ${rel}`,
+                summary: `${rel} was edited on the agent's computer and in Vyre Files at the same time. Vyre Files kept its version. The computer's version is saved beside it as ${copy}.`,
+                assigned: { kind: "person", id: agent.ownerId },
+                fileIds: [r.fileId, cf.fileId],
+                source: { kind: "manual", id: o.computerId },
+                idempotencyKey: `home:${o.computerId}:conflict-task:${rel}:${sha}`,
+              })
+              .catch((e: unknown) => {
+                d.log("warn", "computers.home.conflict_task_failed", {
+                  computer: o.computerId,
+                  error: e instanceof Error ? e.message.slice(0, 120) : "unknown",
+                });
+              });
             report.conflicts++;
           }
         } else if (prev) {
-          delete m.files[rel];   // gone on both sides
+          delete m.files[rel]; // gone on both sides
         }
       } catch (e) {
         // the read gate (Redaction for AI) refused this file to the agent: whatever copy the computer holds leaves it, and the file is not counted as failed
-        if (gateRefused(e)) { if (l) { removeFiles.push(rel); afterRemove.push(() => { delete m.files[rel]; }); } else delete m.files[rel]; report.hidden = (report.hidden ?? 0) + 1; continue; }
+        if (gateRefused(e)) {
+          if (l) {
+            removeFiles.push(rel);
+            afterRemove.push(() => {
+              delete m.files[rel];
+            });
+          } else delete m.files[rel];
+          report.hidden = (report.hidden ?? 0) + 1;
+          continue;
+        }
         report.failed++;
-        d.log("warn", "computers.home.file_failed", { computer: o.computerId, path: rel, error: e instanceof Error ? e.message.slice(0, 160) : "unknown" });
+        d.log("warn", "computers.home.file_failed", {
+          computer: o.computerId,
+          path: rel,
+          error: e instanceof Error ? e.message.slice(0, 160) : "unknown",
+        });
       }
     }
 
     // folders only on the disk: made in Files; folders Files no longer lists: removed when empty
     for (const rel of [...L.dirs].sort()) {
-      if (R.folders.has(rel) || m.folders[rel] !== undefined) continue;   // a folder Files used to list and no longer does was taken away, not made here
-      try { await folderFor(rel); } catch (e) { report.failed++; d.log("warn", "computers.home.folder_failed", { computer: o.computerId, path: rel, error: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); }
+      if (R.folders.has(rel) || m.folders[rel] !== undefined) continue; // a folder Files used to list and no longer does was taken away, not made here
+      try {
+        await folderFor(rel);
+      } catch (e) {
+        report.failed++;
+        d.log("warn", "computers.home.folder_failed", {
+          computer: o.computerId,
+          path: rel,
+          error: e instanceof Error ? e.message.slice(0, 160) : "unknown",
+        });
+      }
     }
     for (const rel of Object.keys(m.folders).sort().reverse()) {
       if (R.folders.has(rel) || !R.complete) continue;
       removeDirs.push(rel);
-      afterRemove.push(() => { delete m.folders[rel]; });
+      afterRemove.push(() => {
+        delete m.folders[rel];
+      });
     }
     // removals last, in one helper run inside the computer's mounts; the manifest forgets a file only once it is really gone, so a failed removal is tried again and never read as a new file
     if (removeFiles.length > 0 || removeDirs.length > 0) {
-      try { await o.fs.remove(removeFiles, removeDirs); for (const done of afterRemove) done(); } catch (e) { report.failed++; d.log("warn", "computers.home.remove_failed", { computer: o.computerId, error: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); }
+      try {
+        await o.fs.remove(removeFiles, removeDirs);
+        for (const done of afterRemove) done();
+      } catch (e) {
+        report.failed++;
+        d.log("warn", "computers.home.remove_failed", {
+          computer: o.computerId,
+          error: e instanceof Error ? e.message.slice(0, 160) : "unknown",
+        });
+      }
     }
     save(m);
-    if (report.refused.length > 0) d.log("warn", "computers.home.refused", { computer: o.computerId, paths: report.refused.slice(0, 20) });
+    if (report.refused.length > 0)
+      d.log("warn", "computers.home.refused", { computer: o.computerId, paths: report.refused.slice(0, 20) });
     return report;
   }
 
   const self: HomeSync = {
     pass(): Promise<HomeReport> {
       if (running) return running.then(() => self.pass());
-      running = run().finally(() => { running = null; });
+      running = run().finally(() => {
+        running = null;
+      });
       return running;
     },
   };

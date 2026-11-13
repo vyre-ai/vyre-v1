@@ -22,7 +22,10 @@ test("stretch: the pure Argon2id matches the native vectors, and the native one 
     const pure = argon2id(v.secret, STRETCH_SALT, { memoryKiB: v.memoryKiB, passes: v.passes });
     assert.equal(pure.length, 32);
     assert.ok(pure.toString("hex").startsWith(v.tag), `${v.memoryKiB} KiB, ${v.passes} passes`);
-    assert.equal(argon2id(v.secret, STRETCH_SALT, { memoryKiB: v.memoryKiB, passes: v.passes }).toString("hex"), pure.toString("hex"));
+    assert.equal(
+      argon2id(v.secret, STRETCH_SALT, { memoryKiB: v.memoryKiB, passes: v.passes }).toString("hex"),
+      pure.toString("hex"),
+    );
   }
 });
 
@@ -42,6 +45,9 @@ test("identity chain and stretch import nothing but node:crypto", () => {
   for (const file of ["chain.ts", "stretch.ts"]) {
     const text = fs.readFileSync(new URL(`../src/identity/${file}`, import.meta.url), "utf8");
     const imports = [...text.matchAll(/^\s*import[^;]*from\s+"([^"]+)"/gm)].map((m) => m[1]);
-    assert.ok(imports.every((i) => i === "node:crypto"), `${file} imports ${imports.join(", ")}`);
+    assert.ok(
+      imports.every((i) => i === "node:crypto"),
+      `${file} imports ${imports.join(", ")}`,
+    );
   }
 });

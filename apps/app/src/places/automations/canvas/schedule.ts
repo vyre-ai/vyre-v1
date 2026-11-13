@@ -8,12 +8,26 @@ const DOWS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 export const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
 export const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 const MACROS: Record<string, string> = {
-  "@hourly": "0 * * * *", "@daily": "0 0 * * *", "@midnight": "0 0 * * *", "@weekly": "0 0 * * 0",
-  "@monthly": "0 0 1 * *", "@yearly": "0 0 1 1 *", "@annually": "0 0 1 1 *",
+  "@hourly": "0 * * * *",
+  "@daily": "0 0 * * *",
+  "@midnight": "0 0 * * *",
+  "@weekly": "0 0 * * 0",
+  "@monthly": "0 0 1 * *",
+  "@yearly": "0 0 1 1 *",
+  "@annually": "0 0 1 1 *",
 };
 
-interface Field { set: ReadonlySet<number>; star: boolean }
-export interface CronSpec { min: Field; hour: Field; dom: Field; mon: Field; dow: Field }
+interface Field {
+  set: ReadonlySet<number>;
+  star: boolean;
+}
+export interface CronSpec {
+  min: Field;
+  hour: Field;
+  dom: Field;
+  mon: Field;
+  dow: Field;
+}
 
 function parseField(text: string, lo: number, hi: number, names?: readonly string[], nameBase = 0): Field | undefined {
   const value = (s: string): number | undefined => {
@@ -68,7 +82,12 @@ export function parseCron(text: string): CronSpec | undefined {
 
 export function validTimeZone(tz: string): boolean {
   if (!tz) return false;
-  try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; } catch { return false; }
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** The zone this device is in. The person's saved zone wins when there is one. */
@@ -76,15 +95,31 @@ export function deviceTimeZone(): string {
   try {
     const tz = new Intl.DateTimeFormat().resolvedOptions().timeZone;
     return tz && validTimeZone(tz) ? tz : "UTC";
-  } catch { return "UTC"; }
+  } catch {
+    return "UTC";
+  }
 }
 
 const fmts = new Map<string, Intl.DateTimeFormat>();
-interface Local { y: number; mo: number; d: number; h: number; mi: number }
+interface Local {
+  y: number;
+  mo: number;
+  d: number;
+  h: number;
+  mi: number;
+}
 function localOf(ms: number, tz: string): Local {
   let f = fmts.get(tz);
   if (!f) {
-    f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric" });
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+    });
     fmts.set(tz, f);
   }
   const o: Record<string, number> = {};
@@ -117,10 +152,11 @@ function nextCron(spec: CronSpec, tz: string, after: number): number | undefined
     const dowOk = spec.dow.set.has(dt.getUTCDay());
     const dayOk = spec.dom.star || spec.dow.star ? domOk && dowOk : domOk || dowOk;
     if (!dayOk) continue;
-    for (const h of hours) for (const mi of mins) {
-      const at = localToUtc({ y: dt.getUTCFullYear(), mo, d, h, mi }, tz);
-      if (at !== undefined && at > after) return at;
-    }
+    for (const h of hours)
+      for (const mi of mins) {
+        const at = localToUtc({ y: dt.getUTCFullYear(), mo, d, h, mi }, tz);
+        if (at !== undefined && at > after) return at;
+      }
   }
   return undefined;
 }
@@ -170,20 +206,30 @@ function dayList(days: number[]): string {
 export function cronSummary(cron: string): string | undefined {
   const spec = parseCron(cron);
   if (!spec) return undefined;
-  const mins = sorted(spec.min), hours = sorted(spec.hour), doms = sorted(spec.dom), dows = sorted(spec.dow);
-  const minuteAll = coversAll(spec.min, 60), hourAll = coversAll(spec.hour, 24), domAll = coversAll(spec.dom, 31), monAll = coversAll(spec.mon, 12), dowAll = coversAll(spec.dow, 7);
+  const mins = sorted(spec.min),
+    hours = sorted(spec.hour),
+    doms = sorted(spec.dom),
+    dows = sorted(spec.dow);
+  const minuteAll = coversAll(spec.min, 60),
+    hourAll = coversAll(spec.hour, 24),
+    domAll = coversAll(spec.dom, 31),
+    monAll = coversAll(spec.mon, 12),
+    dowAll = coversAll(spec.dow, 7);
   const fallback = `Cron ${cron.trim().replace(/\s+/g, " ")}`;
   if (!spec.dom.star && !spec.dow.star) return fallback;
   if (!monAll) return fallback;
   if (minuteAll && hourAll && domAll && dowAll) return "Every minute";
   const minuteStep = fullStep(mins, 0, 59);
-  if (minuteStep !== undefined && hourAll && domAll && dowAll) return minuteStep === 1 ? "Every minute" : `Every ${minuteStep} minutes`;
+  if (minuteStep !== undefined && hourAll && domAll && dowAll)
+    return minuteStep === 1 ? "Every minute" : `Every ${minuteStep} minutes`;
   const hourStep = fullStep(hours, 0, 23);
   const onlyMinute = mins.length === 1 ? mins[0] : undefined;
   if (onlyMinute !== undefined && hourStep !== undefined && domAll && dowAll) {
     if (hourStep === 1 && onlyMinute === 0) return "Every hour";
     if (onlyMinute === 0) return `Every ${hourStep} hours`;
-    return hourStep === 1 ? `Every hour at minute ${String(onlyMinute).padStart(2, "0")}` : `Every ${hourStep} hours at minute ${String(onlyMinute).padStart(2, "0")}`;
+    return hourStep === 1
+      ? `Every hour at minute ${String(onlyMinute).padStart(2, "0")}`
+      : `Every ${hourStep} hours at minute ${String(onlyMinute).padStart(2, "0")}`;
   }
   const onlyHour = hours.length === 1 ? hours[0] : undefined;
   if (onlyMinute === undefined || onlyHour === undefined) return fallback;
@@ -226,12 +272,20 @@ export interface ScheduleDraft {
   cron: string;
 }
 
-export const DEFAULT_DRAFT: ScheduleDraft = { every: "day", n: 15, time: "09:00", days: [1], day: 1, cron: "0 9 * * *" };
+export const DEFAULT_DRAFT: ScheduleDraft = {
+  every: "day",
+  n: 15,
+  time: "09:00",
+  days: [1],
+  day: 1,
+  cron: "0 9 * * *",
+};
 
 export const timeParts = (time: string): { h: number; m: number } | null => {
   const hit = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
   if (!hit) return null;
-  const h = Number(hit[1]), m = Number(hit[2]);
+  const h = Number(hit[1]),
+    m = Number(hit[2]);
   return h >= 0 && h <= 23 && m >= 0 && m <= 59 ? { h, m } : null;
 };
 
@@ -273,29 +327,41 @@ export function draftFromCron(cron: string): ScheduleDraft {
   const num = (x: string): number | null => (/^\d+$/.test(x) ? Number(x) : null);
   if (mi === "*" && hr === "*" && dom === "*" && dow === "*") return { ...DEFAULT_DRAFT, every: "minutes", n: 1 };
   const step = /^\*\/(\d+)$/.exec(mi);
-  if (step && hr === "*" && dom === "*" && dow === "*") return { ...DEFAULT_DRAFT, every: "minutes", n: Number(step[1]) };
+  if (step && hr === "*" && dom === "*" && dow === "*")
+    return { ...DEFAULT_DRAFT, every: "minutes", n: Number(step[1]) };
   const m = num(mi);
   if (m === null) return custom;
   if (hr === "*" && dom === "*" && dow === "*") return { ...DEFAULT_DRAFT, every: "hours", n: 1, time: `00:${two(m)}` };
   const hstep = /^\*\/(\d+)$/.exec(hr);
-  if (hstep && dom === "*" && dow === "*") return { ...DEFAULT_DRAFT, every: "hours", n: Number(hstep[1]), time: `00:${two(m)}` };
+  if (hstep && dom === "*" && dow === "*")
+    return { ...DEFAULT_DRAFT, every: "hours", n: Number(hstep[1]), time: `00:${two(m)}` };
   const h = num(hr);
   if (h === null || h > 23 || m > 59) return custom;
   const time = `${two(h)}:${two(m)}`;
   if (dom === "*" && dow === "*") return { ...DEFAULT_DRAFT, every: "day", time };
   if (dom === "*" && dow === "1-5") return { ...DEFAULT_DRAFT, every: "weekdays", time };
-  if (dom === "*" && /^[0-6](,[0-6])*$/.test(dow)) return { ...DEFAULT_DRAFT, every: "week", time, days: dow.split(",").map(Number) };
+  if (dom === "*" && /^[0-6](,[0-6])*$/.test(dow))
+    return { ...DEFAULT_DRAFT, every: "week", time, days: dow.split(",").map(Number) };
   const d = num(dom);
   if (dow === "*" && d !== null && d >= 1 && d <= 31) return { ...DEFAULT_DRAFT, every: "month", time, day: d };
   return custom;
 }
 
-export interface ScheduleConfig { cron: string; timezone: string; missed: "skip" | "run_once" | "backfill_each_tick"; [key: string]: unknown }
+export interface ScheduleConfig {
+  cron: string;
+  timezone: string;
+  missed: "skip" | "run_once" | "backfill_each_tick";
+  [key: string]: unknown;
+}
 
 /** What the trigger holds, read for the picker. A schedule with no readable cron has `cron` empty and the picker shows the default choice. */
-export function scheduleOf(config: Record<string, unknown> | undefined, personTz: string): { cron: string; timezone: string; missed: ScheduleConfig["missed"]; draft: ScheduleDraft; set: boolean } {
+export function scheduleOf(
+  config: Record<string, unknown> | undefined,
+  personTz: string,
+): { cron: string; timezone: string; missed: ScheduleConfig["missed"]; draft: ScheduleDraft; set: boolean } {
   const cron = typeof config?.["cron"] === "string" ? config["cron"].trim() : "";
-  const tz = typeof config?.["timezone"] === "string" && validTimeZone(config["timezone"]) ? config["timezone"] : personTz;
+  const tz =
+    typeof config?.["timezone"] === "string" && validTimeZone(config["timezone"]) ? config["timezone"] : personTz;
   const m = config?.["missed"];
   const missed = m === "run_once" || m === "backfill_each_tick" ? m : "skip";
   const set = cron !== "" && parseCron(cron) !== undefined;
@@ -303,7 +369,11 @@ export function scheduleOf(config: Record<string, unknown> | undefined, personTz
 }
 
 /** The config to store after an edit: the other keys the trigger holds stay. Null when the choice is not complete, so nothing half-made is saved. */
-export function configFromDraft(prev: Record<string, unknown> | undefined, draft: ScheduleDraft, timezone: string): ScheduleConfig | null {
+export function configFromDraft(
+  prev: Record<string, unknown> | undefined,
+  draft: ScheduleDraft,
+  timezone: string,
+): ScheduleConfig | null {
   const cron = cronFromDraft(draft);
   if (cron === null) return null;
   const m = prev?.["missed"];
@@ -314,9 +384,13 @@ export function configFromDraft(prev: Record<string, unknown> | undefined, draft
 /** The problem with an incomplete choice, in words. Null when it is complete. */
 export function draftProblem(d: ScheduleDraft): string | null {
   if (cronFromDraft(d) !== null) return null;
-  if (d.every === "cron") return d.cron.trim() === "" ? "Write a cron line: minute hour day month weekday." : "That is not a cron line. Use five fields: minute hour day month weekday.";
+  if (d.every === "cron")
+    return d.cron.trim() === ""
+      ? "Write a cron line: minute hour day month weekday."
+      : "That is not a cron line. Use five fields: minute hour day month weekday.";
   if (d.every === "minutes") return "Minutes must be a whole number from 1 to 59.";
-  if (d.every === "hours" && (!Number.isInteger(d.n) || d.n < 1 || d.n > 23)) return "Hours must be a whole number from 1 to 23.";
+  if (d.every === "hours" && (!Number.isInteger(d.n) || d.n < 1 || d.n > 23))
+    return "Hours must be a whole number from 1 to 23.";
   if (!timeParts(d.time)) return "Write the time as hours and minutes, such as 09:00.";
   if (d.every === "week") return "Pick at least one day.";
   return "The day of the month must be from 1 to 31.";

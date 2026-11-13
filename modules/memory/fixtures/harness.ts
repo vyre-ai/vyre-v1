@@ -13,8 +13,15 @@ export const NOW = 1_760_000_000_000;
 export const DAY = 86_400_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
-export interface Emitted { name: string; subject: string; payload: Record<string, unknown> }
-export interface Called { cap: string; input: Record<string, unknown> }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+}
+export interface Called {
+  cap: string;
+  input: Record<string, unknown>;
+}
 export type Responder = (input: Record<string, unknown>) => unknown;
 
 export interface HarnessOptions {
@@ -53,7 +60,10 @@ export function harness(o: HarnessOptions = {}) {
   const emitted: Emitted[] = [];
   const called: Called[] = [];
   // by default a chat holds the one person asking; a test of a shared chat answers threads.get itself
-  const respond: Record<string, Responder> = { "threads.get": () => ({ thread: { kind: "chat", members: [{ kind: "person", id: "usr_dana" }] } }), ...(o.respond ?? {}) };
+  const respond: Record<string, Responder> = {
+    "threads.get": () => ({ thread: { kind: "chat", members: [{ kind: "person", id: "usr_dana" }] } }),
+    ...(o.respond ?? {}),
+  };
   const deny = new Set(o.deny ?? []);
   const readOnly = new Set(o.readOnly ?? []);
   const settings: Record<string, unknown> = { ...(o.settings ?? {}) };
@@ -81,11 +91,21 @@ export function harness(o: HarnessOptions = {}) {
         const got = (await ctx.call("files.read", { fileId: body["fileId"], as: "text" })) as { text?: string };
         return { state: "clear", name: "", path: "", text: got.text ?? "" };
       }
-      if (cap === "agents.get") return { agent: { folderId: `fld_${String(body["agentId"]).replace(/^agt_/, "")}`, ownerId: "usr_boss" } };
+      if (cap === "agents.get")
+        return { agent: { folderId: `fld_${String(body["agentId"]).replace(/^agt_/, "")}`, ownerId: "usr_boss" } };
       // the folder's own shares: by default the asker holds a direct grant, so a test that is not about inheritance keeps editing; a test that is sets respond["access.shares_of"]
-      if (cap === "access.shares_of") return { shares: [{ grant: { subject: { kind: "person", id: ctx.principal.id }, level: "manage" }, through: "direct" }] };
-      if (cap === "projects.get") return { project: { folderId: `fld_${String(body["projectId"]).replace(/^prj_/, "")}`, lead: "usr_lead" } };
-      if (cap === "settings.get") return { row: settings[String(body["key"])] === undefined ? undefined : { value: settings[String(body["key"])] } };
+      if (cap === "access.shares_of")
+        return {
+          shares: [
+            { grant: { subject: { kind: "person", id: ctx.principal.id }, level: "manage" }, through: "direct" },
+          ],
+        };
+      if (cap === "projects.get")
+        return { project: { folderId: `fld_${String(body["projectId"]).replace(/^prj_/, "")}`, lead: "usr_lead" } };
+      if (cap === "settings.get")
+        return {
+          row: settings[String(body["key"])] === undefined ? undefined : { value: settings[String(body["key"])] },
+        };
       if (cap === "tasks.create") return { task: { id: `tsk_prom${++tasks}` } };
       if (cap === "tasks.transition") return { task: { id: String(body["taskId"]) } };
       throw new Error(`unexpected capability ${cap}`);
@@ -99,59 +119,151 @@ export function harness(o: HarnessOptions = {}) {
     },
     mayAll(people, action, resource) {
       const key = `${resource.type}:${resource.id}`;
-      return people.every((p) => !(o.denyFor?.[p] ?? []).includes(key) && !(action.level !== "view" && readOnly.has(key)));
+      return people.every(
+        (p) => !(o.denyFor?.[p] ?? []).includes(key) && !(action.level !== "view" && readOnly.has(key)),
+      );
     },
     seal: SEAL,
     log: { warn() {} },
   };
   return {
-    ctx, raw, db, emitted, called, clock, respond, settings,
-    advance(ms: number) { clock.t += ms; },
-    setAdmin(v: boolean) { admin = v; },
-    deny(key: string) { deny.add(key); },
-    allow(key: string) { deny.delete(key); },
-    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] { return db.all(sql, ...args) as Record<string, unknown>[]; },
-    named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
-    calls(cap: string): Called[] { return called.filter((c) => c.cap === cap); },
+    ctx,
+    raw,
+    db,
+    emitted,
+    called,
+    clock,
+    respond,
+    settings,
+    advance(ms: number) {
+      clock.t += ms;
+    },
+    setAdmin(v: boolean) {
+      admin = v;
+    },
+    deny(key: string) {
+      deny.add(key);
+    },
+    allow(key: string) {
+      deny.delete(key);
+    },
+    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] {
+      return db.all(sql, ...args) as Record<string, unknown>[];
+    },
+    named(name: string): Emitted[] {
+      return emitted.filter((e) => e.name === name);
+    },
+    calls(cap: string): Called[] {
+      return called.filter((c) => c.cap === cap);
+    },
   };
 }
 
 export type Harness = ReturnType<typeof harness>;
 
 /** The same database and clock as another caller (a second person on one Space). */
-export function asPerson(h: Harness, principal: MemCtx["principal"], extra: Omit<HarnessOptions, "raw" | "principal" | "clock"> = {}): Harness {
+export function asPerson(
+  h: Harness,
+  principal: MemCtx["principal"],
+  extra: Omit<HarnessOptions, "raw" | "principal" | "clock"> = {},
+): Harness {
   return harness({ ...extra, raw: h.raw, principal, clock: h.clock });
 }
 
 export interface SeedFact {
-  id: string; layer: Layer; text: string; owner?: string; agentId?: string | null; projectId?: string | null; kind?: string | null; status?: "proposed" | "current" | "closed" | "removed";
-  validFrom?: number; validTo?: number | null; learnedAt?: number; sourceKind?: string; sourceRef?: string; sourcePerson?: string; noteId?: string | null; lowRisk?: boolean;
+  id: string;
+  layer: Layer;
+  text: string;
+  owner?: string;
+  agentId?: string | null;
+  projectId?: string | null;
+  kind?: string | null;
+  status?: "proposed" | "current" | "closed" | "removed";
+  validFrom?: number;
+  validTo?: number | null;
+  learnedAt?: number;
+  sourceKind?: string;
+  sourceRef?: string;
+  sourcePerson?: string;
+  noteId?: string | null;
+  lowRisk?: boolean;
 }
 
 /** Insert a fact row exactly as given (sealed for a person layer), so a test controls its dates and status. */
 export function seedFact(h: Harness, f: SeedFact): void {
   ensure(h.db);
-  const owner = f.owner ?? (f.layer === "person" ? "usr_dana" : f.layer === "agent" ? f.agentId ?? "agt_intake" : f.layer === "project" ? f.projectId ?? "prj_harlow" : "spc_memorytest");
+  const owner =
+    f.owner ??
+    (f.layer === "person"
+      ? "usr_dana"
+      : f.layer === "agent"
+        ? (f.agentId ?? "agt_intake")
+        : f.layer === "project"
+          ? (f.projectId ?? "prj_harlow")
+          : "spc_memorytest");
   const sealed = f.layer === "person";
   h.db.run(
     "INSERT INTO memory_facts (id, layer, owner_ref, agent_id, project_id, note_id, kind, text, sealed, enc, valid_from, valid_to, learned_at, closed_at, source_kind, source_ref, source_link, source_person, proposed_by, status, low_risk, subject, replaces, promoted_from, promoted_by, promoted_at) " +
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL)",
-    f.id, f.layer, owner, f.agentId ?? null, f.projectId ?? null, f.noteId ?? null, f.kind ?? null, sealed ? "" : f.text, sealed ? sealText(h.ctx, owner, f.text) : null, sealed ? 2 : 0,
-    f.validFrom ?? NOW - 30 * DAY, f.validTo ?? null, f.learnedAt ?? NOW - 30 * DAY, f.status === "closed" || f.status === "removed" ? (f.validTo ?? NOW - 5 * DAY) : null,
-    f.sourceKind ?? "chat", f.sourceRef ?? "thr_seed", f.sourcePerson ?? owner, f.sourcePerson ?? owner, f.status ?? "current", f.lowRisk ? 1 : 0,
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL)",
+    f.id,
+    f.layer,
+    owner,
+    f.agentId ?? null,
+    f.projectId ?? null,
+    f.noteId ?? null,
+    f.kind ?? null,
+    sealed ? "" : f.text,
+    sealed ? sealText(h.ctx, owner, f.text) : null,
+    sealed ? 2 : 0,
+    f.validFrom ?? NOW - 30 * DAY,
+    f.validTo ?? null,
+    f.learnedAt ?? NOW - 30 * DAY,
+    f.status === "closed" || f.status === "removed" ? (f.validTo ?? NOW - 5 * DAY) : null,
+    f.sourceKind ?? "chat",
+    f.sourceRef ?? "thr_seed",
+    f.sourcePerson ?? owner,
+    f.sourcePerson ?? owner,
+    f.status ?? "current",
+    f.lowRisk ? 1 : 0,
   );
 }
 
-export interface SeedNote { fileId: string; title: string; body: string; layer: Layer; agentId?: string | null; projectId?: string | null; path?: string; area?: string; owner?: string }
+export interface SeedNote {
+  fileId: string;
+  title: string;
+  body: string;
+  layer: Layer;
+  agentId?: string | null;
+  projectId?: string | null;
+  path?: string;
+  area?: string;
+  owner?: string;
+}
 
 /** Insert a note index row, as index_graph would. */
 export function seedNote(h: Harness, n: SeedNote): string {
   ensure(h.db);
   const noteId = `not_${n.fileId.replace(/^[a-z]+_/, "")}`;
-  const owner = n.owner ?? (n.layer === "agent" ? n.agentId ?? "agt_intake" : n.layer === "project" ? n.projectId ?? "prj_harlow" : "spc_memorytest");
+  const owner =
+    n.owner ??
+    (n.layer === "agent"
+      ? (n.agentId ?? "agt_intake")
+      : n.layer === "project"
+        ? (n.projectId ?? "prj_harlow")
+        : "spc_memorytest");
   h.db.run(
     "INSERT INTO memory_notes (note_id, file_id, path, title, sealed_title, layer, owner_ref, agent_id, project_id, area, body, updated_at) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)",
-    noteId, n.fileId, n.path ?? `Agents/${n.agentId ?? "x"}/memory/notes/${n.title}.md`, n.title, n.layer, owner, n.agentId ?? null, n.projectId ?? null, n.area ?? "notes", n.body, NOW - 10 * DAY,
+    noteId,
+    n.fileId,
+    n.path ?? `Agents/${n.agentId ?? "x"}/memory/notes/${n.title}.md`,
+    n.title,
+    n.layer,
+    owner,
+    n.agentId ?? null,
+    n.projectId ?? null,
+    n.area ?? "notes",
+    n.body,
+    NOW - 10 * DAY,
   );
   return noteId;
 }

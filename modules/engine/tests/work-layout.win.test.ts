@@ -5,7 +5,16 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { SHARED_FOLDER, idOfSegment, layoutRoots, scratchFolder, segmentOf, sharedFolder, workFolder, workParts } from "../sandbox.ts";
+import {
+  SHARED_FOLDER,
+  idOfSegment,
+  layoutRoots,
+  scratchFolder,
+  segmentOf,
+  sharedFolder,
+  workFolder,
+  workParts,
+} from "../sandbox.ts";
 
 const tmp = (): string => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-layout-")));
 
@@ -20,10 +29,19 @@ test("Windows: a work folder is w\\<10 hex>\\<10 hex>, the scratch folder s\\<10
   assert.match(rel[2]!, /^[0-9a-f]{10}$/);
   assert.equal(path.relative(data, w).length, 23, "w + two 10-character segments");
   assert.equal(path.relative(data, scratchFolder(data, person, "win32")), path.join("s", rel[1]!));
-  assert.deepEqual(workParts(data, w, "win32"), { person, threadId: thread, workRoot: path.join(data, "w"), personSeg: rel[1] });
+  assert.deepEqual(workParts(data, w, "win32"), {
+    person,
+    threadId: thread,
+    workRoot: path.join(data, "w"),
+    personSeg: rel[1],
+  });
   assert.equal(workFolder(data, person, thread, undefined, "win32"), w, "the same ids give the same folder");
   assert.notEqual(workFolder(data, person, "thr_other", undefined, "win32"), w);
-  assert.equal(workParts(data, path.join(data, "w", "0000000000", rel[2]!), "win32"), null, "a folder Vyre did not make is no one's");
+  assert.equal(
+    workParts(data, path.join(data, "w", "0000000000", rel[2]!), "win32"),
+    null,
+    "a folder Vyre did not make is no one's",
+  );
   assert.equal(idOfSegment(data, "thread", rel[1]!, "win32"), null, "a person's segment is not a thread's");
   assert.deepEqual(layoutRoots("win32"), { work: "w", scratch: "s" });
 });
@@ -38,8 +56,18 @@ test("Windows: an agent's own folder in a chat is one more short segment, and th
   assert.equal(rel.length, 4);
   assert.match(rel[3]!, /^[0-9a-f]{10}$/);
   assert.equal(path.relative(data, a).length, 34, "w + three 10-character segments");
-  assert.deepEqual(workParts(data, a, "win32"), { person, threadId: thread, agent, workRoot: path.join(data, "w"), personSeg: rel[1] });
-  assert.notEqual(workFolder(data, person, thread, "agt_other", "win32"), a, "two agents in one chat never share a folder");
+  assert.deepEqual(workParts(data, a, "win32"), {
+    person,
+    threadId: thread,
+    agent,
+    workRoot: path.join(data, "w"),
+    personSeg: rel[1],
+  });
+  assert.notEqual(
+    workFolder(data, person, thread, "agt_other", "win32"),
+    a,
+    "two agents in one chat never share a folder",
+  );
   const shared = sharedFolder(data, person, thread, "win32");
   assert.equal(path.basename(shared), SHARED_FOLDER);
   assert.equal(path.dirname(shared), path.dirname(a));
@@ -64,9 +92,20 @@ test("a Mac and Linux keep work/<person>/<thread> and scratch/<person>", () => {
   const w = workFolder(data, "usr_dana", "thr_1", undefined, "linux");
   assert.equal(w, path.join(data, "work", "usr_dana", "thr_1"));
   assert.equal(scratchFolder(data, "usr_dana", "linux"), path.join(data, "scratch", "usr_dana"));
-  assert.deepEqual(workParts(data, w, "linux"), { person: "usr_dana", threadId: "thr_1", workRoot: path.join(data, "work"), personSeg: "usr_dana" });
+  assert.deepEqual(workParts(data, w, "linux"), {
+    person: "usr_dana",
+    threadId: "thr_1",
+    workRoot: path.join(data, "work"),
+    personSeg: "usr_dana",
+  });
   const a = workFolder(data, "usr_dana", "thr_1", "agt_intake", "linux");
   assert.equal(a, path.join(data, "work", "usr_dana", "thr_1", "agt_intake"));
-  assert.deepEqual(workParts(data, a, "linux"), { person: "usr_dana", threadId: "thr_1", agent: "agt_intake", workRoot: path.join(data, "work"), personSeg: "usr_dana" });
+  assert.deepEqual(workParts(data, a, "linux"), {
+    person: "usr_dana",
+    threadId: "thr_1",
+    agent: "agt_intake",
+    workRoot: path.join(data, "work"),
+    personSeg: "usr_dana",
+  });
   assert.equal(fs.existsSync(path.join(data, "w-ids")), false);
 });

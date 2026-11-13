@@ -10,27 +10,59 @@ import { routeDesktopLink } from "../session/desktop.ts";
 import type { Judge } from "./target.ts";
 
 const judgeOf = (denied: string[] = []): Judge => ({
-  viewer: () => ({ id: "usr_maya" }), consolePages: async () => new Set(), memo: new Map(),
-  call: async (cap) => { if (denied.includes(cap)) throw Object.assign(new Error("no"), { code: "permission.no_grant" }); return {}; },
+  viewer: () => ({ id: "usr_maya" }),
+  consolePages: async () => new Set(),
+  memo: new Map(),
+  call: async (cap) => {
+    if (denied.includes(cap)) throw Object.assign(new Error("no"), { code: "permission.no_grant" });
+    return {};
+  },
 });
 
 test("the path is read strictly: /open/<kind>/<id> only", () => {
   assert.deepEqual(parseOpenPath("/open/file/fil_1"), { kind: "file", id: "fil_1" });
   assert.deepEqual(parseOpenPath("/open/vault/vit_1/"), { kind: "vault", id: "vit_1" });
-  for (const bad of ["/open", "/open/file", "/open/file/a/b", "/open/File/x", "/open/file/%zz", "/open/file/a b", "/chat", "/open/../x/y"]) assert.equal(parseOpenPath(bad), null, bad);
+  for (const bad of [
+    "/open",
+    "/open/file",
+    "/open/file/a/b",
+    "/open/File/x",
+    "/open/file/%zz",
+    "/open/file/a b",
+    "/chat",
+    "/open/../x/y",
+  ])
+    assert.equal(parseOpenPath(bad), null, bad);
 });
 
 test("one message's link, /open/message/<threadId>/<messageId>, opens its chat on that message, and reach reads the chat", async () => {
   const item = parseOpenPath("/open/message/thr_a/msg_9");
   assert.deepEqual(item, { kind: "message", id: "thr_a", at: "msg_9" });
   assert.deepEqual(targetOfOpen(item!), { subject: { type: "thread", id: "thr_a" }, args: { m: "msg_9" } });
-  for (const bad of ["/open/message/thr_a/msg 9", "/open/message/thr_a/%zz", "/open/message/thr_a/m/x"]) assert.equal(parseOpenPath(bad), null, bad);
-  assert.deepEqual(targetOfOpen(parseOpenPath("/open/message/thr_a")!), { subject: { type: "thread", id: "thr_a" } }, "without a message it is the chat");
+  for (const bad of ["/open/message/thr_a/msg 9", "/open/message/thr_a/%zz", "/open/message/thr_a/m/x"])
+    assert.equal(parseOpenPath(bad), null, bad);
+  assert.deepEqual(
+    targetOfOpen(parseOpenPath("/open/message/thr_a")!),
+    { subject: { type: "thread", id: "thr_a" } },
+    "without a message it is the chat",
+  );
   const asked: string[] = [];
-  const no = await decideOpen(item!, { viewer: () => ({ id: "usr_b", spaceId: "spc_1" }), call: async (cap) => { asked.push(cap); throw Object.assign(new Error("no"), { code: "permission.no_grant" }); }, consolePages: async () => new Set<string>(), memo: new Map() });
+  const no = await decideOpen(item!, {
+    viewer: () => ({ id: "usr_b", spaceId: "spc_1" }),
+    call: async (cap) => {
+      asked.push(cap);
+      throw Object.assign(new Error("no"), { code: "permission.no_grant" });
+    },
+    consolePages: async () => new Set<string>(),
+    memo: new Map(),
+  });
   assert.deepEqual(asked, ["threads.get"], "the chat is read before the message is shown");
   assert.equal(no.to, "peek");
-  assert.deepEqual(no.to === "peek" ? no.ask : null, { type: "thread", id: "thr_a" }, "Ask for access asks for the chat");
+  assert.deepEqual(
+    no.to === "peek" ? no.ask : null,
+    { type: "thread", id: "thr_a" },
+    "Ask for access asks for the chat",
+  );
 });
 
 const KINDS: Array<[string, string, string, Record<string, unknown>]> = [
@@ -69,11 +101,17 @@ test("a person with access goes to the page; one without gets the safe peek, nev
 });
 
 test("records, record types, notes and Vault items are checked before the page opens: none lands on the page's own refusal", async () => {
-  const j = (level: string, denyNote = false): Judge => ({ viewer: () => ({ id: "u" }), consolePages: async () => new Set(), memo: new Map(), call: async (cap, input) => {
-    if (cap === "access.reach") return { items: (input as { items: Array<{ type: string; id: string }> }).items.map((x) => ({ ...x, level })) };
-    if (cap === "memory.read_note" && denyNote) throw Object.assign(new Error("no"), { code: "permission.no_grant" });
-    return {};
-  } });
+  const j = (level: string, denyNote = false): Judge => ({
+    viewer: () => ({ id: "u" }),
+    consolePages: async () => new Set(),
+    memo: new Map(),
+    call: async (cap, input) => {
+      if (cap === "access.reach")
+        return { items: (input as { items: Array<{ type: string; id: string }> }).items.map((x) => ({ ...x, level })) };
+      if (cap === "memory.read_note" && denyNote) throw Object.assign(new Error("no"), { code: "permission.no_grant" });
+      return {};
+    },
+  });
   for (const kind of ["record", "record_type", "vault"]) {
     assert.equal((await decideOpen({ kind, id: "x1" }, j("view"))).to, "open", `${kind} with access`);
     const d = await decideOpen({ kind, id: "x1" }, j("none"));
@@ -91,7 +129,9 @@ test("a link to something no page shows still ends somewhere: a peek that says s
 
 test("a signed-out visitor's link is held through sign-in and acted on once, after", () => {
   let told = 0;
-  const off = onOpenHeld(() => { told++; });
+  const off = onOpenHeld(() => {
+    told++;
+  });
   holdOpen({ kind: "file", id: "fil_1" });
   assert.deepEqual(peekOpen(), { kind: "file", id: "fil_1" }, "still there while the sign-in screen shows");
   assert.deepEqual(takeOpen(), { kind: "file", id: "fil_1" });
@@ -101,9 +141,15 @@ test("a signed-out visitor's link is held through sign-in and acted on once, aft
 });
 
 test("the desktop deep link names the Space, the kind and the id; anything malformed is plain sign-in", () => {
-  const r = routeDesktopLink({ action: "open", params: { address: "https://acme.vyre.run", kind: "file", id: "fil_1" } });
+  const r = routeDesktopLink({
+    action: "open",
+    params: { address: "https://acme.vyre.run", kind: "file", id: "fil_1" },
+  });
   assert.deepEqual(r && r.kind === "signin" ? r.item : null, { kind: "file", id: "fil_1" });
-  const bad = routeDesktopLink({ action: "open", params: { address: "https://acme.vyre.run", kind: "File!", id: "x" } });
+  const bad = routeDesktopLink({
+    action: "open",
+    params: { address: "https://acme.vyre.run", kind: "File!", id: "x" },
+  });
   assert.equal(bad && bad.kind === "signin" ? bad.item : "x", undefined);
   assert.equal(routeDesktopLink({ action: "open", params: { kind: "file", id: "fil_1" } }), null, "no address");
 });
@@ -114,20 +160,35 @@ test("the link acts once a Space is open: a person with access is taken there; a
     const log = { opened: [] as unknown[], went: [] as string[], calls: [] as Array<[string, unknown]> };
     const denied: string[] = [];
     const rt = {
-      call: async (cap: string, input: unknown) => { log.calls.push([cap, input]); if (denied.includes(cap)) throw Object.assign(new Error("no"), { code: "permission.no_grant" }); return {}; },
-      open: (t: unknown) => { log.opened.push(t); },
+      call: async (cap: string, input: unknown) => {
+        log.calls.push([cap, input]);
+        if (denied.includes(cap)) throw Object.assign(new Error("no"), { code: "permission.no_grant" });
+        return {};
+      },
+      open: (t: unknown) => {
+        log.opened.push(t);
+      },
     };
-    const hub = { go: (p: string) => { log.went.push(p); } } as never;
+    const hub = {
+      go: (p: string) => {
+        log.went.push(p);
+      },
+    } as never;
     let made: { unmount(): void } | null = null;
-    const root = await mount(() => (made = createRoot()), <OpenLink hub={hub} rt={rt as never} me="usr_maya" spaceId="spc_1" />);
+    const root = await mount(
+      () => (made = createRoot()),
+      <OpenLink hub={hub} rt={rt as never} me="usr_maya" spaceId="spc_1" />,
+    );
     holdOpen({ kind: "file", id: "fil_1" });
-    await flush(); await flush();
+    await flush();
+    await flush();
     assert.deepEqual(log.opened, [{ subject: { type: "file", id: "fil_1" } }]);
     assert.equal(find(root, "open-link-peek"), null);
 
     denied.push("files.get");
     holdOpen({ kind: "file", id: "fil_2" });
-    await flush(); await flush();
+    await flush();
+    await flush();
     assert.equal(log.opened.length, 1, "the page never opens");
     assert.deepEqual(log.went, ["chats"], "the person lands somewhere");
     assert.ok(textOf(find(root, "open-link-peek") as never).includes("A file you don't have access to"));
@@ -136,25 +197,69 @@ test("the link acts once a Space is open: a person with access is taken there; a
     assert.ok(find(root, "open-link-asked"));
     assert.equal(log.calls.at(-1)![0], "access.request");
     // gone, so its link listener does not take a later test's link
-    await act(async () => { (made as { unmount(): void } | null)?.unmount(); });
-  } finally { restore(); }
+    await act(async () => {
+      (made as { unmount(): void } | null)?.unmount();
+    });
+  } finally {
+    restore();
+  }
 });
 
 test("a link to the Console place (a notice email, a banner, any outside page) opens Console only for someone Console lets in; anyone else lands in their Inbox", async () => {
   const restore = installDom();
   try {
-    for (const [nav, want] of [[{ groups: [{ pages: [{ key: "mail.domains" }] }] }, "console"], [null, "inbox"], [{ groups: [] }, "inbox"]] as const) {
+    for (const [nav, want] of [
+      [{ groups: [{ pages: [{ key: "mail.domains" }] }] }, "console"],
+      [null, "inbox"],
+      [{ groups: [] }, "inbox"],
+    ] as const) {
       const went: string[] = [];
-      const rt = { call: async (cap: string) => { if (cap === "console.nav") { if (nav === null) throw Object.assign(new Error("no"), { code: "permission.no_grant" }); return nav; } return {}; }, open: () => undefined };
+      const rt = {
+        call: async (cap: string) => {
+          if (cap === "console.nav") {
+            if (nav === null) throw Object.assign(new Error("no"), { code: "permission.no_grant" });
+            return nav;
+          }
+          return {};
+        },
+        open: () => undefined,
+      };
       let made: { unmount(): void } | null = null;
-      await mount(() => (made = createRoot()), <OpenLink hub={{ go: (p: string) => { went.push(p); } } as never} rt={rt as never} me="usr_maya" spaceId="spc_1" />);
+      await mount(
+        () => (made = createRoot()),
+        <OpenLink
+          hub={
+            {
+              go: (p: string) => {
+                went.push(p);
+              },
+            } as never
+          }
+          rt={rt as never}
+          me="usr_maya"
+          spaceId="spc_1"
+        />,
+      );
       // the exact link a notice email carries (host/src/seams/notify-mail.ts noticeLink), as the desktop hands it over
-      const route = routeDesktopLink({ action: "open", params: { address: "https://northwind.vyre.run", kind: "place", id: "console" } } as never);
-      assert.deepEqual(route, { kind: "signin", address: "https://northwind.vyre.run", item: { kind: "place", id: "console" } });
+      const route = routeDesktopLink({
+        action: "open",
+        params: { address: "https://northwind.vyre.run", kind: "place", id: "console" },
+      } as never);
+      assert.deepEqual(route, {
+        kind: "signin",
+        address: "https://northwind.vyre.run",
+        item: { kind: "place", id: "console" },
+      });
       holdOpen(route!.kind === "signin" ? route!.item! : { kind: "", id: "" });
-      await flush(); await flush(); await flush();
+      await flush();
+      await flush();
+      await flush();
       assert.deepEqual(went, [want], JSON.stringify(nav));
-      await act(async () => { (made as { unmount(): void } | null)?.unmount(); });
+      await act(async () => {
+        (made as { unmount(): void } | null)?.unmount();
+      });
     }
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

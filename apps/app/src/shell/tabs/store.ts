@@ -53,7 +53,13 @@ export function tabKey(place: PlaceId, hash?: string): string {
 }
 
 /** Screens inside Chats that are a tab of their own, with the tab's name. */
-const OWN_TAB: Readonly<Record<string, string>> = { "tasks.my-work": "Tasks", "inbox.replies": "Replies", "chats.artifacts": "Artifacts", "chats.notes": "Notes", "chats.agent-form": "New agent" };
+const OWN_TAB: Readonly<Record<string, string>> = {
+  "tasks.my-work": "Tasks",
+  "inbox.replies": "Replies",
+  "chats.artifacts": "Artifacts",
+  "chats.notes": "Notes",
+  "chats.agent-form": "New agent",
+};
 
 /** What a chat tab is called while the chat has no name and no message. */
 export const NEW_CHAT = "New chat";
@@ -65,7 +71,12 @@ export function screenTitle(hash: string | undefined): string | undefined {
   // a chat is never named for its place: "New chat" until its own name or first message arrives
   if (t.subject !== undefined && (t.subject.type === "thread" || t.subject.type === "chat")) return NEW_CHAT;
   // an agent's page or its form, until the agent's name arrives
-  if ((t.screen === "chats.agent-page" || t.screen === "chats.agent-form") && typeof t.args["agentId"] === "string" && t.args["agentId"] !== "") return t.screen === "chats.agent-form" ? "Edit agent" : "Agent";
+  if (
+    (t.screen === "chats.agent-page" || t.screen === "chats.agent-form") &&
+    typeof t.args["agentId"] === "string" &&
+    t.args["agentId"] !== ""
+  )
+    return t.screen === "chats.agent-form" ? "Edit agent" : "Agent";
   if (t.subject !== undefined && t.subject.type === "agent") return "Agent";
   return t.screen === undefined ? undefined : OWN_TAB[t.screen];
 }
@@ -80,7 +91,10 @@ export function activeEntry(state: TabsState): TabEntry | undefined {
 
 /** The tab that holds `key`: the one opened on it, else a place's tab that is showing it now (the Inbox tab on that conversation). */
 function holding(state: TabsState, key: string, except?: TabEntry): TabEntry | undefined {
-  return state.tabs.find((t) => t !== except && t.key === key) ?? state.tabs.find((t) => t !== except && t.isNew !== true && tabKey(t.place, t.hash) === key);
+  return (
+    state.tabs.find((t) => t !== except && t.key === key) ??
+    state.tabs.find((t) => t !== except && t.isNew !== true && tabKey(t.place, t.hash) === key)
+  );
 }
 
 /** Opens a tab or selects the one already open with that key (or showing it). `background` opens it behind the current tab (Cmd-click). */
@@ -90,12 +104,16 @@ export function openTab(state: TabsState, tab: TabEntry, background = false, exa
     if (background) return state;
     // the tab follows where its place went (a new screen inside it), so coming back lands there
     const moved = tab.hash !== undefined && tab.hash !== at.hash && !at.isNew;
-    return { tabs: moved ? state.tabs.map((t) => (t === at ? { ...t, hash: tab.hash as string } : t)) : state.tabs, active: at.key };
+    return {
+      tabs: moved ? state.tabs.map((t) => (t === at ? { ...t, hash: tab.hash as string } : t)) : state.tabs,
+      active: at.key,
+    };
   }
   // a place that already has a tab is that tab: opening the place (no item named) goes to the one it has, the one on screen first, else the one used last; one tab per place, and one per chat or record
   if (tab.hash === undefined && tab.isNew !== true && !exact) {
     const same = state.tabs.filter((t) => t.place === tab.place && t.isNew !== true);
-    const there = same.find((t) => t.key === state.active) ?? [...same].sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0] ?? undefined;
+    const there =
+      same.find((t) => t.key === state.active) ?? [...same].sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0] ?? undefined;
     if (there !== undefined) return background ? state : { tabs: state.tabs, active: there.key };
   }
   const tabs = [...state.tabs, tab];
@@ -117,7 +135,7 @@ export function moveTab(state: TabsState, place: PlaceId, hash: string | undefin
   const next: TabEntry = {
     key: own ? cur.key : tab.key,
     // a place's tab keeps its name; a tab that now shows another item starts from the place's name until that item's name arrives (hub.retitle)
-    title: own ? cur.title : title ?? PLACE_TITLE[place],
+    title: own ? cur.title : (title ?? PLACE_TITLE[place]),
     place,
     ...(hash === undefined || hash === "" ? {} : { hash }),
     ...(cur.pinned === true ? { pinned: true } : {}),
@@ -135,7 +153,8 @@ export function landOn(state: TabsState, place: PlaceId): TabsState {
   const own = state.tabs.find((t) => t.key === key && t.isNew !== true);
   if (own !== undefined) return selectTab(state, own.key);
   const cur = activeEntry(state);
-  if (cur === undefined || cur.isNew === true || cur.place !== place) return openTab(state, placeTab(place), false, true);
+  if (cur === undefined || cur.isNew === true || cur.place !== place)
+    return openTab(state, placeTab(place), false, true);
   const next: TabEntry = { key, title: PLACE_TITLE[place], place, ...(cur.pinned === true ? { pinned: true } : {}) };
   return { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: key };
 }
@@ -172,13 +191,20 @@ export function pinTab(state: TabsState, key: string, on: boolean): TabsState {
   const pinned = rest.filter((t) => t.pinned === true);
   const loose = rest.filter((t) => t.pinned !== true);
   const { pinned: _p, ...plain } = tab;
-  return on ? { tabs: [...pinned, { ...plain, pinned: true }, ...loose], active: state.active } : { tabs: [...pinned, plain, ...loose], active: state.active };
+  return on
+    ? { tabs: [...pinned, { ...plain, pinned: true }, ...loose], active: state.active }
+    : { tabs: [...pinned, plain, ...loose], active: state.active };
 }
 
 /** The unpinned tabs to the right of `key`, nearest first. */
 export function keysToTheRight(state: TabsState, key: string): string[] {
   const at = state.tabs.findIndex((t) => t.key === key);
-  return at < 0 ? [] : state.tabs.slice(at + 1).filter((t) => t.pinned !== true).map((t) => t.key);
+  return at < 0
+    ? []
+    : state.tabs
+        .slice(at + 1)
+        .filter((t) => t.pinned !== true)
+        .map((t) => t.key);
 }
 
 /** Puts the tabs in the order of `keys`. Unknown keys are ignored; tabs missing from `keys` keep their relative order at the end. */
@@ -187,7 +213,10 @@ export function reorderTabs(state: TabsState, keys: readonly string[]): TabsStat
   const out: TabEntry[] = [];
   for (const k of keys) {
     const t = by.get(k);
-    if (t !== undefined) { out.push(t); by.delete(k); }
+    if (t !== undefined) {
+      out.push(t);
+      by.delete(k);
+    }
   }
   for (const t of state.tabs) if (by.has(t.key)) out.push(t);
   return { tabs: out, active: state.active };
@@ -195,7 +224,12 @@ export function reorderTabs(state: TabsState, keys: readonly string[]): TabsStat
 
 /** A place's own tab, or an item inside it. */
 export function placeTab(place: PlaceId, hash?: string, title?: string): TabEntry {
-  return { key: tabKey(place, hash), title: title ?? PLACE_TITLE[place], place, ...(hash === undefined || hash === "" ? {} : { hash }) };
+  return {
+    key: tabKey(place, hash),
+    title: title ?? PLACE_TITLE[place],
+    place,
+    ...(hash === undefined || hash === "" ? {} : { hash }),
+  };
 }
 
 let newCounter = 0;
@@ -229,7 +263,8 @@ export function tabsStorageKey(deviceId: string, personId: string, spaceId: stri
 const ONE_TAB_PLACES: readonly PlaceId[] = ["inbox"];
 
 export function dedupeTabs(state: TabsState): TabsState {
-  const newest = (a: TabEntry, b: TabEntry): TabEntry => ((b.at ?? 0) >= (a.at ?? 0) && state.tabs.indexOf(b) > state.tabs.indexOf(a)) || (b.at ?? 0) > (a.at ?? 0) ? b : a;
+  const newest = (a: TabEntry, b: TabEntry): TabEntry =>
+    ((b.at ?? 0) >= (a.at ?? 0) && state.tabs.indexOf(b) > state.tabs.indexOf(a)) || (b.at ?? 0) > (a.at ?? 0) ? b : a;
   const winner = new Map<string, TabEntry>();
   for (const t of state.tabs) {
     if (t.isNew === true) continue;
@@ -238,18 +273,33 @@ export function dedupeTabs(state: TabsState): TabsState {
     winner.set(id, cur === undefined ? t : newest(cur, t));
   }
   // blank chats left open: one stays, the one used last
-  const blanks = state.tabs.filter((t) => t.empty === true && t.pinned !== true && winner.get(tabKey(t.place, t.hash)) === t);
+  const blanks = state.tabs.filter(
+    (t) => t.empty === true && t.pinned !== true && winner.get(tabKey(t.place, t.hash)) === t,
+  );
   const blank = blanks.reduce<TabEntry | undefined>((a, b) => (a === undefined ? b : newest(a, b)), undefined);
   // an Inbox tab saved twice (the place and a conversation in it): the one used last stays
   const lone = new Map<string, TabEntry>();
   for (const t of state.tabs) {
     if (t.isNew === true || !ONE_TAB_PLACES.includes(t.place)) continue;
     const cur = lone.get(t.place);
-    lone.set(t.place, cur === undefined || cur.pinned !== true && (t.pinned === true || newest(cur, t) === t) ? t : cur);
+    lone.set(
+      t.place,
+      cur === undefined || (cur.pinned !== true && (t.pinned === true || newest(cur, t) === t)) ? t : cur,
+    );
   }
-  const tabs = state.tabs.filter((t) => (t.isNew === true || winner.get(tabKey(t.place, t.hash)) === t || t.pinned === true) && !(t.empty === true && t.pinned !== true && t !== blank) && (t.isNew === true || !ONE_TAB_PLACES.includes(t.place) || lone.get(t.place) === t));
+  const tabs = state.tabs.filter(
+    (t) =>
+      (t.isNew === true || winner.get(tabKey(t.place, t.hash)) === t || t.pinned === true) &&
+      !(t.empty === true && t.pinned !== true && t !== blank) &&
+      (t.isNew === true || !ONE_TAB_PLACES.includes(t.place) || lone.get(t.place) === t),
+  );
   if (tabs.length === state.tabs.length) return state;
-  return { tabs, active: tabs.some((t) => t.key === state.active) ? state.active : ([...tabs].sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0]?.key ?? "") };
+  return {
+    tabs,
+    active: tabs.some((t) => t.key === state.active)
+      ? state.active
+      : ([...tabs].sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0]?.key ?? ""),
+  };
 }
 
 /** The blank chat tab that is open, if there is one: "New chat" goes to it instead of making a second. A chat that was opened and happens to be empty is a real chat; it is only marked blank once its name was read. */
@@ -276,14 +326,16 @@ export function readTabs(raw: string | null): TabsState | null {
   } catch {
     return null;
   }
-  if (!isRecord(data) || data["v"] !== 1 || typeof data["active"] !== "string" || !Array.isArray(data["tabs"])) return null;
+  if (!isRecord(data) || data["v"] !== 1 || typeof data["active"] !== "string" || !Array.isArray(data["tabs"]))
+    return null;
   const tabs: TabEntry[] = [];
   const seen = new Set<string>();
   const renamed = new Map<string, string>();
   for (const row of data["tabs"] as unknown[]) {
     if (!isRecord(row)) return null;
     const { key, title, place, hash, isNew, pinned, at, empty } = row;
-    if (typeof key !== "string" || typeof title !== "string" || typeof place !== "string" || !KNOWN_PLACES.has(place)) return null;
+    if (typeof key !== "string" || typeof title !== "string" || typeof place !== "string" || !KNOWN_PLACES.has(place))
+      return null;
     const hashText = typeof hash === "string" && hash !== "" ? hash : undefined;
     // a tab saved on Home reopens in Chats, where Home went
     const where = livePlace(place as PlaceId);
@@ -296,21 +348,33 @@ export function readTabs(raw: string | null): TabsState | null {
       const kept = tabs[at0];
       if (kept !== undefined) {
         if (pinned === true) kept.pinned = true;
-        if (typeof at === "number" && at > (kept.at ?? 0)) { kept.at = at; kept.title = title; }
+        if (typeof at === "number" && at > (kept.at ?? 0)) {
+          kept.at = at;
+          kept.title = title;
+        }
       }
       continue;
     }
     seen.add(id);
     tabs.push({
       key: id,
-      title: place === "home" && where !== place ? (hashText === undefined ? PLACE_TITLE.chats : title) : hashText !== undefined && title === PLACE_TITLE[where] ? (screenTitle(hashText) ?? title) : title,
+      title:
+        place === "home" && where !== place
+          ? hashText === undefined
+            ? PLACE_TITLE.chats
+            : title
+          : hashText !== undefined && title === PLACE_TITLE[where]
+            ? (screenTitle(hashText) ?? title)
+            : title,
       place: where,
       ...(typeof hash === "string" && hash !== "" ? { hash } : {}),
       ...(isNew === true ? { isNew: true } : {}),
       ...(pinned === true ? { pinned: true } : {}),
       ...(typeof at === "number" ? { at } : {}),
       // a chat saved while its name read as blank carries the placeholder title: tab lists saved before the mark held are marked now, so they collapse to one like the rest
-      ...((empty === true || (title === NEW_CHAT && pinned !== true && isNew !== true)) && hashText !== undefined ? { empty: true as const } : {}),
+      ...((empty === true || (title === NEW_CHAT && pinned !== true && isNew !== true)) && hashText !== undefined
+        ? { empty: true as const }
+        : {}),
     });
   }
   const active = renamed.get(data["active"]) ?? data["active"];
@@ -383,14 +447,24 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
   /** Closed tabs, the last closed on top: Reopen Closed Tab takes them back. Kept for this session only. */
   const closed: TabEntry[] = [];
   const remember = (keys: readonly string[]): void => {
-    for (const k of keys) { const t = findTab(state, k); if (t !== undefined && t.pinned !== true && t.isNew !== true) { closed.push(t); if (closed.length > 10) closed.shift(); } }
+    for (const k of keys) {
+      const t = findTab(state, k);
+      if (t !== undefined && t.pinned !== true && t.isNew !== true) {
+        closed.push(t);
+        if (closed.length > 10) closed.shift();
+      }
+    }
   };
 
   const set = (given: TabsState): void => {
     // closing the last tab leaves the Space's start place open, never an empty stage
     let next = given.tabs.length === 0 ? openTab(EMPTY_TABS, placeTab(options.start)) : given;
     // the tab the person is on is the one used last: stamp it, so "the most recent" has a meaning
-    if (next.active !== state.active || state.tabs.length === 0) next = { tabs: next.tabs.map((t) => (t.key === next.active ? { ...t, at: Date.now() } : t)), active: next.active };
+    if (next.active !== state.active || state.tabs.length === 0)
+      next = {
+        tabs: next.tabs.map((t) => (t.key === next.active ? { ...t, at: Date.now() } : t)),
+        active: next.active,
+      };
     if (next === state) return;
     state = next;
     try {
@@ -406,7 +480,9 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
     state: () => state,
     subscribe(listener) {
       listeners.add(listener);
-      return () => { listeners.delete(listener); };
+      return () => {
+        listeners.delete(listener);
+      };
     },
     openPlace(place, hash, title, background = false) {
       if (hidden.includes(place)) return;
@@ -423,26 +499,52 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
     newTab(from) {
       // a blank chat is already open: New chat goes to it, and no tab is added
       const blank = blankChat(state);
-      if (blank !== undefined) { set(selectTab(state, blank.key)); return blank; }
+      if (blank !== undefined) {
+        set(selectTab(state, blank.key));
+        return blank;
+      }
       const tab = newTabEntry(from, state);
       set(openTab(state, tab));
       return tab;
     },
-    select(key) { set(selectTab(state, key)); },
-    close(key) { remember([key]); set(closeTab(state, key)); },
-    closeMany(keys) { remember(keys); set(closeTabs(state, keys)); },
-    pin(key, on) { set(pinTab(state, key, on)); },
-    closeRight(key) { const keys = keysToTheRight(state, key); remember(keys); set(closeTabs(state, keys)); },
+    select(key) {
+      set(selectTab(state, key));
+    },
+    close(key) {
+      remember([key]);
+      set(closeTab(state, key));
+    },
+    closeMany(keys) {
+      remember(keys);
+      set(closeTabs(state, keys));
+    },
+    pin(key, on) {
+      set(pinTab(state, key, on));
+    },
+    closeRight(key) {
+      const keys = keysToTheRight(state, key);
+      remember(keys);
+      set(closeTabs(state, keys));
+    },
     reopen() {
       const tab = closed.pop();
       if (tab === undefined || hidden.includes(tab.place)) return;
       set(openTab(state, tab));
     },
     canReopen: () => closed.length > 0,
-    reorder(keys) { set(reorderTabs(state, keys)); },
+    reorder(keys) {
+      set(reorderTabs(state, keys));
+    },
     retitle(key, title, empty) {
       if (findTab(state, key) === undefined) return;
-      set({ tabs: state.tabs.map((t) => (t.key === key ? (({ empty: _e, ...rest }) => ({ ...rest, title, ...(empty === true ? { empty: true as const } : {}) }))(t) : t)), active: state.active });
+      set({
+        tabs: state.tabs.map((t) =>
+          t.key === key
+            ? (({ empty: _e, ...rest }) => ({ ...rest, title, ...(empty === true ? { empty: true as const } : {}) }))(t)
+            : t,
+        ),
+        active: state.active,
+      });
     },
   };
 }

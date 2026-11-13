@@ -3,7 +3,12 @@ import { cleanUsername, meter, strength, usernameOk } from "../join/logic.ts";
 
 export { cleanUsername, meter, strength, usernameOk };
 
-export interface Details { name: string; username: string; password: string; confirm: string }
+export interface Details {
+  name: string;
+  username: string;
+  password: string;
+  confirm: string;
+}
 
 export const PASSWORD_MIN = 8;
 
@@ -31,7 +36,14 @@ export function failureOf(code: string | null, network: boolean): ClaimFailure {
   if (network) return "unreachable";
   const c = (code ?? "").toLowerCase();
   if (c.includes("expired")) return "expired";
-  if (c.includes("invalid_code") || c.includes("used") || c.includes("spent") || c.includes("claimed") || c.includes("consumed")) return "used";
+  if (
+    c.includes("invalid_code") ||
+    c.includes("used") ||
+    c.includes("spent") ||
+    c.includes("claimed") ||
+    c.includes("consumed")
+  )
+    return "used";
   if (c.includes("taken") || c.includes("duplicate") || c.includes("exists") || c.includes("conflict")) return "taken";
   if (c.includes("weak") || c.includes("password")) return "weak";
   return "other";

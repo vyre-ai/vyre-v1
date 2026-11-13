@@ -7,7 +7,12 @@ export interface OfferDb {
   run(sql: string, ...args: unknown[]): { changes: number };
 }
 
-interface Row { item_id: string; app_name: string; decision: string; owner: string }
+interface Row {
+  item_id: string;
+  app_name: string;
+  decision: string;
+  owner: string;
+}
 
 function listed(db: OfferDb): Row[] {
   return db.all(`SELECT item_id, app_name, decision, owner FROM automations_connector_offers`) as Row[];
@@ -16,7 +21,8 @@ function listed(db: OfferDb): Row[] {
 function stateOf(rows: readonly Row[]): OfferState {
   const state: Record<string, "open" | "declined" | "accepted"> = {};
   for (const row of rows) {
-    if (row.decision === "open" || row.decision === "declined" || row.decision === "accepted") state[row.item_id] = row.decision;
+    if (row.decision === "open" || row.decision === "declined" || row.decision === "accepted")
+      state[row.item_id] = row.decision;
   }
   return state;
 }
@@ -27,7 +33,10 @@ export function recordSavedItem(db: OfferDb, item: SavedItem, now: number, owner
   if (next.offer === null) return null;
   db.run(
     `INSERT INTO automations_connector_offers (item_id, app_name, decision, updated_at, owner) VALUES (?, ?, 'open', ?, ?)`,
-    item.itemId, next.offer.appName, now, owner,
+    item.itemId,
+    next.offer.appName,
+    now,
+    owner,
   );
   return next.offer;
 }
@@ -43,12 +52,22 @@ export function listOpenOffers(db: OfferDb, viewer?: string): { itemId: string; 
   return open;
 }
 
-export function decideOffer(db: OfferDb, itemId: string, which: "decline" | "accept", now: number): "declined" | "accepted" | "absent" {
+export function decideOffer(
+  db: OfferDb,
+  itemId: string,
+  which: "decline" | "accept",
+  now: number,
+): "declined" | "accepted" | "absent" {
   const state = stateOf(listed(db));
   const next = which === "decline" ? declineOffer(state, itemId) : acceptOffer(state, itemId);
   const decision = next[itemId];
   if (decision !== "declined" && decision !== "accepted") return "absent";
   if (state[itemId] === decision) return decision;
-  db.run(`UPDATE automations_connector_offers SET decision = ?, updated_at = ? WHERE item_id = ?`, decision, now, itemId);
+  db.run(
+    `UPDATE automations_connector_offers SET decision = ?, updated_at = ? WHERE item_id = ?`,
+    decision,
+    now,
+    itemId,
+  );
   return decision;
 }

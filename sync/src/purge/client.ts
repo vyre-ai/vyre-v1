@@ -43,12 +43,15 @@ export function createPurgeClient(o: PurgeClientOpts): PurgeClient {
     })();
     running = p;
     // While a purge runs every signal shares it; once it ends (done or failed) the next epoch, or a retry after a failure, starts a new one.
-    const clear = (): void => { if (running === p) running = null; };
+    const clear = (): void => {
+      if (running === p) running = null;
+    };
     p.then(clear, clear);
     return p;
   };
   const stale = (epoch: number): boolean => epoch <= done || (o.currentEpoch !== undefined && epoch < o.currentEpoch());
-  const signal = (epoch: number): Promise<PurgeReport | null> => (stale(epoch) ? Promise.resolve(null) : run("revoked", epoch));
+  const signal = (epoch: number): Promise<PurgeReport | null> =>
+    stale(epoch) ? Promise.resolve(null) : run("revoked", epoch);
   return {
     onFrame: (f) => (f.t === "purge" ? signal(f.epoch) : Promise.resolve(null)),
     onHello: (ok) => (ok.mode === "purge" ? signal(ok.epoch) : Promise.resolve(null)),

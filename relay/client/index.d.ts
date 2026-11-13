@@ -1,6 +1,9 @@
 // Types for relay/client (plain ES modules). Everything here is exported from ./index.js.
 
-export interface KeyPair { privateKey: unknown; publicKey: Uint8Array }
+export interface KeyPair {
+  privateKey: unknown;
+  publicKey: Uint8Array;
+}
 
 /** The async crypto the Noise handshake runs on: WebCrypto, injected @noble, or a shell that holds the key. */
 export interface CryptoProvider {
@@ -29,10 +32,25 @@ export interface Visibility {
 
 export type About = { kind?: "app" | "web"; release?: string; manifest?: string };
 
-export interface Offer { relay: string; route: string; box: Uint8Array; secret: string; name?: string }
+export interface Offer {
+  relay: string;
+  route: string;
+  box: Uint8Array;
+  secret: string;
+  name?: string;
+}
 
-export interface PresenceKey { public_key: string; alg?: number; storage?: "hardware" | "software" }
-export interface Passkey { credential_id: string; public_key: string; alg?: number; rp_id: string }
+export interface PresenceKey {
+  public_key: string;
+  alg?: number;
+  storage?: "hardware" | "software";
+}
+export interface Passkey {
+  credential_id: string;
+  public_key: string;
+  alg?: number;
+  rp_id: string;
+}
 
 export interface PairOptions {
   /** This device's name, shown on the box. */
@@ -73,19 +91,29 @@ export interface ResolvedTicket {
   invite: object | null;
 }
 
-export interface ResolveOptions { relay: string; fetch?: typeof fetch; crypto?: CryptoProvider }
+export interface ResolveOptions {
+  relay: string;
+  fetch?: typeof fetch;
+  crypto?: CryptoProvider;
+}
 
 /** The pairing page a Space uses. The default is a convenience; nothing depends on it. */
 export const PAIR_BASE: string;
 export const REMOVED: string;
 
-export function parsePairUrl(url: string, base?: string): { relay: string; route: string; box: Uint8Array; secret: string; name: string } | null;
+export function parsePairUrl(
+  url: string,
+  base?: string,
+): { relay: string; route: string; box: Uint8Array; secret: string; name: string } | null;
 /** Pair from the offer URL a box shows as a QR code (the invite code). `pairBase` is the Space's own pairing page. */
 export function pair(offerUrl: string, options?: PairOptions & { pairBase?: string }): Promise<PairedBox>;
 export function pairOffer(offer: Offer, options?: PairOptions): Promise<PairedBox>;
 /** Look up a compact pair code against the relay and verify it, without pairing. Errors carry a `code`: bad_input, ticket_gone, rate_limited, contested, bad_record, pair_failed. */
 export function resolveTicket(ticket: Uint8Array, options: ResolveOptions): Promise<ResolvedTicket>;
-export function pairTicket(ticket: Uint8Array, options: ResolveOptions & PairOptions): Promise<PairedBox & { address?: string; handle?: string }>;
+export function pairTicket(
+  ticket: Uint8Array,
+  options: ResolveOptions & PairOptions,
+): Promise<PairedBox & { address?: string; handle?: string }>;
 export function keyFingerprint(box: Uint8Array, crypto: CryptoProvider): Promise<string>;
 export function sameRelay(named: string, asked: string): boolean;
 export function deviceKey(o: { keyStore: KeyStore; crypto: CryptoProvider }): Promise<KeyPair>;
@@ -126,9 +154,22 @@ export interface RelayResponse {
   arrayBuffer(): Promise<ArrayBuffer>;
 }
 
-export interface FetchInit { method?: string; headers?: Record<string, string>; body?: string | Uint8Array | ArrayBuffer | null; signal?: AbortSignal }
-export interface SseEvent { id?: string; event?: string; data: string }
-export interface EventFollow { readonly lastEventId: string | undefined; reopen(): void; close(): void }
+export interface FetchInit {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string | Uint8Array | ArrayBuffer | null;
+  signal?: AbortSignal;
+}
+export interface SseEvent {
+  id?: string;
+  event?: string;
+  data: string;
+}
+export interface EventFollow {
+  readonly lastEventId: string | undefined;
+  reopen(): void;
+  close(): void;
+}
 
 export class RelaySocket {
   readyState: number;
@@ -155,8 +196,15 @@ export class Connection {
   close(): void;
 }
 export function connect(options: ConnectOptions): Connection;
-export function openChannel(options: Record<string, unknown>): Promise<{ channel: unknown; reply: unknown; ws: unknown }>;
-export function request(channel: unknown, head: unknown, body: Uint8Array, signal?: AbortSignal): Promise<RelayResponse>;
+export function openChannel(
+  options: Record<string, unknown>,
+): Promise<{ channel: unknown; reply: unknown; ws: unknown }>;
+export function request(
+  channel: unknown,
+  head: unknown,
+  body: Uint8Array,
+  signal?: AbortSignal,
+): Promise<RelayResponse>;
 
 export function createPaths(options: {
   paths: Array<{ kind: "direct"; base: string } | ({ kind: "relay" } & Record<string, unknown>)>;
@@ -168,9 +216,18 @@ export function createPaths(options: {
   probePath?: string;
   report?: boolean;
   onstate?: (s: { kind: string; index: number; state: string }) => void;
-}): { current: unknown; fetch(path: string, init?: FetchInit): Promise<RelayResponse>; events(path: string, options: { onEvent: (e: SseEvent) => void }): EventFollow; socket(path: string): unknown; close(): void } & Record<string, unknown>;
+}): {
+  current: unknown;
+  fetch(path: string, init?: FetchInit): Promise<RelayResponse>;
+  events(path: string, options: { onEvent: (e: SseEvent) => void }): EventFollow;
+  socket(path: string): unknown;
+  close(): void;
+} & Record<string, unknown>;
 
-export function health(source: unknown, options?: { since?: number; rtt?: number | null }): {
+export function health(
+  source: unknown,
+  options?: { since?: number; rtt?: number | null },
+): {
   reach: "direct" | "relay" | "none";
   why: string;
   fix?: { action: string; label: string };
@@ -179,22 +236,41 @@ export function health(source: unknown, options?: { since?: number; rtt?: number
 };
 export function watch(paths: unknown, options?: { now?: () => number; rtt?: () => number | null }): unknown;
 
-export function webCrypto(options?: { subtle?: SubtleCrypto; getRandomValues?: (a: Uint8Array) => Uint8Array }): CryptoProvider & { importKeyPair(raw: Uint8Array): Promise<KeyPair> };
+export function webCrypto(options?: {
+  subtle?: SubtleCrypto;
+  getRandomValues?: (a: Uint8Array) => Uint8Array;
+}): CryptoProvider & { importKeyPair(raw: Uint8Array): Promise<KeyPair> };
 export function createDeviceKey(provider?: CryptoProvider): Promise<KeyPair>;
 export function memoryKeyStore(): KeyStore;
-export function indexedDbKeyStore(options?: { indexedDB?: IDBFactory; db?: string; store?: string; key?: string }): KeyStore;
+export function indexedDbKeyStore(options?: {
+  indexedDB?: IDBFactory;
+  db?: string;
+  store?: string;
+  key?: string;
+}): KeyStore;
 
 /** For iOS and Android, where Hermes has no WebCrypto X25519: the app injects @noble/curves, @noble/hashes and @noble/ciphers. */
 export function nobleCrypto(n: {
-  x25519: { getPublicKey(priv: Uint8Array): Uint8Array; getSharedSecret(priv: Uint8Array, pub: Uint8Array): Uint8Array; utils?: { randomSecretKey?: () => Uint8Array; randomPrivateKey?: () => Uint8Array } };
+  x25519: {
+    getPublicKey(priv: Uint8Array): Uint8Array;
+    getSharedSecret(priv: Uint8Array, pub: Uint8Array): Uint8Array;
+    utils?: { randomSecretKey?: () => Uint8Array; randomPrivateKey?: () => Uint8Array };
+  };
   sha256: (b: Uint8Array) => Uint8Array;
   hmac: (hash: unknown, key: Uint8Array, msg: Uint8Array) => Uint8Array;
-  gcm: (key: Uint8Array, nonce: Uint8Array, aad?: Uint8Array) => { encrypt(pt: Uint8Array): Uint8Array; decrypt(ct: Uint8Array): Uint8Array };
+  gcm: (
+    key: Uint8Array,
+    nonce: Uint8Array,
+    aad?: Uint8Array,
+  ) => { encrypt(pt: Uint8Array): Uint8Array; decrypt(ct: Uint8Array): Uint8Array };
   randomBytes: (n: number) => Uint8Array;
 }): CryptoProvider & { importKeyPair(raw: Uint8Array): Promise<KeyPair> };
 
 /** A desktop shell that keeps the device key natively (DPAPI, Keychain): the page holds a marker, and every DH is a call into the shell. */
-export function shellDeviceKey(invoke: (cmd: string, args?: unknown) => Promise<unknown>, options?: { crypto?: CryptoProvider }): { crypto: CryptoProvider; keyStore: KeyStore };
+export function shellDeviceKey(
+  invoke: (cmd: string, args?: unknown) => Promise<unknown>,
+  options?: { crypto?: CryptoProvider },
+): { crypto: CryptoProvider; keyStore: KeyStore };
 
 export const SEED_BYTES: number;
 export const QR_PREFIX: string;

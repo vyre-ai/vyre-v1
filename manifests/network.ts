@@ -1,59 +1,476 @@
 // network (lane L7b): domain, certificate, relay, servers list, public hostnames (spec Networking, ARCH 5.9, 7.10).
-import { create, defineManifest, ev, health, read, t, write } from '../packages/contracts/src/index.ts';
+import { create, defineManifest, ev, health, read, t, write } from "../packages/contracts/src/index.ts";
 
-const serverId = t.id('srv');
-const state = t.enm('healthy', 'degraded', 'down');
-const person = t.obj({ serverId, name: t.str(), state, enrollment: t.enm('pending', 'approved'), fingerprint: t.opt(t.str()), lastSeenAt: t.opt(t.ts()), requestedAt: t.opt(t.ts()), facts: t.opt(t.obj({ os: t.str(), arch: t.str(), docker: t.bool(), version: t.str() })) });
-const endpoint = t.obj({ kind: t.enm('direct', 'relay', 'tunnel'), url: t.str({ examples: ['https://northwind.example.com'] }), health: state, rttMs: t.opt(t.int()) });
+const serverId = t.id("srv");
+const state = t.enm("healthy", "degraded", "down");
+const person = t.obj({
+  serverId,
+  name: t.str(),
+  state,
+  enrollment: t.enm("pending", "approved"),
+  fingerprint: t.opt(t.str()),
+  lastSeenAt: t.opt(t.ts()),
+  requestedAt: t.opt(t.ts()),
+  facts: t.opt(t.obj({ os: t.str(), arch: t.str(), docker: t.bool(), version: t.str() })),
+});
+const endpoint = t.obj({
+  kind: t.enm("direct", "relay", "tunnel"),
+  url: t.str({ examples: ["https://northwind.example.com"] }),
+  health: state,
+  rttMs: t.opt(t.int()),
+});
 
 export default defineManifest({
-  id: 'network',
-  title: 'Network',
-  owner: 'L7b',
+  id: "network",
+  title: "Network",
+  owner: "L7b",
   events: [
-    ev('network.domain_changed', 'The Space address changed (own domain or relay)', { p: { address: t.str(), mode: t.enm('own_domain', 'relay') }, subject: ['entity', '/address'] }),
-    ev('network.certificate_renewed', 'A certificate was issued or renewed', { p: { host: t.str(), expiresAt: t.ts() }, subject: ['entity', '/host'] }),
-    ev('network.certificate_failed', 'Certificate issue or renewal failed', { p: { host: t.str(), reason: t.str() }, subject: ['entity', '/host'], notify: 'health.degraded' }),
-    ev('network.server_requested', 'A computer asked to join the Space and waits for a person to approve it', { p: { serverId, name: t.str(), fingerprint: t.str() }, subject: ['entity', '/serverId'] }),
-    ev('network.server_added', 'A server joined the Space for compute', { p: { serverId, name: t.str() }, subject: ['entity', '/serverId'] }),
-    ev('network.server_removed', 'A server was removed', { p: { serverId }, subject: ['entity', '/serverId'] }),
+    ev("network.domain_changed", "The Space address changed (own domain or relay)", {
+      p: { address: t.str(), mode: t.enm("own_domain", "relay") },
+      subject: ["entity", "/address"],
+    }),
+    ev("network.certificate_renewed", "A certificate was issued or renewed", {
+      p: { host: t.str(), expiresAt: t.ts() },
+      subject: ["entity", "/host"],
+    }),
+    ev("network.certificate_failed", "Certificate issue or renewal failed", {
+      p: { host: t.str(), reason: t.str() },
+      subject: ["entity", "/host"],
+      notify: "health.degraded",
+    }),
+    ev("network.server_requested", "A computer asked to join the Space and waits for a person to approve it", {
+      p: { serverId, name: t.str(), fingerprint: t.str() },
+      subject: ["entity", "/serverId"],
+    }),
+    ev("network.server_added", "A server joined the Space for compute", {
+      p: { serverId, name: t.str() },
+      subject: ["entity", "/serverId"],
+    }),
+    ev("network.server_removed", "A server was removed", { p: { serverId }, subject: ["entity", "/serverId"] }),
   ],
   capabilities: [
-    read('network.status', 'Address, certificate state, relay state and public ingress', { out: { address: t.str(), mode: t.enm('own_domain', 'relay'), certificate: t.obj({ host: t.str(), expiresAt: t.opt(t.ts()), state }), publicIngress: t.bool(), commands: t.arr(t.obj({ kind: t.str(), target: t.str(), state: t.enm('pending', 'applied', 'failed'), at: t.ts(), detail: t.opt(t.str()) })), version: t.opt(t.str({ description: 'This Space server\'s version' })), relayVersion: t.opt(t.str({ description: 'The version the relay\'s /health reports, read on the relay link about every five minutes' })), relayOlder: t.opt(t.bool({ description: 'The relay is an older release than this Space server (the Console\'s amber Update available)' })) }, perm: 'server.network', tool: 'engineer' }),
-    write('network.domain_set', 'Set the Space address to an own domain (DNS check, then ACME)', { in: { domain: t.str({ examples: ['space.example.com'] }) }, out: { dnsOk: t.bool(), records: t.arr(t.obj({ type: t.str(), name: t.str(), value: t.str() })) }, perm: 'server.network', level: 'manage', risk: 'high', audit: 'always', emits: ['network.domain_changed'], tool: 'engineer' }),
-    write('network.relay_set', 'Switch the Space to the relay or back, with no re-invite (devices pin the Space key, not the address)', { in: { mode: t.enm('own_domain', 'relay') }, out: { address: t.str() }, perm: 'server.network', level: 'manage', risk: 'high', audit: 'always', emits: ['network.domain_changed'], tool: 'engineer' }),
-    write('network.certificate_renew', 'Renew a certificate now', { in: { host: t.str() }, out: { state }, perm: 'server.network', emits: ['network.certificate_renewed', 'network.certificate_failed'], tool: 'engineer' }),
-    read('network.public_hostnames', 'Public hostnames and /hooks endpoints served by this Space', { out: { hosts: t.arr(t.obj({ host: t.str(), kind: t.enm('app', 'console', 'site', 'form', 'booking', 'hook'), certificate: state })) }, perm: 'server.network', tool: 'engineer' }),
-    read('network.ingress_check', 'Check whether forms and webhooks can reach this Space from outside', { out: { reachable: t.bool(), detail: t.opt(t.str()) }, perm: 'server.network', tool: 'engineer' }),
-    read('network.endpoints', 'Endpoint list for the connection manager: direct, relay and tunnel with health and round trip time', { out: { endpoints: t.arr(endpoint) } }),
-    read('network.servers', 'Computers in the Space (the Space server and the computers that joined for compute, waiting ones included): grey rows when offline, with Reconnect and Remove', { out: { servers: t.arr(t.obj({ serverId, name: t.str(), state, role: t.enm('space', 'compute'), lastSeenAt: t.opt(t.ts()), enrollment: t.opt(t.enm('pending', 'approved')), fingerprint: t.opt(t.str()), owner: t.opt(t.str()), facts: t.opt(t.obj({ os: t.str(), arch: t.str(), docker: t.bool(), version: t.str() })), requestedAt: t.opt(t.ts()) })) }, perm: 'console.access', tool: 'engineer' }),
-    create('network.server_join_code', 'Make a join code to add a cloud box or office Mac for compute', { in: {}, out: { code: t.str({ examples: ['VYRE-1234-ABCD'] }), expiresAt: t.ts() }, perm: 'server.network', level: 'manage', risk: 'high', audit: 'always', team: true, tool: 'engineer' }),
-    create('network.my_computer_code', 'Make a join code for your own computer or server (a Mac, PC or Linux box): it will run only your own agents. A nickname names it once it arrives; it also works in a Personal Space', { in: { nickname: t.opt(t.str({ maxLength: 40, examples: ['home-box'] })) }, out: { code: t.str({ examples: ['VYRE-1234-ABCD'] }), expiresAt: t.ts(), address: t.opt(t.str({ description: 'Where the computer reaches this Space' })) }, level: 'use', audit: 'always', tool: 'engineer' }),
-    read('network.my_computers', 'The computers and servers you added: nickname, online state, what they run on, waiting ones with the fingerprint to compare', { out: { computers: t.arr(person) }, level: 'use', tool: 'engineer', label: 'filter' }),
-    write('network.my_computer_remove', 'Remove one of your own computers or servers: its access ends at once', { in: { serverId }, out: { removed: t.bool() }, level: 'use', risk: 'high', audit: 'always', emits: ['network.server_removed'], gate: { act: 'delete' }, tool: 'engineer' }),
-    write('network.enroll', 'A computer asks to join the Space with a join code and its own public key; it waits for approval (called by the computer, no sign-in)', { caller: 'anonymous', rate: { n: 20, perSeconds: 60, scope: 'space' }, in: { code: t.str(), publicKey: t.str({ description: 'Ed25519 public key, base64' }), name: t.str(), facts: t.opt(t.obj({ os: t.opt(t.str()), arch: t.opt(t.str()), docker: t.opt(t.bool()), version: t.opt(t.str()) })) }, out: { serverId, fingerprint: t.str({ examples: ['K7QD-4M2X'] }), state: t.lit('pending') }, emits: ['network.server_requested'], errors: ['auth.invalid_code', 'validation.bad_input'], audit: 'always' }),
-    write('network.enroll_status', 'A waiting computer asks whether it was approved by signing a fresh timestamp with its key; approved, it receives its credential once (called by the computer, no sign-in)', { caller: 'anonymous', rate: { n: 120, perSeconds: 60, scope: 'space' }, in: { serverId, at: t.int(), signature: t.str({ description: 'Ed25519 signature of vyre-enroll:<serverId>:<at>, base64' }) }, out: { state: t.enm('pending', 'approved', 'declined', 'revoked'), fingerprint: t.str(), credential: t.opt(t.str({ description: 'Shown once; stored only as a hash' })) }, errors: ['auth.invalid_code'] }),
-    write('network.server_approve', 'Admit a waiting computer to the Space: a person looks at its name, what it runs on and its fingerprint and approves once', { in: { serverId }, out: { state: t.lit('approved') }, perm: 'server.network', level: 'manage', risk: 'high', audit: 'always', emits: ['network.server_added'], gate: { act: 'enroll_node', when: "actor.kind != 'person'" }, tool: 'engineer', team: true }),
-    write('network.server_decline', 'Turn a waiting computer away', { in: { serverId }, out: { state: t.lit('declined') }, perm: 'server.network', level: 'manage', audit: 'always', tool: 'engineer', team: true }),
-    write('network.my_computer_approve', 'Admit your own waiting computer', { in: { serverId }, out: { state: t.lit('approved') }, level: 'use', risk: 'high', audit: 'always', emits: ['network.server_added'], gate: { act: 'enroll_node', when: "actor.kind != 'person'" }, tool: 'engineer' }),
-    write('network.my_computer_decline', 'Turn your own waiting computer away', { in: { serverId }, out: { state: t.lit('declined') }, level: 'use', audit: 'always', tool: 'engineer' }),
-    read('network.phone', 'Your phone address on vyre.run: the name this computer holds, whether it is online, and the link that opens it on a phone', { out: { state: t.enm('none', 'claiming', 'claimed', 'releasing', 'failed'), name: t.opt(t.str()), nickname: t.opt(t.str()), url: t.opt(t.str()), link: t.opt(t.str({ description: 'The URL to open on the phone. Its fragment carries this computer\'s public key, which the phone pins; it never reaches a server.' })), online: t.bool(), detail: t.opt(t.str()) }, level: 'use', tool: 'engineer' }),
-    write('network.phone_claim', 'Claim a name like alex.vyre.run once, so a phone reaches this computer there while it is on and online. The relay only passes sealed bytes', { in: { name: t.str({ examples: ['alex'] }), nickname: t.opt(t.str({ maxLength: 40, examples: ['home-laptop'] })) }, out: { state: t.lit('claiming') }, level: 'use', risk: 'high', audit: 'always', tool: 'engineer' }),
-    write('network.phone_release', 'Give up the phone address. The name stays reserved to this computer', { in: {}, out: { state: t.enm('none', 'releasing') }, level: 'use', audit: 'always', tool: 'engineer' }),
-    write('network.server_reconnect', 'Reconnect an offline server', { in: { serverId }, out: { state }, perm: 'server.network', tool: 'engineer' }),
-    write('network.server_remove', 'Remove a server from the Space', { in: { serverId }, out: { removed: t.bool() }, perm: 'server.network', level: 'manage', risk: 'high', audit: 'always', emits: ['network.server_removed'], gate: { act: 'delete' }, tool: 'engineer' }),
-    read('network.health', 'Network health probe: certificate expiry and relay reachability', { out: { state, detail: t.opt(t.str()), latencyMs: t.opt(t.int()), daysToExpiry: t.opt(t.int()) } }),
-    read('network.peers', 'The computers that hold this Personal Space: each keeps a full copy and syncs with the others through the relay. This computer, whether each is awake, and when it was last seen', { out: { waiting: t.int({ description: 'Changes made on this computer that no other computer has taken yet' }), syncedAt: t.opt(t.ts()), computers: t.arr(t.obj({ peerId: t.str(), name: t.str(), platform: t.str(), kind: t.enm('computer', 'server'), self: t.bool(), online: t.bool(), lastSeenAt: t.opt(t.ts()), addedAt: t.ts() })) }, level: 'use', tool: 'engineer' }),
-    read('network.peer_requests', 'New computers asking to use this Personal Space, each with the six-digit code its own screen shows', { out: { requests: t.arr(t.obj({ requestId: t.str(), name: t.str(), platform: t.str(), code: t.str({ examples: ['418 207'] }), requestedAt: t.ts(), expiresAt: t.ts() })) }, level: 'use', tool: 'engineer' }),
-    write('network.peer_allow', 'Let a new computer use this Personal Space: it gets a full copy of your chats, files, records and Vault (still locked by your password) and stays in sync', { in: { requestId: t.str() }, out: { state: t.lit('allowed') }, level: 'use', risk: 'high', audit: 'always', gate: { act: 'enroll_node', when: "actor.kind != 'person'" }, tool: 'engineer' }),
-    write('network.peer_decline', 'Turn away a computer that asked to use this Personal Space', { in: { requestId: t.str() }, out: { state: t.lit('declined') }, level: 'use', audit: 'always', tool: 'engineer' }),
-    read('network.peer_conflicts', 'What syncing between your computers had to settle: the same name made on two computers while apart (one copy is renamed, both are kept), or an item kept aside whole', { out: { conflicts: t.arr(t.obj({ conflictId: t.str(), table: t.str(), rowKey: t.str(), kind: t.enm('renamed', 'kept_aside'), detail: t.str(), at: t.ts() })) }, level: 'use', tool: 'engineer' }),
-    read('network.peer_runner', 'Which of your computers runs scheduled automations, routines and nightly jobs now (one at a time)', { out: { peerId: t.opt(t.str()), here: t.bool(), expiresAt: t.opt(t.ts()) }, level: 'use', tool: 'engineer' }),
-    create('network.peer_server_code', 'Add a server to your Personal Space: a one-time code for the install line. The server joins through Vyre\'s relay (no address needed), keeps a full copy in sync, keeps the Space going and runs scheduled work while your computers sleep', { in: { nickname: t.opt(t.str({ maxLength: 40, examples: ['home-server'] })) }, out: { code: t.str({ examples: ['VYRE-PS-eyJ2IjoxfQ'] }), expiresAt: t.ts() }, level: 'use', risk: 'high', audit: 'always', tool: 'engineer' }),
-    write('network.peer_remove', 'Take a computer out of this Personal Space: it stops syncing with your other computers', { in: { peerId: t.str() }, out: { removed: t.bool() }, level: 'use', risk: 'high', audit: 'always', gate: { act: 'delete' }, tool: 'engineer' }),
+    read("network.status", "Address, certificate state, relay state and public ingress", {
+      out: {
+        address: t.str(),
+        mode: t.enm("own_domain", "relay"),
+        certificate: t.obj({ host: t.str(), expiresAt: t.opt(t.ts()), state }),
+        publicIngress: t.bool(),
+        commands: t.arr(
+          t.obj({
+            kind: t.str(),
+            target: t.str(),
+            state: t.enm("pending", "applied", "failed"),
+            at: t.ts(),
+            detail: t.opt(t.str()),
+          }),
+        ),
+        version: t.opt(t.str({ description: "This Space server's version" })),
+        relayVersion: t.opt(
+          t.str({
+            description: "The version the relay's /health reports, read on the relay link about every five minutes",
+          }),
+        ),
+        relayOlder: t.opt(
+          t.bool({
+            description: "The relay is an older release than this Space server (the Console's amber Update available)",
+          }),
+        ),
+      },
+      perm: "server.network",
+      tool: "engineer",
+    }),
+    write("network.domain_set", "Set the Space address to an own domain (DNS check, then ACME)", {
+      in: { domain: t.str({ examples: ["space.example.com"] }) },
+      out: { dnsOk: t.bool(), records: t.arr(t.obj({ type: t.str(), name: t.str(), value: t.str() })) },
+      perm: "server.network",
+      level: "manage",
+      risk: "high",
+      audit: "always",
+      emits: ["network.domain_changed"],
+      tool: "engineer",
+    }),
+    write(
+      "network.relay_set",
+      "Switch the Space to the relay or back, with no re-invite (devices pin the Space key, not the address)",
+      {
+        in: { mode: t.enm("own_domain", "relay") },
+        out: { address: t.str() },
+        perm: "server.network",
+        level: "manage",
+        risk: "high",
+        audit: "always",
+        emits: ["network.domain_changed"],
+        tool: "engineer",
+      },
+    ),
+    write("network.certificate_renew", "Renew a certificate now", {
+      in: { host: t.str() },
+      out: { state },
+      perm: "server.network",
+      emits: ["network.certificate_renewed", "network.certificate_failed"],
+      tool: "engineer",
+    }),
+    read("network.public_hostnames", "Public hostnames and /hooks endpoints served by this Space", {
+      out: {
+        hosts: t.arr(
+          t.obj({
+            host: t.str(),
+            kind: t.enm("app", "console", "site", "form", "booking", "hook"),
+            certificate: state,
+          }),
+        ),
+      },
+      perm: "server.network",
+      tool: "engineer",
+    }),
+    read("network.ingress_check", "Check whether forms and webhooks can reach this Space from outside", {
+      out: { reachable: t.bool(), detail: t.opt(t.str()) },
+      perm: "server.network",
+      tool: "engineer",
+    }),
+    read(
+      "network.endpoints",
+      "Endpoint list for the connection manager: direct, relay and tunnel with health and round trip time",
+      { out: { endpoints: t.arr(endpoint) } },
+    ),
+    read(
+      "network.servers",
+      "Computers in the Space (the Space server and the computers that joined for compute, waiting ones included): grey rows when offline, with Reconnect and Remove",
+      {
+        out: {
+          servers: t.arr(
+            t.obj({
+              serverId,
+              name: t.str(),
+              state,
+              role: t.enm("space", "compute"),
+              lastSeenAt: t.opt(t.ts()),
+              enrollment: t.opt(t.enm("pending", "approved")),
+              fingerprint: t.opt(t.str()),
+              owner: t.opt(t.str()),
+              facts: t.opt(t.obj({ os: t.str(), arch: t.str(), docker: t.bool(), version: t.str() })),
+              requestedAt: t.opt(t.ts()),
+            }),
+          ),
+        },
+        perm: "console.access",
+        tool: "engineer",
+      },
+    ),
+    create("network.server_join_code", "Make a join code to add a cloud box or office Mac for compute", {
+      in: {},
+      out: { code: t.str({ examples: ["VYRE-1234-ABCD"] }), expiresAt: t.ts() },
+      perm: "server.network",
+      level: "manage",
+      risk: "high",
+      audit: "always",
+      team: true,
+      tool: "engineer",
+    }),
+    create(
+      "network.my_computer_code",
+      "Make a join code for your own computer or server (a Mac, PC or Linux box): it will run only your own agents. A nickname names it once it arrives; it also works in a Personal Space",
+      {
+        in: { nickname: t.opt(t.str({ maxLength: 40, examples: ["home-box"] })) },
+        out: {
+          code: t.str({ examples: ["VYRE-1234-ABCD"] }),
+          expiresAt: t.ts(),
+          address: t.opt(t.str({ description: "Where the computer reaches this Space" })),
+        },
+        level: "use",
+        audit: "always",
+        tool: "engineer",
+      },
+    ),
+    read(
+      "network.my_computers",
+      "The computers and servers you added: nickname, online state, what they run on, waiting ones with the fingerprint to compare",
+      { out: { computers: t.arr(person) }, level: "use", tool: "engineer", label: "filter" },
+    ),
+    write("network.my_computer_remove", "Remove one of your own computers or servers: its access ends at once", {
+      in: { serverId },
+      out: { removed: t.bool() },
+      level: "use",
+      risk: "high",
+      audit: "always",
+      emits: ["network.server_removed"],
+      gate: { act: "delete" },
+      tool: "engineer",
+    }),
+    write(
+      "network.enroll",
+      "A computer asks to join the Space with a join code and its own public key; it waits for approval (called by the computer, no sign-in)",
+      {
+        caller: "anonymous",
+        rate: { n: 20, perSeconds: 60, scope: "space" },
+        in: {
+          code: t.str(),
+          publicKey: t.str({ description: "Ed25519 public key, base64" }),
+          name: t.str(),
+          facts: t.opt(
+            t.obj({ os: t.opt(t.str()), arch: t.opt(t.str()), docker: t.opt(t.bool()), version: t.opt(t.str()) }),
+          ),
+        },
+        out: { serverId, fingerprint: t.str({ examples: ["K7QD-4M2X"] }), state: t.lit("pending") },
+        emits: ["network.server_requested"],
+        errors: ["auth.invalid_code", "validation.bad_input"],
+        audit: "always",
+      },
+    ),
+    write(
+      "network.enroll_status",
+      "A waiting computer asks whether it was approved by signing a fresh timestamp with its key; approved, it receives its credential once (called by the computer, no sign-in)",
+      {
+        caller: "anonymous",
+        rate: { n: 120, perSeconds: 60, scope: "space" },
+        in: {
+          serverId,
+          at: t.int(),
+          signature: t.str({ description: "Ed25519 signature of vyre-enroll:<serverId>:<at>, base64" }),
+        },
+        out: {
+          state: t.enm("pending", "approved", "declined", "revoked"),
+          fingerprint: t.str(),
+          credential: t.opt(t.str({ description: "Shown once; stored only as a hash" })),
+        },
+        errors: ["auth.invalid_code"],
+      },
+    ),
+    write(
+      "network.server_approve",
+      "Admit a waiting computer to the Space: a person looks at its name, what it runs on and its fingerprint and approves once",
+      {
+        in: { serverId },
+        out: { state: t.lit("approved") },
+        perm: "server.network",
+        level: "manage",
+        risk: "high",
+        audit: "always",
+        emits: ["network.server_added"],
+        gate: { act: "enroll_node", when: "actor.kind != 'person'" },
+        tool: "engineer",
+        team: true,
+      },
+    ),
+    write("network.server_decline", "Turn a waiting computer away", {
+      in: { serverId },
+      out: { state: t.lit("declined") },
+      perm: "server.network",
+      level: "manage",
+      audit: "always",
+      tool: "engineer",
+      team: true,
+    }),
+    write("network.my_computer_approve", "Admit your own waiting computer", {
+      in: { serverId },
+      out: { state: t.lit("approved") },
+      level: "use",
+      risk: "high",
+      audit: "always",
+      emits: ["network.server_added"],
+      gate: { act: "enroll_node", when: "actor.kind != 'person'" },
+      tool: "engineer",
+    }),
+    write("network.my_computer_decline", "Turn your own waiting computer away", {
+      in: { serverId },
+      out: { state: t.lit("declined") },
+      level: "use",
+      audit: "always",
+      tool: "engineer",
+    }),
+    read(
+      "network.phone",
+      "Your phone address on vyre.run: the name this computer holds, whether it is online, and the link that opens it on a phone",
+      {
+        out: {
+          state: t.enm("none", "claiming", "claimed", "releasing", "failed"),
+          name: t.opt(t.str()),
+          nickname: t.opt(t.str()),
+          url: t.opt(t.str()),
+          link: t.opt(
+            t.str({
+              description:
+                "The URL to open on the phone. Its fragment carries this computer's public key, which the phone pins; it never reaches a server.",
+            }),
+          ),
+          online: t.bool(),
+          detail: t.opt(t.str()),
+        },
+        level: "use",
+        tool: "engineer",
+      },
+    ),
+    write(
+      "network.phone_claim",
+      "Claim a name like alex.vyre.run once, so a phone reaches this computer there while it is on and online. The relay only passes sealed bytes",
+      {
+        in: {
+          name: t.str({ examples: ["alex"] }),
+          nickname: t.opt(t.str({ maxLength: 40, examples: ["home-laptop"] })),
+        },
+        out: { state: t.lit("claiming") },
+        level: "use",
+        risk: "high",
+        audit: "always",
+        tool: "engineer",
+      },
+    ),
+    write("network.phone_release", "Give up the phone address. The name stays reserved to this computer", {
+      in: {},
+      out: { state: t.enm("none", "releasing") },
+      level: "use",
+      audit: "always",
+      tool: "engineer",
+    }),
+    write("network.server_reconnect", "Reconnect an offline server", {
+      in: { serverId },
+      out: { state },
+      perm: "server.network",
+      tool: "engineer",
+    }),
+    write("network.server_remove", "Remove a server from the Space", {
+      in: { serverId },
+      out: { removed: t.bool() },
+      perm: "server.network",
+      level: "manage",
+      risk: "high",
+      audit: "always",
+      emits: ["network.server_removed"],
+      gate: { act: "delete" },
+      tool: "engineer",
+    }),
+    read("network.health", "Network health probe: certificate expiry and relay reachability", {
+      out: { state, detail: t.opt(t.str()), latencyMs: t.opt(t.int()), daysToExpiry: t.opt(t.int()) },
+    }),
+    read(
+      "network.peers",
+      "The computers that hold this Personal Space: each keeps a full copy and syncs with the others through the relay. This computer, whether each is awake, and when it was last seen",
+      {
+        out: {
+          waiting: t.int({ description: "Changes made on this computer that no other computer has taken yet" }),
+          syncedAt: t.opt(t.ts()),
+          computers: t.arr(
+            t.obj({
+              peerId: t.str(),
+              name: t.str(),
+              platform: t.str(),
+              kind: t.enm("computer", "server"),
+              self: t.bool(),
+              online: t.bool(),
+              lastSeenAt: t.opt(t.ts()),
+              addedAt: t.ts(),
+            }),
+          ),
+        },
+        level: "use",
+        tool: "engineer",
+      },
+    ),
+    read(
+      "network.peer_requests",
+      "New computers asking to use this Personal Space, each with the six-digit code its own screen shows",
+      {
+        out: {
+          requests: t.arr(
+            t.obj({
+              requestId: t.str(),
+              name: t.str(),
+              platform: t.str(),
+              code: t.str({ examples: ["418 207"] }),
+              requestedAt: t.ts(),
+              expiresAt: t.ts(),
+            }),
+          ),
+        },
+        level: "use",
+        tool: "engineer",
+      },
+    ),
+    write(
+      "network.peer_allow",
+      "Let a new computer use this Personal Space: it gets a full copy of your chats, files, records and Vault (still locked by your password) and stays in sync",
+      {
+        in: { requestId: t.str() },
+        out: { state: t.lit("allowed") },
+        level: "use",
+        risk: "high",
+        audit: "always",
+        gate: { act: "enroll_node", when: "actor.kind != 'person'" },
+        tool: "engineer",
+      },
+    ),
+    write("network.peer_decline", "Turn away a computer that asked to use this Personal Space", {
+      in: { requestId: t.str() },
+      out: { state: t.lit("declined") },
+      level: "use",
+      audit: "always",
+      tool: "engineer",
+    }),
+    read(
+      "network.peer_conflicts",
+      "What syncing between your computers had to settle: the same name made on two computers while apart (one copy is renamed, both are kept), or an item kept aside whole",
+      {
+        out: {
+          conflicts: t.arr(
+            t.obj({
+              conflictId: t.str(),
+              table: t.str(),
+              rowKey: t.str(),
+              kind: t.enm("renamed", "kept_aside"),
+              detail: t.str(),
+              at: t.ts(),
+            }),
+          ),
+        },
+        level: "use",
+        tool: "engineer",
+      },
+    ),
+    read(
+      "network.peer_runner",
+      "Which of your computers runs scheduled automations, routines and nightly jobs now (one at a time)",
+      { out: { peerId: t.opt(t.str()), here: t.bool(), expiresAt: t.opt(t.ts()) }, level: "use", tool: "engineer" },
+    ),
+    create(
+      "network.peer_server_code",
+      "Add a server to your Personal Space: a one-time code for the install line. The server joins through Vyre's relay (no address needed), keeps a full copy in sync, keeps the Space going and runs scheduled work while your computers sleep",
+      {
+        in: { nickname: t.opt(t.str({ maxLength: 40, examples: ["home-server"] })) },
+        out: { code: t.str({ examples: ["VYRE-PS-eyJ2IjoxfQ"] }), expiresAt: t.ts() },
+        level: "use",
+        risk: "high",
+        audit: "always",
+        tool: "engineer",
+      },
+    ),
+    write(
+      "network.peer_remove",
+      "Take a computer out of this Personal Space: it stops syncing with your other computers",
+      {
+        in: { peerId: t.str() },
+        out: { removed: t.bool() },
+        level: "use",
+        risk: "high",
+        audit: "always",
+        gate: { act: "delete" },
+        tool: "engineer",
+      },
+    ),
   ],
   health: [
-    health('network.certificate', 'Certificate valid', 'network.health', 'Open Console, Infrastructure, Network and renew the certificate.', { pauses: ['sends'], states: { degradedWhen: 'daysToExpiry < 14', downWhen: 'daysToExpiry < 1' } }),
-    health('network.relay', 'Relay reachable', 'network.health', 'Open Console, Infrastructure, Network and check the relay row.', { dependsOn: ['network.certificate'] }),
+    health(
+      "network.certificate",
+      "Certificate valid",
+      "network.health",
+      "Open Console, Infrastructure, Network and renew the certificate.",
+      { pauses: ["sends"], states: { degradedWhen: "daysToExpiry < 14", downWhen: "daysToExpiry < 1" } },
+    ),
+    health(
+      "network.relay",
+      "Relay reachable",
+      "network.health",
+      "Open Console, Infrastructure, Network and check the relay row.",
+      { dependsOn: ["network.certificate"] },
+    ),
   ],
 });

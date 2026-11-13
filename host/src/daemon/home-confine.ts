@@ -7,10 +7,16 @@ const MAX_DEPTH = 64;
 type In = Record<string, unknown>;
 const str = (v: unknown): string | null => (typeof v === "string" && v.length > 0 && v.length <= 80 ? v : null);
 
-export interface HomeScope { homeFolder: string; ownerId: string; agentId: string }
+export interface HomeScope {
+  homeFolder: string;
+  ownerId: string;
+  agentId: string;
+}
 
 export function homeScopeOf(db: Pick<HostDb, "all">, agentId: string): HomeScope | null {
-  const r = db.all("SELECT folderId, ownerId FROM agents_agent WHERE id = ? AND deletedAt IS NULL", agentId)[0] as { folderId?: string; ownerId?: string } | undefined;
+  const r = db.all("SELECT folderId, ownerId FROM agents_agent WHERE id = ? AND deletedAt IS NULL", agentId)[0] as
+    | { folderId?: string; ownerId?: string }
+    | undefined;
   return r?.folderId && r.ownerId ? { homeFolder: r.folderId, ownerId: r.ownerId, agentId } : null;
 }
 
@@ -19,7 +25,9 @@ function folderInside(db: Pick<HostDb, "all">, scope: HomeScope, folderId: strin
   let at = folderId;
   for (let depth = 0; at !== null && depth < MAX_DEPTH; depth++) {
     if (at === scope.homeFolder) return true;
-    const row = db.all("SELECT parent_id FROM files_folder WHERE id = ?", at)[0] as { parent_id?: string | null } | undefined;
+    const row = db.all("SELECT parent_id FROM files_folder WHERE id = ?", at)[0] as
+      | { parent_id?: string | null }
+      | undefined;
     if (!row) return false;
     at = row.parent_id ?? null;
   }
@@ -35,21 +43,42 @@ function fileInside(db: Pick<HostDb, "all">, scope: HomeScope, fileId: string | 
 export function homeCallAllowed(db: Pick<HostDb, "all">, scope: HomeScope, cap: string, input: unknown): boolean {
   const i: In = input && typeof input === "object" && !Array.isArray(input) ? (input as In) : {};
   switch (cap) {
-    case "files.list": return folderInside(db, scope, str(i["folder"]) ?? str(i["folderId"]));
-    case "files.read": case "files.write": case "files.delete": return fileInside(db, scope, str(i["fileId"]));
-    case "files.create": return folderInside(db, scope, str(i["folderId"]));
-    case "files.folder.create": return folderInside(db, scope, str(i["parentId"]));
-    case "made_files": {   // the node says which files the agent made; each must be inside the home, and there are few
+    case "files.list":
+      return folderInside(db, scope, str(i["folder"]) ?? str(i["folderId"]));
+    case "files.read":
+    case "files.write":
+    case "files.delete":
+      return fileInside(db, scope, str(i["fileId"]));
+    case "files.create":
+      return folderInside(db, scope, str(i["folderId"]));
+    case "files.folder.create":
+      return folderInside(db, scope, str(i["parentId"]));
+    case "made_files": {
+      // the node says which files the agent made; each must be inside the home, and there are few
       const list = i["files"];
-      return Array.isArray(list) && list.length > 0 && list.length <= 50 && list.every((f) => f && typeof f === "object" && fileInside(db, scope, str((f as In)["fileId"])));
+      return (
+        Array.isArray(list) &&
+        list.length > 0 &&
+        list.length <= 50 &&
+        list.every((f) => f && typeof f === "object" && fileInside(db, scope, str((f as In)["fileId"])))
+      );
     }
-    case "files.upload_url": return true;   // a slot for bytes: it names no file; the write that uses it is checked above
-    case "agents.get": case "agents.suggestion.propose": return i["agentId"] === scope.agentId;
+    case "files.upload_url":
+      return true; // a slot for bytes: it names no file; the write that uses it is checked above
+    case "agents.get":
+    case "agents.suggestion.propose":
+      return i["agentId"] === scope.agentId;
     case "tasks.create": {
       const assigned = i["assigned"] as { kind?: unknown; id?: unknown } | undefined;
       const files = Array.isArray(i["fileIds"]) ? (i["fileIds"] as unknown[]) : [];
-      return assigned?.kind === "person" && assigned.id === scope.ownerId && files.length <= 20 && files.every((f) => fileInside(db, scope, str(f)));
+      return (
+        assigned?.kind === "person" &&
+        assigned.id === scope.ownerId &&
+        files.length <= 20 &&
+        files.every((f) => fileInside(db, scope, str(f)))
+      );
     }
-    default: return false;
+    default:
+      return false;
   }
 }

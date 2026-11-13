@@ -7,12 +7,19 @@ export const TRASH_DAYS_MIN = 30;
 export const TRASH_DAYS_MAX = 90;
 export const UPKEEP_CAP_DEFAULT_MICROS = 5_000_000;
 
-export async function setting<T>(ctx: Pick<MemCtx, "call">, key: string, fallback: T, ok: (v: unknown) => v is T): Promise<T> {
+export async function setting<T>(
+  ctx: Pick<MemCtx, "call">,
+  key: string,
+  fallback: T,
+  ok: (v: unknown) => v is T,
+): Promise<T> {
   try {
     const res = (await ctx.call("settings.get", { key })) as { row?: { value?: unknown } };
     const v = res.row?.value;
     if (v !== undefined && ok(v)) return v;
-  } catch { /* the default applies */ }
+  } catch {
+    /* the default applies */
+  }
   return fallback;
 }
 
@@ -34,7 +41,12 @@ export async function upkeepCapMicros(ctx: Pick<MemCtx, "call">): Promise<number
 
 export type MeaningMode = "local" | "key" | "off";
 export async function meaningMode(ctx: Pick<MemCtx, "call">): Promise<MeaningMode> {
-  const v = await setting<string>(ctx, "memory.meaning_search", "local", (x): x is string => x === "local" || x === "key" || x === "off");
+  const v = await setting<string>(
+    ctx,
+    "memory.meaning_search",
+    "local",
+    (x): x is string => x === "local" || x === "key" || x === "off",
+  );
   return v as MeaningMode;
 }
 
@@ -42,9 +54,14 @@ export async function meaningMode(ctx: Pick<MemCtx, "call">): Promise<MeaningMod
  * "Require review for shared memory": when the Space setting is on, every Space and project fact an agent learns waits in Proposed. A project named in memory.review_projects waits even when the
  * Space setting is off. The agent and personal layers are never held back by it.
  */
-export async function reviewRequired(ctx: Pick<MemCtx, "call">, layer: Layer, projectId: string | null): Promise<boolean> {
+export async function reviewRequired(
+  ctx: Pick<MemCtx, "call">,
+  layer: Layer,
+  projectId: string | null,
+): Promise<boolean> {
   if (layer !== "space" && layer !== "project") return false;
   if (await setting(ctx, "memory.require_review", false, isBool)) return true;
-  if (layer === "project" && projectId) return (await setting<string[]>(ctx, "memory.review_projects", [], isStrs)).includes(projectId);
+  if (layer === "project" && projectId)
+    return (await setting<string[]>(ctx, "memory.review_projects", [], isStrs)).includes(projectId);
   return false;
 }

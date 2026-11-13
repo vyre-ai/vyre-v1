@@ -8,7 +8,10 @@
 export const TALK_SAMPLE_RATE = 16_000;
 export const TOKEN_SECONDS = 30;
 
-export interface TalkChoice { id: string; label: string }
+export interface TalkChoice {
+  id: string;
+  label: string;
+}
 export type GrantFailure = "key" | "role" | "busy" | "down";
 export type GrantResult = { ok: true; token: string; expiresIn: number } | { ok: false; why: GrantFailure };
 /** What a socket message means to the composer. The text is the person's words: it never goes to a log. */
@@ -30,10 +33,17 @@ export interface TalkProvider {
   defaultLanguage: string;
   /** What to tell a person whose key the provider accepts but will not let make a token. */
   roleLine: string;
-  grant(apiKey: string, ttlSeconds: number): { url: string; method: string; headers: Record<string, string>; body: string };
+  grant(
+    apiKey: string,
+    ttlSeconds: number,
+  ): { url: string; method: string; headers: Record<string, string>; body: string };
   readGrant(status: number, body: string): GrantResult;
   /** `terms` are words the provider should favour: the product, the Space, its people and agents. Each provider passes them its own way, or ignores them. */
-  socket(s: { model: string; language: string; token: string; terms?: readonly string[] }): { url: string; protocols: string[]; /** Words sent with the first audio chunk (ElevenLabs), where the address cannot carry them well enough. */ context?: string };
+  socket(s: { model: string; language: string; token: string; terms?: readonly string[] }): {
+    url: string;
+    protocols: string[];
+    /** Words sent with the first audio chunk (ElevenLabs), where the address cannot carry them well enough. */ context?: string;
+  };
   /** One chunk of microphone audio as the socket wants it: Deepgram takes the raw bytes, ElevenLabs a JSON text frame. */
   frame(pcm: ArrayBuffer, o?: { first?: boolean; context?: string | undefined }): string | ArrayBuffer;
   /** The text frame that asks the provider for what it still holds, then to close. */
@@ -49,17 +59,34 @@ const DEEPGRAM: TalkProvider = {
   spaceKeyName: "Deepgram for this Space",
   keyField: "api_key",
   // nova-3 is the model Deepgram names for live transcription; Flux is for voice agents that need turn detection, which Talk does not
-  models: [{ id: "nova-3", label: "Nova 3" }, { id: "nova-2", label: "Nova 2" }],
+  models: [
+    { id: "nova-3", label: "Nova 3" },
+    { id: "nova-2", label: "Nova 2" },
+  ],
   languages: [
-    { id: "multi", label: "Automatic" }, { id: "en", label: "English" }, { id: "es", label: "Spanish" }, { id: "fr", label: "French" }, { id: "de", label: "German" }, { id: "it", label: "Italian" },
-    { id: "pt", label: "Portuguese" }, { id: "nl", label: "Dutch" }, { id: "hi", label: "Hindi" }, { id: "ur", label: "Urdu" }, { id: "ar", label: "Arabic" }, { id: "ru", label: "Russian" },
-    { id: "ja", label: "Japanese" }, { id: "ko", label: "Korean" },
+    { id: "multi", label: "Automatic" },
+    { id: "en", label: "English" },
+    { id: "es", label: "Spanish" },
+    { id: "fr", label: "French" },
+    { id: "de", label: "German" },
+    { id: "it", label: "Italian" },
+    { id: "pt", label: "Portuguese" },
+    { id: "nl", label: "Dutch" },
+    { id: "hi", label: "Hindi" },
+    { id: "ur", label: "Urdu" },
+    { id: "ar", label: "Arabic" },
+    { id: "ru", label: "Russian" },
+    { id: "ja", label: "Japanese" },
+    { id: "ko", label: "Korean" },
   ],
   defaultModel: "nova-3",
   defaultLanguage: "multi",
   roleLine: "That key cannot make short-lived tokens. Make one with the Member role.",
   grant: (apiKey, ttlSeconds) => ({
-    url: "https://api.deepgram.com/v1/auth/grant", method: "POST", headers: { authorization: `Token ${apiKey}`, "content-type": "application/json" }, body: JSON.stringify({ ttl_seconds: ttlSeconds }),
+    url: "https://api.deepgram.com/v1/auth/grant",
+    method: "POST",
+    headers: { authorization: `Token ${apiKey}`, "content-type": "application/json" },
+    body: JSON.stringify({ ttl_seconds: ttlSeconds }),
   }),
   readGrant(status, body) {
     // a wrong or revoked key answers 400 "Invalid credentials" (seen live), not 401
@@ -70,13 +97,29 @@ const DEEPGRAM: TalkProvider = {
     try {
       const j = JSON.parse(body) as { access_token?: unknown; expires_in?: unknown };
       if (typeof j.access_token !== "string" || j.access_token === "") return { ok: false, why: "down" };
-      return { ok: true, token: j.access_token, expiresIn: typeof j.expires_in === "number" ? j.expires_in : TOKEN_SECONDS };
-    } catch { return { ok: false, why: "down" }; }
+      return {
+        ok: true,
+        token: j.access_token,
+        expiresIn: typeof j.expires_in === "number" ? j.expires_in : TOKEN_SECONDS,
+      };
+    } catch {
+      return { ok: false, why: "down" };
+    }
   },
   socket({ model, language, token, terms = [] }) {
-    const q = new URLSearchParams({ model, language, encoding: "linear16", sample_rate: String(TALK_SAMPLE_RATE), channels: "1", interim_results: "true", smart_format: "true", endpointing: "300" });
+    const q = new URLSearchParams({
+      model,
+      language,
+      encoding: "linear16",
+      sample_rate: String(TALK_SAMPLE_RATE),
+      channels: "1",
+      interim_results: "true",
+      smart_format: "true",
+      endpointing: "300",
+    });
     // Nova 3 takes plain keyterms (one parameter each); Nova 2 takes keywords with an intensifier
-    for (const term of terms) q.append(model.startsWith("nova-3") ? "keyterm" : "keywords", model.startsWith("nova-3") ? term : `${term}:2`);
+    for (const term of terms)
+      q.append(model.startsWith("nova-3") ? "keyterm" : "keywords", model.startsWith("nova-3") ? term : `${term}:2`);
     // a browser socket cannot set a header: Deepgram reads the JWT from the subprotocol pair
     return { url: `wss://api.deepgram.com/v1/listen?${q.toString()}`, protocols: ["bearer", token] };
   },
@@ -84,7 +127,11 @@ const DEEPGRAM: TalkProvider = {
   closing: JSON.stringify({ type: "CloseStream" }),
   read(message) {
     let j: { type?: unknown; is_final?: unknown; channel?: { alternatives?: { transcript?: unknown }[] } };
-    try { j = JSON.parse(message) as typeof j; } catch { return null; }
+    try {
+      j = JSON.parse(message) as typeof j;
+    } catch {
+      return null;
+    }
     if (j.type === "Error") return { kind: "error" };
     if (j.type !== "Results") return null;
     const text = j.channel?.alternatives?.[0]?.transcript;
@@ -100,7 +147,14 @@ const base64 = (pcm: ArrayBuffer): string => {
 };
 /** The sentence sent with the first chunk. Measured live: this exact form got "Vyre voice" right every time; the bare list "Vyre." did not. */
 export const contextLine = (terms: readonly string[]): string => `Words that may come up: ${terms.join(", ")}.`;
-const eleven = (audio: string, commit: boolean, context?: string): string => JSON.stringify({ message_type: "input_audio_chunk", audio_base_64: audio, commit, sample_rate: TALK_SAMPLE_RATE, ...(context ? { previous_text: context } : {}) });
+const eleven = (audio: string, commit: boolean, context?: string): string =>
+  JSON.stringify({
+    message_type: "input_audio_chunk",
+    audio_base_64: audio,
+    commit,
+    sample_rate: TALK_SAMPLE_RATE,
+    ...(context ? { previous_text: context } : {}),
+  });
 
 // DECISION: ElevenLabs Scribe v2 Realtime. The host swaps the key for a single-use token (valid for one socket, 15 minutes to start it); the page opens the socket with the token in the address,
 // because a browser cannot send a header and ElevenLabs has no subprotocol form. The token is not the key and works once. Audio goes up as base64 JSON frames, and a commit frame asks for what it still holds.
@@ -116,7 +170,12 @@ const ELEVENLABS: TalkProvider = {
   defaultModel: "scribe_v2_realtime",
   defaultLanguage: "multi",
   roleLine: "That key can't make speech-to-text tokens. Make one in ElevenLabs with Speech to Text access.",
-  grant: (apiKey) => ({ url: "https://api.elevenlabs.io/v1/single-use-token/realtime_scribe", method: "POST", headers: { "xi-api-key": apiKey }, body: "" }),
+  grant: (apiKey) => ({
+    url: "https://api.elevenlabs.io/v1/single-use-token/realtime_scribe",
+    method: "POST",
+    headers: { "xi-api-key": apiKey },
+    body: "",
+  }),
   readGrant(status, body) {
     if (status === 401) return { ok: false, why: "key" };
     if (status === 403) return { ok: false, why: "role" };
@@ -126,23 +185,41 @@ const ELEVENLABS: TalkProvider = {
       const j = JSON.parse(body) as { token?: unknown };
       if (typeof j.token !== "string" || j.token === "") return { ok: false, why: "down" };
       return { ok: true, token: j.token, expiresIn: 900 };
-    } catch { return { ok: false, why: "down" }; }
+    } catch {
+      return { ok: false, why: "down" };
+    }
   },
   socket({ model, language, token, terms = [] }) {
-    const q = new URLSearchParams({ model_id: model, token, audio_format: "pcm_16000", commit_strategy: "vad", include_timestamps: "false" });
+    const q = new URLSearchParams({
+      model_id: model,
+      token,
+      audio_format: "pcm_16000",
+      commit_strategy: "vad",
+      include_timestamps: "false",
+    });
     // measured live (4 Nov): the JSON form moved "Vyre voice" closer, and the context line on the first chunk got it right; a repeated or comma form did nothing
     if (terms.length > 0) q.set("keyterms", JSON.stringify(terms));
     if (language !== "multi") q.set("language_code", language);
-    return { url: `wss://api.elevenlabs.io/v1/speech-to-text/realtime?${q.toString()}`, protocols: [], ...(terms.length > 0 ? { context: contextLine(terms) } : {}) };
+    return {
+      url: `wss://api.elevenlabs.io/v1/speech-to-text/realtime?${q.toString()}`,
+      protocols: [],
+      ...(terms.length > 0 ? { context: contextLine(terms) } : {}),
+    };
   },
   frame: (pcm, o) => eleven(base64(pcm), false, o?.first === true ? o.context : undefined),
   closing: eleven("", true),
   read(message) {
     let j: { message_type?: unknown; text?: unknown };
-    try { j = JSON.parse(message) as typeof j; } catch { return null; }
+    try {
+      j = JSON.parse(message) as typeof j;
+    } catch {
+      return null;
+    }
     const kind = j.message_type;
-    if (typeof kind === "string" && /error|exceeded|rate_limited|unaccepted|auth_error|quota|invalid/i.test(kind)) return { kind: "error" };
-    if ((kind === "partial_transcript" || kind === "committed_transcript") && typeof j.text === "string") return { kind: "words", text: j.text, final: kind === "committed_transcript" };
+    if (typeof kind === "string" && /error|exceeded|rate_limited|unaccepted|auth_error|quota|invalid/i.test(kind))
+      return { kind: "error" };
+    if ((kind === "partial_transcript" || kind === "committed_transcript") && typeof j.text === "string")
+      return { kind: "words", text: j.text, final: kind === "committed_transcript" };
     return null;
   },
 };
@@ -151,18 +228,35 @@ const MAX_TERMS = 40;
 const MAX_TERM_CHARS = 40;
 const MAX_TOTAL_CHARS = 600;
 /** The words worth favouring, in order of use: the product first, then the Space, its agents and its people. Each is trimmed, kept to one line, and listed once; the list stays short (a provider caps what it takes). */
-export function boostTerms(groups: { product: string; space?: string | undefined; agents?: readonly string[]; people?: readonly string[] }): string[] {
+export function boostTerms(groups: {
+  product: string;
+  space?: string | undefined;
+  agents?: readonly string[];
+  people?: readonly string[];
+}): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   let total = 0;
   const add = (raw: string | undefined): void => {
-    const term = (raw ?? "").replace(/[,;:&=#?]/g, "").replace(/\s+/g, " ").trim();
-    if (term.length < 2 || term.length > MAX_TERM_CHARS || out.length >= MAX_TERMS || total + term.length > MAX_TOTAL_CHARS) return;
+    const term = (raw ?? "")
+      .replace(/[,;:&=#?]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (
+      term.length < 2 ||
+      term.length > MAX_TERM_CHARS ||
+      out.length >= MAX_TERMS ||
+      total + term.length > MAX_TOTAL_CHARS
+    )
+      return;
     const key = term.toLowerCase();
     if (seen.has(key)) return;
-    seen.add(key); out.push(term); total += term.length;
+    seen.add(key);
+    out.push(term);
+    total += term.length;
   };
-  add(groups.product); add(groups.space);
+  add(groups.product);
+  add(groups.space);
   for (const a of groups.agents ?? []) add(a);
   for (const p of groups.people ?? []) add(p);
   return out;

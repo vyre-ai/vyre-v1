@@ -21,12 +21,19 @@ const TABLE = `## 11. Reuse plan (per 0.6 path)
 | \`never/parsed\` | KEEP | \`x\` | after the section |
 `;
 
-const LANES = [{ id: "L1", owns: ["kernel/"] }, { id: "L11", owns: ["scripts/release/", "golden/"] }, { id: "L5", owns: ["modules/google/"] }];
+const LANES = [
+  { id: "L1", owns: ["kernel/"] },
+  { id: "L11", owns: ["scripts/release/", "golden/"] },
+  { id: "L5", owns: ["modules/google/"] },
+];
 
 function fixture() {
   const src = fs.mkdtempSync(path.join(os.tmpdir(), "imp-src-"));
   const out = fs.mkdtempSync(path.join(os.tmpdir(), "imp-out-"));
-  const w = (f: string, t: string) => { fs.mkdirSync(path.dirname(path.join(src, f)), { recursive: true }); fs.writeFileSync(path.join(src, f), t); };
+  const w = (f: string, t: string) => {
+    fs.mkdirSync(path.dirname(path.join(src, f)), { recursive: true });
+    fs.writeFileSync(path.join(src, f), t);
+  };
   w("kernel/seal/index.js", "export const a = 1;\n");
   w("kernel/seal/deep/x.ts", "export const b = 2;\n");
   w("kernel/seal/notes.md", "# notes\n");
@@ -45,14 +52,25 @@ test("table parsing keeps pipes inside backticks and stops at the next heading",
   assert.equal(rows.length, 6);
   assert.equal(rows[2].dest, "`modules/google|microsoft`");
   assert.deepEqual(splitCells("| a | `b|c` | d |"), ["a", "`b|c`", "d"]);
-  assert.deepEqual(rows.map((r) => r.verdict), ["copy", "copy", "copy", "rewrite", "drop", "idea"]);
+  assert.deepEqual(
+    rows.map((r) => r.verdict),
+    ["copy", "copy", "copy", "rewrite", "drop", "idea"],
+  );
   assert.equal(classify("CLEAN, mostly rewritten"), "copy");
 });
 
 test("source and destination cells resolve to paths", () => {
-  assert.deepEqual(sourcePaths("`scripts/release.sh`, `bump-version.mjs`, `Gate`, `.d.ts`"), ["scripts/release.sh", "scripts/bump-version.mjs"]);
+  assert.deepEqual(sourcePaths("`scripts/release.sh`, `bump-version.mjs`, `Gate`, `.d.ts`"), [
+    "scripts/release.sh",
+    "scripts/bump-version.mjs",
+  ]);
   assert.deepEqual(sourcePaths("`kernel/store` (sqlite.js, x)"), ["kernel/store"]);
-  assert.deepEqual(destPaths("`modules/google|microsoft|mail` and `kernel/src/*`"), ["modules/google", "modules/microsoft", "modules/mail", "kernel/src"]);
+  assert.deepEqual(destPaths("`modules/google|microsoft|mail` and `kernel/src/*`"), [
+    "modules/google",
+    "modules/microsoft",
+    "modules/mail",
+    "kernel/src",
+  ]);
   assert.equal(laneOf("scripts/release", LANES), "L11");
   assert.equal(laneOf("zzz", LANES), "unowned");
 });
@@ -62,16 +80,25 @@ test("dry run on 5 rows writes nothing, logs every row", () => {
   const r = run(plan(parseRows(TABLE)), { src, out, sha: "abc123def", apply: false, lanes: LANES });
   assert.deepEqual(fs.readdirSync(out), []);
   assert.equal(r.log.filter((l) => l.kind === "imported" || l.kind === "headerless").length, 6);
-  assert.deepEqual(r.log.filter((l) => ["rewrite", "drop", "idea"].includes(l.kind)).map((l) => l.kind), ["rewrite", "drop", "idea"]);
+  assert.deepEqual(
+    r.log.filter((l) => ["rewrite", "drop", "idea"].includes(l.kind)).map((l) => l.kind),
+    ["rewrite", "drop", "idea"],
+  );
 });
 
 test("apply copies with origin headers; REWRITE and DROP rows are logged, not copied", () => {
   const { src, out } = fixture();
   const r = run(plan(parseRows(TABLE)), { src, out, sha: "abc123def", apply: true, lanes: LANES });
   const read = (f: string) => fs.readFileSync(path.join(out, f), "utf8");
-  assert.equal(read("kernel/src/seal/index.js"), "// from vyre 0.6.9 kernel/seal/index.js@abc123def\nexport const a = 1;\n");
+  assert.equal(
+    read("kernel/src/seal/index.js"),
+    "// from vyre 0.6.9 kernel/seal/index.js@abc123def\nexport const a = 1;\n",
+  );
   assert.match(read("kernel/src/seal/deep/x.ts"), /^\/\/ from vyre 0.6.9 kernel\/seal\/deep\/x\.ts@abc123def\n/);
-  assert.match(read("scripts/release/release.sh"), /^#!\/bin\/sh\n# from vyre 0.6.9 scripts\/release\.sh@abc123def\necho hi/);
+  assert.match(
+    read("scripts/release/release.sh"),
+    /^#!\/bin\/sh\n# from vyre 0.6.9 scripts\/release\.sh@abc123def\necho hi/,
+  );
   assert.equal(read("kernel/src/seal/notes.md"), "# notes\n");
   assert.ok(r.log.some((l) => l.kind === "headerless" && /notes\.md/.test(l.text)));
   assert.ok(!fs.existsSync(path.join(out, "kernel/src/seal/node_modules")));

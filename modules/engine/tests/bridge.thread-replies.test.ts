@@ -14,23 +14,54 @@ import type { EngineCtx } from "../projections.ts";
 const MAIN = "thr_project";
 const LEAD = "agt_intake";
 
-interface Row { messageId: string; threadId: string; threadSeq: number; author: { kind: string; id: string }; body: string; blocks: unknown[]; mentions: unknown[]; depth: number }
-const reply = (text: string): DriverEvent[] => [{ type: "text", text }, { type: "usage", inputTokens: 5, outputTokens: 2 }, { type: "done" }];
+interface Row {
+  messageId: string;
+  threadId: string;
+  threadSeq: number;
+  author: { kind: string; id: string };
+  body: string;
+  blocks: unknown[];
+  mentions: unknown[];
+  depth: number;
+}
+const reply = (text: string): DriverEvent[] => [
+  { type: "text", text },
+  { type: "usage", inputTokens: 5, outputTokens: 2 },
+  { type: "done" },
+];
 
-function setup(o: { kind?: string; on?: boolean; script?: DriverEvent[]; held?: boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen" }> }) {
+function setup(o: {
+  kind?: string;
+  on?: boolean;
+  script?: DriverEvent[];
+  held?: boolean;
+  agents?: Array<{ agentId: string; mode: "lead" | "listen" }>;
+}) {
   const h = harness();
   const chat: Row[] = [];
   const made: Array<{ threadId: string; messageId: string }> = [];
   const asks: Array<{ threadId: string; messageId: string }> = [];
-  const threads = new Map<string, string>();   // asking message -> its thread
+  const threads = new Map<string, string>(); // asking message -> its thread
   const agents = o.agents ?? [{ agentId: LEAD, mode: "lead" as const }];
   const ctx: EngineCtx = {
     ...h.ctx,
     async call(cap: string, input: unknown) {
       const b = input as { threadId: string; messageId?: string };
-      if (cap === "gate.grants.ask") { asks.push(input as (typeof asks)[number]); return { ok: true }; }
+      if (cap === "gate.grants.ask") {
+        asks.push(input as (typeof asks)[number]);
+        return { ok: true };
+      }
       if (cap === "threads.get") {
-        if (b.threadId === MAIN) return { thread: { threadId: MAIN, kind: o.kind ?? "channel", starter: "usr_dana", agents, agentRepliesInThreads: o.on ?? true } };
+        if (b.threadId === MAIN)
+          return {
+            thread: {
+              threadId: MAIN,
+              kind: o.kind ?? "channel",
+              starter: "usr_dana",
+              agents,
+              agentRepliesInThreads: o.on ?? true,
+            },
+          };
         return { thread: { threadId: b.threadId, kind: "thread", parentThreadId: MAIN, starter: "usr_dana", agents } };
       }
       if (cap === "agents.get") throw new Error("no such agent");
@@ -40,27 +71,86 @@ function setup(o: { kind?: string; on?: boolean; script?: DriverEvent[]; held?: 
         threads.set(b.messageId!, id);
         return { thread: { threadId: id } };
       }
-      if (cap === "chat.message.get") return { message: chat.find((r) => r.messageId === b.messageId && r.threadId === b.threadId) };
-      if (cap === "chat.messages.list") return { messages: chat.filter((r) => r.threadId === b.threadId), hasMore: false };
+      if (cap === "chat.message.get")
+        return { message: chat.find((r) => r.messageId === b.messageId && r.threadId === b.threadId) };
+      if (cap === "chat.messages.list")
+        return { messages: chat.filter((r) => r.threadId === b.threadId), hasMore: false };
       return h.ctx.call(cap, input);
     },
   };
   let bridge: Bridge;
   const postAs = async (agentId: string, p: AgentPost): Promise<void> => {
-    const row: Row = { messageId: p.clientId, threadId: p.threadId, threadSeq: chat.length + 1, author: { kind: "agent", id: agentId }, body: p.body, blocks: p.blocks, mentions: p.mentions, depth: 1 };
+    const row: Row = {
+      messageId: p.clientId,
+      threadId: p.threadId,
+      threadSeq: chat.length + 1,
+      author: { kind: "agent", id: agentId },
+      body: p.body,
+      blocks: p.blocks,
+      mentions: p.mentions,
+      depth: 1,
+    };
     chat.push(row);
-    await bridge.onEvent(ctx, { name: "message.received", payload: { messageId: row.messageId, threadId: p.threadId, author: { kind: "agent", id: agentId }, mentions: p.mentions, depth: 1 } });
+    await bridge.onEvent(ctx, {
+      name: "message.received",
+      payload: {
+        messageId: row.messageId,
+        threadId: p.threadId,
+        author: { kind: "agent", id: agentId },
+        mentions: p.mentions,
+        depth: 1,
+      },
+    });
   };
   bridge = createBridge({ postAs });
   const provider = scriptedProvider({ script: o.script ?? reply("Done.") });
   const open = bridge.tap(provider.openSession);
-  const held = toolRunnerFrom(async () => ({ kind: "held", result: { ok: false, content: { held: true } }, taskId: "tsk_gate1" }));
-  const engine = h.runtime({ openSession: (spec) => open(spec), schedule: () => () => {}, ...(o.held ? { callTool: held } : {}) });
+  const held = toolRunnerFrom(async () => ({
+    kind: "held",
+    result: { ok: false, content: { held: true } },
+    taskId: "tsk_gate1",
+  }));
+  const engine = h.runtime({
+    openSession: (spec) => open(spec),
+    schedule: () => () => {},
+    ...(o.held ? { callTool: held } : {}),
+  });
   bridge.attach(engine);
-  async function say(body: string, where = MAIN, mentions: Array<{ kind: "agent" | "person"; id: string }> = [], id = `msg_p${chat.length + 1}`) {
-    chat.push({ messageId: id, threadId: where, threadSeq: chat.length + 1, author: { kind: "person", id: "usr_dana" }, body, blocks: [], mentions, depth: 0 });
-    const result = await bridge.onEvent(ctx, { name: "message.received", payload: { messageId: id, threadId: where, author: { kind: "person", id: "usr_dana" }, mentions, depth: 0, typed: true } });
-    if (result.receivedAs) for (const t of new Set([where, ...threads.values()])) { try { await engine.idle(t); } catch { /* not open here */ } }
+  async function say(
+    body: string,
+    where = MAIN,
+    mentions: Array<{ kind: "agent" | "person"; id: string }> = [],
+    id = `msg_p${chat.length + 1}`,
+  ) {
+    chat.push({
+      messageId: id,
+      threadId: where,
+      threadSeq: chat.length + 1,
+      author: { kind: "person", id: "usr_dana" },
+      body,
+      blocks: [],
+      mentions,
+      depth: 0,
+    });
+    const result = await bridge.onEvent(ctx, {
+      name: "message.received",
+      payload: {
+        messageId: id,
+        threadId: where,
+        author: { kind: "person", id: "usr_dana" },
+        mentions,
+        depth: 0,
+        typed: true,
+      },
+    });
+    if (result.receivedAs)
+      for (const t of new Set([where, ...threads.values()])) {
+        try {
+          await engine.idle(t);
+        } catch {
+          /* not open here */
+        }
+      }
     await bridge.flush();
     return { id, result };
   }
@@ -79,7 +169,10 @@ test("in a project chat with the switch on, the agent's reply lands in the threa
   assert.equal(posts[0]!.threadId, `thr_under_${id}`, "the reply is in the thread");
   assert.equal(posts[0]!.body, "Harbor looks best.");
   assert.equal(s.chat.filter((r) => r.threadId === MAIN).length, 1, "the main chat holds the ask and nothing else");
-  assert.ok(s.asks.some((a) => a.threadId === `thr_under_${id}`), "what the person asked opens its acts in the thread where the turn runs");
+  assert.ok(
+    s.asks.some((a) => a.threadId === `thr_under_${id}`),
+    "what the person asked opens its acts in the thread where the turn runs",
+  );
 });
 
 test("a channel behaves the same: the reply goes to the thread of the message that asked", async () => {
@@ -124,7 +217,10 @@ test("an ask made inside a thread is answered in that thread", async () => {
   const thread = `thr_under_${id}`;
   await s.say("Without tax, please.", thread);
   assert.equal(s.made.length, 1, "no second thread under a reply in a thread");
-  assert.deepEqual(agentPosts(s).map((r) => r.threadId), [thread, thread]);
+  assert.deepEqual(
+    agentPosts(s).map((r) => r.threadId),
+    [thread, thread],
+  );
 });
 
 test("a person's @mention of a listening agent in the chat is answered in the thread too", async () => {
@@ -134,11 +230,21 @@ test("a person's @mention of a listening agent in the chat is answered in the th
 });
 
 test("an approval asked in the thread rises to the chat as one quiet line that opens the thread; the thread keeps the card", async () => {
-  const s = setup({ held: true, script: [{ type: "text", text: "Booking." }, { type: "tool_call", id: "call_1", name: "mail_send", input: { to: "pat@acme.test" } }, { type: "done" }] });
+  const s = setup({
+    held: true,
+    script: [
+      { type: "text", text: "Booking." },
+      { type: "tool_call", id: "call_1", name: "mail_send", input: { to: "pat@acme.test" } },
+      { type: "done" },
+    ],
+  });
   const { id } = await s.say("Book the vendor call.");
   const thread = `thr_under_${id}`;
   const inThread = agentPosts(s).filter((r) => r.threadId === thread);
-  assert.ok(inThread.some((r) => JSON.stringify(r.blocks).includes('"waiting"')), "the thread holds the waiting turn");
+  assert.ok(
+    inThread.some((r) => JSON.stringify(r.blocks).includes('"waiting"')),
+    "the thread holds the waiting turn",
+  );
   const quiet = s.chat.filter((r) => r.threadId === MAIN && r.author.kind === "agent");
   assert.equal(quiet.length, 1, "one line in the chat");
   const blocks = JSON.stringify(quiet[0]!.blocks);

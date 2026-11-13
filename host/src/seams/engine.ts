@@ -13,7 +13,16 @@ import type { SigninRefresh } from "./signin-refresh.ts";
 export type EngineInvoke = (cap: string, input: unknown, as?: string) => Promise<unknown>;
 
 /** What an agent posts into a chat, as the bridge builds it (modules/engine/handlers/bridge.ts AgentPost). */
-export interface EngineAgentPost { actingFor?: string; sharedKey?: boolean; threadId: string; body: string; blocks: Array<{ type: string; v: number; data: unknown }>; mentions: unknown[]; clientId: string; via?: { routineOwner: string } }
+export interface EngineAgentPost {
+  actingFor?: string;
+  sharedKey?: boolean;
+  threadId: string;
+  body: string;
+  blocks: Array<{ type: string; v: number; data: unknown }>;
+  mentions: unknown[];
+  clientId: string;
+  via?: { routineOwner: string };
+}
 
 /** Plain ports for the session opener (agent/src/drivers/open): a Vault lookup that returns a secret for a handle, a loopback MCP token, and the scrub-miss report. */
 export type EngineSessionPorts = EngineSessionHost;
@@ -21,18 +30,40 @@ export type EngineSessionPorts = EngineSessionHost;
 /** A live turn event as the bridge reports it (modules/engine/handlers/bridge.ts StreamEvent), structural here. */
 export type EngineStreamEvent =
   | { kind: "start"; threadId: string; turnId: string; agentId: string; asker: string }
-  | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string; /** the turn read something: its live text goes to the asker only until the answer is checked (gap 6) */ asker?: string; privately?: boolean }
+  | {
+      kind: "delta";
+      threadId: string;
+      turnId: string;
+      agentId: string;
+      text: string;
+      /** the turn read something: its live text goes to the asker only until the answer is checked (gap 6) */ asker?: string;
+      privately?: boolean;
+    }
   | { kind: "steps"; threadId: string; turnId: string; agentId: string; steps: unknown[] }
   | { kind: "thinking"; threadId: string; turnId: string; agentId: string; text: string; asker?: string }
-  | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting"; code?: string }
+  | {
+      kind: "end";
+      threadId: string;
+      turnId: string;
+      agentId: string;
+      state: "done" | "failed" | "cancelled" | "waiting";
+      code?: string;
+    }
   | { kind: "final"; threadId: string; turnId: string; agentId: string; messageId: string | null };
 
 /** Where a live turn frame goes: every live socket whose person `allow` says may read the thread. */
-export type PublishTurn = (frame: { t: "turn"; turn: string; delta: Record<string, unknown> }, allow: (personId: string) => boolean | Promise<boolean>) => void;
+export type PublishTurn = (
+  frame: { t: "turn"; turn: string; delta: Record<string, unknown> },
+  allow: (personId: string) => boolean | Promise<boolean>,
+) => void;
 
 export interface EngineHostSeam {
   /** May every one of these people do this on this resource, each on their own grants? The engine checks an answer against everyone in the chat with it (gap 6). */
-  mayAll?(people: readonly string[], action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): boolean;
+  mayAll?(
+    people: readonly string[],
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
+    resource: { type: string; id: string | null },
+  ): boolean;
   /** Forget who was allowed to watch turns, so the next piece of text asks again (a member left, a grant was revoked). */
   forgetReaders?: () => void;
   /** Live turn events, already filtered to who may read the thread. Absent: nothing streams and the reply lands whole, as before. */
@@ -80,17 +111,32 @@ export interface EngineHostSeam {
 
 /** Start a process on a node (host/src/routes/compute-stream.ts spawnProc), structural here. A rejection carries an engine.* `code`. */
 export interface EngineNodes {
-  spawn(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>>; person?: string }): Promise<{
-    readonly pid: number | undefined; readonly stdout: AsyncIterable<Uint8Array>; write(data: string): Promise<void>; endInput(): void;
-    readonly exited: Promise<{ code: number | null; signal: string | null }>; stderrTail(): string; kill(signal?: "SIGTERM" | "SIGKILL"): void;
+  spawn(
+    nodeId: string,
+    spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>>; person?: string },
+  ): Promise<{
+    readonly pid: number | undefined;
+    readonly stdout: AsyncIterable<Uint8Array>;
+    write(data: string): Promise<void>;
+    endInput(): void;
+    readonly exited: Promise<{ code: number | null; signal: string | null }>;
+    stderrTail(): string;
+    kill(signal?: "SIGTERM" | "SIGKILL"): void;
   }>;
   connected(nodeId: string): boolean;
   /** Is the node's link private? An account key is sent only over one that is. */
   secure(nodeId: string): boolean;
   /** The person's own computers linked to the Space right now (their Vyre app): node id `device:<id>`, the engines each runs (routes/compute-stream.ts DeviceLink). */
-  devices?(person?: string): Array<{ nodeId: string; deviceId: string; person: string; name?: string; engines: string[]; since: number }>;
+  devices?(
+    person?: string,
+  ): Array<{ nodeId: string; deviceId: string; person: string; name?: string; engines: string[]; since: number }>;
   /** Told when one of them links or goes. */
-  onDevice?(fn: (link: { nodeId: string; deviceId: string; person: string; name?: string; engines: string[] }, up: boolean) => void): () => void;
+  onDevice?(
+    fn: (
+      link: { nodeId: string; deviceId: string; person: string; name?: string; engines: string[] },
+      up: boolean,
+    ) => void,
+  ): () => void;
 }
 
 export interface EngineHostDeps {
@@ -149,24 +195,50 @@ const SYSTEM = { kind: "service", id: "svc_host" } as const;
  * speaks into chat as itself, and the session opener's ports come from the Vault.
  */
 export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
-  const run = async (cap: string, input: unknown, principal: { kind: "person" | "agent" | "service"; id: string }, actingFor?: string, sharedKey?: boolean): Promise<unknown> => {
-    const r = await d.invoke(cap, input, { space: d.space, principal, origin: "engine", ...(actingFor ? { actingFor } : {}), ...(sharedKey ? { sharedKey } : {}), ...(principal.kind === "service" ? { preAuth: true } : {}) });
+  const run = async (
+    cap: string,
+    input: unknown,
+    principal: { kind: "person" | "agent" | "service"; id: string },
+    actingFor?: string,
+    sharedKey?: boolean,
+  ): Promise<unknown> => {
+    const r = await d.invoke(cap, input, {
+      space: d.space,
+      principal,
+      origin: "engine",
+      ...(actingFor ? { actingFor } : {}),
+      ...(sharedKey ? { sharedKey } : {}),
+      ...(principal.kind === "service" ? { preAuth: true } : {}),
+    });
     if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
     return r.output;
   };
   const call: EngineInvoke = (cap, input, as) => run(cap, input, as ? { kind: "person", id: as } : { ...SYSTEM });
   // chat.post is a keyed write: the bridge's own message id is the key, so a replay of the same reply is one post
   // An agent has no standing of its own in a Space: it speaks for the person whose turn it is, so what it may post is what that person may (the kernel answers agent_needs_actor otherwise).
-  const postAs: EngineHostSeam["postAs"] = (agentId, { actingFor, sharedKey, ...post }) => run("chat.post", { ...post, idempotencyKey: `brg-${post.clientId}` }, { kind: "agent", id: agentId }, actingFor, sharedKey);
+  const postAs: EngineHostSeam["postAs"] = (agentId, { actingFor, sharedKey, ...post }) =>
+    run(
+      "chat.post",
+      { ...post, idempotencyKey: `brg-${post.clientId}` },
+      { kind: "agent", id: agentId },
+      actingFor,
+      sharedKey,
+    );
   // Who may watch a turn: whoever can read the thread (the same threads.get a person's own screen makes). The answer is kept a minute, so a stream of deltas asks once.
   const seen = new Map<string, { at: number; ok: Promise<boolean> }>();
-  let epoch = 0;   // bumped when readers are forgotten, so an answer that was in flight across a removal is asked again and never trusted
+  let epoch = 0; // bumped when readers are forgotten, so an answer that was in flight across a removal is asked again and never trusted
   const mayRead = (threadId: string, person: string): Promise<boolean> => {
-    const k = `${threadId}\u0000${person}`, t = (d.now ?? Date.now)();
+    const k = `${threadId}\u0000${person}`,
+      t = (d.now ?? Date.now)();
     const hit = seen.get(k);
     if (hit && t - hit.at < READER_TTL_MS) return hit.ok;
     const asked = epoch;
-    const ok = call("threads.get", { threadId }, person).then(() => true, () => false).then((yes) => (asked === epoch ? yes : mayRead(threadId, person)));
+    const ok = call("threads.get", { threadId }, person)
+      .then(
+        () => true,
+        () => false,
+      )
+      .then((yes) => (asked === epoch ? yes : mayRead(threadId, person)));
     seen.set(k, { at: t, ok });
     if (seen.size > 2000) for (const [key, v] of seen) if (t - v.at >= READER_TTL_MS) seen.delete(key);
     return ok;
@@ -177,9 +249,57 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
     const { turnId, kind, ...rest } = e;
     // what the model thought may rest on what only the person who asked can read: in a shared chat it goes to them and nobody else (hole 8)
     // so may the text of a turn that read something, until its answer is checked against everyone who reads the chat (gap 6): the checked answer is posted for all
-    const onlyAsker = kind === "thinking" || (kind === "delta" && e.privately === true) ? e.asker ?? "" : null;
-    pub({ t: "turn", turn: turnId, delta: { kind, ...rest } }, (person) => (onlyAsker !== null ? person === onlyAsker : mayRead(e.threadId, person)));
+    const onlyAsker = kind === "thinking" || (kind === "delta" && e.privately === true) ? (e.asker ?? "") : null;
+    pub({ t: "turn", turn: turnId, delta: { kind, ...rest } }, (person) =>
+      onlyAsker !== null ? person === onlyAsker : mayRead(e.threadId, person),
+    );
   };
-  const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space, ...(d.log ? { log: d.log } : {}), ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}), ...(d.keyHeld ? { keyHeld: d.keyHeld } : {}), ...(d.rehand ? { rehand: d.rehand } : {}) }) : undefined;
-  return { ...(d.closing ? { closing: d.closing } : {}), ...(d.turns ? { turns: d.turns } : {}), ...(d.mayAll ? { mayAll: d.mayAll } : {}), holder: `host:${d.space}`, call, postAs, ...(d.putToSlot ? { putToSlot: d.putToSlot } : {}), ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.engineInstall ? { engines: { install: true } } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.keyHeld ? { keyHeld: d.keyHeld } : {}), ...(d.keyOpen ? { keyOpen: d.keyOpen } : {}), ...(d.gitProxy ? { gitProxy: d.gitProxy } : {}), ...(d.onApiTools !== undefined ? { onApiTools: d.onApiTools } : {}), ...(d.ours ? { ours: d.ours } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
+  const session = d.vault
+    ? createEngineSessionHost({
+        invoke: d.invoke,
+        vault: d.vault,
+        space: d.space,
+        ...(d.log ? { log: d.log } : {}),
+        ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}),
+        ...(d.keyHeld ? { keyHeld: d.keyHeld } : {}),
+        ...(d.rehand ? { rehand: d.rehand } : {}),
+      })
+    : undefined;
+  return {
+    ...(d.closing ? { closing: d.closing } : {}),
+    ...(d.turns ? { turns: d.turns } : {}),
+    ...(d.mayAll ? { mayAll: d.mayAll } : {}),
+    holder: `host:${d.space}`,
+    call,
+    postAs,
+    ...(d.putToSlot ? { putToSlot: d.putToSlot } : {}),
+    ...(d.publishTurn
+      ? {
+          stream,
+          forgetReaders: () => {
+            epoch++;
+            seen.clear();
+          },
+        }
+      : {}),
+    ...(d.now ? { now: d.now } : {}),
+    ...(d.log ? { log: d.log } : {}),
+    ...(session ? { session } : {}),
+    ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}),
+    ...(d.dataDir ? { dataDir: d.dataDir } : {}),
+    ...(d.cli !== undefined ? { cli: d.cli } : {}),
+    ...(d.engineInstall ? { engines: { install: true } } : {}),
+    ...(d.openSession !== undefined ? { openSession: d.openSession } : {}),
+    invoke: d.invoke,
+    space: d.space,
+    ...(d.own ? { own: d.own } : {}),
+    ...(d.keyHeld ? { keyHeld: d.keyHeld } : {}),
+    ...(d.keyOpen ? { keyOpen: d.keyOpen } : {}),
+    ...(d.gitProxy ? { gitProxy: d.gitProxy } : {}),
+    ...(d.onApiTools !== undefined ? { onApiTools: d.onApiTools } : {}),
+    ...(d.ours ? { ours: d.ours } : {}),
+    ...(d.nodes ? { nodes: d.nodes } : {}),
+    mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }),
+    ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}),
+  };
 }

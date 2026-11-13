@@ -66,16 +66,28 @@ const uniq = (list: readonly string[]): string[] => [...new Set(list.map((s) => 
 
 export async function policySet(
   ctx: EngineCtx,
-  input: { allowedAccounts?: "any" | "company"; allowedModels?: string[]; allowedProviders?: string[]; labelProviders?: Record<string, string[]> },
+  input: {
+    allowedAccounts?: "any" | "company";
+    allowedModels?: string[];
+    allowedProviders?: string[];
+    labelProviders?: Record<string, string[]>;
+  },
 ): Promise<{ ok: boolean }> {
   ensureExtra(ctx.db);
   // Every refusal comes before the first write: a refused call leaves the policy as it was.
-  if (input.allowedAccounts !== undefined && input.allowedAccounts !== "any" && input.allowedAccounts !== "company") raise(ctx, "validation.bad_input", "Allowed accounts is any or company.", { field: "allowedAccounts" });
+  if (input.allowedAccounts !== undefined && input.allowedAccounts !== "any" && input.allowedAccounts !== "company")
+    raise(ctx, "validation.bad_input", "Allowed accounts is any or company.", { field: "allowedAccounts" });
   let cleanLabels: Record<string, string[]> | undefined;
   if (input.labelProviders !== undefined) {
     cleanLabels = {};
     for (const [label, providers] of Object.entries(input.labelProviders)) {
-      if (!(LABELS as readonly string[]).includes(label)) raise(ctx, "validation.bad_input", `${label} is not a label. Use public, internal, confidential or restricted.`, { field: "labelProviders", label });
+      if (!(LABELS as readonly string[]).includes(label))
+        raise(
+          ctx,
+          "validation.bad_input",
+          `${label} is not a label. Use public, internal, confidential or restricted.`,
+          { field: "labelProviders", label },
+        );
       cleanLabels[label] = uniq(providers);
     }
   }
@@ -84,22 +96,41 @@ export async function policySet(
     const now = new Set(policyRow<Record<string, string[]>>(ctx, "labelProviders")?.["restricted"] ?? []);
     const added = cleanLabels["restricted"].filter((d) => !now.has(d) && d !== "local");
     if (added.length > 0) {
-      const all = ((await ctx.call("providers.list", {})) as { providers: Array<{ providerKey: string; engine: string; connection: string; keepsNothing?: boolean }> }).providers;
+      const all = (
+        (await ctx.call("providers.list", {})) as {
+          providers: Array<{ providerKey: string; engine: string; connection: string; keepsNothing?: boolean }>;
+        }
+      ).providers;
       for (const d of added) {
         const accounts = all.filter((p) => p.providerKey === d || p.engine.replace(/-/g, "_") === d);
-        if (!accounts.some((p) => p.connection === "local_model" || p.keepsNothing === true)) raise(ctx, "validation.bad_input", `Restricted data may only go to accounts that keep nothing. No ${d} account is marked that way.`, { field: "labelProviders", label: "restricted", provider: d });
+        if (!accounts.some((p) => p.connection === "local_model" || p.keepsNothing === true))
+          raise(
+            ctx,
+            "validation.bad_input",
+            `Restricted data may only go to accounts that keep nothing. No ${d} account is marked that way.`,
+            { field: "labelProviders", label: "restricted", provider: d },
+          );
       }
     }
   }
   const keys: string[] = [];
   const put = (key: string, value: unknown): void => {
-    ctx.db.run("INSERT OR REPLACE INTO engine_policy (key, value, updated_at) VALUES (?, ?, ?)", key, JSON.stringify(value), ctx.now());
+    ctx.db.run(
+      "INSERT OR REPLACE INTO engine_policy (key, value, updated_at) VALUES (?, ?, ?)",
+      key,
+      JSON.stringify(value),
+      ctx.now(),
+    );
     keys.push(key);
   };
   if (input.allowedAccounts !== undefined) {
     put("allowedAccounts", input.allowedAccounts);
     // The settings page shows the same choice; keep its row in step. A caller without the settings permission still changes the policy.
-    try { await ctx.call("settings.set_space", { key: "engine.allowed_accounts", value: input.allowedAccounts }); } catch (e) { ctx.log.warn("settings row was not updated", { error: e instanceof Error ? e.message : "unknown" }); }
+    try {
+      await ctx.call("settings.set_space", { key: "engine.allowed_accounts", value: input.allowedAccounts });
+    } catch (e) {
+      ctx.log.warn("settings row was not updated", { error: e instanceof Error ? e.message : "unknown" });
+    }
   }
   if (input.allowedModels !== undefined) put("allowedModels", uniq(input.allowedModels));
   if (input.allowedProviders !== undefined) put("allowedProviders", uniq(input.allowedProviders));
@@ -115,30 +146,53 @@ export const PROVIDER_DEFAULT_DRIVERS: ReadonlySet<string> = new Set(["openroute
  * A request that names no model, on a provider that picks its own default: the model is not known before it runs, so a Space policy that limits models (allowedModels) or excludes the provider
  * refuses it before anything is sent. Null when it may run.
  */
-export function providerDefaultBlocked(policy: Pick<Policy, "allowedModels" | "allowedProviders">, provider: string): "policy_model" | null {
+export function providerDefaultBlocked(
+  policy: Pick<Policy, "allowedModels" | "allowedProviders">,
+  provider: string,
+): "policy_model" | null {
   if ((policy.allowedModels ?? []).length > 0) return "policy_model";
   if ((policy.allowedProviders ?? []).length > 0 && !policy.allowedProviders.includes(provider)) return "policy_model";
   return null;
 }
-export const PROVIDER_DEFAULT_WORDS = "This Space only allows certain AI models, so this needs a model picked. Choose one in the chat's model menu, or set the agent's model in its settings.";
+export const PROVIDER_DEFAULT_WORDS =
+  "This Space only allows certain AI models, so this needs a model picked. Choose one in the chat's model menu, or set the agent's model in its settings.";
 
 /** Why a provider or model may not run, or null. `label` is the label of the open record or thread, when there is one. */
-export function blockedBy(policy: Policy, o: { provider?: string | undefined; model?: string | undefined; label?: string | undefined; keepsNothing?: boolean | undefined }): "label_provider" | "policy_model" | null {
+export function blockedBy(
+  policy: Policy,
+  o: {
+    provider?: string | undefined;
+    model?: string | undefined;
+    label?: string | undefined;
+    keepsNothing?: boolean | undefined;
+  },
+): "label_provider" | "policy_model" | null {
   // Restricted records go only to an account that keeps nothing, whatever the label list says (when the caller knows the account)
   if (o.label === "restricted" && o.keepsNothing === false) return "label_provider";
   if (o.label !== undefined && o.provider !== undefined) {
     const allowed = policy.labelProviders[o.label];
     if (allowed !== undefined && !allowed.includes(o.provider)) return "label_provider";
   }
-  if (o.provider !== undefined && policy.allowedProviders.length > 0 && !policy.allowedProviders.includes(o.provider)) return "policy_model";
-  if (o.model !== undefined && policy.allowedModels.length > 0 && !policy.allowedModels.includes(o.model)) return "policy_model";
+  if (o.provider !== undefined && policy.allowedProviders.length > 0 && !policy.allowedProviders.includes(o.provider))
+    return "policy_model";
+  if (o.model !== undefined && policy.allowedModels.length > 0 && !policy.allowedModels.includes(o.model))
+    return "policy_model";
   return null;
 }
 
 // ---- defaults
 
-interface FallbackEntry { provider: string; model: string; accountRef?: string }
-interface Defaults { provider?: string; model?: string; effort?: Effort; fallback: FallbackEntry[] }
+interface FallbackEntry {
+  provider: string;
+  model: string;
+  accountRef?: string;
+}
+interface Defaults {
+  provider?: string;
+  model?: string;
+  effort?: Effort;
+  fallback: FallbackEntry[];
+}
 
 function defaultsOf(ctx: EngineCtx, person: string): Defaults {
   const r = rows(ctx, "SELECT value FROM engine_defaults WHERE person_id = ?", person)[0];
@@ -160,36 +214,76 @@ export async function defaultsSet(
   const policy = await readPolicy(ctx);
   const check = (o: { provider?: string; model?: string }): void => {
     const why = blockedBy(policy, o);
-    if (why !== null) raise(ctx, "validation.bad_input", `${o.model ?? o.provider ?? "That model"} is not allowed by this Space's AI policy.`, { reason: why });
+    if (why !== null)
+      raise(
+        ctx,
+        "validation.bad_input",
+        `${o.model ?? o.provider ?? "That model"} is not allowed by this Space's AI policy.`,
+        { reason: why },
+      );
   };
-  if (input.effort !== undefined && !EFFORTS.includes(input.effort)) raise(ctx, "validation.bad_input", "Effort is low, medium, high or max.", { field: "effort" });
+  if (input.effort !== undefined && !EFFORTS.includes(input.effort))
+    raise(ctx, "validation.bad_input", "Effort is low, medium, high or max.", { field: "effort" });
   const next: Defaults = { ...cur };
-  if (input.provider !== undefined) { check({ provider: input.provider }); next.provider = input.provider; }
-  if (input.model !== undefined) { check({ model: input.model, ...(next.provider === undefined ? {} : { provider: next.provider }) }); next.model = input.model; }
+  if (input.provider !== undefined) {
+    check({ provider: input.provider });
+    next.provider = input.provider;
+  }
+  if (input.model !== undefined) {
+    check({ model: input.model, ...(next.provider === undefined ? {} : { provider: next.provider }) });
+    next.model = input.model;
+  }
   if (input.effort !== undefined) next.effort = input.effort;
   if (input.fallback !== undefined) {
     next.fallback = input.fallback.map((f) => {
-      if (f.provider.trim() === "" || f.model.trim() === "") raise(ctx, "validation.bad_input", "Each fallback needs a provider and a model.", { field: "fallback" });
+      if (f.provider.trim() === "" || f.model.trim() === "")
+        raise(ctx, "validation.bad_input", "Each fallback needs a provider and a model.", { field: "fallback" });
       check({ provider: f.provider, model: f.model });
-      return { provider: f.provider, model: f.model, ...(f.accountRef === undefined ? {} : { accountRef: f.accountRef }) };
+      return {
+        provider: f.provider,
+        model: f.model,
+        ...(f.accountRef === undefined ? {} : { accountRef: f.accountRef }),
+      };
     });
   }
-  ctx.db.run("INSERT OR REPLACE INTO engine_defaults (person_id, value, updated_at) VALUES (?, ?, ?)", me, JSON.stringify(next), ctx.now());
+  ctx.db.run(
+    "INSERT OR REPLACE INTO engine_defaults (person_id, value, updated_at) VALUES (?, ?, ?)",
+    me,
+    JSON.stringify(next),
+    ctx.now(),
+  );
   // choosing the default model in Settings is a pick like any other: a new chat starts on it (last-pick.ts)
-  if (input.model !== undefined && ctx.principal.kind === "person") rememberPick(ctx.db, me, "*", { model: next.model ?? input.model, provider: next.provider ?? null, effort: next.effort ?? null }, ctx.now());
+  if (input.model !== undefined && ctx.principal.kind === "person")
+    rememberPick(
+      ctx.db,
+      me,
+      "*",
+      { model: next.model ?? input.model, provider: next.provider ?? null, effort: next.effort ?? null },
+      ctx.now(),
+    );
   return { ok: true };
 }
 
 // ---- person switches
 
 function setFlag(ctx: EngineCtx, person: string, flag: string, enabled: boolean, wrappedKey: string | null): void {
-  ctx.db.run("INSERT OR REPLACE INTO engine_person_flags (person_id, flag, enabled, wrapped_key, updated_at) VALUES (?, ?, ?, ?, ?)", person, flag, enabled ? 1 : 0, wrappedKey, ctx.now());
+  ctx.db.run(
+    "INSERT OR REPLACE INTO engine_person_flags (person_id, flag, enabled, wrapped_key, updated_at) VALUES (?, ?, ?, ?, ?)",
+    person,
+    flag,
+    enabled ? 1 : 0,
+    wrappedKey,
+    ctx.now(),
+  );
 }
 
 /** What a person switch is when they never set it. "Let the Space continue my chats when my computer is off" is on (owner ruling, 3 Nov 2026; spec b7): Automatic falls back to the
  *  Space when their computer is off. A row is written only by the person's own engine.runtime.opt_in call (no screen, seed or migration writes one), so a stored off is a choice they
  *  made and stays off; everyone who never chose has no row, and the new default reaches them with no data migration. */
-export const FLAG_DEFAULT: Readonly<Record<"subscription_share" | "runtime_opt_in", boolean>> = { subscription_share: false, runtime_opt_in: true };
+export const FLAG_DEFAULT: Readonly<Record<"subscription_share" | "runtime_opt_in", boolean>> = {
+  subscription_share: false,
+  runtime_opt_in: true,
+};
 
 export function flagOn(ctx: EngineCtx, person: string, flag: "subscription_share" | "runtime_opt_in"): boolean {
   ensureExtra(ctx.db);
@@ -200,28 +294,42 @@ export function flagOn(ctx: EngineCtx, person: string, flag: "subscription_share
 type SandboxStopper = (personId: string) => Promise<boolean>;
 let stopper: SandboxStopper | null = null;
 /** The sandbox host (P-L2_05) binds how a person's server sandbox is killed at boot. Without it, turning the switch off reports sandboxStopped false. */
-export function bindSandboxStopper(fn: SandboxStopper | null): void { stopper = fn; }
+export function bindSandboxStopper(fn: SandboxStopper | null): void {
+  stopper = fn;
+}
 
-export async function subscriptionShareSet(ctx: EngineCtx, input: { enabled: boolean }): Promise<{ enabled: boolean; sandboxStopped: boolean }> {
+export async function subscriptionShareSet(
+  ctx: EngineCtx,
+  input: { enabled: boolean },
+): Promise<{ enabled: boolean; sandboxStopped: boolean }> {
   ensureExtra(ctx.db);
   const me = actorOf(ctx);
   const was = flagOn(ctx, me, "subscription_share");
   const out = await setSpaceUse(
     {
-      setSwitch: async (owner, enabled) => { setFlag(ctx, owner, "subscription_share", enabled, null); },
+      setSwitch: async (owner, enabled) => {
+        setFlag(ctx, owner, "subscription_share", enabled, null);
+      },
       stopSandbox: async (owner) => (stopper === null ? false : stopper(owner)),
     },
-    me, input.enabled,
+    me,
+    input.enabled,
   );
-  if (was !== input.enabled) ctx.emit("engine.subscription_share_changed", me, { personId: me, enabled: input.enabled });
+  if (was !== input.enabled)
+    ctx.emit("engine.subscription_share_changed", me, { personId: me, enabled: input.enabled });
   return out;
 }
 
-export function runtimeOptIn(ctx: EngineCtx, input: { enabled: boolean; wrappedRuntimeKey?: string }): { enabled: boolean } {
+export function runtimeOptIn(
+  ctx: EngineCtx,
+  input: { enabled: boolean; wrappedRuntimeKey?: string },
+): { enabled: boolean } {
   ensureExtra(ctx.db);
   const me = actorOf(ctx);
   if (input.enabled && (input.wrappedRuntimeKey === undefined || input.wrappedRuntimeKey === "")) {
-    raise(ctx, "validation.bad_input", "Opting in needs the runtime key wrapped for the Space.", { field: "wrappedRuntimeKey" });
+    raise(ctx, "validation.bad_input", "Opting in needs the runtime key wrapped for the Space.", {
+      field: "wrappedRuntimeKey",
+    });
   }
   const was = flagOn(ctx, me, "runtime_opt_in");
   // Turning it off deletes the wrapped key: the Space can no longer continue this person's chats.
@@ -233,7 +341,11 @@ export function runtimeOptIn(ctx: EngineCtx, input: { enabled: boolean; wrappedR
 /** The wrapped runtime key of a person who opted in, for the host that continues their chats. Null when they have not. */
 export function wrappedRuntimeKey(ctx: EngineCtx, person: string): string | null {
   ensureExtra(ctx.db);
-  const r = rows(ctx, "SELECT wrapped_key FROM engine_person_flags WHERE person_id = ? AND flag = 'runtime_opt_in' AND enabled = 1", person)[0];
+  const r = rows(
+    ctx,
+    "SELECT wrapped_key FROM engine_person_flags WHERE person_id = ? AND flag = 'runtime_opt_in' AND enabled = 1",
+    person,
+  )[0];
   return r && r["wrapped_key"] !== null && r["wrapped_key"] !== undefined ? str(r["wrapped_key"]) : null;
 }
 
@@ -246,25 +358,49 @@ export async function usePolicyExport(ctx: EngineCtx, _input: Record<string, nev
   ensureExtra(ctx.db);
   const policy = await readPolicy(ctx);
   const caps = rows(ctx, "SELECT scope, scope_id, caps FROM engine_spend_caps ORDER BY scope, scope_id");
-  const tree = (await ctx.call("files.tree", {})) as { roots: Array<{ key: string; title: string; kind: string; folderId?: string }> };
+  const tree = (await ctx.call("files.tree", {})) as {
+    roots: Array<{ key: string; title: string; kind: string; folderId?: string }>;
+  };
   const folders = tree.roots.filter((r) => r.kind === "folder" && r.folderId !== undefined);
   const root = folders.find((r) => r.key === "knowledge" || r.key === "shared_knowledge") ?? folders[0];
-  if (!root || root.folderId === undefined) raise(ctx, "validation.precondition_failed", "There is no folder to save the policy in.");
+  if (!root || root.folderId === undefined)
+    raise(ctx, "validation.precondition_failed", "There is no folder to save the policy in.");
   const date = new Date(ctx.now()).toISOString().slice(0, 10);
   const lines = [
-    `# AI use policy (${date})`, "",
+    `# AI use policy (${date})`,
+    "",
     `Allowed accounts: ${policy.allowedAccounts === "company" ? "company accounts only" : "company and personal accounts"}`,
     `Allowed providers: ${list(policy.allowedProviders)}`,
-    `Allowed models: ${list(policy.allowedModels)}`, "",
-    "## Providers by label", "",
-    ...LABELS.map((l) => `- ${l}: ${policy.labelProviders[l] === undefined ? "all allowed providers" : list(policy.labelProviders[l] ?? [])}`), "",
-    "## Limits", "",
+    `Allowed models: ${list(policy.allowedModels)}`,
+    "",
+    "## Providers by label",
+    "",
+    ...LABELS.map(
+      (l) =>
+        `- ${l}: ${policy.labelProviders[l] === undefined ? "all allowed providers" : list(policy.labelProviders[l] ?? [])}`,
+    ),
+    "",
+    "## Limits",
+    "",
     `- Agent-to-agent hops before a person must reply: ${policy.hops.agentHops}`,
     `- Review send-backs before a person decides: ${policy.hops.reviewLoops}`,
-    `- CI fix attempts before a person decides: ${policy.hops.ciFixLoops}`, "",
-    "## Spend caps", "",
-    ...(caps.length === 0 ? ["No caps are set."] : caps.map((c) => `- ${str(c["scope"])}${str(c["scope_id"]) === "" ? "" : ` ${str(c["scope_id"])}`}: ${str(c["caps"])}`)), "",
+    `- CI fix attempts before a person decides: ${policy.hops.ciFixLoops}`,
+    "",
+    "## Spend caps",
+    "",
+    ...(caps.length === 0
+      ? ["No caps are set."]
+      : caps.map(
+          (c) => `- ${str(c["scope"])}${str(c["scope_id"]) === "" ? "" : ` ${str(c["scope_id"])}`}: ${str(c["caps"])}`,
+        )),
+    "",
   ];
-  const out = (await ctx.call("files.create", { folderId: root.folderId, name: `AI use policy ${date} ${new Date(ctx.now()).toISOString().slice(11, 16).replace(":", "")}.md`, content: { text: lines.join("\n") }, mime: "text/markdown", idempotencyKey: `ai-use-policy-${ctx.now()}` })) as { file: { fileId: string } };
+  const out = (await ctx.call("files.create", {
+    folderId: root.folderId,
+    name: `AI use policy ${date} ${new Date(ctx.now()).toISOString().slice(11, 16).replace(":", "")}.md`,
+    content: { text: lines.join("\n") },
+    mime: "text/markdown",
+    idempotencyKey: `ai-use-policy-${ctx.now()}`,
+  })) as { file: { fileId: string } };
   return { fileId: out.file.fileId };
 }

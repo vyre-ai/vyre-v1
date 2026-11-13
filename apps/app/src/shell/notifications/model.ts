@@ -18,7 +18,13 @@ export function wantsBanner(n: Notification): boolean {
 
 /* ---------- places ---------- */
 
-const RAIL_COUNT_KINDS: ReadonlySet<Notification["kind"]> = new Set(["approval.requested", "approval.backstop", "agent.blocked", "dm", "mention"]);
+const RAIL_COUNT_KINDS: ReadonlySet<Notification["kind"]> = new Set([
+  "approval.requested",
+  "approval.backstop",
+  "agent.blocked",
+  "dm",
+  "mention",
+]);
 
 export interface PlaceMark {
   /** A quiet dot: something new that needs no count. */
@@ -54,7 +60,8 @@ export interface QueueLine {
 /** The title-bar text for the offline queue: "Offline, 3 changes waiting"; while sending after a reconnect, "Sending 3 changes". Nothing when all is saved. */
 export function queueLine(online: boolean, waiting: number, conflicts = 0): QueueLine | null {
   const w = `${waiting} ${waiting === 1 ? "change" : "changes"}`;
-  if (conflicts > 0) return { text: `${conflicts} ${conflicts === 1 ? "conflict" : "conflicts"} to look at`, tone: "attention" };
+  if (conflicts > 0)
+    return { text: `${conflicts} ${conflicts === 1 ? "conflict" : "conflicts"} to look at`, tone: "attention" };
   if (!online) return { text: waiting > 0 ? `Offline, ${w} waiting` : "Offline", tone: "attention" };
   if (waiting > 0) return { text: `Sending ${w}`, tone: "quiet" };
   return null;
@@ -66,6 +73,8 @@ export function queueLine(online: boolean, waiting: number, conflicts = 0): Queu
 export const BANNER_QUERY = { level: "interrupt", unseenOnly: true, limit: 20 } as const;
 
 /** What a notice's action opens: the thing it is about (a thread opens beside its message, a task on its page), else its place. */
-export function bannerTarget(n: Pick<Notification, "subject" | "place">): { subject: { type: string; id: string } } | { place: PlaceId } {
+export function bannerTarget(
+  n: Pick<Notification, "subject" | "place">,
+): { subject: { type: string; id: string } } | { place: PlaceId } {
   return n.subject ? { subject: n.subject } : { place: n.place };
 }

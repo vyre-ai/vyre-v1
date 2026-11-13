@@ -5,7 +5,29 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { AppIcon, BRANDS, brandForDomain, brandForName, brandForUrl, letterOf, markKey, markSize } from "./index.tsx";
 
 test("the shared set carries the prototype's brands", () => {
-  for (const k of ["github", "google", "gmail", "gcal", "gdrive", "slack", "notion", "linear", "zoom", "dropbox", "openai", "anthropic", "claude", "chrome", "opencode", "stripe", "hubspot", "twilio", "supabase", "resend", "vyre"]) {
+  for (const k of [
+    "github",
+    "google",
+    "gmail",
+    "gcal",
+    "gdrive",
+    "slack",
+    "notion",
+    "linear",
+    "zoom",
+    "dropbox",
+    "openai",
+    "anthropic",
+    "claude",
+    "chrome",
+    "opencode",
+    "stripe",
+    "hubspot",
+    "twilio",
+    "supabase",
+    "resend",
+    "vyre",
+  ]) {
     assert.ok(k in BRANDS, `${k} has a mark`);
     assert.ok(BRANDS[k]?.p || BRANDS[k]?.svg, `${k} draws something`);
   }
@@ -83,7 +105,19 @@ test("a web address or a name finds its brand", () => {
   assert.equal(brandForName("Postgres · Northwind prod"), "db");
   assert.equal(brandForName("Rivera client portal"), null);
   // every AI provider in Add an AI provider draws its own mark, never a letter
-  for (const [name, key] of [["Codex", "openai"], ["ChatGPT", "openai"], ["Grok", "grok"], ["xAI", "xai"], ["OpenRouter", "openrouter"], ["Google Gemini", "googlegemini"], ["OpenCode Go", "opencode"], ["Local model", "localmodel"], ["Claude Code", "claude"], ["Anthropic", "anthropic"], ["OpenAI", "openai"]] as const) {
+  for (const [name, key] of [
+    ["Codex", "openai"],
+    ["ChatGPT", "openai"],
+    ["Grok", "grok"],
+    ["xAI", "xai"],
+    ["OpenRouter", "openrouter"],
+    ["Google Gemini", "googlegemini"],
+    ["OpenCode Go", "opencode"],
+    ["Local model", "localmodel"],
+    ["Claude Code", "claude"],
+    ["Anthropic", "anthropic"],
+    ["OpenAI", "openai"],
+  ] as const) {
     assert.equal(brandForName(name), key, name);
     assert.ok(markKey(key), `${name} has a mark`);
   }

@@ -13,8 +13,17 @@ export const finance: Assignee = { kind: "role", id: "rol_finance" };
 export const support: Assignee = { kind: "group", id: "grp_support" };
 
 /** The principal a call runs as. */
-export interface Caller { id: string; kind?: "person" | "agent" | "actor" | "service"; actingFor?: string; device?: string }
-export const as = (a: Assignee, extra: Partial<Caller> = {}): Caller => ({ id: a.id, kind: a.kind === "agent" ? "agent" : "person", ...extra });
+export interface Caller {
+  id: string;
+  kind?: "person" | "agent" | "actor" | "service";
+  actingFor?: string;
+  device?: string;
+}
+export const as = (a: Assignee, extra: Partial<Caller> = {}): Caller => ({
+  id: a.id,
+  kind: a.kind === "agent" ? "agent" : "person",
+  ...extra,
+});
 
 /** Input for tasks.create with sensible defaults. */
 export function newTask(over: Record<string, unknown> = {}): Record<string, unknown> {

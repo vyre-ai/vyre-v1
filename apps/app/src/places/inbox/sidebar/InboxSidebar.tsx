@@ -26,8 +26,24 @@ type RowsOut = CapMap["inbox.list_by_contact"]["out"];
 
 const withMenu = (open: (x: number, y: number) => void): Record<string, unknown> => menuTrigger(open);
 
-function SideRow({ id, title, glyph, selected, count, trailing, onPress, onMenu }: {
-  id: string; title: string; glyph: ReactElement; selected: boolean; count?: number; trailing?: ReactElement | null; onPress: () => void; onMenu?: (x: number, y: number) => void;
+function SideRow({
+  id,
+  title,
+  glyph,
+  selected,
+  count,
+  trailing,
+  onPress,
+  onMenu,
+}: {
+  id: string;
+  title: string;
+  glyph: ReactElement;
+  selected: boolean;
+  count?: number;
+  trailing?: ReactElement | null;
+  onPress: () => void;
+  onMenu?: (x: number, y: number) => void;
 }): ReactElement {
   const trig = onMenu ? withMenu(onMenu) : {};
   return (
@@ -38,17 +54,41 @@ function SideRow({ id, title, glyph, selected, count, trailing, onPress, onMenu 
         selected={selected}
         emphasis={count !== undefined && count > 0}
         leading={<View style={styles.glyph}>{glyph}</View>}
-        trailing={<View style={styles.trail}>{trailing ?? null}{count ? <Unread n={count} /> : null}</View>}
+        trailing={
+          <View style={styles.trail}>
+            {trailing ?? null}
+            {count ? <Unread n={count} /> : null}
+          </View>
+        }
         onPress={onPress}
       />
     </View>
   );
 }
 
-function SectionHead({ id, label, closed, onToggle }: { id: string; label: string; closed: boolean; onToggle: () => void }): ReactElement {
+function SectionHead({
+  id,
+  label,
+  closed,
+  onToggle,
+}: {
+  id: string;
+  label: string;
+  closed: boolean;
+  onToggle: () => void;
+}): ReactElement {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ expanded: !closed }} testID={`sec-${id}`} onPress={onToggle} style={({ hovered }: { hovered?: boolean }) => [styles.sec, hovered === true && styles.secOver]}>
-      <View style={closed ? styles.chevShut : undefined}><Glyph name="chevd" size={10} /></View>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ expanded: !closed }}
+      testID={`sec-${id}`}
+      onPress={onToggle}
+      style={({ hovered }: { hovered?: boolean }) => [styles.sec, hovered === true && styles.secOver]}
+    >
+      <View style={closed ? styles.chevShut : undefined}>
+        <Glyph name="chevd" size={10} />
+      </View>
       <Text style={styles.secText}>{label}</Text>
     </Pressable>
   );
@@ -57,8 +97,19 @@ function SectionHead({ id, label, closed, onToggle }: { id: string; label: strin
 /** The frame before data arrives: the search field and rows of the real height. */
 export function SidebarLoading(): ReactElement {
   const bars: ReactElement[] = [];
-  for (let i = 0; i < 9; i++) bars.push(<View key={i} style={styles.skRow}><View style={styles.skDot} /><View style={[styles.skBar, { width: `${40 + ((i * 17) % 35)}%` }]} /></View>);
-  return <View style={styles.side} testID="inbox-sidebar-loading" accessibilityLabel="Loading"><View style={styles.search} />{bars}</View>;
+  for (let i = 0; i < 9; i++)
+    bars.push(
+      <View key={i} style={styles.skRow}>
+        <View style={styles.skDot} />
+        <View style={[styles.skBar, { width: `${40 + ((i * 17) % 35)}%` }]} />
+      </View>,
+    );
+  return (
+    <View style={styles.side} testID="inbox-sidebar-loading" accessibilityLabel="Loading">
+      <View style={styles.search} />
+      {bars}
+    </View>
+  );
 }
 
 function Sidebar(): ReactElement {
@@ -76,54 +127,101 @@ function Sidebar(): ReactElement {
   const rows = useScreenQuery<RowsOut>(SCREENS.list, "rows");
   const meetings = useMeetingsQuery<MeetingsOut>("list");
   // the replies to messages you follow, new since you read them: the Replies row's count
-  const replies = useScreenQuery<{ threads: readonly { unread?: number; muted?: boolean }[] }>("chats.threads", "threads", { kind: ["thread"], mine: true, order: "latest", exceptScope: ["task"], limit: 50 });
-  const repliesNew = replies.status === "ready" ? replies.data.threads.reduce((n, t) => n + (t.muted ? 0 : t.unread ?? 0), 0) : 0;
+  const replies = useScreenQuery<{ threads: readonly { unread?: number; muted?: boolean }[] }>(
+    "chats.threads",
+    "threads",
+    { kind: ["thread"], mine: true, order: "latest", exceptScope: ["task"], limit: 50 },
+  );
+  const repliesNew =
+    replies.status === "ready" ? replies.data.threads.reduce((n, t) => n + (t.muted ? 0 : (t.unread ?? 0)), 0) : 0;
 
   const mailboxes = boxes.status === "ready" ? boxes.data.mailboxes : [];
   const calendars = cals.status === "ready" ? cals.data.calendars : [];
   const all: readonly ContactRow[] = rows.status === "ready" ? rows.data.rows : [];
   const groups = navGroups(mailboxes, counts.status === "ready" ? counts.data : null, data.numbers?.());
-  const unreadOf = (f: (r: ContactRow) => boolean): number => all.reduce((n, r) => n + (f(r) && r.unreadCount > 0 ? 1 : 0), 0);
+  const unreadOf = (f: (r: ContactRow) => boolean): number =>
+    all.reduce((n, r) => n + (f(r) && r.unreadCount > 0 ? 1 : 0), 0);
   // The first number of the Space labels the dialer, as in the prototype; with no number there is no dialer.
-  const dialNumber = counts.status === "ready" ? counts.data.byInbox.find((c) => c.kind === "number")?.id ?? null : null;
+  const dialNumber =
+    counts.status === "ready" ? (counts.data.byInbox.find((c) => c.kind === "number")?.id ?? null) : null;
   const bare = canSend === false; // nothing can send yet: the page is the Connect choice, so the pencil, plus, Lists and dialer stay away
   const total = counts.status === "ready" ? counts.data.total : 0;
 
   const closed = (k: string): boolean => state.closed.includes(k);
   const scoped = (scope: Scope): boolean => state.main === "list" && sameScope(state.scope, scope);
-  const pick = (scope: Scope, view?: ViewKind): void => { dispatch({ type: "scope", scope }); if (view) dispatch({ type: "view", view }); };
+  const pick = (scope: Scope, view?: ViewKind): void => {
+    dispatch({ type: "scope", scope });
+    if (view) dispatch({ type: "view", view });
+  };
 
   const inboxMenu = (b: NavInbox, x: number, y: number): void => {
     const entries: MenuEntry[] = [
       { label: "Open", onSelect: () => pick(b.scope, b.channel === "sms" ? undefined : "thread") },
-      { label: b.channel === "sms" ? "Number Settings…" : "Mailbox Settings…", onSelect: () => data.nav.openInboxSettings(b.id) },
+      {
+        label: b.channel === "sms" ? "Number Settings…" : "Mailbox Settings…",
+        onSelect: () => data.nav.openInboxSettings(b.id),
+      },
     ];
     menu.show(entries, x, y);
   };
   const connectMenu = (x: number, y: number): void => {
     // nothing connected: the plus opens the same choice the empty Inbox shows, not a menu
-    if (canSend === false) { dispatch({ type: "connect" }); return; }
-    menu.show([
-      { head: "Connect a mailbox" },
-      { label: "Gmail", onSelect: () => data.nav.connect("gmail") },
-      { label: "Outlook", onSelect: () => data.nav.connect("outlook") },
-      { label: "IMAP", onSelect: () => data.nav.connect("imap") },
-      { separator: true },
-      { label: "Claim a Twilio number", onSelect: () => data.nav.connect("number") },
-    ], x, y);
+    if (canSend === false) {
+      dispatch({ type: "connect" });
+      return;
+    }
+    menu.show(
+      [
+        { head: "Connect a mailbox" },
+        { label: "Gmail", onSelect: () => data.nav.connect("gmail") },
+        { label: "Outlook", onSelect: () => data.nav.connect("outlook") },
+        { label: "IMAP", onSelect: () => data.nav.connect("imap") },
+        { separator: true },
+        { label: "Claim a Twilio number", onSelect: () => data.nav.connect("number") },
+      ],
+      x,
+      y,
+    );
   };
 
   const sections: ReactElement[] = [];
   for (const g of groups) {
-    sections.push(<SectionHead key={`h-${g.key}`} id={g.key} label={g.label} closed={closed(g.key)} onToggle={() => dispatch({ type: "section", key: g.key })} />);
+    sections.push(
+      <SectionHead
+        key={`h-${g.key}`}
+        id={g.key}
+        label={g.label}
+        closed={closed(g.key)}
+        onToggle={() => dispatch({ type: "section", key: g.key })}
+      />,
+    );
     if (closed(g.key)) continue;
     for (const b of g.items) {
       sections.push(
         <SideRow
-          key={b.id} id={`inbox:${b.id}`} title={b.label} selected={scoped(b.scope)} count={b.unread}
-          glyph={b.agent ? <Avatar name={b.label.replace(/@$/, "").replace(/\u2019?'?s number$/, "")} kind="agent" size={18} /> : <Glyph name={b.channel === "sms" ? "call" : "mail"} />}
+          key={b.id}
+          id={`inbox:${b.id}`}
+          title={b.label}
+          selected={scoped(b.scope)}
+          count={b.unread}
+          glyph={
+            b.agent ? (
+              <Avatar name={b.label.replace(/@$/, "").replace(/\u2019?'?s number$/, "")} kind="agent" size={18} />
+            ) : (
+              <Glyph name={b.channel === "sms" ? "call" : "mail"} />
+            )
+          }
           // Under Mine every mailbox is yours alone, so a lock there says nothing (and read as a Vault lock); in a shared group it marks a private mailbox
-          trailing={showsLock(g.key, b) ? <View accessibilityLabel="Private mailbox, only you can see it" {...({ title: "Private mailbox, only you can see it" } as object)}><Glyph name="lock" size={12} /></View> : null}
+          trailing={
+            showsLock(g.key, b) ? (
+              <View
+                accessibilityLabel="Private mailbox, only you can see it"
+                {...({ title: "Private mailbox, only you can see it" } as object)}
+              >
+                <Glyph name="lock" size={12} />
+              </View>
+            ) : null
+          }
           // a mailbox lists its mail by thread, the same grouping as All inboxes (owner, 3 Nov)
           onPress={() => pick(b.scope, b.channel === "sms" ? undefined : "thread")}
           onMenu={(x, y) => inboxMenu(b, x, y)}
@@ -132,17 +230,36 @@ function Sidebar(): ReactElement {
     }
   }
 
-  const list = (key: "starred" | "follow", label: string, glyph: IconName, f: (r: ContactRow) => boolean): ReactElement => (
-    <SideRow key={key} id={`list:${key}`} title={label} selected={scoped({ kind: key })} count={unreadOf(f)} glyph={<Glyph name={glyph} />} onPress={() => pick({ kind: key })} />
+  const list = (
+    key: "starred" | "follow",
+    label: string,
+    glyph: IconName,
+    f: (r: ContactRow) => boolean,
+  ): ReactElement => (
+    <SideRow
+      key={key}
+      id={`list:${key}`}
+      title={label}
+      selected={scoped({ kind: key })}
+      count={unreadOf(f)}
+      glyph={<Glyph name={glyph} />}
+      onPress={() => pick({ kind: key })}
+    />
   );
 
   return (
     <View style={styles.side} testID="inbox-sidebar" accessibilityLabel="Inbox sidebar">
       <View style={styles.top}>
-        <Text accessibilityRole="header" style={styles.title}>Inbox</Text>
+        <Text accessibilityRole="header" style={styles.title}>
+          Inbox
+        </Text>
         <View style={styles.grow} />
-        {bare ? null : <IconButton icon="pen" label="New message" testID="inbox-new" onPress={() => data.nav.compose()} />}
-        {bare ? null : <IconButton icon="plus" label="Connect a mailbox or number" testID="inbox-connect" onPress={connectMenu} />}
+        {bare ? null : (
+          <IconButton icon="pen" label="New message" testID="inbox-new" onPress={() => data.nav.compose()} />
+        )}
+        {bare ? null : (
+          <IconButton icon="plus" label="Connect a mailbox or number" testID="inbox-connect" onPress={connectMenu} />
+        )}
       </View>
       <View style={[styles.search, focus && styles.searchOn]}>
         <Glyph name="search" size={13} />
@@ -151,7 +268,9 @@ function Sidebar(): ReactElement {
           onChangeText={(q) => dispatch({ type: "query", query: q })}
           onFocus={() => setFocus(true)}
           onBlur={() => setFocus(false)}
-          onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") dispatch({ type: "query", query: "" }); }}
+          onKeyPress={(e) => {
+            if (e.nativeEvent.key === "Escape") dispatch({ type: "query", query: "" });
+          }}
           placeholder="Search"
           placeholderTextColor="var(--ink-3)"
           accessibilityLabel="Search"
@@ -161,29 +280,85 @@ function Sidebar(): ReactElement {
         />
       </View>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollIn} testID="inbox-nav">
-        <SideRow id="view:contact" title="By contact" selected={state.main === "list" && state.scope.kind === "all" && state.view !== "thread"} count={total}
-          glyph={<Glyph name="users" />} onPress={() => pick({ kind: "all" }, "contact")} />
-        <SideRow id="view:thread" title="All inboxes" selected={state.main === "list" && state.scope.kind === "all" && state.view === "thread"}
-          glyph={<Glyph name="mix" />} onPress={() => pick({ kind: "all" }, "thread")} />
-        <SideRow id="calendar" title="Calendar" selected={state.main === "calendar"} glyph={<Glyph name="cal" />}
-          onPress={() => { dispatch({ type: "calendar" }); data.nav.openCalendar(); }} />
-        <SideRow id="meetings" title="Meetings" selected={state.main === "meetings"} glyph={<Glyph name="video" />} count={meetings.status === "ready" ? meetings.data.ready : 0}
-          onPress={() => dispatch({ type: "meetings" })} />
-        <SideRow id="replies" title="Replies" selected={state.main === "replies"} glyph={<Glyph name="reply" />} count={repliesNew} onPress={() => dispatch({ type: "replies" })} />
+        <SideRow
+          id="view:contact"
+          title="By contact"
+          selected={state.main === "list" && state.scope.kind === "all" && state.view !== "thread"}
+          count={total}
+          glyph={<Glyph name="users" />}
+          onPress={() => pick({ kind: "all" }, "contact")}
+        />
+        <SideRow
+          id="view:thread"
+          title="All inboxes"
+          selected={state.main === "list" && state.scope.kind === "all" && state.view === "thread"}
+          glyph={<Glyph name="mix" />}
+          onPress={() => pick({ kind: "all" }, "thread")}
+        />
+        <SideRow
+          id="calendar"
+          title="Calendar"
+          selected={state.main === "calendar"}
+          glyph={<Glyph name="cal" />}
+          onPress={() => {
+            dispatch({ type: "calendar" });
+            data.nav.openCalendar();
+          }}
+        />
+        <SideRow
+          id="meetings"
+          title="Meetings"
+          selected={state.main === "meetings"}
+          glyph={<Glyph name="video" />}
+          count={meetings.status === "ready" ? meetings.data.ready : 0}
+          onPress={() => dispatch({ type: "meetings" })}
+        />
+        <SideRow
+          id="replies"
+          title="Replies"
+          selected={state.main === "replies"}
+          glyph={<Glyph name="reply" />}
+          count={repliesNew}
+          onPress={() => dispatch({ type: "replies" })}
+        />
         {sections}
-        {bare ? null : <SectionHead id="lists" label="Lists" closed={closed("lists")} onToggle={() => dispatch({ type: "section", key: "lists" })} />}
-        {bare || closed("lists") ? null : [
-          list("starred", "Starred", "star", (r) => r.starred === true),
-          list("follow", "Following", "bell", (r) => r.followed),
-        ]}
-        {calendars.length > 0 ? <SectionHead id="cals" label="Calendars" closed={closed("cals")} onToggle={() => dispatch({ type: "section", key: "cals" })} /> : null}
+        {bare ? null : (
+          <SectionHead
+            id="lists"
+            label="Lists"
+            closed={closed("lists")}
+            onToggle={() => dispatch({ type: "section", key: "lists" })}
+          />
+        )}
+        {bare || closed("lists")
+          ? null
+          : [
+              list("starred", "Starred", "star", (r) => r.starred === true),
+              list("follow", "Following", "bell", (r) => r.followed),
+            ]}
+        {calendars.length > 0 ? (
+          <SectionHead
+            id="cals"
+            label="Calendars"
+            closed={closed("cals")}
+            onToggle={() => dispatch({ type: "section", key: "cals" })}
+          />
+        ) : null}
         {closed("cals") || calendars.length === 0 ? null : <CalendarRows calendars={calendars} mailboxes={mailboxes} />}
       </ScrollView>
       {dialNumber === null ? null : (
         <View style={styles.foot}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Open the dialer, ${dialNumber}`} testID="inbox-dialer" onPress={() => data.nav.openDialer()} style={({ hovered }: { hovered?: boolean }) => [styles.dialer, hovered === true && styles.dialerOver]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Open the dialer, ${dialNumber}`}
+            testID="inbox-dialer"
+            onPress={() => data.nav.openDialer()}
+            style={({ hovered }: { hovered?: boolean }) => [styles.dialer, hovered === true && styles.dialerOver]}
+          >
             <Glyph name="call" size={14} />
-            <Text style={styles.dialerText} testID="inbox-dialer-number">{dialNumber}</Text>
+            <Text style={styles.dialerText} testID="inbox-dialer-number">
+              {dialNumber}
+            </Text>
             <View style={styles.grow} />
             {keys ? <Text style={styles.keys}>{"⌘⇧K"}</Text> : null}
           </Pressable>
@@ -201,22 +376,69 @@ export function InboxSidebar(): ReactElement {
 }
 
 const styles = StyleSheet.create({
-  side: { flex: 1, minWidth: 220, backgroundColor: "var(--side)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
-  top: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 8, paddingTop: 10, paddingBottom: 4, height: 44 },
+  side: {
+    flex: 1,
+    minWidth: 220,
+    backgroundColor: "var(--side)" as string,
+    borderRightWidth: 1,
+    borderRightColor: "var(--line)" as string,
+  },
+  top: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 8,
+    paddingTop: 10,
+    paddingBottom: 4,
+    height: 44,
+  },
   title: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string, marginLeft: 8 },
   grow: { flex: 1 },
-  search: { flexDirection: "row", alignItems: "center", gap: 7, height: 30, marginHorizontal: 10, marginBottom: 8, paddingHorizontal: 9, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
+  search: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    height: 30,
+    marginHorizontal: 10,
+    marginBottom: 8,
+    paddingHorizontal: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "var(--field-line)",
+    backgroundColor: "var(--field)" as string,
+  },
   searchOn: { boxShadow: "0 0 0 1px var(--accent-line)" as string },
-  input: { flex: 1, minWidth: 0, padding: 0, fontSize: 13, color: "var(--ink)" as string, outlineStyle: "none" as "none" },
+  input: {
+    flex: 1,
+    minWidth: 0,
+    padding: 0,
+    fontSize: 13,
+    color: "var(--ink)" as string,
+    outlineStyle: "none" as "none",
+  },
   scroll: { flex: 1 },
   scrollIn: { paddingHorizontal: 6, paddingBottom: 12 },
   glyph: { width: 20, alignItems: "center", justifyContent: "center", marginRight: 6 },
   trail: { flexDirection: "row", alignItems: "center", gap: 6 },
-  sec: { flexDirection: "row", alignItems: "center", gap: 5, height: 26, marginTop: 10, paddingHorizontal: 8, borderRadius: 6 },
+  sec: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    height: 26,
+    marginTop: 10,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
   secOver: { backgroundColor: "var(--hover)" as string },
   secText: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   chevShut: { transform: [{ rotate: "-90deg" }] },
-  foot: { paddingHorizontal: 8, paddingTop: 6, paddingBottom: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  foot: {
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    paddingBottom: 10,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
   dialer: { flexDirection: "row", alignItems: "center", gap: 8, height: 28, paddingHorizontal: 8, borderRadius: 6 },
   dialerOver: { backgroundColor: "var(--hover)" as string },
   dialerText: { fontSize: 12.5, color: "var(--ink-3)" as string },

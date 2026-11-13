@@ -18,7 +18,12 @@ import { commandRows, resolveRow, buildInput, capInfo, coerceValue } from "../sr
 import { scrubber } from "../src/cli/runenv.ts";
 import { parseArgs, camel, kebab } from "../src/cli/args.ts";
 
-interface Seen { method: string; path: string; headers: http.IncomingHttpHeaders; body: unknown }
+interface Seen {
+  method: string;
+  path: string;
+  headers: http.IncomingHttpHeaders;
+  body: unknown;
+}
 type Reply = { status?: number; body: unknown };
 
 /** A stand-in for the gateway: records each request and answers from a function. */
@@ -29,7 +34,12 @@ async function fakeServer(answer: (req: Seen, n: number) => Reply) {
     req.on("data", (c: Buffer) => chunks.push(c));
     req.on("end", () => {
       const text = Buffer.concat(chunks).toString("utf8");
-      const s: Seen = { method: req.method ?? "", path: req.url ?? "", headers: req.headers, body: text ? JSON.parse(text) : undefined };
+      const s: Seen = {
+        method: req.method ?? "",
+        path: req.url ?? "",
+        headers: req.headers,
+        body: text ? JSON.parse(text) : undefined,
+      };
       seen.push(s);
       const r = answer(s, seen.length);
       res.writeHead(r.status ?? 200, { "content-type": "application/json", "x-vyre-trace": "f".repeat(32) });
@@ -38,14 +48,36 @@ async function fakeServer(answer: (req: Seen, n: number) => Reply) {
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-  return { url, seen, close: () => new Promise<void>((resolve) => { server.close(() => resolve()); server.closeAllConnections(); }) };
+  return {
+    url,
+    seen,
+    close: () =>
+      new Promise<void>((resolve) => {
+        server.close(() => resolve());
+        server.closeAllConnections();
+      }),
+  };
 }
 
 function mkIo(env: Record<string, string>, extra: Partial<CliIo> = {}) {
-  let out = "", err = "";
+  let out = "",
+    err = "";
   const io: CliIo = {
-    out: (t) => { out += t; }, err: (t) => { err += t; }, env: { ...process.env, ...env }, cwd: os.tmpdir(), tty: false, now: Date.now,
-    platform: fakePlatform(), fetch: fetch as unknown as FetchLike, sleep: () => Promise.resolve(), inherit: false, ...extra,
+    out: (t) => {
+      out += t;
+    },
+    err: (t) => {
+      err += t;
+    },
+    env: { ...process.env, ...env },
+    cwd: os.tmpdir(),
+    tty: false,
+    now: Date.now,
+    platform: fakePlatform(),
+    fetch: fetch as unknown as FetchLike,
+    sleep: () => Promise.resolve(),
+    inherit: false,
+    ...extra,
   };
   return { io, out: () => out, err: () => err };
 }
@@ -70,21 +102,60 @@ test("the generated table gives every capability that declares a cli name a comm
 
 test("positionals fill the required fields in order, flags fill the rest, values are typed by the schema, and the idempotency key is minted", () => {
   const info = capInfo("records.create")!;
-  const ok = buildInput(info, parseArgs(["records", "create", "contact", "--fields", '{"name":"Ana"}']), 2, () => "idem_fixed");
+  const ok = buildInput(
+    info,
+    parseArgs(["records", "create", "contact", "--fields", '{"name":"Ana"}']),
+    2,
+    () => "idem_fixed",
+  );
   assert.deepEqual(ok, { ok: true, input: { type: "contact", fields: { name: "Ana" }, idempotencyKey: "idem_fixed" } });
-  const q = buildInput(capInfo("records.query")!, parseArgs(["records", "query", "contact", "--limit", "5", "--sort", '[{"field":"name","dir":"asc"}]', "--filter", '{"a":1}']), 2, () => "x");
-  assert.deepEqual(q, { ok: true, input: { type: "contact", limit: 5, sort: [{ field: "name", dir: "asc" }], filter: { a: 1 } } });
-  const kebabFlag = buildInput(capInfo("logs.query")!, parseArgs(["logs", "--since-ms", "9", "--trace-id", "abc"]), 1, () => "x");
+  const q = buildInput(
+    capInfo("records.query")!,
+    parseArgs([
+      "records",
+      "query",
+      "contact",
+      "--limit",
+      "5",
+      "--sort",
+      '[{"field":"name","dir":"asc"}]',
+      "--filter",
+      '{"a":1}',
+    ]),
+    2,
+    () => "x",
+  );
+  assert.deepEqual(q, {
+    ok: true,
+    input: { type: "contact", limit: 5, sort: [{ field: "name", dir: "asc" }], filter: { a: 1 } },
+  });
+  const kebabFlag = buildInput(
+    capInfo("logs.query")!,
+    parseArgs(["logs", "--since-ms", "9", "--trace-id", "abc"]),
+    1,
+    () => "x",
+  );
   assert.deepEqual(kebabFlag, { ok: true, input: { sinceMs: 9, traceId: "abc" } });
-  const whole = buildInput(capInfo("records.query")!, parseArgs(["records", "query", "--input-json", '{"type":"deal","limit":2}', "--limit", "3"]), 2, () => "x");
+  const whole = buildInput(
+    capInfo("records.query")!,
+    parseArgs(["records", "query", "--input-json", '{"type":"deal","limit":2}', "--limit", "3"]),
+    2,
+    () => "x",
+  );
   assert.deepEqual(whole, { ok: true, input: { type: "deal", limit: 3 } }, "a flag overrides the JSON base");
 });
 
 test("what cannot be built says why: missing fields, unknown flags, bad numbers, extra words", () => {
   const info = capInfo("records.query")!;
-  const bad = (argv: string[]) => { const b = buildInput(info, parseArgs(argv), 2, () => "x"); return b.ok ? [] : b.problems; };
+  const bad = (argv: string[]) => {
+    const b = buildInput(info, parseArgs(argv), 2, () => "x");
+    return b.ok ? [] : b.problems;
+  };
   assert.deepEqual(bad(["records", "query"]), ["missing: type"]);
-  assert.match(bad(["records", "query", "contact", "--nope", "1"])[0] ?? "", /--nope is not an input of records\.query/);
+  assert.match(
+    bad(["records", "query", "contact", "--nope", "1"])[0] ?? "",
+    /--nope is not an input of records\.query/,
+  );
   assert.deepEqual(bad(["records", "query", "contact", "--limit", "abc"]), ["--limit is a whole number"]);
   assert.deepEqual(bad(["records", "query", "contact", "extra"]), ['unexpected argument "extra"']);
   assert.deepEqual(bad(["records", "query", "contact", "--input-json", "[1]"]), ["--input-json must be a JSON object"]);
@@ -120,7 +191,10 @@ test("a table command makes one authenticated call with a trace header and print
     assert.match(String(r.headers["x-vyre-trace"]), /^[0-9a-f]{32}-[0-9a-f]{16}$/);
     assert.deepEqual(r.body, { type: "contact", limit: 5, filter: { a: 1 } });
     assert.deepEqual(JSON.parse(t.out()), { rows: [{ id: "rec_1" }], total: 1 });
-  } finally { await s.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    await s.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("a command that needs a key mints one, and a connection flag becomes the right field", async () => {
@@ -132,11 +206,23 @@ test("a command that needs a key mints one, and a connection flag becomes the ri
     const b = s.seen[0]!.body as { idempotencyKey: string; type: string; fields: unknown };
     assert.match(b.idempotencyKey, /^idem_[0-9a-f]{16}$/);
     assert.deepEqual([b.type, b.fields], ["contact", { name: "Ana" }]);
-  } finally { await s.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    await s.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("an error from the server shows its code, message, next steps and trace id, and exits 1", async () => {
-  const error = { code: "permission.no_grant", message: "You do not have access to this.", retryable: false, traceId: "e".repeat(32), next: [{ kind: "ask_access", label: "Ask for access" }, { kind: "report", label: "Report a problem" }] };
+  const error = {
+    code: "permission.no_grant",
+    message: "You do not have access to this.",
+    retryable: false,
+    traceId: "e".repeat(32),
+    next: [
+      { kind: "ask_access", label: "Ask for access" },
+      { kind: "report", label: "Report a problem" },
+    ],
+  };
   const s = await fakeServer(() => ({ status: 403, body: { error } }));
   const dir = dirOf();
   try {
@@ -146,11 +232,25 @@ test("an error from the server shows its code, message, next steps and trace id,
     assert.match(t.err(), /Next: Ask for access \/ Report a problem/);
     assert.match(t.err(), /Trace: f{32}/);
     assert.equal(t.out(), "");
-  } finally { await s.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    await s.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("a 401 points at the token; an unreachable server exits 5 with how to start it; a missing token exits 2", async () => {
-  const s = await fakeServer(() => ({ status: 401, body: { error: { code: "auth.unauthenticated", message: "No valid session for this call.", retryable: false, traceId: "a".repeat(32), next: [] } } }));
+  const s = await fakeServer(() => ({
+    status: 401,
+    body: {
+      error: {
+        code: "auth.unauthenticated",
+        message: "No valid session for this call.",
+        retryable: false,
+        traceId: "a".repeat(32),
+        next: [],
+      },
+    },
+  }));
   const dir = dirOf();
   try {
     const a = mkIo(target(s.url, dir));
@@ -162,7 +262,10 @@ test("a 401 points at the token; an unreachable server exits 5 with how to start
     const c = mkIo({ VYRE_DATA_DIR: dir, VYRE_SERVER: "", VYRE_TOKEN: "", VYRE_ADMIN_TOKEN: "" });
     assert.equal(await main(["tasks", "needs-you"], c.io), 2);
     assert.match(c.err(), /No server or token found/);
-  } finally { await s.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    await s.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("usage errors exit 2 and say where to look; help lists the hand commands and the table", async () => {
@@ -190,7 +293,9 @@ test("usage errors exit 2 and say where to look; help lists the hand commands an
     const flagHelp = mkIo({});
     assert.equal(await main(["records", "query", "--help"], flagHelp.io), 0);
     assert.match(flagHelp.out(), /vyre records query <type>/);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // ---- run --env
@@ -200,9 +305,25 @@ test("`vyre run --env` puts the folder's values in the child's environment only"
   const dir = dirOf();
   try {
     const asked: string[] = [];
-    const filler = (h: string): Promise<string> => { asked.push(h); return Promise.resolve(h === "hdl_1" ? "k-123" : "postgres://x"); };
+    const filler = (h: string): Promise<string> => {
+      asked.push(h);
+      return Promise.resolve(h === "hdl_1" ? "k-123" : "postgres://x");
+    };
     const t = mkIo(target(s.url, dir), { filler });
-    const code = await main(["run", "--env", "fld_prod", "--purpose", "deploy", "--", process.execPath, "-e", "process.stdout.write(process.env.API_KEY + '|' + process.env.DB_URL)"], t.io);
+    const code = await main(
+      [
+        "run",
+        "--env",
+        "fld_prod",
+        "--purpose",
+        "deploy",
+        "--",
+        process.execPath,
+        "-e",
+        "process.stdout.write(process.env.API_KEY + '|' + process.env.DB_URL)",
+      ],
+      t.io,
+    );
     assert.equal(code, 0);
     assert.equal(t.out(), "k-123|postgres://x");
     assert.deepEqual(s.seen[0]!.body, { folderId: "fld_prod", purpose: "deploy" });
@@ -211,18 +332,66 @@ test("`vyre run --env` puts the folder's values in the child's environment only"
     assert.equal(process.env["API_KEY"], undefined, "this process's environment was not touched");
     assert.ok(!JSON.stringify(s.seen).includes("k-123"), "values never went to the server");
     const exit = mkIo(target(s.url, dir), { filler });
-    assert.equal(await main(["run", "--env", "fld_prod", "--", process.execPath, "-e", "process.exit(7)"], exit.io), 7, "the child's exit code is ours");
-  } finally { await s.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+    assert.equal(
+      await main(["run", "--env", "fld_prod", "--", process.execPath, "-e", "process.exit(7)"], exit.io),
+      7,
+      "the child's exit code is ours",
+    );
+  } finally {
+    await s.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("`vyre run --env` runs nothing when the lists disagree, when the folder is refused, or when the server will not hand a value over", async () => {
   const dir = dirOf();
   const ok = await fakeServer(() => ({ body: { data: { handles: ["hdl_1"], keys: ["A", "B"] } } }));
-  const refused = await fakeServer(() => ({ status: 403, body: { error: { code: "permission.no_grant", message: "No access to that folder.", retryable: false, traceId: "b".repeat(32), next: [] } } }));
+  const refused = await fakeServer(() => ({
+    status: 403,
+    body: {
+      error: {
+        code: "permission.no_grant",
+        message: "No access to that folder.",
+        retryable: false,
+        traceId: "b".repeat(32),
+        next: [],
+      },
+    },
+  }));
   try {
-    const noValue = await fakeServer((req) => req.path.endsWith("/inject_env") ? { body: { data: { handles: ["#A.k"], keys: ["A"] } } } : { status: 403, body: { error: { code: "permission.no_grant", message: "Only a person at View level can have the value back.", retryable: false, traceId: "c".repeat(32), next: [] } } });
+    const noValue = await fakeServer((req) =>
+      req.path.endsWith("/inject_env")
+        ? { body: { data: { handles: ["#A.k"], keys: ["A"] } } }
+        : {
+            status: 403,
+            body: {
+              error: {
+                code: "permission.no_grant",
+                message: "Only a person at View level can have the value back.",
+                retryable: false,
+                traceId: "c".repeat(32),
+                next: [],
+              },
+            },
+          },
+    );
     const nope = mkIo(target(noValue.url, dir));
-    assert.equal(await main(["run", "--env", "fld_x", "--", process.execPath, "-e", "require('node:fs').writeFileSync(process.argv[1], 'ran')", path.join(dir, "ran")], nope.io), 1);
+    assert.equal(
+      await main(
+        [
+          "run",
+          "--env",
+          "fld_x",
+          "--",
+          process.execPath,
+          "-e",
+          "require('node:fs').writeFileSync(process.argv[1], 'ran')",
+          path.join(dir, "ran"),
+        ],
+        nope.io,
+      ),
+      1,
+    );
     assert.match(nope.err(), /permission\.no_grant/);
     assert.equal(fs.existsSync(path.join(dir, "ran")), false, "the command did not run");
     await noValue.close();
@@ -234,27 +403,60 @@ test("`vyre run --env` runs nothing when the lists disagree, when the folder is 
     assert.match(denied.err(), /permission\.no_grant/);
     const usage = mkIo(target(ok.url, dir), { filler: () => Promise.resolve("v") });
     assert.equal(await main(["run", "--env", "fld_x"], usage.io), 2);
-  } finally { await ok.close(); await refused.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    await ok.close();
+    await refused.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("`vyre run --env` with no filler process asks the server for each value as the caller, and scrubs the child's output", async () => {
   const dir = dirOf();
   const s = await fakeServer((req) => {
-    if (req.path.endsWith("/inject_env")) return { body: { data: { handles: ["#Dana.api_key", "#Stripe.api_key"], keys: ["api_key", "Stripe__api_key"] } } };
+    if (req.path.endsWith("/inject_env"))
+      return {
+        body: { data: { handles: ["#Dana.api_key", "#Stripe.api_key"], keys: ["api_key", "Stripe__api_key"] } },
+      };
     const handle = (req.body as { handle: string }).handle;
-    return { body: { data: { filled: false, field: "api_key", where: "host", value: handle === "#Dana.api_key" ? "sk-dana-1234" : "sk-stripe-9876" } } };
+    return {
+      body: {
+        data: {
+          filled: false,
+          field: "api_key",
+          where: "host",
+          value: handle === "#Dana.api_key" ? "sk-dana-1234" : "sk-stripe-9876",
+        },
+      },
+    };
   });
   try {
     const t = mkIo({ ...target(s.url, dir), VYRE_FILLER_SOCKET: "" });
-    const code = await main(["run", "--env", "fld_prod", "--", process.execPath, "-e", "process.stdout.write('a=' + process.env.api_key + ' b=' + process.env.Stripe__api_key); process.stderr.write('e=' + process.env.api_key)"], t.io);
+    const code = await main(
+      [
+        "run",
+        "--env",
+        "fld_prod",
+        "--",
+        process.execPath,
+        "-e",
+        "process.stdout.write('a=' + process.env.api_key + ' b=' + process.env.Stripe__api_key); process.stderr.write('e=' + process.env.api_key)",
+      ],
+      t.io,
+    );
     assert.equal(code, 0);
     assert.equal(t.out(), "a=[vault] b=[vault]");
     assert.equal(t.err(), "e=[vault]");
     const fills = s.seen.filter((x) => x.path.endsWith("/fill"));
-    assert.deepEqual(fills.map((x) => (x.body as { handle: string; returnValue: boolean }).handle), ["#Dana.api_key", "#Stripe.api_key"]);
+    assert.deepEqual(
+      fills.map((x) => (x.body as { handle: string; returnValue: boolean }).handle),
+      ["#Dana.api_key", "#Stripe.api_key"],
+    );
     assert.ok(fills.every((x) => (x.body as { returnValue: boolean }).returnValue === true));
     assert.equal(process.env["api_key"], undefined);
-  } finally { await s.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    await s.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("`vyre run --env` reads values from the filler socket named by VYRE_FILLER_SOCKET", async () => {
@@ -276,22 +478,49 @@ test("`vyre run --env` reads values from the filler socket named by VYRE_FILLER_
   const s = await fakeServer(() => ({ body: { data: { handles: ["#A.k"], keys: ["A_K"] } } }));
   try {
     const t = mkIo({ ...target(s.url, dir), VYRE_FILLER_SOCKET: sockPath }, { inherit: false });
-    assert.equal(await main(["run", "--env", "fld_x", "--", process.execPath, "-e", "process.stdout.write(process.env.A_K)"], t.io), 0);
+    assert.equal(
+      await main(
+        ["run", "--env", "fld_x", "--", process.execPath, "-e", "process.stdout.write(process.env.A_K)"],
+        t.io,
+      ),
+      0,
+    );
     assert.equal(t.out(), "v-of-#A.k", "the socket's value reached the child");
     assert.deepEqual(asked, ["#A.k"]);
     assert.equal(s.seen.filter((x) => x.path.endsWith("/fill")).length, 0, "the server was not asked for the value");
-  } finally { srv.close(); await s.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    srv.close();
+    await s.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("`vyre run --env` never prints a fetched value, not in an error from the server and not in a failed launch", async () => {
   const dir = dirOf();
   const VALUE = "sk-live-leak-1234";
   const s = await fakeServer((req) => {
-    if (req.path.endsWith("/inject_env")) return { body: { data: { handles: ["#A.k", "#B.k"], keys: ["A_K", "B_K"] } } };
-    if ((req.body as { handle: string }).handle === "#A.k") return { body: { data: { filled: false, field: "k", where: "host", value: VALUE } } };
-    return { status: 500, body: { error: { code: "internal.unexpected", message: `could not read #B.k (the other value was ${VALUE})`, retryable: false, traceId: "d".repeat(32), next: [] } } };
+    if (req.path.endsWith("/inject_env"))
+      return { body: { data: { handles: ["#A.k", "#B.k"], keys: ["A_K", "B_K"] } } };
+    if ((req.body as { handle: string }).handle === "#A.k")
+      return { body: { data: { filled: false, field: "k", where: "host", value: VALUE } } };
+    return {
+      status: 500,
+      body: {
+        error: {
+          code: "internal.unexpected",
+          message: `could not read #B.k (the other value was ${VALUE})`,
+          retryable: false,
+          traceId: "d".repeat(32),
+          next: [],
+        },
+      },
+    };
   });
-  const ok = await fakeServer((req) => req.path.endsWith("/inject_env") ? { body: { data: { handles: ["#A.k"], keys: ["A_K"] } } } : { body: { data: { filled: false, field: "k", where: "host", value: VALUE } } });
+  const ok = await fakeServer((req) =>
+    req.path.endsWith("/inject_env")
+      ? { body: { data: { handles: ["#A.k"], keys: ["A_K"] } } }
+      : { body: { data: { filled: false, field: "k", where: "host", value: VALUE } } },
+  );
   try {
     const t = mkIo(target(s.url, dir));
     assert.equal(await main(["run", "--env", "fld_x", "--", process.execPath, "-e", "0"], t.io), 1);
@@ -299,7 +528,11 @@ test("`vyre run --env` never prints a fetched value, not in an error from the se
     const launch = mkIo(target(ok.url, dir));
     assert.equal(await main(["run", "--env", "fld_x", "--", path.join(dir, `no-such-${VALUE}`)], launch.io), 127);
     assert.ok(!launch.err().includes(VALUE) && !launch.out().includes(VALUE), launch.err());
-  } finally { await s.close(); await ok.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    await s.close();
+    await ok.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("the output scrubber removes a value that arrives in two pieces", () => {
@@ -317,40 +550,97 @@ test("`vyre connector run` maps key, action and friendly flags onto the capabili
   const dir = dirOf();
   try {
     const t = mkIo(target(s.url, dir));
-    assert.equal(await main(["connector", "run", "hubspot", "contacts.list", "--connection", "con_a1", "--input", '{"limit":2}', "--dry-run"], t.io), 0);
+    assert.equal(
+      await main(
+        [
+          "connector",
+          "run",
+          "hubspot",
+          "contacts.list",
+          "--connection",
+          "con_a1",
+          "--input",
+          '{"limit":2}',
+          "--dry-run",
+        ],
+        t.io,
+      ),
+      0,
+    );
     const r = s.seen[0]!;
     assert.equal(r.path, "/v1/connectors/run");
     const b = r.body as Record<string, unknown>;
-    assert.deepEqual({ ...b, idempotencyKey: "-" }, { key: "hubspot", action: "contacts.list", connectionId: "con_a1", input: { limit: 2 }, dryRun: true, idempotencyKey: "-" });
+    assert.deepEqual(
+      { ...b, idempotencyKey: "-" },
+      {
+        key: "hubspot",
+        action: "contacts.list",
+        connectionId: "con_a1",
+        input: { limit: 2 },
+        dryRun: true,
+        idempotencyKey: "-",
+      },
+    );
     assert.match(String(b["idempotencyKey"]), /^idem_/);
     const init = mkIo(target(s.url, dir));
-    assert.equal(await main(["connector", "init", "acme", "--title", "Acme", "--mode", "rest", "--docs", "https://acme.dev/docs"], init.io), 0);
-    assert.deepEqual({ ...(s.seen[1]!.body as object), idempotencyKey: "-" }, { key: "acme", title: "Acme", mode: "rest", docsUrl: "https://acme.dev/docs", idempotencyKey: "-" });
+    assert.equal(
+      await main(
+        ["connector", "init", "acme", "--title", "Acme", "--mode", "rest", "--docs", "https://acme.dev/docs"],
+        init.io,
+      ),
+      0,
+    );
+    assert.deepEqual(
+      { ...(s.seen[1]!.body as object), idempotencyKey: "-" },
+      { key: "acme", title: "Acme", mode: "rest", docsUrl: "https://acme.dev/docs", idempotencyKey: "-" },
+    );
     const bad = mkIo(target(s.url, dir));
     assert.equal(await main(["connector", "teleport"], bad.io), 2);
-    assert.equal(await main(["connector", "run", "a", "b", "c"], mkIo(target(s.url, dir)).io), 2, "an extra word is a usage error");
-  } finally { await s.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+    assert.equal(
+      await main(["connector", "run", "a", "b", "c"], mkIo(target(s.url, dir)).io),
+      2,
+      "an extra word is a usage error",
+    );
+  } finally {
+    await s.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("`vyre connector build` follows the Run to its end and exits by how it ended; --no-wait does not", async () => {
   const dir = dirOf();
-  for (const [final, code] of [["succeeded", 0], ["failed", 1]] as const) {
-    const s = await fakeServer((req, n) => (req.path === "/v1/connectors/build" ? { body: { data: { runId: "run_1", draftId: "drf_1" } } } : { body: { data: { run: { status: n < 4 ? "running" : final } } } }));
+  for (const [final, code] of [
+    ["succeeded", 0],
+    ["failed", 1],
+  ] as const) {
+    const s = await fakeServer((req, n) =>
+      req.path === "/v1/connectors/build"
+        ? { body: { data: { runId: "run_1", draftId: "drf_1" } } }
+        : { body: { data: { run: { status: n < 4 ? "running" : final } } } },
+    );
     try {
       const t = mkIo(target(s.url, dir));
       assert.equal(await main(["connector", "build", "hubspot", "--notes", "use v3"], t.io), code);
       assert.match(t.out(), /Build started as run_1/);
       assert.match(t.out(), new RegExp(`"status": "${final}"`));
-      assert.deepEqual(s.seen.filter((r) => r.path === "/v1/runs/get").map((r) => r.body), Array.from({ length: 3 }, () => ({ runId: "run_1" })));
+      assert.deepEqual(
+        s.seen.filter((r) => r.path === "/v1/runs/get").map((r) => r.body),
+        Array.from({ length: 3 }, () => ({ runId: "run_1" })),
+      );
       assert.equal((s.seen[0]!.body as { notes: string }).notes, "use v3");
-    } finally { await s.close(); }
+    } finally {
+      await s.close();
+    }
   }
   const s = await fakeServer(() => ({ body: { data: { runId: "run_2", draftId: "drf_2" } } }));
   try {
     const t = mkIo(target(s.url, dir));
     assert.equal(await main(["connector", "build", "hubspot", "--no-wait"], t.io), 0);
     assert.equal(s.seen.length, 1, "no polling");
-  } finally { await s.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    await s.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // ---- server start, status, stop around a real in-process daemon
@@ -359,19 +649,41 @@ test("`vyre server start|status|stop` starts the daemon with the flags given, re
   const dir = dirOf();
   let daemon: Daemon | null = null;
   let startError: unknown = null;
-  const io = mkIo({ VYRE_DATA_DIR: dir }, {
-    sleep: (ms) => new Promise((r) => setTimeout(r, Math.min(ms, 20))),
-    spawnDaemon: (args) => {
-      void startDaemon({ config: loadConfig(args, {}, "9.9.9"), platform: fakePlatform({ os: "linux", free: 50e9 }), fetch: () => Promise.reject(new Error("no caddy")), intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000 } })
-        .then((d) => { daemon = d; }, (e: unknown) => { startError = e; });
-      return { pid: process.pid };
+  const io = mkIo(
+    { VYRE_DATA_DIR: dir },
+    {
+      sleep: (ms) => new Promise((r) => setTimeout(r, Math.min(ms, 20))),
+      spawnDaemon: (args) => {
+        void startDaemon({
+          config: loadConfig(args, {}, "9.9.9"),
+          platform: fakePlatform({ os: "linux", free: 50e9 }),
+          fetch: () => Promise.reject(new Error("no caddy")),
+          intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000 },
+        }).then(
+          (d) => {
+            daemon = d;
+          },
+          (e: unknown) => {
+            startError = e;
+          },
+        );
+        return { pid: process.pid };
+      },
+      signal: (pid, sig) => {
+        assert.equal(pid, process.pid);
+        assert.equal(sig, "SIGTERM");
+        void daemon?.stop();
+      },
     },
-    signal: (pid, sig) => { assert.equal(pid, process.pid); assert.equal(sig, "SIGTERM"); void daemon?.stop(); },
-  });
+  );
   try {
     assert.equal(await main(["server", "status", "--data-dir", dir], io.io), 5, "not running yet");
     assert.match(io.err(), /vyred is not running/);
-    assert.equal(await main(["server", "start", "--data-dir", dir, "--space", "spc_cli", "--port", "0"], io.io), 0, String(startError));
+    assert.equal(
+      await main(["server", "start", "--data-dir", dir, "--space", "spc_cli", "--port", "0"], io.io),
+      0,
+      String(startError),
+    );
     assert.match(io.out(), /vyred started on http:\/\/127\.0\.0\.1:\d+/);
     assert.equal(daemon!.space, "spc_cli", "the flags reached the daemon");
     assert.equal(readInfo(daemon!.paths)?.version, "9.9.9");
@@ -392,7 +704,11 @@ test("`vyre server start|status|stop` starts the daemon with the flags given, re
     // the token file the daemon wrote lets the CLI call it with no flags at all
     const call = mkIo({ VYRE_DATA_DIR: dir });
     // ruling 71: a new Space starts with an owner holding the Owner role, and the local admin token acts as that owner, so the call is answered
-    assert.equal(await main(["logs", "--limit", "1"], call.io), 0, "the owner the admin token acts as may read the server logs");
+    assert.equal(
+      await main(["logs", "--limit", "1"], call.io),
+      0,
+      "the owner the admin token acts as may read the server logs",
+    );
     // a call the owner may not make still shows the refusal with its trace
     const refused = mkIo({ VYRE_DATA_DIR: dir, VYRE_TOKEN: "nope" });
     assert.notEqual(await main(["logs", "--limit", "1"], refused.io), 0, "a wrong token is refused");
@@ -403,7 +719,11 @@ test("`vyre server start|status|stop` starts the daemon with the flags given, re
     assert.match(io.out(), /vyred stopped/);
     assert.equal(readInfo(daemon!.paths), null);
     assert.equal(await main(["server", "status", "--data-dir", dir], mkIo({ VYRE_DATA_DIR: dir }).io), 5);
-    assert.equal(await main(["server", "stop", "--data-dir", dir], mkIo({ VYRE_DATA_DIR: dir }).io), 0, "stopping a stopped server is fine");
+    assert.equal(
+      await main(["server", "stop", "--data-dir", dir], mkIo({ VYRE_DATA_DIR: dir }).io),
+      0,
+      "stopping a stopped server is fine",
+    );
   } finally {
     await (daemon as Daemon | null)?.stop();
     fs.rmSync(dir, { recursive: true, force: true });
@@ -414,7 +734,10 @@ test("`vyre server logs` prints the end of the daemon's output file; an unknown 
   const dir = dirOf();
   try {
     fs.mkdirSync(path.join(dir, "logs"), { recursive: true });
-    fs.writeFileSync(path.join(dir, "logs", "vyred.out"), Array.from({ length: 100 }, (_, i) => `line ${i}`).join("\n") + "\n");
+    fs.writeFileSync(
+      path.join(dir, "logs", "vyred.out"),
+      Array.from({ length: 100 }, (_, i) => `line ${i}`).join("\n") + "\n",
+    );
     const t = mkIo({ VYRE_DATA_DIR: dir });
     assert.equal(await main(["server", "logs", "--lines", "3", "--data-dir", dir], t.io), 0);
     assert.match(t.out(), /line 99/);
@@ -424,5 +747,7 @@ test("`vyre server logs` prints the end of the daemon's output file; an unknown 
     assert.match(u.err(), /Use start, stop, restart, status, logs or doctor/);
     const none = mkIo({ VYRE_DATA_DIR: path.join(dir, "nowhere") });
     assert.equal(await main(["server", "logs"], none.io), 1);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

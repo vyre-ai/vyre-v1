@@ -9,7 +9,11 @@ import type { ThemeRoot } from "../../../ui/src/theme/index.ts";
 import { Shell } from "../../../apps/app/src/shell/spaces/Shell.tsx";
 import type { PlaceContext } from "../../../apps/app/src/shell/spaces/Shell.tsx";
 import { createSampleShell, samplePlace } from "../../../apps/app/src/shell/spaces/sample.tsx";
-import { RecordsDataProvider, RecordsSidebarSlot, RecordsStateProvider } from "../../../apps/app/src/places/records/sidebar/index.ts";
+import {
+  RecordsDataProvider,
+  RecordsSidebarSlot,
+  RecordsStateProvider,
+} from "../../../apps/app/src/places/records/sidebar/index.ts";
 import { TableView } from "../../../apps/app/src/places/records/table/index.ts";
 import { createSampleRecords, protoNorthwindSpace } from "../../../apps/app/src/places/records/table/sample.ts";
 
@@ -41,16 +45,30 @@ function Inner({ search }: { search: string }): ReactNode {
     const skin = query.get("skin") ?? "paper";
     const root = (globalThis as { document?: { documentElement?: RootLike } }).document?.documentElement;
     const themeRoot: ThemeRoot = {
-      setAttribute: (n, v) => { root?.setAttribute(n, v); },
-      setProperty: (n, v) => { root?.style.setProperty(n, v); },
-      removeProperty: (n) => { root?.style.removeProperty(n); },
+      setAttribute: (n, v) => {
+        root?.setAttribute(n, v);
+      },
+      setProperty: (n, v) => {
+        root?.style.setProperty(n, v);
+      },
+      removeProperty: (n) => {
+        root?.style.removeProperty(n);
+      },
     };
-    const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
+    const theme = createThemeController({
+      personId: "irfad",
+      spaceId: "nw",
+      spaceSkin: { nw: skin, hb: skin, me: skin },
+      prefersDark: skin === "graphite",
+      root: themeRoot,
+      storage: null,
+    });
     const hub = createSampleShell({ openId: "nw", theme });
     hub.go("records");
     return { hub, theme, type: query.get("type") };
   }, [search]);
-  const renderPlace = (ctx: PlaceContext): ReactNode => (ctx.place === "records" ? <RecordsBody key={ctx.spaceId} type={made.type} /> : samplePlace(ctx));
+  const renderPlace = (ctx: PlaceContext): ReactNode =>
+    ctx.place === "records" ? <RecordsBody key={ctx.spaceId} type={made.type} /> : samplePlace(ctx);
   return (
     <View style={{ height }}>
       <Shell hub={made.hub} theme={made.theme} renderPlace={renderPlace} />

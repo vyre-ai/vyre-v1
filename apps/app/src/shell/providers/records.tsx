@@ -8,7 +8,12 @@ import { useConsolePages } from "../reach/viewer.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { View, useWindowDimensions } from "react-native";
-import { RecordsDataProvider, RecordsSidebarSlot, RecordsStateProvider, SidebarLoading } from "../../places/records/sidebar/index.ts";
+import {
+  RecordsDataProvider,
+  RecordsSidebarSlot,
+  RecordsStateProvider,
+  SidebarLoading,
+} from "../../places/records/sidebar/index.ts";
 import { TableLoading } from "../../places/records/table/index.ts";
 import { usePlaceHash, useOpenedId } from "../hash/context.tsx";
 import { RecordDetail } from "./record-detail.tsx";
@@ -44,10 +49,19 @@ export function useCanEditSchema(rt: ShellRuntime | null): boolean {
 export function useCanManageSync(rt: ShellRuntime | null): boolean {
   const [can, setCan] = useState(false);
   useEffect(() => {
-    if (!rt || rt.plainRole === true) return;   // a Member or Guest holds no connectors.manage: nothing to ask
+    if (!rt || rt.plainRole === true) return; // a Member or Guest holds no connectors.manage: nothing to ask
     let live = true;
-    void rt.call("connectors.list", { limit: 1 }).then(() => { if (live) setCan(true); }, () => { if (live) setCan(false); });
-    return () => { live = false; };
+    void rt.call("connectors.list", { limit: 1 }).then(
+      () => {
+        if (live) setCan(true);
+      },
+      () => {
+        if (live) setCan(false);
+      },
+    );
+    return () => {
+      live = false;
+    };
   }, [rt]);
   return can;
 }
@@ -60,9 +74,10 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
   const id = useOpenedId(["record", "contact", "project"], ["recordId", "projectId"]);
   const { state, dispatch } = useRecordsState();
   // Record types and the Schema map are screens of this place: the sidebar's two rows write their screen id to the hash, and choosing a type in the sidebar gives the body back to the views.
-  const schemaView = target.screen === "records.types" ? "types" : target.screen === "records.schema-map" ? "map" : null;
+  const schemaView =
+    target.screen === "records.types" ? "types" : target.screen === "records.schema-map" ? "map" : null;
   // the Sync page of a synced type is a screen of this place too
-  const syncType = target.screen === "records.sync" ? target.args.type ?? null : null;
+  const syncType = target.screen === "records.sync" ? (target.args.type ?? null) : null;
   const previousType = useRef(state.type);
   useEffect(() => {
     if (previousType.current !== state.type && (id || schemaView || syncType)) opened({});
@@ -79,44 +94,151 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
   const directory = useDirectory(rt);
   const team = rt.space.kind !== "personal";
   const share = useMemo<RecordsShare | undefined>(() => (team ? { open: setSharing } : undefined), [team]);
-  const schema = useMemo<SchemaData>(() => ({
-    screens: rt.screens,
-    call: rt.call,
-    nav: {
-      openType: (key) => { dispatch({ type: "open", key }); opened({}); },
-      // structure is edited in the Console, at Data > Schema: the door is there only for a person who can open that page (canEdit is console.nav listing it)
-      ...(rt.space.kind !== "personal" && canEdit ? { openConsole: (type?: string) => rt.open(adminTarget("console.schema", type ? { type } : {})) } : {}),
-    },
-    canEdit,
-    askVyre: makeAskVyre(ask, { screen: target.screen }),
-    copy: (text) => { void (globalThis as { navigator?: { clipboard?: { writeText?(t: string): Promise<void> } } }).navigator?.clipboard?.writeText?.(text); },
-  }), [rt, dispatch, opened, canEdit, target.screen]);
+  const schema = useMemo<SchemaData>(
+    () => ({
+      screens: rt.screens,
+      call: rt.call,
+      nav: {
+        openType: (key) => {
+          dispatch({ type: "open", key });
+          opened({});
+        },
+        // structure is edited in the Console, at Data > Schema: the door is there only for a person who can open that page (canEdit is console.nav listing it)
+        ...(rt.space.kind !== "personal" && canEdit
+          ? { openConsole: (type?: string) => rt.open(adminTarget("console.schema", type ? { type } : {})) }
+          : {}),
+      },
+      canEdit,
+      askVyre: makeAskVyre(ask, { screen: target.screen }),
+      copy: (text) => {
+        void (
+          globalThis as { navigator?: { clipboard?: { writeText?(t: string): Promise<void> } } }
+        ).navigator?.clipboard?.writeText?.(text);
+      },
+    }),
+    [rt, dispatch, opened, canEdit, target.screen],
+  );
   const types = useScreenQuery<CapMap["schema.types.list"]["out"]>(SCREENS.types, "types");
   // New project (Cmd-K and the Projects + in Chats) opens the Projects type with its new row started; before, it opened whatever type was last open and nothing else happened (owner walk, 12 Nov)
   // the request is spent once: Projects is opened in the sidebar (so the sidebar can switch away again), the address is cleared (so a reload or a reopened tab starts no second row),
   // and the new row is started once the table is there (owner walk review O2)
-  const asked = target.screen === "records.projects" && String(target.args.create) === "true" && types.status === "ready" && types.data.types.some((x) => x.key === PROJECT_TYPE);
+  const asked =
+    target.screen === "records.projects" &&
+    String(target.args.create) === "true" &&
+    types.status === "ready" &&
+    types.data.types.some((x) => x.key === PROJECT_TYPE);
   // once the row is started the address is cleared and Projects stays on screen only until the person opens another type (an empty Projects type is not in the sidebar's list, so it is held here)
   const [held, setHeld] = useState(false);
-  const spent = (): void => { dispatch({ type: "open", key: PROJECT_TYPE }); setHeld(true); opened({}); };
+  const spent = (): void => {
+    dispatch({ type: "open", key: PROJECT_TYPE });
+    setHeld(true);
+    opened({});
+  };
   const newProject = asked || (held && state.type === PROJECT_TYPE);
   // the type on screen: the one the address names, Projects for New project (so the new project opens as a project, not as the last type's record), else the sidebar's
-  const type = target.args.type ?? (newProject ? PROJECT_TYPE : effectiveType(state, typeGroups(types.status === "ready" ? types.data.types : [])));
-  typeTitle.current = (key) => (types.status === "ready" ? types.data.types.find((x) => x.key === key)?.plural : undefined);
+  const type =
+    target.args.type ??
+    (newProject ? PROJECT_TYPE : effectiveType(state, typeGroups(types.status === "ready" ? types.data.types : [])));
+  typeTitle.current = (key) =>
+    types.status === "ready" ? types.data.types.find((x) => x.key === key)?.plural : undefined;
   const canSync = useCanManageSync(rt);
   const data = useMemo(() => {
     const base = recordsData(rt, target.screen, canEdit);
     const { openSync, bringInCrm, ...plainNav } = base.nav;
     const nav = canSync ? base.nav : plainNav;
-    void openSync; void bringInCrm;
-    return { ...base, ...(share ? { share } : {}), askVyre: makeAskVyre(ask, { type, screen: target.screen }), nav: { ...nav, openAgent: (agentId: string) => openAgent(rt, agentId), openRecord: (recordId: string) => {
-      const open = (): void => rt.open({ subject: { type: "record", id: recordId }, args: type ? { type } : {} });
-      // an Agents row opens the agent's own page; a row with no agent behind it opens the "not set up" page
-      if (type !== "agent") { open(); return; }
-      void agentOfRecord(rt.call, recordId).then((r) => { if ("agent" in r) openAgent(rt, r.agent.agentId); else open(); }, open);
-    } } };
+    void openSync;
+    void bringInCrm;
+    return {
+      ...base,
+      ...(share ? { share } : {}),
+      askVyre: makeAskVyre(ask, { type, screen: target.screen }),
+      nav: {
+        ...nav,
+        openAgent: (agentId: string) => openAgent(rt, agentId),
+        openRecord: (recordId: string) => {
+          const open = (): void => rt.open({ subject: { type: "record", id: recordId }, args: type ? { type } : {} });
+          // an Agents row opens the agent's own page; a row with no agent behind it opens the "not set up" page
+          if (type !== "agent") {
+            open();
+            return;
+          }
+          void agentOfRecord(rt.call, recordId).then((r) => {
+            if ("agent" in r) openAgent(rt, r.agent.agentId);
+            else open();
+          }, open);
+        },
+      },
+    };
   }, [rt, type, target.screen, canEdit, canSync, share]);
-  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" ? "plan" : isProjectTab(target.args.tab) ? target.args.tab : "overview"} /> : schemaView ? <SchemaDataProvider value={schema}>{schemaView === "types" ? <RecordTypesList /> : <SchemaMap />}</SchemaDataProvider> : syncType ? <SyncPage key={syncType} type={syncType} call={rt.call} title={(types.status === "ready" ? types.data.types.find((x) => x.key === syncType)?.plural : undefined) ?? syncType} nav={{ openRecords: (ty) => { dispatch({ type: "open", key: ty }); opened({}); }, editMapping: (a) => openAskPane({ thing: { kind: ASK_SCOPE, id: `sync:${a.type}`, title: `How ${a.type} syncs` }, first: editMappingOpening(a) }, "records"), closed: () => opened({}) }} canManage /> : <RecordViews extraKinds={EXTRA_KINDS} {...(target.args.type ? { type: target.args.type } : newProject ? { type: PROJECT_TYPE } : {})} {...(target.args.kind ? { kind: target.args.kind } : {})} {...(asked ? { startNew: true, onStarted: spent } : {})} />}{sharing ? <RecordShareSheet target={sharing} directory={{ people: directory.people, groups: directory.groups, agents: directory.agents }} spaceName={rt.space.name} meId={rt.me.id} onClose={() => setSharing(null)} /> : null}</View></RecordsDataProvider>;
+  return (
+    <RecordsDataProvider value={data}>
+      <View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
+        <RecordsSidebarSlot />
+        {id ? (
+          <RecordDetail
+            key={`${id}:${target.args.type ?? ""}`}
+            rt={rt}
+            recordId={id}
+            {...(target.args.type ? { type: target.args.type } : {})}
+            fields={target.screen === "records.record-page" || target.args.recordView === "fields"}
+            tab={
+              target.screen === "records.project-plan"
+                ? "plan"
+                : isProjectTab(target.args.tab)
+                  ? target.args.tab
+                  : "overview"
+            }
+          />
+        ) : schemaView ? (
+          <SchemaDataProvider value={schema}>
+            {schemaView === "types" ? <RecordTypesList /> : <SchemaMap />}
+          </SchemaDataProvider>
+        ) : syncType ? (
+          <SyncPage
+            key={syncType}
+            type={syncType}
+            call={rt.call}
+            title={
+              (types.status === "ready" ? types.data.types.find((x) => x.key === syncType)?.plural : undefined) ??
+              syncType
+            }
+            nav={{
+              openRecords: (ty) => {
+                dispatch({ type: "open", key: ty });
+                opened({});
+              },
+              editMapping: (a) =>
+                openAskPane(
+                  {
+                    thing: { kind: ASK_SCOPE, id: `sync:${a.type}`, title: `How ${a.type} syncs` },
+                    first: editMappingOpening(a),
+                  },
+                  "records",
+                ),
+              closed: () => opened({}),
+            }}
+            canManage
+          />
+        ) : (
+          <RecordViews
+            extraKinds={EXTRA_KINDS}
+            {...(target.args.type ? { type: target.args.type } : newProject ? { type: PROJECT_TYPE } : {})}
+            {...(target.args.kind ? { kind: target.args.kind } : {})}
+            {...(asked ? { startNew: true, onStarted: spent } : {})}
+          />
+        )}
+        {sharing ? (
+          <RecordShareSheet
+            target={sharing}
+            directory={{ people: directory.people, groups: directory.groups, agents: directory.agents }}
+            spaceName={rt.space.name}
+            meId={rt.me.id}
+            onClose={() => setSharing(null)}
+          />
+        ) : null}
+      </View>
+    </RecordsDataProvider>
+  );
 }
 
 export default function RecordsPlace(_props: { place: string }): ReactElement {
@@ -129,7 +251,11 @@ export default function RecordsPlace(_props: { place: string }): ReactElement {
   if (!data) {
     return (
       <View testID="records-place-loading" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-        {phone ? null : <View style={{ width: SIDEBAR_W }}><SidebarLoading /></View>}
+        {phone ? null : (
+          <View style={{ width: SIDEBAR_W }}>
+            <SidebarLoading />
+          </View>
+        )}
         <TableLoading />
       </View>
     );

@@ -13,20 +13,33 @@ export async function createEvent(data: InboxData, d: Draft, key: string = newKe
 
 /** Drag, move and resize all end here: only the times change. */
 export async function setTimes(data: InboxData, eventId: string, span: Span): Promise<EventRow> {
-  const out = (await data.call("calendar.update_event", { eventId, startsAt: span.startsAt, endsAt: span.endsAt })) as CapMap["calendar.update_event"]["out"];
+  const out = (await data.call("calendar.update_event", {
+    eventId,
+    startsAt: span.startsAt,
+    endsAt: span.endsAt,
+  })) as CapMap["calendar.update_event"]["out"];
   return out.event;
 }
 
 /** Move to another calendar: its own capability (update_event takes no calendar, so the menu item did nothing before). */
 export async function moveToCalendar(data: InboxData, eventId: string, calendarId: string): Promise<EventRow> {
-  const out = (await data.call("calendar.move_to_calendar", { eventId, calendarId })) as CapMap["calendar.move_to_calendar"]["out"];
+  const out = (await data.call("calendar.move_to_calendar", {
+    eventId,
+    calendarId,
+  })) as CapMap["calendar.move_to_calendar"]["out"];
   return out.event;
 }
 
 /** A copy at the same time on the same calendar (no invitations go out until it is edited). */
 export async function duplicateEvent(data: InboxData, e: EventRow, key: string = newKey()): Promise<EventRow> {
   const out = (await data.call("calendar.create_event", {
-    calendarId: e.calendarId, title: e.title, startsAt: e.startsAt, endsAt: e.endsAt, allDay: e.allDay, ...(e.location ? { location: e.location } : {}), idempotencyKey: key,
+    calendarId: e.calendarId,
+    title: e.title,
+    startsAt: e.startsAt,
+    endsAt: e.endsAt,
+    allDay: e.allDay,
+    ...(e.location ? { location: e.location } : {}),
+    idempotencyKey: key,
   })) as CapMap["calendar.create_event"]["out"];
   return out.event;
 }
@@ -39,7 +52,21 @@ export async function restoreEvent(data: InboxData, eventId: string): Promise<vo
   await data.call("calendar.restore_event", { eventId });
 }
 
-export async function findTime(data: InboxData, people: readonly string[], durationMinutes: number, from: number, to: number, limit = 3): Promise<Slot[]> {
-  const out = (await data.call("calendar.find_time", { people: [...people], durationMinutes, from, to, limit, workingHoursOnly: true })) as CapMap["calendar.find_time"]["out"];
+export async function findTime(
+  data: InboxData,
+  people: readonly string[],
+  durationMinutes: number,
+  from: number,
+  to: number,
+  limit = 3,
+): Promise<Slot[]> {
+  const out = (await data.call("calendar.find_time", {
+    people: [...people],
+    durationMinutes,
+    from,
+    to,
+    limit,
+    workingHoursOnly: true,
+  })) as CapMap["calendar.find_time"]["out"];
   return out.slots;
 }

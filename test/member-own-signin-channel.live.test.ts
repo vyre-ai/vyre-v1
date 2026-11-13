@@ -11,12 +11,29 @@ import { SPACE_KEY, api, connectClaude, door, join, ok, standIn, vendor } from "
 test("Team server channel: a member's own Claude sign-in answers her message with the Space switch off; the other member runs on the Space AI key", async () => {
   const stub = await vendor();
   const dir = seededDir();
-  const d = await boot(dir, standIn, undefined, { vault: undefined } as unknown as NonNullable<Parameters<typeof boot>[3]>);
+  const d = await boot(dir, standIn, undefined, { vault: undefined } as unknown as NonNullable<
+    Parameters<typeof boot>[3]
+  >);
   try {
-    assert.equal((await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ key: Buffer.alloc(32, 3).toString("base64") }) })).status, 204);
-    const ep = await ok(d, d.token, "providers.custom_add", { name: "Stub Go", baseUrl: stub.base, apiKey: SPACE_KEY, scope: "mine" });
+    assert.equal(
+      (
+        await fetch(`${d.url}/local/vault/key/unlock`, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` },
+          body: JSON.stringify({ key: Buffer.alloc(32, 3).toString("base64") }),
+        })
+      ).status,
+      204,
+    );
+    const ep = await ok(d, d.token, "providers.custom_add", {
+      name: "Stub Go",
+      baseUrl: stub.base,
+      apiKey: SPACE_KEY,
+      scope: "mine",
+    });
     await ok(d, d.token, "providers.space_key.set", { providerKey: ep.endpoint.key, apiKey: SPACE_KEY });
-    const agentId = (await ok(d, d.token, "agents.create", { name: "Spark", role: "You help the team." })).agent.agentId as string;
+    const agentId = (await ok(d, d.token, "agents.create", { name: "Spark", role: "You help the team." })).agent
+      .agentId as string;
 
     const rubab = await join(d, "rubab");
     const sara = await join(d, "sara");
@@ -24,40 +41,92 @@ test("Team server channel: a member's own Claude sign-in answers her message wit
 
     // her sign-in, exactly as the app saves it: the switch is left off
     const ref = await connectClaude(d, rubab.token, "Rubab_Claude", { spaceUse: false });
-    const listed = ((await ok(d, rubab.token, "providers.list")).providers as Array<{ handle?: string; spaceMayUse: boolean }>).find((p) => p.handle === ref);
+    const listed = (
+      (await ok(d, rubab.token, "providers.list")).providers as Array<{ handle?: string; spaceMayUse: boolean }>
+    ).find((p) => p.handle === ref);
     assert.equal(listed?.spaceMayUse, false, "nothing turned the switch on");
 
-    const ch = (await ok(d, d.token, "channels.create", { name: "team", visibility: "invite", memberIds: [rubab.personId, sara.personId], agentIds: [agentId] })).channel as { mainThreadId: string };
+    const ch = (
+      await ok(d, d.token, "channels.create", {
+        name: "team",
+        visibility: "invite",
+        memberIds: [rubab.personId, sara.personId],
+        agentIds: [agentId],
+      })
+    ).channel as { mainThreadId: string };
     const threadId = ch.mainThreadId;
     type Msg = { messageId: string; author?: { kind?: string; id?: string }; body?: string };
     // in a channel the agent answers in the thread under the asking message: read the chat and the threads under it
     const everything = async (who: { token: string }): Promise<Msg[]> => {
-        return [
-          ...(((await api(d, who.token, "chat.messages.list", { threadId })).data.messages ?? []) as Msg[]),
-          ...(await Promise.all((((await api(d, who.token, "threads.list", { parentThreadId: threadId })).data.threads ?? []) as Array<{ threadId: string }>).map(async (t) => ((await api(d, who.token, "chat.messages.list", { threadId: t.threadId })).data.messages ?? []) as Msg[]))).flat(),
-        ];
+      return [
+        ...(((await api(d, who.token, "chat.messages.list", { threadId })).data.messages ?? []) as Msg[]),
+        ...(
+          await Promise.all(
+            (
+              ((await api(d, who.token, "threads.list", { parentThreadId: threadId })).data.threads ?? []) as Array<{
+                threadId: string;
+              }>
+            ).map(
+              async (t) =>
+                ((await api(d, who.token, "chat.messages.list", { threadId: t.threadId })).data.messages ??
+                  []) as Msg[],
+            ),
+          )
+        ).flat(),
+      ];
     };
     const replyTo = async (who: { token: string }, body: string): Promise<string> => {
       // what was there before this ask, threads included: an earlier answer in another person's thread is not this reply
       const before = (await everything(who)).map((m) => m.messageId);
       await ok(d, who.token, "chat.post", { threadId, body, mentions: [{ kind: "agent", id: agentId }] });
       let seen: unknown = null;
-      return waitFor(async () => {
-        await d.hooks?.pump?.();
-        // in a channel the agent answers in the thread under the asking message: read the chat and the threads under it
-        type Msg = { messageId: string; author?: { kind?: string; id?: string }; body?: string };
-        const ms = [
-          ...(((await api(d, who.token, "chat.messages.list", { threadId })).data.messages ?? []) as Msg[]),
-          ...(await Promise.all((((await api(d, who.token, "threads.list", { parentThreadId: threadId })).data.threads ?? []) as Array<{ threadId: string }>).map(async (t) => ((await api(d, who.token, "chat.messages.list", { threadId: t.threadId })).data.messages ?? []) as Msg[]))).flat(),
-        ];
-        seen = ms;
-        return ms?.find((m) => !before.includes(m.messageId) && (m.author?.kind === "agent" || m.author?.id === agentId) && (m.body ?? "") !== "")?.body ?? null;
-      }, 40_000, () => `${JSON.stringify(seen).slice(0, 3000)}\n${hostLog(d)}`);
+      return waitFor(
+        async () => {
+          await d.hooks?.pump?.();
+          // in a channel the agent answers in the thread under the asking message: read the chat and the threads under it
+          type Msg = { messageId: string; author?: { kind?: string; id?: string }; body?: string };
+          const ms = [
+            ...(((await api(d, who.token, "chat.messages.list", { threadId })).data.messages ?? []) as Msg[]),
+            ...(
+              await Promise.all(
+                (
+                  ((await api(d, who.token, "threads.list", { parentThreadId: threadId })).data.threads ??
+                    []) as Array<{ threadId: string }>
+                ).map(
+                  async (t) =>
+                    ((await api(d, who.token, "chat.messages.list", { threadId: t.threadId })).data.messages ??
+                      []) as Msg[],
+                ),
+              )
+            ).flat(),
+          ];
+          seen = ms;
+          return (
+            ms?.find(
+              (m) =>
+                !before.includes(m.messageId) &&
+                (m.author?.kind === "agent" || m.author?.id === agentId) &&
+                (m.body ?? "") !== "",
+            )?.body ?? null
+          );
+        },
+        40_000,
+        () => `${JSON.stringify(seen).slice(0, 3000)}\n${hostLog(d)}`,
+      );
     };
 
-    assert.equal(await replyTo(rubab, "hello from rubab"), `ran for ${rubab.personId} on subscription ${ref}`, "her own sign-in answered, with no extra switch");
-    assert.equal(await replyTo(sara, "hello from sara"), `ran for ${sara.personId} on the space key`, "Sara never runs on Rubab's sign-in");
-    wipe(rubab.personKey); wipe(sara.personKey);
+    assert.equal(
+      await replyTo(rubab, "hello from rubab"),
+      `ran for ${rubab.personId} on subscription ${ref}`,
+      "her own sign-in answered, with no extra switch",
+    );
+    assert.equal(
+      await replyTo(sara, "hello from sara"),
+      `ran for ${sara.personId} on the space key`,
+      "Sara never runs on Rubab's sign-in",
+    );
+    wipe(rubab.personKey);
+    wipe(sara.personKey);
   } finally {
     await d.stop();
     await stub.close();

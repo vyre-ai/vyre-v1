@@ -6,8 +6,16 @@ import { AgentError, badInput, notFound, unavailable } from "./errors.ts";
 
 const GLOBAL = /#([A-Za-z][A-Za-z0-9_]*)\.([A-Za-z0-9_]+)/g;
 
-export interface Used { handle: string; itemId: string; value: string }
-export interface Filler { url: string; token: string; computerId: string }
+export interface Used {
+  handle: string;
+  itemId: string;
+  value: string;
+}
+export interface Filler {
+  url: string;
+  token: string;
+  computerId: string;
+}
 
 /** A channel that one tool call brings and takes away again: the Vault as the person whose call it is, for that call only. */
 export interface CallChannel {
@@ -32,7 +40,8 @@ export interface Vault {
 }
 
 const checked = (url: string, token: string, computerId: string): Filler => {
-  if (!/^https?:\/\//.test(url) || token.length < 16) throw badInput("The Vault channel needs an http(s) address and a token of at least 16 characters.");
+  if (!/^https?:\/\//.test(url) || token.length < 16)
+    throw badInput("The Vault channel needs an http(s) address and a token of at least 16 characters.");
   return { url, token, computerId };
 };
 
@@ -47,17 +56,27 @@ export function createVault(): Vault {
   };
   return {
     setFiller(url, token, computerId) {
-      if (url === null || token === null) { filler = null; return; }
+      if (url === null || token === null) {
+        filler = null;
+        return;
+      }
       filler = checked(url, token, computerId);
     },
     enter(url, token, computerId) {
       const f = checked(url, token, computerId);
       const key = Symbol("call");
       calls.set(key, f);
-      return { fillArgs: (args) => fillWith(f, args), leave() { calls.delete(key); } };
+      return {
+        fillArgs: (args) => fillWith(f, args),
+        leave() {
+          calls.delete(key);
+        },
+      };
     },
     hasChannel: () => live() !== null,
-    async fillArgs<T>(args: T) { return fillWith(live(), args); },
+    async fillArgs<T>(args: T) {
+      return fillWith(live(), args);
+    },
     async value(handleText) {
       const m = /^#([A-Za-z][A-Za-z0-9_]*)\.([A-Za-z0-9_]+)$/.exec(handleText);
       if (!m) throw badInput("A handle is written #Handle.field.");
@@ -70,8 +89,15 @@ export function createVault(): Vault {
       if (!filler) throw unavailable("This profile has no channel to the Vault.");
       let res: Response;
       try {
-        res = await fetch(filler.url, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${filler.token}` }, body: JSON.stringify({ op: "invoke", capability, input, computerId: filler.computerId }), signal: AbortSignal.timeout(10_000) });
-      } catch { throw unavailable("The Vault did not answer."); }
+        res = await fetch(filler.url, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${filler.token}` },
+          body: JSON.stringify({ op: "invoke", capability, input, computerId: filler.computerId }),
+          signal: AbortSignal.timeout(10_000),
+        });
+      } catch {
+        throw unavailable("The Vault did not answer.");
+      }
       if (res.status === 403) throw badInput("This agent may not ask the Vault that.");
       if (res.status === 404) throw notFound("The Vault has nothing for that.");
       if (!res.ok) throw unavailable(`The Vault refused (${res.status}).`);
@@ -87,12 +113,23 @@ export const setFiller = own.setFiller;
 async function ask(f: Filler, handle: string, field: string): Promise<{ value: string; itemId: string }> {
   let res: Response;
   try {
-    res = await fetch(f.url, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${f.token}` }, body: JSON.stringify({ handle, field, computerId: f.computerId }), signal: AbortSignal.timeout(10_000) });
-  } catch { throw unavailable("The Vault did not answer. Nothing was typed."); }
+    res = await fetch(f.url, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${f.token}` },
+      body: JSON.stringify({ handle, field, computerId: f.computerId }),
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    throw unavailable("The Vault did not answer. Nothing was typed.");
+  }
   if (res.status === 403) {
     // the host may say why in plain words (a team agent's shared computer, an item that needs approval): those words, never a value, go to the agent
     const why = (await res.json().catch(() => null)) as { message?: unknown } | null;
-    throw badInput(typeof why?.message === "string" && why.message.length < 400 ? `${why.message} Nothing was typed.` : `This agent may not use #${handle}.${field}. Nothing was typed.`);
+    throw badInput(
+      typeof why?.message === "string" && why.message.length < 400
+        ? `${why.message} Nothing was typed.`
+        : `This agent may not use #${handle}.${field}. Nothing was typed.`,
+    );
   }
   if (res.status === 404) throw notFound(`There is no value for #${handle}.${field}.`);
   if (!res.ok) throw unavailable(`The Vault refused (${res.status}). Nothing was typed.`);
@@ -106,7 +143,10 @@ export const fillArgs = own.fillArgs;
 async function fillWith<T>(filler: Filler | null, args: T): Promise<{ args: T; used: Used[] }> {
   const found = [...JSON.stringify(args ?? null).matchAll(GLOBAL)];
   if (found.length === 0) return { args, used: [] };
-  if (!filler) throw unavailable("This computer has no channel to the Vault, so it cannot fill a #Handle.field. Nothing was typed.");
+  if (!filler)
+    throw unavailable(
+      "This computer has no channel to the Vault, so it cannot fill a #Handle.field. Nothing was typed.",
+    );
   const f = filler;
   const got = new Map<string, Used>();
   for (const m of found) {
@@ -118,7 +158,8 @@ async function fillWith<T>(filler: Filler | null, args: T): Promise<{ args: T; u
   const walk = (v: unknown): unknown => {
     if (typeof v === "string") return v.replace(GLOBAL, (all) => got.get(all)?.value ?? all);
     if (Array.isArray(v)) return v.map(walk);
-    if (v !== null && typeof v === "object") return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, walk(x)]));
+    if (v !== null && typeof v === "object")
+      return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, walk(x)]));
     return v;
   };
   return { args: walk(args) as T, used: [...got.values()] };
@@ -127,9 +168,14 @@ async function fillWith<T>(filler: Filler | null, args: T): Promise<{ args: T; u
 export function scrubUsed<T>(out: T, used: readonly Used[]): T {
   if (used.length === 0) return out;
   const walk = (v: unknown): unknown => {
-    if (typeof v === "string") { let t = v; for (const u of used) if (u.value.length >= 3) t = t.split(u.value).join(u.handle); return t; }
+    if (typeof v === "string") {
+      let t = v;
+      for (const u of used) if (u.value.length >= 3) t = t.split(u.value).join(u.handle);
+      return t;
+    }
     if (Array.isArray(v)) return v.map(walk);
-    if (v !== null && typeof v === "object") return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, walk(x)]));
+    if (v !== null && typeof v === "object")
+      return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, walk(x)]));
     return v;
   };
   return walk(out) as T;

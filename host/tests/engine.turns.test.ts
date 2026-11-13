@@ -13,9 +13,19 @@ const TRACE = "b".repeat(32);
 const SECRET = "sk-ant-oat01-HOSTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
 const WHO = { agentId: "intake", asker: "dana", where: "host" as const };
 
-interface Call { cap: string; input: unknown; seed: CtxSeed }
+interface Call {
+  cap: string;
+  input: unknown;
+  seed: CtxSeed;
+}
 
-function world(answer: (cap: string, input: unknown) => unknown = () => ({ status: "ok", output: { handle: "#Dana_Claude.setup_token", itemId: "vit_claude", fields: ["setup_token"] }, traceId: TRACE })) {
+function world(
+  answer: (cap: string, input: unknown) => unknown = () => ({
+    status: "ok",
+    output: { handle: "#Dana_Claude.setup_token", itemId: "vit_claude", fields: ["setup_token"] },
+    traceId: TRACE,
+  }),
+) {
   const calls: Call[] = [];
   const reads: Array<{ handle: string; space: string }> = [];
   const invoke: Invoke = async (cap, input, seed) => {
@@ -24,18 +34,33 @@ function world(answer: (cap: string, input: unknown) => unknown = () => ({ statu
     if (r instanceof Error) throw r;
     return r as Awaited<ReturnType<Invoke>>;
   };
-  const vault: VaultPort = { secret: async (handle, space) => { reads.push({ handle, space }); return SECRET; }, signRs256: async () => "" };
+  const vault: VaultPort = {
+    secret: async (handle, space) => {
+      reads.push({ handle, space });
+      return SECRET;
+    },
+    signRs256: async () => "",
+  };
   return { calls, reads, host: createEngineSessionHost({ invoke, vault, space: SPACE, lockedWaitMs: 0 }) };
 }
 
 test("a handle is looked up through vault.use as the agent acting for the asker, and only then is the value read", async () => {
   const w = world();
   const r = await w.host.source.lookup("#Dana_Claude.setup_token", WHO);
-  assert.deepEqual(r, { kind: "value", itemId: "vit_claude", value: SECRET, spaceOnly: false, injectIntoDeployments: false });
+  assert.deepEqual(r, {
+    kind: "value",
+    itemId: "vit_claude",
+    value: SECRET,
+    spaceOnly: false,
+    injectIntoDeployments: false,
+  });
   assert.equal(w.calls.length, 1);
   assert.equal(w.calls[0]?.cap, "vault.use");
   assert.deepEqual(w.calls[0]?.input, { item: "Dana_Claude", fields: ["setup_token"], purpose: "engine account" });
-  assert.deepEqual({ space: w.calls[0]?.seed.space, principal: w.calls[0]?.seed.principal, actingFor: w.calls[0]?.seed.actingFor }, { space: SPACE, principal: { kind: "agent", id: "intake" }, actingFor: "dana" });
+  assert.deepEqual(
+    { space: w.calls[0]?.seed.space, principal: w.calls[0]?.seed.principal, actingFor: w.calls[0]?.seed.actingFor },
+    { space: SPACE, principal: { kind: "agent", id: "intake" }, actingFor: "dana" },
+  );
   assert.notEqual(w.calls[0]?.seed.preAuth, true, "access is decided, not skipped");
   assert.deepEqual(w.reads, [{ handle: "#Dana_Claude.setup_token", space: SPACE }]);
 });
@@ -64,52 +89,119 @@ for (const [code, expected] of DENIALS) {
 test("a call held for approval is not a yes", async () => {
   const w = world(() => ({ status: "held", taskId: "tsk_1", traceId: TRACE }));
   // still a no, and said as itself (review 12 Nov, finding 9): the agent is told the item needs approval, not that it has no access
-  assert.deepEqual(await w.host.source.lookup("#Dana_Claude.setup_token", WHO), { kind: "denied", reason: "needs_approval" });
+  assert.deepEqual(await w.host.source.lookup("#Dana_Claude.setup_token", WHO), {
+    kind: "denied",
+    reason: "needs_approval",
+  });
   assert.deepEqual(w.reads, []);
 });
 
 test("text that is not a Vault handle is never looked up: a sealed record field, a hashtag, a sentence", async () => {
   const w = world();
-  for (const text of ["rec_clients_ab12_ssn", "#1 priority", "#", "#Dana Claude", "Dana_Claude", "#a.b.c"]) assert.deepEqual(await w.host.source.lookup(text, WHO), { kind: "unknown" }, text);
+  for (const text of ["rec_clients_ab12_ssn", "#1 priority", "#", "#Dana Claude", "Dana_Claude", "#a.b.c"])
+    assert.deepEqual(await w.host.source.lookup(text, WHO), { kind: "unknown" }, text);
   assert.equal(w.calls.length, 0);
 });
 
 test("a failure of the Vault itself is an error that names the code and never the text that came with it", async () => {
-  const w = world(() => Object.assign(new Error(`upstream said: token ${SECRET} rejected`), { code: "provider.unavailable" }));
-  await assert.rejects(w.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => e instanceof Error && e.message === "The Vault could not read the sign-in Dana_Claude (setup_token): provider.unavailable." && !e.message.includes(SECRET));
+  const w = world(() =>
+    Object.assign(new Error(`upstream said: token ${SECRET} rejected`), { code: "provider.unavailable" }),
+  );
+  await assert.rejects(
+    w.host.source.lookup("#Dana_Claude.setup_token", WHO),
+    (e: unknown) =>
+      e instanceof Error &&
+      e.message === "The Vault could not read the sign-in Dana_Claude (setup_token): provider.unavailable." &&
+      !e.message.includes(SECRET),
+  );
 });
 
 test("a failure of the Vault carries a code of its own, so the chat can tell a locked Vault from a broken one", async () => {
   const w = world(() => Object.assign(new Error("boom"), { code: "provider.unavailable" }));
-  await assert.rejects(w.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_unreadable");
+  await assert.rejects(
+    w.host.source.lookup("#Dana_Claude.setup_token", WHO),
+    (e: unknown) => (e as { code?: string }).code === "engine.vault_unreadable",
+  );
   const noCode = world(() => new Error("boom"));
-  await assert.rejects(noCode.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_unreadable" && /Dana_Claude/.test((e as Error).message) && /read failed/.test((e as Error).message) && !/^The Vault could not be read\.$/.test((e as Error).message));
+  await assert.rejects(
+    noCode.host.source.lookup("#Dana_Claude.setup_token", WHO),
+    (e: unknown) =>
+      (e as { code?: string }).code === "engine.vault_unreadable" &&
+      /Dana_Claude/.test((e as Error).message) &&
+      /read failed/.test((e as Error).message) &&
+      !/^The Vault could not be read\.$/.test((e as Error).message),
+  );
 });
 
 test("a locked Vault key is engine.vault_locked, whether the Vault module or the key port says it, and no text from either reaches the message", async () => {
   // the vault module refuses with a reason (auth.unauthenticated, vault_locked)
-  const byReason = world(() => Object.assign(new Error(`locked for ${SECRET}`), { error: { code: "auth.unauthenticated", message: `locked for ${SECRET}`, details: { reason: "vault_locked" } } }));
-  await assert.rejects(byReason.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_locked" && !(e as Error).message.includes(SECRET));
+  const byReason = world(() =>
+    Object.assign(new Error(`locked for ${SECRET}`), {
+      error: { code: "auth.unauthenticated", message: `locked for ${SECRET}`, details: { reason: "vault_locked" } },
+    }),
+  );
+  await assert.rejects(
+    byReason.host.source.lookup("#Dana_Claude.setup_token", WHO),
+    (e: unknown) => (e as { code?: string }).code === "engine.vault_locked" && !(e as Error).message.includes(SECRET),
+  );
   // the key port throws a plain error in its own words when the person's key is not open on this computer
-  const invoke: Invoke = async () => ({ status: "ok", output: { handle: "#X", itemId: "vit_1", fields: [] }, traceId: TRACE });
-  const vault: VaultPort = { secret: async () => { throw new Error("Your vault key is locked on this computer."); }, signRs256: async () => "" };
+  const invoke: Invoke = async () => ({
+    status: "ok",
+    output: { handle: "#X", itemId: "vit_1", fields: [] },
+    traceId: TRACE,
+  });
+  const vault: VaultPort = {
+    secret: async () => {
+      throw new Error("Your vault key is locked on this computer.");
+    },
+    signRs256: async () => "",
+  };
   const host = createEngineSessionHost({ invoke, vault, space: SPACE, lockedWaitMs: 0 });
-  await assert.rejects(host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_locked" && (e as Error).message === "Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.");
+  await assert.rejects(
+    host.source.lookup("#Dana_Claude.setup_token", WHO),
+    (e: unknown) =>
+      (e as { code?: string }).code === "engine.vault_locked" &&
+      (e as Error).message ===
+        "Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.",
+  );
 });
 
 test("a Vault port that fails after access was granted does not leak what it said", async () => {
-  const invoke: Invoke = async () => ({ status: "ok", output: { handle: "#X", itemId: "vit_1", fields: [] }, traceId: TRACE });
-  const vault: VaultPort = { secret: async () => { throw new Error(`could not open ${SECRET}`); }, signRs256: async () => "" };
+  const invoke: Invoke = async () => ({
+    status: "ok",
+    output: { handle: "#X", itemId: "vit_1", fields: [] },
+    traceId: TRACE,
+  });
+  const vault: VaultPort = {
+    secret: async () => {
+      throw new Error(`could not open ${SECRET}`);
+    },
+    signRs256: async () => "",
+  };
   const host = createEngineSessionHost({ invoke, vault, space: SPACE, lockedWaitMs: 0 });
-  await assert.rejects(host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => e instanceof Error && !e.message.includes(SECRET));
+  await assert.rejects(
+    host.source.lookup("#Dana_Claude.setup_token", WHO),
+    (e: unknown) => e instanceof Error && !e.message.includes(SECRET),
+  );
 });
 
 test("a CLI engine's loopback MCP session is minted as the host service with the agent, the person and the thread, and the engine's trace", async () => {
-  const w = world((cap) => (cap === "mcp.session.mint"
-    ? { status: "ok", output: { sessionId: "ses_1", sessionToken: "vys_abc", url: "http://127.0.0.1:41800/mcp", expiresAt: 123 }, traceId: TRACE }
-    : { status: "ok", output: { closed: true }, traceId: TRACE }));
+  const w = world((cap) =>
+    cap === "mcp.session.mint"
+      ? {
+          status: "ok",
+          output: { sessionId: "ses_1", sessionToken: "vys_abc", url: "http://127.0.0.1:41800/mcp", expiresAt: 123 },
+          traceId: TRACE,
+        }
+      : { status: "ok", output: { closed: true }, traceId: TRACE },
+  );
   const m = await w.host.mcp.mint({ principal: "intake", actingFor: "dana", threadId: "T1", traceId: TRACE });
-  assert.deepEqual(m, { sessionId: "ses_1", sessionToken: "vys_abc", url: "http://127.0.0.1:41800/mcp", expiresAt: 123 });
+  assert.deepEqual(m, {
+    sessionId: "ses_1",
+    sessionToken: "vys_abc",
+    url: "http://127.0.0.1:41800/mcp",
+    expiresAt: 123,
+  });
   assert.deepEqual(w.calls[0]?.input, { principal: "intake", actingFor: "dana", threadId: "T1", traceId: TRACE });
   assert.deepEqual(w.calls[0]?.seed.principal, { kind: "service", id: "svc_host" });
   assert.equal(w.calls[0]?.seed.thread, "T1");
@@ -120,16 +212,25 @@ test("a CLI engine's loopback MCP session is minted as the host service with the
 });
 
 test("an engine trace id that is not 32 hex is not forced onto the pipeline", async () => {
-  const w = world(() => ({ status: "ok", output: { sessionId: "s", sessionToken: "t", url: "u", expiresAt: 1 }, traceId: TRACE }));
+  const w = world(() => ({
+    status: "ok",
+    output: { sessionId: "s", sessionToken: "t", url: "u", expiresAt: 1 },
+    traceId: TRACE,
+  }));
   await w.host.mcp.mint({ principal: "intake", actingFor: "dana", threadId: "T1", traceId: "tr_1" });
   assert.equal(w.calls[0]?.seed.trace, undefined);
 });
 
 test("a mint that the pipeline refuses or holds is an error, never a token", async () => {
   const refused = world(() => fail("permission.no_grant", TRACE));
-  await assert.rejects(refused.host.mcp.mint({ principal: "intake", actingFor: "dana", threadId: "T1", traceId: TRACE }));
+  await assert.rejects(
+    refused.host.mcp.mint({ principal: "intake", actingFor: "dana", threadId: "T1", traceId: TRACE }),
+  );
   const held = world(() => ({ status: "held", taskId: "tsk_1", traceId: TRACE }));
-  await assert.rejects(held.host.mcp.mint({ principal: "intake", actingFor: "dana", threadId: "T1", traceId: TRACE }), /held/);
+  await assert.rejects(
+    held.host.mcp.mint({ principal: "intake", actingFor: "dana", threadId: "T1", traceId: TRACE }),
+    /held/,
+  );
 });
 
 test("a scrub miss is reported with ids and place only", async () => {

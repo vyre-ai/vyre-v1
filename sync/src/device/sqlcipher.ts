@@ -38,12 +38,19 @@ export function unlockSqlCipher(db: ExpoDatabase, key: Uint8Array): void {
     const v = first(db, "PRAGMA cipher_version");
     const version = v ? Object.values(v)[0] : null;
     if (typeof version !== "string" || version.length === 0) {
-      throw new ReplicaError("no_cipher", "this build of SQLite has no SQLCipher; refusing to store a replica in plaintext");
+      throw new ReplicaError(
+        "no_cipher",
+        "this build of SQLite has no SQLCipher; refusing to store a replica in plaintext",
+      );
     }
     // The first page read is what fails on a wrong key.
     first(db, "SELECT count(*) AS n FROM sqlite_master");
   } catch (e) {
-    try { db.closeSync(); } catch { /* already closed */ }
+    try {
+      db.closeSync();
+    } catch {
+      /* already closed */
+    }
     if (e instanceof ReplicaError) throw e;
     throw new ReplicaError("wrong_key", "the replica key does not open this database");
   }

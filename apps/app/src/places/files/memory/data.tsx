@@ -6,9 +6,24 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { KnowRoute } from "./know.ts";
 
 export type LiveCap =
-  | "memory.graph" | "memory.layout.get" | "memory.facts.list" | "memory.notes.list" | "memory.read_note"
-  | "memory.learned" | "memory.page.get" | "memory.page.list" | "memory.page.versions" | "memory.backlinks" | "memory.trail" | "memory.trash.search" | "memory.questions.list"
-  | "memory.search" | "memory.fact.get" | "memory.counts" | "memory.meaning.status" | "memory.upkeep.status";
+  | "memory.graph"
+  | "memory.layout.get"
+  | "memory.facts.list"
+  | "memory.notes.list"
+  | "memory.read_note"
+  | "memory.learned"
+  | "memory.page.get"
+  | "memory.page.list"
+  | "memory.page.versions"
+  | "memory.backlinks"
+  | "memory.trail"
+  | "memory.trash.search"
+  | "memory.questions.list"
+  | "memory.search"
+  | "memory.fact.get"
+  | "memory.counts"
+  | "memory.meaning.status"
+  | "memory.upkeep.status";
 
 export interface MemoryNav {
   /** A note opens beside the graph (a person, a client, a project, a decision, a record or a chat opens its own place). */
@@ -21,7 +36,10 @@ export interface MemoryNav {
   openChat(link: string): void;
 }
 
-export interface AgentRef { id: string; name: string }
+export interface AgentRef {
+  id: string;
+  name: string;
+}
 
 export interface MemoryData {
   live<C extends LiveCap>(cap: C, input: CapMap[C]["in"]): LiveQuery<CapMap[C]["out"]>;

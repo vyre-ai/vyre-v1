@@ -7,7 +7,9 @@ import { deployWorld, SKIP } from "./deploy-kit.test.ts";
 test("railway: railway.json says how it builds, starts and is checked", { skip: SKIP }, async (t) => {
   const w = deployWorld();
   t.after(() => w.cleanup());
-  const plan = await w.h["sites.plan"](w.ctx, { source: { path: `${(await import("./deploy-kit.test.ts")).FIXTURES}/railway` } });
+  const plan = await w.h["sites.plan"](w.ctx, {
+    source: { path: `${(await import("./deploy-kit.test.ts")).FIXTURES}/railway` },
+  });
   assert.equal(plan.start, "node dist/index.js");
   assert.deepEqual(plan.from.slice(0, 1), ["railway.json"]);
   const { site, deployment } = await w.deploy("railway", { access: "public" });

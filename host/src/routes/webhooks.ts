@@ -31,7 +31,10 @@ export interface WebhookAccept {
 /** Most posts to one automation in a minute. A real sender is far under it; a flood stops here before it starts runs. */
 export const AUTOMATION_HOOKS_PER_MINUTE = 60;
 
-export interface WebhookBudget { perMinute: number; failuresPerMinute: number }
+export interface WebhookBudget {
+  perMinute: number;
+  failuresPerMinute: number;
+}
 /** 600 a minute covers a busy Space's Twilio status callbacks from a handful of provider addresses; 20 failures a minute is more than any provider retry policy produces. */
 export const DEFAULT_WEBHOOK_BUDGET: WebhookBudget = { perMinute: 600, failuresPerMinute: 20 };
 
@@ -49,7 +52,11 @@ export interface WebhookRouteDeps {
 }
 
 function send(res: http.ServerResponse, status: number, body: string, type = "application/json; charset=utf-8"): void {
-  res.writeHead(status, { "content-type": type, "content-length": Buffer.byteLength(body), "cache-control": "no-store" });
+  res.writeHead(status, {
+    "content-type": type,
+    "content-length": Buffer.byteLength(body),
+    "cache-control": "no-store",
+  });
   res.end(body);
 }
 const refuse = (res: http.ServerResponse, status: number, code: string, message: string): void =>
@@ -73,11 +80,19 @@ function answer(out: unknown, a: WebhookAccept): { type: string; body: string } 
   const o = (out !== null && typeof out === "object" ? out : {}) as Record<string, unknown>;
   if (typeof o["twiml"] === "string") return { type: "text/xml; charset=utf-8", body: o["twiml"] };
   // Microsoft Graph's subscription handshake: the token it sent, as plain text.
-  if (typeof o["validationToken"] === "string") return { type: "text/plain; charset=utf-8", body: o["validationToken"] };
+  if (typeof o["validationToken"] === "string")
+    return { type: "text/plain; charset=utf-8", body: o["validationToken"] };
   if (typeof o["encryptedToken"] === "string") {
     let plainToken = "";
-    try { plainToken = String((JSON.parse(a.body) as { payload?: { plainToken?: unknown } }).payload?.plainToken ?? ""); } catch { /* the module already refused a body it could not read */ }
-    return { type: "application/json; charset=utf-8", body: JSON.stringify({ plainToken, encryptedToken: o["encryptedToken"] }) };
+    try {
+      plainToken = String((JSON.parse(a.body) as { payload?: { plainToken?: unknown } }).payload?.plainToken ?? "");
+    } catch {
+      /* the module already refused a body it could not read */
+    }
+    return {
+      type: "application/json; charset=utf-8",
+      body: JSON.stringify({ plainToken, encryptedToken: o["encryptedToken"] }),
+    };
   }
   return { type: "application/json; charset=utf-8", body: JSON.stringify({ accepted: true }) };
 }
@@ -91,7 +106,8 @@ function createWindow(now: () => number) {
   const recent = (key: string): number[] => {
     const at = now();
     const list = (hits.get(key) ?? []).filter((t) => at - t < WINDOW_MS);
-    if (list.length) hits.set(key, list); else hits.delete(key);
+    if (list.length) hits.set(key, list);
+    else hits.delete(key);
     return list;
   };
   return {
@@ -106,7 +122,9 @@ function createWindow(now: () => number) {
   };
 }
 
-export function createWebhookRoute(deps: WebhookRouteDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
+export function createWebhookRoute(deps: WebhookRouteDeps): {
+  handle(req: http.IncomingMessage, res: http.ServerResponse): boolean;
+} {
   const budget = deps.budget ?? DEFAULT_WEBHOOK_BUDGET;
   const all = createWindow(deps.now ?? Date.now);
   const failed = createWindow(deps.now ?? Date.now);
@@ -116,8 +134,19 @@ export function createWebhookRoute(deps: WebhookRouteDeps): { handle(req: http.I
     refuse(res, 429, "rate_limit.exceeded", "Too many requests from this address. Try again in a minute.");
   };
 
-  async function serve(req: http.IncomingMessage, res: http.ServerResponse, connector: string, kind: string | undefined, search: string): Promise<void> {
-    const source = sourceOf({ "x-vyre-remote": req.socket.remoteAddress ?? "", ...(typeof req.headers["x-forwarded-for"] === "string" ? { "x-forwarded-for": req.headers["x-forwarded-for"] } : {}) });
+  async function serve(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    connector: string,
+    kind: string | undefined,
+    search: string,
+  ): Promise<void> {
+    const source = sourceOf({
+      "x-vyre-remote": req.socket.remoteAddress ?? "",
+      ...(typeof req.headers["x-forwarded-for"] === "string"
+        ? { "x-forwarded-for": req.headers["x-forwarded-for"] }
+        : {}),
+    });
     if (all.count(source) >= budget.perMinute || failed.count(source) >= budget.failuresPerMinute) return tooMany(res);
     all.add(source);
     const body = await readRaw(req);
@@ -132,16 +161,29 @@ export function createWebhookRoute(deps: WebhookRouteDeps): { handle(req: http.I
       send(res, 200, r.body, r.type);
     } catch (e) {
       const code = codeOf(e);
-      if (code === "auth.bad_credentials" || code === "provider.auth_failed" || code.startsWith("validation.")) failed.add(source);
-      if (code === "auth.bad_credentials" || code === "provider.auth_failed") return refuse(res, 401, "auth.bad_credentials", "That request was not signed by the provider.");
-      if (code.startsWith("validation.")) return refuse(res, 400, "validation.bad_input", "That is not an event this connector takes.");
+      if (code === "auth.bad_credentials" || code === "provider.auth_failed" || code.startsWith("validation."))
+        failed.add(source);
+      if (code === "auth.bad_credentials" || code === "provider.auth_failed")
+        return refuse(res, 401, "auth.bad_credentials", "That request was not signed by the provider.");
+      if (code.startsWith("validation."))
+        return refuse(res, 400, "validation.bad_input", "That is not an event this connector takes.");
       refuse(res, 500, "internal.unexpected", "Something went wrong on our side.");
     }
   }
 
   /** POST /hooks/automation/<id>/<secret>. Every refusal that could tell a guesser something is the same bare 404. */
-  async function serveAutomation(req: http.IncomingMessage, res: http.ServerResponse, automationId: string, secret: string): Promise<void> {
-    const source = sourceOf({ "x-vyre-remote": req.socket.remoteAddress ?? "", ...(typeof req.headers["x-forwarded-for"] === "string" ? { "x-forwarded-for": req.headers["x-forwarded-for"] } : {}) });
+  async function serveAutomation(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    automationId: string,
+    secret: string,
+  ): Promise<void> {
+    const source = sourceOf({
+      "x-vyre-remote": req.socket.remoteAddress ?? "",
+      ...(typeof req.headers["x-forwarded-for"] === "string"
+        ? { "x-forwarded-for": req.headers["x-forwarded-for"] }
+        : {}),
+    });
     if (all.count(source) >= budget.perMinute || failed.count(source) >= budget.failuresPerMinute) return tooMany(res);
     if (perAutomation.count(automationId) >= AUTOMATION_HOOKS_PER_MINUTE) return tooMany(res);
     all.add(source);
@@ -149,12 +191,25 @@ export function createWebhookRoute(deps: WebhookRouteDeps): { handle(req: http.I
     const body = await readRaw(req);
     if (body === null) return refuse(res, 413, "validation.too_large", "That request is too large.");
     let payload: unknown = body === "" ? null : body;
-    if (body !== "") { try { payload = JSON.parse(body); } catch { payload = { text: body }; } }
+    if (body !== "") {
+      try {
+        payload = JSON.parse(body);
+      } catch {
+        payload = { text: body };
+      }
+    }
     const key = req.headers["idempotency-key"];
     const idempotencyKey = typeof key === "string" && key.trim() !== "" ? key.trim() : undefined;
     let out: unknown = null;
-    try { out = await deps.automation!({ automationId, secret, payload, ...(idempotencyKey ? { idempotencyKey } : {}) }); } catch { return refuse(res, 500, "internal.unexpected", "Something went wrong on our side."); }
-    if (out === null || out === undefined) { failed.add(source); return send(res, 404, "", "text/plain; charset=utf-8"); }
+    try {
+      out = await deps.automation!({ automationId, secret, payload, ...(idempotencyKey ? { idempotencyKey } : {}) });
+    } catch {
+      return refuse(res, 500, "internal.unexpected", "Something went wrong on our side.");
+    }
+    if (out === null || out === undefined) {
+      failed.add(source);
+      return send(res, 404, "", "text/plain; charset=utf-8");
+    }
     send(res, 200, JSON.stringify({ accepted: true }));
   }
 
@@ -163,20 +218,42 @@ export function createWebhookRoute(deps: WebhookRouteDeps): { handle(req: http.I
       const url = new URL(req.url ?? "/", "http://vyred");
       const hook = AUTOMATION_PATH.exec(url.pathname);
       if (hook && deps.automation) {
-        if ((req.method ?? "GET").toUpperCase() !== "POST") { res.setHeader("allow", "POST"); refuse(res, 405, "validation.bad_input", "Webhooks are posted."); return true; }
-        void serveAutomation(req, res, hook[1] as string, hook[2] as string).catch(() => { if (!res.headersSent) refuse(res, 500, "internal.unexpected", "Something went wrong on our side."); else res.end(); });
+        if ((req.method ?? "GET").toUpperCase() !== "POST") {
+          res.setHeader("allow", "POST");
+          refuse(res, 405, "validation.bad_input", "Webhooks are posted.");
+          return true;
+        }
+        void serveAutomation(req, res, hook[1] as string, hook[2] as string).catch(() => {
+          if (!res.headersSent) refuse(res, 500, "internal.unexpected", "Something went wrong on our side.");
+          else res.end();
+        });
         return true;
       }
       const m = PATH.exec(url.pathname);
       if (!m || !deps.has(m[1] as string)) return false;
       const challenge = url.searchParams.get("challenge");
-      if ((req.method ?? "GET").toUpperCase() === "GET" && challenge !== null && CHALLENGE_CONNECTORS.has(m[1] as string)) {
-        if (!CHALLENGE.test(challenge)) refuse(res, 400, "validation.bad_input", "That is not a challenge this connector takes.");
-        else { res.setHeader("x-content-type-options", "nosniff"); send(res, 200, challenge, "text/plain; charset=utf-8"); }
+      if (
+        (req.method ?? "GET").toUpperCase() === "GET" &&
+        challenge !== null &&
+        CHALLENGE_CONNECTORS.has(m[1] as string)
+      ) {
+        if (!CHALLENGE.test(challenge))
+          refuse(res, 400, "validation.bad_input", "That is not a challenge this connector takes.");
+        else {
+          res.setHeader("x-content-type-options", "nosniff");
+          send(res, 200, challenge, "text/plain; charset=utf-8");
+        }
         return true;
       }
-      if ((req.method ?? "GET").toUpperCase() !== "POST") { res.setHeader("allow", "POST"); refuse(res, 405, "validation.bad_input", "Webhooks are posted."); return true; }
-      void serve(req, res, m[1] as string, m[2], url.search).catch(() => { if (!res.headersSent) refuse(res, 500, "internal.unexpected", "Something went wrong on our side."); else res.end(); });
+      if ((req.method ?? "GET").toUpperCase() !== "POST") {
+        res.setHeader("allow", "POST");
+        refuse(res, 405, "validation.bad_input", "Webhooks are posted.");
+        return true;
+      }
+      void serve(req, res, m[1] as string, m[2], url.search).catch(() => {
+        if (!res.headersSent) refuse(res, 500, "internal.unexpected", "Something went wrong on our side.");
+        else res.end();
+      });
       return true;
     },
   };

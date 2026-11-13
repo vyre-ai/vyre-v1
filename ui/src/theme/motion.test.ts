@@ -13,9 +13,28 @@ test("one set of durations, one ease, no bounce, and reduced motion turns it all
 
 function node(scroll = 0): Record<string, unknown> & { kids: unknown[] } {
   const attrs: Record<string, string> = {};
-  const n = { kids: [] as unknown[], scrollTop: scroll, scrollLeft: 0, style: { opacity: "1" }, attrs, removed: false,
-    querySelectorAll: () => [] as unknown[], setAttribute: (k: string, v: string) => { attrs[k] = v; }, removeAttribute: (k: string) => { delete attrs[k]; },
-    appendChild(c: unknown) { n.kids.push(c); }, remove() { n.removed = true; }, cloneNode: () => node() };
+  const n = {
+    kids: [] as unknown[],
+    scrollTop: scroll,
+    scrollLeft: 0,
+    style: { opacity: "1" },
+    attrs,
+    removed: false,
+    querySelectorAll: () => [] as unknown[],
+    setAttribute: (k: string, v: string) => {
+      attrs[k] = v;
+    },
+    removeAttribute: (k: string) => {
+      delete attrs[k];
+    },
+    appendChild(c: unknown) {
+      n.kids.push(c);
+    },
+    remove() {
+      n.removed = true;
+    },
+    cloneNode: () => node(),
+  };
   return n;
 }
 

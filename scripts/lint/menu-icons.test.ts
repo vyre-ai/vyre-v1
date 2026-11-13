@@ -12,7 +12,9 @@ test("menu-icons: all items have an icon or none", () => {
   const all = menu(`{ label: "Open", icon: "folder" },\n{ label: "Rename", icon: "pencil" },`);
   const none = menu(`{ label: "Open" },\n{ label: "Rename" },`);
   const mixed = menu(`{ label: "Open", icon: "folder" },\n{ label: "Rename" },`);
-  const withSeparator = menu(`{ label: "Open", icon: "folder" },\n{ separator: true },\n{ label: "Delete", icon: "trash" },`);
+  const withSeparator = menu(
+    `{ label: "Open", icon: "folder" },\n{ separator: true },\n{ label: "Delete", icon: "trash" },`,
+  );
   assert.equal(checkMenuIcons(file, all).length, 0);
   assert.equal(checkMenuIcons(file, none).length, 0);
   assert.equal(checkMenuIcons(file, withSeparator).length, 0);

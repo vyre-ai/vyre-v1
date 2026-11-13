@@ -11,23 +11,43 @@ import type { DriverEvent } from "../../../agent/src/turn-engine/types.ts";
 import type { EngineHostSeam } from "../runtime.ts";
 
 const THREAD = "thr_roll";
-const THREADS = [{ threadId: THREAD, kind: "chat", starter: "usr_dana", agents: [{ agentId: "agt_intake", mode: "lead" as const }] }];
-const full: DriverEvent[] = [{ type: "text", text: "Done." }, { type: "usage", inputTokens: 600_000, contextTokens: 170_000, contextWindow: 200_000, outputTokens: 40 }, { type: "done" }];
+const THREADS = [
+  { threadId: THREAD, kind: "chat", starter: "usr_dana", agents: [{ agentId: "agt_intake", mode: "lead" as const }] },
+];
+const full: DriverEvent[] = [
+  { type: "text", text: "Done." },
+  { type: "usage", inputTokens: 600_000, contextTokens: 170_000, contextWindow: 200_000, outputTokens: 40 },
+  { type: "done" },
+];
 
 test("a turn whose last call was shown 170k of a 200k window is followed by a rollover: the engine session is forgotten, a Vyre summary stands in, and the chat is told", async () => {
   const h = harness({ threads: THREADS });
   const posts: string[] = [];
   const host: EngineHostSeam = {
-    holder: "host:spc_enginetest", openSession: scriptedProvider({ script: full }).openSession, now: () => 1_760_000_000_000,
-    postAs: async (_a, post) => { posts.push(String(((post as { blocks?: Array<{ data?: { text?: unknown } }> }).blocks ?? [])[0]?.data?.text)); return {}; },
+    holder: "host:spc_enginetest",
+    openSession: scriptedProvider({ script: full }).openSession,
+    now: () => 1_760_000_000_000,
+    postAs: async (_a, post) => {
+      posts.push(String(((post as { blocks?: Array<{ data?: { text?: unknown } }> }).blocks ?? [])[0]?.data?.text));
+      return {};
+    },
     async call(cap, input) {
-      if (cap === "engine.account.resolve") return { accountRef: "#Dana_Claude", payer: "usr_dana", reason: "starter", allowed: true, itemId: "vit_aaaaaaaaaaaa" };
-      if (cap === "engine.accounts.list") return { accounts: [{ ref: "#Dana_Claude", driver: "claude_code", kind: "subscription", status: "ok" }] };
+      if (cap === "engine.account.resolve")
+        return {
+          accountRef: "#Dana_Claude",
+          payer: "usr_dana",
+          reason: "starter",
+          allowed: true,
+          itemId: "vit_aaaaaaaaaaaa",
+        };
+      if (cap === "engine.accounts.list")
+        return { accounts: [{ ref: "#Dana_Claude", driver: "claude_code", kind: "subscription", status: "ok" }] };
       if (cap === "engine.turn.record_usage") return {};
       if (cap === "chat.transcript.summarize") return {};
       if (cap === "chat.transcript.summary") return { summary: "Asked (turn 1): hello" };
-      if (cap === "threads.get") return { thread: { mode: "auto", agents: [{ agentId: "agt_intake", model: "claude-sonnet-5-5" }] } };
-      if (cap === "agents.status") return { status: "awake" };   // the host answers whether the agent may take a turn (admission fails closed when it cannot)
+      if (cap === "threads.get")
+        return { thread: { mode: "auto", agents: [{ agentId: "agt_intake", model: "claude-sonnet-5-5" }] } };
+      if (cap === "agents.status") return { status: "awake" }; // the host answers whether the agent may take a turn (admission fails closed when it cannot)
       throw new Error(`unexpected ${cap} ${JSON.stringify(input)}`);
     },
   };
@@ -35,11 +55,18 @@ test("a turn whose last call was shown 170k of a 200k window is followed by a ro
   try {
     const engine = (await ensureRuntime(h.ctx))!;
     await handlers["engine.stop"]!(h.ctx as never, { threadId: THREAD } as never).catch(() => undefined);
-    saveResumeId(h.db, { threadId: THREAD, agentId: "agt_intake", person: "usr_dana", driver: "claude_code" }, "7c1e", 1);
+    saveResumeId(
+      h.db,
+      { threadId: THREAD, agentId: "agt_intake", person: "usr_dana", driver: "claude_code" },
+      "7c1e",
+      1,
+    );
     engine.receive({ threadId: THREAD, author: { kind: "person", id: "usr_dana" }, body: "hello" });
     await engine.idle(THREAD);
     await until(() => lastCompaction(h.db, THREAD, "agt_intake") !== null);
     assert.equal(lastCompaction(h.db, THREAD, "agt_intake")!.how, "vyre");
     await until(() => posts.some((p) => /^Started a fresh session to keep the window from filling/.test(p)));
-  } finally { hostSeams.setEngineHost(null); }
+  } finally {
+    hostSeams.setEngineHost(null);
+  }
 });

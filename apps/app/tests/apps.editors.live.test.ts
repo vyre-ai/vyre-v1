@@ -3,30 +3,50 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding} from "./real-app-harness.test.ts";
+import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
 
 test("production Apps: create a form, reload its real editor, install a saved draft template, and review a sending domain", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
-  if (!dist) { t.skip("VYRE_APP_DIST is required for production browser evidence"); return; }
+  if (!dist) {
+    t.skip("VYRE_APP_DIST is required for production browser evidence");
+    return;
+  }
   const { chromium } = await import("playwright-core");
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
-  if (!fs.existsSync(exe)) { assert.fail(`Chromium is required at ${exe}`); }
+  if (!fs.existsSync(exe)) {
+    assert.fail(`Chromium is required at ${exe}`);
+  }
   const space = await bootFreshSpace();
   const web = await edge(dist, space.url);
   const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
-  const errors: string[] = [], refused: string[] = [];
+  const errors: string[] = [],
+    refused: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  page.on("response", (r) => { if (r.url().includes("/v1/") && r.status() >= 400) void r.text().then((body) => refused.push(`${r.status()} ${new URL(r.url()).pathname}: ${body.slice(0, 160)}`)); });
+  page.on("response", (r) => {
+    if (r.url().includes("/v1/") && r.status() >= 400)
+      void r.text().then((body) => refused.push(`${r.status()} ${new URL(r.url()).pathname}: ${body.slice(0, 160)}`));
+  });
   try {
     await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
-    await page.getByTestId("claim-name").fill("Fixture Owner"); await page.getByTestId("claim-username").fill("fixture");
-    await page.getByTestId("claim-password").fill("fixture password 123"); await page.getByTestId("claim-confirm").fill("fixture password 123");
-    await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();await dismissOnboarding(page);
+    await page.getByTestId("claim-name").fill("Fixture Owner");
+    await page.getByTestId("claim-username").fill("fixture");
+    await page.getByTestId("claim-password").fill("fixture password 123");
+    await page.getByTestId("claim-confirm").fill("fixture password 123");
+    await page.getByTestId("claim-next").click();
+    await page.getByTestId("claim-saved").click();
+    await page.getByTestId("claim-create").click();
+    await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
-    const token = await page.evaluate(() => { const saved = JSON.parse(localStorage.getItem("vyre.session.v1")!); return saved.sessions?.[location.origin]?.token ?? saved.token; });
-    const fixtureCompany = await context.request.post(`${web.origin}/v1/records/create`, { headers: { authorization: `Bearer ${token}` }, data: { type: "company", fields: { name: "Fixture relation company" }, idempotencyKey: "apps-company-fixture" } });
+    const token = await page.evaluate(() => {
+      const saved = JSON.parse(localStorage.getItem("vyre.session.v1")!);
+      return saved.sessions?.[location.origin]?.token ?? saved.token;
+    });
+    const fixtureCompany = await context.request.post(`${web.origin}/v1/records/create`, {
+      headers: { authorization: `Bearer ${token}` },
+      data: { type: "company", fields: { name: "Fixture relation company" }, idempotencyKey: "apps-company-fixture" },
+    });
     assert.equal(fixtureCompany.status(), 200, await fixtureCompany.text());
     await page.goto(`${web.origin}/sites`, { waitUntil: "load" });
     // the Apps place opens on Sites now: pick the Forms group before its New button exists
@@ -36,49 +56,94 @@ test("production Apps: create a form, reload its real editor, install a saved dr
     await page.getByTestId("apps-create-form").waitFor({ timeout: 30_000 });
     await page.getByLabel("Form name", { exact: true }).fill("Browser fixture intake");
     await page.getByRole("button", { name: "Record type", exact: true }).click();
-    await page.getByRole("menuitem", { name: /^Contacts?$/, exact: true }).first().click();
-    assert.equal(await page.getByTestId("apps-save-form").isEnabled(),true,"draft name/type state must persist before creation");
+    await page
+      .getByRole("menuitem", { name: /^Contacts?$/, exact: true })
+      .first()
+      .click();
+    assert.equal(
+      await page.getByTestId("apps-save-form").isEnabled(),
+      true,
+      "draft name/type state must persist before creation",
+    );
     await page.getByTestId("apps-save-form").click();
     await page.getByTestId("apps-form-detail").waitFor({ timeout: 20_000 });
-    const formUrl=page.url();await page.goBack();await page.getByTestId("apps-create-form").waitFor();await page.goForward();await page.getByTestId("apps-form-detail").waitFor();assert.equal(page.url(),formUrl,"browser history restores the saved form");
+    const formUrl = page.url();
+    await page.goBack();
+    await page.getByTestId("apps-create-form").waitFor();
+    await page.goForward();
+    await page.getByTestId("apps-form-detail").waitFor();
+    assert.equal(page.url(), formUrl, "browser history restores the saved form");
     await page.getByRole("button", { name: "Mode for Name", exact: true }).click();
     await page.getByRole("menuitem", { name: "Ask", exact: true }).click();
-    for (const label of ['Email','Company','Deliverability']) { await page.getByRole('button',{name:`Mode for ${label}`,exact:true}).click();await page.getByRole('menuitem',{name:'Ask',exact:true}).click();await page.getByTestId('menu').waitFor({state:'detached'}); }
-    await page.getByLabel('Accent color',{exact:true}).fill('#123456');
-    await page.getByRole('button',{name:'Add condition',exact:true}).click();
-    await page.getByLabel('Match value 1',{exact:true}).fill('show');
-    await page.getByRole('button',{name:'Target question 1',exact:true}).click();await page.getByRole('menuitem',{name:'Email',exact:true}).click();
-    await page.getByTestId('row-name').click();
-    await page.getByLabel('Preview answer',{exact:true}).fill('show');
+    for (const label of ["Email", "Company", "Deliverability"]) {
+      await page.getByRole("button", { name: `Mode for ${label}`, exact: true }).click();
+      await page.getByRole("menuitem", { name: "Ask", exact: true }).click();
+      await page.getByTestId("menu").waitFor({ state: "detached" });
+    }
+    await page.getByLabel("Accent color", { exact: true }).fill("#123456");
+    await page.getByRole("button", { name: "Add condition", exact: true }).click();
+    await page.getByLabel("Match value 1", { exact: true }).fill("show");
+    await page.getByRole("button", { name: "Target question 1", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Email", exact: true }).click();
+    await page.getByTestId("row-name").click();
+    await page.getByLabel("Preview answer", { exact: true }).fill("show");
     await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="email"]').waitFor();
     // the preview offers a relation question only what the publisher has published (nothing yet), never the record list behind it
-    assert.equal(await page.frameLocator('iframe[title="Form preview"]').locator('[data-field="company"] input').count(), 0);
-    assert.ok(await page.frameLocator('iframe[title="Form preview"]').locator('select[data-field="deliverability"] option').count()>1);
-    await page.getByLabel('Preview answer',{exact:true}).fill('hide');
-    await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="email"]').waitFor({state:'detached'});
+    assert.equal(
+      await page.frameLocator('iframe[title="Form preview"]').locator('[data-field="company"] input').count(),
+      0,
+    );
+    assert.ok(
+      (await page
+        .frameLocator('iframe[title="Form preview"]')
+        .locator('select[data-field="deliverability"] option')
+        .count()) > 1,
+    );
+    await page.getByLabel("Preview answer", { exact: true }).fill("hide");
+    await page
+      .frameLocator('iframe[title="Form preview"]')
+      .locator('input[data-field="email"]')
+      .waitFor({ state: "detached" });
     await page.getByRole("button", { name: "Code", exact: true }).click();
     await page.getByLabel("Custom CSS", { exact: true }).fill("input { border-color: rgb(110, 80, 190); }");
     await page.getByRole("button", { name: "Build", exact: true }).click();
-    await page.getByLabel("Form name", { exact: true }).fill("Browser fixture renamed"); await page.getByTestId("apps-save-form").click();
+    await page.getByLabel("Form name", { exact: true }).fill("Browser fixture renamed");
+    await page.getByTestId("apps-save-form").click();
     await page.getByText("Saved the form.", { exact: true }).waitFor();
     await page.reload({ waitUntil: "load" });
     await page.getByTestId("apps-form-detail").waitFor({ timeout: 20_000 });
     assert.equal(await page.getByLabel("Form name", { exact: true }).inputValue(), "Browser fixture renamed");
     await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="name"]').waitFor();
-    assert.equal(await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="name"]').evaluate((el) => getComputedStyle(el).borderTopColor), "rgb(110, 80, 190)");
-    assert.equal(await page.getByLabel('Accent color',{exact:true}).inputValue(),'#123456');
-    assert.equal(await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="email"]').count(),0);
-    await page.getByTestId('row-name').click();await page.getByLabel('Preview answer',{exact:true}).fill('show');
+    assert.equal(
+      await page
+        .frameLocator('iframe[title="Form preview"]')
+        .locator('input[data-field="name"]')
+        .evaluate((el) => getComputedStyle(el).borderTopColor),
+      "rgb(110, 80, 190)",
+    );
+    assert.equal(await page.getByLabel("Accent color", { exact: true }).inputValue(), "#123456");
+    assert.equal(
+      await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="email"]').count(),
+      0,
+    );
+    await page.getByTestId("row-name").click();
+    await page.getByLabel("Preview answer", { exact: true }).fill("show");
     await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="email"]').waitFor();
     const captures = process.env["VYRE_APPS_SHOTS"];
-    if (captures) { fs.mkdirSync(captures, { recursive: true }); await page.screenshot({ path: path.join(captures, "form-editor-desktop.png") }); }
+    if (captures) {
+      fs.mkdirSync(captures, { recursive: true });
+      await page.screenshot({ path: path.join(captures, "form-editor-desktop.png") });
+    }
     await page.getByRole("button", { name: "Back to Apps", exact: true }).click();
     await page.getByTestId("apps-head-templates").click();
     await page.getByTestId("apps-place").waitFor({ timeout: 20_000 });
     await page.getByTestId("apps-title").filter({ hasText: "Templates" }).waitFor();
     // Create a real draft fixture through the authenticated API, then save and install it through the UI.
 
-    const source = await context.request.post(`${web.origin}/v1/automations/create`, { headers: { authorization: `Bearer ${token}` }, data: { name: "Browser fixture draft", idempotencyKey: "browser-template-source" } });
+    const source = await context.request.post(`${web.origin}/v1/automations/create`, {
+      headers: { authorization: `Bearer ${token}` },
+      data: { name: "Browser fixture draft", idempotencyKey: "browser-template-source" },
+    });
     assert.equal(source.status(), 200, await source.text());
     await page.getByTestId("apps-new").click();
     await page.getByRole("menuitem", { name: "Save as template", exact: true }).click();
@@ -101,11 +166,19 @@ test("production Apps: create a form, reload its real editor, install a saved dr
     await page.getByTestId("domain-new-object").waitFor({ timeout: 20_000 });
     await page.getByTestId("domain-name").fill("mail.fixture.example");
     await page.getByTestId("domain-create").waitFor({ timeout: 10_000 });
-    assert.equal(await page.getByTestId("domain-create").getAttribute("aria-disabled"), null, "a valid domain can be added");
+    assert.equal(
+      await page.getByTestId("domain-create").getAttribute("aria-disabled"),
+      null,
+      "a valid domain can be added",
+    );
     const appRefusals = refused.filter((line) => /\/v1\/(forms|templates|mail\/domain|email_builder)\//.test(line));
-    assert.equal(appRefusals.length, 0, appRefusals.join("\n")); assert.deepEqual(errors, []);
+    assert.equal(appRefusals.length, 0, appRefusals.join("\n"));
+    assert.deepEqual(errors, []);
     const out = process.env["VYRE_APPS_SHOTS"];
-    if (out) { fs.mkdirSync(out, { recursive: true }); await page.screenshot({ path: path.join(out, "domain-review-desktop.png") }); }
+    if (out) {
+      fs.mkdirSync(out, { recursive: true });
+      await page.screenshot({ path: path.join(out, "domain-review-desktop.png") });
+    }
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByTestId("tab-you").click();
     await page.getByTestId("row-you-apps").click();
@@ -114,7 +187,10 @@ test("production Apps: create a form, reload its real editor, install a saved dr
     await page.getByTestId("apps-create-form").waitFor();
     await page.getByLabel("Form name", { exact: true }).fill("Phone browser intake");
     await page.getByRole("button", { name: "Record type", exact: true }).click();
-    await page.getByRole("menuitem", { name: /^Contacts?$/, exact: true }).first().click();
+    await page
+      .getByRole("menuitem", { name: /^Contacts?$/, exact: true })
+      .first()
+      .click();
     await page.getByTestId("apps-save-form").click();
     await page.getByTestId("apps-form-detail").waitFor();
     await page.getByLabel("Form name", { exact: true }).waitFor();
@@ -132,9 +208,25 @@ test("production Apps: create a form, reload its real editor, install a saved dr
     fs.mkdirSync(failureDir, { recursive: true });
     await page.screenshot({ path: path.join(failureDir, "design-failure.png") }).catch(() => {});
     console.error("Apps first failure", e);
-    console.error("preview-box", await page.locator('iframe[title="Form preview"]').boundingBox({ timeout: 1000 }).catch(() => null));
-    console.error(`Apps browser failure at ${page.url()}: ${await page.locator("body").innerText().catch(() => "no body")}\n${refused.join("\n")}`);
+    console.error(
+      "preview-box",
+      await page
+        .locator('iframe[title="Form preview"]')
+        .boundingBox({ timeout: 1000 })
+        .catch(() => null),
+    );
+    console.error(
+      `Apps browser failure at ${page.url()}: ${await page
+        .locator("body")
+        .innerText()
+        .catch(() => "no body")}\n${refused.join("\n")}`,
+    );
     throw e;
+  } finally {
+    await context.close();
+    await browser.close();
+    web.close();
+    await space.stop();
+    fs.rmSync(space.dir, { recursive: true, force: true });
   }
-  finally { await context.close(); await browser.close(); web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
 });

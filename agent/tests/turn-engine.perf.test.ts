@@ -24,7 +24,9 @@ test("perf send: turn.first_token_overhead is under 150 ms with a 200 ms provide
     assert.ok(wall >= INJECTED_MS - 5, "the injected latency really elapsed");
   }
   const max = Math.max(...overheads);
-  console.log(`perf send: injected=${INJECTED_MS}ms first_token_overhead_ms=${overheads.map((n) => n.toFixed(2)).join(",")} max=${max.toFixed(2)} budget=${BUDGET_MS}`);
+  console.log(
+    `perf send: injected=${INJECTED_MS}ms first_token_overhead_ms=${overheads.map((n) => n.toFixed(2)).join(",")} max=${max.toFixed(2)} budget=${BUDGET_MS}`,
+  );
   assert.ok(max < BUDGET_MS, `first token overhead ${max.toFixed(2)} ms is over the ${BUDGET_MS} ms budget`);
 });
 

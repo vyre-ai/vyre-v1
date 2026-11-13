@@ -29,20 +29,60 @@ export { durationMs, evalExpr, momentMs, render, renderText, truthy } from "./pr
  * Run as "something went wrong". A failure that carries a catalogue code is made a shaped error here, and the step's error rule (retry, route, substitute) sees the code it was written for.
  */
 export function surface(e: unknown, traceId: string): unknown {
-  const shaped = (e as { error?: { code?: unknown; message?: unknown; retryable?: unknown; next?: unknown } } | null)?.error;
-  if (e instanceof VyreErr || Array.isArray(shaped?.next) || !shaped || typeof shaped.code !== "string" || !ERROR_CODE_SET.has(shaped.code) || typeof shaped.message !== "string" || shaped.message === "") return e;
-  return new VyreErr({ code: shaped.code as ErrorCode, message: shaped.message.slice(0, 400), retryable: shaped.retryable === true, traceId, next: [{ kind: shaped.retryable === true ? "retry" : "report", label: shaped.retryable === true ? "Try again" : "Report a problem" }] });
+  const shaped = (e as { error?: { code?: unknown; message?: unknown; retryable?: unknown; next?: unknown } } | null)
+    ?.error;
+  if (
+    e instanceof VyreErr ||
+    Array.isArray(shaped?.next) ||
+    !shaped ||
+    typeof shaped.code !== "string" ||
+    !ERROR_CODE_SET.has(shaped.code) ||
+    typeof shaped.message !== "string" ||
+    shaped.message === ""
+  )
+    return e;
+  return new VyreErr({
+    code: shaped.code as ErrorCode,
+    message: shaped.message.slice(0, 400),
+    retryable: shaped.retryable === true,
+    traceId,
+    next: [
+      {
+        kind: shaped.retryable === true ? "retry" : "report",
+        label: shaped.retryable === true ? "Try again" : "Report a problem",
+      },
+    ],
+  });
 }
 
 export const hostCalls = {
-  "steps-core.run_step": async (ctx: Ctx, i: { node: StepNode; call: StepCall; run: { id: string; label?: string; automation?: string; trigger?: string; defHash?: string; depth?: number; ai?: { keyId?: string; backupKeyId?: string } } }) => {
+  "steps-core.run_step": async (
+    ctx: Ctx,
+    i: {
+      node: StepNode;
+      call: StepCall;
+      run: {
+        id: string;
+        label?: string;
+        automation?: string;
+        trigger?: string;
+        defHash?: string;
+        depth?: number;
+        ai?: { keyId?: string; backupKeyId?: string };
+      };
+    },
+  ) => {
     try {
-      return await runStep({
-        ctx,
-        run: i.run,
-        ai: (node, input, call) => aiStep({ ctx, run: i.run }, node, input, call),
-        code: async (_node, input) => ({ output: await runInSandbox(input.source, input.input, input.hosts) }),
-      }, i.node, i.call);
+      return await runStep(
+        {
+          ctx,
+          run: i.run,
+          ai: (node, input, call) => aiStep({ ctx, run: i.run }, node, input, call),
+          code: async (_node, input) => ({ output: await runInSandbox(input.source, input.input, input.hosts) }),
+        },
+        i.node,
+        i.call,
+      );
     } catch (e) {
       throw surface(e, ctx.trace.traceId);
     }

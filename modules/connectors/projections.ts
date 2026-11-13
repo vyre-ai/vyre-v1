@@ -25,7 +25,10 @@ export interface AuthDef {
   header?: string;
   prefix?: string;
   /** oauth2 */
-  authUrl?: string; tokenUrl?: string; clientId?: string; scopes?: string[];
+  authUrl?: string;
+  tokenUrl?: string;
+  clientId?: string;
+  scopes?: string[];
   /** The NAME of a declared secret that holds the client secret (never the secret itself). */
   clientSecret?: string;
   /** Where a token is revoked when a connection is deleted; optional, best effort. */
@@ -34,7 +37,12 @@ export interface AuthDef {
 
 /** One call the connector makes. `{input.x}`, `{secret.Name}` and `{connection.id}` are filled in at call time; secrets only in headers and body. */
 export interface ActionDef {
-  name: string; method?: Method; url?: string; headers?: Record<string, string>; query?: Record<string, string>; body?: unknown;
+  name: string;
+  method?: Method;
+  url?: string;
+  headers?: Record<string, string>;
+  query?: Record<string, string>;
+  body?: unknown;
   /** JSON pointer into the JSON response that becomes the output. */
   output?: string;
   /** Changes something in the app: a dry run never sends it and the Gate treats it as outward. */
@@ -44,27 +52,75 @@ export interface ActionDef {
 }
 /** A list action: where the items are, how to read each one and how to ask for the next page. A write action: nest flat values (keyed by pointer) into the body, and read the new id from the answer. */
 export interface ActionShape {
-  items?: string; id?: string; updatedAt?: string; fields?: string[]; types?: Record<string, string>; choices?: Record<string, string[]>;
+  items?: string;
+  id?: string;
+  updatedAt?: string;
+  fields?: string[];
+  types?: Record<string, string>;
+  choices?: Record<string, string[]>;
   cursor?: { kind: string; param?: string; next?: string; size?: number; start?: number };
   /** The query parameter that takes a time (`input.since`, ms) so a list answers only what changed since, and how the app writes that time: iso, epoch_ms or epoch_s. */
   since?: { param: string; format?: string };
-  unflatten?: boolean; idAt?: string;
+  unflatten?: boolean;
+  idAt?: string;
 }
-export interface RecordedResponse { method?: string; url: string; status?: number; body?: unknown; /** The Link response header, for link-header pagination. */ link?: string }
+export interface RecordedResponse {
+  method?: string;
+  url: string;
+  status?: number;
+  body?: unknown;
+  /** The Link response header, for link-header pagination. */ link?: string;
+}
 export interface TestCase {
-  name: string; action: string; input?: unknown; responses: RecordedResponse[];
+  name: string;
+  action: string;
+  input?: unknown;
+  responses: RecordedResponse[];
   expect?: { output?: unknown; error?: string; requests?: number };
 }
 export interface ConnectorDef {
-  key: string; title: string; mode: Mode; scope: Scope; version: string; auth: AuthDef; domains: string[]; secrets: { name: string; description: string }[];
-  actions: ActionDef[]; sources?: string[]; syncedTypes?: string[]; health?: string; rate?: { rps: number; burst: number }; tests?: TestCase[]; builtin?: boolean;
+  key: string;
+  title: string;
+  mode: Mode;
+  scope: Scope;
+  version: string;
+  auth: AuthDef;
+  domains: string[];
+  secrets: { name: string; description: string }[];
+  actions: ActionDef[];
+  sources?: string[];
+  syncedTypes?: string[];
+  health?: string;
+  rate?: { rps: number; burst: number };
+  tests?: TestCase[];
+  builtin?: boolean;
   /** Per-object action names for the sync engine (P-CC_19); a name left out keeps the convention. */
-  objects?: Record<string, { list?: string; listAfter?: string; create?: string; update?: string; delete?: string; /** The list can be asked for what changed since a time (`input.since`, in ms): a poll reads only that. */ since?: boolean }>;
+  objects?: Record<
+    string,
+    {
+      list?: string;
+      listAfter?: string;
+      create?: string;
+      update?: string;
+      delete?: string;
+      /** The list can be asked for what changed since a time (`input.since`, in ms): a poll reads only that. */ since?: boolean;
+    }
+  >;
 }
 
 export interface ConnectionDb {
-  connection_id: string; connector: string; title: string; owner_kind: "person" | "space"; owner_id: string; state: ConnectionState; paused_by: string | null; paused_from: string | null;
-  scopes: string; secrets: string; last_sync_at: number | null; created_at: number;
+  connection_id: string;
+  connector: string;
+  title: string;
+  owner_kind: "person" | "space";
+  owner_id: string;
+  state: ConnectionState;
+  paused_by: string | null;
+  paused_from: string | null;
+  scopes: string;
+  secrets: string;
+  last_sync_at: number | null;
+  created_at: number;
 }
 
 export interface ConnectorsDeps {
@@ -73,7 +129,10 @@ export interface ConnectorsDeps {
   builtins: BuiltinRow[];
   now?: () => number;
   /** The value of a Vault item by handle, resolved server side at call time. Values never come back out of a handler. */
-  resolveSecret?: (handle: string, binding?: { connector:string; connectionId:string; slot:string }) => Promise<string | undefined>;
+  resolveSecret?: (
+    handle: string,
+    binding?: { connector: string; connectionId: string; slot: string },
+  ) => Promise<string | undefined>;
   /** Store a secret the module obtained (an OAuth token) in the Vault and return its handle. */
   storeSecret?: (name: string, value: string) => Promise<string>;
   /** The connector folder in Files: parsed into a def (connector.toml, tests). Drafts follow it. */
@@ -81,7 +140,11 @@ export interface ConnectorsDeps {
   /** Write a private export of a connector to the caller's Personal Files and return its folder id. Never the source. */
   writeFolder?: (key: string, files: { path: string; content: string }[]) => Promise<string>;
   /** Create the canonical editable source (Shared knowledge > connectors > key, Review changes on) and write the files. `register` records the mapping once the folder exists and BEFORE any file is written. */
-  writeSource?: (key: string, files: { path: string; content: string }[], register: (folderId: string) => void) => Promise<string>;
+  writeSource?: (
+    key: string,
+    files: { path: string; content: string }[],
+    register: (folderId: string) => void,
+  ) => Promise<string>;
   /** Asks again, as the original caller, whether they may still edit this connector (a publish checks after its awaited tests). Throws when they may not. */
   assertCanPublish?: (key: string) => void | Promise<void>;
   /** Connectors with synced types bound to them (they block removal). */
@@ -90,23 +153,55 @@ export interface ConnectorsDeps {
   /** One read-only GET of an app with a Vault handle as the key, for discovery and for checking a SyncSpec against a real page. The host fills the key at the last moment; it never comes back. */
   probe?: Probe;
 }
-export interface ProbeRequest { handle: string; style: "bearer" | "header" | "basic"; header?: string; prefix?: string; headers?: Record<string, string>; domain: string; url: string }
-export interface ProbeReply { status: number; text: string; link?: string }
+export interface ProbeRequest {
+  handle: string;
+  style: "bearer" | "header" | "basic";
+  header?: string;
+  prefix?: string;
+  headers?: Record<string, string>;
+  domain: string;
+  url: string;
+}
+export interface ProbeReply {
+  status: number;
+  text: string;
+  link?: string;
+}
 export type Probe = (ctx: ConnectorsCtx, req: ProbeRequest) => Promise<ProbeReply>;
 
 export interface BuiltinRow {
-  key: string; title: string; mode: Mode; scope: Scope; domains: string[]; secrets: { name: string; description: string }[]; actions: string[];
-  sources?: { key: string }[]; health?: string; rate?: { rps: number; burst: number }; auth?: { type?: string; secret?: string };
+  key: string;
+  title: string;
+  mode: Mode;
+  scope: Scope;
+  domains: string[];
+  secrets: { name: string; description: string }[];
+  actions: string[];
+  sources?: { key: string }[];
+  health?: string;
+  rate?: { rps: number; burst: number };
+  auth?: { type?: string; secret?: string };
 }
 
 export interface ConnectorsCtx {
   trace: { traceId: string };
   emit(name: string, subject: string, payload: Record<string, unknown>, opts?: { afterFailure?: boolean }): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
-  http(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{ status: number; text(): Promise<string>; /** The Link response header, when the app sent one (link-header pagination). */ link?: string }>;
+  http(
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
+  ): Promise<{
+    status: number;
+    text(): Promise<string>;
+    /** The Link response header, when the app sent one (link-header pagination). */ link?: string;
+  }>;
   /** Run a capability later as the person who asked (ctx.schedule). Absent in tests, where a pass is run by calling the capability. */
   schedule?(at: number | string, cap: string, input: unknown): Promise<string>;
-  log?: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void; error(msg: string, attrs?: Record<string, unknown>): void };
+  log?: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+    error(msg: string, attrs?: Record<string, unknown>): void;
+  };
   actor?: string;
   /** The caller is one of the server's own jobs (svc_host, svc_engine...), never a service a tenant made. */
   trusted?: boolean;
@@ -120,7 +215,12 @@ export const nowOf = (d: Pick<ConnectorsDeps, "now">): number => (d.now ?? Date.
 export const mintShort = (prefix: string, now: number): string => `${prefix}_${mintUuid(now).replaceAll("-", "")}`;
 export const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
-export function refuse(ctx: Pick<ConnectorsCtx, "trace">, code: ErrCode, message: string, details?: Record<string, unknown>): never {
+export function refuse(
+  ctx: Pick<ConnectorsCtx, "trace">,
+  code: ErrCode,
+  message: string,
+  details?: Record<string, unknown>,
+): never {
   throw fail(code, ctx.trace.traceId, { message, ...(details ? { details } : {}) });
 }
 
@@ -150,11 +250,18 @@ export type EgressResult = { ok: true; url: URL } | { ok: false; reason: string 
 /** The only places a connector may call: https (or http for .internal and localhost), a declared domain, no credentials in the address. */
 export function checkEgress(raw: string, domains: readonly string[]): EgressResult {
   let url: URL;
-  try { url = new URL(raw); } catch { return { ok: false, reason: `${raw.slice(0, 60)} is not an address` }; }
-  if (url.username || url.password) return { ok: false, reason: "an address with a user name or password in it is refused" };
+  try {
+    url = new URL(raw);
+  } catch {
+    return { ok: false, reason: `${raw.slice(0, 60)} is not an address` };
+  }
+  if (url.username || url.password)
+    return { ok: false, reason: "an address with a user name or password in it is refused" };
   const internal = url.hostname.endsWith(".internal") || url.hostname === "localhost";
-  if (url.protocol !== "https:" && !(internal && url.protocol === "http:")) return { ok: false, reason: `${url.protocol.replace(":", "")} is not allowed: connectors use https` };
-  if (!domainAllowed(url.hostname, domains)) return { ok: false, reason: `${url.hostname} is not one of this connector's domains` };
+  if (url.protocol !== "https:" && !(internal && url.protocol === "http:"))
+    return { ok: false, reason: `${url.protocol.replace(":", "")} is not allowed: connectors use https` };
+  if (!domainAllowed(url.hostname, domains))
+    return { ok: false, reason: `${url.hostname} is not one of this connector's domains` };
   return { ok: true, url };
 }
 
@@ -163,7 +270,11 @@ export function checkEgress(raw: string, domains: readonly string[]): EgressResu
 const PLACEHOLDER = /\{(input|secret|connection)\.([A-Za-z0-9_.]+)\}/g;
 const WHOLE = /^\{(input|secret|connection)\.([A-Za-z0-9_.]+)\}$/;
 
-export interface Scope3 { input: unknown; secret: Record<string, string>; connection: { id: string } }
+export interface Scope3 {
+  input: unknown;
+  secret: Record<string, string>;
+  connection: { id: string };
+}
 
 export function pointerGet(doc: unknown, pointer: string): unknown {
   if (pointer === "" || pointer === "/") return doc;
@@ -195,7 +306,8 @@ export function fillString(s: string, scope: Scope3, encode = false): string {
   return s.replace(PLACEHOLDER, (_m, kind: string, path: string) => {
     const v = lookup(scope, kind, path);
     if (v === undefined || v === null) throw new Error(`${kind}.${path} has no value`);
-    const text = typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(v);
+    const text =
+      typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(v);
     return encode && kind === "input" ? encodeURIComponent(text) : text;
   });
 }
@@ -204,18 +316,24 @@ export function fillString(s: string, scope: Scope3, encode = false): string {
 export function fillValue(t: unknown, scope: Scope3): unknown {
   if (typeof t === "string") {
     const whole = WHOLE.exec(t);
-    if (whole) { const v = lookup(scope, whole[1]!, whole[2]!); if (v === undefined) throw new Error(`${whole[1]}.${whole[2]} has no value`); return v; }
+    if (whole) {
+      const v = lookup(scope, whole[1]!, whole[2]!);
+      if (v === undefined) throw new Error(`${whole[1]}.${whole[2]} has no value`);
+      return v;
+    }
     return fillString(t, scope);
   }
   if (Array.isArray(t)) return t.map((x) => fillValue(x, scope));
-  if (t && typeof t === "object") return Object.fromEntries(Object.entries(t as Record<string, unknown>).map(([k, v]) => [k, fillValue(v, scope)]));
+  if (t && typeof t === "object")
+    return Object.fromEntries(Object.entries(t as Record<string, unknown>).map(([k, v]) => [k, fillValue(v, scope)]));
   return t;
 }
 
 /** Names of the secrets a template string or value reads. */
 export function secretsIn(t: unknown, out = new Set<string>()): Set<string> {
-  if (typeof t === "string") { for (const m of t.matchAll(PLACEHOLDER)) if (m[1] === "secret") out.add(m[2]!); }
-  else if (Array.isArray(t)) t.forEach((x) => secretsIn(x, out));
+  if (typeof t === "string") {
+    for (const m of t.matchAll(PLACEHOLDER)) if (m[1] === "secret") out.add(m[2]!);
+  } else if (Array.isArray(t)) t.forEach((x) => secretsIn(x, out));
   else if (t && typeof t === "object") Object.values(t as Record<string, unknown>).forEach((x) => secretsIn(x, out));
   return out;
 }
@@ -238,7 +356,10 @@ export function takeToken(key: string, rate: { rps: number; burst: number } | un
   const b = buckets.get(key) ?? { tokens: rate.burst, at: nowMs };
   b.tokens = Math.min(rate.burst, b.tokens + ((nowMs - b.at) / 1000) * rate.rps);
   b.at = nowMs;
-  if (b.tokens < 1) { buckets.set(key, b); return false; }
+  if (b.tokens < 1) {
+    buckets.set(key, b);
+    return false;
+  }
   b.tokens -= 1;
   buckets.set(key, b);
   return true;
@@ -248,15 +369,29 @@ export const resetRateLimits = (): void => buckets.clear();
 // ---- rows ----
 
 export const PAGE = (input: { cursor?: string; limit?: number }): { start: number; limit: number } => ({
-  start: input.cursor && /^\d+$/.test(input.cursor) ? Number(input.cursor) : 0, limit: Math.min(Math.max(input.limit ?? 100, 1), 500),
+  start: input.cursor && /^\d+$/.test(input.cursor) ? Number(input.cursor) : 0,
+  limit: Math.min(Math.max(input.limit ?? 100, 1), 500),
 });
 
 export function builtinDef(b: BuiltinRow): ConnectorDef {
-  const authType = b.auth?.type === "api_key" || b.auth?.type === "bearer" || b.auth?.type === "oauth2" || b.auth?.type === "none" ? b.auth.type : "none";
+  const authType =
+    b.auth?.type === "api_key" || b.auth?.type === "bearer" || b.auth?.type === "oauth2" || b.auth?.type === "none"
+      ? b.auth.type
+      : "none";
   return {
-    key: b.key, title: b.title, mode: b.mode, scope: b.scope, version: "1.0.0", builtin: true,
-    auth: { type: authType, ...(b.auth?.secret ? { secret: b.auth.secret } : {}) }, domains: b.domains, secrets: b.secrets, actions: b.actions.map((name) => ({ name })),
-    ...(b.sources?.length ? { sources: b.sources.map((s) => s.key) } : {}), ...(b.health ? { health: b.health } : {}), ...(b.rate ? { rate: b.rate } : {}),
+    key: b.key,
+    title: b.title,
+    mode: b.mode,
+    scope: b.scope,
+    version: "1.0.0",
+    builtin: true,
+    auth: { type: authType, ...(b.auth?.secret ? { secret: b.auth.secret } : {}) },
+    domains: b.domains,
+    secrets: b.secrets,
+    actions: b.actions.map((name) => ({ name })),
+    ...(b.sources?.length ? { sources: b.sources.map((s) => s.key) } : {}),
+    ...(b.health ? { health: b.health } : {}),
+    ...(b.rate ? { rate: b.rate } : {}),
   };
 }
 
@@ -269,7 +404,17 @@ export function seedBuiltins(deps: ConnectorsDeps): void {
   for (const b of deps.builtins) {
     if (deps.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", b.key)) continue;
     const def = builtinDef(b);
-    deps.tx.run("INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, 'live', ?, ?, ?)", b.key, b.title, b.mode, b.scope, def.version, JSON.stringify(def), now, now);
+    deps.tx.run(
+      "INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, 'live', ?, ?, ?)",
+      b.key,
+      b.title,
+      b.mode,
+      b.scope,
+      def.version,
+      JSON.stringify(def),
+      now,
+      now,
+    );
   }
   seeded.add(deps.tx);
 }

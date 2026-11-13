@@ -55,8 +55,14 @@ function missedFlag(now: number, fireAt: number, onTimeMs: number): boolean {
  * Start the planned ticks, oldest first, through automations.fire.
  * Each call's idempotencyKey is the tick id. A tick the claim store already holds is ignored.
  */
-export async function startScheduledTicks(call: ScheduleHostCall, ticks: readonly ScheduledTickPlan[], opts: StartTicksOptions): Promise<StartTicksResult> {
-  const ordered = [...ticks].sort((a, b) => a.fireAt - b.fireAt || (a.tickId < b.tickId ? -1 : a.tickId > b.tickId ? 1 : 0));
+export async function startScheduledTicks(
+  call: ScheduleHostCall,
+  ticks: readonly ScheduledTickPlan[],
+  opts: StartTicksOptions,
+): Promise<StartTicksResult> {
+  const ordered = [...ticks].sort(
+    (a, b) => a.fireAt - b.fireAt || (a.tickId < b.tickId ? -1 : a.tickId > b.tickId ? 1 : 0),
+  );
   const started: ScheduledTickPlan[] = [];
   const ignored: string[] = [];
   const onTimeMs = opts.onTimeMs ?? 60_000;
@@ -82,7 +88,8 @@ export async function startScheduledTicks(call: ScheduleHostCall, ticks: readonl
         origin: "schedule",
         idempotencyKey: tick.tickId,
       });
-      const dropped = out && typeof out === "object" && "dropped" in out ? (out as { dropped?: unknown }).dropped : undefined;
+      const dropped =
+        out && typeof out === "object" && "dropped" in out ? (out as { dropped?: unknown }).dropped : undefined;
       if (typeof dropped === "string" && dropped.length > 0) {
         await opts.claim.release?.(tick.tickId);
         return { started, ignored, failed: { tickId: tick.tickId, message: `dropped:${dropped}` } };
@@ -100,7 +107,14 @@ export interface ScheduleNeedsYouDelivery {
   dedupKey: string;
   task: Record<string, unknown> & { idempotencyKey: string };
   followers: readonly string[];
-  notifications: readonly { to: string; kind: string; collapseKey: string; title: string; body?: string; data?: Record<string, unknown> }[];
+  notifications: readonly {
+    to: string;
+    kind: string;
+    collapseKey: string;
+    title: string;
+    body?: string;
+    data?: Record<string, unknown>;
+  }[];
 }
 
 export interface DeliverNeedsYouResult {
@@ -119,7 +133,11 @@ function taskIdOf(out: unknown): string | undefined {
  * Create the one Needs You task and notify the owner and shared recipients.
  * When `openKeys` already contains the dedup key, this returns without calling tasks.create.
  */
-export async function deliverScheduleNeedsYou(call: ScheduleHostCall, request: ScheduleNeedsYouDelivery, openKeys: ReadonlySet<string>): Promise<DeliverNeedsYouResult> {
+export async function deliverScheduleNeedsYou(
+  call: ScheduleHostCall,
+  request: ScheduleNeedsYouDelivery,
+  openKeys: ReadonlySet<string>,
+): Promise<DeliverNeedsYouResult> {
   if (openKeys.has(request.dedupKey)) return { dedupKey: request.dedupKey, created: false };
   const created = await call(NEEDS_YOU_TASK_CAPABILITY, request.task);
   const taskId = taskIdOf(created);
@@ -129,12 +147,19 @@ export async function deliverScheduleNeedsYou(call: ScheduleHostCall, request: S
     }
   }
   for (const note of request.notifications) {
-    const input: Record<string, unknown> = { to: note.to, kind: note.kind, collapseKey: note.collapseKey, title: note.title };
+    const input: Record<string, unknown> = {
+      to: note.to,
+      kind: note.kind,
+      collapseKey: note.collapseKey,
+      title: note.title,
+    };
     if (note.body !== undefined) input.body = note.body;
     if (note.data !== undefined) input.data = note.data;
     await call(NEEDS_YOU_NOTIFY_CAPABILITY, input);
   }
-  return taskId === undefined ? { dedupKey: request.dedupKey, created: true } : { dedupKey: request.dedupKey, created: true, taskId };
+  return taskId === undefined
+    ? { dedupKey: request.dedupKey, created: true }
+    : { dedupKey: request.dedupKey, created: true, taskId };
 }
 
 /** Mark the unblock request done after applyScheduleChoice says to clear it. Call as the owner. */
@@ -142,7 +167,10 @@ export async function resolveScheduleRequest(call: ScheduleHostCall, taskId: str
   await call(NEEDS_YOU_RESOLVE_CAPABILITY, { taskId, action: "resolved" });
 }
 
-interface ListedTask { state?: unknown; source?: { id?: unknown } | null }
+interface ListedTask {
+  state?: unknown;
+  source?: { id?: unknown } | null;
+}
 
 /** Open unblock tasks whose source id is an automation schedule key. Done and canceled tasks do not count. */
 export function openScheduleKeysFromTasks(tasks: readonly unknown[]): string[] {
@@ -170,7 +198,7 @@ export async function loadOpenScheduleKeys(call: ScheduleHostCall): Promise<Set<
       limit: 200,
     };
     if (cursor !== undefined) input.cursor = cursor;
-    const out = await call("tasks.list", input) as { tasks?: unknown; next?: unknown };
+    const out = (await call("tasks.list", input)) as { tasks?: unknown; next?: unknown };
     const tasks = Array.isArray(out?.tasks) ? out.tasks : [];
     for (const key of openScheduleKeysFromTasks(tasks)) keys.add(key);
     cursor = typeof out?.next === "string" && out.next.length > 0 ? out.next : undefined;

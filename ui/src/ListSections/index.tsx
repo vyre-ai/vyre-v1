@@ -16,9 +16,18 @@ export interface ListSectionsHandlers {
 function Section({ section, selectedId, onOpen }: { section: ListSection } & ListSectionsHandlers) {
   return (
     <View testID={`section-${section.name}`} accessibilityRole="list" accessibilityLabel={section.name}>
-      <Text accessibilityRole="header" style={styles.head}>{section.name}</Text>
+      <Text accessibilityRole="header" style={styles.head}>
+        {section.name}
+      </Text>
       {section.rows.map((r) => (
-        <Row key={r.id} id={r.id} title={r.title} note={r.note} selected={r.id === selectedId} onPress={onOpen ? () => onOpen(r) : undefined} />
+        <Row
+          key={r.id}
+          id={r.id}
+          title={r.title}
+          note={r.note}
+          selected={r.id === selectedId}
+          onPress={onOpen ? () => onOpen(r) : undefined}
+        />
       ))}
     </View>
   );
@@ -26,7 +35,8 @@ function Section({ section, selectedId, onOpen }: { section: ListSection } & Lis
 
 export function ListSections({ type, sections, selectedId, onOpen }: ListSectionsProps & ListSectionsHandlers) {
   const parts = [];
-  for (const section of sectionsInOrder(sections)) parts.push(<Section key={section.name} section={section} selectedId={selectedId} onOpen={onOpen} />);
+  for (const section of sectionsInOrder(sections))
+    parts.push(<Section key={section.name} section={section} selectedId={selectedId} onOpen={onOpen} />);
   return (
     <View testID={`list-${type}`} accessibilityLabel={type} style={styles.list}>
       {parts}
@@ -36,5 +46,12 @@ export function ListSections({ type, sections, selectedId, onOpen }: ListSection
 
 const styles = StyleSheet.create({
   list: { width: "100%", paddingHorizontal: 6, gap: 8 },
-  head: { color: "var(--ink-3)" as string, fontSize: 11.5, fontWeight: "600", height: 24, paddingHorizontal: 8, lineHeight: 24 },
+  head: {
+    color: "var(--ink-3)" as string,
+    fontSize: 11.5,
+    fontWeight: "600",
+    height: 24,
+    paddingHorizontal: 8,
+    lineHeight: 24,
+  },
 });

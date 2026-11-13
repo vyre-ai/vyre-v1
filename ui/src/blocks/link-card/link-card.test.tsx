@@ -6,15 +6,30 @@ import { installDom, mount, press, find, textOf, flush } from "../../testing/dom
 import { LinkCard } from "./LinkCard.tsx";
 import { isFullCard, linkCardBlock, linkCardLine, linkCardOf } from "./model.ts";
 
-const base = { icon: "task", lead: "Task created", title: "Send the letter", who: "usr_maya", target: { type: "task", id: "tsk_1" } };
-const names = (id: string): string => ({ usr_maya: "Maya" } as Record<string, string>)[id] ?? id;
+const base = {
+  icon: "task",
+  lead: "Task created",
+  title: "Send the letter",
+  who: "usr_maya",
+  target: { type: "task", id: "tsk_1" },
+};
+const names = (id: string): string => (({ usr_maya: "Maya" }) as Record<string, string>)[id] ?? id;
 
 test("linkCardOf reads a good card, drops a broken one, and caps what it keeps", () => {
   assert.deepEqual(linkCardOf({ type: "link_card", data: base }), base);
   assert.equal(linkCardOf({ type: "terminal", data: base }), null, "another block type");
   assert.equal(linkCardOf({ type: "link_card", data: { icon: "task", title: "x" } }), null, "no verb");
   assert.equal(linkCardOf({ type: "link_card", data: null }), null);
-  const d = linkCardOf({ type: "link_card", data: { lead: "Summary", title: "T", body: "b".repeat(5000), actions: [1, 2, 3, 4, 5, 6].map((i) => ({ key: `k${i}`, label: `L${i}` })).concat([{ key: "", label: "x" }]), target: { type: "task" } } })!;
+  const d = linkCardOf({
+    type: "link_card",
+    data: {
+      lead: "Summary",
+      title: "T",
+      body: "b".repeat(5000),
+      actions: [1, 2, 3, 4, 5, 6].map((i) => ({ key: `k${i}`, label: `L${i}` })).concat([{ key: "", label: "x" }]),
+      target: { type: "task" },
+    },
+  })!;
   assert.equal(d.body!.length, 2000);
   assert.equal(d.actions!.length, 4);
   assert.equal(d.target, undefined, "a target with no id is no target");
@@ -27,15 +42,42 @@ test("the line names who it went to; a card with a body or buttons is a full car
   assert.equal(linkCardLine({ icon: "fact", lead: "Remembered", title: "Tuesday launch" }, names), "Remembered");
   assert.equal(isFullCard(base), false);
   assert.equal(isFullCard({ ...base, body: "words" }), true);
-  assert.equal(isFullCard({ ...base, actions: [{ key: "a", label: "A" }, { key: "b", label: "B" }] }), true);
+  assert.equal(
+    isFullCard({
+      ...base,
+      actions: [
+        { key: "a", label: "A" },
+        { key: "b", label: "B" },
+      ],
+    }),
+    true,
+  );
   // one button and no words stays a line, the button a link at its end (the Noted line with Undo)
   assert.equal(isFullCard({ ...base, actions: [{ key: "a", label: "A" }] }), false);
 });
 
 test("a press on the name opens the target; a button runs its action and reads as done", async () => {
   installDom();
-  const opened: string[] = [], ran: string[] = [];
-  const root = await mount(createRoot, <LinkCard id="b1" data={{ ...base, body: "Three leads, one reply.", actions: [{ key: "task", label: "Make task" }, { key: "remember", label: "Remember" }] }} nameOf={names} onOpen={(t) => opened.push(`${t.type}:${t.id}`)} onAction={(k) => ran.push(k)} done={new Set(["remember"])} />);
+  const opened: string[] = [],
+    ran: string[] = [];
+  const root = await mount(
+    createRoot,
+    <LinkCard
+      id="b1"
+      data={{
+        ...base,
+        body: "Three leads, one reply.",
+        actions: [
+          { key: "task", label: "Make task" },
+          { key: "remember", label: "Remember" },
+        ],
+      }}
+      nameOf={names}
+      onOpen={(t) => opened.push(`${t.type}:${t.id}`)}
+      onAction={(k) => ran.push(k)}
+      done={new Set(["remember"])}
+    />,
+  );
   assert.match(textOf(find(root, "link-card-b1")), /Task created, assigned to Maya/);
   await press(find(root, "link-card-b1-open"));
   assert.deepEqual(opened, ["task:tsk_1"]);
@@ -48,29 +90,84 @@ test("a press on the name opens the target; a button runs its action and reads a
 });
 
 test("a button may carry a capability and its input; anything else about it is dropped", () => {
-  const d = linkCardOf({ type: "link_card", data: { lead: "Flow", title: "Weekly report", actions: [{ key: "on", label: "Turn on", cap: "automations.enable", input: { automationId: "aut_1" } }, { key: "x", label: "Skip", input: { a: 1 } }, { key: "y", label: "Bad", cap: "c", input: [1] }] } })!;
-  assert.deepEqual(d.actions, [{ key: "on", label: "Turn on", cap: "automations.enable", input: { automationId: "aut_1" } }, { key: "x", label: "Skip" }, { key: "y", label: "Bad", cap: "c" }]);
+  const d = linkCardOf({
+    type: "link_card",
+    data: {
+      lead: "Flow",
+      title: "Weekly report",
+      actions: [
+        { key: "on", label: "Turn on", cap: "automations.enable", input: { automationId: "aut_1" } },
+        { key: "x", label: "Skip", input: { a: 1 } },
+        { key: "y", label: "Bad", cap: "c", input: [1] },
+      ],
+    },
+  })!;
+  assert.deepEqual(d.actions, [
+    { key: "on", label: "Turn on", cap: "automations.enable", input: { automationId: "aut_1" } },
+    { key: "x", label: "Skip" },
+    { key: "y", label: "Bad", cap: "c" },
+  ]);
 });
 
-test("a shared card reads \"Shared by Maya\" where it landed and \"Shared to #ops\" where it came from", () => {
+test('a shared card reads "Shared by Maya" where it landed and "Shared to #ops" where it came from', () => {
   const name = (id: string): string => ({ usr_maya: "Maya" })[id] ?? id;
-  const there = linkCardOf({ type: "link_card", data: { icon: "thread", lead: "Shared", by: "usr_maya", title: "We ship Friday", target: { type: "thread", id: "thr_a" } } })!;
+  const there = linkCardOf({
+    type: "link_card",
+    data: {
+      icon: "thread",
+      lead: "Shared",
+      by: "usr_maya",
+      title: "We ship Friday",
+      target: { type: "thread", id: "thr_a" },
+    },
+  })!;
   assert.equal(linkCardLine(there, name), "Shared by Maya");
-  const here = linkCardOf({ type: "link_card", data: { icon: "thread", lead: "Shared", to: "#ops", title: "We ship Friday", target: { type: "thread", id: "thr_b" } } })!;
+  const here = linkCardOf({
+    type: "link_card",
+    data: {
+      icon: "thread",
+      lead: "Shared",
+      to: "#ops",
+      title: "We ship Friday",
+      target: { type: "thread", id: "thr_b" },
+    },
+  })!;
   assert.equal(linkCardLine(here, name), "Shared to #ops");
 });
 
 test("a work card says what its thing is doing now, and hides the name from a reader who may not open it", async () => {
   installDom();
   const opened: string[] = [];
-  const live = await mount(createRoot, <LinkCard id="w1" data={{ icon: "run", lead: "Run started", title: "Lead sweep", target: { type: "run", id: "run_1" } }} nameOf={names} onOpen={(t) => opened.push(t.id)} state={{ text: "Waiting on you", tone: "warn", live: true }} />);
+  const live = await mount(
+    createRoot,
+    <LinkCard
+      id="w1"
+      data={{ icon: "run", lead: "Run started", title: "Lead sweep", target: { type: "run", id: "run_1" } }}
+      nameOf={names}
+      onOpen={(t) => opened.push(t.id)}
+      state={{ text: "Waiting on you", tone: "warn", live: true }}
+    />,
+  );
   assert.match(textOf(find(live, "link-card-w1")), /Run started:\s+Lead sweep/);
   assert.equal(textOf(find(live, "link-card-w1-state")), "Waiting on you");
   await press(find(live, "link-card-w1-open"));
   assert.deepEqual(opened, ["run_1"]);
-  const hidden = await mount(createRoot, <LinkCard id="w2" data={{ icon: "task", lead: "Task created", title: "Secret merger plan", target: { type: "task", id: "tsk_9" } }} nameOf={names} onOpen={(t) => opened.push(t.id)} hidden />);
+  const hidden = await mount(
+    createRoot,
+    <LinkCard
+      id="w2"
+      data={{ icon: "task", lead: "Task created", title: "Secret merger plan", target: { type: "task", id: "tsk_9" } }}
+      nameOf={names}
+      onOpen={(t) => opened.push(t.id)}
+      hidden
+    />,
+  );
   assert.ok(!textOf(find(hidden, "link-card-w2")).includes("Secret merger plan"), "the name is not shown");
   assert.match(textOf(find(hidden, "link-card-w2")), /A task you don't have access to/);
-  assert.equal(typeof find(hidden, "link-card-w2-open")!.props.onClick, "undefined", "and it is not a link: it opens nothing");
+  assert.equal(
+    typeof find(hidden, "link-card-w2-open")!.props.onClick,
+    "undefined",
+    "and it is not a link: it opens nothing",
+  );
   assert.deepEqual(opened, ["run_1"]);
 });

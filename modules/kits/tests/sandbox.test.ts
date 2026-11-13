@@ -6,7 +6,10 @@ import assert from "node:assert/strict";
 import { DYNAMIC_IMPORT, runSandboxed, staticDenial } from "../handlers/sandbox.ts";
 import type { SandboxOptions } from "../handlers/sandbox.ts";
 
-interface Seen { cap: string; input: unknown }
+interface Seen {
+  cap: string;
+  input: unknown;
+}
 
 // Spelled in parts: scripts/boundaries.ts reads a literal call of either name inside a string as an import of this file.
 const REQ = "req" + "uire";
@@ -16,13 +19,21 @@ function run(source: string, o: Partial<SandboxOptions> & { seen?: Seen[] } = {}
   const seen = o.seen ?? [];
   const { seen: _drop, ...rest } = o;
   return runSandboxed({
-    source, caps: [], call: async (cap, input) => { seen.push({ cap, input }); return { echoed: input, cap }; },
+    source,
+    caps: [],
+    call: async (cap, input) => {
+      seen.push({ cap, input });
+      return { echoed: input, cap };
+    },
     ...rest,
   });
 }
 
 test("a script gets its input, can await, and returns JSON", async () => {
-  const r = await run("const doubled = input.items.map((x) => x * 2); await null; return { doubled, name: input.name, nested: { ok: true } };", { input: { items: [1, 2, 3], name: "Dana" } });
+  const r = await run(
+    "const doubled = input.items.map((x) => x * 2); await null; return { doubled, name: input.name, nested: { ok: true } };",
+    { input: { items: [1, 2, 3], name: "Dana" } },
+  );
   assert.equal(r.ok, true, r.error);
   assert.deepEqual(r.value, { doubled: [2, 4, 6], name: "Dana", nested: { ok: true } });
   assert.deepEqual(r.denials, []);
@@ -33,14 +44,20 @@ test("a script gets its input, can await, and returns JSON", async () => {
 
 test("api.call reaches a declared capability and gets plain JSON back; undeclared ones are denied", async () => {
   const seen: Seen[] = [];
-  const r = await run("const a = await api.call('records.query', { type: 'matter', limit: 2 }); return { a, ok: Array.isArray(a.echoed.type) === false };", { caps: ["records.query"], seen });
+  const r = await run(
+    "const a = await api.call('records.query', { type: 'matter', limit: 2 }); return { a, ok: Array.isArray(a.echoed.type) === false };",
+    { caps: ["records.query"], seen },
+  );
   assert.equal(r.ok, true, r.error);
   assert.deepEqual(seen, [{ cap: "records.query", input: { type: "matter", limit: 2 } }]);
   assert.deepEqual(r.value, { a: { echoed: { type: "matter", limit: 2 }, cap: "records.query" }, ok: true });
   assert.equal(r.calls, 1);
 
   const denied: Seen[] = [];
-  const d = await run("try { await api.call('kits.install', { kitId: 'kit_x' }); return 'went through'; } catch (e) { return e.message; }", { caps: ["records.query"], seen: denied });
+  const d = await run(
+    "try { await api.call('kits.install', { kitId: 'kit_x' }); return 'went through'; } catch (e) { return e.message; }",
+    { caps: ["records.query"], seen: denied },
+  );
   assert.equal(d.ok, true);
   assert.match(String(d.value), /kits\.install is not one of the tools this Kit declared/);
   assert.deepEqual(d.denials, ["api.call kits.install"]);
@@ -50,15 +67,26 @@ test("api.call reaches a declared capability and gets plain JSON back; undeclare
 test("a denied call (permission error from the host) is a denial and the script sees only the message", async () => {
   const r = await run("try { await api.call('records.delete', { id: 'rec_1' }); } catch (e) { return e.message; }", {
     caps: ["records.delete"],
-    call: async () => { throw Object.assign(new Error("denied"), { error: { code: "permission.denied", message: "You cannot delete records." } }); },
+    call: async () => {
+      throw Object.assign(new Error("denied"), {
+        error: { code: "permission.denied", message: "You cannot delete records." },
+      });
+    },
   });
   assert.equal(r.value, "You cannot delete records.");
   assert.deepEqual(r.denials, ["api.call records.delete (permission.denied)"]);
 });
 
 test("the call budget stops a script that loops on api.call", async () => {
-  const r = await run("let n = 0; try { for (;;) { await api.call('a.b', n++); } } catch (e) { return { n, msg: e.message }; }", { caps: ["a.b"], maxCalls: 3 });
-  assert.deepEqual(r.value, { n: 4, msg: "A script may make at most 3 calls." }, "three calls went through, the fourth was refused");
+  const r = await run(
+    "let n = 0; try { for (;;) { await api.call('a.b', n++); } } catch (e) { return { n, msg: e.message }; }",
+    { caps: ["a.b"], maxCalls: 3 },
+  );
+  assert.deepEqual(
+    r.value,
+    { n: 4, msg: "A script may make at most 3 calls." },
+    "three calls went through, the fourth was refused",
+  );
   assert.deepEqual(r.denials, ["api.call limit of 3 reached"]);
 });
 
@@ -71,10 +99,17 @@ test("no network: fetch, XMLHttpRequest, WebSocket and EventSource are denied wi
     return out;`);
   assert.equal(r.ok, true, r.error);
   assert.deepEqual(r.value, [
-    "network call to evil.example is not available in a Kit script.", "XMLHttpRequest is not available in a Kit script.",
-    "WebSocket to sock.example is not available in a Kit script.", "EventSource to sse.example is not available in a Kit script.",
+    "network call to evil.example is not available in a Kit script.",
+    "XMLHttpRequest is not available in a Kit script.",
+    "WebSocket to sock.example is not available in a Kit script.",
+    "EventSource to sse.example is not available in a Kit script.",
   ]);
-  assert.deepEqual(r.denials, ["network call to evil.example", "XMLHttpRequest", "WebSocket to sock.example", "EventSource to sse.example"]);
+  assert.deepEqual(r.denials, [
+    "network call to evil.example",
+    "XMLHttpRequest",
+    "WebSocket to sock.example",
+    "EventSource to sse.example",
+  ]);
   assert.ok(!r.denials.join().includes("token"), "the query string never reaches the denial");
 });
 
@@ -85,7 +120,11 @@ test("no file system and no modules: require, process, module and dynamic import
     try { out.push(typeof process); } catch (e) { out.push(e.message); }
     try { out.push(String(module.exports)); } catch (e) { out.push(e.message); }
     return out;`);
-  assert.deepEqual(r.value, ["require(fs) is not available in a Kit script.", "process is not available in a Kit script.", "module is not available in a Kit script."]);
+  assert.deepEqual(r.value, [
+    "require(fs) is not available in a Kit script.",
+    "process is not available in a Kit script.",
+    "module is not available in a Kit script.",
+  ]);
   assert.deepEqual(r.denials, ["require(fs)", "process", "module"]);
   assert.equal(staticDenial(`const m = await ${IMP}('node:fs');`), DYNAMIC_IMPORT);
   const imp = await run(`const m = await ${IMP}('node:fs'); return m.readFileSync('/etc/passwd', 'utf8');`);
@@ -135,12 +174,18 @@ test("no way out through constructors: eval and Function from a string are dead,
     assert.equal(r.ok, false, `${src} must not succeed`);
     assert.ok(typeof r.error === "string" && r.error.length > 0, src);
     assert.equal(r.value, undefined, src);
-    if (/constructor\(|eval|new Function/.test(src) && !/this\.constructor|setTimeout/.test(src)) assert.match(String(r.error), /Code generation from strings disallowed/, `${src} -> ${r.error}`);
+    if (/constructor\(|eval|new Function/.test(src) && !/this\.constructor|setTimeout/.test(src))
+      assert.match(String(r.error), /Code generation from strings disallowed/, `${src} -> ${r.error}`);
   }
   // errors thrown by the host side never carry a host-realm object: the script sees plain strings
-  const r = await run("try { await api.call('a.b', 1n); } catch (e) { return [e.constructor === Error, Object.getPrototypeOf(e) === Error.prototype, e.message]; }", { caps: ["a.b"] });
+  const r = await run(
+    "try { await api.call('a.b', 1n); } catch (e) { return [e.constructor === Error, Object.getPrototypeOf(e) === Error.prototype, e.message]; }",
+    { caps: ["a.b"] },
+  );
   assert.deepEqual(r.value, [true, true, "api.call input must be JSON."]);
-  const frozen = await run("api.call = () => 1; api.extra = 1; return [typeof api.call, 'extra' in api];", { caps: ["a.b"] });
+  const frozen = await run("api.call = () => 1; api.extra = 1; return [typeof api.call, 'extra' in api];", {
+    caps: ["a.b"],
+  });
   assert.equal(frozen.ok, false, "api is frozen and the script runs in strict mode");
 });
 

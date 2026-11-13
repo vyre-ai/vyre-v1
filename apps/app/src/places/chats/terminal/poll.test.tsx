@@ -13,7 +13,10 @@ test("answers that repeat the unfinished line draw it as it is now, never twice;
   screen.write("welcome\r\n$ ");
   const frames: string[] = [];
   const src = pollSource(read, 1, 1);
-  const stop = src.subscribe((f) => { frames.push(f.data); screen.write(f.data); });
+  const stop = src.subscribe((f) => {
+    frames.push(f.data);
+    screen.write(f.data);
+  });
   const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 15));
   await settle();
   lines[1] = "$ ls -";
@@ -26,7 +29,10 @@ test("answers that repeat the unfinished line draw it as it is now, never twice;
   stop();
   assert.equal(screen.text(), "welcome\n$ ls -la\na.txt\n$", "each line once");
   assert.ok(frames.every((f) => f.startsWith(REDRAW_LINE)));
-  assert.ok(frames.length <= 5 && frames.every((f, i) => i === 0 || f !== frames[i - 1]), `an unchanged answer makes no frame (${frames.length} frames over many reads)`);
+  assert.ok(
+    frames.length <= 5 && frames.every((f, i) => i === 0 || f !== frames[i - 1]),
+    `an unchanged answer makes no frame (${frames.length} frames over many reads)`,
+  );
 });
 
 test("review 7: a long unfinished line redrawn shorter leaves no fragment (the screen's rows are whole lines, wrapped only when drawn)", () => {

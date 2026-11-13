@@ -14,7 +14,10 @@ export function mintEventId(now: number = Date.now(), rand?: (n: number) => Uint
 
 /** The contract form of any event id: lower case, dashes and other marks dropped, one `evt_` prefix. */
 export function eventIdOf(raw: string): string {
-  return `evt_${raw.replace(/^evt_/i, "").toLowerCase().replace(/[^a-z0-9]/g, "")}`;
+  return `evt_${raw
+    .replace(/^evt_/i, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")}`;
 }
 
 /** One envelope with its id (and the id it names as its cause) in contract form. */
@@ -27,6 +30,8 @@ export function normalizeEvent<E extends EventEnvelope>(e: E): E {
 }
 
 /** Wrap InvokeDeps.commit so every event reaches the log with a contract id. */
-export function withEventIds(commit: (batch: CommitBatch) => Promise<EventEnvelope[]>): (batch: CommitBatch) => Promise<EventEnvelope[]> {
+export function withEventIds(
+  commit: (batch: CommitBatch) => Promise<EventEnvelope[]>,
+): (batch: CommitBatch) => Promise<EventEnvelope[]> {
   return (batch) => commit({ ...batch, events: batch.events.map((e) => normalizeEvent(e)) });
 }

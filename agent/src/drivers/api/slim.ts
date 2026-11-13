@@ -12,7 +12,10 @@ function slim(v: unknown): unknown {
   for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
     // a property that is itself called "examples" or "pattern" lives under "properties": its schema stays
     if (DROPPED.has(k) && (typeof x !== "object" || Array.isArray(x) || k === "examples")) continue;
-    out[k] = k === "properties" && typeof x === "object" && x !== null ? Object.fromEntries(Object.entries(x as Record<string, unknown>).map(([n, s]) => [n, slim(s)])) : slim(x);
+    out[k] =
+      k === "properties" && typeof x === "object" && x !== null
+        ? Object.fromEntries(Object.entries(x as Record<string, unknown>).map(([n, s]) => [n, slim(s)]))
+        : slim(x);
   }
   return out;
 }

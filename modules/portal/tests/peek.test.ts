@@ -9,10 +9,15 @@ import { peekLink } from "../handlers/extra/peek.ts";
 import { NOW, OTHER_SITE, SITE, harness } from "../fixtures/world.ts";
 
 type Fn = (ctx: Ctx, input: unknown) => Promise<unknown>;
-const call = <T>(ctx: Ctx, cap: keyof typeof handlers, input: unknown): Promise<T> => (handlers[cap] as Fn)(ctx, input) as Promise<T>;
+const call = <T>(ctx: Ctx, cap: keyof typeof handlers, input: unknown): Promise<T> =>
+  (handlers[cap] as Fn)(ctx, input) as Promise<T>;
 
 async function invited(w: ReturnType<typeof harness>, email = "pat@client.test") {
-  const { account } = await call<{ account: { accountId: string } }>(w.ctx, "portal.account_create", { siteId: SITE, email, method: "magic_link" });
+  const { account } = await call<{ account: { accountId: string } }>(w.ctx, "portal.account_create", {
+    siteId: SITE,
+    email,
+    method: "magic_link",
+  });
   return { accountId: account.accountId, token: w.mailer.last().token };
 }
 
@@ -22,7 +27,10 @@ test("a good link tells who it is for and what is shared, and changes nothing", 
   const before = JSON.stringify(w.db.all("SELECT * FROM portal_magic"));
   const p = await peekLink(w.ctx, NOW, SITE, token);
   assert.ok(p);
-  assert.deepEqual({ accountId: p.accountId, siteId: p.siteId, email: p.email, method: p.method, state: p.state, purpose: p.purpose }, { accountId, siteId: SITE, email: "pat@client.test", method: "magic_link", state: "invited", purpose: "invite" });
+  assert.deepEqual(
+    { accountId: p.accountId, siteId: p.siteId, email: p.email, method: p.method, state: p.state, purpose: p.purpose },
+    { accountId, siteId: SITE, email: "pat@client.test", method: "magic_link", state: "invited", purpose: "invite" },
+  );
   assert.deepEqual(p.shared, { linked: false, recordTypes: [], fileLinks: 0 });
   assert.equal(JSON.stringify(w.db.all("SELECT * FROM portal_magic")), before, "peeking does not use the link up");
   assert.ok(await peekLink(w.ctx, NOW, SITE, token), "and it can be done again");
@@ -31,7 +39,12 @@ test("a good link tells who it is for and what is shared, and changes nothing", 
 test("the token is stored hashed: no row, event or warning holds it", async () => {
   const w = harness();
   const { token } = await invited(w);
-  const stored = JSON.stringify([w.db.all("SELECT * FROM portal_magic"), w.db.all("SELECT * FROM portal_account"), w.events, w.warnings]);
+  const stored = JSON.stringify([
+    w.db.all("SELECT * FROM portal_magic"),
+    w.db.all("SELECT * FROM portal_account"),
+    w.events,
+    w.warnings,
+  ]);
   assert.ok(!stored.includes(token));
 });
 

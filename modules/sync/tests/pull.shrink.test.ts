@@ -12,7 +12,11 @@ import type { PullCtx } from "../handlers/index.ts";
 import { ADA, BO, CY, CONTACT_TYPE, NOW, buildAccess } from "../fixtures/world.ts";
 
 const TRACE = "0123456789abcdef0123456789abcdef";
-interface Rig { s: SyncHandle; access: AccessSnapshot; clock: { now: number } }
+interface Rig {
+  s: SyncHandle;
+  access: AccessSnapshot;
+  clock: { now: number };
+}
 async function rig(): Promise<Rig> {
   const access = buildAccess();
   const clock = { now: NOW };
@@ -20,18 +24,41 @@ async function rig(): Promise<Rig> {
   await s.store.define({ add_types: [CONTACT_TYPE] });
   return { s, access, clock };
 }
-const ctx = (person: string, device = "dev1", deviceClass: DeviceClass = "desktop"): PullCtx => ({ trace: { traceId: TRACE }, principal: person, deviceId: device, deviceClass });
-const pull = (r: Rig, c: PullCtx, cursor: number): Promise<PullRes> => r.s.handlers["sync.pull"](c, { cursor, epoch: 0 });
+const ctx = (person: string, device = "dev1", deviceClass: DeviceClass = "desktop"): PullCtx => ({
+  trace: { traceId: TRACE },
+  principal: person,
+  deviceId: device,
+  deviceClass,
+});
+const pull = (r: Rig, c: PullCtx, cursor: number): Promise<PullRes> =>
+  r.s.handlers["sync.pull"](c, { cursor, epoch: 0 });
 async function contact(r: Rig, fields: Record<string, unknown> = {}): Promise<string> {
   const id = mintRecordId();
-  await r.s.store.create("contact", id, { name: "N", email: "n@example.com", phone: "+1", region: "eu", stage: "lead", owner: ADA, ...fields });
+  await r.s.store.create("contact", id, {
+    name: "N",
+    email: "n@example.com",
+    phone: "+1",
+    region: "eu",
+    stage: "lead",
+    owner: ADA,
+    ...fields,
+  });
   return id;
 }
-const BO_GRANT = { id: "gr_bo_record", subject_kind: "actor", subject_id: BO, resource_type: "record", resource_id: null, level: "view", conditions: { rowFilter: { op: "eq", field: "region", value: "eu" } } } as const;
+const BO_GRANT = {
+  id: "gr_bo_record",
+  subject_kind: "actor",
+  subject_id: BO,
+  resource_type: "record",
+  resource_id: null,
+  level: "view",
+  conditions: { rowFilter: { op: "eq", field: "region", value: "eu" } },
+} as const;
 
 test("a revoked grant hides the rows the device holds on the next pull, without any row changing, and the hide is sent again until the device moves on", async () => {
   const r = await rig();
-  const a = await contact(r), b = await contact(r);
+  const a = await contact(r),
+    b = await contact(r);
   const held = await pull(r, ctx(BO), 0);
   assert.equal(held.changes.length, 2);
   r.access.revokeGrant("gr_bo_record");
@@ -39,9 +66,15 @@ test("a revoked grant hides the rows the device holds on the next pull, without 
   assert.deepEqual(gone.hide.map((h) => h.id).sort(), [a, b].sort(), "both rows are hidden");
   assert.deepEqual(gone.changes, []);
   const again = await pull(r, ctx(BO), held.next);
-  assert.deepEqual(again.hide.map((h) => h.id).sort(), [a, b].sort(), "a response that never arrived is answered the same way");
+  assert.deepEqual(
+    again.hide.map((h) => h.id).sort(),
+    [a, b].sort(),
+    "a response that never arrived is answered the same way",
+  );
   // the rescan events carry no row content, and a person with no access learns nothing from them
-  const feed = r.s.deps.db.all<{ op: string; fields: string }>("SELECT op, fields FROM sync_changes WHERE op = 'rescan'");
+  const feed = r.s.deps.db.all<{ op: string; fields: string }>(
+    "SELECT op, fields FROM sync_changes WHERE op = 'rescan'",
+  );
   assert.ok(feed.length >= 2 && feed.every((c) => c.fields === "{}"), "a rescan names the row and carries no content");
   const cy = await pull(r, ctx(CY, "dev_cy"), 0);
   assert.deepEqual([cy.changes, cy.hide], [[], []], "a person with no access gets nothing from the rescans");
@@ -64,10 +97,16 @@ test("a narrowed grant hides only the rows it no longer reaches", async () => {
   const r = await rig();
   const eu = await contact(r, { region: "eu" });
   const held = await pull(r, ctx(BO), 0);
-  assert.deepEqual(held.changes.map((c) => c.id), [eu]);
+  assert.deepEqual(
+    held.changes.map((c) => c.id),
+    [eu],
+  );
   r.access.putGrant({ ...BO_GRANT, conditions: { rowFilter: { op: "eq", field: "region", value: "us" } } });
   const res = await pull(r, ctx(BO), held.next);
-  assert.deepEqual(res.hide.map((h) => h.id), [eu]);
+  assert.deepEqual(
+    res.hide.map((h) => h.id),
+    [eu],
+  );
 });
 
 test("a share that expires hides its rows once the time has passed", async () => {
@@ -75,12 +114,19 @@ test("a share that expires hides its rows once the time has passed", async () =>
   const a = await contact(r);
   r.access.putGrant({ ...BO_GRANT, expires_at: NOW + 60_000 });
   const held = await pull(r, ctx(BO), 0);
-  assert.deepEqual(held.changes.map((c) => c.id), [a]);
+  assert.deepEqual(
+    held.changes.map((c) => c.id),
+    [a],
+  );
   r.clock.now = NOW + 30_000;
   assert.deepEqual((await pull(r, ctx(BO), held.next)).hide, [], "still shared");
   r.clock.now = NOW + 120_000;
   const res = await pull(r, ctx(BO), held.next);
-  assert.deepEqual(res.hide.map((h) => h.id), [a], "expired");
+  assert.deepEqual(
+    res.hide.map((h) => h.id),
+    [a],
+    "expired",
+  );
 });
 
 test("a device that never held a row is told nothing about it, and another person's device is unaffected", async () => {
@@ -101,15 +147,28 @@ test("a grant given back after a hide brings the row back on the next pull", asy
   const held = await pull(r, ctx(BO), 0);
   r.access.revokeGrant("gr_bo_record");
   const gone = await pull(r, ctx(BO), held.next);
-  assert.deepEqual(gone.hide.map((h) => h.id), [a]);
+  assert.deepEqual(
+    gone.hide.map((h) => h.id),
+    [a],
+  );
   r.access.putGrant(BO_GRANT);
   const back = await pull(r, ctx(BO), gone.next);
-  assert.deepEqual(back.changes.map((c) => [c.id, c.op]), [[a, "upsert"]], "the device that applied the hide gets the row again");
+  assert.deepEqual(
+    back.changes.map((c) => [c.id, c.op]),
+    [[a, "upsert"]],
+    "the device that applied the hide gets the row again",
+  );
   assert.deepEqual(back.hide, []);
 });
 
-const rescans = (r: Rig): number => r.s.deps.db.get<{ n: number }>("SELECT count(*) AS n FROM sync_changes WHERE op = 'rescan'")?.n ?? 0;
-const stampOf = (r: Rig, person: string, device = "dev1"): string | undefined => r.s.deps.db.get<{ stamp: string }>("SELECT stamp FROM sync_scope_stamp WHERE person = ? AND device = ?", person, device)?.stamp;
+const rescans = (r: Rig): number =>
+  r.s.deps.db.get<{ n: number }>("SELECT count(*) AS n FROM sync_changes WHERE op = 'rescan'")?.n ?? 0;
+const stampOf = (r: Rig, person: string, device = "dev1"): string | undefined =>
+  r.s.deps.db.get<{ stamp: string }>(
+    "SELECT stamp FROM sync_scope_stamp WHERE person = ? AND device = ?",
+    person,
+    device,
+  )?.stamp;
 
 test("without a grant that expires, pulls a minute apart do not recheck anything; with one they do", async () => {
   const r = await rig();
@@ -142,9 +201,17 @@ test("a share given after the device synced past the row delivers it on the next
   const synced = await pull(r, ctx(BO), before.next);
   r.access.putGrant(BO_GRANT);
   const res = await pull(r, ctx(BO), synced.next);
-  assert.deepEqual(res.changes.map((c) => [c.id, c.op]), [[a, "upsert"]], "the newly visible row arrives, the one outside the share does not");
+  assert.deepEqual(
+    res.changes.map((c) => [c.id, c.op]),
+    [[a, "upsert"]],
+    "the newly visible row arrives, the one outside the share does not",
+  );
   const retry = await pull(r, ctx(BO), synced.next);
-  assert.deepEqual(retry.changes.map((c) => c.id), [a], "a pull whose response was lost is answered the same way");
+  assert.deepEqual(
+    retry.changes.map((c) => c.id),
+    [a],
+    "a pull whose response was lost is answered the same way",
+  );
   const done = await pull(r, ctx(BO), res.next);
   assert.deepEqual([done.changes, done.hide], [[], []], "and the device then has it");
 });

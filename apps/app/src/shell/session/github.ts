@@ -10,10 +10,14 @@ export function githubStartUrl(baseUrl: string, returnTo: string): string {
 export type GithubReturn = { code: string } | { error: true } | null;
 
 /** Read, and remove from the address bar, what the callback left in the fragment. */
-export function takeGithubReturn(loc: { hash: string; pathname: string; search: string } | undefined, replace: (url: string) => void): GithubReturn {
+export function takeGithubReturn(
+  loc: { hash: string; pathname: string; search: string } | undefined,
+  replace: (url: string) => void,
+): GithubReturn {
   if (!loc) return null;
   const p = new URLSearchParams(loc.hash.replace(/^#/, ""));
-  const code = p.get("github_code"), failed = p.get("github_error");
+  const code = p.get("github_code"),
+    failed = p.get("github_error");
   if (!code && !failed) return null;
   replace(`${loc.pathname}${loc.search}`);
   return code ? { code } : { error: true };

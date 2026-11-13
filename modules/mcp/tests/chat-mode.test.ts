@@ -5,17 +5,36 @@ import type { McpCaller } from "../../../agent/src/mcp/types.ts";
 import { withChatMode } from "../impl.ts";
 import type { Invoke } from "../../../host/src/invoke.ts";
 
-const caller = (over: Partial<McpCaller> = {}): McpCaller => ({ kind: "driver", sessionId: "ses_1", space: "spc_1", principal: { kind: "agent", id: "agt_1" }, actingFor: "usr_dana", threadId: "thr_1", ...over });
+const caller = (over: Partial<McpCaller> = {}): McpCaller => ({
+  kind: "driver",
+  sessionId: "ses_1",
+  space: "spc_1",
+  principal: { kind: "agent", id: "agt_1" },
+  actingFor: "usr_dana",
+  threadId: "thr_1",
+  ...over,
+});
 const runtime = (mode: unknown, seen: Array<{ cap: string; principal: string; actingFor?: string }> = []) => ({
-  db: {} as never, space: "spc_1",
-  invoke: (async (cap, _input, seed) => { seen.push({ cap, principal: seed.principal.id, ...(seed.actingFor ? { actingFor: seed.actingFor } : {}) }); return { status: "ok", output: { thread: { mode } }, traceId: "t" }; }) as Invoke,
+  db: {} as never,
+  space: "spc_1",
+  invoke: (async (cap, _input, seed) => {
+    seen.push({ cap, principal: seed.principal.id, ...(seed.actingFor ? { actingFor: seed.actingFor } : {}) });
+    return { status: "ok", output: { thread: { mode } }, traceId: "t" };
+  }) as Invoke,
 });
 
 test("the session of a chat opens with the chat's mode, read as the agent for the person it acts for; Plan also sets plan mode", async () => {
   const seen: Array<{ cap: string; principal: string; actingFor?: string }> = [];
   const c = await withChatMode(runtime("plan", seen), caller());
   assert.deepEqual([c.mode, c.planMode], ["plan", true]);
-  assert.deepEqual(seen, [{ cap: "threads.get", principal: "agt_1", actingFor: "usr_dana" }, { cap: "settings.get", principal: "agt_1", actingFor: "usr_dana" }], "the chat, then the owner's floor on local tools");
+  assert.deepEqual(
+    seen,
+    [
+      { cap: "threads.get", principal: "agt_1", actingFor: "usr_dana" },
+      { cap: "settings.get", principal: "agt_1", actingFor: "usr_dana" },
+    ],
+    "the chat, then the owner's floor on local tools",
+  );
   const ask = await withChatMode(runtime("ask"), caller());
   assert.deepEqual([ask.mode, ask.planMode], ["ask", false]);
   assert.equal((await withChatMode(runtime("auto"), caller())).mode, "auto");
@@ -24,52 +43,98 @@ test("the session of a chat opens with the chat's mode, read as the agent for th
 test("an outside agent, a session with no chat, and a chat that cannot be read are left as they were", async () => {
   const outside = caller({ kind: "outside", principal: { kind: "agent", id: "agt_1" } });
   assert.equal(await withChatMode(runtime("plan"), outside), outside);
-  const nochat = caller(); delete (nochat as { threadId?: string }).threadId;
+  const nochat = caller();
+  delete (nochat as { threadId?: string }).threadId;
   assert.equal(await withChatMode(runtime("plan"), nochat), nochat);
   const c = caller();
-  assert.equal(await withChatMode({ ...runtime("plan"), invoke: (async () => { throw new Error("down"); }) as Invoke }, c), c);
+  assert.equal(
+    await withChatMode(
+      {
+        ...runtime("plan"),
+        invoke: (async () => {
+          throw new Error("down");
+        }) as Invoke,
+      },
+      c,
+    ),
+    c,
+  );
   assert.equal(await withChatMode(runtime("yolo"), c), c);
 });
 
 test("a chat that builds a connector lists the builder's tools from its first turn, whatever its mode; any other chat does not", async () => {
-  const titled = (title: string, mode: unknown = "auto") => ({ ...runtime(mode), invoke: (async () => ({ status: "ok", output: { thread: { mode, title } } })) as Invoke });
+  const titled = (title: string, mode: unknown = "auto") => ({
+    ...runtime(mode),
+    invoke: (async () => ({ status: "ok", output: { thread: { mode, title } } })) as Invoke,
+  });
   const built = await withChatMode(titled("Add Fathom to Automations"), caller());
   assert.ok(built.preload?.includes("connectors_define") && built.preload.includes("automations_read_docs"));
   assert.equal(built.mode, "auto");
-  assert.ok((await withChatMode(titled("Build a connector", "yolo"), caller())).preload?.includes("connectors_publish"), "even when the mode is not one it carries");
+  assert.ok(
+    (await withChatMode(titled("Build a connector", "yolo"), caller())).preload?.includes("connectors_publish"),
+    "even when the mode is not one it carries",
+  );
   assert.equal((await withChatMode(titled("Intake desk"), caller())).preload, undefined);
 });
 
 test("a chat that brings a CRM into Records lists the sync tools from its first turn", async () => {
-  const titled = (title: string) => ({ ...runtime("auto"), invoke: (async () => ({ status: "ok", output: { thread: { mode: "auto", title } } })) as Invoke });
+  const titled = (title: string) => ({
+    ...runtime("auto"),
+    invoke: (async () => ({ status: "ok", output: { thread: { mode: "auto", title } } })) as Invoke,
+  });
   for (const t of ["Sync HubSpot to Records", "Bring my CRM into Records", "Change how Ledger syncs to Records"]) {
     const built = await withChatMode(titled(t), caller());
     assert.ok(built.preload?.includes("sync_specs_sample") && built.preload.includes("sync_specs_apply"), t);
   }
 });
 
-test("a chat inside a project lists the crew tools from its first turn, so a plain \"give it to a teammate\" can start one; a chat outside a project does not", async () => {
-  const scoped = (scopeType: unknown, kind = "chat") => ({ ...runtime("auto"), invoke: (async () => ({ status: "ok", output: { thread: { mode: "auto", title: "Bakery site", kind, scopeType } } })) as Invoke });
+test('a chat inside a project lists the crew tools from its first turn, so a plain "give it to a teammate" can start one; a chat outside a project does not', async () => {
+  const scoped = (scopeType: unknown, kind = "chat") => ({
+    ...runtime("auto"),
+    invoke: (async () => ({
+      status: "ok",
+      output: { thread: { mode: "auto", title: "Bakery site", kind, scopeType } },
+    })) as Invoke,
+  });
   assert.ok((await withChatMode(scoped("project"), caller())).preload?.includes("crew_start"));
-  assert.ok((await withChatMode(scoped(undefined), caller())).preload?.includes("crew_start"), "a plain chat reaches crew too: the lead finds the project");
-  assert.equal((await withChatMode(scoped("project", "helper"), caller())).preload, undefined, "a teammate's own thread does not start more teammates");
+  assert.ok(
+    (await withChatMode(scoped(undefined), caller())).preload?.includes("crew_start"),
+    "a plain chat reaches crew too: the lead finds the project",
+  );
+  assert.equal(
+    (await withChatMode(scoped("project", "helper"), caller())).preload,
+    undefined,
+    "a teammate's own thread does not start more teammates",
+  );
 });
 
 test("a chat lists the reads that check this Space from its first turn, so a question about what Vyre supports here is checked, not assumed", async () => {
-  const scoped = (kind: string) => ({ ...runtime("auto"), invoke: (async () => ({ status: "ok", output: { thread: { mode: "auto", title: "Hello", kind } } })) as Invoke });
+  const scoped = (kind: string) => ({
+    ...runtime("auto"),
+    invoke: (async () => ({ status: "ok", output: { thread: { mode: "auto", title: "Hello", kind } } })) as Invoke,
+  });
   const pre = (await withChatMode(scoped("chat"), caller())).preload ?? [];
   for (const n of ["engine_providers_list", "engine_accounts_list", "spaces_matrix"]) assert.ok(pre.includes(n), n);
   assert.equal((await withChatMode(scoped("helper"), caller())).preload, undefined);
 });
 
 test("a chat lists the tools that call the agent's outside tool servers and connections from its first turn: a CLI engine cannot pick one up later", async () => {
-  const scoped = (kind: string) => ({ ...runtime("auto"), invoke: (async () => ({ status: "ok", output: { thread: { mode: "auto", title: "Hello", kind } } })) as Invoke });
+  const scoped = (kind: string) => ({
+    ...runtime("auto"),
+    invoke: (async () => ({ status: "ok", output: { thread: { mode: "auto", title: "Hello", kind } } })) as Invoke,
+  });
   const pre = (await withChatMode(scoped("chat"), caller())).preload ?? [];
   for (const n of ["mcp_tools", "mcp_read", "mcp_call"]) assert.ok(pre.includes(n), n);
 });
 
 test("a CLI session knows the chat the way an API turn does: an Ask's scope and the person's level on it, a task thread's scope", async () => {
-  const facts = (thread: Record<string, unknown>, level: unknown) => ({ ...runtime("auto"), invoke: (async (cap: string) => ({ status: "ok", output: cap === "chat.ask_level" ? { level } : { thread: { mode: "auto", ...thread } } })) as unknown as Invoke });
+  const facts = (thread: Record<string, unknown>, level: unknown) => ({
+    ...runtime("auto"),
+    invoke: (async (cap: string) => ({
+      status: "ok",
+      output: cap === "chat.ask_level" ? { level } : { thread: { mode: "auto", ...thread } },
+    })) as unknown as Invoke,
+  });
   const ask = await withChatMode(facts({ kind: "ask", scopeType: "record", scopeId: "rec_1" }, "view"), caller());
   assert.deepEqual([ask.threadKind, ask.scope, ask.askLevel], ["ask", { type: "record", id: "rec_1" }, "view"]);
   const none = await withChatMode(facts({ kind: "ask", scopeType: "record", scopeId: "rec_1" }, null), caller());

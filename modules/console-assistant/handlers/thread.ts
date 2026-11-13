@@ -11,7 +11,12 @@ async function assistantOf(ctx: AssistCtx, personId: string): Promise<string> {
   const pick = mine.find((a) => a["kind"] === "assistant") ?? mine[0];
   const id = str(pick?.["agentId"]);
   // until an AI account is connected there is no assistant yet; the pane shows the locked state from this error
-  if (!id) return raise(ctx, "validation.precondition_failed", "Your assistant is not set up yet. Connect an AI account first.");
+  if (!id)
+    return raise(
+      ctx,
+      "validation.precondition_failed",
+      "Your assistant is not set up yet. Connect an AI account first.",
+    );
   return id;
 }
 
@@ -21,38 +26,70 @@ async function follow(ctx: AssistCtx, threadId: string, page: string): Promise<v
     await ctx.call("threads.update", { threadId, title: `Console: ${page}` });
   } catch (e) {
     // the page context is already stored; a title that lags behind must not stop the person from working
-    ctx.log.warn("console assistant could not retitle its thread", { threadId, page, error: e instanceof Error ? e.message : String(e) });
+    ctx.log.warn("console assistant could not retitle its thread", {
+      threadId,
+      page,
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 }
 
-export async function assistantOpen(ctx: AssistCtx, input: { page: string; objectRef?: string; idempotencyKey?: string }) {
+export async function assistantOpen(
+  ctx: AssistCtx,
+  input: { page: string; objectRef?: string; idempotencyKey?: string },
+) {
   const personId = personOf(ctx);
   const now = ctx.now();
   const have = threadOf(ctx, personId);
   if (have) {
-    ctx.db.run(`UPDATE console_assistant_thread SET page = ?, object_ref = ?, updated_at = ? WHERE person_id = ?`, input.page, input.objectRef ?? null, now, personId);
+    ctx.db.run(
+      `UPDATE console_assistant_thread SET page = ?, object_ref = ?, updated_at = ? WHERE person_id = ?`,
+      input.page,
+      input.objectRef ?? null,
+      now,
+      personId,
+    );
     if (have.page !== input.page) await follow(ctx, have.thread_id, input.page);
     return { threadId: have.thread_id };
   }
   const assistantId = await assistantOf(ctx, personId);
-  const started = asRow(await ctx.call("chat.start", {
-    // the scope is the Console, one for the person: which page it is on goes with each message, as the screen
-    kind: "ask", agentIds: [assistantId], idempotencyKey: `console-${personId}`, scopeType: "console", scopeId: "console",
-    title: `Console: ${input.page}`, first: contextText(input.page, input.objectRef),
-  }));
+  const started = asRow(
+    await ctx.call("chat.start", {
+      // the scope is the Console, one for the person: which page it is on goes with each message, as the screen
+      kind: "ask",
+      agentIds: [assistantId],
+      idempotencyKey: `console-${personId}`,
+      scopeType: "console",
+      scopeId: "console",
+      title: `Console: ${input.page}`,
+      first: contextText(input.page, input.objectRef),
+    }),
+  );
   // chat.start answers { thread: { threadId } }
   const threadId = str(asRow(started?.["thread"])?.["threadId"] ?? started?.["threadId"]);
   if (!threadId) return raise(ctx, "internal.unexpected", "The chat did not come back.");
   ctx.db.run(
     `INSERT INTO console_assistant_thread (person_id, thread_id, assistant_id, page, object_ref, opened_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    personId, threadId, assistantId, input.page, input.objectRef ?? null, now, now,
+    personId,
+    threadId,
+    assistantId,
+    input.page,
+    input.objectRef ?? null,
+    now,
+    now,
   );
   return { threadId };
 }
 
 export async function contextSet(ctx: AssistCtx, input: { threadId: string; page: string; objectRef?: string }) {
   const t = ownThread(ctx, input.threadId);
-  ctx.db.run(`UPDATE console_assistant_thread SET page = ?, object_ref = ?, updated_at = ? WHERE person_id = ?`, input.page, input.objectRef ?? null, ctx.now(), t.person_id);
+  ctx.db.run(
+    `UPDATE console_assistant_thread SET page = ?, object_ref = ?, updated_at = ? WHERE person_id = ?`,
+    input.page,
+    input.objectRef ?? null,
+    ctx.now(),
+    t.person_id,
+  );
   if (t.page !== input.page) await follow(ctx, t.thread_id, input.page);
   return { ok: true };
 }
@@ -62,16 +99,26 @@ export async function assistantTools(ctx: AssistCtx, _input: Record<string, neve
 }
 
 /** Why a person can or cannot do a thing, in the words of the Access checker. */
-export async function explainAccess(ctx: AssistCtx, input: { person: string; action: string; resourceType: string; resourceId: string }) {
+export async function explainAccess(
+  ctx: AssistCtx,
+  input: { person: string; action: string; resourceType: string; resourceId: string },
+) {
   // "edit" is a level; anything else names a permission checked at view level
   const action = LEVELS.has(input.action) ? { level: input.action } : { perm: input.action, level: "view" };
-  const out = asRow(await ctx.call("access.check", {
-    principal: { kind: "person", id: input.person }, action, resource: { type: input.resourceType, id: input.resourceId },
-  }));
+  const out = asRow(
+    await ctx.call("access.check", {
+      principal: { kind: "person", id: input.person },
+      action,
+      resource: { type: input.resourceType, id: input.resourceId },
+    }),
+  );
   const decision = asRow(out?.["decision"]);
   const effect = decision?.["effect"];
-  if (effect !== "allow" && effect !== "deny" && effect !== "hold") return raise(ctx, "internal.unexpected", "The Access checker gave no decision.");
-  const steps = asList(decision?.["steps"]).map((s) => str(s["text"])).filter((s): s is string => s !== undefined);
+  if (effect !== "allow" && effect !== "deny" && effect !== "hold")
+    return raise(ctx, "internal.unexpected", "The Access checker gave no decision.");
+  const steps = asList(decision?.["steps"])
+    .map((s) => str(s["text"]))
+    .filter((s): s is string => s !== undefined);
   if (steps.length === 0) steps.push(str(decision?.["reason"]) ?? effect);
   return { effect, steps };
 }

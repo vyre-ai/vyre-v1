@@ -8,9 +8,25 @@ import { canInstall, onInstallChange, promptInstall } from "../../startup/instal
 export const INSTALL_TITLE = "Install Vyre";
 export const INSTALL_NOTE = "Add it to your home screen";
 
-export function InstallRow({ offered = canInstall }: { /** Tests pass their own answer. */ offered?: () => boolean }): ReactElement | null {
+export function InstallRow({
+  offered = canInstall,
+}: {
+  /** Tests pass their own answer. */ offered?: () => boolean;
+}): ReactElement | null {
   const [show, setShow] = useState(offered);
   useEffect(() => onInstallChange(() => setShow(offered())), [offered]);
   if (!show) return null;
-  return <Row id="you-install" title={INSTALL_TITLE} note={INSTALL_NOTE} onPress={() => { void promptInstall().then(() => setShow(offered()), () => setShow(offered())); }} />;
+  return (
+    <Row
+      id="you-install"
+      title={INSTALL_TITLE}
+      note={INSTALL_NOTE}
+      onPress={() => {
+        void promptInstall().then(
+          () => setShow(offered()),
+          () => setShow(offered()),
+        );
+      }}
+    />
+  );
 }

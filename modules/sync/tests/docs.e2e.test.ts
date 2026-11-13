@@ -29,7 +29,10 @@ test("the server holds ciphertext only: no plaintext in any stored update, no sn
   assert.equal(rows.length, 2, "one sealed update per edit");
   for (const r of rows) {
     assert.equal(r.enc, 2);
-    assert.ok(!has(r.bytes, "settlement") && !has(r.bytes, "4417") && !has(r.bytes, "note:"), "no plaintext in a stored update");
+    assert.ok(
+      !has(r.bytes, "settlement") && !has(r.bytes, "4417") && !has(r.bytes, "note:"),
+      "no plaintext in a stored update",
+    );
   }
   assert.equal(docMeta(rig.s.host.tx, DOC)?.enc, 2);
   assert.equal(baseSnapshot(rig.s.host.tx, DOC), undefined);
@@ -55,14 +58,20 @@ test("a second user cannot pull plaintext: the capability refuses, the live subs
 
   const handlers = createDocHandlers(rig.server);
   await assert.rejects(handlers["sync.doc.open"](ctx(BO), { doc: DOC }), (e) => errCode(e) === "permission.no_grant");
-  await assert.rejects(handlers["sync.doc.update"](ctx(BO), { doc: DOC, update: toB64(new Uint8Array([1, 2, 3])), enc: 2 }), (e) => errCode(e) === "permission.revoked");
+  await assert.rejects(
+    handlers["sync.doc.update"](ctx(BO), { doc: DOC, update: toB64(new Uint8Array([1, 2, 3])), enc: 2 }),
+    (e) => errCode(e) === "permission.revoked",
+  );
 
   // Even with the owner's own account name the server cannot help: a live subscribe by the other user is dropped.
   const b = rig.device(BO, { crypto: aesDocCrypto(KEY) });
   const stolen = b.client.open(DOC, { enc: 2 });
   await rig.settle();
   assert.equal(stolen.text().toString(), "");
-  assert.deepEqual(b.problems.map((p) => [p.code, p.dropped]), [["permission.no_grant", true]]);
+  assert.deepEqual(
+    b.problems.map((p) => [p.code, p.dropped]),
+    [["permission.no_grant", true]],
+  );
   assert.equal(b.store.has(DOC), false, "nothing of the document is kept on that device");
 });
 
@@ -82,7 +91,11 @@ test("a device with the wrong key never gets plaintext; a second device of the o
   dP.text().insert(0, "from the phone: ");
   await dP.idle();
   await rig.settle();
-  assert.equal(dA.text().toString(), `from the phone: ${SECRET}`, "live updates are sealed on one device and opened on the other");
+  assert.equal(
+    dA.text().toString(),
+    `from the phone: ${SECRET}`,
+    "live updates are sealed on one device and opened on the other",
+  );
 
   const thief = rig.device(ADA, { id: "dev_wrong", crypto: aesDocCrypto(WRONG) });
   const dT = thief.client.open(DOC, { enc: 2 });
@@ -98,22 +111,35 @@ test("the owner's device folds a private document: compact stores the sealed sna
   const handlers = createDocHandlers(rig.server);
   const a = rig.device(ADA, { crypto: aesDocCrypto(KEY) });
   const dA = a.client.open(DOC, { enc: 2 });
-  for (let i = 0; i < 6; i++) { dA.text().insert(dA.text().length, `line ${i}. `); await dA.idle(); }
+  for (let i = 0; i < 6; i++) {
+    dA.text().insert(dA.text().length, `line ${i}. `);
+    await dA.idle();
+  }
   await rig.settle();
   assert.equal(headSeq(rig.s.host.tx, DOC), 6);
 
   // The server will not fold it itself, and refuses a compact without the device's snapshot.
-  await assert.rejects(handlers["sync.doc.compact"](ctx(ADA), { doc: DOC }), (e) => errCode(e) === "validation.bad_input");
+  await assert.rejects(
+    handlers["sync.doc.compact"](ctx(ADA), { doc: DOC }),
+    (e) => errCode(e) === "validation.bad_input",
+  );
   const payload = await a.client.compactionOf(DOC);
   assert.ok(payload);
   assert.equal(payload.upto, 6);
-  const res = await handlers["sync.doc.compact"](ctx(ADA), { doc: payload.doc, upto: payload.upto, snapshot: payload.snapshot });
+  const res = await handlers["sync.doc.compact"](ctx(ADA), {
+    doc: payload.doc,
+    upto: payload.upto,
+    snapshot: payload.snapshot,
+  });
   assert.equal(res.upto, 6);
   const snap = baseSnapshot(rig.s.host.tx, DOC);
   assert.equal(snap?.md, null);
   assert.ok(!has(snap!.bytes, "line 0"), "the stored snapshot is ciphertext");
   assert.equal(updatesAfter(rig.s.host.tx, DOC, 0).length, 0);
-  await assert.rejects(handlers["sync.doc.compact"](ctx(ADA), { doc: DOC, upto: 99, snapshot: payload.snapshot }), (e) => errCode(e) === "validation.bad_input");
+  await assert.rejects(
+    handlers["sync.doc.compact"](ctx(ADA), { doc: DOC, upto: 99, snapshot: payload.snapshot }),
+    (e) => errCode(e) === "validation.bad_input",
+  );
 
   dA.text().insert(0, "after fold: ");
   await dA.idle();
@@ -135,7 +161,13 @@ test("plain and private updates do not mix: a plain update to a private document
   const handlers = createDocHandlers(rig.server);
   const plain = toB64(edit([], 0, "hello"));
   await handlers["sync.doc.update"](ctx(ADA), { doc: "not_priv", update: toB64(new Uint8Array([9, 9, 9])), enc: 2 });
-  await assert.rejects(handlers["sync.doc.update"](ctx(ADA), { doc: "not_priv", update: plain }), (e) => errCode(e) === "validation.bad_input");
-  await assert.rejects(handlers["sync.doc.update"](ctx(ADA), { doc: "not_plain", update: toB64(new Uint8Array([9, 9, 9])), enc: 2 }), (e) => errCode(e) === "validation.bad_input");
+  await assert.rejects(
+    handlers["sync.doc.update"](ctx(ADA), { doc: "not_priv", update: plain }),
+    (e) => errCode(e) === "validation.bad_input",
+  );
+  await assert.rejects(
+    handlers["sync.doc.update"](ctx(ADA), { doc: "not_plain", update: toB64(new Uint8Array([9, 9, 9])), enc: 2 }),
+    (e) => errCode(e) === "validation.bad_input",
+  );
   assert.deepEqual(await handlers["sync.doc.update"](ctx(ADA), { doc: "not_plain", update: plain }), { seq: 1 });
 });

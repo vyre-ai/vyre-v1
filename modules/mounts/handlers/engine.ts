@@ -25,7 +25,17 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { pushMoves } from "./outbound-moves.ts";
 import { DRIVE_ROOT_ALIAS, PROVIDER_LABEL, fetchable, isCloud, providerOf } from "./providers.ts";
-import type { IfMatch, MountKind, MountMode, MountRec, Person, Provider, PullBatch, RemoteItem, Revision } from "./providers.ts";
+import type {
+  IfMatch,
+  MountKind,
+  MountMode,
+  MountRec,
+  Person,
+  Provider,
+  PullBatch,
+  RemoteItem,
+  Revision,
+} from "./providers.ts";
 
 type Row = Record<string, unknown>;
 
@@ -73,10 +83,12 @@ function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<stri
 }
 
 const codeOf = (e: unknown): string | undefined => (e instanceof VyreErr ? e.error.code : undefined);
-const messageOf = (e: unknown): string => (e instanceof VyreErr ? e.error.message : e instanceof Error ? e.message : "The sync failed.");
+const messageOf = (e: unknown): string =>
+  e instanceof VyreErr ? e.error.message : e instanceof Error ? e.message : "The sync failed.";
 
 function record(ctx: Ctx, input: unknown): Row {
-  if (input === null || typeof input !== "object" || Array.isArray(input)) fail(ctx, "validation.bad_input", "The input is not valid.");
+  if (input === null || typeof input !== "object" || Array.isArray(input))
+    fail(ctx, "validation.bad_input", "The input is not valid.");
   return input as Row;
 }
 
@@ -133,13 +145,19 @@ function mountRow(ctx: Ctx, mountId: string): Row {
 }
 
 function liveMounts(ctx: Ctx): Row[] {
-  return (ctx.db.all("SELECT * FROM mounts_mount WHERE deleted_at IS NULL") as Row[]).sort((a, b) => num(a["created_at"]) - num(b["created_at"]) || str(a["id"]).localeCompare(str(b["id"])));
+  return (ctx.db.all("SELECT * FROM mounts_mount WHERE deleted_at IS NULL") as Row[]).sort(
+    (a, b) => num(a["created_at"]) - num(b["created_at"]) || str(a["id"]).localeCompare(str(b["id"])),
+  );
 }
 
 function patchMount(ctx: Ctx, row: Row, patch: Row): void {
   const cols = Object.keys(patch);
   if (cols.length === 0) return;
-  ctx.db.run(`UPDATE mounts_mount SET ${cols.map((c) => `${c} = ?`).join(", ")} WHERE id = ?`, ...cols.map((c) => patch[c]), row["id"]);
+  ctx.db.run(
+    `UPDATE mounts_mount SET ${cols.map((c) => `${c} = ?`).join(", ")} WHERE id = ?`,
+    ...cols.map((c) => patch[c]),
+    row["id"],
+  );
   Object.assign(row, patch);
 }
 
@@ -150,7 +168,12 @@ function itemsOf(ctx: Ctx, mountId: string): Row[] {
 function patchItem(ctx: Ctx, row: Row, patch: Row): void {
   const cols = Object.keys(patch);
   if (cols.length === 0) return;
-  ctx.db.run(`UPDATE mounts_item SET ${cols.map((c) => `${c} = ?`).join(", ")} WHERE mount_id = ? AND item_key = ?`, ...cols.map((c) => patch[c]), row["mount_id"], row["item_key"]);
+  ctx.db.run(
+    `UPDATE mounts_item SET ${cols.map((c) => `${c} = ?`).join(", ")} WHERE mount_id = ? AND item_key = ?`,
+    ...cols.map((c) => patch[c]),
+    row["mount_id"],
+    row["item_key"],
+  );
   Object.assign(row, patch);
 }
 
@@ -172,10 +195,18 @@ interface NewItem {
 }
 
 /** What the provider says about an item besides its content: the revision a write is conditional on, and who last edited it. */
-interface RemoteMeta { remote_rev: string | null; editor_name: string | null; editor_email: string | null; modified_at: number | null }
+interface RemoteMeta {
+  remote_rev: string | null;
+  editor_name: string | null;
+  editor_email: string | null;
+  modified_at: number | null;
+}
 
 const metaOf = (item: RemoteItem): RemoteMeta => ({
-  remote_rev: item.revision ?? null, editor_name: item.editor?.name ?? null, editor_email: item.editor?.email ?? null, modified_at: item.modifiedAt ?? null,
+  remote_rev: item.revision ?? null,
+  editor_name: item.editor?.name ?? null,
+  editor_email: item.editor?.email ?? null,
+  modified_at: item.modifiedAt ?? null,
 });
 
 function insertItem(ctx: Ctx, mountId: string, n: NewItem): Row {
@@ -200,10 +231,19 @@ function insertItem(ctx: Ctx, mountId: string, n: NewItem): Row {
     conflict: 0,
   };
   // the host may have seen the file or folder appear before this row was written and queued it as a new local item: this row replaces that echo
-  if (n.fileId) ctx.db.run("DELETE FROM mounts_item WHERE mount_id = ? AND file_id = ? AND remote_id IS NULL", mountId, n.fileId);
-  if (n.folderId) ctx.db.run("DELETE FROM mounts_item WHERE mount_id = ? AND folder_id = ? AND remote_id IS NULL", mountId, n.folderId);
+  if (n.fileId)
+    ctx.db.run("DELETE FROM mounts_item WHERE mount_id = ? AND file_id = ? AND remote_id IS NULL", mountId, n.fileId);
+  if (n.folderId)
+    ctx.db.run(
+      "DELETE FROM mounts_item WHERE mount_id = ? AND folder_id = ? AND remote_id IS NULL",
+      mountId,
+      n.folderId,
+    );
   const cols = Object.keys(row);
-  ctx.db.run(`INSERT INTO mounts_item (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`, ...cols.map((c) => row[c]));
+  ctx.db.run(
+    `INSERT INTO mounts_item (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`,
+    ...cols.map((c) => row[c]),
+  );
   return row;
 }
 
@@ -229,19 +269,55 @@ function dropItems(ctx: Ctx, rows: Row[], gone: readonly Row[]): void {
 // ---- the files module ---------------------------------------------------------------------------------------
 
 async function filesCreateFolder(ctx: Ctx, parentId: string, name: string, reviewChanges?: boolean): Promise<string> {
-  const r = obj(await ctx.call("files.folder.create", { idempotencyKey: `mnt_${mintUuid(ctx.now())}`, parentId, name, ...(reviewChanges !== undefined ? { reviewChanges } : {}) }));
+  const r = obj(
+    await ctx.call("files.folder.create", {
+      idempotencyKey: `mnt_${mintUuid(ctx.now())}`,
+      parentId,
+      name,
+      ...(reviewChanges !== undefined ? { reviewChanges } : {}),
+    }),
+  );
   return str(obj(r["folder"])["folderId"]);
 }
 
 /** `blobId` undefined makes an empty placeholder (a live file that has not been opened). */
-async function filesCreate(ctx: Ctx, folderId: string, name: string, blobId: string | undefined, mime?: string, kind?: string): Promise<{ fileId: string; version: number }> {
-  const r = obj(await ctx.call("files.create", { idempotencyKey: `mnt_${mintUuid(ctx.now())}`, folderId, name, ...(blobId !== undefined ? { content: { blobId } } : {}), ...(mime !== undefined ? { mime } : {}), ...(kind !== undefined ? { kind } : {}) }));
+async function filesCreate(
+  ctx: Ctx,
+  folderId: string,
+  name: string,
+  blobId: string | undefined,
+  mime?: string,
+  kind?: string,
+): Promise<{ fileId: string; version: number }> {
+  const r = obj(
+    await ctx.call("files.create", {
+      idempotencyKey: `mnt_${mintUuid(ctx.now())}`,
+      folderId,
+      name,
+      ...(blobId !== undefined ? { content: { blobId } } : {}),
+      ...(mime !== undefined ? { mime } : {}),
+      ...(kind !== undefined ? { kind } : {}),
+    }),
+  );
   const file = obj(r["file"]);
   return { fileId: str(file["fileId"]), version: num(file["version"]) };
 }
 
-async function filesWrite(ctx: Ctx, fileId: string, blobId: string, reason: string, baseVersion?: number): Promise<number> {
-  const r = obj(await ctx.call("files.write", { fileId, content: { blobId }, reason, ...(baseVersion !== undefined && baseVersion > 0 ? { baseVersion } : {}) }));
+async function filesWrite(
+  ctx: Ctx,
+  fileId: string,
+  blobId: string,
+  reason: string,
+  baseVersion?: number,
+): Promise<number> {
+  const r = obj(
+    await ctx.call("files.write", {
+      fileId,
+      content: { blobId },
+      reason,
+      ...(baseVersion !== undefined && baseVersion > 0 ? { baseVersion } : {}),
+    }),
+  );
   return num(obj(r["file"])["version"]);
 }
 
@@ -262,7 +338,13 @@ export function freeNames(name: string, label: string): string[] {
  * called "Plan" share it); a Vyre folder does not. `taken` is what the mount knows is in the folder already (the provider names it mapped there and the names this pass gave), so the
  * name is chosen before the call: a refused create is left for a Vyre file the mount has not seen yet, and only then is the next name tried.
  */
-async function withFreeName<T>(ctx: Ctx, name: string, label: string, taken: Set<string>, make: (n: string) => Promise<T>): Promise<{ value: T; renamed: boolean; name: string }> {
+async function withFreeName<T>(
+  ctx: Ctx,
+  name: string,
+  label: string,
+  taken: Set<string>,
+  make: (n: string) => Promise<T>,
+): Promise<{ value: T; renamed: boolean; name: string }> {
   const names = freeNames(name, label);
   const first = names.findIndex((n) => !taken.has(n));
   for (let i = Math.max(0, first); i < names.length; i++) {
@@ -290,7 +372,8 @@ async function quietly(run: () => Promise<unknown>): Promise<void> {
 
 async function trashLocal(ctx: Ctx, rows: Row[], top: Row): Promise<void> {
   const below = subtreeOf(rows, top);
-  if (flag(top["is_folder"]) && !isNull(top["folder_id"])) await quietly(() => ctx.call("files.folder.delete", { folderId: str(top["folder_id"]) }));
+  if (flag(top["is_folder"]) && !isNull(top["folder_id"]))
+    await quietly(() => ctx.call("files.folder.delete", { folderId: str(top["folder_id"]) }));
   else if (!isNull(top["file_id"])) await quietly(() => ctx.call("files.delete", { fileId: str(top["file_id"]) }));
   dropItems(ctx, rows, below);
 }
@@ -306,8 +389,12 @@ async function markSource(ctx: Ctx, row: Row, on = true): Promise<void> {
   const id = str(row["id"]);
   if (on && marked.has(id)) return;
   try {
-    await ctx.call("files.folder.settings", { folderId: str(row["folder_id"]), source: on ? { mountId: id, provider: PROVIDER_LABEL[str(row["kind"]) as MountKind] } : null });
-    if (on) marked.add(id); else marked.delete(id);
+    await ctx.call("files.folder.settings", {
+      folderId: str(row["folder_id"]),
+      source: on ? { mountId: id, provider: PROVIDER_LABEL[str(row["kind"]) as MountKind] } : null,
+    });
+    if (on) marked.add(id);
+    else marked.delete(id);
   } catch (e) {
     ctx.log.warn("mounts: the folder could not be marked with its source", { mountId: id, code: codeOf(e) ?? "" });
   }
@@ -318,7 +405,10 @@ const isLive = (m: Pick<MountRec, "kind" | "mode">): boolean => m.mode === "live
 
 // ---- applying a pulled batch --------------------------------------------------------------------------------
 
-interface Applied { pulled: number; conflicts: number }
+interface Applied {
+  pulled: number;
+  conflicts: number;
+}
 
 async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: PullBatch, rows: Row[]): Promise<Applied> {
   let pulled = 0;
@@ -327,8 +417,10 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
   const live = isLive(m);
   const root = rows.find((r) => isNull(r["parent_key"]));
   if (!root) return fail(ctx, "internal.unexpected", "The mount lost its root.");
-  if (batch.rootId !== undefined && (isNull(root["remote_id"]) || root["remote_id"] === DRIVE_ROOT_ALIAS)) patchItem(ctx, root, { remote_id: batch.rootId });
-  const byRemote = (): Map<string, Row> => new Map(rows.filter((r) => !isNull(r["remote_id"])).map((r) => [str(r["remote_id"]), r]));
+  if (batch.rootId !== undefined && (isNull(root["remote_id"]) || root["remote_id"] === DRIVE_ROOT_ALIAS))
+    patchItem(ctx, root, { remote_id: batch.rootId });
+  const byRemote = (): Map<string, Row> =>
+    new Map(rows.filter((r) => !isNull(r["remote_id"])).map((r) => [str(r["remote_id"]), r]));
   const index = byRemote();
 
   // the names each Vyre folder of the mount holds as far as the mount knows: what it mapped there by the provider's name, and what this pass gave
@@ -346,7 +438,8 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
   const gone = new Set(batch.removed);
   if (batch.full) {
     const seen = new Set(batch.items.map((i) => i.id));
-    for (const r of rows) if (r !== root && !isNull(r["remote_id"]) && !seen.has(str(r["remote_id"]))) gone.add(str(r["remote_id"]));
+    for (const r of rows)
+      if (r !== root && !isNull(r["remote_id"]) && !seen.has(str(r["remote_id"]))) gone.add(str(r["remote_id"]));
   }
 
   const applyItem = async (item: RemoteItem, parent: Row): Promise<void> => {
@@ -354,9 +447,17 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
     const parentFolder = str(parent["folder_id"]);
     if (item.isFolder) {
       if (!row) {
-        const made = await withFreeName(ctx, item.name, label, namesIn(parent), (n) => filesCreateFolder(ctx, parentFolder, n));
+        const made = await withFreeName(ctx, item.name, label, namesIn(parent), (n) =>
+          filesCreateFolder(ctx, parentFolder, n),
+        );
         if (made.renamed) conflicts += 1;
-        const created = insertItem(ctx, m.id, { remoteId: item.id, parentKey: str(parent["item_key"]), folderId: made.value, name: item.name, isFolder: true });
+        const created = insertItem(ctx, m.id, {
+          remoteId: item.id,
+          parentKey: str(parent["item_key"]),
+          folderId: made.value,
+          name: item.name,
+          isFolder: true,
+        });
         rows.push(created);
         index.set(item.id, created);
         pulled += 1;
@@ -378,13 +479,31 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
     if (!row) {
       // a live mount creates the file empty: the content is fetched when it is opened. A Google-native file keeps Google's own type (a Doc is a Doc); its content is the export.
       // One with no export (a Form, a Site) stays empty and opens at Google.
-      const dl = live || !fetchable(item) ? undefined : await provider.download(ctx, m, { remoteId: item.id, name: item.name, ...(item.mime !== undefined ? { mime: item.mime } : {}), ...(item.native ? { native: true } : {}) });
-      const mime = item.native ? item.mime : dl?.mime ?? item.mime;
-      const made = await withFreeName(ctx, item.name, label, namesIn(parent), (n) => filesCreate(ctx, parentFolder, n, dl?.blobId, mime, item.native ? "google_native" : undefined));
+      const dl =
+        live || !fetchable(item)
+          ? undefined
+          : await provider.download(ctx, m, {
+              remoteId: item.id,
+              name: item.name,
+              ...(item.mime !== undefined ? { mime: item.mime } : {}),
+              ...(item.native ? { native: true } : {}),
+            });
+      const mime = item.native ? item.mime : (dl?.mime ?? item.mime);
+      const made = await withFreeName(ctx, item.name, label, namesIn(parent), (n) =>
+        filesCreate(ctx, parentFolder, n, dl?.blobId, mime, item.native ? "google_native" : undefined),
+      );
       if (made.renamed) conflicts += 1;
       const created = insertItem(ctx, m.id, {
-        remoteId: item.id, parentKey: str(parent["item_key"]), fileId: made.value.fileId, name: item.name, isFolder: false, native: item.native === true,
-        remoteVersion: item.version ?? null, cachedVersion: dl ? item.version ?? null : null, version: made.value.version, meta: metaOf(item),
+        remoteId: item.id,
+        parentKey: str(parent["item_key"]),
+        fileId: made.value.fileId,
+        name: item.name,
+        isFolder: false,
+        native: item.native === true,
+        remoteVersion: item.version ?? null,
+        cachedVersion: dl ? (item.version ?? null) : null,
+        version: made.value.version,
+        meta: metaOf(item),
       });
       rows.push(created);
       index.set(item.id, created);
@@ -416,9 +535,22 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
         pulled += 1;
         return;
       }
-      const dl = await provider.download(ctx, m, { remoteId: item.id, name: item.name, ...(item.mime !== undefined ? { mime: item.mime } : {}), ...(item.native ? { native: true } : {}) });
+      const dl = await provider.download(ctx, m, {
+        remoteId: item.id,
+        name: item.name,
+        ...(item.mime !== undefined ? { mime: item.mime } : {}),
+        ...(item.native ? { native: true } : {}),
+      });
       const version = await filesWrite(ctx, str(row["file_id"]), dl.blobId, `Synced from ${label}`);
-      patchItem(ctx, row, { remote_version: item.version, cached_version: item.version, ...metaOf(item), synced_version: version, local_version: version, dirty: 0, conflict: 0 });
+      patchItem(ctx, row, {
+        remote_version: item.version,
+        cached_version: item.version,
+        ...metaOf(item),
+        synced_version: version,
+        local_version: version,
+        dirty: 0,
+        conflict: 0,
+      });
       pulled += 1;
     } else if (isNull(row["remote_rev"]) && item.revision !== undefined) {
       patchItem(ctx, row, metaOf(item));
@@ -427,7 +559,7 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
 
   // items whose parent is not mapped yet wait for it (a feed lists children and parents in any order)
   let queue = batch.items.filter((i) => !gone.has(i.id) && i.id !== str(root["remote_id"]));
-  for (let progress = true; queue.length > 0 && progress;) {
+  for (let progress = true; queue.length > 0 && progress; ) {
     progress = false;
     const later: RemoteItem[] = [];
     for (const item of queue) {
@@ -464,7 +596,12 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
 
 // ---- pushing what changed in Vyre ---------------------------------------------------------------------------
 
-interface Pushed { pushed: number; held: number; errors: string[]; kept: number }
+interface Pushed {
+  pushed: number;
+  held: number;
+  errors: string[];
+  kept: number;
+}
 
 /** The name a Vyre edit is kept under when the file moved on at the provider: "Report (Noah's edit).docx". */
 function copyName(name: string, who: string): string {
@@ -482,7 +619,8 @@ function whoLabel(m: MountRec): string {
 
 const depthOf = (rows: readonly Row[], row: Row): number => {
   let d = 0;
-  for (let at: Row | undefined = row; at && !isNull(at["parent_key"]) && d < 64; d++) at = rows.find((r) => r["item_key"] === at?.["parent_key"]);
+  for (let at: Row | undefined = row; at && !isNull(at["parent_key"]) && d < 64; d++)
+    at = rows.find((r) => r["item_key"] === at?.["parent_key"]);
   return d;
 };
 
@@ -505,7 +643,9 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
   res.errors.push(...mv.errors);
 
   // new folders, parents first
-  const folders = rows.filter((r) => flag(r["dirty"]) && flag(r["is_folder"]) && !flag(r["deleted"]) && isNull(r["remote_id"])).sort((a, b) => depthOf(rows, a) - depthOf(rows, b));
+  const folders = rows
+    .filter((r) => flag(r["dirty"]) && flag(r["is_folder"]) && !flag(r["deleted"]) && isNull(r["remote_id"]))
+    .sort((a, b) => depthOf(rows, a) - depthOf(rows, b));
   for (const f of folders) {
     const parent = parentRemote(f);
     if (parent === undefined || !provider.createFolder) continue;
@@ -518,35 +658,84 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
     }
   }
   // files: new and changed
-  const files = rows.filter((r) => flag(r["dirty"]) && !flag(r["is_folder"]) && !flag(r["deleted"]) && !flag(r["conflict"]) && !flag(r["native"]) && !isNull(r["file_id"]));
+  const files = rows.filter(
+    (r) =>
+      flag(r["dirty"]) &&
+      !flag(r["is_folder"]) &&
+      !flag(r["deleted"]) &&
+      !flag(r["conflict"]) &&
+      !flag(r["native"]) &&
+      !isNull(r["file_id"]),
+  );
   for (const f of files) {
     const parent = parentRemote(f);
     if (parent === undefined || !provider.upload) continue;
     try {
       const remoteId = isNull(f["remote_id"]) ? undefined : str(f["remote_id"]);
       // a change to a file that already exists there is sent with the version it was based on
-      const based: IfMatch = { ...(isNull(f["remote_version"]) ? {} : { version: str(f["remote_version"]) }), ...(isNull(f["remote_rev"]) ? {} : { revision: str(f["remote_rev"]) }) };
-      const up = await provider.upload(ctx, m, { fileId: str(f["file_id"]), name: str(f["name"]), parentRemote: parent, ...(remoteId !== undefined ? { remoteId } : {}), ...(remoteId !== undefined && based.revision !== undefined ? { ifMatch: based } : {}) });
+      const based: IfMatch = {
+        ...(isNull(f["remote_version"]) ? {} : { version: str(f["remote_version"]) }),
+        ...(isNull(f["remote_rev"]) ? {} : { revision: str(f["remote_rev"]) }),
+      };
+      const up = await provider.upload(ctx, m, {
+        fileId: str(f["file_id"]),
+        name: str(f["name"]),
+        parentRemote: parent,
+        ...(remoteId !== undefined ? { remoteId } : {}),
+        ...(remoteId !== undefined && based.revision !== undefined ? { ifMatch: based } : {}),
+      });
       if (up.stale) {
         // the file changed there since the last pull: keep both, never overwrite
         const kept = copyName(str(f["name"]), whoLabel(m));
         await provider.upload(ctx, m, { fileId: str(f["file_id"]), name: kept, parentRemote: parent });
         patchItem(ctx, f, { dirty: 0, conflict: 1, synced_version: f["local_version"] ?? null, dirty_by: null });
-        ctx.emit("mount.conflict", `folder/${m.folderId}`, { mountId: m.id, folderId: m.folderId, fileId: str(f["file_id"]), name: str(f["name"]), keptAs: kept });
+        ctx.emit("mount.conflict", `folder/${m.folderId}`, {
+          mountId: m.id,
+          folderId: m.folderId,
+          fileId: str(f["file_id"]),
+          name: str(f["name"]),
+          keptAs: kept,
+        });
         res.kept += 1;
         continue;
       }
       const by = isNull(f["dirty_by"]) ? ctx.principal.id : str(f["dirty_by"]);
       patchItem(ctx, f, {
-        remote_id: up.remoteId, remote_version: up.version ?? f["remote_version"] ?? null, cached_version: up.version ?? f["remote_version"] ?? null, remote_rev: up.revision ?? f["remote_rev"] ?? null,
-        ...(up.editor !== undefined ? { editor_name: up.editor.name ?? null, editor_email: up.editor.email ?? null } : {}),
-        synced_version: f["local_version"] ?? null, dirty: 0, dirty_by: null,
+        remote_id: up.remoteId,
+        remote_version: up.version ?? f["remote_version"] ?? null,
+        cached_version: up.version ?? f["remote_version"] ?? null,
+        remote_rev: up.revision ?? f["remote_rev"] ?? null,
+        ...(up.editor !== undefined
+          ? { editor_name: up.editor.name ?? null, editor_email: up.editor.email ?? null }
+          : {}),
+        synced_version: f["local_version"] ?? null,
+        dirty: 0,
+        dirty_by: null,
       });
       if (up.revision !== undefined) {
-        ctx.db.run("DELETE FROM mounts_revision WHERE mount_id = ? AND remote_id = ? AND revision_id = ?", m.id, up.remoteId, up.revision);
-        ctx.db.run("INSERT INTO mounts_revision (mount_id, remote_id, revision_id, by_actor, at) VALUES (?, ?, ?, ?, ?)", m.id, up.remoteId, up.revision, by, ctx.now());
+        ctx.db.run(
+          "DELETE FROM mounts_revision WHERE mount_id = ? AND remote_id = ? AND revision_id = ?",
+          m.id,
+          up.remoteId,
+          up.revision,
+        );
+        ctx.db.run(
+          "INSERT INTO mounts_revision (mount_id, remote_id, revision_id, by_actor, at) VALUES (?, ?, ?, ?, ?)",
+          m.id,
+          up.remoteId,
+          up.revision,
+          by,
+          ctx.now(),
+        );
       }
-      ctx.emit("mount.file_sent", `folder/${m.folderId}`, { mountId: m.id, folderId: m.folderId, fileId: str(f["file_id"]), name: str(f["name"]), ...(up.revision !== undefined ? { revisionId: up.revision } : {}), by });
+      ctx.emit("mount.file_sent", `folder/${m.folderId}`, {
+        mountId: m.id,
+        folderId: m.folderId,
+        fileId: str(f["file_id"]),
+        name: str(f["name"]),
+        ...(up.revision !== undefined ? { revisionId: up.revision } : {}),
+        by,
+      });
       res.pushed += 1;
     } catch (e) {
       settle(e);
@@ -569,13 +758,15 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
 
 /** Items waiting to go out (conflicted ones wait for a person, not for the next pass; a Google-native document only waits to be deleted, it is never uploaded). */
 function waiting(rows: readonly Row[]): number {
-  return rows.filter((r) => flag(r["dirty"]) && !flag(r["conflict"]) && (!flag(r["native"]) || flag(r["deleted"]))).length;
+  return rows.filter((r) => flag(r["dirty"]) && !flag(r["conflict"]) && (!flag(r["native"]) || flag(r["deleted"])))
+    .length;
 }
 
 // ---- the pass -----------------------------------------------------------------------------------------------
 
 function recOf(row: Row): MountRec {
-  const opt = (k: string): string | undefined => (typeof row[k] === "string" && row[k] !== "" ? (row[k] as string) : undefined);
+  const opt = (k: string): string | undefined =>
+    typeof row[k] === "string" && row[k] !== "" ? (row[k] as string) : undefined;
   const connectionId = opt("connection_id");
   const ref = opt("ref");
   const path = opt("path");
@@ -603,7 +794,12 @@ function recOf(row: Row): MountRec {
   };
 }
 
-interface PassResult { pulled: number; pushed: number; conflicts: number; failed: boolean }
+interface PassResult {
+  pulled: number;
+  pushed: number;
+  conflicts: number;
+  failed: boolean;
+}
 
 /** How soon the next pass is due: a push channel leaves the 5 minute backstop, a mount an app is showing is polled every 30 s, anything else every 5 minutes. */
 function intervalFor(ctx: Ctx, row: Row): number {
@@ -611,8 +807,10 @@ function intervalFor(ctx: Ctx, row: Row): number {
   return clientNear(ctx, row) ? LIVE_POLL_MS : SYNC_INTERVAL_MS;
 }
 
-const hasPush = (ctx: Ctx, row: Row): boolean => !isNull(row["watch_id"]) && (isNull(row["watch_expires"]) || num(row["watch_expires"]) > ctx.now());
-const clientNear = (ctx: Ctx, row: Row): boolean => !isNull(row["client_seen_at"]) && ctx.now() - num(row["client_seen_at"]) <= CLIENT_FRESH_MS;
+const hasPush = (ctx: Ctx, row: Row): boolean =>
+  !isNull(row["watch_id"]) && (isNull(row["watch_expires"]) || num(row["watch_expires"]) > ctx.now());
+const clientNear = (ctx: Ctx, row: Row): boolean =>
+  !isNull(row["client_seen_at"]) && ctx.now() - num(row["client_seen_at"]) <= CLIENT_FRESH_MS;
 
 async function scheduleNext(ctx: Ctx, row: Row): Promise<void> {
   const now = ctx.now();
@@ -651,8 +849,15 @@ async function ensureWatch(ctx: Ctx, row: Row, m: MountRec, provider: Provider):
     const fresh = await provider.watch(ctx, m, { address: `${base}${provider.hookPath}`, channelId: nid(ctx, "chn") });
     if (fresh === undefined) return;
     const old = { id: row["watch_id"], resource: row["watch_resource"] };
-    patchMount(ctx, row, { watch_id: fresh.id, watch_resource: fresh.resource ?? null, watch_expires: provider.watchRenewsItself ? null : fresh.expiresAt > 0 ? fresh.expiresAt : null });
-    if (!isNull(old.id) && provider.unwatch) await provider.unwatch(ctx, m, { id: str(old.id), ...(isNull(old.resource) ? {} : { resource: str(old.resource) }) }).catch(() => undefined);
+    patchMount(ctx, row, {
+      watch_id: fresh.id,
+      watch_resource: fresh.resource ?? null,
+      watch_expires: provider.watchRenewsItself ? null : fresh.expiresAt > 0 ? fresh.expiresAt : null,
+    });
+    if (!isNull(old.id) && provider.unwatch)
+      await provider
+        .unwatch(ctx, m, { id: str(old.id), ...(isNull(old.resource) ? {} : { resource: str(old.resource) }) })
+        .catch(() => undefined);
   } catch {
     if (soon) patchMount(ctx, row, { watch_id: null, watch_resource: null, watch_expires: null });
   }
@@ -665,11 +870,13 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
   return exclusive(`mount:${mountId}`, async () => {
     queued.delete(mountId);
     const row = mountRow(ctx, mountId);
-    if (row["state"] === "paused") return fail(ctx, "validation.precondition_failed", "This mount is paused. Resume it first.");
+    if (row["state"] === "paused")
+      return fail(ctx, "validation.precondition_failed", "This mount is paused. Resume it first.");
     const rows = itemsOf(ctx, mountId);
     const rec = recOf(row);
     // a mount of My Drive made before the alias was resolved scans once more, so the feed's parents (the real id) are known
-    const onAlias = rec.kind === "google_drive" && rows.some((r) => isNull(r["parent_key"]) && r["remote_id"] === DRIVE_ROOT_ALIAS);
+    const onAlias =
+      rec.kind === "google_drive" && rows.some((r) => isNull(r["parent_key"]) && r["remote_id"] === DRIVE_ROOT_ALIAS);
     const m: MountRec = onAlias ? (({ cursor: _old, ...rest }) => rest)(rec) : rec;
     const provider = providerOf(m.kind);
     const started = ctx.now();
@@ -683,7 +890,13 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
     const errors: string[] = [];
     try {
       if (m.kind === "github") {
-        const res = obj(await ctx.call("git.pull", { folderId: m.folderId, strategy: "ff_only", ...(m.branch !== undefined ? { branch: m.branch } : {}) }));
+        const res = obj(
+          await ctx.call("git.pull", {
+            folderId: m.folderId,
+            strategy: "ff_only",
+            ...(m.branch !== undefined ? { branch: m.branch } : {}),
+          }),
+        );
         pulled = res["updated"] === true ? 1 : 0;
         conflicts = list(res["conflicts"]).length;
         patchMount(ctx, row, { conflicts });
@@ -704,18 +917,44 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
     }
     const now = ctx.now();
     if (errors.length > 0) {
-      patchMount(ctx, row, { state: "failing", error: errors[0] ?? "The sync failed.", stale_since: isNull(row["stale_since"]) ? now : row["stale_since"], updated_at: now });
-      ctx.emit("mount.failed", `folder/${m.folderId}`, { mountId: m.id, folderId: m.folderId, error: errors[0] ?? "The sync failed." });
+      patchMount(ctx, row, {
+        state: "failing",
+        error: errors[0] ?? "The sync failed.",
+        stale_since: isNull(row["stale_since"]) ? now : row["stale_since"],
+        updated_at: now,
+      });
+      ctx.emit("mount.failed", `folder/${m.folderId}`, {
+        mountId: m.id,
+        folderId: m.folderId,
+        error: errors[0] ?? "The sync failed.",
+      });
       await scheduleNext(ctx, row);
       return { pulled, pushed, conflicts, failed: true };
     }
     const leftover = provider.pushes && !m.pullOnly && (held > 0 || waiting(itemsOf(ctx, m.id)) > 0);
-    patchMount(ctx, row, { state: "idle", error: null, last_sync_at: now, stale_since: leftover ? (isNull(row["stale_since"]) ? now : row["stale_since"]) : null, updated_at: now });
-    ctx.emit("mount.synced", `folder/${m.folderId}`, { mountId: m.id, folderId: m.folderId, pulled, pushed, conflicts: conflictCount(ctx, row), ms: Math.max(0, now - started) });
+    patchMount(ctx, row, {
+      state: "idle",
+      error: null,
+      last_sync_at: now,
+      stale_since: leftover ? (isNull(row["stale_since"]) ? now : row["stale_since"]) : null,
+      updated_at: now,
+    });
+    ctx.emit("mount.synced", `folder/${m.folderId}`, {
+      mountId: m.id,
+      folderId: m.folderId,
+      pulled,
+      pushed,
+      conflicts: conflictCount(ctx, row),
+      ms: Math.max(0, now - started),
+    });
     await ensureWatch(ctx, row, recOf(row), provider);
     if (kept > 0) {
       // a Vyre edit was kept as a copy: one more pass brings in the provider's version and the copy
-      try { await ctx.schedule(now + 1000, "mounts.sync_now", { mountId: m.id }); } catch { /* the next scheduled pass does it */ }
+      try {
+        await ctx.schedule(now + 1000, "mounts.sync_now", { mountId: m.id });
+      } catch {
+        /* the next scheduled pass does it */
+      }
     }
     await scheduleNext(ctx, row);
     return { pulled, pushed, conflicts, failed: false };
@@ -762,7 +1001,12 @@ function viewOf(ctx: Ctx, row: Row): Row {
     const push = hasPush(ctx, row);
     const idle = row["state"] === "idle" || row["state"] === "syncing";
     out["liveVia"] = push ? "push" : "poll";
-    out["live"] = idle && (push || (clientNear(ctx, row) && !isNull(row["last_sync_at"]) && ctx.now() - num(row["last_sync_at"]) <= 2 * LIVE_POLL_MS));
+    out["live"] =
+      idle &&
+      (push ||
+        (clientNear(ctx, row) &&
+          !isNull(row["last_sync_at"]) &&
+          ctx.now() - num(row["last_sync_at"]) <= 2 * LIVE_POLL_MS));
   }
   if (!isNull(row["ref"])) out["ref"] = str(row["ref"]);
   if (!isNull(row["last_sync_at"])) out["lastSyncAt"] = num(row["last_sync_at"]);
@@ -787,7 +1031,10 @@ const KINDS: readonly string[] = ["google_drive", "sharepoint", "onedrive", "dro
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 function baseName(p: string): string {
-  const parts = p.replace(/\\/g, "/").split("/").filter((s) => s.length > 0);
+  const parts = p
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter((s) => s.length > 0);
   return parts[parts.length - 1] ?? p;
 }
 
@@ -811,12 +1058,25 @@ async function localDefaultMode(ctx: Ctx): Promise<MountMode> {
   }
 }
 
-interface SourceIn { kind: MountKind; connectionId?: string; ref?: string; path?: string; branch?: string; deviceId?: string; localPath?: string }
+interface SourceIn {
+  kind: MountKind;
+  connectionId?: string;
+  ref?: string;
+  path?: string;
+  branch?: string;
+  deviceId?: string;
+  localPath?: string;
+}
 
 function sourceOf(ctx: Ctx, o: Row): SourceIn {
   const s = obj(o["source"]);
   const kind = str(s["kind"]);
-  if (!KINDS.includes(kind)) fail(ctx, "validation.bad_input", "source.kind must be google_drive, sharepoint, onedrive, dropbox, local or github.");
+  if (!KINDS.includes(kind))
+    fail(
+      ctx,
+      "validation.bad_input",
+      "source.kind must be google_drive, sharepoint, onedrive, dropbox, local or github.",
+    );
   const out: SourceIn = { kind: kind as MountKind };
   for (const k of ["connectionId", "ref", "path", "branch", "deviceId", "localPath"] as const) {
     const v = optStr(s, k);
@@ -846,14 +1106,27 @@ function sourceOf(ctx: Ctx, o: Row): SourceIn {
 }
 
 const sameSource = (row: Row, s: SourceIn): boolean =>
-  str(row["kind"]) === s.kind && str(row["connection_id"]) === (s.connectionId ?? "") && str(row["ref"]) === (s.ref ?? "") && str(row["path"]) === (s.path ?? "")
-  && str(row["device_id"]) === (s.deviceId ?? "") && str(row["local_path"]) === (s.localPath ?? "");
+  str(row["kind"]) === s.kind &&
+  str(row["connection_id"]) === (s.connectionId ?? "") &&
+  str(row["ref"]) === (s.ref ?? "") &&
+  str(row["path"]) === (s.path ?? "") &&
+  str(row["device_id"]) === (s.deviceId ?? "") &&
+  str(row["local_path"]) === (s.localPath ?? "");
 
 /** The work address a cloud mount will sync as: the one the person making it is matched to. None when the provider is not set up for them; the pass then fails with the provider's own words. */
 async function accountOf(ctx: Ctx, kind: MountKind): Promise<string | null> {
-  const cap = kind === "google_drive" ? "google.dwd.my_account" : kind === "sharepoint" || kind === "onedrive" ? "ms.consent.my_account" : undefined;
+  const cap =
+    kind === "google_drive"
+      ? "google.dwd.my_account"
+      : kind === "sharepoint" || kind === "onedrive"
+        ? "ms.consent.my_account"
+        : undefined;
   if (cap === undefined) return null;
-  try { return optStr(obj(await ctx.call(cap, {})), "email") ?? null; } catch { return null; }
+  try {
+    return optStr(obj(await ctx.call(cap, {})), "email") ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function mountsAdd(ctx: Ctx, input: unknown): Promise<{ mountId: string; folderId: string; runId: string }> {
@@ -861,30 +1134,82 @@ async function mountsAdd(ctx: Ctx, input: unknown): Promise<{ mountId: string; f
   const into = reqStr(ctx, o, "into");
   const source = sourceOf(ctx, o);
   const modeIn = optStr(o, "mode");
-  if (modeIn !== undefined && modeIn !== "server_copy" && modeIn !== "live_only") fail(ctx, "validation.bad_input", "mode must be server_copy or live_only.");
-  if (modeIn === "live_only" && source.kind === "github") fail(ctx, "validation.bad_input", "A GitHub repository is always a copy.");
+  if (modeIn !== undefined && modeIn !== "server_copy" && modeIn !== "live_only")
+    fail(ctx, "validation.bad_input", "mode must be server_copy or live_only.");
+  if (modeIn === "live_only" && source.kind === "github")
+    fail(ctx, "validation.bad_input", "A GitHub repository is always a copy.");
   const account = await accountOf(ctx, source.kind);
   // two people may hold the same source: each syncs as themselves
-  if (liveMounts(ctx).some((r) => sameSource(r, source) && str(r["account"]) === (account ?? ""))) fail(ctx, "validation.duplicate", "That is already mounted.");
+  if (liveMounts(ctx).some((r) => sameSource(r, source) && str(r["account"]) === (account ?? "")))
+    fail(ctx, "validation.duplicate", "That is already mounted.");
   // a cloud folder is live by default (tree and metadata from the provider, content fetched on open); a synced copy is a choice
-  const mode: MountMode = source.kind === "local" ? (modeIn === "live_only" || modeIn === "server_copy" ? modeIn : await localDefaultMode(ctx))
-    : isCloud(source.kind) ? (modeIn === "server_copy" ? "server_copy" : "live_only") : "server_copy";
+  const mode: MountMode =
+    source.kind === "local"
+      ? modeIn === "live_only" || modeIn === "server_copy"
+        ? modeIn
+        : await localDefaultMode(ctx)
+      : isCloud(source.kind)
+        ? modeIn === "server_copy"
+          ? "server_copy"
+          : "live_only"
+        : "server_copy";
   const reviewIn = o["reviewChanges"];
-  const review = typeof reviewIn === "boolean" ? reviewIn : await settingFlag(ctx, source.kind === "github" ? "git" : isCloud(source.kind) ? "cloud_mount" : "plain");
+  const review =
+    typeof reviewIn === "boolean"
+      ? reviewIn
+      : await settingFlag(ctx, source.kind === "github" ? "git" : isCloud(source.kind) ? "cloud_mount" : "plain");
   const repoName = source.ref !== undefined ? baseName(source.ref) : "";
-  const name = optStr(o, "name") ?? (source.kind === "local" ? baseName(source.localPath ?? "Folder") : source.kind === "github" ? repoName : PROVIDER_LABEL[source.kind]);
+  const name =
+    optStr(o, "name") ??
+    (source.kind === "local"
+      ? baseName(source.localPath ?? "Folder")
+      : source.kind === "github"
+        ? repoName
+        : PROVIDER_LABEL[source.kind]);
 
   const folderId = await filesCreateFolder(ctx, into, name, review);
   const now = ctx.now();
   const mountId = nid(ctx, "mnt");
   const fields: Row = {
-    id: mountId, folder_id: folderId, kind: source.kind, connection_id: source.connectionId ?? null, ref: source.ref ?? null, path: source.path ?? null, branch: source.branch ?? null,
-    device_id: source.deviceId ?? null, local_path: source.localPath ?? null, name, mode, review_changes: review ? 1 : 0, pull_only: 0, state: "idle", cursor: null, owner: ctx.principal.id, account,
-    last_sync_at: null, stale_since: null, next_sync_at: null, conflicts: 0, error: null, created_at: now, updated_at: now, deleted_at: null,
+    id: mountId,
+    folder_id: folderId,
+    kind: source.kind,
+    connection_id: source.connectionId ?? null,
+    ref: source.ref ?? null,
+    path: source.path ?? null,
+    branch: source.branch ?? null,
+    device_id: source.deviceId ?? null,
+    local_path: source.localPath ?? null,
+    name,
+    mode,
+    review_changes: review ? 1 : 0,
+    pull_only: 0,
+    state: "idle",
+    cursor: null,
+    owner: ctx.principal.id,
+    account,
+    last_sync_at: null,
+    stale_since: null,
+    next_sync_at: null,
+    conflicts: 0,
+    error: null,
+    created_at: now,
+    updated_at: now,
+    deleted_at: null,
   };
   const cols = Object.keys(fields);
-  ctx.db.run(`INSERT INTO mounts_mount (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`, ...cols.map((c) => fields[c]));
-  const rootRemote = source.kind === "google_drive" || source.kind === "dropbox" ? source.ref ?? null : source.kind === "sharepoint" || source.kind === "onedrive" ? source.path ?? null : source.kind === "local" ? "" : null;
+  ctx.db.run(
+    `INSERT INTO mounts_mount (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`,
+    ...cols.map((c) => fields[c]),
+  );
+  const rootRemote =
+    source.kind === "google_drive" || source.kind === "dropbox"
+      ? (source.ref ?? null)
+      : source.kind === "sharepoint" || source.kind === "onedrive"
+        ? (source.path ?? null)
+        : source.kind === "local"
+          ? ""
+          : null;
   insertItem(ctx, mountId, { key: "root", remoteId: rootRemote, parentKey: null, folderId, name, isFolder: true });
   await markSource(ctx, mountRow(ctx, mountId));
   ctx.emit("folder.mounted", `folder/${folderId}`, { mountId, folderId, kind: source.kind, by: ctx.principal.id });
@@ -919,14 +1244,30 @@ async function mountsCompanyDrive(ctx: Ctx): Promise<{ mounted: string[] }> {
   const mounted: string[] = [];
   for (const d of COMPANY_DRIVES) {
     let me: Row;
-    try { me = obj(await ctx.call(d.cap, {})); } catch { continue; }
-    const account = optStr(me, "email"), connectionId = optStr(me, "connectionId");
+    try {
+      me = obj(await ctx.call(d.cap, {}));
+    } catch {
+      continue;
+    }
+    const account = optStr(me, "email"),
+      connectionId = optStr(me, "connectionId");
     if (!account || !connectionId || me["files"] !== true) continue;
-    if (liveMounts(ctx).some((r) => str(r["kind"]) === d.kind && str(r["owner"]) === ctx.principal.id && str(r["account"]) === account)) continue;
-    const personal = list(obj(await ctx.call("files.tree", {}))["roots"]).map(obj).find((r) => r["key"] === "personal");
+    if (
+      liveMounts(ctx).some(
+        (r) => str(r["kind"]) === d.kind && str(r["owner"]) === ctx.principal.id && str(r["account"]) === account,
+      )
+    )
+      continue;
+    const personal = list(obj(await ctx.call("files.tree", {}))["roots"])
+      .map(obj)
+      .find((r) => r["key"] === "personal");
     const into = optStr(personal ?? {}, "folderId");
     if (!into) continue;
-    const made = await mountsAdd(ctx, { into, name: d.name, source: { kind: d.kind, connectionId, ...("ref" in d ? { ref: d.ref } : {}) } });
+    const made = await mountsAdd(ctx, {
+      into,
+      name: d.name,
+      source: { kind: d.kind, connectionId, ...("ref" in d ? { ref: d.ref } : {}) },
+    });
     mounted.push(made.mountId);
   }
   return { mounted };
@@ -940,8 +1281,17 @@ async function mountsAccountPause(ctx: Ctx, input: unknown): Promise<{ changed: 
   let changed = 0;
   for (const row of liveMounts(ctx).filter((r) => str(r["account"]).toLowerCase() === account)) {
     if ((row["state"] === "paused") === paused) continue;
-    patchMount(ctx, row, paused ? { state: "paused", next_sync_at: null, updated_at: ctx.now() } : { state: "idle", updated_at: ctx.now() });
-    ctx.emit(paused ? "mount.paused" : "mount.resumed", `folder/${str(row["folder_id"])}`, { mountId: str(row["id"]), folderId: str(row["folder_id"]) });
+    patchMount(
+      ctx,
+      row,
+      paused
+        ? { state: "paused", next_sync_at: null, updated_at: ctx.now() }
+        : { state: "idle", updated_at: ctx.now() },
+    );
+    ctx.emit(paused ? "mount.paused" : "mount.resumed", `folder/${str(row["folder_id"])}`, {
+      mountId: str(row["id"]),
+      folderId: str(row["folder_id"]),
+    });
     changed += 1;
   }
   return { changed };
@@ -951,7 +1301,12 @@ async function mountsSyncNow(ctx: Ctx, input: unknown): Promise<{ runId: string 
   const o = record(ctx, input);
   const mountId = reqStr(ctx, o, "mountId");
   const row = mountRow(ctx, mountId);
-  if (str(row["kind"]) === "local") fail(ctx, "validation.precondition_failed", "A folder on your computer syncs when that computer reports. Turn the computer on and open Vyre there.");
+  if (str(row["kind"]) === "local")
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "A folder on your computer syncs when that computer reports. Turn the computer on and open Vyre there.",
+    );
   await runPass(ctx, mountId);
   return { runId: ctx.run ?? nid(ctx, "run") };
 }
@@ -964,7 +1319,11 @@ async function mountsList(ctx: Ctx, input: unknown): Promise<Row> {
   const limit = typeof limitIn === "number" && Number.isInteger(limitIn) ? Math.min(Math.max(limitIn, 1), 500) : 100;
   const all = liveMounts(ctx).filter((r) => (kind === undefined || str(r["kind"]) === kind) && maySee(ctx, r));
   const page = all.slice(offset, offset + limit);
-  return { mounts: page.map((r) => viewOf(ctx, r)), ...(offset + limit < all.length ? { next: String(offset + limit) } : {}), total: all.length };
+  return {
+    mounts: page.map((r) => viewOf(ctx, r)),
+    ...(offset + limit < all.length ? { next: String(offset + limit) } : {}),
+    total: all.length,
+  };
 }
 
 /**
@@ -973,7 +1332,12 @@ async function mountsList(ctx: Ctx, input: unknown): Promise<Row> {
  * drops what names no place.
  */
 function absoluteLocal(p: string): boolean {
-  return p.startsWith("/") || /^[A-Za-z]:[\\/]/.test(p) || /^\\\\\?\\(?:[A-Za-z]:\\|UNC\\[^\\]+\\[^\\]+)/i.test(p) || /^[\\/]{2}[^\\/?.][^\\/]*[\\/][^\\/]+/.test(p);
+  return (
+    p.startsWith("/") ||
+    /^[A-Za-z]:[\\/]/.test(p) ||
+    /^\\\\\?\\(?:[A-Za-z]:\\|UNC\\[^\\]+\\[^\\]+)/i.test(p) ||
+    /^[\\/]{2}[^\\/?.][^\\/]*[\\/][^\\/]+/.test(p)
+  );
 }
 
 /**
@@ -981,12 +1345,25 @@ function absoluteLocal(p: string): boolean {
  * engine process starts); a person, an agent or an outside actor is refused, since the paths are of the person's machine. A folder the person mounted is theirs to work in, private or shared.
  */
 async function engineFolders(ctx: Ctx, input: unknown): Promise<{ folders: Row[] }> {
-  if (!isHostService(ctx.principal)) fail(ctx, "permission.no_grant", "only Vyre itself reads where a person's folders are on their computer");
+  if (!isHostService(ctx.principal))
+    fail(ctx, "permission.no_grant", "only Vyre itself reads where a person's folders are on their computer");
   const o = record(ctx, input);
   const person = optStr(o, "person");
   if (person === undefined) fail(ctx, "validation.bad_input", "person is required");
-  const folders = liveMounts(ctx).filter((r) => str(r["kind"]) === "local" && str(r["owner"]) === person && typeof r["local_path"] === "string" && absoluteLocal(r["local_path"] as string))
-    .map((r) => ({ mountId: str(r["id"]), folderId: str(r["folder_id"]), ...(typeof r["device_id"] === "string" && r["device_id"] !== "" ? { deviceId: r["device_id"] } : {}), path: r["local_path"] as string }));
+  const folders = liveMounts(ctx)
+    .filter(
+      (r) =>
+        str(r["kind"]) === "local" &&
+        str(r["owner"]) === person &&
+        typeof r["local_path"] === "string" &&
+        absoluteLocal(r["local_path"] as string),
+    )
+    .map((r) => ({
+      mountId: str(r["id"]),
+      folderId: str(r["folder_id"]),
+      ...(typeof r["device_id"] === "string" && r["device_id"] !== "" ? { deviceId: r["device_id"] } : {}),
+      path: r["local_path"] as string,
+    }));
   return { folders };
 }
 
@@ -1000,9 +1377,14 @@ async function mountsGet(ctx: Ctx, input: unknown): Promise<{ mount: Row }> {
 async function mountsBrowse(ctx: Ctx, input: unknown): Promise<Row> {
   const o = record(ctx, input);
   const kind = reqStr(ctx, o, "kind");
-  if (!KINDS.includes(kind)) fail(ctx, "validation.bad_input", "kind must be google_drive, sharepoint, onedrive, dropbox, local or github.");
+  if (!KINDS.includes(kind))
+    fail(ctx, "validation.bad_input", "kind must be google_drive, sharepoint, onedrive, dropbox, local or github.");
   const connectionId = optStr(o, "connectionId");
-  if ((kind === "google_drive" || kind === "sharepoint" || kind === "onedrive" || kind === "dropbox") && connectionId === undefined) fail(ctx, "validation.bad_input", "Choose the connection to browse first.");
+  if (
+    (kind === "google_drive" || kind === "sharepoint" || kind === "onedrive" || kind === "dropbox") &&
+    connectionId === undefined
+  )
+    fail(ctx, "validation.bad_input", "Choose the connection to browse first.");
   const limitIn = o["limit"];
   const parent = optStr(o, "parent");
   const q = optStr(o, "q");
@@ -1025,14 +1407,18 @@ async function mountsUpdate(ctx: Ctx, input: unknown): Promise<{ mount: Row }> {
   const patch: Row = {};
   const mode = optStr(o, "mode");
   if (mode !== undefined) {
-    if (mode !== "server_copy" && mode !== "live_only") fail(ctx, "validation.bad_input", "mode must be server_copy or live_only.");
-    if (mode === "live_only" && str(row["kind"]) === "github") fail(ctx, "validation.bad_input", "A GitHub repository is always a copy.");
+    if (mode !== "server_copy" && mode !== "live_only")
+      fail(ctx, "validation.bad_input", "mode must be server_copy or live_only.");
+    if (mode === "live_only" && str(row["kind"]) === "github")
+      fail(ctx, "validation.bad_input", "A GitHub repository is always a copy.");
     if (mode !== row["mode"]) {
       patch["mode"] = mode;
       fields.push("mode");
       if (mode === "server_copy" && isCloud(str(row["kind"]) as MountKind)) {
         // becoming a copy: every file whose content was never fetched, or is stale, reads as changed, and the rescan brings it in
-        for (const it of itemsOf(ctx, str(row["id"]))) if (!flag(it["is_folder"]) && !isNull(it["remote_version"]) && it["cached_version"] !== it["remote_version"]) patchItem(ctx, it, { remote_version: null });
+        for (const it of itemsOf(ctx, str(row["id"])))
+          if (!flag(it["is_folder"]) && !isNull(it["remote_version"]) && it["cached_version"] !== it["remote_version"])
+            patchItem(ctx, it, { remote_version: null });
         patch["cursor"] = null;
       }
     }
@@ -1055,9 +1441,17 @@ async function mountsUpdate(ctx: Ctx, input: unknown): Promise<{ mount: Row }> {
   }
   if (fields.length > 0) {
     patchMount(ctx, row, { ...patch, updated_at: ctx.now() });
-    ctx.emit("mount.updated", `folder/${str(row["folder_id"])}`, { mountId: str(row["id"]), folderId: str(row["folder_id"]), fields });
+    ctx.emit("mount.updated", `folder/${str(row["folder_id"])}`, {
+      mountId: str(row["id"]),
+      folderId: str(row["folder_id"]),
+      fields,
+    });
     if (patch["cursor"] === null) {
-      try { await ctx.schedule(ctx.now(), "mounts.sync_now", { mountId: str(row["id"]) }); } catch { /* the next pass brings the content in */ }
+      try {
+        await ctx.schedule(ctx.now(), "mounts.sync_now", { mountId: str(row["id"]) });
+      } catch {
+        /* the next pass brings the content in */
+      }
     }
   }
   return { mount: viewOf(ctx, row) };
@@ -1073,7 +1467,11 @@ async function mountsRemove(ctx: Ctx, input: unknown): Promise<{ removed: boolea
     else await markSource(ctx, row, false);
     ctx.db.run("DELETE FROM mounts_item WHERE mount_id = ?", row["id"]);
     patchMount(ctx, row, { deleted_at: ctx.now(), updated_at: ctx.now(), next_sync_at: null });
-    ctx.emit("mount.removed", `folder/${str(row["folder_id"])}`, { mountId: str(row["id"]), folderId: str(row["folder_id"]), keptCopy: keepCopy });
+    ctx.emit("mount.removed", `folder/${str(row["folder_id"])}`, {
+      mountId: str(row["id"]),
+      folderId: str(row["folder_id"]),
+      keptCopy: keepCopy,
+    });
     return { removed: true };
   });
 }
@@ -1083,7 +1481,10 @@ async function mountsPause(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
   mayManage(ctx, row);
   if (row["state"] === "paused") return { ok: true };
   patchMount(ctx, row, { state: "paused", next_sync_at: null, updated_at: ctx.now() });
-  ctx.emit("mount.paused", `folder/${str(row["folder_id"])}`, { mountId: str(row["id"]), folderId: str(row["folder_id"]) });
+  ctx.emit("mount.paused", `folder/${str(row["folder_id"])}`, {
+    mountId: str(row["id"]),
+    folderId: str(row["folder_id"]),
+  });
   return { ok: true };
 }
 
@@ -1092,7 +1493,10 @@ async function mountsResume(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> 
   mayManage(ctx, row);
   if (row["state"] !== "paused") return { ok: true };
   patchMount(ctx, row, { state: "idle", updated_at: ctx.now() });
-  ctx.emit("mount.resumed", `folder/${str(row["folder_id"])}`, { mountId: str(row["id"]), folderId: str(row["folder_id"]) });
+  ctx.emit("mount.resumed", `folder/${str(row["folder_id"])}`, {
+    mountId: str(row["id"]),
+    folderId: str(row["folder_id"]),
+  });
   if (str(row["kind"]) !== "local") {
     try {
       await ctx.schedule(ctx.now(), "mounts.sync_now", { mountId: str(row["id"]) });
@@ -1107,8 +1511,12 @@ async function mountsResume(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> 
 
 const cleanPath = (ctx: Ctx, v: unknown): string => {
   if (typeof v !== "string") return fail(ctx, "validation.bad_input", "Every change needs a path.");
-  const norm = v.replace(/\\/g, "/").split("/").filter((s) => s.length > 0 && s !== ".");
-  if (norm.length === 0 || norm.includes("..") || v.includes("\u0000")) return fail(ctx, "validation.bad_input", "A path must stay inside the mounted folder.");
+  const norm = v
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter((s) => s.length > 0 && s !== ".");
+  if (norm.length === 0 || norm.includes("..") || v.includes("\u0000"))
+    return fail(ctx, "validation.bad_input", "A path must stay inside the mounted folder.");
   return norm.join("/");
 };
 
@@ -1126,8 +1534,20 @@ async function ensureDir(ctx: Ctx, m: MountRec, rows: Row[], dir: string): Promi
       at = have;
       continue;
     }
-    const made = await withFreeName(ctx, seg, "device", new Set(rows.filter((r) => r["parent_key"] === at["item_key"]).map((r) => str(r["name"]))), (n) => filesCreateFolder(ctx, str(at["folder_id"]), n));
-    const created = insertItem(ctx, m.id, { remoteId: prefix, parentKey: str(at["item_key"]), folderId: made.value, name: seg, isFolder: true });
+    const made = await withFreeName(
+      ctx,
+      seg,
+      "device",
+      new Set(rows.filter((r) => r["parent_key"] === at["item_key"]).map((r) => str(r["name"]))),
+      (n) => filesCreateFolder(ctx, str(at["folder_id"]), n),
+    );
+    const created = insertItem(ctx, m.id, {
+      remoteId: prefix,
+      parentKey: str(at["item_key"]),
+      folderId: made.value,
+      name: seg,
+      isFolder: true,
+    });
     rows.push(created);
     at = created;
   }
@@ -1137,7 +1557,13 @@ async function ensureDir(ctx: Ctx, m: MountRec, rows: Row[], dir: string): Promi
 const dirOf = (p: string): string => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
 const leafOf = (p: string): string => (p.includes("/") ? p.slice(p.lastIndexOf("/") + 1) : p);
 
-async function applyLocal(ctx: Ctx, m: MountRec, rows: Row[], ch: Row, device: string): Promise<{ applied: number; conflicts: number }> {
+async function applyLocal(
+  ctx: Ctx,
+  m: MountRec,
+  rows: Row[],
+  ch: Row,
+  device: string,
+): Promise<{ applied: number; conflicts: number }> {
   const path = cleanPath(ctx, ch["path"]);
   const op = str(ch["op"]);
   const mtime = String(num(ch["mtime"]));
@@ -1156,11 +1582,21 @@ async function applyLocal(ctx: Ctx, m: MountRec, rows: Row[], ch: Row, device: s
       const folder = flag(row["is_folder"]);
       const idKey = folder ? "folderId" : "fileId";
       const id = str(row[folder ? "folder_id" : "file_id"]);
-      if (leafOf(path) !== row["name"]) await ctx.call(folder ? "files.folder.rename" : "files.rename", { [idKey]: id, name: leafOf(path) });
-      if (row["parent_key"] !== parent["item_key"]) await ctx.call(folder ? "files.folder.move" : "files.move", folder ? { folderId: id, toParentId: str(parent["folder_id"]) } : { fileId: id, toFolderId: str(parent["folder_id"]) });
+      if (leafOf(path) !== row["name"])
+        await ctx.call(folder ? "files.folder.rename" : "files.rename", { [idKey]: id, name: leafOf(path) });
+      if (row["parent_key"] !== parent["item_key"])
+        await ctx.call(
+          folder ? "files.folder.move" : "files.move",
+          folder
+            ? { folderId: id, toParentId: str(parent["folder_id"]) }
+            : { fileId: id, toFolderId: str(parent["folder_id"]) },
+        );
       for (const r of subtreeOf(rows, row)) {
         const old = str(r["remote_id"]);
-        patchItem(ctx, r, { remote_id: r === row ? path : `${path}${old.slice(from.length)}`, ...(r === row ? { name: leafOf(path), parent_key: parent["item_key"] } : {}) });
+        patchItem(ctx, r, {
+          remote_id: r === row ? path : `${path}${old.slice(from.length)}`,
+          ...(r === row ? { name: leafOf(path), parent_key: parent["item_key"] } : {}),
+        });
       }
       return { applied: 1, conflicts: 0 };
     }
@@ -1174,12 +1610,34 @@ async function applyLocal(ctx: Ctx, m: MountRec, rows: Row[], ch: Row, device: s
       if (row["remote_version"] === mtime) return { applied: 0, conflicts: 0 };
       const clash = flag(row["dirty"]);
       const version = await filesWrite(ctx, str(row["file_id"]), blobId, `From ${device}`);
-      patchItem(ctx, row, { remote_version: mtime, synced_version: version, local_version: version, dirty: 0, conflict: 0 });
+      patchItem(ctx, row, {
+        remote_version: mtime,
+        synced_version: version,
+        local_version: version,
+        dirty: 0,
+        conflict: 0,
+      });
       return { applied: 1, conflicts: clash ? 1 : 0 };
     }
     const parent = await ensureDir(ctx, m, rows, dirOf(path));
-    const made = await withFreeName(ctx, leafOf(path), "device", new Set(rows.filter((r) => r["parent_key"] === parent["item_key"]).map((r) => str(r["name"]))), (n) => filesCreate(ctx, str(parent["folder_id"]), n, blobId));
-    rows.push(insertItem(ctx, m.id, { remoteId: path, parentKey: str(parent["item_key"]), fileId: made.value.fileId, name: leafOf(path), isFolder: false, remoteVersion: mtime, version: made.value.version }));
+    const made = await withFreeName(
+      ctx,
+      leafOf(path),
+      "device",
+      new Set(rows.filter((r) => r["parent_key"] === parent["item_key"]).map((r) => str(r["name"]))),
+      (n) => filesCreate(ctx, str(parent["folder_id"]), n, blobId),
+    );
+    rows.push(
+      insertItem(ctx, m.id, {
+        remoteId: path,
+        parentKey: str(parent["item_key"]),
+        fileId: made.value.fileId,
+        name: leafOf(path),
+        isFolder: false,
+        remoteVersion: mtime,
+        version: made.value.version,
+      }),
+    );
     return { applied: 1, conflicts: made.renamed ? 1 : 0 };
   }
   return fail(ctx, "validation.bad_input", "op must be add, modify, delete or rename.");
@@ -1189,14 +1647,16 @@ async function localReport(ctx: Ctx, input: unknown): Promise<{ applied: number;
   const o = record(ctx, input);
   const row = mountRow(ctx, reqStr(ctx, o, "mountId"));
   const deviceId = reqStr(ctx, o, "deviceId");
-  if (str(row["kind"]) !== "local") fail(ctx, "validation.precondition_failed", "Only a folder on a computer takes a device report.");
+  if (str(row["kind"]) !== "local")
+    fail(ctx, "validation.precondition_failed", "Only a folder on a computer takes a device report.");
   if (row["device_id"] !== deviceId) fail(ctx, "permission.no_grant", "That computer does not hold this folder.");
   const changes = list(o["changes"]).map((c) => obj(c));
   // a bad request is refused whole, before anything is applied or the mount is marked
   for (const ch of changes) {
     cleanPath(ctx, ch["path"]);
     const op = str(ch["op"]);
-    if (op !== "add" && op !== "modify" && op !== "delete" && op !== "rename") fail(ctx, "validation.bad_input", "op must be add, modify, delete or rename.");
+    if (op !== "add" && op !== "modify" && op !== "delete" && op !== "rename")
+      fail(ctx, "validation.bad_input", "op must be add, modify, delete or rename.");
     if (op === "rename") cleanPath(ctx, ch["from"]);
   }
   return exclusive(`mount:${str(row["id"])}`, async () => {
@@ -1216,14 +1676,32 @@ async function localReport(ctx: Ctx, input: unknown): Promise<{ applied: number;
           conflicts += r.conflicts;
         }
       } catch (e) {
-        patchMount(ctx, row, { state: "failing", error: messageOf(e), stale_since: isNull(row["stale_since"]) ? ctx.now() : row["stale_since"], updated_at: ctx.now() });
+        patchMount(ctx, row, {
+          state: "failing",
+          error: messageOf(e),
+          stale_since: isNull(row["stale_since"]) ? ctx.now() : row["stale_since"],
+          updated_at: ctx.now(),
+        });
         ctx.emit("mount.failed", `folder/${m.folderId}`, { mountId: m.id, folderId: m.folderId, error: messageOf(e) });
         throw e;
       }
     }
     const now = ctx.now();
-    patchMount(ctx, row, { state: row["state"] === "paused" ? "paused" : "idle", error: null, last_sync_at: now, stale_since: null, updated_at: now });
-    ctx.emit("mount.synced", `folder/${m.folderId}`, { mountId: m.id, folderId: m.folderId, pulled: applied, pushed: 0, conflicts, ms: Math.max(0, now - started) });
+    patchMount(ctx, row, {
+      state: row["state"] === "paused" ? "paused" : "idle",
+      error: null,
+      last_sync_at: now,
+      stale_since: null,
+      updated_at: now,
+    });
+    ctx.emit("mount.synced", `folder/${m.folderId}`, {
+      mountId: m.id,
+      folderId: m.folderId,
+      pulled: applied,
+      pushed: 0,
+      conflicts,
+      ms: Math.max(0, now - started),
+    });
     return { applied, conflicts };
   });
 }
@@ -1231,7 +1709,9 @@ async function localReport(ctx: Ctx, input: unknown): Promise<{ applied: number;
 // ---- opening a file, its history, who edited it, push notices ----------------------------------------------
 
 function itemOfFile(ctx: Ctx, fileId: string): Row | undefined {
-  return (ctx.db.all("SELECT * FROM mounts_item WHERE file_id = ?", fileId) as Row[]).find((r) => !isNull(r["remote_id"]));
+  return (ctx.db.all("SELECT * FROM mounts_item WHERE file_id = ?", fileId) as Row[]).find(
+    (r) => !isNull(r["remote_id"]),
+  );
 }
 
 /** The live mount a file belongs to, with its provider; undefined when the file is not in a mount (or the mount was removed). */
@@ -1242,13 +1722,19 @@ function mountOfItem(ctx: Ctx, item: Row): { row: Row; m: MountRec; provider: Pr
   return { row, m, provider: providerOf(m.kind) };
 }
 
-const personOut = (name: unknown, email: unknown): Row => ({ ...(isNull(name) ? {} : { name: str(name) }), ...(isNull(email) ? {} : { email: str(email) }) });
+const personOut = (name: unknown, email: unknown): Row => ({
+  ...(isNull(name) ? {} : { name: str(name) }),
+  ...(isNull(email) ? {} : { email: str(email) }),
+});
 
 function sourceView(ctx: Ctx, item: Row, row: Row): Row {
   const kind = str(row["kind"]) as MountKind;
   const out: Row = {
-    mountId: str(row["id"]), provider: PROVIDER_LABEL[kind], remoteId: str(item["remote_id"]),
-    cached: flag(item["is_folder"]) || (!isNull(item["cached_version"]) && item["cached_version"] === item["remote_version"]),
+    mountId: str(row["id"]),
+    provider: PROVIDER_LABEL[kind],
+    remoteId: str(item["remote_id"]),
+    cached:
+      flag(item["is_folder"]) || (!isNull(item["cached_version"]) && item["cached_version"] === item["remote_version"]),
     conflict: flag(item["conflict"]),
   };
   if (!isNull(item["remote_rev"])) out["revisionId"] = str(item["remote_rev"]);
@@ -1271,28 +1757,62 @@ async function mountsOpen(ctx: Ctx, input: unknown): Promise<Row> {
   let offline = false;
   if (isLive(m) && provider.download && !flag(first["is_folder"])) {
     await exclusive(`mount:${m.id}`, async () => {
-      const item = (ctx.db.all("SELECT * FROM mounts_item WHERE mount_id = ? AND item_key = ?", m.id, first["item_key"]) as Row[])[0] ?? first;
+      const item =
+        (
+          ctx.db.all("SELECT * FROM mounts_item WHERE mount_id = ? AND item_key = ?", m.id, first["item_key"]) as Row[]
+        )[0] ?? first;
       let fresh: RemoteItem | undefined;
-      try { fresh = provider.stat ? await provider.stat(ctx, m, str(item["remote_id"])) : undefined; } catch { offline = true; }
+      try {
+        fresh = provider.stat ? await provider.stat(ctx, m, str(item["remote_id"])) : undefined;
+      } catch {
+        offline = true;
+      }
       const want = fresh?.version ?? (isNull(item["remote_version"]) ? undefined : str(item["remote_version"]));
       if (fresh) patchItem(ctx, item, { name: item["name"], ...metaOf(fresh) });
       if (flag(item["dirty"]) || want === undefined || item["cached_version"] === want) return;
       // a Google-native file is exported in the format of its kind; one with no export (a Form, a Site) has nothing to fetch and opens at Google
       if (flag(item["native"]) && (fresh?.mime === undefined || !fetchable({ mime: fresh.mime, native: true }))) return;
-      const dl = await provider.download!(ctx, m, { remoteId: str(item["remote_id"]), name: str(item["name"]), ...(fresh?.mime !== undefined ? { mime: fresh.mime } : {}), ...(flag(item["native"]) ? { native: true } : {}) });
-      const r = obj(await ctx.call("files.write", { fileId, content: { blobId: dl.blobId }, reason: `Fetched from ${provider.label}` }));
+      const dl = await provider.download!(ctx, m, {
+        remoteId: str(item["remote_id"]),
+        name: str(item["name"]),
+        ...(fresh?.mime !== undefined ? { mime: fresh.mime } : {}),
+        ...(flag(item["native"]) ? { native: true } : {}),
+      });
+      const r = obj(
+        await ctx.call("files.write", {
+          fileId,
+          content: { blobId: dl.blobId },
+          reason: `Fetched from ${provider.label}`,
+        }),
+      );
       if (typeof r["changesetId"] === "string") {
         // an agent's write in a Review changes folder waits for approval; the content is not in the file yet
         staged = r["changesetId"];
         return;
       }
       const version = num(obj(r["file"])["version"]);
-      patchItem(ctx, item, { remote_version: want, cached_version: want, synced_version: version, local_version: version, dirty: 0, conflict: 0 });
+      patchItem(ctx, item, {
+        remote_version: want,
+        cached_version: want,
+        synced_version: version,
+        local_version: version,
+        dirty: 0,
+        conflict: 0,
+      });
       fetched = true;
     });
   }
-  const now = (ctx.db.all("SELECT * FROM mounts_item WHERE mount_id = ? AND item_key = ?", m.id, first["item_key"]) as Row[])[0] ?? first;
-  return { mounted: true, fetched, ...(staged !== undefined ? { changesetId: staged } : {}), ...(offline ? { offline: true } : {}), source: sourceView(ctx, now, row) };
+  const now =
+    (
+      ctx.db.all("SELECT * FROM mounts_item WHERE mount_id = ? AND item_key = ?", m.id, first["item_key"]) as Row[]
+    )[0] ?? first;
+  return {
+    mounted: true,
+    fetched,
+    ...(staged !== undefined ? { changesetId: staged } : {}),
+    ...(offline ? { offline: true } : {}),
+    source: sourceView(ctx, now, row),
+  };
 }
 
 /** The provider's history of a file, newest first, with the person or agent behind each revision Vyre sent. */
@@ -1300,20 +1820,37 @@ async function mountsHistory(ctx: Ctx, input: unknown): Promise<Row> {
   const fileId = reqStr(ctx, record(ctx, input), "fileId");
   const item = itemOfFile(ctx, fileId);
   const owner = item ? mountOfItem(ctx, item) : undefined;
-  if (!item || !owner || !owner.provider.revisions) return fail(ctx, "validation.precondition_failed", "This file has no history to show.");
+  if (!item || !owner || !owner.provider.revisions)
+    return fail(ctx, "validation.precondition_failed", "This file has no history to show.");
   if (!maySee(ctx, owner.row)) fail(ctx, "permission.no_grant", "You cannot see that mount.");
   const list_ = await owner.provider.revisions(ctx, owner.m, str(item["remote_id"]));
-  const notes = ctx.db.all("SELECT * FROM mounts_revision WHERE mount_id = ? AND remote_id = ?", owner.m.id, item["remote_id"]) as Row[];
+  const notes = ctx.db.all(
+    "SELECT * FROM mounts_revision WHERE mount_id = ? AND remote_id = ?",
+    owner.m.id,
+    item["remote_id"],
+  ) as Row[];
   const NEAR_MS = 2 * 60 * 1000;
   const noteOf = (r: Revision): Row | undefined =>
-    notes.find((n) => n["revision_id"] === r.id)
-    ?? (r.at === undefined ? undefined : notes.filter((n) => Math.abs(num(n["at"]) - (r.at as number)) <= NEAR_MS).sort((a, b) => Math.abs(num(a["at"]) - (r.at as number)) - Math.abs(num(b["at"]) - (r.at as number)))[0]);
+    notes.find((n) => n["revision_id"] === r.id) ??
+    (r.at === undefined
+      ? undefined
+      : notes
+          .filter((n) => Math.abs(num(n["at"]) - (r.at as number)) <= NEAR_MS)
+          .sort((a, b) => Math.abs(num(a["at"]) - (r.at as number)) - Math.abs(num(b["at"]) - (r.at as number)))[0]);
   const ordered = [...list_].sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
-  const revisions = ordered.map((r, i) => {
-    const note = noteOf(r);
-    const by: Person & { actor?: string } = { ...(r.by ?? {}), ...(note ? { actor: str(note["by_actor"]) } : {}) };
-    return { revisionId: r.id, ...(r.at !== undefined ? { at: r.at } : {}), ...(r.size !== undefined ? { size: r.size } : {}), ...(Object.keys(by).length > 0 ? { by } : {}), current: i === ordered.length - 1 };
-  }).reverse();
+  const revisions = ordered
+    .map((r, i) => {
+      const note = noteOf(r);
+      const by: Person & { actor?: string } = { ...(r.by ?? {}), ...(note ? { actor: str(note["by_actor"]) } : {}) };
+      return {
+        revisionId: r.id,
+        ...(r.at !== undefined ? { at: r.at } : {}),
+        ...(r.size !== undefined ? { size: r.size } : {}),
+        ...(Object.keys(by).length > 0 ? { by } : {}),
+        current: i === ordered.length - 1,
+      };
+    })
+    .reverse();
   return { revisions };
 }
 
@@ -1324,17 +1861,27 @@ async function mountsRestore(ctx: Ctx, input: unknown): Promise<Row> {
   const revisionId = reqStr(ctx, o, "revisionId");
   const item = itemOfFile(ctx, fileId);
   const owner = item ? mountOfItem(ctx, item) : undefined;
-  if (!item || !owner || !owner.provider.revisionBlob) return fail(ctx, "validation.precondition_failed", "This file has no history to restore from.");
+  if (!item || !owner || !owner.provider.revisionBlob)
+    return fail(ctx, "validation.precondition_failed", "This file has no history to restore from.");
   const d = ctx.authorize({ perm: "files.write", level: "edit" }, { type: "file", id: fileId });
   if (d.effect === "deny") fail(ctx, "permission.no_grant", d.reason);
   if (d.effect === "hold") fail(ctx, "permission.needs_approval", d.reason);
   const { row, m, provider } = owner;
   const dl = await provider.revisionBlob!(ctx, m, { remoteId: str(item["remote_id"]), revisionId });
-  const r = obj(await ctx.call("files.write", { fileId, content: { blobId: dl.blobId }, reason: `Restored from ${provider.label} history` }));
+  const r = obj(
+    await ctx.call("files.write", {
+      fileId,
+      content: { blobId: dl.blobId },
+      reason: `Restored from ${provider.label} history`,
+    }),
+  );
   if (typeof r["changesetId"] === "string") return { restored: false, changesetId: r["changesetId"] };
   const version = num(obj(r["file"])["version"]);
   await exclusive(`mount:${m.id}`, async () => {
-    const at = (ctx.db.all("SELECT * FROM mounts_item WHERE mount_id = ? AND item_key = ?", m.id, item["item_key"]) as Row[])[0] ?? item;
+    const at =
+      (
+        ctx.db.all("SELECT * FROM mounts_item WHERE mount_id = ? AND item_key = ?", m.id, item["item_key"]) as Row[]
+      )[0] ?? item;
     patchItem(ctx, at, { local_version: version, dirty: 1, dirty_by: ctx.principal.id, conflict: 0 });
     if (isNull(row["stale_since"])) patchMount(ctx, row, { stale_since: ctx.now() });
   });
@@ -1344,7 +1891,9 @@ async function mountsRestore(ctx: Ctx, input: unknown): Promise<Row> {
 
 /** Last edited by, for the rows of a file list. */
 async function mountsEditors(ctx: Ctx, input: unknown): Promise<Row> {
-  const ids = list(record(ctx, input)["fileIds"]).filter((v): v is string => typeof v === "string").slice(0, 200);
+  const ids = list(record(ctx, input)["fileIds"])
+    .filter((v): v is string => typeof v === "string")
+    .slice(0, 200);
   const editors: Row[] = [];
   const seen = new Map<string, boolean>();
   for (const fileId of ids) {
@@ -1355,7 +1904,12 @@ async function mountsEditors(ctx: Ctx, input: unknown): Promise<Row> {
     if (!seen.has(mountId)) seen.set(mountId, maySee(ctx, owner.row));
     if (seen.get(mountId) !== true) continue;
     const who = personOut(item["editor_name"], item["editor_email"]);
-    editors.push({ fileId, provider: PROVIDER_LABEL[owner.m.kind], ...who, ...(isNull(item["modified_at"]) ? {} : { at: num(item["modified_at"]) }) });
+    editors.push({
+      fileId,
+      provider: PROVIDER_LABEL[owner.m.kind],
+      ...who,
+      ...(isNull(item["modified_at"]) ? {} : { at: num(item["modified_at"]) }),
+    });
   }
   return { editors };
 }
@@ -1366,12 +1920,22 @@ async function mountsNudge(ctx: Ctx, input: unknown): Promise<Row> {
   const source = reqStr(ctx, o, "source");
   if (source === "client") {
     const only = optStr(o, "mountId");
-    const rows = liveMounts(ctx).filter((r) => isCloud(str(r["kind"]) as MountKind) && r["state"] !== "paused" && (only === undefined || r["id"] === only) && maySee(ctx, r));
+    const rows = liveMounts(ctx).filter(
+      (r) =>
+        isCloud(str(r["kind"]) as MountKind) &&
+        r["state"] !== "paused" &&
+        (only === undefined || r["id"] === only) &&
+        maySee(ctx, r),
+    );
     let ran = 0;
     for (const row of rows) {
       patchMount(ctx, row, { client_seen_at: ctx.now() });
       // without a push channel a mount is only as fresh as its last pass: an app that shows it asks for one when 30 s have gone by
-      if (!hasPush(ctx, row) && (isNull(row["last_sync_at"]) || ctx.now() - num(row["last_sync_at"]) >= LIVE_POLL_MS) && !queued.has(str(row["id"]))) {
+      if (
+        !hasPush(ctx, row) &&
+        (isNull(row["last_sync_at"]) || ctx.now() - num(row["last_sync_at"]) >= LIVE_POLL_MS) &&
+        !queued.has(str(row["id"]))
+      ) {
         queued.add(str(row["id"]));
         await runPass(ctx, str(row["id"]));
         ran += 1;
@@ -1381,10 +1945,16 @@ async function mountsNudge(ctx: Ctx, input: unknown): Promise<Row> {
     }
     return { mounts: rows.length, passes: ran };
   }
-  if (source !== "google" && source !== "microsoft" && source !== "dropbox") return fail(ctx, "validation.bad_input", "source must be google, microsoft, dropbox or client.");
+  if (source !== "google" && source !== "microsoft" && source !== "dropbox")
+    return fail(ctx, "validation.bad_input", "source must be google, microsoft, dropbox or client.");
   // Drive and Dropbox name a channel, Graph a subscription (a Dropbox channel is the account: dbx:<account id>)
   const channel = optStr(o, source === "microsoft" ? "subscriptionId" : "channelId");
-  if (channel === undefined) return fail(ctx, "validation.bad_input", source === "microsoft" ? "subscriptionId is required." : "channelId is required.");
+  if (channel === undefined)
+    return fail(
+      ctx,
+      "validation.bad_input",
+      source === "microsoft" ? "subscriptionId is required." : "channelId is required.",
+    );
   const rows = liveMounts(ctx).filter((r) => r["watch_id"] === channel);
   const replacedBy = optStr(o, "replacedBy");
   if (replacedBy !== undefined) {

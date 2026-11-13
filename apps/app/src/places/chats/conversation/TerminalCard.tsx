@@ -26,7 +26,18 @@ export interface TerminalCardProps {
 
 type State = { s: "ask" } | { s: "typed"; terminalId: string } | { s: "done"; line: string } | { s: "error" };
 
-export function TerminalCard({ id, why, command, risk, host, agentId, deps, copy, openTerminal, answer }: TerminalCardProps): ReactElement {
+export function TerminalCard({
+  id,
+  why,
+  command,
+  risk,
+  host,
+  agentId,
+  deps,
+  copy,
+  openTerminal,
+  answer,
+}: TerminalCardProps): ReactElement {
   const [st, setSt] = useState<State>({ s: "ask" });
   if (st.s === "done") return <CardDone testID={`terminal-card-done-${id}`} text={st.line} />;
   const run = (): void => {
@@ -39,7 +50,9 @@ export function TerminalCard({ id, why, command, risk, host, agentId, deps, copy
         const w = await waitForRun(deps, terminalId, cursor);
         answer(id, answerOf(w, command));
         setSt({ s: "done", line: w.state === "done" ? "Ran in your terminal" : "Stopped waiting" });
-      } catch { setSt({ s: "error" }); }
+      } catch {
+        setSt({ s: "error" });
+      }
     })();
   };
   const typed = st.s === "typed";
@@ -49,17 +62,47 @@ export function TerminalCard({ id, why, command, risk, host, agentId, deps, copy
       <CardBody>
         <View style={s.cmd}>
           <RiskDot risk={risk} />
-          <Text testID={`terminal-card-command-${id}`} selectable style={s.code}>{command}</Text>
+          <Text testID={`terminal-card-command-${id}`} selectable style={s.code}>
+            {command}
+          </Text>
         </View>
       </CardBody>
       {typed ? (
-        <CardActions note={<Text testID={`terminal-card-wait-${id}`} style={s.wait}>Press Enter in the terminal</Text>} secondary={[{ label: "Show", onPress: () => openTerminal((st as { terminalId: string }).terminalId), testID: `terminal-card-show-${id}` }]} />
+        <CardActions
+          note={
+            <Text testID={`terminal-card-wait-${id}`} style={s.wait}>
+              Press Enter in the terminal
+            </Text>
+          }
+          secondary={[
+            {
+              label: "Show",
+              onPress: () => openTerminal((st as { terminalId: string }).terminalId),
+              testID: `terminal-card-show-${id}`,
+            },
+          ]}
+        />
       ) : (
         <CardActions
           error={st.s === "error" ? "Could not reach the terminal" : null}
           secondary={[
-            { label: "Copy", onPress: () => { copy(command); answer(id, "copy"); setSt({ s: "done", line: "Copied. You run it" }); }, testID: `terminal-card-copy-${id}` },
-            { label: "Deny", onPress: () => { answer(id, "decline"); setSt({ s: "done", line: "Denied" }); }, testID: `terminal-card-decline-${id}` },
+            {
+              label: "Copy",
+              onPress: () => {
+                copy(command);
+                answer(id, "copy");
+                setSt({ s: "done", line: "Copied. You run it" });
+              },
+              testID: `terminal-card-copy-${id}`,
+            },
+            {
+              label: "Deny",
+              onPress: () => {
+                answer(id, "decline");
+                setSt({ s: "done", line: "Denied" });
+              },
+              testID: `terminal-card-decline-${id}`,
+            },
           ]}
           primary={{ label: "Run in my terminal", onPress: run, testID: `terminal-card-run-${id}` }}
         />
@@ -70,6 +113,13 @@ export function TerminalCard({ id, why, command, risk, host, agentId, deps, copy
 
 const s = StyleSheet.create({
   cmd: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  code: { flex: 1, minWidth: 0, fontSize: 13, lineHeight: 18, color: "var(--ink)" as string, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" },
+  code: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "var(--ink)" as string,
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+  },
   wait: { fontSize: 12.5, color: "var(--ink-3)" as string },
 });

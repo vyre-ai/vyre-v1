@@ -10,7 +10,8 @@ import { DISPLAY, DOUBLE_MS, SCROLL_MS } from "./model.ts";
 import { COMPUTER, createSample } from "./sample.ts";
 import type { Sample, Variant } from "./sample.ts";
 
-const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+const clean = (s: string): string =>
+  s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 const popup = (v: Variant): string => clean(renderToStaticMarkup(<ComputerPopup data={createSample(v).data} />));
 const tagOf = (out: string, testid: string): string => {
   const i = out.indexOf(`data-testid="${testid}"`);
@@ -44,17 +45,23 @@ test("keyboard: letters collect into one type call, combinations go as keys", as
   await f.key({ key: "h" });
   await f.key({ key: "i" });
   await f.key({ key: "Enter" });
-  assert.deepEqual(s.calls.map((c) => [c.cap, c.input]), [
-    ["computers.screen.type", { computerId: COMPUTER, text: "hi" }],
-    ["computers.screen.key", { computerId: COMPUTER, combo: "Return" }],
-  ]);
+  assert.deepEqual(
+    s.calls.map((c) => [c.cap, c.input]),
+    [
+      ["computers.screen.type", { computerId: COMPUTER, text: "hi" }],
+      ["computers.screen.key", { computerId: COMPUTER, combo: "Return" }],
+    ],
+  );
 });
 
 test("left click: one click at the matching point on the display", async () => {
   const s = createSample("takeover");
   const f = createForwarder(deps(s).d, COMPUTER);
   await f.press(160, 100, BOX, 0);
-  assert.deepEqual(s.calls.map((c) => c.input), [{ computerId: COMPUTER, x: 320, y: 200 }]);
+  assert.deepEqual(
+    s.calls.map((c) => c.input),
+    [{ computerId: COMPUTER, x: 320, y: 200 }],
+  );
 });
 
 test("double click: the second quick press carries double", async () => {
@@ -62,7 +69,10 @@ test("double click: the second quick press carries double", async () => {
   const f = createForwarder(deps(s).d, COMPUTER);
   await f.press(10, 10, BOX, 1000);
   await f.press(10, 10, BOX, 1000 + DOUBLE_MS - 1);
-  assert.deepEqual(s.calls.map((c) => (c.input as { double?: boolean }).double === true), [false, true]);
+  assert.deepEqual(
+    s.calls.map((c) => (c.input as { double?: boolean }).double === true),
+    [false, true],
+  );
 });
 
 test("right click: a click with the right button; it never counts toward a double click", async () => {
@@ -71,11 +81,14 @@ test("right click: a click with the right button; it never counts toward a doubl
   await f.press(320, 200, BOX, 1000, "right");
   await f.press(320, 200, BOX, 1100, "right");
   await f.press(320, 200, BOX, 1200);
-  assert.deepEqual(s.calls.map((c) => c.input), [
-    { computerId: COMPUTER, x: 640, y: 400, button: "right" },
-    { computerId: COMPUTER, x: 640, y: 400, button: "right" },
-    { computerId: COMPUTER, x: 640, y: 400 },
-  ]);
+  assert.deepEqual(
+    s.calls.map((c) => c.input),
+    [
+      { computerId: COMPUTER, x: 640, y: 400, button: "right" },
+      { computerId: COMPUTER, x: 640, y: 400, button: "right" },
+      { computerId: COMPUTER, x: 640, y: 400 },
+    ],
+  );
   assert.ok(caps(s).every((c) => c === "computers.screen.click"));
 });
 
@@ -87,7 +100,10 @@ test("scroll: wheel turns close together are one scroll call at the point, down 
   await f.scroll(320, 200, BOX, 0, -10);
   assert.equal(s.calls.length, 0, "held until the next frame");
   await f.flushScroll();
-  assert.deepEqual(s.calls.map((c) => [c.cap, c.input]), [["computers.screen.scroll", { computerId: COMPUTER, x: 640, y: 400, dy: 70 }]]);
+  assert.deepEqual(
+    s.calls.map((c) => [c.cap, c.input]),
+    [["computers.screen.scroll", { computerId: COMPUTER, x: 640, y: 400, dy: 70 }]],
+  );
   await f.flushScroll();
   assert.equal(s.calls.length, 1, "flushing again sends nothing");
 });
@@ -97,7 +113,10 @@ test("scroll goes by itself after a moment, sideways turns carry dx, and a turn 
   const f = createForwarder(deps(s).d, COMPUTER);
   await f.scroll(0, 0, BOX, 12, 5);
   await wait(SCROLL_MS + 60);
-  assert.deepEqual(s.calls.map((c) => c.input), [{ computerId: COMPUTER, x: 0, y: 0, dx: 12, dy: 5 }]);
+  assert.deepEqual(
+    s.calls.map((c) => c.input),
+    [{ computerId: COMPUTER, x: 0, y: 0, dx: 12, dy: 5 }],
+  );
   await f.scroll(0, 0, BOX, 0, 30);
   await f.scroll(0, 0, BOX, 0, -30);
   await f.flushScroll();
@@ -111,7 +130,12 @@ test("a press or a key sends a held scroll first, so the desktop sees them in th
   await f.press(100, 100, BOX, 0);
   await f.scroll(100, 100, BOX, 0, 20);
   await f.key({ key: "End" });
-  assert.deepEqual(caps(s), ["computers.screen.scroll", "computers.screen.click", "computers.screen.scroll", "computers.screen.key"]);
+  assert.deepEqual(caps(s), [
+    "computers.screen.scroll",
+    "computers.screen.click",
+    "computers.screen.scroll",
+    "computers.screen.key",
+  ]);
   assert.equal((s.calls[0]!.input as { x: number }).x, Math.round((100 / 640) * DISPLAY.width));
 });
 

@@ -8,8 +8,13 @@ export function MachinesPage({ initialId, startAdd }: { initialId?: string; star
   const data = useConsoleData();
   return (
     <MachinesView
-      call={data.call as never} scope="space" who={(id) => data.name(id)} initialId={initialId ?? null} {...(startAdd ? { startAdd } : {})}
-      onOpen={(id) => data.nav.openPage("machines", id ? { machineId: id } : {})} goto={(page) => data.nav.openPage(page)}
+      call={data.call as never}
+      scope="space"
+      who={(id) => data.name(id)}
+      initialId={initialId ?? null}
+      {...(startAdd ? { startAdd } : {})}
+      onOpen={(id) => data.nav.openPage("machines", id ? { machineId: id } : {})}
+      goto={(page) => data.nav.openPage(page)}
     />
   );
 }

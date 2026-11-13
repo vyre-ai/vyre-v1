@@ -6,12 +6,22 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { openCipherOpfs, rekeyCipherOpfs, createReplicaKeyVault, memoryKeyBox, openDeviceReplica } from "../src/device/index.ts";
+import {
+  openCipherOpfs,
+  rekeyCipherOpfs,
+  createReplicaKeyVault,
+  memoryKeyBox,
+  openDeviceReplica,
+} from "../src/device/index.ts";
 import type { McModule } from "../src/device/index.ts";
 
-interface Cipher { default: (opts?: { wasmBinary: Uint8Array }) => Promise<RealSqlite3> }
+interface Cipher {
+  default: (opts?: { wasmBinary: Uint8Array }) => Promise<RealSqlite3>;
+}
 type Fn = (...args: unknown[]) => number;
-interface Struct { [field: string]: number }
+interface Struct {
+  [field: string]: number;
+}
 interface RealSqlite3 extends McModule {
   capi: McModule["capi"] & {
     sqlite3_vfs_find(name: string | null): number;
@@ -45,7 +55,10 @@ async function loadEngine(): Promise<RealSqlite3> {
   const find = (d: string): string | null => {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
       const f = path.join(d, e.name);
-      if (e.isDirectory()) { const r = find(f); if (r) return r; } else if (e.name === "sqlite3.wasm") return f;
+      if (e.isDirectory()) {
+        const r = find(f);
+        if (r) return r;
+      } else if (e.name === "sqlite3.wasm") return f;
     }
     return null;
   };
@@ -87,9 +100,17 @@ function storedBytes(sqlite3: RealSqlite3, name: string): Uint8Array {
       try {
         assert.equal(xRead(pFile, buf, size, BigInt(0)), 0, "xRead returns SQLITE_OK for the whole file");
         return wasm.heap8u().slice(buf, buf + size);
-      } finally { wasm.dealloc(buf); }
-    } finally { xClose(pFile); }
-  } finally { wasm.dealloc(pName); wasm.dealloc(pOut); wasm.dealloc(pFile); }
+      } finally {
+        wasm.dealloc(buf);
+      }
+    } finally {
+      xClose(pFile);
+    }
+  } finally {
+    wasm.dealloc(pName);
+    wasm.dealloc(pOut);
+    wasm.dealloc(pFile);
+  }
 }
 
 test("real engine: bytes at rest hold no marker or SQLite header; wrong key and no key fail; rekey moves the file", async () => {
@@ -106,21 +127,36 @@ test("real engine: bytes at rest hold no marker or SQLite header; wrong key and 
   plain.exec(`CREATE TABLE t (v TEXT); INSERT INTO t VALUES ('${MARK}')`);
   plain.close();
   const plainBytes = storedBytes(sqlite3, "/plain.db");
-  assert.equal(Buffer.from(plainBytes).includes(MARK), true, "control: an unkeyed database holds the marker in its stored bytes");
+  assert.equal(
+    Buffer.from(plainBytes).includes(MARK),
+    true,
+    "control: an unkeyed database holds the marker in its stored bytes",
+  );
   assert.equal(Buffer.from(plainBytes.slice(0, 15)).toString(), "SQLite format 3");
 
   const bytes = storedBytes(sqlite3, "/enc.db");
   assert.equal(Buffer.from(bytes).includes(MARK), false, "no plaintext marker in the file bytes");
   assert.notEqual(Buffer.from(bytes.slice(0, 15)).toString(), "SQLite format 3", "no SQLite header in the file bytes");
 
-  assert.throws(() => open(key(2)), (e: unknown) => (e as { code?: string }).code === "wrong_key");
+  assert.throws(
+    () => open(key(2)),
+    (e: unknown) => (e as { code?: string }).code === "wrong_key",
+  );
   const keyless = new sqlite3.oo1.DB("/enc.db", "w");
-  try { assert.throws(() => keyless.exec("SELECT v FROM t"), "no key cannot read"); } finally { keyless.close(); }
+  try {
+    assert.throws(() => keyless.exec("SELECT v FROM t"), "no key cannot read");
+  } finally {
+    keyless.close();
+  }
 
   const live = open(key(1));
   rekeyCipherOpfs(live, key(3));
   live.close();
-  assert.throws(() => open(key(1)), (e: unknown) => (e as { code?: string }).code === "wrong_key", "the old key fails after rekey");
+  assert.throws(
+    () => open(key(1)),
+    (e: unknown) => (e as { code?: string }).code === "wrong_key",
+    "the old key fails after rekey",
+  );
   const moved = open(key(3));
   assert.equal(moved.prepare("SELECT v FROM t WHERE id = ?").get(["a"])?.v, MARK, "the new key reads");
   moved.close();
@@ -129,4 +165,3 @@ test("real engine: bytes at rest hold no marker or SQLite header; wrong key and 
   assert.notEqual(Buffer.from(after.slice(0, 15)).toString(), "SQLite format 3");
   assert.notDeepEqual(Buffer.from(after), Buffer.from(bytes), "the rekey changed the stored bytes");
 });
-

@@ -7,8 +7,13 @@ import { retentionMs, TRASH_KEEP_MS } from "../modules/terminal/handlers/session
 import governance from "../manifests/governance.ts";
 
 test("the workspace volumes' fallback for how long Trash keeps an agent's things is governance's default trash retention, read the way governance writes it", () => {
-  const trash = (governance as unknown as { retention: Array<{ key: string; default: string }> }).retention.find((r) => r.key === "trash");
+  const trash = (governance as unknown as { retention: Array<{ key: string; default: string }> }).retention.find(
+    (r) => r.key === "trash",
+  );
   assert.ok(trash, "governance has a trash retention");
   assert.equal(TRASH_KEEP_MS, retentionMs(trash.default), `the workspaces' fallback is ${trash.default}`);
-  assert.deepEqual([retentionMs("7d"), retentionMs("2w"), retentionMs("forever"), retentionMs("soon")], [7 * 86_400_000, 14 * 86_400_000, null, undefined]);
+  assert.deepEqual(
+    [retentionMs("7d"), retentionMs("2w"), retentionMs("forever"), retentionMs("soon")],
+    [7 * 86_400_000, 14 * 86_400_000, null, undefined],
+  );
 });

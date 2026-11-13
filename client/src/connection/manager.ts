@@ -46,7 +46,9 @@ export interface ConnectionOpts {
   };
 }
 
-export interface Handle { release(): void }
+export interface Handle {
+  release(): void;
+}
 
 export interface Connection {
   start(): void;
@@ -63,7 +65,12 @@ export interface Connection {
 
 class Superseded extends Error {}
 
-interface Racer { ep: Endpoint; t: Transport; ok: HelloOk; buffered: unknown[] }
+interface Racer {
+  ep: Endpoint;
+  t: Transport;
+  ok: HelloOk;
+  buffered: unknown[];
+}
 
 export function createConnection(o: ConnectionOpts): Connection {
   const clock = o.scheduler ?? realScheduler;
@@ -86,9 +93,18 @@ export function createConnection(o: ConnectionOpts): Connection {
   let everLive = false;
   const stats = { dials: 0, opened: 0, closed: 0, failovers: 0 };
 
-  const set = (s: Status): void => { if (status !== s) { status = s; o.on?.status?.(s, current?.ep ?? null); } };
+  const set = (s: Status): void => {
+    if (status !== s) {
+      status = s;
+      o.on?.status?.(s, current?.ep ?? null);
+    }
+  };
   const find = (ep: Endpoint): Endpoint => list.find((e) => e.url === ep.url && e.kind === ep.kind) ?? ep;
-  const down = (ep: Endpoint): void => { const e = find(ep); e.health = "down"; e.downUntil = clock.now() + ENDPOINT_COOLDOWN_MS; };
+  const down = (ep: Endpoint): void => {
+    const e = find(ep);
+    e.health = "down";
+    e.downUntil = clock.now() + ENDPOINT_COOLDOWN_MS;
+  };
 
   function hello(): unknown {
     return { t: "hello", hello: { ...o.hello(), cursor: o.cursor.get() } };
@@ -104,32 +120,46 @@ export function createConnection(o: ConnectionOpts): Connection {
         if (done) return;
         done = true;
         cancel();
-        try { transport?.close(why); } catch { /* already closed */ }
+        try {
+          transport?.close(why);
+        } catch {
+          /* already closed */
+        }
         reject(superseded ? new Superseded(why) : new Error(why));
       };
       const cancel = clock.after(HELLO_TIMEOUT_MS, () => fail("hello timed out"));
       abort.signal.addEventListener("abort", () => fail("superseded", true), { once: true });
-      o.dial(ep, abort.signal).then((t) => {
-        if (done || gen !== generation || abort.signal.aborted) { try { t.close("superseded"); } catch { /* closed */ } return; }
-        transport = t;
-        const buffered: unknown[] = [];
-        let answered: HelloOk | null = null;
-        t.onFrame((f) => {
-          if (!answered) {
-            const ok = readHelloOk(f);
-            if (!ok) return;
-            answered = ok;
-            done = true;
-            cancel();
-            resolve({ ep, t, ok, buffered });
+      o.dial(ep, abort.signal).then(
+        (t) => {
+          if (done || gen !== generation || abort.signal.aborted) {
+            try {
+              t.close("superseded");
+            } catch {
+              /* closed */
+            }
             return;
           }
-          // After hello_ok, before a winner is chosen: hold the frames. The winner replays them; a loser drops them with its link.
-          if (buffered) buffered.push(f);
-        });
-        t.onClose((r) => fail(`closed: ${r}`));
-        t.send(hello());
-      }, (e: unknown) => fail(e instanceof Error ? e.message : String(e)));
+          transport = t;
+          const buffered: unknown[] = [];
+          let answered: HelloOk | null = null;
+          t.onFrame((f) => {
+            if (!answered) {
+              const ok = readHelloOk(f);
+              if (!ok) return;
+              answered = ok;
+              done = true;
+              cancel();
+              resolve({ ep, t, ok, buffered });
+              return;
+            }
+            // After hello_ok, before a winner is chosen: hold the frames. The winner replays them; a loser drops them with its link.
+            if (buffered) buffered.push(f);
+          });
+          t.onClose((r) => fail(`closed: ${r}`));
+          t.send(hello());
+        },
+        (e: unknown) => fail(e instanceof Error ? e.message : String(e)),
+      );
     });
   }
 
@@ -146,16 +176,31 @@ export function createConnection(o: ConnectionOpts): Connection {
       let left = picks.length;
       let won = false;
       for (const ep of picks) {
-        open(ep, gen, abort).then((r) => {
-          if (won || gen !== generation) { try { r.t.close("lost the race"); } catch { /* closed */ } return; }
-          won = true;
-          if (pendingRace === abort) pendingRace = null;
-          abort.abort();
-          resolve(r);
-        }, (e: unknown) => {
-          if (!(e instanceof Superseded)) down(ep);
-          if (--left === 0 && !won) { if (pendingRace === abort) pendingRace = null; resolve(null); }
-        }).then(() => undefined);
+        open(ep, gen, abort)
+          .then(
+            (r) => {
+              if (won || gen !== generation) {
+                try {
+                  r.t.close("lost the race");
+                } catch {
+                  /* closed */
+                }
+                return;
+              }
+              won = true;
+              if (pendingRace === abort) pendingRace = null;
+              abort.abort();
+              resolve(r);
+            },
+            (e: unknown) => {
+              if (!(e instanceof Superseded)) down(ep);
+              if (--left === 0 && !won) {
+                if (pendingRace === abort) pendingRace = null;
+                resolve(null);
+              }
+            },
+          )
+          .then(() => undefined);
       }
     });
   }
@@ -165,12 +210,23 @@ export function createConnection(o: ConnectionOpts): Connection {
     const gen = ++generation;
     set(everLive ? "reconnecting" : "connecting");
     const r = await race(gen);
-    if (gen !== generation || !wantOn) { if (r) try { r.t.close("superseded"); } catch { /* closed */ } return; }
+    if (gen !== generation || !wantOn) {
+      if (r)
+        try {
+          r.t.close("superseded");
+        } catch {
+          /* closed */
+        }
+      return;
+    }
     if (!r) {
       attempts++;
       const wait = Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** (attempts - 1));
       cancelRetry?.();
-      cancelRetry = clock.after(wait, () => { cancelRetry = null; void connect(); });
+      cancelRetry = clock.after(wait, () => {
+        cancelRetry = null;
+        void connect();
+      });
       return;
     }
     attempts = 0;
@@ -180,19 +236,34 @@ export function createConnection(o: ConnectionOpts): Connection {
   function adopt(r: Racer, gen: number): void {
     current = { ep: r.ep, t: r.t };
     const e = find(r.ep);
-    e.health = "healthy"; e.lastOk = clock.now(); delete e.downUntil;
+    e.health = "healthy";
+    e.lastOk = clock.now();
+    delete e.downUntil;
     stats.opened++;
     everLive = true;
     lastRx = clock.now();
-    r.t.onFrame((f) => { if (gen === generation) onFrame(f); });
-    r.t.onClose(() => { if (gen === generation && current?.t === r.t) lost(r.ep, "closed"); });
-    if (r.ok.mode === "live") set("live"); else set("read_only");
-    if (r.ok.mode === "purge") { o.on?.purge?.(r.ok.epoch); o.on?.mode?.(r.ok.mode, r.ok); halt(); return; }
+    r.t.onFrame((f) => {
+      if (gen === generation) onFrame(f);
+    });
+    r.t.onClose(() => {
+      if (gen === generation && current?.t === r.t) lost(r.ep, "closed");
+    });
+    if (r.ok.mode === "live") set("live");
+    else set("read_only");
+    if (r.ok.mode === "purge") {
+      o.on?.purge?.(r.ok.epoch);
+      o.on?.mode?.(r.ok.mode, r.ok);
+      halt();
+      return;
+    }
     if (r.ok.mode !== "live") o.on?.mode?.(r.ok.mode, r.ok);
     stopHeartbeat?.();
     stopHeartbeat = clock.every(heartbeatMs, () => {
       if (gen !== generation) return;
-      if (clock.now() - lastRx >= deadMs) { lost(r.ep, "no heartbeat"); return; }
+      if (clock.now() - lastRx >= deadMs) {
+        lost(r.ep, "no heartbeat");
+        return;
+      }
       r.t.send({ t: "hb", seq: o.cursor.get() });
     });
     for (const f of r.buffered) onFrame(f);
@@ -208,8 +279,17 @@ export function createConnection(o: ConnectionOpts): Connection {
       chain = chain.then(() => deliver(batch, generation)).catch(() => undefined);
       return;
     }
-    if (t === "pull_hint") { const seq = (f as { seq?: unknown }).seq; if (typeof seq === "number") o.on?.pullHint?.(seq); return; }
-    if (t === "purge") { const epoch = (f as { epoch?: unknown }).epoch; o.on?.purge?.(typeof epoch === "number" ? epoch : 0); halt(); return; }
+    if (t === "pull_hint") {
+      const seq = (f as { seq?: unknown }).seq;
+      if (typeof seq === "number") o.on?.pullHint?.(seq);
+      return;
+    }
+    if (t === "purge") {
+      const epoch = (f as { epoch?: unknown }).epoch;
+      o.on?.purge?.(typeof epoch === "number" ? epoch : 0);
+      halt();
+      return;
+    }
     o.on?.frame?.(f);
   }
 
@@ -218,7 +298,11 @@ export function createConnection(o: ConnectionOpts): Connection {
     const have = o.cursor.get();
     // A batch the replica already has (a replay after a reconnect) is acked, not applied twice.
     if (b.seq > have || b.items.length || b.hide.length) {
-      const fresh: EventBatch = { seq: b.seq, items: b.items.filter((c) => c.seq > have), hide: b.hide.filter((h) => h.seq > have) };
+      const fresh: EventBatch = {
+        seq: b.seq,
+        items: b.items.filter((c) => c.seq > have),
+        hide: b.hide.filter((h) => h.seq > have),
+      };
       try {
         if (fresh.items.length || fresh.hide.length) await o.apply(fresh);
       } catch {
@@ -232,12 +316,21 @@ export function createConnection(o: ConnectionOpts): Connection {
   }
 
   function drop(): void {
-    pendingRace?.abort(); pendingRace = null;
-    stopHeartbeat?.(); stopHeartbeat = null;
+    pendingRace?.abort();
+    pendingRace = null;
+    stopHeartbeat?.();
+    stopHeartbeat = null;
     const c = current;
     current = null;
     generation++;
-    if (c) { stats.closed++; try { c.t.close("leaving"); } catch { /* closed */ } }
+    if (c) {
+      stats.closed++;
+      try {
+        c.t.close("leaving");
+      } catch {
+        /* closed */
+      }
+    }
   }
 
   /** The link failed (closed, silent, or a batch would not apply): mark the endpoint, reconnect to the best other one. */
@@ -248,26 +341,40 @@ export function createConnection(o: ConnectionOpts): Connection {
     drop();
     if (!wantOn) return;
     set("reconnecting");
-    if (mark) { void connect(); return; }
+    if (mark) {
+      void connect();
+      return;
+    }
     // The link was fine and the replica could not take the batch: wait before trying again, so a batch that always fails does not spin.
     attempts++;
     cancelRetry?.();
-    cancelRetry = clock.after(Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** (attempts - 1)), () => { cancelRetry = null; void connect(); });
+    cancelRetry = clock.after(Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** (attempts - 1)), () => {
+      cancelRetry = null;
+      void connect();
+    });
   }
 
   function halt(): void {
     wantOn = false;
-    cancelRetry?.(); cancelRetry = null;
+    cancelRetry?.();
+    cancelRetry = null;
     drop();
     set("stopped");
   }
 
   const conn: Connection = {
-    start() { if (wantOn || status === "stopped") return; wantOn = true; void connect(); },
-    stop() { halt(); },
+    start() {
+      if (wantOn || status === "stopped") return;
+      wantOn = true;
+      void connect();
+    },
+    stop() {
+      halt();
+    },
     acquire() {
       users++;
-      cancelIdle?.(); cancelIdle = null;
+      cancelIdle?.();
+      cancelIdle = null;
       conn.start();
       let released = false;
       return {
@@ -275,14 +382,28 @@ export function createConnection(o: ConnectionOpts): Connection {
           if (released) return;
           released = true;
           users--;
-          if (users === 0) cancelIdle = clock.after(idleCloseMs, () => { cancelIdle = null; if (users === 0) { wantOn = false; cancelRetry?.(); cancelRetry = null; drop(); set("idle"); } });
+          if (users === 0)
+            cancelIdle = clock.after(idleCloseMs, () => {
+              cancelIdle = null;
+              if (users === 0) {
+                wantOn = false;
+                cancelRetry?.();
+                cancelRetry = null;
+                drop();
+                set("idle");
+              }
+            });
         },
       };
     },
     status: () => status,
     endpoint: () => (current ? find(current.ep) : null),
     endpoints: () => list.map((e) => ({ ...e })),
-    send(frame) { if (!current || (status !== "live" && status !== "read_only")) return false; current.t.send(frame); return true; },
+    send(frame) {
+      if (!current || (status !== "live" && status !== "read_only")) return false;
+      current.t.send(frame);
+      return true;
+    },
     stats: () => ({ ...stats, users }),
   };
   return conn;
@@ -292,7 +413,10 @@ const registry = new Map<string, Connection>();
 /** One connection per Space: every tab, screen and hook asks here and gets the same one (SharedWorker on web, the daemon on desktop, a singleton on RN). */
 export function connectionFor(space: string, make: () => Connection): Connection {
   let c = registry.get(space);
-  if (!c) { c = make(); registry.set(space, c); }
+  if (!c) {
+    c = make();
+    registry.set(space, c);
+  }
   return c;
 }
 export function forgetConnections(): void {

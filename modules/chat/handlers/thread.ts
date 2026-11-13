@@ -6,8 +6,30 @@
 //   channels.create              a named room, public to the Team Space or invite-only; a record's channel is a Project or Journey channel
 //   chat.answer_block / chat.approve_plan   answers to the blocks that park a turn; the engine reads block.answered and queues the wake
 import {
-  MAX_NAME, addAgent, agentsReplyInThreads, addMember, agentsOf, askerOf, blockBy, channelBy, channelByName, channelOfRecord, channelOut, ensure, insertChannel, insertMessage, insertThread, membersOf, messageBy,
-  mintId, patchBlockInMessage, planBy, raise, refuseUnseenAgents, threadBy, threadOut,
+  MAX_NAME,
+  addAgent,
+  agentsReplyInThreads,
+  addMember,
+  agentsOf,
+  askerOf,
+  blockBy,
+  channelBy,
+  channelByName,
+  channelOfRecord,
+  channelOut,
+  ensure,
+  insertChannel,
+  insertMessage,
+  insertThread,
+  membersOf,
+  messageBy,
+  mintId,
+  patchBlockInMessage,
+  planBy,
+  raise,
+  refuseUnseenAgents,
+  threadBy,
+  threadOut,
 } from "../projections.ts";
 import type { ChatCtx, Mode, PlanStep, ThreadRec } from "../projections.ts";
 import { canSpeak, deliver, isDirect } from "./post.ts";
@@ -23,7 +45,8 @@ function uniqueIds(ctx: ChatCtx, ids: string[] | undefined, prefix: string, what
     if (!id.startsWith(prefix)) raise(ctx, "validation.bad_input", `That is not ${what}.`, { id });
     if (!out.includes(id)) out.push(id);
   }
-  if (out.length > MAX_AGENTS && prefix === "agt_") raise(ctx, "validation.bad_input", `A chat can have at most ${MAX_AGENTS} agents.`);
+  if (out.length > MAX_AGENTS && prefix === "agt_")
+    raise(ctx, "validation.bad_input", `A chat can have at most ${MAX_AGENTS} agents.`);
   return out;
 }
 
@@ -31,19 +54,29 @@ function uniqueIds(ctx: ChatCtx, ids: string[] | undefined, prefix: string, what
 function cleanName(ctx: ChatCtx, raw: string): string {
   const name = raw.trim().replace(/^#+/, "").trim().replace(/\s+/g, " ");
   if (name === "") raise(ctx, "validation.bad_input", "Give the channel a name.");
-  if (name.length > MAX_NAME) raise(ctx, "validation.bad_input", `A channel name can be at most ${MAX_NAME} characters.`);
+  if (name.length > MAX_NAME)
+    raise(ctx, "validation.bad_input", `A channel name can be at most ${MAX_NAME} characters.`);
   return name;
 }
 
-function emitAgentsEngaged(ctx: ChatCtx, threadId: string, agents: Array<{ agentId: string; mode: Mode }>, by: string): void {
+function emitAgentsEngaged(
+  ctx: ChatCtx,
+  threadId: string,
+  agents: Array<{ agentId: string; mode: Mode }>,
+  by: string,
+): void {
   for (const a of agents) ctx.emit("agent.engaged", threadId, { threadId, agentId: a.agentId, mode: a.mode, by });
 }
 
 function emitStarted(ctx: ChatCtx, t: ThreadRec): void {
   ctx.emit("thread.started", t.id, {
-    threadId: t.id, kind: t.kind, starter: t.starter ?? ctx.principal.id,
-    ...(t.parentThreadId !== undefined ? { parentThreadId: t.parentThreadId } : {}), ...(t.channelId !== undefined ? { channelId: t.channelId } : {}),
-    ...(t.scopeType !== undefined ? { scopeType: t.scopeType } : {}), ...(t.scopeId !== undefined ? { scopeId: t.scopeId } : {}),
+    threadId: t.id,
+    kind: t.kind,
+    starter: t.starter ?? ctx.principal.id,
+    ...(t.parentThreadId !== undefined ? { parentThreadId: t.parentThreadId } : {}),
+    ...(t.channelId !== undefined ? { channelId: t.channelId } : {}),
+    ...(t.scopeType !== undefined ? { scopeType: t.scopeType } : {}),
+    ...(t.scopeId !== undefined ? { scopeId: t.scopeId } : {}),
   });
 }
 
@@ -55,7 +88,9 @@ function directBetween(ctx: ChatCtx, a: string, b: string): ThreadRec | null {
       WHERE t.kind = 'chat' AND t.channelId IS NULL AND t.scopeType IS NULL AND t.deleted_at IS NULL
         AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL)
         AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL) AND NOT EXISTS (SELECT 1 FROM chat_thread_agent x WHERE x.thread = t.id AND x.deleted_at IS NULL)
-      ORDER BY t.createdAt LIMIT 20`, a, b,
+      ORDER BY t.createdAt LIMIT 20`,
+    a,
+    b,
   ) as Row[];
   for (const r of rows) {
     const t = threadBy(ctx.db, String(r["id"]));
@@ -65,14 +100,29 @@ function directBetween(ctx: ChatCtx, a: string, b: string): ThreadRec | null {
 }
 
 export interface StartInput {
-  kind: "chat" | "ask"; agentIds: string[]; personId?: string; title?: string; scopeType?: string; scopeId?: string; folderId?: string; recordId?: string; model?: string; provider?: string;
-  effort?: string; first?: string; idempotencyKey?: string;
+  kind: "chat" | "ask";
+  agentIds: string[];
+  personId?: string;
+  title?: string;
+  scopeType?: string;
+  scopeId?: string;
+  folderId?: string;
+  recordId?: string;
+  model?: string;
+  provider?: string;
+  effort?: string;
+  first?: string;
+  idempotencyKey?: string;
 }
 
 /** The first message of a new thread, from the caller. */
 function postFirst(ctx: ChatCtx, t: ThreadRec, body: string | undefined): void {
   if (body === undefined || body.trim() === "") return;
-  const m = insertMessage(ctx, t.id, { author: ctx.principal.id, kind: ctx.principal.kind === "agent" ? "agent" : "text", body });
+  const m = insertMessage(ctx, t.id, {
+    author: ctx.principal.id,
+    kind: ctx.principal.kind === "agent" ? "agent" : "text",
+    body,
+  });
   deliver(ctx, t, m, [], { kind: ctx.principal.kind, id: ctx.principal.id }, { notify: false });
 }
 
@@ -86,47 +136,81 @@ export async function start(ctx: ChatCtx, input: StartInput) {
     if (!personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.", { id: personId });
     if (personId === asker) raise(ctx, "validation.bad_input", "You cannot start a chat with yourself.");
   }
-  if ((input.scopeType === undefined) !== (input.scopeId === undefined)) raise(ctx, "validation.bad_input", "Name the object with both scopeType and scopeId.");
+  if ((input.scopeType === undefined) !== (input.scopeId === undefined))
+    raise(ctx, "validation.bad_input", "Name the object with both scopeType and scopeId.");
   const isRun = input.scopeType === "run";
   const isTask = input.scopeType === "task";
 
   if (input.kind === "ask") {
     if (isRun) raise(ctx, "validation.bad_input", "A Run has a chat, not an Ask pane.");
     if (isTask) raise(ctx, "validation.bad_input", "A task has a chat, not an Ask pane.");
-    if (input.scopeType === undefined) raise(ctx, "validation.bad_input", "An Ask pane is about something: say which record, file, event or page.");
-    if (personId !== undefined) raise(ctx, "validation.bad_input", "An Ask pane is private. Start a chat to talk to a person.");
+    if (input.scopeType === undefined)
+      raise(ctx, "validation.bad_input", "An Ask pane is about something: say which record, file, event or page.");
+    if (personId !== undefined)
+      raise(ctx, "validation.bad_input", "An Ask pane is private. Start a chat to talk to a person.");
     if (agentIds.length === 0) raise(ctx, "validation.bad_input", "Pick the agent to ask.");
   } else if (agentIds.length === 0 && personId === undefined && !isTask) {
     raise(ctx, "validation.bad_input", "Pick an agent or a person to talk to.");
   }
   if (isRun) {
-    if (!input.scopeId!.startsWith("run_")) raise(ctx, "validation.bad_input", "A Run chat is named by its Run id.", { scopeId: input.scopeId });
-    if (personId !== undefined) raise(ctx, "validation.bad_input", "A Run chat belongs to the Run, not to a pair of people.");
+    if (!input.scopeId!.startsWith("run_"))
+      raise(ctx, "validation.bad_input", "A Run chat is named by its Run id.", { scopeId: input.scopeId });
+    if (personId !== undefined)
+      raise(ctx, "validation.bad_input", "A Run chat belongs to the Run, not to a pair of people.");
   }
   if (isTask) {
-    if (!input.scopeId!.startsWith("tsk_")) raise(ctx, "validation.bad_input", "A task chat is named by its task id.", { scopeId: input.scopeId });
-    if (personId !== undefined) raise(ctx, "validation.bad_input", "A task chat belongs to the task, not to a pair of people.");
+    if (!input.scopeId!.startsWith("tsk_"))
+      raise(ctx, "validation.bad_input", "A task chat is named by its task id.", { scopeId: input.scopeId });
+    if (personId !== undefined)
+      raise(ctx, "validation.bad_input", "A task chat belongs to the task, not to a pair of people.");
   }
 
   // One chat per Run: starting it again opens the one that exists.
   if (isRun) {
-    const row = (ctx.db.all("SELECT id FROM chat_thread WHERE kind = 'run' AND scopeId = ? AND deleted_at IS NULL", input.scopeId) as Row[])[0];
-    if (row) { const t = threadBy(ctx.db, String(row["id"]))!; return { thread: threadOut(ctx.db, t) }; }
+    const row = (
+      ctx.db.all(
+        "SELECT id FROM chat_thread WHERE kind = 'run' AND scopeId = ? AND deleted_at IS NULL",
+        input.scopeId,
+      ) as Row[]
+    )[0];
+    if (row) {
+      const t = threadBy(ctx.db, String(row["id"]))!;
+      return { thread: threadOut(ctx.db, t) };
+    }
   }
   // One thread per task, whoever asks: the agents of a task listen in it and run only when woken or mentioned.
   if (isTask) {
-    const row = (ctx.db.all("SELECT id FROM chat_thread WHERE kind = 'thread' AND scopeType = 'task' AND scopeId = ? AND deleted_at IS NULL", input.scopeId) as Row[])[0];
-    if (row) { const t = threadBy(ctx.db, String(row["id"]))!; return { thread: threadOut(ctx.db, t) }; }
+    const row = (
+      ctx.db.all(
+        "SELECT id FROM chat_thread WHERE kind = 'thread' AND scopeType = 'task' AND scopeId = ? AND deleted_at IS NULL",
+        input.scopeId,
+      ) as Row[]
+    )[0];
+    if (row) {
+      const t = threadBy(ctx.db, String(row["id"]))!;
+      return { thread: threadOut(ctx.db, t) };
+    }
   }
   // One Ask per person, agent and object: opening it again from any door finds the same conversation. An opening message starts a session of its own, and a comment's pane is its own conversation (it names its record).
   if (input.kind === "ask" && input.first === undefined && input.recordId === undefined) {
-    const row = (ctx.db.all("SELECT t.id AS id FROM chat_thread t JOIN chat_thread_agent a ON a.thread = t.id AND a.deleted_at IS NULL WHERE t.kind = 'ask' AND t.scopeType = ? AND t.scopeId = ? AND t.starter = ? AND a.agentId = ? AND t.closedAt IS NULL AND t.deleted_at IS NULL AND t.recordId IS NULL ORDER BY t.createdAt DESC LIMIT 1", input.scopeType, input.scopeId, asker, agentIds[0]) as Row[])[0];
+    const row = (
+      ctx.db.all(
+        "SELECT t.id AS id FROM chat_thread t JOIN chat_thread_agent a ON a.thread = t.id AND a.deleted_at IS NULL WHERE t.kind = 'ask' AND t.scopeType = ? AND t.scopeId = ? AND t.starter = ? AND a.agentId = ? AND t.closedAt IS NULL AND t.deleted_at IS NULL AND t.recordId IS NULL ORDER BY t.createdAt DESC LIMIT 1",
+        input.scopeType,
+        input.scopeId,
+        asker,
+        agentIds[0],
+      ) as Row[]
+    )[0];
     if (row) return { thread: threadOut(ctx.db, threadBy(ctx.db, String(row["id"]))!) };
   }
   // The same two people have one direct message.
   if (personId !== undefined && agentIds.length === 0 && input.scopeType === undefined) {
     const dm = directBetween(ctx, asker, personId);
-    if (dm) { postFirst(ctx, dm, input.first); return { thread: threadOut(ctx.db, dm) }; }
+    if (dm) {
+      postFirst(ctx, dm, input.first);
+      return { thread: threadOut(ctx.db, dm) };
+    }
   }
 
   // A Run in a record's channel shows up there as one line, and its chat hangs under that line.
@@ -135,21 +219,37 @@ export async function start(ctx: ChatCtx, input: StartInput) {
   if (channel) {
     const main = threadBy(ctx.db, channel.mainThread);
     if (main) {
-      const line = insertMessage(ctx, main.id, { author: ctx.principal.id, kind: "system", body: `${input.title?.trim() || "A Run"} started. Its chat is in this thread.` });
+      const line = insertMessage(ctx, main.id, {
+        author: ctx.principal.id,
+        kind: "system",
+        body: `${input.title?.trim() || "A Run"} started. Its chat is in this thread.`,
+      });
       deliver(ctx, main, line, [], { kind: ctx.principal.kind, id: ctx.principal.id }, { notify: false });
       parent = { threadId: main.id, messageId: line.id };
     }
   }
 
   const t = insertThread(ctx, {
-    kind: isRun ? "run" : isTask ? "thread" : input.kind, title: input.title?.trim() || undefined, starter: asker, recordId: input.recordId, folderId: input.folderId, scopeType: input.scopeType, scopeId: input.scopeId,
-    parentThreadId: parent?.threadId, parentMessageId: parent?.messageId, listed: input.kind === "chat" && !isRun && !isTask,
+    kind: isRun ? "run" : isTask ? "thread" : input.kind,
+    title: input.title?.trim() || undefined,
+    starter: asker,
+    recordId: input.recordId,
+    folderId: input.folderId,
+    scopeType: input.scopeType,
+    scopeId: input.scopeId,
+    parentThreadId: parent?.threadId,
+    parentMessageId: parent?.messageId,
+    listed: input.kind === "chat" && !isRun && !isTask,
   });
   if (asker.startsWith("usr_")) addMember(ctx, t.id, asker, "owner");
   if (personId !== undefined) addMember(ctx, t.id, personId);
   // The first agent leads when nobody else is talking; a second person (a direct message) or more agents mean the rest listen.
-  const engaged = agentIds.map((agentId, i): { agentId: string; mode: Mode } => ({ agentId, mode: i === 0 && personId === undefined && !isTask ? "lead" : "listen" }));
-  for (const a of engaged) addAgent(ctx, t.id, { ...a, model: input.model, provider: input.provider, effort: input.effort, addedBy: asker });
+  const engaged = agentIds.map((agentId, i): { agentId: string; mode: Mode } => ({
+    agentId,
+    mode: i === 0 && personId === undefined && !isTask ? "lead" : "listen",
+  }));
+  for (const a of engaged)
+    addAgent(ctx, t.id, { ...a, model: input.model, provider: input.provider, effort: input.effort, addedBy: asker });
 
   emitStarted(ctx, t);
   emitAgentsEngaged(ctx, t.id, engaged, asker);
@@ -163,12 +263,24 @@ export async function thread(ctx: ChatCtx, input: { threadId: string; messageId:
   ensure(ctx.db);
   const parent = threadBy(ctx.db, input.threadId);
   const msg = messageBy(ctx.db, input.messageId);
-  if (!parent || !msg || msg.thread !== parent.id || !canSpeak(ctx, parent)) raise(ctx, "validation.not_found", "That message does not exist or is not yours to reply to.");
-  const existing = (ctx.db.all("SELECT id FROM chat_thread WHERE parentMessageId = ? AND deleted_at IS NULL ORDER BY createdAt LIMIT 1", msg.id) as Row[])[0];
+  if (!parent || !msg || msg.thread !== parent.id || !canSpeak(ctx, parent))
+    raise(ctx, "validation.not_found", "That message does not exist or is not yours to reply to.");
+  const existing = (
+    ctx.db.all(
+      "SELECT id FROM chat_thread WHERE parentMessageId = ? AND deleted_at IS NULL ORDER BY createdAt LIMIT 1",
+      msg.id,
+    ) as Row[]
+  )[0];
   if (existing) return { thread: threadOut(ctx.db, threadBy(ctx.db, String(existing["id"]))!) };
 
   const asker = askerOf(ctx);
-  const t = insertThread(ctx, { kind: "thread", starter: asker, parentThreadId: parent.id, parentMessageId: msg.id, listed: false });
+  const t = insertThread(ctx, {
+    kind: "thread",
+    starter: asker,
+    parentThreadId: parent.id,
+    parentMessageId: msg.id,
+    listed: false,
+  });
   if (asker.startsWith("usr_")) addMember(ctx, t.id, asker, "owner");
   // whoever wrote the message is in its thread: replies to what they said reach them
   if (msg.author.startsWith("usr_") && msg.author !== asker) addMember(ctx, t.id, msg.author);
@@ -178,7 +290,16 @@ export async function thread(ctx: ChatCtx, input: { threadId: string; messageId:
   // Where agents reply in threads, the agents of the chat are in its threads as they are in the chat: the thread is where they answer, so a question asked inside it is answered there.
   if (agentsReplyInThreads(parent)) {
     for (const a of agentsOf(ctx.db, parent.id)) {
-      addAgent(ctx, t.id, { agentId: a.agentId, mode: a.mode === "lead" && leads.length > 0 ? "listen" : a.mode, ...(a.model !== undefined ? { model: a.model } : {}), ...(a.provider !== undefined ? { provider: a.provider } : {}), ...(a.effort !== undefined ? { effort: a.effort } : {}), ...(a.accountRef !== undefined ? { accountRef: a.accountRef } : {}), ...(a.quiet === true ? { quiet: true } : {}), addedBy: asker });
+      addAgent(ctx, t.id, {
+        agentId: a.agentId,
+        mode: a.mode === "lead" && leads.length > 0 ? "listen" : a.mode,
+        ...(a.model !== undefined ? { model: a.model } : {}),
+        ...(a.provider !== undefined ? { provider: a.provider } : {}),
+        ...(a.effort !== undefined ? { effort: a.effort } : {}),
+        ...(a.accountRef !== undefined ? { accountRef: a.accountRef } : {}),
+        ...(a.quiet === true ? { quiet: true } : {}),
+        addedBy: asker,
+      });
     }
   }
   emitStarted(ctx, t);
@@ -191,15 +312,24 @@ export async function makeChannel(ctx: ChatCtx, input: { threadId: string; perso
   ensure(ctx.db);
   const src = threadBy(ctx.db, input.threadId);
   if (!src || !canSpeak(ctx, src)) raise(ctx, "validation.bad_input", "That chat does not exist or is not yours.");
-  if (src.kind !== "chat" || src.channelId !== undefined) raise(ctx, "validation.bad_input", "Only a private chat becomes a channel.");
+  if (src.kind !== "chat" || src.channelId !== undefined)
+    raise(ctx, "validation.bad_input", "Only a private chat becomes a channel.");
   const asker = askerOf(ctx);
-  if (!input.personId.startsWith("usr_") || input.personId === asker) raise(ctx, "validation.bad_input", "Pick another person for the channel.");
-  if (privateFork(ctx.db, src.id)) raise(ctx, "validation.precondition_failed", "This is a copy of a chat that had other people in it, so it stays private to you and cannot become a channel.", { reason: "private_fork" });
+  if (!input.personId.startsWith("usr_") || input.personId === asker)
+    raise(ctx, "validation.bad_input", "Pick another person for the channel.");
+  if (privateFork(ctx.db, src.id))
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      "This is a copy of a chat that had other people in it, so it stays private to you and cannot become a channel.",
+      { reason: "private_fork" },
+    );
 
   let name: string;
   if (input.name !== undefined && input.name.trim() !== "") {
     name = cleanName(ctx, input.name);
-    if (channelByName(ctx.db, name)) raise(ctx, "validation.bad_input", "A channel with that name already exists.", { name });
+    if (channelByName(ctx.db, name))
+      raise(ctx, "validation.bad_input", "A channel with that name already exists.", { name });
   } else {
     const base = cleanName(ctx, src.title ?? "Team chat");
     name = base;
@@ -207,36 +337,108 @@ export async function makeChannel(ctx: ChatCtx, input: { threadId: string; perso
   }
 
   const channelId = mintId("chn", ctx.now());
-  const main = insertThread(ctx, { kind: "channel", title: name, starter: asker, channelId, parentThreadId: src.id, recordId: src.recordId, folderId: src.folderId, listed: true });
-  const people = [...new Set([asker, ...membersOf(ctx.db, src.id).filter((p) => !p.startsWith("agt_")), input.personId])];
+  const main = insertThread(ctx, {
+    kind: "channel",
+    title: name,
+    starter: asker,
+    channelId,
+    parentThreadId: src.id,
+    recordId: src.recordId,
+    folderId: src.folderId,
+    listed: true,
+  });
+  const people = [
+    ...new Set([asker, ...membersOf(ctx.db, src.id).filter((p) => !p.startsWith("agt_")), input.personId]),
+  ];
   for (const p of people) addMember(ctx, main.id, p, p === asker ? "owner" : "member");
   // The chat's agents come along and listen: in a channel an agent answers when it is @mentioned.
-  for (const a of agentsOf(ctx.db, src.id)) addAgent(ctx, main.id, { agentId: a.agentId, mode: "listen", model: a.model, provider: a.provider, effort: a.effort, accountRef: a.accountRef, addedBy: asker });
-  const channel = insertChannel(ctx, { id: channelId, mainThread: main.id, name, visibility: "invite", folderId: src.folderId, recordId: src.recordId, createdBy: asker });
-  ctx.emit("channel.created", channel.id, { channelId: channel.id, name, visibility: "invite", ...(src.recordId !== undefined ? { recordId: src.recordId } : {}) });
+  for (const a of agentsOf(ctx.db, src.id))
+    addAgent(ctx, main.id, {
+      agentId: a.agentId,
+      mode: "listen",
+      model: a.model,
+      provider: a.provider,
+      effort: a.effort,
+      accountRef: a.accountRef,
+      addedBy: asker,
+    });
+  const channel = insertChannel(ctx, {
+    id: channelId,
+    mainThread: main.id,
+    name,
+    visibility: "invite",
+    folderId: src.folderId,
+    recordId: src.recordId,
+    createdBy: asker,
+  });
+  ctx.emit("channel.created", channel.id, {
+    channelId: channel.id,
+    name,
+    visibility: "invite",
+    ...(src.recordId !== undefined ? { recordId: src.recordId } : {}),
+  });
   ctx.emit("thread.promoted", src.id, { threadId: src.id, channelId: channel.id, personId: input.personId });
   return { channel: channelOut(ctx.db, channel) };
 }
 
-export async function channelsCreate(ctx: ChatCtx, input: { name: string; visibility: "public" | "invite"; topic?: string; memberIds?: string[]; agentIds?: string[]; leadAgentId?: string; folderId?: string; recordId?: string; idempotencyKey?: string }) {
+export async function channelsCreate(
+  ctx: ChatCtx,
+  input: {
+    name: string;
+    visibility: "public" | "invite";
+    topic?: string;
+    memberIds?: string[];
+    agentIds?: string[];
+    leadAgentId?: string;
+    folderId?: string;
+    recordId?: string;
+    idempotencyKey?: string;
+  },
+) {
   ensure(ctx.db);
   const name = cleanName(ctx, input.name);
-  if (channelByName(ctx.db, name)) raise(ctx, "validation.bad_input", "A channel with that name already exists.", { name });
-  if (input.recordId !== undefined && channelOfRecord(ctx.db, input.recordId)) raise(ctx, "validation.bad_input", "That record already has a channel.", { recordId: input.recordId });
+  if (channelByName(ctx.db, name))
+    raise(ctx, "validation.bad_input", "A channel with that name already exists.", { name });
+  if (input.recordId !== undefined && channelOfRecord(ctx.db, input.recordId))
+    raise(ctx, "validation.bad_input", "That record already has a channel.", { recordId: input.recordId });
   const memberIds = uniqueIds(ctx, input.memberIds, "usr_", "a person");
   const agentIds = uniqueIds(ctx, input.agentIds, "agt_", "an agent");
   const topic = input.topic?.trim() || undefined;
-  if (topic !== undefined && topic.length > 250) raise(ctx, "validation.bad_input", "A topic can be at most 250 characters.");
+  if (topic !== undefined && topic.length > 250)
+    raise(ctx, "validation.bad_input", "A topic can be at most 250 characters.");
 
   const asker = askerOf(ctx);
   const channelId = mintId("chn", ctx.now());
-  const main = insertThread(ctx, { kind: "channel", title: name, starter: asker, channelId, recordId: input.recordId, folderId: input.folderId, listed: true });
+  const main = insertThread(ctx, {
+    kind: "channel",
+    title: name,
+    starter: asker,
+    channelId,
+    recordId: input.recordId,
+    folderId: input.folderId,
+    listed: true,
+  });
   if (asker.startsWith("usr_")) addMember(ctx, main.id, asker, "owner");
   for (const p of memberIds) addMember(ctx, main.id, p);
   // Agents are invited as listeners: in a channel they answer when asked, and act unmentioned only where "watches this channel" is on.
-  for (const agentId of agentIds) addAgent(ctx, main.id, { agentId, mode: agentId === input.leadAgentId ? "lead" : "listen", addedBy: asker });
-  const channel = insertChannel(ctx, { id: channelId, mainThread: main.id, name, topic, visibility: input.visibility, folderId: input.folderId, recordId: input.recordId, createdBy: asker });
-  ctx.emit("channel.created", channel.id, { channelId: channel.id, name, visibility: input.visibility, ...(input.recordId !== undefined ? { recordId: input.recordId } : {}) });
+  for (const agentId of agentIds)
+    addAgent(ctx, main.id, { agentId, mode: agentId === input.leadAgentId ? "lead" : "listen", addedBy: asker });
+  const channel = insertChannel(ctx, {
+    id: channelId,
+    mainThread: main.id,
+    name,
+    topic,
+    visibility: input.visibility,
+    folderId: input.folderId,
+    recordId: input.recordId,
+    createdBy: asker,
+  });
+  ctx.emit("channel.created", channel.id, {
+    channelId: channel.id,
+    name,
+    visibility: input.visibility,
+    ...(input.recordId !== undefined ? { recordId: input.recordId } : {}),
+  });
   emitStarted(ctx, main);
   return { channel: channelOut(ctx.db, channel) };
 }
@@ -244,7 +446,8 @@ export async function channelsCreate(ctx: ChatCtx, input: { name: string; visibi
 // ---- blocks that park a turn ------------------------------------------------------------------------------------------------------------------------
 
 const onlyPeople = (ctx: ChatCtx): void => {
-  if (ctx.principal.kind !== "person") raise(ctx, "validation.precondition_failed", "A person answers this, not an agent.");
+  if (ctx.principal.kind !== "person")
+    raise(ctx, "validation.precondition_failed", "A person answers this, not an agent.");
 };
 
 /**
@@ -252,7 +455,13 @@ const onlyPeople = (ctx: ChatCtx): void => {
  * so the agent reads one shape whichever surface answered.
  */
 export function canonicalAnswer(mode: string, answer: unknown): unknown {
-  if (answer === null || typeof answer !== "object" || Array.isArray(answer) || !Array.isArray((answer as { keys?: unknown }).keys)) return answer;
+  if (
+    answer === null ||
+    typeof answer !== "object" ||
+    Array.isArray(answer) ||
+    !Array.isArray((answer as { keys?: unknown }).keys)
+  )
+    return answer;
   const { keys, text } = answer as { keys: unknown[]; text?: unknown };
   const typed = typeof text === "string" && text.trim() !== "" ? text.trim() : "";
   if (mode === "free") return typed;
@@ -263,11 +472,16 @@ export function canonicalAnswer(mode: string, answer: unknown): unknown {
 /** Does `answer` fit the question? single: one option (or free text where Other is on); multi: a list of options; free: text. */
 function answerFits(data: Record<string, unknown>, answer: unknown): boolean {
   const mode = String(data["mode"] ?? "free");
-  const keys = Array.isArray(data["options"]) ? (data["options"] as Array<{ key?: unknown }>).map((o) => String(o.key)) : [];
+  const keys = Array.isArray(data["options"])
+    ? (data["options"] as Array<{ key?: unknown }>).map((o) => String(o.key))
+    : [];
   // a Mount card hands back what was mounted as words, so a question made only of mount sources always takes words
   const other = data["allowOther"] === true || (keys.length > 0 && keys.every((k) => k.startsWith("mount:")));
   const text = (v: unknown): v is string => typeof v === "string" && v.trim() !== "";
-  const otherText = (v: unknown): boolean => other && (text(v) || (typeof v === "object" && v !== null && !Array.isArray(v) && text((v as Record<string, unknown>)["other"])));
+  const otherText = (v: unknown): boolean =>
+    other &&
+    (text(v) ||
+      (typeof v === "object" && v !== null && !Array.isArray(v) && text((v as Record<string, unknown>)["other"])));
   if (mode === "free") return text(answer);
   if (mode === "single") return (typeof answer === "string" && keys.includes(answer)) || otherText(answer);
   if (!Array.isArray(answer) || answer.length === 0) return false;
@@ -278,48 +492,78 @@ export async function answerBlock(ctx: ChatCtx, input: { threadId: string; block
   ensure(ctx.db);
   const block = blockBy(ctx.db, input.blockId);
   const t = threadBy(ctx.db, input.threadId);
-  if (!block || !t || block.thread !== t.id || !canSpeak(ctx, t)) raise(ctx, "validation.not_found", "That question does not exist.");
+  if (!block || !t || block.thread !== t.id || !canSpeak(ctx, t))
+    raise(ctx, "validation.not_found", "That question does not exist.");
   onlyPeople(ctx);
-  if (block.type !== "question") raise(ctx, "validation.precondition_failed", "Approve or send back a plan with its own buttons.");
+  if (block.type !== "question")
+    raise(ctx, "validation.precondition_failed", "Approve or send back a plan with its own buttons.");
   if (block.state === "done") {
     // Answering twice with the same answer is the same answer (an offline resend); a different one comes too late.
-    if (JSON.stringify(block.answer) === JSON.stringify(canonicalAnswer(String((block.data as Record<string, unknown>)["mode"] ?? "free"), input.answer))) return { ok: true };
+    if (
+      JSON.stringify(block.answer) ===
+      JSON.stringify(canonicalAnswer(String((block.data as Record<string, unknown>)["mode"] ?? "free"), input.answer))
+    )
+      return { ok: true };
     raise(ctx, "validation.precondition_failed", ALREADY_DECIDED, { reason: "closed" });
   }
   const given = canonicalAnswer(String((block.data as Record<string, unknown>)["mode"] ?? "free"), input.answer);
   if (!answerFits(block.data, given)) raise(ctx, "validation.bad_input", "That answer does not fit the question.");
 
   const by = askerOf(ctx);
-  ctx.db.run("UPDATE chat_block SET state = 'done', answer = ?, answeredBy = ?, answeredAt = ? WHERE id = ?", JSON.stringify(given), by, ctx.now(), block.id);
-  patchBlockInMessage(ctx.db, block.message, block.id, (b) => ({ ...b, state: "done", data: { ...(b["data"] as Record<string, unknown>), answer: given, answeredBy: by } }));
+  ctx.db.run(
+    "UPDATE chat_block SET state = 'done', answer = ?, answeredBy = ?, answeredAt = ? WHERE id = ?",
+    JSON.stringify(given),
+    by,
+    ctx.now(),
+    block.id,
+  );
+  patchBlockInMessage(ctx.db, block.message, block.id, (b) => ({
+    ...b,
+    state: "done",
+    data: { ...(b["data"] as Record<string, unknown>), answer: given, answeredBy: by },
+  }));
   // The engine reads block.answered and queues a wake, so the parked turn continues in the same thread.
   ctx.emit("block.answered", t.id, { threadId: t.id, blockId: block.id, by });
   // The agent that asked hears the answer as the person's own message, naming it, which wakes it the way any message does (a CLI engine has no parked call to resume). The words name each pick and its key.
   const data = block.data as { options?: Array<{ key?: unknown; label?: unknown }> };
-  const label = (k: unknown): string => { const o = (data.options ?? []).find((x) => String(x.key) === String(k)); return o && typeof o.label === "string" ? `${o.label} (${String(k)})` : String(k); };
-  const picks = (Array.isArray(given) ? given : [given]).map((a) => (a !== null && typeof a === "object" ? String((a as { other?: unknown }).other ?? "") : label(a))).filter((x) => x !== "");
+  const label = (k: unknown): string => {
+    const o = (data.options ?? []).find((x) => String(x.key) === String(k));
+    return o && typeof o.label === "string" ? `${o.label} (${String(k)})` : String(k);
+  };
+  const picks = (Array.isArray(given) ? given : [given])
+    .map((a) => (a !== null && typeof a === "object" ? String((a as { other?: unknown }).other ?? "") : label(a)))
+    .filter((x) => x !== "");
   if (picks.length > 0) await tellAgent(ctx, t, block, `Answered: ${picks.join(", ")}`);
   return { ok: true };
 }
 
-export interface PlanEdit { stepId: string; text?: string; remove?: boolean }
+export interface PlanEdit {
+  stepId: string;
+  text?: string;
+  remove?: boolean;
+}
 
 export async function approvePlan(ctx: ChatCtx, input: { threadId: string; planId: string; edits?: PlanEdit[] }) {
   ensure(ctx.db);
   const plan = planBy(ctx.db, input.planId);
   const t = threadBy(ctx.db, input.threadId);
-  if (!plan || !t || plan.thread !== t.id || !canSpeak(ctx, t)) raise(ctx, "validation.not_found", "That plan does not exist.");
+  if (!plan || !t || plan.thread !== t.id || !canSpeak(ctx, t))
+    raise(ctx, "validation.not_found", "That plan does not exist.");
   onlyPeople(ctx);
   const edits = input.edits ?? [];
   const view = (steps: PlanStep[]) => ({ planId: plan.id, state: plan.state, steps });
   if (plan.state === "approved" && edits.length === 0) return { plan: view(plan.steps) };
-  if (plan.state !== "proposed") raise(ctx, "validation.precondition_failed", ALREADY_DECIDED, { reason: "closed", state: plan.state });
+  if (plan.state !== "proposed")
+    raise(ctx, "validation.precondition_failed", ALREADY_DECIDED, { reason: "closed", state: plan.state });
 
   let steps = plan.steps.map((s) => ({ ...s }));
   for (const e of edits) {
     const i = steps.findIndex((s) => s.stepId === e.stepId);
     if (i < 0) raise(ctx, "validation.bad_input", "That step is not in this plan.", { stepId: e.stepId });
-    if (e.remove === true) { steps = steps.filter((s) => s.stepId !== e.stepId); continue; }
+    if (e.remove === true) {
+      steps = steps.filter((s) => s.stepId !== e.stepId);
+      continue;
+    }
     if (e.text !== undefined) {
       if (e.text.trim() === "") raise(ctx, "validation.bad_input", "A step needs words.", { stepId: e.stepId });
       steps[i] = { ...steps[i]!, text: e.text.trim() };
@@ -329,15 +573,37 @@ export async function approvePlan(ctx: ChatCtx, input: { threadId: string; planI
 
   const by = askerOf(ctx);
   const now = ctx.now();
-  ctx.db.run("UPDATE chat_plan SET state = 'approved', steps = ?, decidedBy = ?, decidedAt = ? WHERE id = ?", JSON.stringify(steps), by, now, plan.id);
-  ctx.db.run("UPDATE chat_block SET state = 'done', answer = ?, answeredBy = ?, answeredAt = ? WHERE id = ?", JSON.stringify({ approved: true, edited: edits.length > 0 }), by, now, plan.block);
+  ctx.db.run(
+    "UPDATE chat_plan SET state = 'approved', steps = ?, decidedBy = ?, decidedAt = ? WHERE id = ?",
+    JSON.stringify(steps),
+    by,
+    now,
+    plan.id,
+  );
+  ctx.db.run(
+    "UPDATE chat_block SET state = 'done', answer = ?, answeredBy = ?, answeredAt = ? WHERE id = ?",
+    JSON.stringify({ approved: true, edited: edits.length > 0 }),
+    by,
+    now,
+    plan.block,
+  );
   // Approving ends plan mode for the thread: it goes back to Auto, the agent may now change things, and the steps tick off as they finish.
   ctx.db.run("UPDATE chat_thread SET modePlan = 2, updated_at = ? WHERE id = ?", now, t.id);
   const block = blockBy(ctx.db, plan.block);
-  if (block) patchBlockInMessage(ctx.db, block.message, block.id, (b) => ({ ...b, state: "done", data: { ...(b["data"] as Record<string, unknown>), steps, state: "approved" } }));
+  if (block)
+    patchBlockInMessage(ctx.db, block.message, block.id, (b) => ({
+      ...b,
+      state: "done",
+      data: { ...(b["data"] as Record<string, unknown>), steps, state: "approved" },
+    }));
   ctx.emit("plan.approved", t.id, { planId: plan.id, threadId: t.id, edited: edits.length > 0, by });
   ctx.emit("block.answered", t.id, { threadId: t.id, blockId: plan.block, by });
-  if (block) await tellAgent(ctx, t, block, edits.length > 0 ? "Plan approved, with my edits. Go ahead." : "Plan approved. Go ahead.");
+  if (block)
+    await tellAgent(
+      ctx,
+      t,
+      block,
+      edits.length > 0 ? "Plan approved, with my edits. Go ahead." : "Plan approved. Go ahead.",
+    );
   return { plan: { planId: plan.id, state: "approved", steps } };
 }
-

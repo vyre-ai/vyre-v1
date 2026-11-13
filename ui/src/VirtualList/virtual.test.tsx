@@ -9,7 +9,12 @@ const rows = Array.from({ length: 10000 }, (_, i) => ({ id: `r${i}`, title: `Row
 
 test("10,000 rows render only a window of Row items", () => {
   const html = renderToStaticMarkup(
-    <VirtualList data={rows} rowHeight={28} keyOf={(r) => r.id} renderItem={(r) => <Row id={r.id} title={r.title} />} />,
+    <VirtualList
+      data={rows}
+      rowHeight={28}
+      keyOf={(r) => r.id}
+      renderItem={(r) => <Row id={r.id} title={r.title} />}
+    />,
   );
   const rendered = html.match(/data-testid="row-r\d+"/g)?.length ?? 0;
   assert.ok(rendered > 0 && rendered < 60, `rendered ${rendered} rows`);
@@ -20,7 +25,13 @@ test("10,000 rows render only a window of Row items", () => {
 
 test("an explicit window renders exactly that range", () => {
   const html = renderToStaticMarkup(
-    <VirtualList data={rows} rowHeight={28} window={{ start: 100, end: 105 }} keyOf={(r) => r.id} renderItem={(r) => <Row id={r.id} title={r.title} />} />,
+    <VirtualList
+      data={rows}
+      rowHeight={28}
+      window={{ start: 100, end: 105 }}
+      keyOf={(r) => r.id}
+      renderItem={(r) => <Row id={r.id} title={r.title} />}
+    />,
   );
   assert.equal(html.match(/data-testid="row-r\d+"/g)?.length, 5);
   assert.match(html, /data-testid="row-r100"/);
@@ -50,16 +61,27 @@ test("a measured height stays with its row when rows move (a label after an inse
   // the pane measured: Terminal label 30, the browser skeleton 220; then "No sessions yet." (24) is put in before the Browser label and the skeleton became the card (260)
   const before = ["l-terminal", "terminal-card", "l-browser", "browser-loading"];
   const after = ["l-terminal", "terminal-card", "no-sessions", "l-browser", "browser-card"];
-  const measured = new Map<string, number>([["l-terminal", 30], ["terminal-card", 120], ["l-browser", 30], ["browser-loading", 220]]);
+  const measured = new Map<string, number>([
+    ["l-terminal", 30],
+    ["terminal-card", 120],
+    ["l-browser", 30],
+    ["browser-loading", 220],
+  ]);
   const was = rowOffsets(before.length, "measure", measured, (i) => before[i]!);
   assert.equal(was[3] - was[2], 30, "the Browser label is its own height");
   const now = rowOffsets(after.length, "measure", measured, (i) => after[i]!);
-  assert.equal(now[4] - now[3], 30, "the Browser label keeps its 30 px after it moved down one place, not the skeleton's 220");
+  assert.equal(
+    now[4] - now[3],
+    30,
+    "the Browser label keeps its 30 px after it moved down one place, not the skeleton's 220",
+  );
   assert.equal(now[5] - now[4], 44, "the new card is estimated until it reports, never given another row's height");
 });
 
 test("an empty list renders no rows and no crash", () => {
-  const html = renderToStaticMarkup(<VirtualList data={[] as string[]} rowHeight={28} renderItem={(s) => <Row title={s} />} />);
+  const html = renderToStaticMarkup(
+    <VirtualList data={[] as string[]} rowHeight={28} renderItem={(s) => <Row title={s} />} />,
+  );
   assert.doesNotMatch(html, /data-testid="row-/);
 });
 
@@ -123,7 +145,10 @@ test("measured rows invalidate a cached scroll window when reflow moves the view
   assert.ok(current.end < visible.end, "the cached estimated window no longer covers the reflowed viewport");
   const resolved = renderWindowFor(reflowed, 2000, 640, current);
   assert.notDeepEqual(resolved, current);
-  assert.ok(resolved.start <= visible.start && resolved.end >= visible.end, "the render window covers the viewport immediately after reflow");
+  assert.ok(
+    resolved.start <= visible.start && resolved.end >= visible.end,
+    "the render window covers the viewport immediately after reflow",
+  );
 });
 
 test("scroll windows cover the viewport in both directions", () => {

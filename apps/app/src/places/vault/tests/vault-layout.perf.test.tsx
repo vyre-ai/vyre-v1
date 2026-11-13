@@ -10,7 +10,10 @@ import type { SampleVault } from "../layout/sample.ts";
 import { visibleItems, countItems } from "../layout/model.ts";
 import type { Item } from "../layout/model.ts";
 
-Dimensions.set({ window: { width: 1280, height: 800, scale: 1, fontScale: 1 }, screen: { width: 1280, height: 800, scale: 1, fontScale: 1 } });
+Dimensions.set({
+  window: { width: 1280, height: 800, scale: 1, fontScale: 1 },
+  screen: { width: 1280, height: 800, scale: 1, fontScale: 1 },
+});
 const clean = (s: string): string => s.replaceAll("<!-- -->", "");
 const html = (v: SampleVault): string => clean(renderToStaticMarkup(<Vault data={v.data} />));
 const has = (s: string, needle: string): boolean => s.includes(needle);
@@ -25,9 +28,17 @@ test("speed: 10,000 keys filter and count fast and the list renders only a windo
   const items = queryOf<{ items: Item[] }>(v, "vault.layout", "items").items;
   assert.equal(items.length, 10_016);
   const samples: number[] = [];
-  for (let i = 0; i < 3; i++) { const t0 = performance.now(); visibleItems(items, { kind: "keys" }, "sample", new Set(), new Set()); countItems(items, new Set(), null, 0); samples.push(performance.now() - t0); }
+  for (let i = 0; i < 3; i++) {
+    const t0 = performance.now();
+    visibleItems(items, { kind: "keys" }, "sample", new Set(), new Set());
+    countItems(items, new Set(), null, 0);
+    samples.push(performance.now() - t0);
+  }
   samples.sort((a, b) => a - b);
-  assert.ok(samples[1]! < 100, `median filter plus count ${samples[1]!.toFixed(1)} ms is under the 100 ms complete-paint budget`);
+  assert.ok(
+    samples[1]! < 100,
+    `median filter plus count ${samples[1]!.toFixed(1)} ms is under the 100 ms complete-paint budget`,
+  );
   const out = html(v);
   const rowsDrawn = out.split('data-testid="row-vit_').length - 1;
   assert.ok(rowsDrawn > 5 && rowsDrawn < 60, `only a window of rows is drawn (${rowsDrawn})`);

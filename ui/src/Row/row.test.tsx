@@ -37,7 +37,9 @@ test("the note renders after the title in the same text column", () => {
 test("leading and trailing slots sit inside the painted row, around the text, with no overlay", () => {
   const html = renderToStaticMarkup(<Row id="s" title="Clients" selected leading={<i>L</i>} trailing={<b>T</b>} />);
   assert.match(html, /background-color:var\(--sel\)/);
-  assert.ok(html.indexOf("<i>L</i>") < html.indexOf(">Clients<") && html.indexOf(">Clients<") < html.indexOf("<b>T</b>"));
+  assert.ok(
+    html.indexOf("<i>L</i>") < html.indexOf(">Clients<") && html.indexOf(">Clients<") < html.indexOf("<b>T</b>"),
+  );
   assert.match(html, /data-testid="row-s-leading"/);
   assert.match(html, /data-testid="row-s-trailing"/);
   assert.doesNotMatch(html, /position:absolute/);
@@ -55,7 +57,9 @@ test("the two-line variant is 62 px and its note may take two lines; the default
   assert.equal(rowHeight(undefined, true), 62);
   assert.equal(rowHeight(), ROW_HEIGHT);
   assert.equal(rowHeight("x"), ROW_HEIGHT_WITH_NOTE);
-  const html = renderToStaticMarkup(<Row id="a" title="Maya Chen" note="Can you move Tuesday? I have a conflict that morning." tall />);
+  const html = renderToStaticMarkup(
+    <Row id="a" title="Maya Chen" note="Can you move Tuesday? I have a conflict that morning." tall />,
+  );
   assert.match(html, /height:62px/);
 });
 
@@ -77,31 +81,56 @@ test("emphasis makes the title semibold, with or without a suffix; without it th
 
 test("noteLead draws an accent lead-in before the note, only with a note; rows without it are unchanged", () => {
   const html = renderToStaticMarkup(<Row id="a" title="Rivera letter" note="Two edits left" noteLead="Draft ready" />);
-  assert.ok(html.includes('data-testid="row-a-notelead"') && html.includes("Draft ready") && html.includes("Two edits left"));
-  assert.ok(html.includes("Draft ready</span> \u00b7 ") || html.includes("\u00b7"), "a middle dot between the lead-in and the note, as the prototype writes it");
+  assert.ok(
+    html.includes('data-testid="row-a-notelead"') && html.includes("Draft ready") && html.includes("Two edits left"),
+  );
+  assert.ok(
+    html.includes("Draft ready</span> \u00b7 ") || html.includes("\u00b7"),
+    "a middle dot between the lead-in and the note, as the prototype writes it",
+  );
   assert.ok(html.indexOf("Draft ready") < html.indexOf("Two edits left"), "the lead-in comes first");
   assert.match(html, /color:var\(--accent\)/);
-  assert.ok(!renderToStaticMarkup(<Row id="a" title="Rivera letter" noteLead="Draft ready" />).includes("notelead"), "no note, no lead-in");
+  assert.ok(
+    !renderToStaticMarkup(<Row id="a" title="Rivera letter" noteLead="Draft ready" />).includes("notelead"),
+    "no note, no lead-in",
+  );
   const plain = renderToStaticMarkup(<Row id="a" title="Rivera letter" note="Two edits left" />);
   assert.ok(!plain.includes("notelead") && plain.includes("Two edits left"));
   assert.equal(rowHeight("x"), ROW_HEIGHT_WITH_NOTE, "heights are unchanged");
 });
 
 test("titleMarks draw after the title and the suffix on the title line; rows without them are unchanged", () => {
-  const html = renderToStaticMarkup(<Row id="a" title="Maya Chen" titleSuffix="Northwind" titleMarks={<span data-mark="star">S</span>} />);
+  const html = renderToStaticMarkup(
+    <Row id="a" title="Maya Chen" titleSuffix="Northwind" titleMarks={<span data-mark="star">S</span>} />,
+  );
   assert.ok(html.includes('data-testid="row-a-marks"') && html.includes('data-mark="star"'));
-  assert.ok(html.indexOf("Maya Chen") < html.indexOf("Northwind") && html.indexOf("Northwind") < html.indexOf('data-mark="star"'), "title, then suffix, then marks");
+  assert.ok(
+    html.indexOf("Maya Chen") < html.indexOf("Northwind") &&
+      html.indexOf("Northwind") < html.indexOf('data-mark="star"'),
+    "title, then suffix, then marks",
+  );
   const only = renderToStaticMarkup(<Row id="a" title="Maya Chen" titleMarks={<span data-mark="dnd">D</span>} />);
-  assert.ok(only.includes('data-testid="row-a-marks"') && !only.includes("-suffix") && only.indexOf("Maya Chen") < only.indexOf('data-mark="dnd"'), "marks work without a suffix");
+  assert.ok(
+    only.includes('data-testid="row-a-marks"') &&
+      !only.includes("-suffix") &&
+      only.indexOf("Maya Chen") < only.indexOf('data-mark="dnd"'),
+    "marks work without a suffix",
+  );
   const plain = renderToStaticMarkup(<Row id="a" title="Maya Chen" />);
   assert.ok(!plain.includes("-marks"));
   assert.equal(rowHeight(), ROW_HEIGHT, "heights are unchanged");
 });
 
 test("noteLeadTone picks the lead-in colour: accent by default, warning on request; the note keeps its own colour", () => {
-  const accent = renderToStaticMarkup(<Row id="a" title="Rivera" note="Maya Chen at Northwind" noteLead="Draft ready" />);
-  const warn = renderToStaticMarkup(<Row id="a" title="Rivera" note="Maya Chen at Northwind" noteLead="Unsure match" noteLeadTone="warning" />);
-  const explicit = renderToStaticMarkup(<Row id="a" title="Rivera" note="n" noteLead="Draft ready" noteLeadTone="accent" />);
+  const accent = renderToStaticMarkup(
+    <Row id="a" title="Rivera" note="Maya Chen at Northwind" noteLead="Draft ready" />,
+  );
+  const warn = renderToStaticMarkup(
+    <Row id="a" title="Rivera" note="Maya Chen at Northwind" noteLead="Unsure match" noteLeadTone="warning" />,
+  );
+  const explicit = renderToStaticMarkup(
+    <Row id="a" title="Rivera" note="n" noteLead="Draft ready" noteLeadTone="accent" />,
+  );
   assert.match(accent, /color:var\(--accent\)/);
   assert.ok(!accent.includes("var(--warn)"), "the default is not the warning colour");
   assert.match(warn, /color:var\(--warn\)/);
@@ -111,7 +140,14 @@ test("noteLeadTone picks the lead-in colour: accent by default, warning on reque
 });
 
 test("on the web a row is plain elements, and domProps put a list's own attributes on the row's element", () => {
-  const html = renderToStaticMarkup(<Row id="a" title="Brief.docx" selected domProps={{ draggable: true, "data-fkey": "file:1", style: { margin: "5px 6px" } }} />);
+  const html = renderToStaticMarkup(
+    <Row
+      id="a"
+      title="Brief.docx"
+      selected
+      domProps={{ draggable: true, "data-fkey": "file:1", style: { margin: "5px 6px" } }}
+    />,
+  );
   assert.match(html, /^<div role="button"[^>]*data-testid="row-a"/, "one div, the row itself, with its role");
   assert.ok(html.includes('data-fkey="file:1"') && html.includes('draggable="true"'), "the list's attributes");
   assert.match(html, /margin:5px 6px/, "its style joins the row's");
@@ -121,18 +157,32 @@ test("on the web a row is plain elements, and domProps put a list's own attribut
 });
 
 test("a row never has a fixed height: content taller than the least height grows the row instead of painting over the next one", () => {
-  for (const html of [renderToStaticMarkup(<Row title="One" />), renderToStaticMarkup(<Row title="One" note="Two" leading={<i>L</i>} trailing={<b>T</b>} />), renderToStaticMarkup(<Row title="One" note="Two" tall />)]) {
+  for (const html of [
+    renderToStaticMarkup(<Row title="One" />),
+    renderToStaticMarkup(<Row title="One" note="Two" leading={<i>L</i>} trailing={<b>T</b>} />),
+    renderToStaticMarkup(<Row title="One" note="Two" tall />),
+  ]) {
     assert.match(html, /min-height:(28|44|62)px/);
     assert.doesNotMatch(html, /[;"]height:\d/, "no fixed height");
   }
 });
 
 test("a row lays out from its own inline styles, so it does not depend on an injected stylesheet (a CSP that drops <style> text)", () => {
-  const html = renderToStaticMarkup(<Row id="g" title="Connect an AI account" note="Sign in with Claude" leading={<i>L</i>} trailing={<b>T</b>} />);
+  const html = renderToStaticMarkup(
+    <Row id="g" title="Connect an AI account" note="Sign in with Claude" leading={<i>L</i>} trailing={<b>T</b>} />,
+  );
   assert.match(html, /data-testid="row-g"[^>]*style="[^"]*display:flex/, "the row is a flex row");
   assert.match(html, /align-items:center/, "leading and trailing centre to the text column");
-  assert.match(html, /flex:1 1 0%;min-width:0;display:flex;flex-direction:column/, "title and note stack in one min-width:0 column");
-  assert.match(html, /white-space:nowrap/, "the title and note stay on one line each, so row heights are what lists assume");
+  assert.match(
+    html,
+    /flex:1 1 0%;min-width:0;display:flex;flex-direction:column/,
+    "title and note stack in one min-width:0 column",
+  );
+  assert.match(
+    html,
+    /white-space:nowrap/,
+    "the title and note stay on one line each, so row heights are what lists assume",
+  );
   assert.match(html, /margin-left:8px/, "the trailing slot keeps its gap from the text");
 });
 
@@ -144,7 +194,11 @@ test("a row nothing presses is not a button", () => {
 
 test("a title with a help mark wraps to two lines on a phone instead of clipping", () => {
   const mark = <span>i</span>;
-  const on = renderToStaticMarkup(<RowWrapContext.Provider value={true}><Row id="w" title="Public address for file changes" titleMarks={mark} /></RowWrapContext.Provider>);
+  const on = renderToStaticMarkup(
+    <RowWrapContext.Provider value={true}>
+      <Row id="w" title="Public address for file changes" titleMarks={mark} />
+    </RowWrapContext.Provider>,
+  );
   const off = renderToStaticMarkup(<Row id="w" title="Public address for file changes" titleMarks={mark} />);
   assert.match(on, /-webkit-line-clamp:2/);
   assert.doesNotMatch(off, /-webkit-line-clamp:2/);

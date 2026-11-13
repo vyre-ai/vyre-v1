@@ -11,20 +11,41 @@ import { statusView } from "../apps/app/src/places/chats/conversation/status.ts"
 import type { EngineHostSeam } from "../modules/engine/runtime.ts";
 
 const THREAD = "thr_pick";
-const THREADS = [{ threadId: THREAD, kind: "chat", starter: "usr_dana", agents: [{ agentId: "agt_intake", mode: "lead" as const, model: "claude-sonnet-5-5" }] }];
+const THREADS = [
+  {
+    threadId: THREAD,
+    kind: "chat",
+    starter: "usr_dana",
+    agents: [{ agentId: "agt_intake", mode: "lead" as const, model: "claude-sonnet-5-5" }],
+  },
+];
 
 test("a picked model no account serves ends the turn with one plain line, and no session runs", async () => {
   const h = harness({ threads: THREADS });
   const provider = scriptedProvider({ script: () => [{ type: "text", text: "Deepseek answered." }, { type: "done" }] });
   const posts: Array<{ blocks: Array<{ type: string; data: Record<string, unknown> }> }> = [];
   const host: EngineHostSeam = {
-    holder: "host:spc_enginetest", openSession: provider.openSession, now: () => 1_760_000_000_000,
-    postAs: async (_a, post) => { posts.push(post as never); return {}; },
+    holder: "host:spc_enginetest",
+    openSession: provider.openSession,
+    now: () => 1_760_000_000_000,
+    postAs: async (_a, post) => {
+      posts.push(post as never);
+      return {};
+    },
     async call(cap) {
-      if (cap === "engine.account.resolve") return { accountRef: null, payer: null, reason: "none", allowed: false, why: "no_model", model: "claude-sonnet-5-5", servedModels: ["glm-5.3", "kimi-k3"] };
+      if (cap === "engine.account.resolve")
+        return {
+          accountRef: null,
+          payer: null,
+          reason: "none",
+          allowed: false,
+          why: "no_model",
+          model: "claude-sonnet-5-5",
+          servedModels: ["glm-5.3", "kimi-k3"],
+        };
       if (cap === "engine.turn.record" || cap === "engine.turn.record_usage") return {};
       if (cap === "threads.get") return { thread: THREADS[0] };
-      if (cap === "agents.status") return { status: "awake" };   // the host answers whether the agent may take a turn (admission fails closed when it cannot)
+      if (cap === "agents.status") return { status: "awake" }; // the host answers whether the agent may take a turn (admission fails closed when it cannot)
       throw new Error(`unexpected ${cap}`);
     },
   };
@@ -41,7 +62,15 @@ test("a picked model no account serves ends the turn with one plain line, and no
     const view = statusView({ type: "turn_status", v: 1, id: "b", data: block.data } as never);
     assert.equal(view.kind, "error");
     const data = (view as { block: { data: { message: string; next: Array<{ key: string }> } } }).block.data;
-    assert.match(data.message, /^Claude Sonnet 5\.5 cannot run here: none of the AI accounts you can use on this server serve it\. Models that can: GLM 5\.3, Kimi K3\./);
-    assert.deepEqual(data.next.map((n) => n.key), ["pick_model", "run_on_my_computer"]);
-  } finally { hostSeams.setEngineHost(null); }
+    assert.match(
+      data.message,
+      /^Claude Sonnet 5\.5 cannot run here: none of the AI accounts you can use on this server serve it\. Models that can: GLM 5\.3, Kimi K3\./,
+    );
+    assert.deepEqual(
+      data.next.map((n) => n.key),
+      ["pick_model", "run_on_my_computer"],
+    );
+  } finally {
+    hostSeams.setEngineHost(null);
+  }
 });

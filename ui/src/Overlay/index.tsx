@@ -26,7 +26,9 @@ export interface OverlayDocument {
 export const OVERLAY_ROOT_CSS = "position:fixed;left:0;top:0;width:0;height:0;overflow:visible;z-index:2147483000";
 
 /** The layer's element: found, or made once and put at the end of the body. Null where there is no document. */
-export function ensureOverlayRoot(doc: OverlayDocument | undefined = (globalThis as { document?: OverlayDocument }).document): OverlayElement | null {
+export function ensureOverlayRoot(
+  doc: OverlayDocument | undefined = (globalThis as { document?: OverlayDocument }).document,
+): OverlayElement | null {
   if (!doc || !doc.body) return null;
   const found = doc.getElementById(OVERLAY_ROOT_ID);
   if (found) return found;
@@ -46,7 +48,10 @@ const onServer = (): boolean => false;
 export function Overlay({ children }: { children: ReactNode }): ReactElement | null {
   // false during the server render and the hydrating pass, so the first client render matches the markup; true after, when the layer can be reached
   const ready = useSyncExternalStore(subscribe, onClient, onServer);
-  if (!ready) return Platform.OS === "web" && (globalThis as { document?: unknown }).document === undefined ? <>{children}</> : null;
+  if (!ready)
+    return Platform.OS === "web" && (globalThis as { document?: unknown }).document === undefined ? (
+      <>{children}</>
+    ) : null;
   const root = ensureOverlayRoot();
   if (!root) return <>{children}</>;
   return createPortal(children, root as unknown as Parameters<typeof createPortal>[1]);

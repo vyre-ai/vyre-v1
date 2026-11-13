@@ -4,7 +4,11 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
-import { RecordsDataProvider, RecordsSidebar, RecordsStateProvider } from "../../../apps/app/src/places/records/sidebar/index.ts";
+import {
+  RecordsDataProvider,
+  RecordsSidebar,
+  RecordsStateProvider,
+} from "../../../apps/app/src/places/records/sidebar/index.ts";
 import { RecordViews } from "../../../apps/app/src/places/records/views-a/index.ts";
 import { createViewsSample, harbor, northwind } from "../../../apps/app/src/places/records/views-a/sample.ts";
 
@@ -17,7 +21,10 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
   const space = q.get("space") === "harbor" ? harbor : northwind;
   const sample = useMemo(() => createViewsSample(space, { bulk }), [space, bulk]);
   const kind = q.get("kind") ?? "board";
-  const initial = useMemo(() => ({ type: q.get("type") ?? "projects", ...(q.get("view") ? { viewId: q.get("view") as string } : {}) }), [q]);
+  const initial = useMemo(
+    () => ({ type: q.get("type") ?? "projects", ...(q.get("view") ? { viewId: q.get("view") as string } : {}) }),
+    [q],
+  );
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 720; // 0 is "not measured yet" (the static page)
   useEffect(() => {
@@ -31,7 +38,11 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
     <RecordsDataProvider value={sample.data}>
       <RecordsStateProvider initial={initial}>
         <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          {phone ? null : <View style={{ width: 240 }}><RecordsSidebar /></View>}
+          {phone ? null : (
+            <View style={{ width: 240 }}>
+              <RecordsSidebar />
+            </View>
+          )}
           <RecordViews kind={kind} />
         </View>
       </RecordsStateProvider>
@@ -42,6 +53,8 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
 /** The query is read after the page is live (the static export keeps the markup it was rendered with), so the mount draws once the query is known. */
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  useEffect(() => {
+    setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""));
+  }, []);
   return q ? <Page q={q} /> : null;
 }

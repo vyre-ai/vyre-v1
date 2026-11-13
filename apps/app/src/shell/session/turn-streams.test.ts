@@ -3,13 +3,34 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createTurnStreams, turnRowId } from "./turn-streams.ts";
 
-const f = (turn: string, delta: Record<string, unknown>) => ({ t: "turn", turn, delta: { threadId: "thr_a", agentId: "agt_x", ...delta } });
+const f = (turn: string, delta: Record<string, unknown>) => ({
+  t: "turn",
+  turn,
+  delta: { threadId: "thr_a", agentId: "agt_x", ...delta },
+});
 function timers() {
   let n = 0;
   const live = new Map<number, { fn: () => void; ms: number }>();
-  return { set: (fn: () => void, ms: number) => { live.set(++n, { fn, ms }); return n; }, clear: (h: unknown) => { live.delete(h as number); }, fire: (ms: number) => { for (const [k, v] of [...live]) if (v.ms <= ms) { live.delete(k); v.fn(); } }, count: () => live.size };
+  return {
+    set: (fn: () => void, ms: number) => {
+      live.set(++n, { fn, ms });
+      return n;
+    },
+    clear: (h: unknown) => {
+      live.delete(h as number);
+    },
+    fire: (ms: number) => {
+      for (const [k, v] of [...live])
+        if (v.ms <= ms) {
+          live.delete(k);
+          v.fn();
+        }
+    },
+    count: () => live.size,
+  };
 }
-const text = (s: ReturnType<ReturnType<typeof createTurnStreams>["streamOf"]> ) => JSON.stringify(s?.getSnapshot().blocks ?? []);
+const text = (s: ReturnType<ReturnType<typeof createTurnStreams>["streamOf"]>) =>
+  JSON.stringify(s?.getSnapshot().blocks ?? []);
 
 test("a turn opens on its first frame, grows with each piece, ends, and is named by its message", () => {
   const t = timers();
@@ -59,7 +80,11 @@ test("a turn that goes quiet is dropped, and a finished one waits only so long f
   s.onFrame(f("trn_2", { kind: "start" }));
   s.onFrame(f("trn_2", { kind: "end", state: "done" }));
   t.fire(10_000);
-  assert.deepEqual(s.turnsOf("thr_a").map((x) => x.turnId), ["trn_1"], "the finished turn gave up waiting; the writing one has a longer rope");
+  assert.deepEqual(
+    s.turnsOf("thr_a").map((x) => x.turnId),
+    ["trn_1"],
+    "the finished turn gave up waiting; the writing one has a longer rope",
+  );
   t.fire(90_000);
   assert.deepEqual(s.turnsOf("thr_a"), []);
   assert.equal(t.count(), 0);
@@ -69,7 +94,17 @@ test("frames that are not turn frames, or are malformed, change nothing", () => 
   const s = createTurnStreams();
   let heard = 0;
   s.subscribe(() => heard++);
-  for (const x of [null, 7, "x", { t: "ev" }, { t: "turn" }, { t: "turn", turn: "trn_1" }, { t: "turn", turn: "trn_1", delta: { kind: "start" } }, { t: "turn", turn: "trn_1", delta: { kind: "bogus", threadId: "thr_a", agentId: "agt_x" } }]) s.onFrame(x);
+  for (const x of [
+    null,
+    7,
+    "x",
+    { t: "ev" },
+    { t: "turn" },
+    { t: "turn", turn: "trn_1" },
+    { t: "turn", turn: "trn_1", delta: { kind: "start" } },
+    { t: "turn", turn: "trn_1", delta: { kind: "bogus", threadId: "thr_a", agentId: "agt_x" } },
+  ])
+    s.onFrame(x);
   assert.equal(heard, 0);
   assert.deepEqual(s.turnsOf("thr_a"), []);
 });
@@ -108,10 +143,10 @@ test("a chat opened mid-turn takes the text so far and follows from there, with 
   // the host answers with what it has: "Hello, " (7 characters), which already holds the first held piece
   s.seed("thr_a", [{ turnId: "trn_1", agentId: "agt_x", text: "Hello, " }]);
   s.onFrame(f("trn_1", { kind: "delta", text: "ld.", at: 10 }));
-  s.onFrame(f("trn_1", { kind: "delta", text: "wor", at: 7 }));   // a repeat adds nothing
+  s.onFrame(f("trn_1", { kind: "delta", text: "wor", at: 7 })); // a repeat adds nothing
   // a second seed of the same text changes nothing
   s.seed("thr_a", [{ turnId: "trn_1", agentId: "agt_x", text: "Hello, world." }]);
-  s.onFrame(f("trn_1", { kind: "end", state: "done" }));   // the store shows its text once flushed
+  s.onFrame(f("trn_1", { kind: "end", state: "done" })); // the store shows its text once flushed
   assert.match(text(s.streamOf(turnRowId("trn_1"))), /Hello, world\./);
   assert.doesNotMatch(text(s.streamOf(turnRowId("trn_1"))), /worwor|lolo|world\.world|Hello, Hello/);
   // a turn this device never heard of is created by the seed alone
@@ -123,16 +158,36 @@ test("a long piece from the provider is shown a few words at a time, and everyth
   const t = timers();
   const pushes: string[] = [];
   let ended = false;
-  const store = { push: (x: string) => { pushes.push(x); }, end: () => { ended = true; }, getSnapshot: () => ({ blocks: [], closedCount: 0, done: ended, version: 0 }), subscribe: () => () => undefined, reset: () => undefined, stats: () => ({}) } as never;
+  const store = {
+    push: (x: string) => {
+      pushes.push(x);
+    },
+    end: () => {
+      ended = true;
+    },
+    getSnapshot: () => ({ blocks: [], closedCount: 0, done: ended, version: 0 }),
+    subscribe: () => () => undefined,
+    reset: () => undefined,
+    stats: () => ({}),
+  } as never;
   const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear, makeStore: () => store });
   s.onFrame(f("trn_p", { kind: "start" }));
   const words = Array.from({ length: 30 }, (_, i) => `w${i + 1}`);
   s.onFrame(f("trn_p", { kind: "delta", text: words.join(" "), at: 0 }));
   assert.deepEqual(pushes, [], "nothing at once: the words wait for their beats");
   const sizes: number[] = [];
-  for (let i = 0; i < 4; i++) { t.fire(45); sizes.push(pushes.join("").split(/\s+/).filter(Boolean).length); }
-  assert.ok(sizes[0]! >= 1 && sizes[0]! < 30, `the first beat shows a few words, not the sentence: ${JSON.stringify(sizes)}`);
-  assert.ok(sizes.every((n, i) => i === 0 || n > sizes[i - 1]!) && sizes.at(-1)! < 30, `and each beat adds more: ${JSON.stringify(sizes)}`);
+  for (let i = 0; i < 4; i++) {
+    t.fire(45);
+    sizes.push(pushes.join("").split(/\s+/).filter(Boolean).length);
+  }
+  assert.ok(
+    sizes[0]! >= 1 && sizes[0]! < 30,
+    `the first beat shows a few words, not the sentence: ${JSON.stringify(sizes)}`,
+  );
+  assert.ok(
+    sizes.every((n, i) => i === 0 || n > sizes[i - 1]!) && sizes.at(-1)! < 30,
+    `and each beat adds more: ${JSON.stringify(sizes)}`,
+  );
   s.onFrame(f("trn_p", { kind: "end", state: "done" }));
   assert.equal(pushes.join(""), words.join(" "), "the turn ended: every word is there, once, in order");
   assert.ok(ended);
@@ -142,7 +197,18 @@ test("while a row watches, the turn's end paces out the rest in a moment instead
   const t = timers();
   const pushes: string[] = [];
   let ended = false;
-  const store = { push: (x: string) => { pushes.push(x); }, end: () => { ended = true; }, getSnapshot: () => ({ blocks: [], closedCount: 0, done: ended, version: 0 }), subscribe: () => () => undefined, reset: () => undefined, stats: () => ({}) } as never;
+  const store = {
+    push: (x: string) => {
+      pushes.push(x);
+    },
+    end: () => {
+      ended = true;
+    },
+    getSnapshot: () => ({ blocks: [], closedCount: 0, done: ended, version: 0 }),
+    subscribe: () => () => undefined,
+    reset: () => undefined,
+    stats: () => ({}),
+  } as never;
   const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear, makeStore: () => store });
   s.onFrame(f("trn_p", { kind: "start" }));
   s.streamOf(turnRowId("trn_p"))!.subscribe(() => undefined);
@@ -153,7 +219,10 @@ test("while a row watches, the turn's end paces out the rest in a moment instead
   assert.notEqual(pushes.join(""), words.join(" "), "the end does not drop what waits on the screen in one jump");
   assert.equal(ended, false, "the store stays open for the last words");
   let beats = 0;
-  while (!ended && beats < 40) { t.fire(45); beats++; }
+  while (!ended && beats < 40) {
+    t.fire(45);
+    beats++;
+  }
   assert.ok(beats <= 34, `the tail takes a moment at most: ${beats} beats`);
   assert.equal(pushes.join(""), words.join(" "), "every word is there, once, in order");
   assert.ok(ended);
@@ -162,7 +231,16 @@ test("while a row watches, the turn's end paces out the rest in a moment instead
 test("words already received show at once when a row first looks, so a remount never blanks what was seen; only what arrives after is paced", () => {
   const t = timers();
   const pushes: string[] = [];
-  const store = { push: (x: string) => { pushes.push(x); }, end: () => undefined, getSnapshot: () => ({ blocks: [], closedCount: 0, done: false, version: 0 }), subscribe: () => () => undefined, reset: () => undefined, stats: () => ({}) } as never;
+  const store = {
+    push: (x: string) => {
+      pushes.push(x);
+    },
+    end: () => undefined,
+    getSnapshot: () => ({ blocks: [], closedCount: 0, done: false, version: 0 }),
+    subscribe: () => () => undefined,
+    reset: () => undefined,
+    stats: () => ({}),
+  } as never;
   const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear, makeStore: () => store });
   s.onFrame(f("trn_r", { kind: "start" }));
   s.onFrame(f("trn_r", { kind: "delta", text: "one two three four five six", at: 0 }));
@@ -173,14 +251,29 @@ test("words already received show at once when a row first looks, so a remount n
   assert.equal(pushes.join(""), "one two three four five six", "what arrives while watched waits for its beats");
   off();
   s.streamOf(turnRowId("trn_r"))!.subscribe(() => undefined);
-  assert.equal(pushes.join(""), "one two three four five six seven eight nine ten eleven twelve", "a remount shows it all at once");
+  assert.equal(
+    pushes.join(""),
+    "one two three four five six seven eight nine ten eleven twelve",
+    "a remount shows it all at once",
+  );
 });
 
 test("a whole reply that lands with the turn's end is still paced, and the saved row reads the store until the last word", () => {
   const t = timers();
   const pushes: string[] = [];
   let ended = false;
-  const store = { push: (x: string) => { pushes.push(x); }, end: () => { ended = true; }, getSnapshot: () => ({ blocks: [], closedCount: 0, done: ended, version: 0 }), subscribe: () => () => undefined, reset: () => undefined, stats: () => ({}) } as never;
+  const store = {
+    push: (x: string) => {
+      pushes.push(x);
+    },
+    end: () => {
+      ended = true;
+    },
+    getSnapshot: () => ({ blocks: [], closedCount: 0, done: ended, version: 0 }),
+    subscribe: () => () => undefined,
+    reset: () => undefined,
+    stats: () => ({}),
+  } as never;
   const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear, makeStore: () => store });
   s.onFrame(f("trn_w", { kind: "start" }));
   s.streamOf(turnRowId("trn_w"))!.subscribe(() => undefined);
@@ -193,7 +286,10 @@ test("a whole reply that lands with the turn's end is still paced, and the saved
   s.settle("msg_w");
   assert.ok(s.streamOf("msg_w") !== undefined, "the row is on screen, and it keeps the store while words remain");
   let beats = 0;
-  while (!ended && beats < 40) { t.fire(45); beats++; }
+  while (!ended && beats < 40) {
+    t.fire(45);
+    beats++;
+  }
   assert.ok(ended);
   assert.equal(pushes.join(""), words.join(" "));
   assert.equal(s.streamOf("msg_w"), undefined, "then the turn goes");
@@ -203,7 +299,18 @@ test("a stopped reply shows what it has at once", () => {
   const t = timers();
   const pushes: string[] = [];
   let ended = false;
-  const store = { push: (x: string) => { pushes.push(x); }, end: () => { ended = true; }, getSnapshot: () => ({ blocks: [], closedCount: 0, done: ended, version: 0 }), subscribe: () => () => undefined, reset: () => undefined, stats: () => ({}) } as never;
+  const store = {
+    push: (x: string) => {
+      pushes.push(x);
+    },
+    end: () => {
+      ended = true;
+    },
+    getSnapshot: () => ({ blocks: [], closedCount: 0, done: ended, version: 0 }),
+    subscribe: () => () => undefined,
+    reset: () => undefined,
+    stats: () => ({}),
+  } as never;
   const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear, makeStore: () => store });
   s.onFrame(f("trn_c", { kind: "start" }));
   s.onFrame(f("trn_c", { kind: "delta", text: "one two three", at: 0 }));
@@ -215,7 +322,16 @@ test("a stopped reply shows what it has at once", () => {
 test("text so far (a chat opened mid-turn) is shown at once, not paced", () => {
   const t = timers();
   const pushes: string[] = [];
-  const store = { push: (x: string) => { pushes.push(x); }, end: () => undefined, getSnapshot: () => ({ blocks: [], closedCount: 0, done: false, version: 0 }), subscribe: () => () => undefined, reset: () => undefined, stats: () => ({}) } as never;
+  const store = {
+    push: (x: string) => {
+      pushes.push(x);
+    },
+    end: () => undefined,
+    getSnapshot: () => ({ blocks: [], closedCount: 0, done: false, version: 0 }),
+    subscribe: () => () => undefined,
+    reset: () => undefined,
+    stats: () => ({}),
+  } as never;
   const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear, makeStore: () => store });
   s.seed("thr_a", [{ turnId: "trn_s", agentId: "agt_x", text: "already written so far" }]);
   assert.deepEqual(pushes, ["already written so far"]);
@@ -238,7 +354,10 @@ test("step and thinking frames build what the turn is doing, in order, and are g
   s.onFrame(f("trn_a", { kind: "step", phase: "result", id: "t1", name: "Read", ok: true }));
   s.onFrame(f("trn_a", { kind: "step", phase: "call", id: "t2", name: "Bash" }));
   s.onFrame(f("trn_a", { kind: "step", phase: "result", id: "t2", ok: false }));
-  assert.deepEqual(act.get().steps.map((x) => x.state), ["done", "failed"]);
+  assert.deepEqual(
+    act.get().steps.map((x) => x.state),
+    ["done", "failed"],
+  );
   assert.ok(heard >= 5, "each change tells the line");
   s.onFrame(f("trn_a", { kind: "step", phase: "call", id: "t1", name: "Read" }));
   assert.equal(act.get().steps.length, 2, "a repeated call frame adds nothing");
@@ -250,6 +369,25 @@ test("a frame of gathered steps reads as the steps it carries, in order", () => 
   const t = timers();
   const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear });
   s.onFrame(f("trn_1", { kind: "start" }));
-  s.onFrame(f("trn_1", { kind: "steps", steps: [{ phase: "call", id: "s1", name: "Read" }, { phase: "input", id: "s1", detail: "notes.md" }, { phase: "result", id: "s1", ok: true }, { phase: "call", id: "s2", name: "Bash" }] }));
-  assert.deepEqual(s.activityOf(turnRowId("trn_1"))?.get().steps.map((x) => [x.id, x.state, x.detail]), [["s1", "done", "notes.md"], ["s2", "live", undefined]]);
+  s.onFrame(
+    f("trn_1", {
+      kind: "steps",
+      steps: [
+        { phase: "call", id: "s1", name: "Read" },
+        { phase: "input", id: "s1", detail: "notes.md" },
+        { phase: "result", id: "s1", ok: true },
+        { phase: "call", id: "s2", name: "Bash" },
+      ],
+    }),
+  );
+  assert.deepEqual(
+    s
+      .activityOf(turnRowId("trn_1"))
+      ?.get()
+      .steps.map((x) => [x.id, x.state, x.detail]),
+    [
+      ["s1", "done", "notes.md"],
+      ["s2", "live", undefined],
+    ],
+  );
 });

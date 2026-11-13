@@ -6,7 +6,12 @@ import { handlers } from "../impl.ts";
 import { REACH_MAX } from "../handlers/reach.ts";
 import { world } from "../fixtures/askworld.ts";
 
-const FOLDERS = [{ type: "folder", id: "fld_1" }, { type: "folder", id: "fld_2" }, { type: "folder", id: "fld_nope" }, { type: "file", id: "fld_1" }] as never;
+const FOLDERS = [
+  { type: "folder", id: "fld_1" },
+  { type: "folder", id: "fld_2" },
+  { type: "folder", id: "fld_nope" },
+  { type: "file", id: "fld_1" },
+] as never;
 
 const levels = async (who: string): Promise<string[]> => {
   const { h } = world();
@@ -15,21 +20,47 @@ const levels = async (who: string): Promise<string[]> => {
 };
 
 test("each person gets the level they hold on each thing, and none for what they cannot open", async () => {
-  assert.deepEqual(await levels("usr_mgr"), ["manage", "none", "none", "none"], "a Manage holder on one folder, nothing on the other, nothing on a made-up id or the wrong type");
+  assert.deepEqual(
+    await levels("usr_mgr"),
+    ["manage", "none", "none", "none"],
+    "a Manage holder on one folder, nothing on the other, nothing on a made-up id or the wrong type",
+  );
   assert.deepEqual(await levels("usr_maya"), ["view", "none", "none", "none"]);
   assert.deepEqual(await levels("usr_other"), ["none", "none", "none", "none"]);
 });
 
 test("a thing that does not exist answers exactly as one the caller cannot see", async () => {
   const { h } = world();
-  const out = await handlers["access.reach"](h.as("usr_other"), { items: [{ type: "folder", id: "fld_1" }, { type: "folder", id: "fld_nope" }] } as never);
-  assert.deepEqual(out.items.map((x) => ({ level: x.level, title: x.title })), [{ level: "none", title: undefined }, { level: "none", title: undefined }]);
+  const out = await handlers["access.reach"](h.as("usr_other"), {
+    items: [
+      { type: "folder", id: "fld_1" },
+      { type: "folder", id: "fld_nope" },
+    ],
+  } as never);
+  assert.deepEqual(
+    out.items.map((x) => ({ level: x.level, title: x.title })),
+    [
+      { level: "none", title: undefined },
+      { level: "none", title: undefined },
+    ],
+  );
 });
 
 test("the title comes only with a level, and the answer keeps the order of the question", async () => {
   const { h } = world();
-  const out = await handlers["access.reach"](h.as("usr_maya"), { items: [{ type: "folder", id: "fld_2" }, { type: "folder", id: "fld_1" }] } as never);
-  assert.deepEqual(out.items.map((x) => [x.id, x.level, x.title ?? null]), [["fld_2", "none", null], ["fld_1", "view", "Rivera matters"]]);
+  const out = await handlers["access.reach"](h.as("usr_maya"), {
+    items: [
+      { type: "folder", id: "fld_2" },
+      { type: "folder", id: "fld_1" },
+    ],
+  } as never);
+  assert.deepEqual(
+    out.items.map((x) => [x.id, x.level, x.title ?? null]),
+    [
+      ["fld_2", "none", null],
+      ["fld_1", "view", "Rivera matters"],
+    ],
+  );
 });
 
 test("a batch is capped, so one call cannot ask about everything", async () => {

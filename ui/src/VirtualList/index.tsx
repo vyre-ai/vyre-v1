@@ -20,17 +20,28 @@ const DEFAULT_VIEWPORT = 640;
 
 /** Row offsets: offsets[i] is the top of row i, offsets[n] is the total height. A measured height belongs to the row's key (its index when the list has no keys): a row that moves keeps its height, and the
  * row that takes its old place is not drawn at the old one's height (owner walk, 12 Nov: a label that moved down one place took a 200 px skeleton's height and left a gap; a card took a label's and overlapped). */
-export function rowOffsets(count: number, rowHeight: number | "measure", measured: ReadonlyMap<number | string, number> = new Map(), keyAt?: (i: number) => string): Float64Array {
+export function rowOffsets(
+  count: number,
+  rowHeight: number | "measure",
+  measured: ReadonlyMap<number | string, number> = new Map(),
+  keyAt?: (i: number) => string,
+): Float64Array {
   const out = new Float64Array(count + 1);
   for (let i = 0; i < count; i++) {
-    const h = typeof rowHeight === "number" ? rowHeight : measured.get(keyAt ? keyAt(i) : i) ?? ESTIMATE;
+    const h = typeof rowHeight === "number" ? rowHeight : (measured.get(keyAt ? keyAt(i) : i) ?? ESTIMATE);
     out[i + 1] = out[i] + h;
   }
   return out;
 }
 
 /** The rows to render for a scroll position: binary search on offsets, plus overscan. */
-export function windowFor(offsets: Float64Array, scrollTop: number, viewport: number, overscan = OVERSCAN, current?: VirtualWindow): VirtualWindow {
+export function windowFor(
+  offsets: Float64Array,
+  scrollTop: number,
+  viewport: number,
+  overscan = OVERSCAN,
+  current?: VirtualWindow,
+): VirtualWindow {
   const count = offsets.length - 1;
   if (count <= 0) return { start: 0, end: 0 };
   const find = (y: number): number => {
@@ -38,7 +49,8 @@ export function windowFor(offsets: Float64Array, scrollTop: number, viewport: nu
     let hi = count - 1;
     while (lo < hi) {
       const mid = (lo + hi + 1) >> 1;
-      if (offsets[mid] <= y) lo = mid; else hi = mid - 1;
+      if (offsets[mid] <= y) lo = mid;
+      else hi = mid - 1;
     }
     return lo;
   };
@@ -69,7 +81,8 @@ export function renderWindowFor(
   current?: VirtualWindow,
 ): VirtualWindow {
   const visible = windowFor(offsets, scrollTop, viewport, 0);
-  if (current && current.end <= offsets.length - 1 && current.start <= visible.start && current.end >= visible.end) return current;
+  if (current && current.end <= offsets.length - 1 && current.start <= visible.start && current.end >= visible.end)
+    return current;
   return windowFor(offsets, scrollTop, viewport);
 }
 
@@ -78,7 +91,16 @@ export function VirtualList<T>(props: VirtualListProps<T>) {
   return <NativeList {...props} />;
 }
 
-function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyOf, onEndReached, heightOf, reveal }: VirtualListProps<T>) {
+function WindowedList<T>({
+  data,
+  renderItem,
+  rowHeight,
+  window: controlled,
+  keyOf,
+  onEndReached,
+  heightOf,
+  reveal,
+}: VirtualListProps<T>) {
   const [viewport, setViewport] = useState(DEFAULT_VIEWPORT);
   const [scrolled, setScrolled] = useState<VirtualWindow | null>(null);
   const scrollTop = useRef(0);
@@ -100,9 +122,11 @@ function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyO
   const scroller = useRef<ScrollView | null>(null);
   useEffect(() => {
     if (reveal === undefined || reveal < 0 || reveal >= data.length) return;
-    const top = offsets[reveal], bottom = offsets[reveal + 1];
+    const top = offsets[reveal],
+      bottom = offsets[reveal + 1];
     if (top < scrollTop.current) scroller.current?.scrollTo({ y: top, animated: false });
-    else if (bottom > scrollTop.current + viewport) scroller.current?.scrollTo({ y: bottom - viewport, animated: false });
+    else if (bottom > scrollTop.current + viewport)
+      scroller.current?.scrollTo({ y: bottom - viewport, animated: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reveal]);
   // Keep the first paint lean. The slightly wider scrolling window is created only after the initial viewport is crossed.
@@ -111,23 +135,32 @@ function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyO
   const win = controlled ?? renderWindowFor(offsets, scrollTop.current, viewport, scrolled ?? undefined);
   const total = offsets[data.length];
 
-  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y = e.nativeEvent.contentOffset.y;
-    scrollTop.current = y;
-    // Re-render only when the set of rows changes, not on every scroll event.
-    const height = e.nativeEvent.layoutMeasurement.height || viewport;
-    setScrolled((cur) => {
-      const prior = cur ?? computed;
-      const next = scrollWindowFor(offsets, y, height, rowHeight, prior);
-      return next === prior ? cur : next;
-    });
-    const nearEnd = y + e.nativeEvent.layoutMeasurement.height >= total - 1;
-    if (nearEnd && !ended.current) { ended.current = true; onEndReached?.(); }
-    if (!nearEnd) ended.current = false;
-  }, [onEndReached, total, offsets, viewport, computed, rowHeight]);
+  const onScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const y = e.nativeEvent.contentOffset.y;
+      scrollTop.current = y;
+      // Re-render only when the set of rows changes, not on every scroll event.
+      const height = e.nativeEvent.layoutMeasurement.height || viewport;
+      setScrolled((cur) => {
+        const prior = cur ?? computed;
+        const next = scrollWindowFor(offsets, y, height, rowHeight, prior);
+        return next === prior ? cur : next;
+      });
+      const nearEnd = y + e.nativeEvent.layoutMeasurement.height >= total - 1;
+      if (nearEnd && !ended.current) {
+        ended.current = true;
+        onEndReached?.();
+      }
+      if (!nearEnd) ended.current = false;
+    },
+    [onEndReached, total, offsets, viewport, computed, rowHeight],
+  );
 
   const onMeasure = useCallback((key: string, h: number) => {
-    if (h > 0 && measured.current.get(key) !== h) { measured.current.set(key, h); setVersion((v) => v + 1); }
+    if (h > 0 && measured.current.get(key) !== h) {
+      measured.current.set(key, h);
+      setVersion((v) => v + 1);
+    }
   }, []);
 
   const items: ReactNode[] = [];
@@ -137,7 +170,18 @@ function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyO
     const top = offsets[i];
     const measuring = rowHeight === "measure" && !heightOf;
     const height = measuring ? 0 : offsets[i + 1] - top;
-    items.push(<Cell key={key} item={item} index={i} rowKey={key} top={top} height={height} render={renderItem} onMeasure={measuring ? onMeasure : undefined} />);
+    items.push(
+      <Cell
+        key={key}
+        item={item}
+        index={i}
+        rowKey={key}
+        top={top}
+        height={height}
+        render={renderItem}
+        onMeasure={measuring ? onMeasure : undefined}
+      />,
+    );
   }
 
   return (
@@ -149,7 +193,13 @@ function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyO
       onScroll={onScroll}
       onLayout={(e) => setViewport(e.nativeEvent.layout.height || DEFAULT_VIEWPORT)}
     >
-      <View testID="virtual-list-body" accessibilityLabel={`${data.length} rows`} style={{ height: total, width: "100%" }}>{items}</View>
+      <View
+        testID="virtual-list-body"
+        accessibilityLabel={`${data.length} rows`}
+        style={{ height: total, width: "100%" }}
+      >
+        {items}
+      </View>
     </ScrollView>
   );
 }
@@ -168,7 +218,9 @@ interface CellProps<T> {
 const Cell = memo(function Cell<T>({ item, index, rowKey, top, height, render, onMeasure }: CellProps<T>) {
   return (
     <View
-      onLayout={onMeasure ? (e: LayoutChangeEvent) => onMeasure(rowKey, Math.round(e.nativeEvent.layout.height)) : undefined}
+      onLayout={
+        onMeasure ? (e: LayoutChangeEvent) => onMeasure(rowKey, Math.round(e.nativeEvent.layout.height)) : undefined
+      }
       style={{ position: "absolute", top, left: 0, right: 0, height: height || undefined }}
     >
       {render(item, index) as ReactNode}

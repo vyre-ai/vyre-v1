@@ -15,5 +15,9 @@ export default function Mount(): ReactNode {
   const own = new URLSearchParams(search ?? "").get("part") === "own";
   const data = useMemo(() => waiting(own), [own]);
   if (search === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}><Conversation data={data} /></View>;
+  return (
+    <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}>
+      <Conversation data={data} />
+    </View>
+  );
 }

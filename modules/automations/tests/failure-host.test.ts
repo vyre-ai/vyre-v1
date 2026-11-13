@@ -3,15 +3,26 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRunsHost } from "../../../host/src/seams/runs.ts";
 
-const timeout = Object.assign(new Error("nope"), { error: { code: "provider.timeout", message: "the provider timed out", retryable: true } });
-const bad = Object.assign(new Error("bad"), { error: { code: "validation.bad_input", message: "bad input", retryable: false } });
+const timeout = Object.assign(new Error("nope"), {
+  error: { code: "provider.timeout", message: "the provider timed out", retryable: true },
+});
+const bad = Object.assign(new Error("bad"), {
+  error: { code: "validation.bad_input", message: "bad input", retryable: false },
+});
 
 function hostFor(nodes: Record<string, unknown>[], error: unknown) {
   const steps: string[] = [];
   const host = createRunsHost({
     call: (name) => {
-      if (name === "automations.run_plan") return Promise.resolve({ link: { principal: { kind: "person", id: "usr_noah" }, automationId: "aut_1" }, definition: { nodes } });
-      if (name === "steps-core.run_step") { steps.push(name); return Promise.reject(error); }
+      if (name === "automations.run_plan")
+        return Promise.resolve({
+          link: { principal: { kind: "person", id: "usr_noah" }, automationId: "aut_1" },
+          definition: { nodes },
+        });
+      if (name === "steps-core.run_step") {
+        steps.push(name);
+        return Promise.reject(error);
+      }
       return Promise.resolve(null);
     },
   });
@@ -23,40 +34,73 @@ test("the host records skip and substitute without another attempt, and routes o
   const skipRun = await skipped.host.resolve({ id: "run_skip" });
   assert.ok(skipRun);
   assert.equal(skipRun.plan[0]?.retry, undefined);
-  assert.deepEqual(await skipRun.exec({ id: "a" }, { attempt: 1, key: "k" } as never), { output: { skipped: true, error: "the provider timed out" } });
+  assert.deepEqual(await skipRun.exec({ id: "a" }, { attempt: 1, key: "k" } as never), {
+    output: { skipped: true, error: "the provider timed out" },
+  });
   assert.equal(skipped.steps.length, 1);
 
-  const sub = hostFor([{ id: "a", key: "records.create", input: {}, onError: { mode: "substitute", output: { ok: false } } }], timeout);
+  const sub = hostFor(
+    [{ id: "a", key: "records.create", input: {}, onError: { mode: "substitute", output: { ok: false } } }],
+    timeout,
+  );
   const subRun = await sub.host.resolve({ id: "run_sub" });
   assert.ok(subRun);
   assert.deepEqual(await subRun.exec({ id: "a" }, { attempt: 1, key: "k" } as never), { output: { ok: false } });
   assert.equal(sub.steps.length, 1);
 
-  const open = hostFor([
-    { id: "a", key: "records.create", input: {}, onError: { mode: "route", route: "b" } },
-    { id: "b", key: "records.update", input: {} },
-  ], bad);
+  const open = hostFor(
+    [
+      { id: "a", key: "records.create", input: {}, onError: { mode: "route", route: "b" } },
+      { id: "b", key: "records.update", input: {} },
+    ],
+    bad,
+  );
   const openRun = await open.host.resolve({ id: "run_route" });
   assert.ok(openRun);
-  assert.deepEqual(await openRun.exec({ id: "a" }, { attempt: 1, key: "k" } as never), { output: { error: "bad input" }, next: "b" });
+  assert.deepEqual(await openRun.exec({ id: "a" }, { attempt: 1, key: "k" } as never), {
+    output: { error: "bad input" },
+    next: "b",
+  });
 
-  const filtered = hostFor([
-    { id: "a", key: "records.create", input: {}, onError: { mode: "route", route: "b", codes: ["provider.timeout"] } },
-    { id: "b", key: "records.update", input: {} },
-  ], timeout);
+  const filtered = hostFor(
+    [
+      {
+        id: "a",
+        key: "records.create",
+        input: {},
+        onError: { mode: "route", route: "b", codes: ["provider.timeout"] },
+      },
+      { id: "b", key: "records.update", input: {} },
+    ],
+    timeout,
+  );
   const filteredRun = await filtered.host.resolve({ id: "run_code" });
   assert.ok(filteredRun);
-  assert.deepEqual(await filteredRun.exec({ id: "a" }, { attempt: 1, key: "k" } as never), { output: { error: "the provider timed out" }, next: "b" });
+  assert.deepEqual(await filteredRun.exec({ id: "a" }, { attempt: 1, key: "k" } as never), {
+    output: { error: "the provider timed out" },
+    next: "b",
+  });
 
-  const other = hostFor([
-    { id: "a", key: "records.create", input: {}, onError: { mode: "route", route: "b", codes: ["provider.timeout"] } },
-    { id: "b", key: "records.update", input: {} },
-  ], bad);
+  const other = hostFor(
+    [
+      {
+        id: "a",
+        key: "records.create",
+        input: {},
+        onError: { mode: "route", route: "b", codes: ["provider.timeout"] },
+      },
+      { id: "b", key: "records.update", input: {} },
+    ],
+    bad,
+  );
   const otherRun = await other.host.resolve({ id: "run_other" });
   assert.ok(otherRun);
   await assert.rejects(otherRun.exec({ id: "a" }, { attempt: 1, key: "k" } as never), (e) => e === bad);
 
-  const missing = hostFor([{ id: "a", key: "records.create", input: {}, onError: { mode: "route", route: "gone" } }], timeout);
+  const missing = hostFor(
+    [{ id: "a", key: "records.create", input: {}, onError: { mode: "route", route: "gone" } }],
+    timeout,
+  );
   const missingRun = await missing.host.resolve({ id: "run_gone" });
   assert.ok(missingRun);
   await assert.rejects(missingRun.exec({ id: "a" }, { attempt: 1, key: "k" } as never), (e) => e === timeout);

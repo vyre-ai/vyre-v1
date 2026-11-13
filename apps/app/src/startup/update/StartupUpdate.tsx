@@ -4,7 +4,15 @@
 import { useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Opening } from "../../join/kit.tsx";
-import { FROM_KEY, STARTUP_WAIT_MS, autoUpdateOn, decide, installFailureWords, isNoSpace, noteUpdateFrom } from "./model.ts";
+import {
+  FROM_KEY,
+  STARTUP_WAIT_MS,
+  autoUpdateOn,
+  decide,
+  installFailureWords,
+  isNoSpace,
+  noteUpdateFrom,
+} from "./model.ts";
 import type { Progress, Store, UpdateCheck } from "./model.ts";
 import { desktopUpdates, localStore, setUpdateState } from "./store.ts";
 import type { DesktopUpdates } from "./store.ts";
@@ -18,13 +26,20 @@ type Stage = { kind: "checking" } | { kind: "open" } | { kind: "updating"; to: s
 
 /** What the start does once the check has answered (or not): exported for the tests. */
 export function startStage(check: UpdateCheck | null, auto: boolean): Stage {
-  return decide(check, auto) === "update" && check?.version ? { kind: "updating", to: check.version } : { kind: "open" };
+  return decide(check, auto) === "update" && check?.version
+    ? { kind: "updating", to: check.version }
+    : { kind: "open" };
 }
 
-export function StartupUpdate(props: { children: ReactNode; updates?: DesktopUpdates | null; store?: Store | null; waitMs?: number }): ReactElement {
+export function StartupUpdate(props: {
+  children: ReactNode;
+  updates?: DesktopUpdates | null;
+  store?: Store | null;
+  waitMs?: number;
+}): ReactElement {
   const { children, waitMs = STARTUP_WAIT_MS } = props;
   // read once: the shell's bridge and the store do not change while the app runs
-  const [updates] = useState(() => (props.updates === undefined ? desktopUpdates() : props.updates ?? undefined));
+  const [updates] = useState(() => (props.updates === undefined ? desktopUpdates() : (props.updates ?? undefined)));
   const [store] = useState(() => (props.store === undefined ? localStore() : props.store));
   const [stage, setStage] = useState<Stage>(updates ? { kind: "checking" } : { kind: "open" });
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -33,32 +48,63 @@ export function StartupUpdate(props: { children: ReactNode; updates?: DesktopUpd
     if (!updates) return undefined;
     let on = true;
     const failed = (e?: unknown): void => {
-      try { store?.removeItem(FROM_KEY); } catch { /* nothing kept */ }
+      try {
+        store?.removeItem(FROM_KEY);
+      } catch {
+        /* nothing kept */
+      }
       setUpdateState({ installing: false });
       // only a full disk gets words of its own: any other text from the shell stays the one line
       const said = installFailureWords(e, "");
       if (on) setFailure(isNoSpace(said) ? said : INSTALL_FAILED);
     };
-    void updates.startup(waitMs).then((check) => {
-      if (!on) return;
-      if (check.phase === "checking") {
-        // not in time: in now, and the answer, when it comes, lights the Settings row and the dot
-        setStage({ kind: "open" });
-        void updates.startup(LATE_WAIT_MS).then((late) => { if (late.phase !== "checking") setUpdateState({ check: late }); }, () => undefined);
-        return;
-      }
-      setUpdateState({ check });
-      const next = startStage(check, autoUpdateOn(store));
-      setStage(next);
-      if (next.kind !== "updating") return;
-      noteUpdateFrom(store, check.current);
-      setUpdateState({ installing: true });
-      // the shell restarts the app when it is done, so a promise that settles is an install that did not finish
-      void updates.install((p) => { if (on) setProgress(p); }).then(failed, failed);
-    }, () => { if (on) setStage({ kind: "open" }); });
-    return () => { on = false; };
+    void updates.startup(waitMs).then(
+      (check) => {
+        if (!on) return;
+        if (check.phase === "checking") {
+          // not in time: in now, and the answer, when it comes, lights the Settings row and the dot
+          setStage({ kind: "open" });
+          void updates.startup(LATE_WAIT_MS).then(
+            (late) => {
+              if (late.phase !== "checking") setUpdateState({ check: late });
+            },
+            () => undefined,
+          );
+          return;
+        }
+        setUpdateState({ check });
+        const next = startStage(check, autoUpdateOn(store));
+        setStage(next);
+        if (next.kind !== "updating") return;
+        noteUpdateFrom(store, check.current);
+        setUpdateState({ installing: true });
+        // the shell restarts the app when it is done, so a promise that settles is an install that did not finish
+        void updates
+          .install((p) => {
+            if (on) setProgress(p);
+          })
+          .then(failed, failed);
+      },
+      () => {
+        if (on) setStage({ kind: "open" });
+      },
+    );
+    return () => {
+      on = false;
+    };
   }, [updates, store, waitMs]);
   if (stage.kind === "checking") return <Opening />;
-  if (stage.kind === "updating") return <UpdatingScreen version={stage.to} progress={progress} failure={failure} onOpenAnyway={() => setStage({ kind: "open" })} onStopNow={() => { void updates?.stopNow().catch(() => undefined); }} />;
+  if (stage.kind === "updating")
+    return (
+      <UpdatingScreen
+        version={stage.to}
+        progress={progress}
+        failure={failure}
+        onOpenAnyway={() => setStage({ kind: "open" })}
+        onStopNow={() => {
+          void updates?.stopNow().catch(() => undefined);
+        }}
+      />
+    );
   return <>{children}</>;
 }

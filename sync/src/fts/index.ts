@@ -5,12 +5,33 @@
 import { ReplicaError } from "../replica/types.ts";
 import type { DeviceClass, SqlDriver } from "../replica/types.ts";
 
-export type SearchKind = "person" | "agent" | "chat" | "record" | "file" | "inbox" | "memory" | "mail" | "call" | "event" | "other";
+export type SearchKind =
+  | "person"
+  | "agent"
+  | "chat"
+  | "record"
+  | "file"
+  | "inbox"
+  | "memory"
+  | "mail"
+  | "call"
+  | "event"
+  | "other";
 
 /** Which Cmd-K type each synced entity belongs to. A record type the Space defined itself is a record. */
 const KIND_OF_ENTITY: Readonly<Record<string, SearchKind>> = {
-  principal: "person", agent: "agent", thread: "chat", message: "chat", sms: "chat", file: "file", contact_address: "inbox", mail_message: "mail",
-  fact: "memory", call: "call", calendar_event: "event", vault_meta: "other",
+  principal: "person",
+  agent: "agent",
+  thread: "chat",
+  message: "chat",
+  sms: "chat",
+  file: "file",
+  contact_address: "inbox",
+  mail_message: "mail",
+  fact: "memory",
+  call: "call",
+  calendar_event: "event",
+  vault_meta: "other",
 };
 
 export function kindOf(entity: string): SearchKind {
@@ -20,7 +41,9 @@ export function kindOf(entity: string): SearchKind {
 /** A query whose longest word has this many characters or fewer is type-ahead: it is answered by recency (newest first, an early-stopped index scan), not by bm25. From one more character, bm25 ranks every match. */
 export const SHORT_QUERY = 2;
 /** SQL that maps an entity to its Cmd-K kind, so the ranked index can be filled in one recency-ordered pass. */
-const KIND_SQL = `CASE entity ${Object.entries(KIND_OF_ENTITY).map(([e, k]) => `WHEN '${e}' THEN '${k}'`).join(" ")} ELSE 'record' END`;
+const KIND_SQL = `CASE entity ${Object.entries(KIND_OF_ENTITY)
+  .map(([e, k]) => `WHEN '${e}' THEN '${k}'`)
+  .join(" ")} ELSE 'record' END`;
 /** Rows added or changed since the last rebuild live in a small second index that is always searched in full, so a just-created record is found by its first letter. */
 export const RECENT_MAX = 500;
 
@@ -30,7 +53,14 @@ export const PREFIX_KINDS: Readonly<Record<string, readonly SearchKind[]>> = {
   "/": ["file"],
 };
 
-export interface SearchHit { entity: string; id: string; kind: SearchKind; title: string; snippet: string; score: number }
+export interface SearchHit {
+  entity: string;
+  id: string;
+  kind: SearchKind;
+  title: string;
+  snippet: string;
+  score: number;
+}
 
 export interface SearchResult {
   hits: SearchHit[];
@@ -74,7 +104,10 @@ export function splitPrefix(q: string): { prefix: string | null; rest: string } 
   return { prefix: null, rest: t };
 }
 
-export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceClass; limit?: number } = {}): SearchIndex {
+export function createSearchIndex(
+  driver: SqlDriver,
+  o: { deviceClass?: DeviceClass; limit?: number } = {},
+): SearchIndex {
   if (!driver.sync) throw new ReplicaError("not_ready", "local search needs a driver that reads synchronously");
   driver.exec(
     "CREATE VIRTUAL TABLE IF NOT EXISTS search_idx USING fts5(title, body, kind, entity UNINDEXED, id UNINDEXED, tokenize='unicode61 remove_diacritics 2', prefix='1 2 3')",
@@ -84,7 +117,9 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
   );
   const delRecent = driver.prepare("DELETE FROM search_recent WHERE entity = ? AND id = ?");
   const insRecent = driver.prepare("INSERT INTO search_recent (title, body, entity, id, kind) VALUES (?, ?, ?, ?, ?)");
-  const trimRecent = driver.prepare("DELETE FROM search_recent WHERE rowid <= (SELECT max(rowid) FROM search_recent) - ?");
+  const trimRecent = driver.prepare(
+    "DELETE FROM search_recent WHERE rowid <= (SELECT max(rowid) FROM search_recent) - ?",
+  );
   const totalRecent = driver.prepare("SELECT count(*) AS n FROM search_recent");
   const readFts = driver.prepare("SELECT title, body FROM fts WHERE entity = ? AND id = ?");
   const del = driver.prepare("DELETE FROM search_idx WHERE entity = ? AND id = ?");
@@ -100,7 +135,9 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
         driver.exec("DELETE FROM search_idx");
         driver.exec("DELETE FROM search_recent");
         // Rows go in newest first (the replica's fts rowid grows with every write, so it is the recency order), so rowid order IS recency: a type-ahead query reads rowid order and stops early.
-        driver.exec(`INSERT INTO search_idx (title, body, entity, id, kind) SELECT title, body, entity, id, ${KIND_SQL} FROM fts ORDER BY rowid DESC`);
+        driver.exec(
+          `INSERT INTO search_idx (title, body, entity, id, kind) SELECT title, body, entity, id, ${KIND_SQL} FROM fts ORDER BY rowid DESC`,
+        );
         n = Number(total.get([])?.n ?? 0);
         driver.exec("INSERT INTO search_idx (search_idx) VALUES ('optimize')");
       });
@@ -134,29 +171,49 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
       const text = (m: string): string => `{title body} : (${m})`;
       const limit = so.limit ?? defaultLimit;
       const toHit = (r: Record<string, unknown>): SearchHit => ({
-        entity: String(r.entity), id: String(r.id), kind: String(r.kind) as SearchKind, title: String(r.title ?? ""), snippet: String(r.snip ?? ""), score: Number(r.score),
+        entity: String(r.entity),
+        id: String(r.id),
+        kind: String(r.kind) as SearchKind,
+        title: String(r.title ?? ""),
+        snippet: String(r.snip ?? ""),
+        score: Number(r.score),
       });
       // Recent rows first: small, searched whole, ranked by bm25 among themselves.
-      const recent = driver.prepare(
-        `SELECT entity, id, kind, title, snippet(search_recent, 1, '[', ']', '…', 12) AS snip, bm25(search_recent, 8.0, 1.0, 0.0) AS score FROM search_recent WHERE search_recent MATCH ? ORDER BY score LIMIT ?`,
-      ).all([`${text(match)}${kindMatch}`, limit]).map(toHit);
+      const recent = driver
+        .prepare(
+          `SELECT entity, id, kind, title, snippet(search_recent, 1, '[', ']', '…', 12) AS snip, bm25(search_recent, 8.0, 1.0, 0.0) AS score FROM search_recent WHERE search_recent MATCH ? ORDER BY score LIMIT ?`,
+        )
+        .all([`${text(match)}${kindMatch}`, limit])
+        .map(toHit);
       const rows: SearchHit[] = [];
       const longest = Math.max(...(rest.match(TOKEN) ?? [""]).map((w) => [...w].length));
       if (longest <= SHORT_QUERY) {
         // Type-ahead: newest first. A title match beats a body match; inside each, the newest row wins. The scan stops at LIMIT, so a one-letter prefix costs what a narrow one does.
-        const newest = (m: string): SearchHit[] => driver.prepare(
-          `SELECT entity, id, kind, title, snippet(search_idx, 1, '[', ']', '…', 12) AS snip, 0 AS score FROM search_idx WHERE search_idx MATCH ? ORDER BY rowid LIMIT ?`,
-        ).all([m, limit]).map(toHit);
+        const newest = (m: string): SearchHit[] =>
+          driver
+            .prepare(
+              `SELECT entity, id, kind, title, snippet(search_idx, 1, '[', ']', '…', 12) AS snip, 0 AS score FROM search_idx WHERE search_idx MATCH ? ORDER BY rowid LIMIT ?`,
+            )
+            .all([m, limit])
+            .map(toHit);
         const seen = new Set<string>();
         for (const h of [...newest(`title : (${match})${kindMatch}`), ...newest(`${text(match)}${kindMatch}`)]) {
           const k = `${h.entity}\u0000${h.id}`;
-          if (!seen.has(k)) { seen.add(k); rows.push(h); }
+          if (!seen.has(k)) {
+            seen.add(k);
+            rows.push(h);
+          }
         }
       } else {
         // From three characters the matches are few enough to rank all of them: bm25, title over body.
-        rows.push(...driver.prepare(
-          `SELECT entity, id, kind, title, snippet(search_idx, 1, '[', ']', '…', 12) AS snip, bm25(search_idx, 8.0, 1.0, 0.0) AS score FROM search_idx WHERE search_idx MATCH ? ORDER BY score LIMIT ?`,
-        ).all([`${text(match)}${kindMatch}`, limit]).map(toHit));
+        rows.push(
+          ...driver
+            .prepare(
+              `SELECT entity, id, kind, title, snippet(search_idx, 1, '[', ']', '…', 12) AS snip, bm25(search_idx, 8.0, 1.0, 0.0) AS score FROM search_idx WHERE search_idx MATCH ? ORDER BY score LIMIT ?`,
+            )
+            .all([`${text(match)}${kindMatch}`, limit])
+            .map(toHit),
+        );
       }
       return { hits: [...recent, ...rows].slice(0, limit), prefix, scope, actions: false };
     },
@@ -164,12 +221,16 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
   return index;
 }
 
-export interface SearchAction { id: string; label: string; keywords?: readonly string[] }
+export interface SearchAction {
+  id: string;
+  label: string;
+  keywords?: readonly string[];
+}
 
 /** `>` actions: New task, Call Elena, Switch skin, Set yourself away, Go offline. Every typed word must start a word of the label or a keyword. */
 export function searchActions(query: string, actions: readonly SearchAction[], limit = 20): SearchAction[] {
   const { rest } = splitPrefix(query.startsWith(">") ? query : `>${query}`);
-  const words = (rest.toLowerCase().match(TOKEN) ?? []);
+  const words = rest.toLowerCase().match(TOKEN) ?? [];
   const scored: Array<{ a: SearchAction; s: number }> = [];
   for (const a of actions) {
     const pool = `${a.label} ${(a.keywords ?? []).join(" ")}`.toLowerCase().match(TOKEN) ?? [];
@@ -179,9 +240,15 @@ export function searchActions(query: string, actions: readonly SearchAction[], l
     for (const w of words) {
       if (labelWords.some((p) => p.startsWith(w))) s += labelWords[0]?.startsWith(w) ? 3 : 2;
       else if (pool.some((p) => p.startsWith(w))) s += 1;
-      else { ok = false; break; }
+      else {
+        ok = false;
+        break;
+      }
     }
     if (ok) scored.push({ a, s });
   }
-  return scored.sort((x, y) => y.s - x.s || x.a.label.localeCompare(y.a.label)).slice(0, limit).map((x) => x.a);
+  return scored
+    .sort((x, y) => y.s - x.s || x.a.label.localeCompare(y.a.label))
+    .slice(0, limit)
+    .map((x) => x.a);
 }

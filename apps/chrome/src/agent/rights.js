@@ -11,7 +11,9 @@ import { hostUnder } from "../worker/match.js";
 const TTL_MS = 15_000;
 
 /** Tools that change something on a page. chrome_act is split by its action below; chrome_api only when it is not a GET. */
-export const ACTING = Object.freeze(new Set(["chrome_click", "chrome_type", "chrome_fill", "chrome_eval", "chrome_send"]));
+export const ACTING = Object.freeze(
+  new Set(["chrome_click", "chrome_type", "chrome_fill", "chrome_eval", "chrome_send"]),
+);
 /** chrome_act actions that only look or move. */
 export const LOOKING = Object.freeze(new Set(["scroll", "hover", "focus"]));
 
@@ -55,14 +57,19 @@ export function createRights({ list, mode, now = Date.now }) {
       if (sites === null) return "unknown";
       /** @type {any} */
       let best = null;
-      for (const s of sites) if (hostUnder(host, String(s.host)) && (!best || String(s.host).length > String(best.host).length)) best = s;
+      for (const s of sites)
+        if (hostUnder(host, String(s.host)) && (!best || String(s.host).length > String(best.host).length)) best = s;
       if (mode() === "computer") {
         if (!best) return "unknown";
         if (best.runsIn === "chrome") return "read";
       } else if (!best || best.runsIn === "computers") return "read";
-      const mine = (Array.isArray(best.rights) ? best.rights : []).find((/** @type {any} */ r) => r && r.agentId === call.agent.id);
+      const mine = (Array.isArray(best.rights) ? best.rights : []).find(
+        (/** @type {any} */ r) => r && r.agentId === call.agent.id,
+      );
       return mine && mine.right === "act" ? "act" : "read";
     },
-    forget() { cache.clear(); },
+    forget() {
+      cache.clear();
+    },
   };
 }

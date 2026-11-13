@@ -6,227 +6,645 @@
 // the reasons a contact reaches your Inbox (owner, project, follow, shared inbox).
 // DECISION: inbox.thread takes a conversationId or a contactId (the record Conversation tab); the handler requires one of them.
 // An unmatched conversation has no contact: its ACL falls back to the mailbox it arrived in (acl.fallback).
-import { defineManifest, entity, ev, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { id, pageIn, pageOut, threadMessage, threadParty, threadRole } from './_common.ts';
+import { defineManifest, entity, ev, read, screen, setting, t, write } from "../packages/contracts/src/index.ts";
+import { id, pageIn, pageOut, threadMessage, threadParty, threadRole } from "./_common.ts";
 
-const cnvId = t.id('cnv');
-const channel = t.enm('email', 'sms', 'call');
-const contactOrCompany = t.enm('contact', 'company');
+const cnvId = t.id("cnv");
+const channel = t.enm("email", "sms", "call");
+const contactOrCompany = t.enm("contact", "company");
 const conversationRow = t.obj({
-  id: cnvId, contactId: t.opt(id.record), address: t.str({ description: 'Email, number or handle when no contact is matched', examples: ['maya@example.com'] }),
-  displayName: t.str(), lastMessageAt: t.ts(), lastChannel: t.enm('email', 'sms', 'call', 'meeting'), lastPreview: t.str(), unreadCount: t.int({ minimum: 0 }),
-  needsMatch: t.bool(), ownerId: t.opt(id.user), mailboxIds: t.arr(id.mailbox), followed: t.bool(), alertOnReplies: t.bool(),
-  starred: t.opt(t.bool()),   // the caller's own flag, like followed; absent means not starred
+  id: cnvId,
+  contactId: t.opt(id.record),
+  address: t.str({ description: "Email, number or handle when no contact is matched", examples: ["maya@example.com"] }),
+  displayName: t.str(),
+  lastMessageAt: t.ts(),
+  lastChannel: t.enm("email", "sms", "call", "meeting"),
+  lastPreview: t.str(),
+  unreadCount: t.int({ minimum: 0 }),
+  needsMatch: t.bool(),
+  ownerId: t.opt(id.user),
+  mailboxIds: t.arr(id.mailbox),
+  followed: t.bool(),
+  alertOnReplies: t.bool(),
+  starred: t.opt(t.bool()), // the caller's own flag, like followed; absent means not starred
   // Row flags the list handler fills from the contact record, its deliverability and the drafts; absent means unknown or none.
-  organisation: t.opt(t.str({ examples: ['Acme Legal'] })), dnd: t.opt(t.bool()),
-  bounced: t.opt(t.bool()), unmatched: t.opt(t.bool()),
+  organisation: t.opt(t.str({ examples: ["Acme Legal"] })),
+  dnd: t.opt(t.bool()),
+  bounced: t.opt(t.bool()),
+  unmatched: t.opt(t.bool()),
   draftReady: t.opt(t.bool()),
 });
 const timelineItem = t.obj({
-  kind: t.enm('email', 'sms', 'call', 'meeting', 'record_chip', 'note'), id: t.str(), at: t.ts(), direction: t.opt(t.enm('in', 'out')),
-  title: t.opt(t.str()), preview: t.opt(t.str()), recordId: t.opt(id.record), ref: t.opt(t.json()),
+  kind: t.enm("email", "sms", "call", "meeting", "record_chip", "note"),
+  id: t.str(),
+  at: t.ts(),
+  direction: t.opt(t.enm("in", "out")),
+  title: t.opt(t.str()),
+  preview: t.opt(t.str()),
+  recordId: t.opt(id.record),
+  ref: t.opt(t.json()),
 });
-const suggestion = t.obj({ recordId: id.record, type: contactOrCompany, name: t.str(), score: t.num({ minimum: 0, maximum: 1 }), why: t.str() });
-const senderChannel = t.enm('email', 'text');
+const suggestion = t.obj({
+  recordId: id.record,
+  type: contactOrCompany,
+  name: t.str(),
+  score: t.num({ minimum: 0, maximum: 1 }),
+  why: t.str(),
+});
+const senderChannel = t.enm("email", "text");
 const senderRow = t.obj({
-  id: t.str({ description: 'The mailbox id or the number id: what mail.send (mailboxId, senderId) and telephony.send_sms (numberId, senderId) take', examples: ['mbx_a1b2c3'] }),
-  channel: senderChannel, name: t.str({ examples: ['Intake line'] }), address: t.str({ description: 'The email address or the number', examples: ['intake@example.com'] }),
-  via: t.str({ description: 'The provider as a person names it', examples: ['Gmail'] }), provider: t.str({ description: 'The provider key', examples: ['google'] }),
-  scope: t.enm('mine', 'space'), default: t.bool(), usable: t.bool(), why: t.opt(t.str({ description: 'Plain words for a sender that cannot send right now' })),
+  id: t.str({
+    description:
+      "The mailbox id or the number id: what mail.send (mailboxId, senderId) and telephony.send_sms (numberId, senderId) take",
+    examples: ["mbx_a1b2c3"],
+  }),
+  channel: senderChannel,
+  name: t.str({ examples: ["Intake line"] }),
+  address: t.str({ description: "The email address or the number", examples: ["intake@example.com"] }),
+  via: t.str({ description: "The provider as a person names it", examples: ["Gmail"] }),
+  provider: t.str({ description: "The provider key", examples: ["google"] }),
+  scope: t.enm("mine", "space"),
+  default: t.bool(),
+  usable: t.bool(),
+  why: t.opt(t.str({ description: "Plain words for a sender that cannot send right now" })),
 });
 const listFilter = {
-  mailboxId: t.opt(id.mailbox), numberId: t.opt(id.number), channel: t.opt(channel), needsMatch: t.opt(t.bool()), query: t.opt(t.str()),
+  mailboxId: t.opt(id.mailbox),
+  numberId: t.opt(id.number),
+  channel: t.opt(channel),
+  needsMatch: t.opt(t.bool()),
+  query: t.opt(t.str()),
 };
 
 const manifest = defineManifest({
-  id: 'inbox',
-  title: 'Inbox',
-  owner: 'L5',
+  id: "inbox",
+  title: "Inbox",
+  owner: "L5",
   entities: [
-    entity('conversation', 'inbox_conversation', 'cnv_', {
-      contactId: 'text', address: 'text', displayName: 'text', lastMessageAt: 'datetime', lastChannel: 'choice', lastPreview: 'text', unreadCount: 'number',
-      needsMatch: 'checkbox', ownerId: 'person', mailboxIds: 'text', numberIds: 'text',
-    }, 'record', {
-      parentField: 'contactId', ownerField: 'ownerId', fallback: { resource: 'mailbox', field: 'mailboxIds' }, fts: ['displayName', 'address', 'lastPreview'],
-      sync: { profile: { desktop: 'all', phone: 'window', web: 'window' }, window: { days: 90, recentCount: 300 }, protectedFields: ['needsMatch'] },
-    }),
-    entity('conversation_follow', 'inbox_follow', 'fol_', { contactId: 'text', principalId: 'text', alertOnReplies: 'checkbox' }, 'record', {
-      parentField: 'contactId', ownerField: 'principalId',
-    }),
+    entity(
+      "conversation",
+      "inbox_conversation",
+      "cnv_",
+      {
+        contactId: "text",
+        address: "text",
+        displayName: "text",
+        lastMessageAt: "datetime",
+        lastChannel: "choice",
+        lastPreview: "text",
+        unreadCount: "number",
+        needsMatch: "checkbox",
+        ownerId: "person",
+        mailboxIds: "text",
+        numberIds: "text",
+      },
+      "record",
+      {
+        parentField: "contactId",
+        ownerField: "ownerId",
+        fallback: { resource: "mailbox", field: "mailboxIds" },
+        fts: ["displayName", "address", "lastPreview"],
+        sync: {
+          profile: { desktop: "all", phone: "window", web: "window" },
+          window: { days: 90, recentCount: 300 },
+          protectedFields: ["needsMatch"],
+        },
+      },
+    ),
+    entity(
+      "conversation_follow",
+      "inbox_follow",
+      "fol_",
+      { contactId: "text", principalId: "text", alertOnReplies: "checkbox" },
+      "record",
+      {
+        parentField: "contactId",
+        ownerField: "principalId",
+      },
+    ),
   ],
   events: [
     // ---- erase (P-CC_39)
-    ev('inbox.item_erased', 'The conversation entries of one message, text or call were erased for good (ids only)', { p: { refId: t.str({ examples: ['sms_a1b2c3'] }), removed: t.int({ minimum: 0 }) }, subject: ['entity', '/refId'], retention: 'audit' }),
-    ev('conversation.created', 'A conversation row was opened for a new address or contact', { p: { conversationId: cnvId, contactId: t.opt(id.record), channel }, subject: ['entity', '/conversationId'], label: 'subject' }),
-    ev('conversation.matched', 'A sender was linked to a contact or company record', {
-      p: { conversationId: cnvId, recordId: id.record, by: t.enm('rule', 'person', 'agent'), undoable: t.bool() }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A sender is matched to a record', fields: ['/by'] },
+    ev("inbox.item_erased", "The conversation entries of one message, text or call were erased for good (ids only)", {
+      p: { refId: t.str({ examples: ["sms_a1b2c3"] }), removed: t.int({ minimum: 0 }) },
+      subject: ["entity", "/refId"],
+      retention: "audit",
     }),
-    ev('conversation.unmatched', 'A match was undone', { p: { conversationId: cnvId, recordId: id.record }, subject: ['record', '/recordId'], label: 'subject' }),
-    ev('conversation.needs_match', 'An unsure sender needs a person to pick the record', { p: { conversationId: cnvId, taskId: t.opt(id.task) }, subject: ['entity', '/conversationId'] }),
-    ev('conversation.reply_received', 'A followed contact replied (Alert me on replies raises it to Interrupt in working hours)', {
-      p: { conversationId: cnvId, contactId: id.record, channel }, subject: ['record', '/contactId'], vis: 'participants', notify: 'reply.followed',
+    ev("conversation.created", "A conversation row was opened for a new address or contact", {
+      p: { conversationId: cnvId, contactId: t.opt(id.record), channel },
+      subject: ["entity", "/conversationId"],
+      label: "subject",
     }),
-    ev('conversation.follow_changed', 'A person followed or unfollowed a contact conversation', {
-      p: { contactId: id.record, principalId: t.str(), following: t.bool(), alertOnReplies: t.bool() }, subject: ['record', '/contactId'], vis: 'participants',
+    ev("conversation.matched", "A sender was linked to a contact or company record", {
+      p: { conversationId: cnvId, recordId: id.record, by: t.enm("rule", "person", "agent"), undoable: t.bool() },
+      subject: ["record", "/recordId"],
+      label: "subject",
+      trigger: { title: "A sender is matched to a record", fields: ["/by"] },
+    }),
+    ev("conversation.unmatched", "A match was undone", {
+      p: { conversationId: cnvId, recordId: id.record },
+      subject: ["record", "/recordId"],
+      label: "subject",
+    }),
+    ev("conversation.needs_match", "An unsure sender needs a person to pick the record", {
+      p: { conversationId: cnvId, taskId: t.opt(id.task) },
+      subject: ["entity", "/conversationId"],
+    }),
+    ev(
+      "conversation.reply_received",
+      "A followed contact replied (Alert me on replies raises it to Interrupt in working hours)",
+      {
+        p: { conversationId: cnvId, contactId: id.record, channel },
+        subject: ["record", "/contactId"],
+        vis: "participants",
+        notify: "reply.followed",
+      },
+    ),
+    ev("conversation.follow_changed", "A person followed or unfollowed a contact conversation", {
+      p: { contactId: id.record, principalId: t.str(), following: t.bool(), alertOnReplies: t.bool() },
+      subject: ["record", "/contactId"],
+      vis: "participants",
     }),
   ],
   capabilities: [
     // ---- erase (P-CC_39)
-    write('inbox.item.erase', 'Erase the conversation entries of one message, text or call for good: previews, subjects and participants go, the conversation keeps only what other items still say (governance erase)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { refId: t.str({ examples: ['sms_a1b2c3'] }) }, out: { erased: t.bool() }, emits: ['inbox.item_erased'], audit: 'always', risk: 'high' }),
-    read('inbox.list_by_contact', 'Inbox default view: one row per person, newest message across email, text and calls', { level: 'member',
-      in: { ...listFilter, ...pageIn }, out: { rows: t.arr(conversationRow), showing: t.str({ description: 'Plain words for the header: what is showing' }), ...pageOut },
-      tool: 'inbox', label: 'filter', cli: 'vyre inbox list',
-    }),
-    read('inbox.list_by_thread', 'Inbox thread view: one row per email thread or text thread', {
+    write(
+      "inbox.item.erase",
+      "Erase the conversation entries of one message, text or call for good: previews, subjects and participants go, the conversation keeps only what other items still say (governance erase)",
+      {
+        level: "manage",
+        perm: "policy.manage",
+        idem: "key",
+        in: { refId: t.str({ examples: ["sms_a1b2c3"] }) },
+        out: { erased: t.bool() },
+        emits: ["inbox.item_erased"],
+        audit: "always",
+        risk: "high",
+      },
+    ),
+    read(
+      "inbox.list_by_contact",
+      "Inbox default view: one row per person, newest message across email, text and calls",
+      {
+        level: "member",
+        in: { ...listFilter, ...pageIn },
+        out: {
+          rows: t.arr(conversationRow),
+          showing: t.str({ description: "Plain words for the header: what is showing" }),
+          ...pageOut,
+        },
+        tool: "inbox",
+        label: "filter",
+        cli: "vyre inbox list",
+      },
+    ),
+    read("inbox.list_by_thread", "Inbox thread view: one row per email thread or text thread", {
       in: { ...listFilter, ...pageIn },
-      out: { threads: t.arr(t.obj({ threadId: t.str(), channel, subject: t.opt(t.str()), mailboxId: t.opt(id.mailbox), lastAt: t.ts(), participants: t.arr(t.str()), unread: t.int(), contactId: t.opt(id.record), conversationId: t.opt(cnvId) })), showing: t.str(), ...pageOut },
-      tool: 'inbox', label: 'filter',
-    }),
-    read('inbox.threads', "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role", {
-      in: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), images: t.opt(t.bool()), ...pageIn },
       out: {
-        conversation: conversationRow,
-        threads: t.arr(t.obj({
-          threadId: t.str(), subject: t.str(), role: threadRole, participants: t.arr(threadParty), lastAt: t.ts(), messageCount: t.int({ minimum: 0 }), unread: t.int({ minimum: 0 }),
-          messages: t.arr(t.obj({ unread: t.bool(), message: threadMessage })),
-        })),
+        threads: t.arr(
+          t.obj({
+            threadId: t.str(),
+            channel,
+            subject: t.opt(t.str()),
+            mailboxId: t.opt(id.mailbox),
+            lastAt: t.ts(),
+            participants: t.arr(t.str()),
+            unread: t.int(),
+            contactId: t.opt(id.record),
+            conversationId: t.opt(cnvId),
+          }),
+        ),
+        showing: t.str(),
         ...pageOut,
       },
-      tool: 'inbox', label: 'check', errors: ['validation.bad_input'],
-      ex: {
-        input: { contactId: 'rec_josh01' },
-        output: {
-          conversation: { id: 'cnv_josh01', contactId: 'rec_josh01', address: 'josh@example.com', displayName: 'Josh Cohen', lastMessageAt: 1792857600000, lastChannel: 'email', lastPreview: 'One more: Rachel is out Wednesday afternoon.', unreadCount: 1, needsMatch: false, mailboxIds: ['mbx_a1b2c3'], followed: false, alertOnReplies: false },
-          threads: [{
-            threadId: '18c39f7b2d10', subject: 'Welcome to Scout, Josh', role: 'cc', participants: [{ address: 'andrey@example.com', name: 'Andrey Volkov' }, { address: 'josh@example.com', name: 'Josh Cohen' }],
-            lastAt: 1792857600000, messageCount: 1, unread: 1,
-            messages: [{ unread: true, message: {
-              id: 'eml_a1b2c3', at: 1792857600000, direction: 'in', mailboxId: 'mbx_a1b2c3', mailboxIds: ['mbx_a1b2c3'], from: { address: 'josh@example.com', name: 'Josh Cohen' }, to: [{ address: 'andrey@example.com' }], cc: [{ address: 'irfad@example.com' }],
-              subject: 'RE: Welcome to Scout, Josh', body: 'Thanks Andrey. I am in and the team is set up.', quoted: 'From: Andrey Volkov <andrey@example.com>', signature: 'Josh Cohen', reactions: [{ emoji: '❤️', from: { address: 'irfad@example.com' }, at: 1792857700000 }], attachments: [], isPrivate: false,
-            } }],
-          }],
-          total: 1,
+      tool: "inbox",
+      label: "filter",
+    }),
+    read(
+      "inbox.threads",
+      "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role",
+      {
+        in: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), images: t.opt(t.bool()), ...pageIn },
+        out: {
+          conversation: conversationRow,
+          threads: t.arr(
+            t.obj({
+              threadId: t.str(),
+              subject: t.str(),
+              role: threadRole,
+              participants: t.arr(threadParty),
+              lastAt: t.ts(),
+              messageCount: t.int({ minimum: 0 }),
+              unread: t.int({ minimum: 0 }),
+              messages: t.arr(t.obj({ unread: t.bool(), message: threadMessage })),
+            }),
+          ),
+          ...pageOut,
+        },
+        tool: "inbox",
+        label: "check",
+        errors: ["validation.bad_input"],
+        ex: {
+          input: { contactId: "rec_josh01" },
+          output: {
+            conversation: {
+              id: "cnv_josh01",
+              contactId: "rec_josh01",
+              address: "josh@example.com",
+              displayName: "Josh Cohen",
+              lastMessageAt: 1792857600000,
+              lastChannel: "email",
+              lastPreview: "One more: Rachel is out Wednesday afternoon.",
+              unreadCount: 1,
+              needsMatch: false,
+              mailboxIds: ["mbx_a1b2c3"],
+              followed: false,
+              alertOnReplies: false,
+            },
+            threads: [
+              {
+                threadId: "18c39f7b2d10",
+                subject: "Welcome to Scout, Josh",
+                role: "cc",
+                participants: [
+                  { address: "andrey@example.com", name: "Andrey Volkov" },
+                  { address: "josh@example.com", name: "Josh Cohen" },
+                ],
+                lastAt: 1792857600000,
+                messageCount: 1,
+                unread: 1,
+                messages: [
+                  {
+                    unread: true,
+                    message: {
+                      id: "eml_a1b2c3",
+                      at: 1792857600000,
+                      direction: "in",
+                      mailboxId: "mbx_a1b2c3",
+                      mailboxIds: ["mbx_a1b2c3"],
+                      from: { address: "josh@example.com", name: "Josh Cohen" },
+                      to: [{ address: "andrey@example.com" }],
+                      cc: [{ address: "irfad@example.com" }],
+                      subject: "RE: Welcome to Scout, Josh",
+                      body: "Thanks Andrey. I am in and the team is set up.",
+                      quoted: "From: Andrey Volkov <andrey@example.com>",
+                      signature: "Josh Cohen",
+                      reactions: [{ emoji: "❤️", from: { address: "irfad@example.com" }, at: 1792857700000 }],
+                      attachments: [],
+                      isPrivate: false,
+                    },
+                  },
+                ],
+              },
+            ],
+            total: 1,
+          },
         },
       },
+    ),
+    read("inbox.thread", "The whole history of one contact: emails, texts, calls, meetings and record chips", {
+      in: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), before: t.opt(t.ts()), ...pageIn },
+      out: { conversation: conversationRow, items: t.arr(timelineItem), ...pageOut },
+      tool: "inbox",
+      label: "check",
+      errors: ["validation.bad_input"],
     }),
-    read('inbox.thread', 'The whole history of one contact: emails, texts, calls, meetings and record chips', {
-      in: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), before: t.opt(t.ts()), ...pageIn }, out: { conversation: conversationRow, items: t.arr(timelineItem), ...pageOut },
-      tool: 'inbox', label: 'check', errors: ['validation.bad_input'],
+    read("inbox.unmatched", "The Unmatched list: senders with no record that did not raise Needs a match", {
+      in: { query: t.opt(t.str()), ...pageIn },
+      out: { rows: t.arr(conversationRow), ...pageOut },
+      tool: "inbox",
+      label: "filter",
     }),
-    read('inbox.unmatched', 'The Unmatched list: senders with no record that did not raise Needs a match', {
-      in: { query: t.opt(t.str()), ...pageIn }, out: { rows: t.arr(conversationRow), ...pageOut }, tool: 'inbox', label: 'filter',
+    read("inbox.needs_match", "The Needs a match filter: unsure senders with suggested records", {
+      in: { ...pageIn },
+      out: { rows: t.arr(t.obj({ conversation: conversationRow, suggestions: t.arr(suggestion) })), ...pageOut },
+      tool: "inbox",
+      label: "filter",
     }),
-    read('inbox.needs_match', 'The Needs a match filter: unsure senders with suggested records', {
-      in: { ...pageIn }, out: { rows: t.arr(t.obj({ conversation: conversationRow, suggestions: t.arr(suggestion) })), ...pageOut }, tool: 'inbox', label: 'filter',
+    read("inbox.match_suggestions", "Suggested records for one sender", {
+      in: { conversationId: cnvId },
+      out: { suggestions: t.arr(suggestion) },
+      tool: "inbox",
+      label: "filter",
     }),
-    read('inbox.match_suggestions', 'Suggested records for one sender', { in: { conversationId: cnvId }, out: { suggestions: t.arr(suggestion) }, tool: 'inbox', label: 'filter' }),
-    write('inbox.match', 'Match a sender to a contact or company record (Undo stays available)', {
+    write("inbox.match", "Match a sender to a contact or company record (Undo stays available)", {
       in: { conversationId: cnvId, recordId: id.record, rememberAddress: t.opt(t.bool()) },
-      out: { conversation: conversationRow, undoToken: t.str() }, perm: 'records.edit', emits: ['conversation.matched'], idem: 'key', tool: 'inbox', offline: 'queue',
+      out: { conversation: conversationRow, undoToken: t.str() },
+      perm: "records.edit",
+      emits: ["conversation.matched"],
+      idem: "key",
+      tool: "inbox",
+      offline: "queue",
     }),
-    write('inbox.unmatch', 'Undo a match; the sender goes back to Unmatched', {
-      in: { conversationId: cnvId, undoToken: t.opt(t.str()) }, out: { conversation: conversationRow }, perm: 'records.edit', emits: ['conversation.unmatched'], tool: 'inbox', offline: 'queue',
+    write("inbox.unmatch", "Undo a match; the sender goes back to Unmatched", {
+      in: { conversationId: cnvId, undoToken: t.opt(t.str()) },
+      out: { conversation: conversationRow },
+      perm: "records.edit",
+      emits: ["conversation.unmatched"],
+      tool: "inbox",
+      offline: "queue",
     }),
     // match_new extras: fileAttachments also copies the attachments of its mails into the record's folder; replyTask also puts a Reply task on my list, linked to the record
-    write('inbox.match_new', 'Create a contact or company from an unmatched sender and match it', {
-      in: { conversationId: cnvId, type: contactOrCompany, name: t.opt(t.str()), fileAttachments: t.opt(t.bool()), replyTask: t.opt(t.bool()) }, out: { recordId: id.record, conversation: conversationRow, filed: t.opt(t.int({ minimum: 0 })), skipped: t.opt(t.int({ minimum: 0 })), taskId: t.opt(id.task) },
-      perm: 'records.create', emits: ['conversation.matched'], idem: 'key', tool: 'inbox',
-    }),
-    write('inbox.link_message', 'Shared linking step for a stored message, text or call: sure matches link, unsure go to Needs you, unowned replies route to the shared inbox', {
+    write("inbox.match_new", "Create a contact or company from an unmatched sender and match it", {
       in: {
-        channel, ref: t.obj({ kind: t.enm('mail_message', 'sms', 'call'), id: t.str() }), address: t.str(), direction: t.enm('in', 'out'), at: t.ts(),
-        mailboxId: t.opt(id.mailbox), numberId: t.opt(id.number), preview: t.opt(t.str()),
-        // what mail already knows of an email, so the thread needs no read-back: its thread key, subject and the people on it
-        threadId: t.opt(t.str()), subject: t.opt(t.str()), participants: t.opt(t.arr(t.str())),
-        // mail from a person's private mailbox gets a conversation of that person's own, matched to no record and merged with nothing
-        private: t.opt(t.bool()), ownerId: t.opt(id.user),
+        conversationId: cnvId,
+        type: contactOrCompany,
+        name: t.opt(t.str()),
+        fileAttachments: t.opt(t.bool()),
+        replyTask: t.opt(t.bool()),
       },
-      out: { conversationId: cnvId, contactId: t.opt(id.record), linked: t.enm('sure', 'unsure', 'none'), taskId: t.opt(id.task) },
-      emits: ['conversation.created', 'conversation.matched', 'conversation.needs_match', 'conversation.reply_received'], idem: 'natural',
-    }),
-    read('inbox.thread_conversation', 'The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)', {
-      in: { threadId: t.str({ description: 'The provider thread id, as mail_thread_get and the mail search give it', examples: ['18c2a1f04e9b'] }) },
-      out: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), subject: t.opt(t.str()) }, tool: 'inbox', label: 'check',
-    }),
-    read('inbox.counts', 'Unread counts for the sidebar: per inbox, per number and the Needs a match total', {
-      in: {}, out: { byInbox: t.arr(t.obj({ kind: t.enm('mailbox', 'number'), id: t.str(), name: t.opt(t.str({ description: 'What the sidebar shows: the mailbox address or the number display name (telephony number displayName), never the id' })), unread: t.int() })), total: t.int(), needsMatch: t.int() }, tool: 'inbox',
-    }),
-    write('inbox.mark_read', 'Mark a conversation read or unread', {
-      in: { conversationId: cnvId, read: t.opt(t.bool()) }, out: { conversation: conversationRow }, level: 'view', tool: 'inbox', offline: 'queue',
-    }),
-    write('inbox.follow_set', 'Follow a contact or set Alert me on replies (the follow itself is stored with stars and follows)', {
-      in: { contactId: id.record, follow: t.bool(), alertOnReplies: t.opt(t.bool()) }, out: { following: t.bool(), alertOnReplies: t.bool() },
-      on: ['record', '/contactId'], level: 'view', emits: ['conversation.follow_changed'], tool: 'inbox', offline: 'queue',
-    }),
-    read('inbox.following', 'Contacts that reach your Inbox and why: owner, project, follow or shared inbox', {
-      in: { ...pageIn },
-      out: { rows: t.arr(t.obj({ contactId: id.record, reasons: t.arr(t.enm('owner', 'project', 'follow', 'shared_inbox')), alertOnReplies: t.bool() })), ...pageOut }, tool: 'inbox', label: 'filter',
-    }),
-    read('inbox.send_options', 'Channels and sending inboxes for a contact; the default is the inbox the thread came in on', {
-      in: { conversationId: t.opt(cnvId), contactId: t.opt(id.record) },
       out: {
-        channels: t.arr(t.enm('email', 'sms')),
-        inboxes: t.arr(t.obj({ kind: t.enm('mailbox', 'number'), id: t.str(), address: t.str(), canSend: t.bool(), isDefault: t.bool() })),
+        recordId: id.record,
+        conversation: conversationRow,
+        filed: t.opt(t.int({ minimum: 0 })),
+        skipped: t.opt(t.int({ minimum: 0 })),
+        taskId: t.opt(id.task),
       },
-      tool: 'inbox', label: 'check',
+      perm: "records.create",
+      emits: ["conversation.matched"],
+      idem: "key",
+      tool: "inbox",
     }),
-    read('comms.senders.list', 'Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why', {
-      in: { channel: t.opt(senderChannel) }, out: { senders: t.arr(senderRow) }, tool: 'inbox', label: 'check',
+    write(
+      "inbox.link_message",
+      "Shared linking step for a stored message, text or call: sure matches link, unsure go to Needs you, unowned replies route to the shared inbox",
+      {
+        in: {
+          channel,
+          ref: t.obj({ kind: t.enm("mail_message", "sms", "call"), id: t.str() }),
+          address: t.str(),
+          direction: t.enm("in", "out"),
+          at: t.ts(),
+          mailboxId: t.opt(id.mailbox),
+          numberId: t.opt(id.number),
+          preview: t.opt(t.str()),
+          // what mail already knows of an email, so the thread needs no read-back: its thread key, subject and the people on it
+          threadId: t.opt(t.str()),
+          subject: t.opt(t.str()),
+          participants: t.opt(t.arr(t.str())),
+          // mail from a person's private mailbox gets a conversation of that person's own, matched to no record and merged with nothing
+          private: t.opt(t.bool()),
+          ownerId: t.opt(id.user),
+        },
+        out: {
+          conversationId: cnvId,
+          contactId: t.opt(id.record),
+          linked: t.enm("sure", "unsure", "none"),
+          taskId: t.opt(id.task),
+        },
+        emits: [
+          "conversation.created",
+          "conversation.matched",
+          "conversation.needs_match",
+          "conversation.reply_received",
+        ],
+        idem: "natural",
+      },
+    ),
+    read(
+      "inbox.thread_conversation",
+      "The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)",
+      {
+        in: {
+          threadId: t.str({
+            description: "The provider thread id, as mail_thread_get and the mail search give it",
+            examples: ["18c2a1f04e9b"],
+          }),
+        },
+        out: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), subject: t.opt(t.str()) },
+        tool: "inbox",
+        label: "check",
+      },
+    ),
+    read("inbox.counts", "Unread counts for the sidebar: per inbox, per number and the Needs a match total", {
+      in: {},
+      out: {
+        byInbox: t.arr(
+          t.obj({
+            kind: t.enm("mailbox", "number"),
+            id: t.str(),
+            name: t.opt(
+              t.str({
+                description:
+                  "What the sidebar shows: the mailbox address or the number display name (telephony number displayName), never the id",
+              }),
+            ),
+            unread: t.int(),
+          }),
+        ),
+        total: t.int(),
+        needsMatch: t.int(),
+      },
+      tool: "inbox",
     }),
-    write('comms.senders.set_default', 'Choose the default sender of a channel for me; it must be a usable sender from comms.senders.list', {
-      in: { channel: senderChannel, senderId: t.str({ examples: ['mbx_a1b2c3'] }) }, out: { channel: senderChannel, senderId: t.str() }, level: 'view', tool: 'inbox', offline: 'queue',
-      idem: 'natural', errors: ['validation.bad_input', 'validation.precondition_failed'],
+    write("inbox.mark_read", "Mark a conversation read or unread", {
+      in: { conversationId: cnvId, read: t.opt(t.bool()) },
+      out: { conversation: conversationRow },
+      level: "view",
+      tool: "inbox",
+      offline: "queue",
     }),
-    read('inbox.recipients_search', 'Ranked recipient search across contacts, members, inboxes and groups (the shared Recipients field)', {
-      in: { q: t.str(), kinds: t.opt(t.arr(t.enm('contact', 'member', 'inbox', 'group'))), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
-      out: { results: t.arr(t.obj({ kind: t.enm('contact', 'member', 'inbox', 'group'), id: t.str(), label: t.str(), address: t.opt(t.str()), score: t.num() })) }, tool: 'inbox', label: 'filter',
+    write(
+      "inbox.follow_set",
+      "Follow a contact or set Alert me on replies (the follow itself is stored with stars and follows)",
+      {
+        in: { contactId: id.record, follow: t.bool(), alertOnReplies: t.opt(t.bool()) },
+        out: { following: t.bool(), alertOnReplies: t.bool() },
+        on: ["record", "/contactId"],
+        level: "view",
+        emits: ["conversation.follow_changed"],
+        tool: "inbox",
+        offline: "queue",
+      },
+    ),
+    read("inbox.following", "Contacts that reach your Inbox and why: owner, project, follow or shared inbox", {
+      in: { ...pageIn },
+      out: {
+        rows: t.arr(
+          t.obj({
+            contactId: id.record,
+            reasons: t.arr(t.enm("owner", "project", "follow", "shared_inbox")),
+            alertOnReplies: t.bool(),
+          }),
+        ),
+        ...pageOut,
+      },
+      tool: "inbox",
+      label: "filter",
     }),
+    read(
+      "inbox.send_options",
+      "Channels and sending inboxes for a contact; the default is the inbox the thread came in on",
+      {
+        in: { conversationId: t.opt(cnvId), contactId: t.opt(id.record) },
+        out: {
+          channels: t.arr(t.enm("email", "sms")),
+          inboxes: t.arr(
+            t.obj({
+              kind: t.enm("mailbox", "number"),
+              id: t.str(),
+              address: t.str(),
+              canSend: t.bool(),
+              isDefault: t.bool(),
+            }),
+          ),
+        },
+        tool: "inbox",
+        label: "check",
+      },
+    ),
+    read(
+      "comms.senders.list",
+      "Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why",
+      {
+        in: { channel: t.opt(senderChannel) },
+        out: { senders: t.arr(senderRow) },
+        tool: "inbox",
+        label: "check",
+      },
+    ),
+    write(
+      "comms.senders.set_default",
+      "Choose the default sender of a channel for me; it must be a usable sender from comms.senders.list",
+      {
+        in: { channel: senderChannel, senderId: t.str({ examples: ["mbx_a1b2c3"] }) },
+        out: { channel: senderChannel, senderId: t.str() },
+        level: "view",
+        tool: "inbox",
+        offline: "queue",
+        idem: "natural",
+        errors: ["validation.bad_input", "validation.precondition_failed"],
+      },
+    ),
+    read(
+      "inbox.recipients_search",
+      "Ranked recipient search across contacts, members, inboxes and groups (the shared Recipients field)",
+      {
+        in: {
+          q: t.str(),
+          kinds: t.opt(t.arr(t.enm("contact", "member", "inbox", "group"))),
+          limit: t.opt(t.int({ minimum: 1, maximum: 50 })),
+        },
+        out: {
+          results: t.arr(
+            t.obj({
+              kind: t.enm("contact", "member", "inbox", "group"),
+              id: t.str(),
+              label: t.str(),
+              address: t.opt(t.str()),
+              score: t.num(),
+            }),
+          ),
+        },
+        tool: "inbox",
+        label: "filter",
+      },
+    ),
   ],
   settings: [
-    setting('comms.default_sender_email', 'person', 'comms', 'Default email sender', t.nullable(t.str()), null),
-    setting('comms.default_sender_text', 'person', 'comms', 'Default text sender', t.nullable(t.str()), null),
+    setting("comms.default_sender_email", "person", "comms", "Default email sender", t.nullable(t.str()), null),
+    setting("comms.default_sender_text", "person", "comms", "Default text sender", t.nullable(t.str()), null),
   ],
   screens: [
-    screen('inbox.sidebar', 'inbox', 'ui:InboxSidebar', {
-      slot: 'sidebar',
-      q: { counts: ['inbox.counts', {}, true], mailboxes: ['mail.mailbox.list', { scope: '/state/scope' }, true], calendars: ['calendar.list_calendars', {}, true] },
-      empty: 'No inbox connected', primary: 'Connect a mailbox',
-    }),
-    screen('inbox.contact-list', 'inbox', 'ui:InboxContactList', {
+    screen("inbox.sidebar", "inbox", "ui:InboxSidebar", {
+      slot: "sidebar",
       q: {
-        rows: ['inbox.list_by_contact', { mailboxId: '/state/mailboxId', numberId: '/state/numberId', channel: '/state/channel', needsMatch: '/state/needsMatch', query: '/state/query' }, true],
-        threads: ['inbox.list_by_thread', { mailboxId: '/state/mailboxId', numberId: '/state/numberId', channel: '/state/channel', needsMatch: '/state/needsMatch', query: '/state/query' }, true],
-        calls: ['telephony.call.list', { numberId: '/state/numberId' }, true],
+        counts: ["inbox.counts", {}, true],
+        mailboxes: ["mail.mailbox.list", { scope: "/state/scope" }, true],
+        calendars: ["calendar.list_calendars", {}, true],
       },
-      a: { read: ['inbox.mark_read', { conversationId: '/state/conversationId', read: '/state/read' }], follow: ['inbox.follow_set', { contactId: '/state/contactId', follow: '/state/follow' }] },
-      empty: 'No conversations yet',
+      empty: "No inbox connected",
+      primary: "Connect a mailbox",
     }),
-    screen('inbox.contact-tab', 'inbox', 'ui:InboxContactTab', {
-      slot: 'tab',
+    screen("inbox.contact-list", "inbox", "ui:InboxContactList", {
       q: {
-        thread: ['inbox.thread', { conversationId: '/state/conversationId', contactId: '/state/contactId' }, true],
-        threads: ['inbox.threads', { conversationId: '/state/conversationId', contactId: '/state/contactId', images: '/state/images' }, true],
-        options: ['inbox.send_options', { conversationId: '/state/conversationId', contactId: '/state/contactId' }, true],
-        drafts: ['mail.drafts.list', { contactId: '/state/contactId' }, true],
+        rows: [
+          "inbox.list_by_contact",
+          {
+            mailboxId: "/state/mailboxId",
+            numberId: "/state/numberId",
+            channel: "/state/channel",
+            needsMatch: "/state/needsMatch",
+            query: "/state/query",
+          },
+          true,
+        ],
+        threads: [
+          "inbox.list_by_thread",
+          {
+            mailboxId: "/state/mailboxId",
+            numberId: "/state/numberId",
+            channel: "/state/channel",
+            needsMatch: "/state/needsMatch",
+            query: "/state/query",
+          },
+          true,
+        ],
+        calls: ["telephony.call.list", { numberId: "/state/numberId" }, true],
       },
       a: {
-        email: ['mail.send', { mailboxId: '/state/mailboxId', to: '/state/to', cc: '/state/cc', bcc: '/state/bcc', subject: '/state/subject', text: '/state/text', html: '/state/html', replyToMessageId: '/state/replyToMessageId', draftId: '/state/draftId' }],
-        text: ['telephony.send_sms', { numberId: '/state/numberId', to: '/state/to', body: '/state/body', contactId: '/state/contactId' }],
-        call: ['telephony.dial', { numberId: '/state/numberId', to: '/state/to', contactId: '/state/contactId' }],
-        discard: ['mail.drafts.discard', { draftId: '/state/draftId' }],
-        follow: ['inbox.follow_set', { contactId: '/state/contactId', follow: '/state/follow', alertOnReplies: '/state/alertOnReplies' }],
-        read: ['inbox.mark_read', { conversationId: '/state/conversationId' }],
+        read: ["inbox.mark_read", { conversationId: "/state/conversationId", read: "/state/read" }],
+        follow: ["inbox.follow_set", { contactId: "/state/contactId", follow: "/state/follow" }],
       },
-      empty: 'No messages with this contact yet',
+      empty: "No conversations yet",
     }),
-    screen('inbox.unmatched', 'inbox', 'ui:InboxUnmatched', {
-      q: { rows: ['inbox.unmatched', { query: '/state/query' }, true], needs: ['inbox.needs_match', {}, true], suggestions: ['inbox.match_suggestions', { conversationId: '/state/conversationId' }, true] },
-      a: {
-        match: ['inbox.match', { conversationId: '/state/conversationId', recordId: '/state/recordId' }],
-        undo: ['inbox.unmatch', { conversationId: '/state/conversationId', undoToken: '/state/undoToken' }],
-        create: ['inbox.match_new', { conversationId: '/state/conversationId', type: '/state/type' }],
+    screen("inbox.contact-tab", "inbox", "ui:InboxContactTab", {
+      slot: "tab",
+      q: {
+        thread: ["inbox.thread", { conversationId: "/state/conversationId", contactId: "/state/contactId" }, true],
+        threads: [
+          "inbox.threads",
+          { conversationId: "/state/conversationId", contactId: "/state/contactId", images: "/state/images" },
+          true,
+        ],
+        options: [
+          "inbox.send_options",
+          { conversationId: "/state/conversationId", contactId: "/state/contactId" },
+          true,
+        ],
+        drafts: ["mail.drafts.list", { contactId: "/state/contactId" }, true],
       },
-      empty: 'Nothing waiting for a match',
+      a: {
+        email: [
+          "mail.send",
+          {
+            mailboxId: "/state/mailboxId",
+            to: "/state/to",
+            cc: "/state/cc",
+            bcc: "/state/bcc",
+            subject: "/state/subject",
+            text: "/state/text",
+            html: "/state/html",
+            replyToMessageId: "/state/replyToMessageId",
+            draftId: "/state/draftId",
+          },
+        ],
+        text: [
+          "telephony.send_sms",
+          { numberId: "/state/numberId", to: "/state/to", body: "/state/body", contactId: "/state/contactId" },
+        ],
+        call: ["telephony.dial", { numberId: "/state/numberId", to: "/state/to", contactId: "/state/contactId" }],
+        discard: ["mail.drafts.discard", { draftId: "/state/draftId" }],
+        follow: [
+          "inbox.follow_set",
+          { contactId: "/state/contactId", follow: "/state/follow", alertOnReplies: "/state/alertOnReplies" },
+        ],
+        read: ["inbox.mark_read", { conversationId: "/state/conversationId" }],
+      },
+      empty: "No messages with this contact yet",
+    }),
+    screen("inbox.unmatched", "inbox", "ui:InboxUnmatched", {
+      q: {
+        rows: ["inbox.unmatched", { query: "/state/query" }, true],
+        needs: ["inbox.needs_match", {}, true],
+        suggestions: ["inbox.match_suggestions", { conversationId: "/state/conversationId" }, true],
+      },
+      a: {
+        match: ["inbox.match", { conversationId: "/state/conversationId", recordId: "/state/recordId" }],
+        undo: ["inbox.unmatch", { conversationId: "/state/conversationId", undoToken: "/state/undoToken" }],
+        create: ["inbox.match_new", { conversationId: "/state/conversationId", type: "/state/type" }],
+      },
+      empty: "Nothing waiting for a match",
     }),
   ],
 });

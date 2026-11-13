@@ -14,8 +14,19 @@ export interface ImportedRow {
   archived?: boolean | undefined;
 }
 
-export interface ImportedTool { id?: string; name: string; summary: string; ok?: boolean | undefined }
-export interface ImportedMessage { sourceMessageId?: string; role: string; text: string; at: number; tools?: ImportedTool[] | undefined }
+export interface ImportedTool {
+  id?: string;
+  name: string;
+  summary: string;
+  ok?: boolean | undefined;
+}
+export interface ImportedMessage {
+  sourceMessageId?: string;
+  role: string;
+  text: string;
+  at: number;
+  tools?: ImportedTool[] | undefined;
+}
 
 /** More than this many imported sessions and the group starts folded. */
 export const IMPORTED_OPEN_MAX = 5;
@@ -28,7 +39,8 @@ export const providerMark = (provider: string): string => (provider === "codex" 
 
 /** `Oct 27`, with the year when it is not this year. */
 export function dayLabel(ts: number, now: number, offsetMin: number): string {
-  const d = new Date(ts + offsetMin * 60_000), n = new Date(now + offsetMin * 60_000);
+  const d = new Date(ts + offsetMin * 60_000),
+    n = new Date(now + offsetMin * 60_000);
   const base = `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
   return d.getUTCFullYear() === n.getUTCFullYear() ? base : `${base}, ${d.getUTCFullYear()}`;
 }
@@ -39,21 +51,36 @@ export function importedRows(list: readonly Partial<ImportedRow>[] | undefined):
   for (const r of list ?? []) {
     if (typeof r.conversationId !== "string" || r.conversationId === "") continue;
     out.push({
-      conversationId: r.conversationId, provider: typeof r.provider === "string" ? r.provider : "claude_code",
+      conversationId: r.conversationId,
+      provider: typeof r.provider === "string" ? r.provider : "claude_code",
       title: typeof r.title === "string" && r.title.trim() !== "" ? r.title.trim() : "Imported session",
-      startedAt: Number(r.startedAt) || 0, importedAt: Number(r.importedAt) || 0,
-      ...(typeof r.continuedThreadId === "string" && r.continuedThreadId !== "" ? { continuedThreadId: r.continuedThreadId } : {}),
+      startedAt: Number(r.startedAt) || 0,
+      importedAt: Number(r.importedAt) || 0,
+      ...(typeof r.continuedThreadId === "string" && r.continuedThreadId !== ""
+        ? { continuedThreadId: r.continuedThreadId }
+        : {}),
       ...(r.archived === true ? { archived: true } : {}),
     });
   }
-  return out.sort((a, b) => (b.startedAt || b.importedAt) - (a.startedAt || a.importedAt) || a.conversationId.localeCompare(b.conversationId));
+  return out.sort(
+    (a, b) =>
+      (b.startedAt || b.importedAt) - (a.startedAt || a.importedAt) || a.conversationId.localeCompare(b.conversationId),
+  );
 }
 
 export const importedStartsOpen = (count: number): boolean => count <= IMPORTED_OPEN_MAX;
 
 /** "Imported from Claude Code, Oct 27, site": the folder is left out when the archive does not know it. */
-export function headerLine(provider: string, startedAt: number, now: number, offsetMin: number, folder?: string): string {
-  return ["Imported from " + providerName(provider), dayLabel(startedAt, now, offsetMin), folder ?? ""].filter((x) => x !== "").join(", ");
+export function headerLine(
+  provider: string,
+  startedAt: number,
+  now: number,
+  offsetMin: number,
+  folder?: string,
+): string {
+  return ["Imported from " + providerName(provider), dayLabel(startedAt, now, offsetMin), folder ?? ""]
+    .filter((x) => x !== "")
+    .join(", ");
 }
 
 export type ImportedItem =

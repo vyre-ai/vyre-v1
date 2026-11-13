@@ -33,7 +33,9 @@ function FilesBody({ initial }: { initial: Partial<FilesState> }): ReactNode {
     <FilesDataProvider value={sample.data}>
       <FilesStateProvider initial={initial}>
         <View testID="files-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          <SidebarContent title="Files" searchPlaceholder="Search files">{(query, slot) => <FilesTree query={query} slot={slot} />}</SidebarContent>
+          <SidebarContent title="Files" searchPlaceholder="Search files">
+            {(query, slot) => <FilesTree query={query} slot={slot} />}
+          </SidebarContent>
           <FilesList />
         </View>
       </FilesStateProvider>
@@ -48,16 +50,30 @@ export default function Mount(): ReactNode {
     const skin = query.get("skin") ?? "paper";
     const root = g.document?.documentElement;
     const themeRoot: ThemeRoot = {
-      setAttribute: (n, v) => { root?.setAttribute(n, v); },
-      setProperty: (n, v) => { root?.style.setProperty(n, v); },
-      removeProperty: (n) => { root?.style.removeProperty(n); },
+      setAttribute: (n, v) => {
+        root?.setAttribute(n, v);
+      },
+      setProperty: (n, v) => {
+        root?.style.setProperty(n, v);
+      },
+      removeProperty: (n) => {
+        root?.style.removeProperty(n);
+      },
     };
-    const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
+    const theme = createThemeController({
+      personId: "irfad",
+      spaceId: "nw",
+      spaceSkin: { nw: skin, hb: skin, me: skin },
+      prefersDark: skin === "graphite",
+      root: themeRoot,
+      storage: null,
+    });
     const hub = createSampleShell({ openId: "nw", theme });
     hub.go("files");
     return { hub, theme, initial: { where: whereOf(query.get("where")) } satisfies Partial<FilesState> };
   }, []);
-  const renderPlace = (ctx: PlaceContext): ReactNode => (ctx.place === "files" ? <FilesBody key={ctx.spaceId} initial={made.initial} /> : samplePlace(ctx));
+  const renderPlace = (ctx: PlaceContext): ReactNode =>
+    ctx.place === "files" ? <FilesBody key={ctx.spaceId} initial={made.initial} /> : samplePlace(ctx);
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
       <Shell hub={made.hub} theme={made.theme} renderPlace={renderPlace} />

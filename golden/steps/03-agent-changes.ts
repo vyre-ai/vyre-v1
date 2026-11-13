@@ -34,32 +34,95 @@ export async function runChanges(live: readonly string[]): Promise<{ events: Obs
       assert.ok(f, `files.list ${short(list)}`);
       return (f.id ?? f.folderId) as string;
     });
-    const folder = await trail.step("a project folder is made and turned into a repository", async () => {
-      const made = expectStatus(await s.call("files.folder.create", admin, { idempotencyKey: "golden-3-folder", parentId: root!, name: "site-copy" }), 200, "files.folder.create").folder.folderId as string;
-      expectStatus(await s.call("git.init", admin, { folderId: made, branch: "main" }), 200, "git.init");
-      return made;
-    }, ["the Space has a root folder"]);
-    await trail.step("a change is committed", async () => {
-      expectStatus(await s.call("files.create", admin, { idempotencyKey: "golden-3-file", folderId: folder!, name: "home.md", content: { text: "# Home\nNew wording." } }), 200, "files.create");
-      const out = expectStatus(await s.call("git.commit", admin, { idempotencyKey: "golden-3-commit", folderId: folder!, message: "Reword the home page" }), 200, "git.commit");
-      assert.ok(out.sha, `commit ${short(out)}`);
-    }, ["a project folder is made and turned into a repository"]);
-    await trail.step("the main branch is protected and the remote added", async () => {
-      expectStatus(await s.call("git.protect", admin, { folderId: folder!, branches: ["main"] }), 200, "git.protect");
-      expectStatus(await s.call("git.remote_add", admin, { folderId: folder!, name: "origin", url: remote }), 200, "git.remote_add");
-    }, ["a change is committed"]);
-    const held = await trail.step("a member's push to the protected branch is held by the Gate", async () => {
-      const r = await s.call("git.push", s.signedIn("usr_noah"), { idempotencyKey: "golden-3-push", folderId: folder!, remote: "origin", branch: "main" });
-      assert.ok(r.status === 202 && r.body?.data?.status === "held" && r.body.data.taskId, `git.push should be held: ${r.status} ${short(r.body)}`);
-      return r.body.data.taskId as string;
-    }, ["the main branch is protected and the remote added"]);
-    await trail.step("the owner approves and the push goes out", async () => {
-      expectStatus(await s.call("tasks.act", admin, { taskId: held!, action: "approve" }), 200, "tasks.act");
-      const log = spawnSync("git", ["-C", bare, "log", "--oneline", "main"], { encoding: "utf8" });
-      assert.match(log.stdout, /Reword the home page/, `remote log: ${log.stdout}${log.stderr}`);
-    }, ["a member's push to the protected branch is held by the Gate"]);
+    const folder = await trail.step(
+      "a project folder is made and turned into a repository",
+      async () => {
+        const made = expectStatus(
+          await s.call("files.folder.create", admin, {
+            idempotencyKey: "golden-3-folder",
+            parentId: root!,
+            name: "site-copy",
+          }),
+          200,
+          "files.folder.create",
+        ).folder.folderId as string;
+        expectStatus(await s.call("git.init", admin, { folderId: made, branch: "main" }), 200, "git.init");
+        return made;
+      },
+      ["the Space has a root folder"],
+    );
+    await trail.step(
+      "a change is committed",
+      async () => {
+        expectStatus(
+          await s.call("files.create", admin, {
+            idempotencyKey: "golden-3-file",
+            folderId: folder!,
+            name: "home.md",
+            content: { text: "# Home\nNew wording." },
+          }),
+          200,
+          "files.create",
+        );
+        const out = expectStatus(
+          await s.call("git.commit", admin, {
+            idempotencyKey: "golden-3-commit",
+            folderId: folder!,
+            message: "Reword the home page",
+          }),
+          200,
+          "git.commit",
+        );
+        assert.ok(out.sha, `commit ${short(out)}`);
+      },
+      ["a project folder is made and turned into a repository"],
+    );
+    await trail.step(
+      "the main branch is protected and the remote added",
+      async () => {
+        expectStatus(await s.call("git.protect", admin, { folderId: folder!, branches: ["main"] }), 200, "git.protect");
+        expectStatus(
+          await s.call("git.remote_add", admin, { folderId: folder!, name: "origin", url: remote }),
+          200,
+          "git.remote_add",
+        );
+      },
+      ["a change is committed"],
+    );
+    const held = await trail.step(
+      "a member's push to the protected branch is held by the Gate",
+      async () => {
+        const r = await s.call("git.push", s.signedIn("usr_noah"), {
+          idempotencyKey: "golden-3-push",
+          folderId: folder!,
+          remote: "origin",
+          branch: "main",
+        });
+        assert.ok(
+          r.status === 202 && r.body?.data?.status === "held" && r.body.data.taskId,
+          `git.push should be held: ${r.status} ${short(r.body)}`,
+        );
+        return r.body.data.taskId as string;
+      },
+      ["the main branch is protected and the remote added"],
+    );
+    await trail.step(
+      "the owner approves and the push goes out",
+      async () => {
+        expectStatus(await s.call("tasks.act", admin, { taskId: held!, action: "approve" }), 200, "tasks.act");
+        const log = spawnSync("git", ["-C", bare, "log", "--oneline", "main"], { encoding: "utf8" });
+        assert.match(log.stdout, /Reword the home page/, `remote log: ${log.stdout}${log.stderr}`);
+      },
+      ["a member's push to the protected branch is held by the Gate"],
+    );
     return { events: await s.events(), trail };
-  } finally { for (const [k, v] of saved) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } await s.stop(); }
+  } finally {
+    for (const [k, v] of saved) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    await s.stop();
+  }
 }
 
 export default async function steps(): Promise<Observed[]> {

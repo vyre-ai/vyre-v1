@@ -15,7 +15,11 @@ const only = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",
 const sizeOnly = (args.find((a) => a.startsWith("--size=")) ?? "").slice(7);
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), {
+    cwd: appDir,
+    stdio: "inherit",
+    env: exportEnv(),
+  });
 }
 fs.mkdirSync(out, { recursive: true });
 const SIZES = { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
@@ -25,29 +29,56 @@ const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
 const t = loadTargets(path.join(REPO, "scripts/shots")).find((x) => x.id === "GOALS_01-page-draft");
 for (const skin of ["paper", "graphite"]) {
-  const ctx = await browser.newContext({ viewport: SIZES.wide, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
+  const ctx = await browser.newContext({
+    viewport: SIZES.wide,
+    deviceScaleFactor: 1,
+    colorScheme: skin === "graphite" ? "dark" : "light",
+    reducedMotion: "reduce",
+  });
   const page = await ctx.newPage();
   const errs = [];
   page.on("pageerror", (e) => errs.push(String(e)));
   const url = routeUrl(real.origin, t.route, skin);
-  await page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
+  await page
+    .goto(url, { waitUntil: "load", timeout: 60000 })
+    .catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
   await page.waitForSelector("[data-testid='goal-draft']", { timeout: 15000 }).catch(() => undefined);
   await page.waitForTimeout(900);
-  const shot = async (name) => { await page.waitForTimeout(350); await page.screenshot({ path: path.join(out, `${name}-${skin}.png`) }); console.log("shot", name, skin, errs.length ? errs.join(" | ").slice(0, 300) : ""); };
+  const shot = async (name) => {
+    await page.waitForTimeout(350);
+    await page.screenshot({ path: path.join(out, `${name}-${skin}.png`) });
+    console.log("shot", name, skin, errs.length ? errs.join(" | ").slice(0, 300) : "");
+  };
   const tid = (id) => page.locator(`[data-testid='${id}']`).first();
   await shot("1-draft");
-  await tid("goal-title-edit").click(); await shot("2-title-editing");
+  await tid("goal-title-edit").click();
+  await shot("2-title-editing");
   await page.keyboard.press("Escape");
-  await tid("goal-deadline-edit").click(); await shot("3-deadline-editing");
+  await tid("goal-deadline-edit").click();
+  await shot("3-deadline-editing");
   await tid("goal-deadline-cancel").click();
-  await tid("goal-add-helper").click(); await shot("4-helpers-dialog");
+  await tid("goal-add-helper").click();
+  await shot("4-helpers-dialog");
   await tid("goal-pick-helpers-cancel").click();
-  await tid("goal-lead").click(); await shot("5-lead-dialog");
+  await tid("goal-lead").click();
+  await shot("5-lead-dialog");
   await tid("goal-pick-lead-cancel").click();
-  await tid("goal-step-title-rem-edit").click().catch(() => undefined); await shot("6-step-editing");
-  await page.getByText("Details", { exact: true }).first().click().catch(() => undefined); await shot("7-details");
-  await tid("goal-set-checkins-change").click().catch(() => undefined); await shot("8-checkins-editing");
+  await tid("goal-step-title-rem-edit")
+    .click()
+    .catch(() => undefined);
+  await shot("6-step-editing");
+  await page
+    .getByText("Details", { exact: true })
+    .first()
+    .click()
+    .catch(() => undefined);
+  await shot("7-details");
+  await tid("goal-set-checkins-change")
+    .click()
+    .catch(() => undefined);
+  await shot("8-checkins-editing");
   await ctx.close();
 }
-await browser.close(); real.close();
+await browser.close();
+real.close();
 process.exit(0);

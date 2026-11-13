@@ -21,7 +21,9 @@ export function manifestEdges(changed: string[], tracked: Set<string>): string[]
     const m = /^manifests\/([^/]+?)(?:\.ts|\/.*)?$/.exec(f);
     if (!m) continue;
     const name = m[1]!;
-    const own = generated.filter((g) => g.startsWith(`generated/modules/${name}/`) || g.startsWith(`generated/tests/${name}.`));
+    const own = generated.filter(
+      (g) => g.startsWith(`generated/modules/${name}/`) || g.startsWith(`generated/tests/${name}.`),
+    );
     for (const g of own.length ? own : generated) out.add(g);
   }
   return [...out].sort();
@@ -42,7 +44,10 @@ export function unitOf(f: string): string | null {
 /** Every test file in the unit of each changed path (deleted paths included), so a same-module test never rests stale. */
 export function unitTests(changed: string[], tracked: Set<string>): string[] {
   const units = new Set<string>();
-  for (const f of changed) { const u = unitOf(f); if (u && !/\.md$/.test(f)) units.add(u); }
+  for (const f of changed) {
+    const u = unitOf(f);
+    if (u && !/\.md$/.test(f)) units.add(u);
+  }
   if (!units.size) return [];
   return [...tracked].filter((f) => TEST.test(f) && [...units].some((u) => f.startsWith(u))).sort();
 }
@@ -54,15 +59,25 @@ export function unitTests(changed: string[], tracked: Set<string>): string[] {
  */
 export function bootedTests(changed: string[], tracked: Set<string>, read: (f: string) => string): string[] {
   const touched = new Set<string>();
-  for (const f of changed) { const m = /^modules\/([^/]+)\//.exec(f); if (m && !/\.md$/.test(f)) touched.add(m[1]!); }
+  for (const f of changed) {
+    const m = /^modules\/([^/]+)\//.exec(f);
+    if (m && !/\.md$/.test(f)) touched.add(m[1]!);
+  }
   if (!touched.size) return [];
   const ids = new Set<string>();
-  for (const f of tracked) { const m = /^modules\/([^/]+)\//.exec(f); if (m) ids.add(m[1]!); }
+  for (const f of tracked) {
+    const m = /^modules\/([^/]+)\//.exec(f);
+    if (m) ids.add(m[1]!);
+  }
   const out: string[] = [];
   for (const f of [...tracked].sort()) {
     if (!/^host\/tests\/[^/]+\.test\.[cm]?[jt]s$/.test(f)) continue;
     let src: string;
-    try { src = read(f); } catch { continue; }
+    try {
+      src = read(f);
+    } catch {
+      continue;
+    }
     if (!/\bstartDaemon\b/.test(src)) continue;
     const boots = new Set<string>();
     for (const m of src.matchAll(/^\s*\/\/\s*@reads\s+\/modules\/([^/\s]+)\//gm)) boots.add(m[1]!);
@@ -76,12 +91,13 @@ export function bootedTests(changed: string[], tracked: Set<string>, read: (f: s
 const DYNAMIC = [/\bimport\(\s*`([^`$]*)\$\{/g, /\bimport\(\s*(?:'([^']*)'|"([^"]*)")\s*\+/g];
 export function dynamicDirs(from: string, src: string): string[] {
   const out = new Set<string>();
-  for (const re of DYNAMIC) for (const m of src.matchAll(re)) {
-    const prefix = m[1] ?? m[2] ?? m[3] ?? "";
-    if (!prefix.startsWith(".")) continue;
-    const dir = prefix.endsWith("/") ? prefix : prefix.slice(0, prefix.lastIndexOf("/") + 1);
-    out.add(path.posix.normalize(path.posix.join(path.posix.dirname(from), dir || ".")).replace(/\/$/, ""));
-  }
+  for (const re of DYNAMIC)
+    for (const m of src.matchAll(re)) {
+      const prefix = m[1] ?? m[2] ?? m[3] ?? "";
+      if (!prefix.startsWith(".")) continue;
+      const dir = prefix.endsWith("/") ? prefix : prefix.slice(0, prefix.lastIndexOf("/") + 1);
+      out.add(path.posix.normalize(path.posix.join(path.posix.dirname(from), dir || ".")).replace(/\/$/, ""));
+    }
   return [...out];
 }
 
@@ -99,15 +115,26 @@ export function selectAffected({ changed, tracked, read }: Input): Selection {
     const src = read(f);
     let extra = "";
     if (CODE.test(f) && /\bimport\(\s*[`'"]/.test(src)) {
-      for (const dir of dynamicDirs(f, src)) for (const g of nodes) if (g !== f && CODE.test(g) && path.posix.dirname(g) === dir) extra += `\n// @reads /${g}`;
+      for (const dir of dynamicDirs(f, src))
+        for (const g of nodes)
+          if (g !== f && CODE.test(g) && path.posix.dirname(g) === dir) extra += `\n// @reads /${g}`;
     }
     cache.set(f, src + extra);
     return src + extra;
   };
-  const raw = walk({ changed: [...new Set([...changed, ...edges])], tracked: nodes, read: readDyn }) as Omit<Selection, "edges">;
-  const r = { ...raw, files: raw.files.filter((f) => tracked.has(f)), uncovered: raw.uncovered.filter((f) => tracked.has(f)) };
+  const raw = walk({ changed: [...new Set([...changed, ...edges])], tracked: nodes, read: readDyn }) as Omit<
+    Selection,
+    "edges"
+  >;
+  const r = {
+    ...raw,
+    files: raw.files.filter((f) => tracked.has(f)),
+    uncovered: raw.uncovered.filter((f) => tracked.has(f)),
+  };
   const own = changed.filter((f) => tracked.has(f) && TEST.test(f));
-  const uncovered = r.uncovered.filter((f) => changed.includes(f) && !(f.startsWith("manifests/") && edges.length && r.files.length));
+  const uncovered = r.uncovered.filter(
+    (f) => changed.includes(f) && !(f.startsWith("manifests/") && edges.length && r.files.length),
+  );
   const why = edges.length ? [...r.why, `manifest edge: ${edges.length} generated files`] : r.why;
   if (r.all) return { ...r, why, edges };
   const frozen = changed.some((f) => FROZEN_TRIGGER.test(f)) ? [...tracked].filter((f) => FROZEN_TEST.test(f)) : [];
@@ -116,14 +143,27 @@ export function selectAffected({ changed, tracked, read }: Input): Selection {
   if (unit.length) why.push(`unit rule: ${unit.length} tests in the changed module or package`);
   const booted = bootedTests(changed, tracked, read);
   if (booted.length) why.push(`booted-daemon rule: ${booted.length} tests that boot a changed module`);
-  return { ...r, why, uncovered, files: [...new Set([...r.files, ...own, ...frozen, ...unit, ...booted])].sort(), edges };
+  return {
+    ...r,
+    why,
+    uncovered,
+    files: [...new Set([...r.files, ...own, ...frozen, ...unit, ...booted])].sort(),
+    edges,
+  };
 }
 
 /**
  * Perf files (test/slow.json "perf": true) follow the same affected-only rule as every other test, even when the selection says "all"
  * (a shared Row change reaches nearly every test but cannot move a kernel benchmark): one runs only when a changed path is in its own import closure, or always when `always` is set (main).
  */
-export function dropUnaffectedPerf(files: string[], changed: string[], perf: Set<string>, tracked: Set<string>, read: (f: string) => string, always: boolean): string[] {
+export function dropUnaffectedPerf(
+  files: string[],
+  changed: string[],
+  perf: Set<string>,
+  tracked: Set<string>,
+  read: (f: string) => string,
+  always: boolean,
+): string[] {
   if (always || !files.some((f) => perf.has(f))) return files;
   const fwd = imports(tracked, read);
   const hit = new Set(changed);
@@ -133,19 +173,33 @@ export function dropUnaffectedPerf(files: string[], changed: string[], perf: Set
 const self = fileURLToPath(import.meta.url);
 if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   const repo = path.resolve(path.dirname(self), "..");
-  const git = (a: string[]) => { const r = spawnSync("git", a, { cwd: repo, encoding: "utf8", maxBuffer: 1 << 28 }); if (r.status !== 0) throw new Error(r.stderr); return r.stdout; };
+  const git = (a: string[]) => {
+    const r = spawnSync("git", a, { cwd: repo, encoding: "utf8", maxBuffer: 1 << 28 });
+    if (r.status !== 0) throw new Error(r.stderr);
+    return r.stdout;
+  };
   const base = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : "";
   let result: Selection;
   let changedPaths: string[] = [];
   let tracked = new Set<string>();
-  try { tracked = new Set(git(["ls-files"]).split("\n").filter(Boolean)); } catch {}
+  try {
+    tracked = new Set(git(["ls-files"]).split("\n").filter(Boolean));
+  } catch {}
   try {
     if (!base || /^0+$/.test(base)) throw new Error("no base");
-    const changed = git(["diff", "--name-only", "--no-renames", `${base}...HEAD`]).split("\n").filter(Boolean);
+    const changed = git(["diff", "--name-only", "--no-renames", `${base}...HEAD`])
+      .split("\n")
+      .filter(Boolean);
     changedPaths = changed;
     result = selectAffected({ changed, tracked, read: (f) => fs.readFileSync(path.join(repo, f), "utf8") });
   } catch (e: any) {
-    result = { all: true, files: [], why: [`could not tell what changed (${String(e.message).split("\n")[0]}): running everything`], uncovered: [], edges: [] };
+    result = {
+      all: true,
+      files: [],
+      why: [`could not tell what changed (${String(e.message).split("\n")[0]}): running everything`],
+      uncovered: [],
+      edges: [],
+    };
   }
   if (process.argv.includes("--matrix")) {
     const mi = process.argv.indexOf("--max");
@@ -153,11 +207,39 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
     const picked = result.all ? [...tracked].filter((f) => TEST.test(f)) : result.files;
     const timings = JSON.parse(fs.readFileSync(path.join(repo, "test/timings.json"), "utf8"));
     const slow = JSON.parse(fs.readFileSync(path.join(repo, "test/slow.json"), "utf8"));
-    const perf = new Set<string>(slow.filter((e: { perf?: boolean }) => e.perf === true).map((e: { file: string }) => e.file));
+    const perf = new Set<string>(
+      slow.filter((e: { perf?: boolean }) => e.perf === true).map((e: { file: string }) => e.file),
+    );
     // Ruling 55: --perf-only is every perf file (the hourly perf run); --no-perf drops them (the full main run); otherwise a perf file runs only when its code changed.
-    const picked2 = process.argv.includes("--perf-only") ? [...perf].filter((f) => tracked.has(f)) : process.argv.includes("--affected-perf") ? picked.filter((f) => perf.has(f)) : process.argv.includes("--no-perf") ? picked.filter((f) => !perf.has(f)) : picked;
-    const files = dropUnaffectedPerf(picked2, changedPaths, perf, tracked, (f) => fs.readFileSync(path.join(repo, f), "utf8"), process.argv.includes("--perf-always") || process.argv.includes("--perf-only"));
-    console.log(JSON.stringify({ ...result, matrix: toMatrix(shardFiles(files, timings, slow, { ...(maxArg ? { max: maxArg } : {}), read: (f) => fs.readFileSync(path.join(repo, f), "utf8") })) }));
+    const picked2 = process.argv.includes("--perf-only")
+      ? [...perf].filter((f) => tracked.has(f))
+      : process.argv.includes("--affected-perf")
+        ? picked.filter((f) => perf.has(f))
+        : process.argv.includes("--no-perf")
+          ? picked.filter((f) => !perf.has(f))
+          : picked;
+    const files = dropUnaffectedPerf(
+      picked2,
+      changedPaths,
+      perf,
+      tracked,
+      (f) => fs.readFileSync(path.join(repo, f), "utf8"),
+      process.argv.includes("--perf-always") || process.argv.includes("--perf-only"),
+    );
+    console.log(
+      JSON.stringify({
+        ...result,
+        matrix: toMatrix(
+          shardFiles(files, timings, slow, {
+            ...(maxArg ? { max: maxArg } : {}),
+            read: (f) => fs.readFileSync(path.join(repo, f), "utf8"),
+          }),
+        ),
+      }),
+    );
   } else console.log(JSON.stringify(result));
-  if (!result.all && result.uncovered.length) { for (const f of result.uncovered) console.error(`no test covers ${f}`); process.exit(1); }
+  if (!result.all && result.uncovered.length) {
+    for (const f of result.uncovered) console.error(`no test covers ${f}`);
+    process.exit(1);
+  }
 }

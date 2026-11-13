@@ -13,7 +13,11 @@ const SHAPES: Array<[name: string, value: string, label: string]> = [
   ["aws", j("AK", "IA", "ABCDEFGHIJKLMNOP"), "AWS key id"],
   ["slack", j("xox", "b-", "1234567890-abcdefghij"), "Slack token"],
   ["google", j("AI", "za", "SyA1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6"), "Google key"],
-  ["jwt", ["eyJhbGciOiJIUzI1NiJ9", "eyJzdWIiOiIxMjM0NTY3ODkwIn0", "dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"].join("."), "JWT"],
+  [
+    "jwt",
+    ["eyJhbGciOiJIUzI1NiJ9", "eyJzdWIiOiIxMjM0NTY3ODkwIn0", "dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"].join("."),
+    "JWT",
+  ],
   ["bearer", j("Bear", "er ", "q".repeat(30)), "bearer token"],
 ];
 
@@ -31,7 +35,11 @@ test("a private key block goes whole, including one whose end was clipped", () =
   const end = j("-----END ", "RSA PRIVATE ", "KEY-----");
   const whole = redact(`here: ${begin}\nMIIEowIBAAKCAQEAxyz\nabc\n${end} done`);
   assert.ok(!whole.text.includes("MIIEow"));
-  assert.equal(whole.text, "here: [private key redacted] done", "no part of a key is shown, not even its last four characters");
+  assert.equal(
+    whole.text,
+    "here: [private key redacted] done",
+    "no part of a key is shown, not even its last four characters",
+  );
   const clipped = redact(`paste: ${begin}\nMIIEowIBAAKCAQEAxyz\nabc`);
   assert.ok(!clipped.text.includes("MIIEow"));
   assert.equal(clipped.text, "paste: [private key redacted]");
@@ -40,17 +48,34 @@ test("a private key block goes whole, including one whose end was clipped", () =
 test("a secret found by its name or place keeps the name and loses the value", () => {
   const value = "zz9Q8w7e6r5t4y3u2i1o";
   assert.equal(redact(`API_KEY=${value}`).text, `API_KEY=[secret redacted …${value.slice(-4)}]`);
-  assert.equal(redact(`{"clientSecret": "${value}"}`).text, `{"clientSecret": "[secret redacted …${value.slice(-4)}]"}`);
-  assert.equal(redact("DATABASE_URL=postgres://app:hunter2secret@db.internal:5432/x").text, "DATABASE_URL=postgres://app:[url password redacted …cret]@db.internal:5432/x");
+  assert.equal(
+    redact(`{"clientSecret": "${value}"}`).text,
+    `{"clientSecret": "[secret redacted …${value.slice(-4)}]"}`,
+  );
+  assert.equal(
+    redact("DATABASE_URL=postgres://app:hunter2secret@db.internal:5432/x").text,
+    "DATABASE_URL=postgres://app:[url password redacted …cret]@db.internal:5432/x",
+  );
   assert.equal(redact("mysql -h db -u root -pMyS3cretPass").text, "mysql -h db -u root -p[password redacted …Pass]");
-  assert.equal(redact("curl -u admin:s3cr3tvalue https://x.test").text, "curl -u admin:[password redacted …alue] https://x.test");
+  assert.equal(
+    redact("curl -u admin:s3cr3tvalue https://x.test").text,
+    "curl -u admin:[password redacted …alue] https://x.test",
+  );
   assert.equal(redact("password: correct-horse-battery").text, "password: [password redacted …tery]");
 });
 
 test("names that merely contain a secret word, placeholders and code are left alone", () => {
   for (const text of [
-    "cache_key=abcdefghijklmnop", "token_count: 123456789012", "NODE_ENV=production", "const key = process.env.API_KEY", "api_key=${API_KEY_VALUE_HERE}",
-    "token=<your-token-here-xxxxxx>", "secret=changeme-changeme-changeme", "keychain=abcdefghijklmnopqrstuvwxyz", "apiKey = config.keys.primary.value", "public_key=ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAA",
+    "cache_key=abcdefghijklmnop",
+    "token_count: 123456789012",
+    "NODE_ENV=production",
+    "const key = process.env.API_KEY",
+    "api_key=${API_KEY_VALUE_HERE}",
+    "token=<your-token-here-xxxxxx>",
+    "secret=changeme-changeme-changeme",
+    "keychain=abcdefghijklmnopqrstuvwxyz",
+    "apiKey = config.keys.primary.value",
+    "public_key=ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAA",
   ]) {
     assert.equal(redact(text).text, text, text);
   }
@@ -61,7 +86,8 @@ test("redaction is idempotent and never throws", () => {
   const once = redact(input);
   assert.deepEqual(redact(once.text), { text: once.text, hits: [] });
   assert.equal(once.hits.length, SHAPES.length);
-  for (const odd of [undefined, null, "", 0, 42, {}, [], Symbol.iterator.toString()]) assert.doesNotThrow(() => redact(odd));
+  for (const odd of [undefined, null, "", 0, 42, {}, [], Symbol.iterator.toString()])
+    assert.doesNotThrow(() => redact(odd));
   assert.deepEqual(redact(undefined), { text: "", hits: [] });
   assert.deepEqual(scan(`x ${SHAPES[0]?.[1] ?? ""}`), ["anthropic"]);
 });

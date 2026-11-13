@@ -18,8 +18,15 @@ export const INTAKE = "agt_intake";
 export const DRAFTER = "agt_drafter";
 export const REVIEWER = "agt_reviewer";
 
-export interface Emitted { name: string; subject: string; payload: Record<string, unknown> }
-export interface CallLog { cap: string; input: Record<string, unknown> }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+}
+export interface CallLog {
+  cap: string;
+  input: Record<string, unknown>;
+}
 
 export interface HarnessOptions {
   raw?: RawDb;
@@ -58,7 +65,10 @@ export function harness(o: HarnessOptions = {}) {
     trace: { traceId: TRACE },
     now: () => clock.t,
     db,
-    emit(name, subject, payload) { emitted.push({ name, subject, payload: payload as Record<string, unknown> }); return null; },
+    emit(name, subject, payload) {
+      emitted.push({ name, subject, payload: payload as Record<string, unknown> });
+      return null;
+    },
     async call(cap, input) {
       callLog.push({ cap, input: input as Record<string, unknown> });
       const f = answers[cap];
@@ -68,30 +78,85 @@ export function harness(o: HarnessOptions = {}) {
     log: { warn() {} },
   };
   const h = {
-    ctx, raw, db, emitted, callLog, clock,
-    advance(ms: number) { clock.t += ms; },
-    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] { return db.all(sql, ...args) as Record<string, unknown>[]; },
-    named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
-    names(): string[] { return emitted.map((e) => e.name); },
-    clear() { emitted.length = 0; callLog.length = 0; },
+    ctx,
+    raw,
+    db,
+    emitted,
+    callLog,
+    clock,
+    advance(ms: number) {
+      clock.t += ms;
+    },
+    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] {
+      return db.all(sql, ...args) as Record<string, unknown>[];
+    },
+    named(name: string): Emitted[] {
+      return emitted.filter((e) => e.name === name);
+    },
+    names(): string[] {
+      return emitted.map((e) => e.name);
+    },
+    clear() {
+      emitted.length = 0;
+      callLog.length = 0;
+    },
     /** The same database as another principal (a second person, an agent, a service). */
-    as(principal: Principal, actingFor?: string): ChatCtx { return { ...ctx, principal, ...(actingFor === undefined ? {} : { actingFor }) }; },
-    agent(id: string = INTAKE, actingFor: string = DANA): ChatCtx { return h.as({ kind: "agent", id }, actingFor); },
-    person(id: string): ChatCtx { return h.as({ kind: "person", id }); },
+    as(principal: Principal, actingFor?: string): ChatCtx {
+      return { ...ctx, principal, ...(actingFor === undefined ? {} : { actingFor }) };
+    },
+    agent(id: string = INTAKE, actingFor: string = DANA): ChatCtx {
+      return h.as({ kind: "agent", id }, actingFor);
+    },
+    person(id: string): ChatCtx {
+      return h.as({ kind: "person", id });
+    },
     /** A question block, parked in a message of the thread, as chat.question.ask will write it (a later packet). */
-    seedQuestion(threadId: string, q: { mode: "single" | "multi" | "free"; options?: Array<{ key: string; label: string }>; allowOther?: boolean; prompt?: string }): { blockId: string; messageId: string } {
+    seedQuestion(
+      threadId: string,
+      q: {
+        mode: "single" | "multi" | "free";
+        options?: Array<{ key: string; label: string }>;
+        allowOther?: boolean;
+        prompt?: string;
+      },
+    ): { blockId: string; messageId: string } {
       const blockId = mintId("blk", clock.t);
-      const data = { threadId, blockId, prompt: q.prompt ?? "Which one?", mode: q.mode, options: q.options ?? [], allowOther: q.allowOther ?? false };
-      const m = insertMessage(ctx, threadId, { author: INTAKE, kind: "agent", body: "", blocks: [{ type: "question", v: 1, id: blockId, data, state: "waiting", traceId: TRACE }] });
+      const data = {
+        threadId,
+        blockId,
+        prompt: q.prompt ?? "Which one?",
+        mode: q.mode,
+        options: q.options ?? [],
+        allowOther: q.allowOther ?? false,
+      };
+      const m = insertMessage(ctx, threadId, {
+        author: INTAKE,
+        kind: "agent",
+        body: "",
+        blocks: [{ type: "question", v: 1, id: blockId, data, state: "waiting", traceId: TRACE }],
+      });
       insertBlock(ctx, { id: blockId, thread: threadId, message: m.id, type: "question", data });
       return { blockId, messageId: m.id };
     },
     /** A proposed plan block, as chat.plan.propose will write it (a later packet). */
-    seedPlan(threadId: string, steps: string[] = ["Read the file", "Change the file", "Run the tests"]): { planId: string; blockId: string; messageId: string; stepIds: string[] } {
-      const planId = mintId("pln", clock.t), blockId = mintId("blk", clock.t);
-      const list: PlanStep[] = steps.map((text, i) => ({ stepId: `stp_${planId.slice(4, 10)}${i}`, text, state: "todo" }));
+    seedPlan(
+      threadId: string,
+      steps: string[] = ["Read the file", "Change the file", "Run the tests"],
+    ): { planId: string; blockId: string; messageId: string; stepIds: string[] } {
+      const planId = mintId("pln", clock.t),
+        blockId = mintId("blk", clock.t);
+      const list: PlanStep[] = steps.map((text, i) => ({
+        stepId: `stp_${planId.slice(4, 10)}${i}`,
+        text,
+        state: "todo",
+      }));
       const data = { threadId, blockId, planId, title: "The plan", steps: list, state: "proposed" };
-      const m = insertMessage(ctx, threadId, { author: INTAKE, kind: "agent", body: "", blocks: [{ type: "plan", v: 1, id: blockId, data, state: "waiting", traceId: TRACE }] });
+      const m = insertMessage(ctx, threadId, {
+        author: INTAKE,
+        kind: "agent",
+        body: "",
+        blocks: [{ type: "plan", v: 1, id: blockId, data, state: "waiting", traceId: TRACE }],
+      });
       insertBlock(ctx, { id: blockId, thread: threadId, message: m.id, type: "plan", data });
       insertPlan(ctx, { id: planId, thread: threadId, block: blockId, title: "The plan", steps: list });
       return { planId, blockId, messageId: m.id, stepIds: list.map((s) => s.stepId) };
@@ -126,6 +191,10 @@ export function codeOf(err: unknown): string {
 
 /** Run something that must fail and return its error code. */
 export async function failure(f: () => unknown): Promise<string> {
-  try { await f(); } catch (e) { return codeOf(e); }
+  try {
+    await f();
+  } catch (e) {
+    return codeOf(e);
+  }
   return "none";
 }

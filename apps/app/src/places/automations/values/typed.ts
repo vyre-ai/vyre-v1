@@ -66,7 +66,12 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 }
 
 /** A reference whose node is gone, or whose declared type does not match the field. Display names are not references. */
-export function mappingIssues(nodeIds: ReadonlySet<string>, value: unknown, fieldType?: string, field?: string): MappingIssue[] {
+export function mappingIssues(
+  nodeIds: ReadonlySet<string>,
+  value: unknown,
+  fieldType?: string,
+  field?: string,
+): MappingIssue[] {
   const out: MappingIssue[] = [];
   const visit = (v: unknown): void => {
     if (Array.isArray(v)) {
@@ -77,8 +82,15 @@ export function mappingIssues(nodeIds: ReadonlySet<string>, value: unknown, fiel
     if (v["kind"] === "ref" && typeof v["nodeId"] === "string" && typeof v["path"] === "string") {
       const nodeId = v["nodeId"];
       const path = v["path"];
-      if (nodeId !== "trigger" && !nodeIds.has(nodeId)) out.push({ nodeId, path, reason: "missing", ...(field ? { field } : {}) });
-      else if (fieldType && fieldType !== "unknown" && typeof v["valueType"] === "string" && v["valueType"] !== "unknown" && v["valueType"] !== fieldType) {
+      if (nodeId !== "trigger" && !nodeIds.has(nodeId))
+        out.push({ nodeId, path, reason: "missing", ...(field ? { field } : {}) });
+      else if (
+        fieldType &&
+        fieldType !== "unknown" &&
+        typeof v["valueType"] === "string" &&
+        v["valueType"] !== "unknown" &&
+        v["valueType"] !== fieldType
+      ) {
         out.push({ nodeId, path, reason: "type", ...(field ? { field } : {}) });
       }
       return;
@@ -111,12 +123,17 @@ export function keysFromAccounts(out: unknown): ProviderKey[] | null {
   for (const row of (out as { accounts: unknown[] }).accounts) {
     if (!row || typeof row !== "object") continue;
     const rec = row as Record<string, unknown>;
-    const id = typeof rec["providerId"] === "string" ? rec["providerId"] : typeof rec["ref"] === "string" ? rec["ref"] : null;
+    const id =
+      typeof rec["providerId"] === "string" ? rec["providerId"] : typeof rec["ref"] === "string" ? rec["ref"] : null;
     if (id === null) continue;
     const name = typeof rec["name"] === "string" ? rec["name"] : typeof rec["title"] === "string" ? rec["title"] : id;
     keys.push({
-      id, name, kind: rec["kind"] === "api_key" ? "api" : "subscription", ...(typeof rec["mine"] === "boolean" ? { shared: !rec["mine"] } : {}),
-      ...(typeof rec["usable"] === "boolean" ? { usable: rec["usable"] } : {}), ...(typeof rec["why"] === "string" ? { why: rec["why"] } : {}),
+      id,
+      name,
+      kind: rec["kind"] === "api_key" ? "api" : "subscription",
+      ...(typeof rec["mine"] === "boolean" ? { shared: !rec["mine"] } : {}),
+      ...(typeof rec["usable"] === "boolean" ? { usable: rec["usable"] } : {}),
+      ...(typeof rec["why"] === "string" ? { why: rec["why"] } : {}),
     });
   }
   return keys;

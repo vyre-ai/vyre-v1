@@ -14,8 +14,12 @@ test("a malformed logs.db is moved aside with its journals, a fresh one opens, a
   const sink = openLogSink(file, () => 1_700_000_000_000, "tok");
   const aside = fs.readdirSync(dir).filter((f) => f.startsWith("logs.db.corrupt-"));
   // the failed open may have made a -shm beside the -wal; everything of the old file goes aside together
-  for (const f of ["logs.db.corrupt-1700000000000", "logs.db.corrupt-1700000000000-wal"]) assert.ok(aside.includes(f), f);
-  assert.ok(!fs.existsSync(`${file}-wal`) || fs.statSync(`${file}-wal`).size !== 1, "the old journal is not left beside the new file");
+  for (const f of ["logs.db.corrupt-1700000000000", "logs.db.corrupt-1700000000000-wal"])
+    assert.ok(aside.includes(f), f);
+  assert.ok(
+    !fs.existsSync(`${file}-wal`) || fs.statSync(`${file}-wal`).size !== 1,
+    "the old journal is not left beside the new file",
+  );
   sink.log({ space: "-", level: 30, msg: "after", place: "test" });
   sink.flush();
   const msgs = (sink.db.prepare("SELECT msg FROM logs ORDER BY id").all() as { msg: string }[]).map((r) => r.msg);
@@ -32,7 +36,10 @@ test("a healthy logs.db is opened as it is", () => {
   first.flush();
   first.close();
   const again = openLogSink(file, Date.now, "tok");
-  assert.deepEqual(fs.readdirSync(dir).filter((f) => f.includes("corrupt")), []);
+  assert.deepEqual(
+    fs.readdirSync(dir).filter((f) => f.includes("corrupt")),
+    [],
+  );
   assert.ok((again.db.prepare("SELECT msg FROM logs").all() as { msg: string }[]).some((r) => r.msg === "kept"));
   again.close();
 });

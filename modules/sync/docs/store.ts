@@ -9,10 +9,33 @@ import { newDoc } from "./markdown.ts";
 
 export type DocEnc = 0 | 2;
 
-export interface DocOwner { entity: string; id: string }
-export interface DocMeta { doc: string; enc: DocEnc; owner: DocOwner | null; created: number }
-export interface StoredUpdate { seq: number; actor: string; at: number; bytes: Uint8Array; enc: DocEnc; suggest: 0 | 1 | 2 }
-export interface StoredSnapshot { doc: string; upto: number; bytes: Uint8Array; md: string | null; at: number; named: string | null; base: boolean }
+export interface DocOwner {
+  entity: string;
+  id: string;
+}
+export interface DocMeta {
+  doc: string;
+  enc: DocEnc;
+  owner: DocOwner | null;
+  created: number;
+}
+export interface StoredUpdate {
+  seq: number;
+  actor: string;
+  at: number;
+  bytes: Uint8Array;
+  enc: DocEnc;
+  suggest: 0 | 1 | 2;
+}
+export interface StoredSnapshot {
+  doc: string;
+  upto: number;
+  bytes: Uint8Array;
+  md: string | null;
+  at: number;
+  named: string | null;
+  base: boolean;
+}
 
 const DDL = `
 CREATE TABLE IF NOT EXISTS doc_meta (doc TEXT PRIMARY KEY, enc INTEGER NOT NULL DEFAULT 0, owner_entity TEXT, owner_id TEXT, created INTEGER NOT NULL) WITHOUT ROWID;
@@ -30,36 +53,86 @@ const bytesOf = (v: unknown): Uint8Array => (v instanceof Uint8Array ? v : new U
 
 export function docMeta(db: Tx, doc: string): DocMeta | undefined {
   ensureDocTables(db);
-  const r = db.get<{ enc: number; owner_entity: string | null; owner_id: string | null; created: number }>("SELECT enc, owner_entity, owner_id, created FROM doc_meta WHERE doc = ?", doc);
+  const r = db.get<{ enc: number; owner_entity: string | null; owner_id: string | null; created: number }>(
+    "SELECT enc, owner_entity, owner_id, created FROM doc_meta WHERE doc = ?",
+    doc,
+  );
   if (!r) return undefined;
-  return { doc, enc: r.enc === 2 ? 2 : 0, owner: r.owner_entity && r.owner_id ? { entity: r.owner_entity, id: r.owner_id } : null, created: r.created };
+  return {
+    doc,
+    enc: r.enc === 2 ? 2 : 0,
+    owner: r.owner_entity && r.owner_id ? { entity: r.owner_entity, id: r.owner_id } : null,
+    created: r.created,
+  };
 }
 
 export function ensureMeta(db: Tx, doc: string, enc: DocEnc, owner: DocOwner | null, at: number): DocMeta {
   const have = docMeta(db, doc);
   if (have) return have;
-  db.run("INSERT INTO doc_meta (doc, enc, owner_entity, owner_id, created) VALUES (?, ?, ?, ?, ?)", doc, enc, owner?.entity ?? null, owner?.id ?? null, at);
+  db.run(
+    "INSERT INTO doc_meta (doc, enc, owner_entity, owner_id, created) VALUES (?, ?, ?, ?, ?)",
+    doc,
+    enc,
+    owner?.entity ?? null,
+    owner?.id ?? null,
+    at,
+  );
   return { doc, enc, owner, created: at };
 }
 
 /** The highest seq in use for a document: an update or a fold. New updates always take the next number, even after every update was folded away. */
 export function headSeq(db: Tx, doc: string): number {
   ensureDocTables(db);
-  const r = db.get<{ n: number | null }>("SELECT MAX(m) AS n FROM (SELECT MAX(seq) AS m FROM doc_updates WHERE doc = ? UNION ALL SELECT MAX(upto) AS m FROM doc_snapshots WHERE doc = ?)", doc, doc);
+  const r = db.get<{ n: number | null }>(
+    "SELECT MAX(m) AS n FROM (SELECT MAX(seq) AS m FROM doc_updates WHERE doc = ? UNION ALL SELECT MAX(upto) AS m FROM doc_snapshots WHERE doc = ?)",
+    doc,
+    doc,
+  );
   return r?.n ?? 0;
 }
 
-export function appendUpdate(db: Tx, u: { doc: string; actor: string; at: number; bytes: Uint8Array; enc: DocEnc; suggest: boolean }): number {
+export function appendUpdate(
+  db: Tx,
+  u: { doc: string; actor: string; at: number; bytes: Uint8Array; enc: DocEnc; suggest: boolean },
+): number {
   const seq = headSeq(db, u.doc) + 1;
-  db.run("INSERT INTO doc_updates (doc, seq, actor, at, bytes, enc, suggest) VALUES (?, ?, ?, ?, ?, ?, ?)", u.doc, seq, u.actor, u.at, u.bytes, u.enc, u.suggest ? 1 : 0);
+  db.run(
+    "INSERT INTO doc_updates (doc, seq, actor, at, bytes, enc, suggest) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    u.doc,
+    seq,
+    u.actor,
+    u.at,
+    u.bytes,
+    u.enc,
+    u.suggest ? 1 : 0,
+  );
   return seq;
 }
 
 export function updatesAfter(db: Tx, doc: string, after: number, upto = Number.MAX_SAFE_INTEGER): StoredUpdate[] {
   ensureDocTables(db);
-  return db.all<{ seq: number; actor: string; at: number; bytes: unknown; enc: number; suggest: number }>(
-    "SELECT seq, actor, at, bytes, enc, suggest FROM doc_updates WHERE doc = ? AND seq > ? AND seq <= ? ORDER BY seq", doc, after, upto,
-  ).map((r) => ({ seq: r.seq, actor: r.actor, at: r.at, bytes: bytesOf(r.bytes), enc: r.enc === 2 ? 2 : 0, suggest: r.suggest === 1 ? 1 : r.suggest === 2 ? 2 : 0 }));
+  return db
+    .all<{
+      seq: number;
+      actor: string;
+      at: number;
+      bytes: unknown;
+      enc: number;
+      suggest: number;
+    }>(
+      "SELECT seq, actor, at, bytes, enc, suggest FROM doc_updates WHERE doc = ? AND seq > ? AND seq <= ? ORDER BY seq",
+      doc,
+      after,
+      upto,
+    )
+    .map((r) => ({
+      seq: r.seq,
+      actor: r.actor,
+      at: r.at,
+      bytes: bytesOf(r.bytes),
+      enc: r.enc === 2 ? 2 : 0,
+      suggest: r.suggest === 1 ? 1 : r.suggest === 2 ? 2 : 0,
+    }));
 }
 
 export function updateCount(db: Tx, doc: string): number {
@@ -67,30 +140,65 @@ export function updateCount(db: Tx, doc: string): number {
   return db.get<{ n: number }>("SELECT COUNT(*) AS n FROM doc_updates WHERE doc = ?", doc)?.n ?? 0;
 }
 
-function snap(doc: string, r: { upto: number; bytes: unknown; md: string | null; at: number; named: string | null; base: number }): StoredSnapshot {
+function snap(
+  doc: string,
+  r: { upto: number; bytes: unknown; md: string | null; at: number; named: string | null; base: number },
+): StoredSnapshot {
   return { doc, upto: r.upto, bytes: bytesOf(r.bytes), md: r.md, at: r.at, named: r.named, base: r.base === 1 };
 }
 
 /** The newest fold: where a rebuild starts. */
 export function baseSnapshot(db: Tx, doc: string): StoredSnapshot | undefined {
   ensureDocTables(db);
-  const r = db.get<{ upto: number; bytes: unknown; md: string | null; at: number; named: string | null; base: number }>("SELECT upto, bytes, md, at, named, base FROM doc_snapshots WHERE doc = ? AND base = 1 ORDER BY upto DESC LIMIT 1", doc);
+  const r = db.get<{ upto: number; bytes: unknown; md: string | null; at: number; named: string | null; base: number }>(
+    "SELECT upto, bytes, md, at, named, base FROM doc_snapshots WHERE doc = ? AND base = 1 ORDER BY upto DESC LIMIT 1",
+    doc,
+  );
   return r ? snap(doc, r) : undefined;
 }
 
 /** Named history versions, newest first. */
 export function versions(db: Tx, doc: string): StoredSnapshot[] {
   ensureDocTables(db);
-  return db.all<{ upto: number; bytes: unknown; md: string | null; at: number; named: string | null; base: number }>("SELECT upto, bytes, md, at, named, base FROM doc_snapshots WHERE doc = ? AND named IS NOT NULL ORDER BY upto DESC", doc).map((r) => snap(doc, r));
+  return db
+    .all<{
+      upto: number;
+      bytes: unknown;
+      md: string | null;
+      at: number;
+      named: string | null;
+      base: number;
+    }>(
+      "SELECT upto, bytes, md, at, named, base FROM doc_snapshots WHERE doc = ? AND named IS NOT NULL ORDER BY upto DESC",
+      doc,
+    )
+    .map((r) => snap(doc, r));
 }
 
 /** Write a fold (or a named version). A row at the same seq keeps its name unless a new one is given. */
-export function writeSnapshot(db: Tx, s: { doc: string; upto: number; bytes: Uint8Array; md: string | null; at: number; named: string | null; base: boolean }): void {
+export function writeSnapshot(
+  db: Tx,
+  s: {
+    doc: string;
+    upto: number;
+    bytes: Uint8Array;
+    md: string | null;
+    at: number;
+    named: string | null;
+    base: boolean;
+  },
+): void {
   ensureDocTables(db);
   db.run(
     `INSERT INTO doc_snapshots (doc, upto, bytes, md, at, named, base) VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(doc, upto) DO UPDATE SET bytes = excluded.bytes, md = excluded.md, at = excluded.at, named = COALESCE(excluded.named, doc_snapshots.named), base = MAX(excluded.base, doc_snapshots.base)`,
-    s.doc, s.upto, s.bytes, s.md, s.at, s.named, s.base ? 1 : 0,
+    s.doc,
+    s.upto,
+    s.bytes,
+    s.md,
+    s.at,
+    s.named,
+    s.base ? 1 : 0,
   );
 }
 
@@ -105,7 +213,10 @@ export function buildDoc(db: Tx, doc: string, upto = Number.MAX_SAFE_INTEGER): Y
   const y = newDoc();
   const base = baseSnapshot(db, doc);
   let from = 0;
-  if (base && base.upto <= upto) { Y.applyUpdate(y, base.bytes); from = base.upto; }
+  if (base && base.upto <= upto) {
+    Y.applyUpdate(y, base.bytes);
+    from = base.upto;
+  }
   for (const u of updatesAfter(db, doc, from, upto)) if (u.enc === 0) Y.applyUpdate(y, u.bytes);
   return y;
 }
@@ -113,7 +224,9 @@ export function buildDoc(db: Tx, doc: string, upto = Number.MAX_SAFE_INTEGER): Y
 /** The seq of the oldest suggestion nobody has decided yet, or null. A fold never goes past it, so a suggestion can still be told apart from what was agreed. */
 export function firstPendingSuggestion(db: Tx, doc: string): number | null {
   ensureDocTables(db);
-  return db.get<{ n: number | null }>("SELECT MIN(seq) AS n FROM doc_updates WHERE doc = ? AND suggest = 1", doc)?.n ?? null;
+  return (
+    db.get<{ n: number | null }>("SELECT MIN(seq) AS n FROM doc_updates WHERE doc = ? AND suggest = 1", doc)?.n ?? null
+  );
 }
 
 export function pendingSuggestions(db: Tx, doc: string): StoredUpdate[] {
@@ -123,9 +236,10 @@ export function pendingSuggestions(db: Tx, doc: string): StoredUpdate[] {
 /** Every doc that has updates waiting to fold, with the count and the time of the newest fold (0 when never). */
 export function foldCandidates(db: Tx): { doc: string; updates: number; lastFold: number; oldest: number }[] {
   ensureDocTables(db);
-  return db.all<{ doc: string; updates: number; oldest: number; last_fold: number | null }>(
-    `SELECT u.doc AS doc, COUNT(*) AS updates, MIN(u.at) AS oldest, (SELECT MAX(s.at) FROM doc_snapshots s WHERE s.doc = u.doc AND s.base = 1) AS last_fold
+  return db
+    .all<{ doc: string; updates: number; oldest: number; last_fold: number | null }>(
+      `SELECT u.doc AS doc, COUNT(*) AS updates, MIN(u.at) AS oldest, (SELECT MAX(s.at) FROM doc_snapshots s WHERE s.doc = u.doc AND s.base = 1) AS last_fold
      FROM doc_updates u JOIN doc_meta m ON m.doc = u.doc WHERE m.enc = 0 GROUP BY u.doc ORDER BY u.doc`,
-  ).map((r) => ({ doc: r.doc, updates: r.updates, lastFold: r.last_fold ?? 0, oldest: r.oldest }));
+    )
+    .map((r) => ({ doc: r.doc, updates: r.updates, lastFold: r.last_fold ?? 0, oldest: r.oldest }));
 }
-

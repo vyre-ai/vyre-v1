@@ -40,12 +40,14 @@ export function configureViewer(config: ViewerConfig | null): void {
 // ---- helpers --------------------------------------------------------------------------------------------------
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
-const nid = (prefix: string): string => `${prefix}_${[...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+const nid = (prefix: string): string =>
+  `${prefix}_${[...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 
 function reqStr(ctx: Ctx, o: Obj, key: string): string {
   const v = o[key];
-  if (typeof v !== "string" || v.length === 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
+  if (typeof v !== "string" || v.length === 0)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
   return v;
 }
 
@@ -64,20 +66,32 @@ function liveFileRow(ctx: Ctx, fileId: string): Row {
 function versionOf(ctx: Ctx, fileId: string, versionId: string | undefined): string | null {
   if (versionId === undefined) return null;
   const v = one(ctx, "SELECT * FROM files_file_version WHERE id = ?", versionId);
-  if (!v || str(v.file_id) !== fileId) fail(ctx, "validation.not_found", "That version is not on this file.", { versionId });
+  if (!v || str(v.file_id) !== fileId)
+    fail(ctx, "validation.not_found", "That version is not on this file.", { versionId });
   return versionId;
 }
 
-const allowed = (ctx: Ctx, level: "view" | "use" | "edit" | "manage", fileId: string, perm: string | null = null): boolean =>
-  ctx.authorize({ perm, level }, { type: "file", id: fileId }).effect === "allow";
+const allowed = (
+  ctx: Ctx,
+  level: "view" | "use" | "edit" | "manage",
+  fileId: string,
+  perm: string | null = null,
+): boolean => ctx.authorize({ perm, level }, { type: "file", id: fileId }).effect === "allow";
 
 // ---- viewer data ----------------------------------------------------------------------------------------------
 
-async function tryCall<T>(ctx: Ctx, cap: "previews.get" | "previews.text" | "sheets.info" | "files.read", input: unknown): Promise<T | undefined> {
+async function tryCall<T>(
+  ctx: Ctx,
+  cap: "previews.get" | "previews.text" | "sheets.info" | "files.read",
+  input: unknown,
+): Promise<T | undefined> {
   try {
     return (await ctx.call(cap, input)) as T;
   } catch (e) {
-    ctx.log.warn("files: the viewer could not read a part of a file", { cap, error: e instanceof Error ? e.message : String(e) });
+    ctx.log.warn("files: the viewer could not read a part of a file", {
+      cap,
+      error: e instanceof Error ? e.message : String(e),
+    });
     return undefined;
   }
 }
@@ -96,7 +110,10 @@ async function viewerData(ctx: Ctx, input: unknown): Promise<Obj> {
       await ctx.call("mounts.open", { fileId });
       file = ((await ctx.call("files.get", { fileId })) as { file: Obj }).file;
     } catch (e) {
-      ctx.log.warn("files: the viewer could not open the file at its provider", { fileId, error: e instanceof Error ? e.message : String(e) });
+      ctx.log.warn("files: the viewer could not open the file at its provider", {
+        fileId,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
   const kind = str(file.kind);
@@ -130,14 +147,20 @@ async function viewerData(ctx: Ctx, input: unknown): Promise<Obj> {
   const native = kind === "google_native";
   if (native) {
     const row = liveFileRow(ctx, fileId);
-    const blobId = versionId !== undefined ? str(one(ctx, "SELECT * FROM files_file_version WHERE id = ?", versionId)?.blob) : str(row.blob);
+    const blobId =
+      versionId !== undefined
+        ? str(one(ctx, "SELECT * FROM files_file_version WHERE id = ?", versionId)?.blob)
+        : str(row.blob);
     const held = contentMime(ctx, row, blobId);
     if (held.startsWith("text/")) {
       const r = await tryCall<{ text?: string }>(ctx, "files.read", { ...at, as: "text" });
       if (typeof r?.text === "string") out.text = r.text;
     } else if (held.startsWith("image/")) {
       const p = await tryCall<{ ready?: boolean; url?: string }>(ctx, "previews.get", at);
-      const u = p?.ready && typeof p.url === "string" ? p.url : (await tryCall<{ url?: string }>(ctx, "files.read", { ...at, as: "url" }))?.url;
+      const u =
+        p?.ready && typeof p.url === "string"
+          ? p.url
+          : (await tryCall<{ url?: string }>(ctx, "files.read", { ...at, as: "url" }))?.url;
       if (typeof u === "string") out.previewUrl = u;
     } else if (held !== "") {
       const t = await tryCall<{ text?: string; pages?: number }>(ctx, "previews.text", at);
@@ -148,13 +171,18 @@ async function viewerData(ctx: Ctx, input: unknown): Promise<Obj> {
       if (p?.ready && typeof p.url === "string") out.previewUrl = p.url;
       if (typeof p?.pages === "number" && out.pages === undefined) out.pages = p.pages;
     }
-    out.snapshot = { exportedAt: num(file.updatedAt), editVia: isObj(file.source) ? "provider_api" : "open_in_provider" };
+    out.snapshot = {
+      exportedAt: num(file.updatedAt),
+      editVia: isObj(file.source) ? "provider_api" : "open_in_provider",
+    };
   }
 
   out.canEdit = allowed(ctx, "edit", fileId, "files.write") && !native;
   out.canMark = allowed(ctx, "edit", fileId) && MARKABLE_KINDS.has(kind);
   out.canComment = allowed(ctx, "use", fileId);
-  out.pins = many(ctx, "SELECT * FROM files_comment WHERE file_id = ?", fileId).filter((r) => isNull(r.deleted_at) && !num(r.resolved) && !isNull(r.pin)).length;
+  out.pins = many(ctx, "SELECT * FROM files_comment WHERE file_id = ?", fileId).filter(
+    (r) => isNull(r.deleted_at) && !num(r.resolved) && !isNull(r.pin),
+  ).length;
   return out;
 }
 
@@ -162,8 +190,14 @@ async function viewerData(ctx: Ctx, input: unknown): Promise<Obj> {
 
 function commentOut(r: Row): Obj {
   const out: Obj = {
-    commentId: str(r.id), fileId: str(r.file_id), anchor: JSON.parse(str(r.anchor)), text: str(r.text), by: str(r.author), at: num(r.at),
-    resolved: num(r.resolved) === 1, mentions: JSON.parse(str(r.mentions)),
+    commentId: str(r.id),
+    fileId: str(r.file_id),
+    anchor: JSON.parse(str(r.anchor)),
+    text: str(r.text),
+    by: str(r.author),
+    at: num(r.at),
+    resolved: num(r.resolved) === 1,
+    mentions: JSON.parse(str(r.mentions)),
   };
   if (!isNull(r.version_id)) out.versionId = str(r.version_id);
   if (!isNull(r.pin)) out.pin = num(r.pin);
@@ -174,7 +208,8 @@ const finite = (v: unknown): v is number => typeof v === "number" && Number.isFi
 
 /** Checks an anchor and returns it with only the fields its kind uses. */
 function cleanAnchor(ctx: Ctx, raw: unknown): Obj {
-  const bad = (what: string): never => fail(ctx, "validation.bad_input", `The anchor is not valid: ${what}.`, { field: "anchor" });
+  const bad = (what: string): never =>
+    fail(ctx, "validation.bad_input", `The anchor is not valid: ${what}.`, { field: "anchor" });
   if (!isObj(raw) || !ANCHOR_KINDS.includes(str(raw.kind))) return bad("kind");
   const kind = str(raw.kind);
   const out: Obj = { kind };
@@ -186,7 +221,13 @@ function cleanAnchor(ctx: Ctx, raw: unknown): Obj {
     if (!Number.isInteger(raw.line) || (raw.line as number) < 1) return bad("line");
     out.line = raw.line;
   } else if (kind === "range") {
-    if (!Number.isInteger(raw.from) || !Number.isInteger(raw.to) || (raw.from as number) < 0 || (raw.to as number) < (raw.from as number)) return bad("from and to");
+    if (
+      !Number.isInteger(raw.from) ||
+      !Number.isInteger(raw.to) ||
+      (raw.from as number) < 0 ||
+      (raw.to as number) < (raw.from as number)
+    )
+      return bad("from and to");
     out.from = raw.from;
     out.to = raw.to;
   } else if (kind === "page") {
@@ -198,7 +239,8 @@ function cleanAnchor(ctx: Ctx, raw: unknown): Obj {
     if (typeof raw.path === "string" && raw.path.length <= 200) out.path = raw.path;
   } else if (kind === "area") {
     const b = raw.box;
-    if (!isObj(b) || !finite(b.x) || !finite(b.y) || !finite(b.w) || !finite(b.h) || b.w < 0 || b.h < 0) return bad("box");
+    if (!isObj(b) || !finite(b.x) || !finite(b.y) || !finite(b.w) || !finite(b.h) || b.w < 0 || b.h < 0)
+      return bad("box");
     out.box = { x: b.x, y: b.y, w: b.w, h: b.h };
     if (Number.isInteger(raw.page) && (raw.page as number) >= 1) out.page = raw.page;
   }
@@ -212,7 +254,12 @@ async function commentsList(ctx: Ctx, input: unknown): Promise<{ comments: Obj[]
   const versionId = versionOf(ctx, fileId, optStr(ctx, o, "versionId"));
   const includeResolved = o.includeResolved === true;
   const rows = many(ctx, "SELECT * FROM files_comment WHERE file_id = ?", fileId)
-    .filter((r) => isNull(r.deleted_at) && (includeResolved || !num(r.resolved)) && (versionId === null || isNull(r.version_id) || str(r.version_id) === versionId))
+    .filter(
+      (r) =>
+        isNull(r.deleted_at) &&
+        (includeResolved || !num(r.resolved)) &&
+        (versionId === null || isNull(r.version_id) || str(r.version_id) === versionId),
+    )
     .sort((a, b) => num(a.at) - num(b.at) || str(a.id).localeCompare(str(b.id)));
   return { comments: rows.map(commentOut) };
 }
@@ -223,22 +270,50 @@ async function commentsAdd(ctx: Ctx, input: unknown): Promise<{ comment: Obj }> 
   liveFileRow(ctx, fileId);
   const versionId = versionOf(ctx, fileId, optStr(ctx, o, "versionId"));
   const text = reqStr(ctx, o, "text").trim();
-  if (text.length === 0 || text.length > COMMENT_MAX) fail(ctx, "validation.bad_input", `A comment is 1 to ${COMMENT_MAX} characters.`, { field: "text" });
+  if (text.length === 0 || text.length > COMMENT_MAX)
+    fail(ctx, "validation.bad_input", `A comment is 1 to ${COMMENT_MAX} characters.`, { field: "text" });
   const anchor = cleanAnchor(ctx, o.anchor);
   let mentions: string[] = [];
   if (o.mentions !== undefined && o.mentions !== null) {
-    if (!Array.isArray(o.mentions) || o.mentions.length > 20 || !o.mentions.every((m) => typeof m === "string" && m.length > 0 && m.length <= 100)) fail(ctx, "validation.bad_input", "Mention up to 20 people or agents.", { field: "mentions" });
+    if (
+      !Array.isArray(o.mentions) ||
+      o.mentions.length > 20 ||
+      !o.mentions.every((m) => typeof m === "string" && m.length > 0 && m.length <= 100)
+    )
+      fail(ctx, "validation.bad_input", "Mention up to 20 people or agents.", { field: "mentions" });
     mentions = [...new Set(o.mentions as string[])];
   }
   // a pin is the next number for the file; deleted pins keep theirs, so a number is never reused
   let pin: number | null = null;
-  if (anchor.kind === "area") pin = Math.max(0, ...many(ctx, "SELECT * FROM files_comment WHERE file_id = ?", fileId).map((r) => (isNull(r.pin) ? 0 : num(r.pin)))) + 1;
+  if (anchor.kind === "area")
+    pin =
+      Math.max(
+        0,
+        ...many(ctx, "SELECT * FROM files_comment WHERE file_id = ?", fileId).map((r) =>
+          isNull(r.pin) ? 0 : num(r.pin),
+        ),
+      ) + 1;
   const id = nid("fcm");
   ctx.db.run(
     "INSERT INTO files_comment (id, file_id, version_id, anchor, pin, text, mentions, author, at, resolved, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, fileId, versionId, JSON.stringify(anchor), pin, text, JSON.stringify(mentions), ctx.principal.id, ctx.now(), 0, null,
+    id,
+    fileId,
+    versionId,
+    JSON.stringify(anchor),
+    pin,
+    text,
+    JSON.stringify(mentions),
+    ctx.principal.id,
+    ctx.now(),
+    0,
+    null,
   );
-  ctx.emit("file.comment_added", `file/${fileId}`, { fileId, commentId: id, ...(pin !== null ? { pin } : {}), mentions });
+  ctx.emit("file.comment_added", `file/${fileId}`, {
+    fileId,
+    commentId: id,
+    ...(pin !== null ? { pin } : {}),
+    mentions,
+  });
   return { comment: commentOut(one(ctx, "SELECT * FROM files_comment WHERE id = ?", id) as Row) };
 }
 
@@ -251,7 +326,8 @@ function mustComment(ctx: Ctx, commentId: string): Row {
 async function commentsResolve(ctx: Ctx, input: unknown): Promise<{ comment: Obj }> {
   const o = rec(ctx, input);
   const r = mustComment(ctx, reqStr(ctx, o, "commentId"));
-  if (typeof o.resolved !== "boolean") fail(ctx, "validation.bad_input", "resolved is true or false.", { field: "resolved" });
+  if (typeof o.resolved !== "boolean")
+    fail(ctx, "validation.bad_input", "resolved is true or false.", { field: "resolved" });
   const fileId = str(r.file_id);
   if (!allowed(ctx, "use", fileId)) fail(ctx, "permission.no_grant", "You do not have access to this file.");
   const was = num(r.resolved) === 1;
@@ -268,7 +344,8 @@ async function commentsDelete(ctx: Ctx, input: unknown): Promise<{ deleted: bool
   const r = one(ctx, "SELECT * FROM files_comment WHERE id = ?", id);
   if (!r || !isNull(r.deleted_at)) return { deleted: false };
   // the author may delete their own comment; anyone else needs manage on the file
-  if (str(r.author) !== ctx.principal.id && !allowed(ctx, "manage", str(r.file_id))) fail(ctx, "permission.no_grant", "Only the author or someone who manages this file can delete a comment.");
+  if (str(r.author) !== ctx.principal.id && !allowed(ctx, "manage", str(r.file_id)))
+    fail(ctx, "permission.no_grant", "Only the author or someone who manages this file can delete a comment.");
   ctx.db.run("UPDATE files_comment SET deleted_at = ? WHERE id = ?", ctx.now(), id);
   return { deleted: true };
 }
@@ -279,7 +356,10 @@ const COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})
 
 function markableFile(ctx: Ctx, fileId: string): void {
   const row = liveFileRow(ctx, fileId);
-  if (!MARKABLE_KINDS.has(str(row.kind))) fail(ctx, "validation.precondition_failed", "Draw works on images and pages, not on this kind of file.", { kind: str(row.kind) });
+  if (!MARKABLE_KINDS.has(str(row.kind)))
+    fail(ctx, "validation.precondition_failed", "Draw works on images and pages, not on this kind of file.", {
+      kind: str(row.kind),
+    });
 }
 
 async function markupGet(ctx: Ctx, input: unknown): Promise<{ strokes: Obj[] }> {
@@ -288,9 +368,13 @@ async function markupGet(ctx: Ctx, input: unknown): Promise<{ strokes: Obj[] }> 
   liveFileRow(ctx, fileId);
   const page = optInt(ctx, o, "page");
   if (page !== undefined && page < 1) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "page" });
-  const rows = many(ctx, "SELECT * FROM files_markup WHERE file_id = ?", fileId).filter((r) => page === undefined || num(r.page) === page).sort((a, b) => num(a.page) - num(b.page));
+  const rows = many(ctx, "SELECT * FROM files_markup WHERE file_id = ?", fileId)
+    .filter((r) => page === undefined || num(r.page) === page)
+    .sort((a, b) => num(a.page) - num(b.page));
   const strokes: Obj[] = [];
-  for (const r of rows) for (const s of JSON.parse(str(r.strokes)) as Obj[]) strokes.push(num(r.page) > 0 ? { page: num(r.page), ...s } : s);
+  for (const r of rows)
+    for (const s of JSON.parse(str(r.strokes)) as Obj[])
+      strokes.push(num(r.page) > 0 ? { page: num(r.page), ...s } : s);
   return { strokes };
 }
 
@@ -301,20 +385,37 @@ async function markupSave(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
   const page = optInt(ctx, o, "page");
   if (page !== undefined && page < 1) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "page" });
   const raw = o.strokes;
-  const bad = (what: string): never => fail(ctx, "validation.bad_input", `The strokes are not valid: ${what}.`, { field: "strokes" });
+  const bad = (what: string): never =>
+    fail(ctx, "validation.bad_input", `The strokes are not valid: ${what}.`, { field: "strokes" });
   if (!Array.isArray(raw) || raw.length > MAX_STROKES) return bad(`at most ${MAX_STROKES} strokes`);
   const strokes: Obj[] = raw.map((s) => {
     if (!isObj(s) || typeof s.color !== "string" || !COLOR.test(s.color)) return bad("a colour such as #d32f2f");
     if (!finite(s.width) || s.width <= 0 || s.width > 64) return bad("a width above 0 and at most 64");
-    if (!Array.isArray(s.points) || s.points.length === 0 || s.points.length > MAX_POINTS || !s.points.every((p) => Array.isArray(p) && p.length === 2 && finite(p[0]) && finite(p[1]))) return bad(`1 to ${MAX_POINTS} points of [x, y]`);
+    if (
+      !Array.isArray(s.points) ||
+      s.points.length === 0 ||
+      s.points.length > MAX_POINTS ||
+      !s.points.every((p) => Array.isArray(p) && p.length === 2 && finite(p[0]) && finite(p[1]))
+    )
+      return bad(`1 to ${MAX_POINTS} points of [x, y]`);
     return { color: s.color, width: s.width, points: s.points };
   });
   const text = JSON.stringify(strokes);
-  if (new TextEncoder().encode(text).length > MAX_MARKUP_BYTES) fail(ctx, "validation.too_large", "That drawing is too large to save.");
+  if (new TextEncoder().encode(text).length > MAX_MARKUP_BYTES)
+    fail(ctx, "validation.too_large", "That drawing is too large to save.");
   const p = page ?? 0;
   const had = many(ctx, "SELECT * FROM files_markup WHERE file_id = ?", fileId).filter((r) => num(r.page) === p);
   for (const r of had) ctx.db.run("DELETE FROM files_markup WHERE id = ?", str(r.id));
-  if (strokes.length > 0) ctx.db.run("INSERT INTO files_markup (id, file_id, page, strokes, author, at) VALUES (?, ?, ?, ?, ?, ?)", nid("mkp"), fileId, p, text, ctx.principal.id, ctx.now());
+  if (strokes.length > 0)
+    ctx.db.run(
+      "INSERT INTO files_markup (id, file_id, page, strokes, author, at) VALUES (?, ?, ?, ?, ?, ?)",
+      nid("mkp"),
+      fileId,
+      p,
+      text,
+      ctx.principal.id,
+      ctx.now(),
+    );
   ctx.emit("file.markup_saved", `file/${fileId}`, { fileId });
   return { ok: true };
 }
@@ -326,20 +427,43 @@ async function shareExternal(ctx: Ctx, input: unknown): Promise<Obj> {
   const fileId = reqStr(ctx, o, "fileId");
   const file = liveFileRow(ctx, fileId);
   // the label of every folder above it counts, not only the one it sits in (lead ruling 3 Nov, l-labelinherit)
-  if (labelOfFolder(ctx, str(file.folder_id), { fresh: true }) >= 3) fail(ctx, "permission.above_clearance", "Restricted files cannot be shared outside the Space.");
+  if (labelOfFolder(ctx, str(file.folder_id), { fresh: true }) >= 3)
+    fail(ctx, "permission.above_clearance", "Restricted files cannot be shared outside the Space.");
   const now = ctx.now();
   let expiresAt = now + DEFAULT_LINK_DAYS * DAY;
   if (o.expiresAt !== undefined && o.expiresAt !== null) {
-    if (!finite(o.expiresAt)) return fail(ctx, "validation.bad_input", "The expiry is not a time.", { field: "expiresAt" });
-    if (o.expiresAt <= now) return fail(ctx, "validation.bad_input", "The expiry must be in the future.", { field: "expiresAt" });
-    if (o.expiresAt > now + MAX_LINK_DAYS * DAY) return fail(ctx, "validation.bad_input", `An outside link lasts at most ${MAX_LINK_DAYS} days.`, { field: "expiresAt" });
+    if (!finite(o.expiresAt))
+      return fail(ctx, "validation.bad_input", "The expiry is not a time.", { field: "expiresAt" });
+    if (o.expiresAt <= now)
+      return fail(ctx, "validation.bad_input", "The expiry must be in the future.", { field: "expiresAt" });
+    if (o.expiresAt > now + MAX_LINK_DAYS * DAY)
+      return fail(ctx, "validation.bad_input", `An outside link lasts at most ${MAX_LINK_DAYS} days.`, {
+        field: "expiresAt",
+      });
     expiresAt = Math.floor(o.expiresAt);
   }
-  const live = many(ctx, "SELECT * FROM files_external_link WHERE file_id = ?", fileId).filter((r) => isNull(r.revoked_at) && (isNull(r.expires_at) || num(r.expires_at) > now));
-  if (live.length >= MAX_LINKS_PER_FILE) fail(ctx, "validation.precondition_failed", `This file already has ${MAX_LINKS_PER_FILE} outside links. Revoke one first.`);
+  const live = many(ctx, "SELECT * FROM files_external_link WHERE file_id = ?", fileId).filter(
+    (r) => isNull(r.revoked_at) && (isNull(r.expires_at) || num(r.expires_at) > now),
+  );
+  if (live.length >= MAX_LINKS_PER_FILE)
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      `This file already has ${MAX_LINKS_PER_FILE} outside links. Revoke one first.`,
+    );
   const token = [...crypto.getRandomValues(new Uint8Array(32))].map((b) => b.toString(16).padStart(2, "0")).join("");
   const id = nid("lnk");
-  ctx.db.run("INSERT INTO files_external_link (id, file_id, token_hash, created_by, created_at, expires_at, revoked_at, opens) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", id, fileId, await sha256hex(token), ctx.principal.id, now, expiresAt, null, 0);
+  ctx.db.run(
+    "INSERT INTO files_external_link (id, file_id, token_hash, created_by, created_at, expires_at, revoked_at, opens) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    id,
+    fileId,
+    await sha256hex(token),
+    ctx.principal.id,
+    now,
+    expiresAt,
+    null,
+    0,
+  );
   ctx.emit("file.shared_external", `file/${fileId}`, { fileId, linkId: id, expiresAt });
   const base = (configured.publicBase ?? "").replace(/\/+$/, "");
   return { url: `${base}/x/${token}`, linkId: id, expiresAt };
@@ -348,8 +472,18 @@ async function shareExternal(ctx: Ctx, input: unknown): Promise<Obj> {
 async function externalLinks(ctx: Ctx, input: unknown): Promise<{ links: Obj[] }> {
   const fileId = reqStr(ctx, rec(ctx, input), "fileId");
   liveFileRow(ctx, fileId);
-  const rows = many(ctx, "SELECT * FROM files_external_link WHERE file_id = ?", fileId).filter((r) => isNull(r.revoked_at)).sort((a, b) => num(b.created_at) - num(a.created_at) || str(b.id).localeCompare(str(a.id)));
-  return { links: rows.map((r) => ({ linkId: str(r.id), createdBy: str(r.created_by), createdAt: num(r.created_at), ...(isNull(r.expires_at) ? {} : { expiresAt: num(r.expires_at) }), opens: num(r.opens) })) };
+  const rows = many(ctx, "SELECT * FROM files_external_link WHERE file_id = ?", fileId)
+    .filter((r) => isNull(r.revoked_at))
+    .sort((a, b) => num(b.created_at) - num(a.created_at) || str(b.id).localeCompare(str(a.id)));
+  return {
+    links: rows.map((r) => ({
+      linkId: str(r.id),
+      createdBy: str(r.created_by),
+      createdAt: num(r.created_at),
+      ...(isNull(r.expires_at) ? {} : { expiresAt: num(r.expires_at) }),
+      opens: num(r.opens),
+    })),
+  };
 }
 
 async function revokeExternal(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {

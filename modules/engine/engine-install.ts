@@ -17,14 +17,25 @@ export type EngineInstallReason = "offline" | "checksum" | "unsupported" | "disk
 
 export class EngineInstallError extends Error {
   readonly reason: EngineInstallReason;
-  constructor(reason: EngineInstallReason, message: string) { super(message); this.name = "EngineInstallError"; this.reason = reason; }
+  constructor(reason: EngineInstallReason, message: string) {
+    super(message);
+    this.name = "EngineInstallError";
+    this.reason = reason;
+  }
 }
 
 /** The Mac's engines folder, under the desktop app's own folder in Application Support. */
 export const MAC_ENGINES_DIR = ["Library", "Application Support", "ai.vyre.desktop", "engines"] as const;
 
 /** Where Vyre keeps the engines it installs on this computer, or null where it has nowhere to put them. VYRE_ENGINES_DIR (an absolute folder) overrides both. */
-export function enginesRoot(o: { platform?: NodeJS.Platform; home?: string | undefined; dataDir?: string | undefined; env?: Readonly<Record<string, string | undefined>> } = {}): string | null {
+export function enginesRoot(
+  o: {
+    platform?: NodeJS.Platform;
+    home?: string | undefined;
+    dataDir?: string | undefined;
+    env?: Readonly<Record<string, string | undefined>>;
+  } = {},
+): string | null {
   const env = o.env ?? process.env;
   const set = env["VYRE_ENGINES_DIR"];
   if (set !== undefined && set !== "" && path.isAbsolute(set)) return set;
@@ -36,7 +47,11 @@ export function enginesRoot(o: { platform?: NodeJS.Platform; home?: string | und
 }
 
 /** The pinned build's name for this computer. A Linux whose C library is musl (Alpine) gets the musl build. */
-export function enginePlatform(platform: NodeJS.Platform = process.platform, arch: string = process.arch, musl: boolean = isMusl()): EnginePlatform | null {
+export function enginePlatform(
+  platform: NodeJS.Platform = process.platform,
+  arch: string = process.arch,
+  musl: boolean = isMusl(),
+): EnginePlatform | null {
   const cpu = arch === "arm64" ? "arm64" : arch === "x64" ? "x64" : null;
   if (cpu === null) return null;
   if (platform === "darwin") return `darwin-${cpu}`;
@@ -46,11 +61,19 @@ export function enginePlatform(platform: NodeJS.Platform = process.platform, arc
 }
 
 /** The program's file name on a computer: Windows runs only a name that ends in .exe. */
-export const programFile = (program: string, platform: EnginePlatform | NodeJS.Platform | null = process.platform): string => (platform !== null && platform.startsWith("win32") ? `${program}.exe` : program);
+export const programFile = (
+  program: string,
+  platform: EnginePlatform | NodeJS.Platform | null = process.platform,
+): string => (platform !== null && platform.startsWith("win32") ? `${program}.exe` : program);
 
 function isMusl(exists: (p: string) => boolean = fs.existsSync): boolean {
   if (process.platform !== "linux") return false;
-  return ["/lib/ld-musl-x86_64.so.1", "/lib/ld-musl-aarch64.so.1", "/lib/libc.musl-x86_64.so.1", "/lib/libc.musl-aarch64.so.1"].some((p) => exists(p));
+  return [
+    "/lib/ld-musl-x86_64.so.1",
+    "/lib/ld-musl-aarch64.so.1",
+    "/lib/libc.musl-x86_64.so.1",
+    "/lib/libc.musl-aarch64.so.1",
+  ].some((p) => exists(p));
 }
 
 /** The pinned build of a program for a computer, or undefined where there is none. */
@@ -59,7 +82,11 @@ export function buildOf(program: string, platform: EnginePlatform | null): Engin
 }
 
 /** Where Vyre's own copy of a program is, whether or not it is there yet. */
-export function ownedProgram(root: string, program: string, platform: NodeJS.Platform = process.platform): string | null {
+export function ownedProgram(
+  root: string,
+  program: string,
+  platform: NodeJS.Platform = process.platform,
+): string | null {
   const pin = pinOf(program);
   return pin ? path.join(root, pin.program, pin.version, programFile(pin.program, platform)) : null;
 }
@@ -69,7 +96,14 @@ export function ownedProgramDirs(root: string): string[] {
   return Object.values(ENGINE_PINS).map((p) => path.join(root, p.program, p.version));
 }
 
-const runnable = (p: string): boolean => { try { fs.accessSync(p, fs.constants.X_OK); return fs.statSync(p).isFile(); } catch { return false; } };
+const runnable = (p: string): boolean => {
+  try {
+    fs.accessSync(p, fs.constants.X_OK);
+    return fs.statSync(p).isFile();
+  } catch {
+    return false;
+  }
+};
 
 export interface InstallOptions {
   /** The engines folder. */
@@ -92,14 +126,19 @@ export async function installEngine(program: string, o: InstallOptions): Promise
   const pin = o.pins ? (Object.hasOwn(o.pins, program) ? o.pins[program] : undefined) : pinOf(program);
   const platform = o.platform === undefined ? enginePlatform() : o.platform;
   const build = pin && platform !== null ? pin.builds[platform] : undefined;
-  if (!pin || !build) throw new EngineInstallError("unsupported", `${program} has no build Vyre can install on this computer`);
+  if (!pin || !build)
+    throw new EngineInstallError("unsupported", `${program} has no build Vyre can install on this computer`);
   const home = path.join(o.root, pin.program);
   const final = path.join(home, pin.version);
   const file = programFile(pin.program, platform);
   const target = path.join(final, file);
   if (runnable(target)) return target;
 
-  try { fs.mkdirSync(home, { recursive: true, mode: 0o755 }); } catch (e) { throw diskOr(e, "the engines folder could not be made"); }
+  try {
+    fs.mkdirSync(home, { recursive: true, mode: 0o755 });
+  } catch (e) {
+    throw diskOr(e, "the engines folder could not be made");
+  }
   sweepParts(home);
   // A hidden folder beside the final one: on the same disk, so the rename below is one step, and never on any PATH.
   const part = path.join(home, `.part-${process.pid}-${randomHex(4)}`);
@@ -112,8 +151,9 @@ export async function installEngine(program: string, o: InstallOptions): Promise
     fs.rmSync(packed, { force: true });
     fs.chmodSync(unpacked, 0o755);
     fs.chmodSync(part, 0o755);
-    try { fs.renameSync(part, final); }
-    catch (e) {
+    try {
+      fs.renameSync(part, final);
+    } catch (e) {
       // another Vyre on this computer (the Mac runs up to three daemons) finished the same install first: theirs is the same checked file
       if (runnable(target)) return target;
       // a version folder without its program (someone deleted the file) is not an install: it makes way for this one
@@ -138,16 +178,27 @@ async function download(build: EngineBuild, hosts: readonly string[], to: string
   const abort = new AbortController();
   let stalled = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const beat = (): void => { if (timer) clearTimeout(timer); timer = setTimeout(() => { stalled = true; abort.abort(); }, stallMs); timer.unref?.(); };
+  const beat = (): void => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      stalled = true;
+      abort.abort();
+    }, stallMs);
+    timer.unref?.();
+  };
   try {
     beat();
     let url = new URL(build.url);
     let res: Response | null = null;
     for (let hop = 0; hop < 6 && res === null; hop++) {
-      if (url.protocol !== "https:" || !hosts.includes(url.hostname)) throw new EngineInstallError("failed", `the download was sent to ${url.hostname}, which is not the vendor's`);
+      if (url.protocol !== "https:" || !hosts.includes(url.hostname))
+        throw new EngineInstallError("failed", `the download was sent to ${url.hostname}, which is not the vendor's`);
       let r: Response;
-      try { r = await get(url, { redirect: "manual", signal: abort.signal }); }
-      catch (e) { throw offline(e, stalled); }
+      try {
+        r = await get(url, { redirect: "manual", signal: abort.signal });
+      } catch (e) {
+        throw offline(e, stalled);
+      }
       if ([301, 302, 303, 307, 308].includes(r.status)) {
         const where = r.headers.get("location");
         await r.body?.cancel().catch(() => undefined);
@@ -155,25 +206,43 @@ async function download(build: EngineBuild, hosts: readonly string[], to: string
         url = new URL(where, url);
         continue;
       }
-      if (!r.ok || !r.body) { await r.body?.cancel().catch(() => undefined); throw new EngineInstallError("failed", `the download answered ${r.status}`); }
+      if (!r.ok || !r.body) {
+        await r.body?.cancel().catch(() => undefined);
+        throw new EngineInstallError("failed", `the download answered ${r.status}`);
+      }
       res = r;
     }
-    if (res === null || res.body === null) throw new EngineInstallError("failed", "the download was redirected too many times");
+    if (res === null || res.body === null)
+      throw new EngineInstallError("failed", "the download was redirected too many times");
     const hash = sha256Stream();
     let done = 0;
     const meter = new Transform({
       transform(chunk: Buffer, _enc, cb) {
         done += chunk.length;
-        if (done > build.size) { cb(new EngineInstallError("checksum", "the download is larger than the pinned file")); return; }
+        if (done > build.size) {
+          cb(new EngineInstallError("checksum", "the download is larger than the pinned file"));
+          return;
+        }
         hash.update(chunk);
         beat();
         o.onProgress?.(done, build.size);
         cb(null, chunk);
       },
     });
-    try { await pipeline(Readable.fromWeb(res.body as import("node:stream/web").ReadableStream), meter, fs.createWriteStream(to, { flags: "wx", mode: 0o600 }), { signal: abort.signal }); }
-    catch (e) { if (e instanceof EngineInstallError) throw e; if (isDisk(e)) throw diskOr(e, "the download could not be written"); throw offline(e, stalled); }
-    if (done !== build.size || hash.hex() !== build.sha256) throw new EngineInstallError("checksum", "the download is not the pinned file, so it was not used");
+    try {
+      await pipeline(
+        Readable.fromWeb(res.body as import("node:stream/web").ReadableStream),
+        meter,
+        fs.createWriteStream(to, { flags: "wx", mode: 0o600 }),
+        { signal: abort.signal },
+      );
+    } catch (e) {
+      if (e instanceof EngineInstallError) throw e;
+      if (isDisk(e)) throw diskOr(e, "the download could not be written");
+      throw offline(e, stalled);
+    }
+    if (done !== build.size || hash.hex() !== build.sha256)
+      throw new EngineInstallError("checksum", "the download is not the pinned file, so it was not used");
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -186,44 +255,84 @@ async function unpack(from: string, to: string, build: EngineBuild): Promise<voi
   const cap = new Transform({
     transform(chunk: Buffer, _enc, cb) {
       n += chunk.length;
-      if (n > build.binarySize) { cb(new EngineInstallError("checksum", "the program is larger than the pinned one")); return; }
+      if (n > build.binarySize) {
+        cb(new EngineInstallError("checksum", "the program is larger than the pinned one"));
+        return;
+      }
       hash.update(chunk);
       cb(null, chunk);
     },
   });
   const unzstd = (zlib as unknown as { createZstdDecompress?: () => Transform }).createZstdDecompress;
   if (!unzstd) throw new EngineInstallError("failed", "this Node cannot unpack zstd");
-  try { await pipeline(fs.createReadStream(from), unzstd(), cap, fs.createWriteStream(to, { flags: "wx", mode: 0o600 })); }
-  catch (e) { if (e instanceof EngineInstallError) throw e; if (isDisk(e)) throw diskOr(e, "the program could not be written"); throw new EngineInstallError("checksum", "the download could not be unpacked, so it was not used"); }
-  if (n !== build.binarySize || hash.hex() !== build.binarySha256) throw new EngineInstallError("checksum", "the unpacked program is not the pinned one, so it was not used");
+  try {
+    await pipeline(fs.createReadStream(from), unzstd(), cap, fs.createWriteStream(to, { flags: "wx", mode: 0o600 }));
+  } catch (e) {
+    if (e instanceof EngineInstallError) throw e;
+    if (isDisk(e)) throw diskOr(e, "the program could not be written");
+    throw new EngineInstallError("checksum", "the download could not be unpacked, so it was not used");
+  }
+  if (n !== build.binarySize || hash.hex() !== build.binarySha256)
+    throw new EngineInstallError("checksum", "the unpacked program is not the pinned one, so it was not used");
 }
 
 /** Hidden folders an install that was cut short left (the process ended mid-download). One younger than an hour may be another Vyre's install in progress and is left alone. */
 function sweepParts(home: string, now: number = Date.now()): void {
   let names: string[] = [];
-  try { names = fs.readdirSync(home); } catch { return; }
+  try {
+    names = fs.readdirSync(home);
+  } catch {
+    return;
+  }
   for (const n of names) {
     if (!n.startsWith(".part-")) continue;
     const p = path.join(home, n);
-    try { if (now - fs.statSync(p).mtimeMs > STALE_PART_MS) fs.rmSync(p, { recursive: true, force: true }); } catch { /* gone already */ }
+    try {
+      if (now - fs.statSync(p).mtimeMs > STALE_PART_MS) fs.rmSync(p, { recursive: true, force: true });
+    } catch {
+      /* gone already */
+    }
   }
 }
 
 /** Versions the pins moved on from: they are never looked in, so their disk space comes back. An engine still running from one keeps its open file. */
 function pruneOlder(home: string, keep: string): void {
   let names: string[] = [];
-  try { names = fs.readdirSync(home); } catch { return; }
-  for (const n of names) if (n !== keep && !n.startsWith(".part-")) fs.rmSync(path.join(home, n), { recursive: true, force: true });
+  try {
+    names = fs.readdirSync(home);
+  } catch {
+    return;
+  }
+  for (const n of names)
+    if (n !== keep && !n.startsWith(".part-")) fs.rmSync(path.join(home, n), { recursive: true, force: true });
 }
 
 const DISK = new Set(["ENOSPC", "EDQUOT", "EACCES", "EPERM", "EROFS"]);
 const isDisk = (e: unknown): boolean => DISK.has(String((e as { code?: unknown } | null)?.code ?? ""));
-const diskOr = (e: unknown, words: string): EngineInstallError => (isDisk(e) ? new EngineInstallError("disk", `${words}: ${String((e as { code?: unknown }).code)}`) : e instanceof EngineInstallError ? e : new EngineInstallError("failed", words));
+const diskOr = (e: unknown, words: string): EngineInstallError =>
+  isDisk(e)
+    ? new EngineInstallError("disk", `${words}: ${String((e as { code?: unknown }).code)}`)
+    : e instanceof EngineInstallError
+      ? e
+      : new EngineInstallError("failed", words);
 const offline = (e: unknown, stalled: boolean): EngineInstallError =>
-  e instanceof EngineInstallError ? e : new EngineInstallError("offline", stalled ? "the download stopped sending" : `the vendor could not be reached${(e as { cause?: { code?: string } } | null)?.cause?.code ? ` (${(e as { cause: { code: string } }).cause.code})` : ""}`);
+  e instanceof EngineInstallError
+    ? e
+    : new EngineInstallError(
+        "offline",
+        stalled
+          ? "the download stopped sending"
+          : `the vendor could not be reached${(e as { cause?: { code?: string } } | null)?.cause?.code ? ` (${(e as { cause: { code: string } }).cause.code})` : ""}`,
+      );
 
 /** What the installer last did for a program, for the chat and the logs. */
-export interface EngineSetupState { phase: "idle" | "installing" | "ready" | "failed"; done?: number; total?: number; reason?: EngineInstallReason; at?: number }
+export interface EngineSetupState {
+  phase: "idle" | "installing" | "ready" | "failed";
+  done?: number;
+  total?: number;
+  reason?: EngineInstallReason;
+  at?: number;
+}
 
 export interface EngineInstaller {
   readonly root: string;
@@ -259,26 +368,53 @@ export function createEngineInstaller(o: InstallerOptions): EngineInstaller {
   const states = new Map<string, EngineSetupState>();
   const inflight = new Map<string, Promise<string>>();
   const install = o.install ?? installEngine;
-  const where = (program: string): string | null => { const pin = pinFor(program); return pin ? path.join(o.root, pin.program, pin.version, programFile(pin.program, platform)) : null; };
+  const where = (program: string): string | null => {
+    const pin = pinFor(program);
+    return pin ? path.join(o.root, pin.program, pin.version, programFile(pin.program, platform)) : null;
+  };
   return {
     root: o.root,
     supported: (program) => platform !== null && pinFor(program)?.builds[platform] !== undefined,
-    installed: (program) => { const p = where(program); return p !== null && runnable(p) ? p : null; },
+    installed: (program) => {
+      const p = where(program);
+      return p !== null && runnable(p) ? p : null;
+    },
     ensure(program) {
       const running = inflight.get(program);
       if (running) return running;
       const here = where(program);
-      if (here !== null && runnable(here)) { states.set(program, { phase: "ready" }); return Promise.resolve(here); }
-      states.set(program, { phase: "installing", done: 0, total: (platform !== null ? pinFor(program)?.builds[platform]?.size : undefined) ?? 0 });
+      if (here !== null && runnable(here)) {
+        states.set(program, { phase: "ready" });
+        return Promise.resolve(here);
+      }
+      states.set(program, {
+        phase: "installing",
+        done: 0,
+        total: (platform !== null ? pinFor(program)?.builds[platform]?.size : undefined) ?? 0,
+      });
       o.log?.("setting up an engine", { program, version: pinFor(program)?.version ?? null });
-      const p = install(program, { ...o, platform, pins: all, onProgress: (done, total) => states.set(program, { phase: "installing", done, total }) })
-        .then((at) => { states.set(program, { phase: "ready" }); o.log?.("an engine is set up", { program }); return at; },
+      const p = install(program, {
+        ...o,
+        platform,
+        pins: all,
+        onProgress: (done, total) => states.set(program, { phase: "installing", done, total }),
+      })
+        .then(
+          (at) => {
+            states.set(program, { phase: "ready" });
+            o.log?.("an engine is set up", { program });
+            return at;
+          },
           (e: unknown) => {
-            const err = e instanceof EngineInstallError ? e : new EngineInstallError("failed", e instanceof Error ? e.message : "the install did not finish");
+            const err =
+              e instanceof EngineInstallError
+                ? e
+                : new EngineInstallError("failed", e instanceof Error ? e.message : "the install did not finish");
             states.set(program, { phase: "failed", reason: err.reason, at: now() });
             o.log?.("an engine could not be set up", { program, reason: err.reason, error: err.message });
             throw err;
-          })
+          },
+        )
         .finally(() => inflight.delete(program));
       inflight.set(program, p);
       return p;
@@ -288,7 +424,9 @@ export function createEngineInstaller(o: InstallerOptions): EngineInstaller {
       return s?.phase === "failed" && s.at !== undefined && now() - s.at < (o.failureMs ?? FAILURE_MEMORY_MS);
     },
     state: (program) => states.get(program) ?? { phase: "idle" },
-    forget() { for (const [k, s] of states) if (s.phase === "failed") states.delete(k); },
+    forget() {
+      for (const [k, s] of states) if (s.phase === "failed") states.delete(k);
+    },
   };
 }
 
@@ -298,7 +436,12 @@ let current: EngineInstaller | null = null;
 
 /** Turn the installer on for an engines folder (null turns it off). Answers the installer. */
 export function configureEngines(o: InstallerOptions | null): EngineInstaller | null {
-  current = o === null ? null : current !== null && current.root === o.root && o.install === undefined && o.fetch === undefined ? current : createEngineInstaller(o);
+  current =
+    o === null
+      ? null
+      : current !== null && current.root === o.root && o.install === undefined && o.fetch === undefined
+        ? current
+        : createEngineInstaller(o);
   return current;
 }
 

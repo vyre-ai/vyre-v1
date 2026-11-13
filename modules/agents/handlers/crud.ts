@@ -6,11 +6,71 @@
 //   snapshot.take / versions / restore_version             the files a run uses, and rolling back
 // A broken agent.toml never stops an agent: the last good configuration stays in agents_agent.config and is what every read here returns.
 import {
-  AGENT_MD_DEFAULT, isAgentMdV1, AWAKE_MS, agentFor, agentView, allows, governs, isPrivateAgent, seesSetup, withoutSetup, teammateOf, chatOf, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, applyPatch, askerOf, call, canSee, checkToml,
-  codeOf, ensure, insertAgent, makeFile, makeFolder, meta, mintId, mustChangeSettings, newConfig, nameKey, parseToml, raise, saveFile, setMeta, settingsRefusal, slug, statusOf, storeConfig, textOf, tolerant, tomlFor,
-  versionsOf, visible, widenings, writeConfig,
+  AGENT_MD_DEFAULT,
+  isAgentMdV1,
+  AWAKE_MS,
+  agentFor,
+  agentView,
+  allows,
+  governs,
+  isPrivateAgent,
+  seesSetup,
+  withoutSetup,
+  teammateOf,
+  chatOf,
+  isAssistant,
+  LIMIT_KEYS,
+  LIMIT_TOML,
+  MAX_NAME,
+  MAX_ROLE,
+  NAME_BAD,
+  TREE_FOLDERS,
+  agentBy,
+  agentByName,
+  agentOf,
+  agentOut,
+  allAgents,
+  applyPatch,
+  askerOf,
+  call,
+  canSee,
+  checkToml,
+  codeOf,
+  ensure,
+  insertAgent,
+  makeFile,
+  makeFolder,
+  meta,
+  mintId,
+  mustChangeSettings,
+  newConfig,
+  nameKey,
+  parseToml,
+  raise,
+  saveFile,
+  setMeta,
+  settingsRefusal,
+  slug,
+  statusOf,
+  storeConfig,
+  textOf,
+  tolerant,
+  tomlFor,
+  versionsOf,
+  visible,
+  widenings,
+  writeConfig,
 } from "../projections.ts";
-import type { AgentConfig, AgentKind, AgentRec, AgentRuntime, AgentsCtx, FolderOut, Limits, VersionOut } from "../projections.ts";
+import type {
+  AgentConfig,
+  AgentKind,
+  AgentRec,
+  AgentRuntime,
+  AgentsCtx,
+  FolderOut,
+  Limits,
+  VersionOut,
+} from "../projections.ts";
 import { isOutside, outsideFace, outsideName } from "./outside.ts";
 import { isAdmin } from "./connections.ts";
 import { readTemplate, templateVersion } from "./routines.ts";
@@ -23,7 +83,19 @@ export const OWNER_LEFT = "The owner left this Space";
 
 // ---- reads ---------------------------------------------------------------------------------------------------------------------------------------------
 
-export async function list(ctx: AgentsCtx, input: { section?: "personal" | "shared" | "space"; folderId?: string; status?: string[]; teammates?: "hide" | "include" | "only"; projectId?: string; threadId?: string; cursor?: string; limit?: number }) {
+export async function list(
+  ctx: AgentsCtx,
+  input: {
+    section?: "personal" | "shared" | "space";
+    folderId?: string;
+    status?: string[];
+    teammates?: "hide" | "include" | "only";
+    projectId?: string;
+    threadId?: string;
+    cursor?: string;
+    limit?: number;
+  },
+) {
   ensure(ctx.db);
   const asker = askerOf(ctx);
   const now = ctx.now();
@@ -34,15 +106,23 @@ export async function list(ctx: AgentsCtx, input: { section?: "personal" | "shar
   if (input.folderId !== undefined && input.folderId !== root) rows = rows.filter((a) => a.folderId === input.folderId);
   if (input.status && input.status.length > 0) rows = rows.filter((a) => input.status!.includes(statusOf(a, now)));
   // teammates belong to a project: the Agents page does not list them unless asked
-  const mode = input.projectId !== undefined || input.threadId !== undefined ? "only" : input.teammates ?? "hide";
+  const mode = input.projectId !== undefined || input.threadId !== undefined ? "only" : (input.teammates ?? "hide");
   // an agent a chat made for itself is a teammate of that chat: hidden the same way, listed for its chat
   if (mode === "hide") rows = rows.filter((a) => teammateOf(a) === undefined && chatOf(a) === undefined);
   else if (input.threadId !== undefined) rows = rows.filter((a) => chatOf(a) === input.threadId);
-  else if (mode === "only") rows = rows.filter((a) => { const p = teammateOf(a); return (p !== undefined || chatOf(a) !== undefined) && (input.projectId === undefined || p === input.projectId); });
+  else if (mode === "only")
+    rows = rows.filter((a) => {
+      const p = teammateOf(a);
+      return (p !== undefined || chatOf(a) !== undefined) && (input.projectId === undefined || p === input.projectId);
+    });
   const offset = input.cursor !== undefined && /^\d+$/.test(input.cursor) ? Number(input.cursor) : 0;
   const limit = input.limit ?? 100;
   const page = rows.slice(offset, offset + limit);
-  return { agents: page.map((a) => agentFor(ctx, a, now)), ...(offset + limit < rows.length ? { next: String(offset + limit) } : {}), total: rows.length };
+  return {
+    agents: page.map((a) => agentFor(ctx, a, now)),
+    ...(offset + limit < rows.length ? { next: String(offset + limit) } : {}),
+    total: rows.length,
+  };
 }
 
 export type ShareClass = "private" | "personal" | "shared" | "space";
@@ -54,12 +134,24 @@ export async function classifyAgent(ctx: AgentsCtx, a: AgentRec): Promise<{ clas
   if (isPrivateAgent(a)) return { class: "private", people: [] };
   let subjects: Array<{ kind?: string; id?: string }> = [];
   try {
-    const r = (await ctx.call?.("access.shares_of", { resource: { type: "agent", id: a.id } })) as { shares?: Array<{ grant?: { subject?: { kind?: string; id?: string } } }> } | undefined;
+    const r = (await ctx.call?.("access.shares_of", { resource: { type: "agent", id: a.id } })) as
+      | { shares?: Array<{ grant?: { subject?: { kind?: string; id?: string } } }> }
+      | undefined;
     subjects = (r?.shares ?? []).map((s) => s.grant?.subject ?? {});
-  } catch { /* what cannot be read is not shared: the narrower answer */ }
+  } catch {
+    /* what cannot be read is not shared: the narrower answer */
+  }
   if (subjects.some((x) => x.kind === "group" && x.id === "grp_everyone")) return { class: "space", people: [] };
-  const people = [...new Set(subjects.filter((x) => x.kind === "person" && typeof x.id === "string" && x.id !== a.ownerId).map((x) => x.id as string))];
-  return people.length > 0 || subjects.some((x) => x.kind === "group") ? { class: "shared", people } : { class: "personal", people: [] };
+  const people = [
+    ...new Set(
+      subjects
+        .filter((x) => x.kind === "person" && typeof x.id === "string" && x.id !== a.ownerId)
+        .map((x) => x.id as string),
+    ),
+  ];
+  return people.length > 0 || subjects.some((x) => x.kind === "group")
+    ? { class: "shared", people }
+    : { class: "personal", people: [] };
 }
 
 export async function shareClass(ctx: AgentsCtx, input: { agentId: string }) {
@@ -77,7 +169,12 @@ export async function memoryKeyGet(ctx: AgentsCtx, input: { agentId: string }) {
   ensure(ctx.db);
   const a = isHostService(ctx.principal) ? agentBy(ctx.db, input.agentId) : visible(ctx, input.agentId);
   if (!a) raise(ctx, "validation.not_found", "That agent does not exist.");
-  return { ...(a.config.memoryKey !== undefined && (isHostService(ctx.principal) || seesSetup(ctx, a)) ? { memoryKey: a.config.memoryKey } : {}), ownerId: a.ownerId };
+  return {
+    ...(a.config.memoryKey !== undefined && (isHostService(ctx.principal) || seesSetup(ctx, a))
+      ? { memoryKey: a.config.memoryKey }
+      : {}),
+    ownerId: a.ownerId,
+  };
 }
 
 /**
@@ -87,32 +184,78 @@ export async function memoryKeyGet(ctx: AgentsCtx, input: { agentId: string }) {
 export async function assistantOf(ctx: AgentsCtx, input: { personId: string }) {
   ensure(ctx.db);
   if (!isHostService(ctx.principal) && askerOf(ctx) !== input.personId) return {};
-  const a = allAgents(ctx.db).find((x) => x.ownerId === input.personId && isAssistant(x) && teammateOf(x) === undefined);
+  const a = allAgents(ctx.db).find(
+    (x) => x.ownerId === input.personId && isAssistant(x) && teammateOf(x) === undefined,
+  );
   return a ? { agentId: a.id } : {};
 }
 
 export async function status(ctx: AgentsCtx, input: { agentId: string }) {
   const a = visible(ctx, input.agentId);
   const s = statusOf(a, ctx.now());
-  const since = s === "paused" ? (a.pausedAt ?? a.updatedAt) : s === "asleep" ? (a.lastActiveAt !== undefined ? a.lastActiveAt + AWAKE_MS : a.createdAt) : (a.lastActiveAt ?? a.createdAt);
-  return { status: s, since, ...(s === "paused" && a.pausedReason !== undefined ? { reason: a.pausedReason } : {}), ...(s === "paused" && a.pausedBy !== undefined ? { by: a.pausedBy } : {}) };
+  const since =
+    s === "paused"
+      ? (a.pausedAt ?? a.updatedAt)
+      : s === "asleep"
+        ? a.lastActiveAt !== undefined
+          ? a.lastActiveAt + AWAKE_MS
+          : a.createdAt
+        : (a.lastActiveAt ?? a.createdAt);
+  return {
+    status: s,
+    since,
+    ...(s === "paused" && a.pausedReason !== undefined ? { reason: a.pausedReason } : {}),
+    ...(s === "paused" && a.pausedBy !== undefined ? { by: a.pausedBy } : {}),
+  };
 }
 
 export async function summary(ctx: AgentsCtx, input: { agentId: string }) {
   const a = visible(ctx, input.agentId);
   const now = ctx.now();
   const dayStart = now - (now % 86_400_000);
-  const threads = await tolerant<{ threads?: Array<{ agents?: Array<{ agentId: string }>; createdAt: number }> }>(ctx, "threads.list", { kind: ["chat"], limit: 200 }, {});
-  const tasks = await tolerant<{ tasks?: Array<{ id: string; title: string; state: string }> }>(ctx, "tasks.list", { scope: "all", assignee: { kind: "agent", id: a.id }, limit: 200 }, {});
-  const runs = await tolerant<{ runs?: Array<{ id: string; name?: string; status: string }> }>(ctx, "runs.list", { scope: "subject", subject: { type: "agent", id: a.id }, since: dayStart, limit: 200 }, {});
-  const spend = await tolerant<{ todayMicros?: number }>(ctx, "engine.spend.get", { scope: "agent", scopeId: a.id }, {});
+  const threads = await tolerant<{ threads?: Array<{ agents?: Array<{ agentId: string }>; createdAt: number }> }>(
+    ctx,
+    "threads.list",
+    { kind: ["chat"], limit: 200 },
+    {},
+  );
+  const tasks = await tolerant<{ tasks?: Array<{ id: string; title: string; state: string }> }>(
+    ctx,
+    "tasks.list",
+    { scope: "all", assignee: { kind: "agent", id: a.id }, limit: 200 },
+    {},
+  );
+  const runs = await tolerant<{ runs?: Array<{ id: string; name?: string; status: string }> }>(
+    ctx,
+    "runs.list",
+    { scope: "subject", subject: { type: "agent", id: a.id }, since: dayStart, limit: 200 },
+    {},
+  );
+  const spend = await tolerant<{ todayMicros?: number }>(
+    ctx,
+    "engine.spend.get",
+    { scope: "agent", scopeId: a.id },
+    {},
+  );
   const facts = await tolerant<{ current?: number; proposed?: number }>(ctx, "memory.counts", { agentId: a.id }, {});
-  const open = (tasks.tasks ?? []).filter((t) => t.state === "todo" || t.state === "doing" || t.state === "in_review" || t.state === "awaiting_approval");
-  const active = (runs.runs ?? []).filter((r) => r.status === "running" || r.status === "queued" || r.status === "waiting");
-  const mine = (ctx.db.all("SELECT channelId FROM agents_routine WHERE agentId = ? AND ownerId = ? AND channelId IS NOT NULL", a.id, askerOf(ctx)) as Row[]).map((r) => String(r["channelId"]));
+  const open = (tasks.tasks ?? []).filter(
+    (t) => t.state === "todo" || t.state === "doing" || t.state === "in_review" || t.state === "awaiting_approval",
+  );
+  const active = (runs.runs ?? []).filter(
+    (r) => r.status === "running" || r.status === "queued" || r.status === "waiting",
+  );
+  const mine = (
+    ctx.db.all(
+      "SELECT channelId FROM agents_routine WHERE agentId = ? AND ownerId = ? AND channelId IS NOT NULL",
+      a.id,
+      askerOf(ctx),
+    ) as Row[]
+  ).map((r) => String(r["channelId"]));
   const limit = a.config.limits.dayCostMicros;
   return {
-    chatsThisWeek: (threads.threads ?? []).filter((t) => t.createdAt >= now - 7 * 86_400_000 && (t.agents ?? []).some((x) => x.agentId === a.id)).length,
+    chatsThisWeek: (threads.threads ?? []).filter(
+      (t) => t.createdAt >= now - 7 * 86_400_000 && (t.agents ?? []).some((x) => x.agentId === a.id),
+    ).length,
     openTasks: open.length,
     runsToday: (runs.runs ?? []).length,
     spendTodayMicros: spend.todayMicros ?? 0,
@@ -132,7 +275,9 @@ export async function visibilitySet(ctx: AgentsCtx, input: { all: boolean }) {
   ensure(ctx.db);
   ctx.db.run(
     "INSERT INTO agents_visibility (principal, allAgents, at) VALUES (?, ?, ?) ON CONFLICT(principal) DO UPDATE SET allAgents = excluded.allAgents, at = excluded.at",
-    askerOf(ctx), input.all ? 1 : 0, ctx.now(),
+    askerOf(ctx),
+    input.all ? 1 : 0,
+    ctx.now(),
   );
   return { all: input.all };
 }
@@ -143,8 +288,14 @@ export async function visibilitySet(ctx: AgentsCtx, input: { all: boolean }) {
 async function agentsRoot(ctx: AgentsCtx): Promise<string> {
   const known = meta(ctx.db, "agents.root");
   if (known !== undefined) return known;
-  const found = await call<{ folders?: FolderOut[] }>(ctx, "files.folder.search", { q: "Agents", scope: "folders", limit: 20 });
-  const root = (found.folders ?? []).find((f) => f.name === "Agents" && f.parentId === undefined) ?? (found.folders ?? []).find((f) => f.path === "Agents");
+  const found = await call<{ folders?: FolderOut[] }>(ctx, "files.folder.search", {
+    q: "Agents",
+    scope: "folders",
+    limit: 20,
+  });
+  const root =
+    (found.folders ?? []).find((f) => f.name === "Agents" && f.parentId === undefined) ??
+    (found.folders ?? []).find((f) => f.path === "Agents");
   if (!root) raise(ctx, "internal.unexpected", "The Agents folder is missing from this Space.");
   setMeta(ctx.db, "agents.root", root.folderId);
   return root.folderId;
@@ -153,43 +304,78 @@ async function agentsRoot(ctx: AgentsCtx): Promise<string> {
 // Ruling 99, an agent's home grants (the agent holds Edit on Agents/<name>, its owner Manage): the gateway writes both in the commit of agent.created, and the host repairs at boot an agent
 // whose home lacks them (host/src/gateway/principals.ts missingAgentHomeEvents). Nothing here writes them: this module runs its checks as the host, which holds no grant on anyone's folder.
 
-export interface TreeResult { folderId: string; tomlFileId: string; agentMdFileId: string }
+export interface TreeResult {
+  folderId: string;
+  tomlFileId: string;
+  agentMdFileId: string;
+}
 
 /** Agents/<name> with the decided tree, its two files, the Vyre guide and whatever the Agent template adds. */
-async function createTree(ctx: AgentsCtx, agentId: string, name: string, tomlText: string, agentMd: string): Promise<TreeResult> {
+async function createTree(
+  ctx: AgentsCtx,
+  agentId: string,
+  name: string,
+  tomlText: string,
+  agentMd: string,
+): Promise<TreeResult> {
   const root = await agentsRoot(ctx);
   // the home folder carries the agent as its subject (system_key agent:<id>): that is how Files knows AGENT.md and agent.toml in it are the agent's own
   const home = await makeFolder(ctx, root, name, `agents:${agentId}:folder`, { kind: "agent", id: agentId });
   const ids = new Map<string, string>([["", home.folderId]]);
   const template = await readTemplate(ctx);
-  const folders = [...new Set([...TREE_FOLDERS, ...template.items.filter((i) => i.kind === "folder").map((i) => i.path)])]
-    .sort((a, b) => a.split("/").length - b.split("/").length || a.localeCompare(b));
+  const folders = [
+    ...new Set([...TREE_FOLDERS, ...template.items.filter((i) => i.kind === "folder").map((i) => i.path)]),
+  ].sort((a, b) => a.split("/").length - b.split("/").length || a.localeCompare(b));
   for (const path of folders) {
     const parts = path.split("/");
     const parent = ids.get(parts.slice(0, -1).join("/"));
     if (parent === undefined) continue;
-    ids.set(path, (await makeFolder(ctx, parent, parts[parts.length - 1] as string, `agents:${agentId}:folder:${path}`)).folderId);
+    ids.set(
+      path,
+      (await makeFolder(ctx, parent, parts[parts.length - 1] as string, `agents:${agentId}:folder:${path}`)).folderId,
+    );
   }
   const toml = await makeFile(ctx, home.folderId, "agent.toml", tomlText, `agents:${agentId}:file:agent.toml`);
   const md = await makeFile(ctx, home.folderId, "AGENT.md", agentMd, `agents:${agentId}:file:AGENT.md`);
   for (const f of template.items.filter((i) => i.kind === "file" && i.path !== "AGENT.md" && i.path !== "agent.toml")) {
     const parts = f.path.split("/");
     const parent = ids.get(parts.slice(0, -1).join("/"));
-    if (parent !== undefined) await makeFile(ctx, parent, parts[parts.length - 1] as string, f.text ?? "", `agents:${agentId}:file:${f.path}`);
+    if (parent !== undefined)
+      await makeFile(ctx, parent, parts[parts.length - 1] as string, f.text ?? "", `agents:${agentId}:file:${f.path}`);
   }
   return { folderId: home.folderId, tomlFileId: toml.fileId, agentMdFileId: md.fileId };
 }
 
-type CreateInput = { name: string; role?: string; face?: string; model?: string; ownerId?: string; computer?: boolean; templateKey?: string; tools?: { allowed: string[]; denied: string[] }; limits?: Limits; projectId?: string; threadId?: string; idempotencyKey?: string };
+type CreateInput = {
+  name: string;
+  role?: string;
+  face?: string;
+  model?: string;
+  ownerId?: string;
+  computer?: boolean;
+  templateKey?: string;
+  tools?: { allowed: string[]; denied: string[] };
+  limits?: Limits;
+  projectId?: string;
+  threadId?: string;
+  idempotencyKey?: string;
+};
 
 /** agents.create: a teammate when it names a project, otherwise an agent of the Space. A private assistant is never asked for: only a person's account makes one (onPersonCreated). */
-export const create = (ctx: AgentsCtx, input: CreateInput) => make(ctx, input, input.projectId !== undefined || input.threadId !== undefined ? "teammate" : "agent");
+export const create = (ctx: AgentsCtx, input: CreateInput) =>
+  make(ctx, input, input.projectId !== undefined || input.threadId !== undefined ? "teammate" : "agent");
 
 /** agents.outside.connect: the agent an app becomes when a person allows it. Only the sign-in reaches this: a nested call from mcp.oauth.allow, as that person. */
 export async function connectOutside(ctx: AgentsCtx, input: { clientName: string }) {
-  if ((ctx.depth ?? 0) < 1 || ctx.forwarded === true || ctx.principal.kind !== "person") raise(ctx, "permission.no_grant", "An outside agent is made by a person allowing it to join.");
+  if ((ctx.depth ?? 0) < 1 || ctx.forwarded === true || ctx.principal.kind !== "person")
+    raise(ctx, "permission.no_grant", "An outside agent is made by a person allowing it to join.");
   ensure(ctx.db);
-  const made = await make(ctx, { name: await outsideName(ctx, input.clientName), role: "Runs outside Vyre", face: outsideFace(ctx) }, "agent", "outside");
+  const made = await make(
+    ctx,
+    { name: await outsideName(ctx, input.clientName), role: "Runs outside Vyre", face: outsideFace(ctx) },
+    "agent",
+    "outside",
+  );
   const agent = made.agent as { agentId: string; name: string };
   return { agentId: agent.agentId, name: agent.name };
 }
@@ -197,22 +383,42 @@ export async function connectOutside(ctx: AgentsCtx, input: { clientName: string
 async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime: AgentRuntime = "vyre") {
   ensure(ctx.db);
   const name = input.name.trim().replace(/\s+/g, " ");
-  if (name === "" || name.length > MAX_NAME || NAME_BAD.test(name) || name.startsWith(".")) raise(ctx, "validation.bad_input", `An agent's name is up to ${MAX_NAME} characters with none of / \\ : * ? " < > | and no dot at the start.`);
-  if (input.role !== undefined && (input.role.length > MAX_ROLE || input.role.includes("\n"))) raise(ctx, "validation.bad_input", `The role line is one line of up to ${MAX_ROLE} characters.`);
-  if (agentByName(ctx.db, name)) raise(ctx, "validation.duplicate", "An agent with that name already exists.", { name });
-  if (input.projectId !== undefined && input.threadId !== undefined) raise(ctx, "validation.bad_input", "An agent belongs to a project or to a chat, not both.");
+  if (name === "" || name.length > MAX_NAME || NAME_BAD.test(name) || name.startsWith("."))
+    raise(
+      ctx,
+      "validation.bad_input",
+      `An agent's name is up to ${MAX_NAME} characters with none of / \\ : * ? " < > | and no dot at the start.`,
+    );
+  if (input.role !== undefined && (input.role.length > MAX_ROLE || input.role.includes("\n")))
+    raise(ctx, "validation.bad_input", `The role line is one line of up to ${MAX_ROLE} characters.`);
+  if (agentByName(ctx.db, name))
+    raise(ctx, "validation.duplicate", "An agent with that name already exists.", { name });
+  if (input.projectId !== undefined && input.threadId !== undefined)
+    raise(ctx, "validation.bad_input", "An agent belongs to a project or to a chat, not both.");
   // an agent made for a chat: the chat must be one the maker can open (threads.get answers not found for one they cannot)
   if (input.threadId !== undefined) await call(ctx, "threads.get", { threadId: input.threadId });
   const owner = input.ownerId ?? askerOf(ctx);
-  if (!owner.startsWith("usr_")) raise(ctx, "validation.bad_input", "An agent's owner is a person.", { ownerId: owner });
+  if (!owner.startsWith("usr_"))
+    raise(ctx, "validation.bad_input", "An agent's owner is a person.", { ownerId: owner });
   // naming someone else as the owner hands them an agent and grants on its folder: that is for whoever manages access (owner and admin, permission access.manage), not for any member
-  if (owner !== askerOf(ctx) && (!ctx.authorize || ctx.authorize({ perm: "access.manage", level: "manage" }, { type: "space", id: ctx.space }).effect !== "allow")) {   // no authorize means no answer: refuse
-    raise(ctx, "permission.no_grant", "Only an owner or an admin can make someone else the owner of an agent.", { ownerId: owner });
+  if (
+    owner !== askerOf(ctx) &&
+    (!ctx.authorize ||
+      ctx.authorize({ perm: "access.manage", level: "manage" }, { type: "space", id: ctx.space }).effect !== "allow")
+  ) {
+    // no authorize means no answer: refuse
+    raise(ctx, "permission.no_grant", "Only an owner or an admin can make someone else the owner of an agent.", {
+      ownerId: owner,
+    });
   }
-  if (input.limits) for (const [k, v] of Object.entries(input.limits)) if (!LIMIT_KEYS.includes(k as keyof Limits) || typeof v !== "number" || v < 0) raise(ctx, "validation.bad_input", `${k} is not a limit, or is not a number of zero or more.`);
+  if (input.limits)
+    for (const [k, v] of Object.entries(input.limits))
+      if (!LIMIT_KEYS.includes(k as keyof Limits) || typeof v !== "number" || v < 0)
+        raise(ctx, "validation.bad_input", `${k} is not a limit, or is not a number of zero or more.`);
   const config = newConfig({ name, role: input.role, model: input.model, tools: input.tools, limits: input.limits });
   const checked = checkToml(tomlFor(writeConfig({}, config)), { self: name });
-  if (!checked.ok) raise(ctx, "validation.bad_input", checked.errors[0]?.message ?? "That configuration does not pass.");
+  if (!checked.ok)
+    raise(ctx, "validation.bad_input", checked.errors[0]?.message ?? "That configuration does not pass.");
 
   const now = ctx.now();
   const id = mintId("agt", now);
@@ -220,17 +426,54 @@ async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime
   const template = await readTemplate(ctx);
   const starter = template.items.find((i) => i.kind === "file" && i.path === "AGENT.md")?.text;
   // the private assistant is the person's own, above any one Space: it starts from its own AGENT.md, never from the Space's Agent template
-  const agentMd = starter !== undefined && kind !== "assistant" ? starter.replaceAll("{{name}}", name).replaceAll("{{role}}", input.role?.trim() ?? "") : AGENT_MD_DEFAULT(name, input.role, kind);
+  const agentMd =
+    starter !== undefined && kind !== "assistant"
+      ? starter.replaceAll("{{name}}", name).replaceAll("{{role}}", input.role?.trim() ?? "")
+      : AGENT_MD_DEFAULT(name, input.role, kind);
   const tree = await createTree(ctx, id, name, tomlText, agentMd);
   const rec: AgentRec = {
-    id, name, kind, runtime, ...(input.projectId !== undefined ? { projectId: input.projectId } : {}), ...(input.threadId !== undefined ? { threadId: input.threadId } : {}), face: input.face?.trim() || slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: input.computer === true,
-    templateVersion: await templateVersion(ctx, template), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
+    id,
+    name,
+    kind,
+    runtime,
+    ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+    ...(input.threadId !== undefined ? { threadId: input.threadId } : {}),
+    face: input.face?.trim() || slug(name),
+    ownerId: owner,
+    folderId: tree.folderId,
+    tomlFileId: tree.tomlFileId,
+    agentMdFileId: tree.agentMdFileId,
+    tomlText,
+    config,
+    hasComputer: input.computer === true,
+    templateVersion: await templateVersion(ctx, template),
+    paused: false,
+    working: 0,
+    lastActiveAt: now,
+    createdAt: now,
+    updatedAt: now,
   };
   insertAgent(ctx.db, rec);
   const priv = isPrivateAgent(rec);
-  ctx.emit("agent.created", id, { agentId: id, name, ownerId: owner, folderId: tree.folderId, templateVersion: rec.templateVersion, ...(priv ? { private: true } : {}) });
+  ctx.emit("agent.created", id, {
+    agentId: id,
+    name,
+    ownerId: owner,
+    folderId: tree.folderId,
+    templateVersion: rec.templateVersion,
+    ...(priv ? { private: true } : {}),
+  });
   // access names a private agent as its person to everyone else ("Irfad Imtiaz (Agent)"); this is what tells it
-  if (priv) { ctx.emit("agent.privacy_set", id, { agentId: id, ownerId: owner, private: true, ...(isAssistant(rec) ? { assistant: true } : {}) }); setMeta(ctx.db, `privacy:${id}`, "1"); if (isAssistant(rec)) setMeta(ctx.db, `assistant:${id}`, "1"); }
+  if (priv) {
+    ctx.emit("agent.privacy_set", id, {
+      agentId: id,
+      ownerId: owner,
+      private: true,
+      ...(isAssistant(rec) ? { assistant: true } : {}),
+    });
+    setMeta(ctx.db, `privacy:${id}`, "1");
+    if (isAssistant(rec)) setMeta(ctx.db, `assistant:${id}`, "1");
+  }
   return { agent: agentView(rec, now) };
 }
 
@@ -239,13 +482,21 @@ async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime
 /** Rename the folder with the agent. A name that is taken there is taken here too. */
 async function renameFolder(ctx: AgentsCtx, a: AgentRec, name: string): Promise<void> {
   if (a.folderId === undefined) return;
-  try { await call(ctx, "files.folder.rename", { folderId: a.folderId, name }); } catch (e) {
-    if (codeOf(e) === "validation.duplicate") raise(ctx, "validation.bad_input", "A folder with that name already exists.", { name });
+  try {
+    await call(ctx, "files.folder.rename", { folderId: a.folderId, name });
+  } catch (e) {
+    if (codeOf(e) === "validation.duplicate")
+      raise(ctx, "validation.bad_input", "A folder with that name already exists.", { name });
     throw e;
   }
 }
 
-async function saveToml(ctx: AgentsCtx, a: AgentRec, text: string, reason: string): Promise<{ versionId: string; n: number }> {
+async function saveToml(
+  ctx: AgentsCtx,
+  a: AgentRec,
+  text: string,
+  reason: string,
+): Promise<{ versionId: string; n: number }> {
   if (a.tomlFileId === undefined) raise(ctx, "validation.bad_input", "This agent has no agent.toml yet.");
   return saveFile(ctx, a.tomlFileId, text, reason);
 }
@@ -258,11 +509,26 @@ export async function update(ctx: AgentsCtx, input: { agentId: string; patch: Re
   if (!res.ok) raise(ctx, res.code, res.message);
   if (res.fields.length === 0) return { agent: agentOut(a, ctx.now()) };
   // The Chat key (owner, 3 Nov): paying for every person's chats with one Space account instead of each person's own is an override that only people who manage the Space's AI accounts set
-  if ((res.fields.includes("accountPolicy") || res.fields.includes("accountKey")) && !isHostService(ctx.principal) && !isAdmin(ctx)) raise(ctx, "permission.no_grant", "Only people who manage the Space's AI accounts can make an agent pay for chats with one account.", { reason: "chat_key_admin" });
+  if (
+    (res.fields.includes("accountPolicy") || res.fields.includes("accountKey")) &&
+    !isHostService(ctx.principal) &&
+    !isAdmin(ctx)
+  )
+    raise(
+      ctx,
+      "permission.no_grant",
+      "Only people who manage the Space's AI accounts can make an agent pay for chats with one account.",
+      { reason: "chat_key_admin" },
+    );
   const newName = res.config.name;
   // Can edit changes AGENT.md, skills and memory settings; renaming belongs with Can manage (the Share sheet's four levels)
-  if (res.fields.includes("name") && !(a.ownerId === askerOf(ctx) || allows(ctx, null, "manage", "agent", a.id) || isHostService(ctx.principal))) raise(ctx, "permission.no_grant", "Renaming an agent needs Can manage on it.", { reason: "rename_needs_manage" });
-  if (nameKey(newName) !== nameKey(a.name) && agentByName(ctx.db, newName)) raise(ctx, "validation.bad_input", "An agent with that name already exists.", { name: newName });
+  if (
+    res.fields.includes("name") &&
+    !(a.ownerId === askerOf(ctx) || allows(ctx, null, "manage", "agent", a.id) || isHostService(ctx.principal))
+  )
+    raise(ctx, "permission.no_grant", "Renaming an agent needs Can manage on it.", { reason: "rename_needs_manage" });
+  if (nameKey(newName) !== nameKey(a.name) && agentByName(ctx.db, newName))
+    raise(ctx, "validation.bad_input", "An agent with that name already exists.", { name: newName });
   const text = tomlFor(res.doc);
   const checked = checkToml(text, { self: newName });
   if (!checked.ok) raise(ctx, "validation.bad_input", checked.errors[0]?.message ?? "That does not pass.");
@@ -274,8 +540,14 @@ export async function update(ctx: AgentsCtx, input: { agentId: string; patch: Re
   }
   const now = ctx.now();
   storeConfig(ctx.db, a.id, { name: newName, text, config: res.config, versionId, at: now });
-  if (res.face !== undefined) ctx.db.run("UPDATE agents_agent SET face = ?, updatedAt = ? WHERE id = ?", res.face, now, a.id);
-  ctx.emit("agent.config_changed", a.id, { agentId: a.id, fields: res.fields, ...(versionId !== undefined ? { versionId } : {}), by: by(ctx) });
+  if (res.face !== undefined)
+    ctx.db.run("UPDATE agents_agent SET face = ?, updatedAt = ? WHERE id = ?", res.face, now, a.id);
+  ctx.emit("agent.config_changed", a.id, {
+    agentId: a.id,
+    fields: res.fields,
+    ...(versionId !== undefined ? { versionId } : {}),
+    by: by(ctx),
+  });
   return { agent: agentOut(agentBy(ctx.db, a.id)!, now) };
 }
 
@@ -284,7 +556,8 @@ export async function roleLineSet(ctx: AgentsCtx, input: { agentId: string; desc
   // Without Edit the role line is read-only (a lock on hover in the UI): the call is refused here the same way.
   mustChangeSettings(ctx, a);
   const text = input.description.trim();
-  if (text.includes("\n") || input.description.length > MAX_ROLE) raise(ctx, "validation.bad_input", `The role line is one line of up to ${MAX_ROLE} characters.`);
+  if (text.includes("\n") || input.description.length > MAX_ROLE)
+    raise(ctx, "validation.bad_input", `The role line is one line of up to ${MAX_ROLE} characters.`);
   if (a.tomlFileId === undefined) raise(ctx, "validation.bad_input", "This agent has no agent.toml yet.");
   // The version before the edit is what inline Undo restores.
   const before = await versionsOf(ctx, a.tomlFileId);
@@ -295,7 +568,13 @@ export async function roleLineSet(ctx: AgentsCtx, input: { agentId: string; desc
   if (!res.ok) raise(ctx, res.code, res.message);
   const toml = tomlFor(res.doc);
   const saved = await saveToml(ctx, a, toml, "Changed the role line");
-  storeConfig(ctx.db, a.id, { name: a.name, text: toml, config: res.config, versionId: saved.versionId, at: ctx.now() });
+  storeConfig(ctx.db, a.id, {
+    name: a.name,
+    text: toml,
+    config: res.config,
+    versionId: saved.versionId,
+    at: ctx.now(),
+  });
   ctx.emit("agent.config_changed", a.id, { agentId: a.id, fields: ["role"], versionId: saved.versionId, by: by(ctx) });
   return { agent: agentOut(agentBy(ctx.db, a.id)!, ctx.now()), undoVersionId: undo.versionId };
 }
@@ -309,13 +588,15 @@ export async function instructionAppend(ctx: AgentsCtx, input: { agentId: string
   const a = visible(ctx, input.agentId);
   mustChangeSettings(ctx, a);
   const line = input.line.replace(/\s+/g, " ").trim();
-  if (line === "" || line.length > MAX_LESSON_LINE) raise(ctx, "validation.bad_input", `An instruction is one line of up to ${MAX_LESSON_LINE} characters.`);
+  if (line === "" || line.length > MAX_LESSON_LINE)
+    raise(ctx, "validation.bad_input", `An instruction is one line of up to ${MAX_LESSON_LINE} characters.`);
   if (a.agentMdFileId === undefined) raise(ctx, "validation.bad_input", "This agent has no AGENT.md yet.");
   const before = await versionsOf(ctx, a.agentMdFileId);
   const undo = [...before].sort((x, y) => y.n - x.n)[0];
-  const text = ((await call<{ text?: string }>(ctx, "files.read", { fileId: a.agentMdFileId, as: "text" })).text) ?? "";
+  const text = (await call<{ text?: string }>(ctx, "files.read", { fileId: a.agentMdFileId, as: "text" })).text ?? "";
   const bullet = `- ${line}`;
-  if (text.split("\n").some((l) => l.trim() === bullet)) return { agent: agentOut(a, ctx.now()), added: false, ...(undo ? { undoVersionId: undo.versionId } : {}) };
+  if (text.split("\n").some((l) => l.trim() === bullet))
+    return { agent: agentOut(a, ctx.now()), added: false, ...(undo ? { undoVersionId: undo.versionId } : {}) };
   const at = text.indexOf(LESSONS_HEADING);
   let next: string;
   if (at < 0) next = `${text.replace(/\s+$/, "")}\n\n${LESSONS_HEADING}\n\n${bullet}\n`;
@@ -327,19 +608,42 @@ export async function instructionAppend(ctx: AgentsCtx, input: { agentId: string
     next = `${text.slice(0, end).replace(/\s+$/, "")}\n${bullet}\n${stop < 0 ? "" : text.slice(end)}`;
   }
   const saved = await saveFile(ctx, a.agentMdFileId, next, "Made a lesson an instruction");
-  ctx.emit("agent.config_changed", a.id, { agentId: a.id, fields: ["AGENT.md"], versionId: saved.versionId, by: by(ctx) });
-  return { agent: agentOut(agentBy(ctx.db, a.id)!, ctx.now()), added: true, versionId: saved.versionId, ...(undo ? { undoVersionId: undo.versionId } : {}) };
+  ctx.emit("agent.config_changed", a.id, {
+    agentId: a.id,
+    fields: ["AGENT.md"],
+    versionId: saved.versionId,
+    by: by(ctx),
+  });
+  return {
+    agent: agentOut(agentBy(ctx.db, a.id)!, ctx.now()),
+    added: true,
+    versionId: saved.versionId,
+    ...(undo ? { undoVersionId: undo.versionId } : {}),
+  };
 }
 
 // ---- lifecycle -----------------------------------------------------------------------------------------------------------------------------------------------
 
 export async function pause(ctx: AgentsCtx, input: { agentId: string; reason?: string }) {
   const a = visible(ctx, input.agentId);
-  if (isOutside(a)) raise(ctx, "validation.precondition_failed", "An outside agent runs on its own computer, so it cannot be paused from here. Remove it to end its access.", { reason: "outside" });
+  if (isOutside(a))
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      "An outside agent runs on its own computer, so it cannot be paused from here. Remove it to end its access.",
+      { reason: "outside" },
+    );
   if (a.paused) return { agent: agentOut(a, ctx.now()) };
   const now = ctx.now();
   const reason = input.reason?.trim() || undefined;
-  ctx.db.run("UPDATE agents_agent SET paused = 1, pausedReason = ?, pausedBy = ?, pausedAt = ?, updatedAt = ? WHERE id = ?", reason ?? null, by(ctx), now, now, a.id);
+  ctx.db.run(
+    "UPDATE agents_agent SET paused = 1, pausedReason = ?, pausedBy = ?, pausedAt = ?, updatedAt = ? WHERE id = ?",
+    reason ?? null,
+    by(ctx),
+    now,
+    now,
+    a.id,
+  );
   ctx.emit("agent.paused", a.id, { agentId: a.id, ...(reason !== undefined ? { reason } : {}), by: by(ctx) });
   return { agent: agentOut(agentBy(ctx.db, a.id)!, now) };
 }
@@ -348,7 +652,12 @@ export async function resume(ctx: AgentsCtx, input: { agentId: string }) {
   const a = visible(ctx, input.agentId);
   if (!a.paused) return { agent: agentOut(a, ctx.now()) };
   const now = ctx.now();
-  ctx.db.run("UPDATE agents_agent SET paused = 0, pausedReason = NULL, pausedBy = NULL, pausedAt = NULL, lastActiveAt = ?, updatedAt = ? WHERE id = ?", now, now, a.id);
+  ctx.db.run(
+    "UPDATE agents_agent SET paused = 0, pausedReason = NULL, pausedBy = NULL, pausedAt = NULL, lastActiveAt = ?, updatedAt = ? WHERE id = ?",
+    now,
+    now,
+    a.id,
+  );
   ctx.emit("agent.resumed", a.id, { agentId: a.id, by: by(ctx) });
   return { agent: agentOut(agentBy(ctx.db, a.id)!, now) };
 }
@@ -368,7 +677,13 @@ export async function remove(ctx: AgentsCtx, input: { agentId: string }) {
   const found = agentBy(ctx.db, input.agentId);
   const a = found && governs(ctx, found) ? found : visible(ctx, input.agentId);
   // every person has one assistant for as long as they are here; it ends with them (onPersonLeft), never by a press or by an agent
-  if (isAssistant(a)) raise(ctx, "validation.precondition_failed", "Your assistant stays with you. Rename it or change what it does instead.", { reason: "assistant_stays" });
+  if (isAssistant(a))
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      "Your assistant stays with you. Rename it or change what it does instead.",
+      { reason: "assistant_stays" },
+    );
   await retire(ctx, a, by(ctx));
   return { deleted: true };
 }
@@ -376,39 +691,98 @@ export async function remove(ctx: AgentsCtx, input: { agentId: string }) {
 /** Hand an agent to another person. Whoever manages the agent (its owner, or an admin) may; the new owner must be an active person. The agent's folder and the agent itself change owner with it (ruling 88), and the previous owner keeps nothing on them. */
 export async function setOwner(ctx: AgentsCtx, input: { agentId: string; ownerId: string }) {
   const a = visible(ctx, input.agentId);
-  if (!input.ownerId.startsWith("usr_")) raise(ctx, "validation.bad_input", "An agent's owner is a person.", { ownerId: input.ownerId });
+  if (!input.ownerId.startsWith("usr_"))
+    raise(ctx, "validation.bad_input", "An agent's owner is a person.", { ownerId: input.ownerId });
   if (input.ownerId === a.ownerId) return { agent: agentOut(a, ctx.now()) };
   // it acts for the person who pressed Allow, on that person's machine: it cannot change hands
-  if (isOutside(a)) raise(ctx, "validation.precondition_failed", "An outside agent stays with the person who connected it.", { reason: "outside" });
+  if (isOutside(a))
+    raise(ctx, "validation.precondition_failed", "An outside agent stays with the person who connected it.", {
+      reason: "outside",
+    });
   // a person's Assistant is theirs for as long as they are here: it never changes hands
-  if (isAssistant(a)) raise(ctx, "validation.precondition_failed", "An Assistant stays with its person. Make a team agent to hand over instead.", { reason: "assistant_stays" });
-  const who = await tolerant<{ principal?: { status?: string; kind?: string; name?: string } }>(ctx, "access.principals.get", { principal: { kind: "person", id: input.ownerId } }, {});
-  if (who.principal?.kind !== "person" || who.principal.status !== "active") raise(ctx, "validation.bad_input", "The new owner has to be an active person in this Space.", { ownerId: input.ownerId });
-  const from = a.ownerId, now = ctx.now();
+  if (isAssistant(a))
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      "An Assistant stays with its person. Make a team agent to hand over instead.",
+      { reason: "assistant_stays" },
+    );
+  const who = await tolerant<{ principal?: { status?: string; kind?: string; name?: string } }>(
+    ctx,
+    "access.principals.get",
+    { principal: { kind: "person", id: input.ownerId } },
+    {},
+  );
+  if (who.principal?.kind !== "person" || who.principal.status !== "active")
+    raise(ctx, "validation.bad_input", "The new owner has to be an active person in this Space.", {
+      ownerId: input.ownerId,
+    });
+  const from = a.ownerId,
+    now = ctx.now();
   if (!ctx.call) raise(ctx, "internal.unavailable", "Ownership cannot be moved right now.");
   // the folder and the agent change owner first, and strictly: if any move fails, the ones already made are put back and nothing changes
-  const resources = [{ type: "agent", id: a.id }, ...(a.folderId !== undefined ? [{ type: "folder", id: a.folderId }] : [])];
+  const resources = [
+    { type: "agent", id: a.id },
+    ...(a.folderId !== undefined ? [{ type: "folder", id: a.folderId }] : []),
+  ];
   const moved: { type: string; id: string }[] = [];
   try {
-    for (const resource of resources) { await ctx.call("access.transfer_ownership", { resource, from, to: input.ownerId }); moved.push(resource); }
+    for (const resource of resources) {
+      await ctx.call("access.transfer_ownership", { resource, from, to: input.ownerId });
+      moved.push(resource);
+    }
   } catch (e) {
     for (const resource of moved) {
-      try { await ctx.call("access.transfer_ownership", { resource, from: input.ownerId, to: from }); }
-      catch (back) { ctx.log.error("agents: could not put an ownership move back, the agent is half handed over", { agentId: a.id, resource, from: input.ownerId, to: from, error: back instanceof Error ? back.message.slice(0, 200) : "error" }); }   // the original failure is still the one raised
+      try {
+        await ctx.call("access.transfer_ownership", { resource, from: input.ownerId, to: from });
+      } catch (back) {
+        ctx.log.error("agents: could not put an ownership move back, the agent is half handed over", {
+          agentId: a.id,
+          resource,
+          from: input.ownerId,
+          to: from,
+          error: back instanceof Error ? back.message.slice(0, 200) : "error",
+        });
+      } // the original failure is still the one raised
     }
-    raise(ctx, "internal.unexpected", "The agent could not be handed over, so nothing changed. Try again.", { cause: e instanceof Error ? e.message.slice(0, 120) : "error" });
+    raise(ctx, "internal.unexpected", "The agent could not be handed over, so nothing changed. Try again.", {
+      cause: e instanceof Error ? e.message.slice(0, 120) : "error",
+    });
   }
   ctx.db.run("UPDATE agents_agent SET ownerId = ?, updatedAt = ? WHERE id = ?", input.ownerId, now, a.id);
   // Routines the previous owner set on this agent ran as them: they pause, so they neither go on acting for someone who gave the agent away nor start acting for the new owner unasked.
   // The previous owner still sees them in their list, off.
-  const off = (ctx.db.all("SELECT id, title FROM agents_routine WHERE agentId = ? AND ownerId = ? AND enabled = 1 ORDER BY createdAt, id", a.id, from) as Row[]).map((r) => ({ id: String(r["id"]), title: String(r["title"]) }));
-  ctx.db.run("UPDATE agents_routine SET enabled = 0, updatedAt = ? WHERE agentId = ? AND ownerId = ? AND enabled = 1", now, a.id, from);
+  const off = (
+    ctx.db.all(
+      "SELECT id, title FROM agents_routine WHERE agentId = ? AND ownerId = ? AND enabled = 1 ORDER BY createdAt, id",
+      a.id,
+      from,
+    ) as Row[]
+  ).map((r) => ({ id: String(r["id"]), title: String(r["title"]) }));
+  ctx.db.run(
+    "UPDATE agents_routine SET enabled = 0, updatedAt = ? WHERE agentId = ? AND ownerId = ? AND enabled = 1",
+    now,
+    a.id,
+    from,
+  );
   // the previous owner hears it once, in Needs you (lead 12 Nov): "Scout now belongs to Noah, so your routine 'Morning digest' on it is off."
   if (off.length > 0) {
     const titles = off.map((r) => `'${r.title}'`);
-    const list = titles.length === 1 ? titles[0]! : `${titles.slice(0, -1).join(", ")} and ${titles[titles.length - 1]!}`;
+    const list =
+      titles.length === 1 ? titles[0]! : `${titles.slice(0, -1).join(", ")} and ${titles[titles.length - 1]!}`;
     const line = `${a.name} now belongs to ${who.principal?.name ?? input.ownerId}, so your ${off.length === 1 ? "routine" : "routines"} ${list} on it ${off.length === 1 ? "is" : "are"} off.`;
-    await tolerant(ctx, "tasks.create", { kind: "work", title: line.slice(0, 300), assigned: { kind: "person", id: from }, due: now, idempotencyKey: `routines-off:${a.id}:${from}:${now}` }, null);   // due now: Needs you shows it today
+    await tolerant(
+      ctx,
+      "tasks.create",
+      {
+        kind: "work",
+        title: line.slice(0, 300),
+        assigned: { kind: "person", id: from },
+        due: now,
+        idempotencyKey: `routines-off:${a.id}:${from}:${now}`,
+      },
+      null,
+    ); // due now: Needs you shows it today
   }
   ctx.emit("agent.owner_changed", a.id, { agentId: a.id, from, to: input.ownerId, by: by(ctx) });
   return { agent: agentOut(agentBy(ctx.db, a.id)!, now) };
@@ -419,7 +793,8 @@ export async function restore(ctx: AgentsCtx, input: { agentId: string }) {
   const a = agentBy(ctx.db, input.agentId, true);
   if (!a) raise(ctx, "validation.not_found", "That agent does not exist.");
   if (a.deletedAt === undefined) return { agent: agentOut(a, ctx.now()) };
-  if (agentByName(ctx.db, a.name)) raise(ctx, "validation.bad_input", "Another agent has this name now. Rename that one first.", { name: a.name });
+  if (agentByName(ctx.db, a.name))
+    raise(ctx, "validation.bad_input", "Another agent has this name now. Rename that one first.", { name: a.name });
   const now = ctx.now();
   if (a.folderId !== undefined) await tolerant(ctx, "files.folder.restore", { folderId: a.folderId }, null);
   ctx.db.run("UPDATE agents_agent SET deletedAt = NULL, updatedAt = ? WHERE id = ?", now, a.id);
@@ -429,15 +804,25 @@ export async function restore(ctx: AgentsCtx, input: { agentId: string }) {
 
 // ---- configuration -------------------------------------------------------------------------------------------------------------------------------------------
 
-const lineCount = (t: string): number => (t === "" ? 0 : t.endsWith("\n") ? t.split("\n").length - 1 : t.split("\n").length);
+const lineCount = (t: string): number =>
+  t === "" ? 0 : t.endsWith("\n") ? t.split("\n").length - 1 : t.split("\n").length;
 
 /** The newest agent.toml, judged: valid becomes the effective configuration, invalid is reported and the last good one stays. */
-export async function currentToml(ctx: AgentsCtx, a: AgentRec): Promise<{ config: AgentConfig; error?: { line?: number; message: string }; text: string }> {
+export async function currentToml(
+  ctx: AgentsCtx,
+  a: AgentRec,
+): Promise<{ config: AgentConfig; error?: { line?: number; message: string }; text: string }> {
   if (a.tomlFileId === undefined) return { config: a.config, text: a.tomlText };
   let text: string;
-  try { text = await textOf(ctx, a.tomlFileId); } catch { return { config: a.config, text: a.tomlText, ...(a.configError ? { error: a.configError } : {}) }; }
+  try {
+    text = await textOf(ctx, a.tomlFileId);
+  } catch {
+    return { config: a.config, text: a.tomlText, ...(a.configError ? { error: a.configError } : {}) };
+  }
   if (text === a.tomlText) return { config: a.config, text, ...(a.configError ? { error: a.configError } : {}) };
-  const names = (await tolerant<{ agents?: Array<{ name: string }> }>(ctx, "agents.list", {}, {})).agents?.map((x) => x.name);
+  const names = (await tolerant<{ agents?: Array<{ name: string }> }>(ctx, "agents.list", {}, {})).agents?.map(
+    (x) => x.name,
+  );
   const checked = checkToml(text, { ...(names ? { agentNames: names } : {}), self: a.name });
   if (checked.ok && checked.config) return { config: checked.config, text };
   const first = checked.errors[0];
@@ -447,24 +832,39 @@ export async function currentToml(ctx: AgentsCtx, a: AgentRec): Promise<{ config
 export async function configGet(ctx: AgentsCtx, input: { agentId: string }) {
   const a = visible(ctx, input.agentId);
   const cur = await currentToml(ctx, a);
-  const readText = async (fileId: string | undefined): Promise<string> => (fileId === undefined ? "" : String((await tolerant<{ text?: string }>(ctx, "files.read", { fileId, as: "text" }, {})).text ?? ""));
-  const space = await tolerant<{ files?: Array<{ fileId: string; name: string }> }>(ctx, "files.list", { section: "space", limit: 200 }, {});
+  const readText = async (fileId: string | undefined): Promise<string> =>
+    fileId === undefined
+      ? ""
+      : String((await tolerant<{ text?: string }>(ctx, "files.read", { fileId, as: "text" }, {})).text ?? "");
+  const space = await tolerant<{ files?: Array<{ fileId: string; name: string }> }>(
+    ctx,
+    "files.list",
+    { section: "space", limit: 200 },
+    {},
+  );
   const vyre = (space.files ?? []).find((f) => f.name === "VYRE.md");
   return {
     effective: (seesSetup(ctx, a) ? cur.config : withoutSetup(cur.config)) as unknown as Record<string, unknown>,
     ...(a.lastGoodVersionId !== undefined ? { lastGoodVersionId: a.lastGoodVersionId } : {}),
-    ...(cur.error ? { error: { ...(cur.error.line !== undefined ? { line: cur.error.line } : {}), message: cur.error.message } } : {}),
+    ...(cur.error
+      ? { error: { ...(cur.error.line !== undefined ? { line: cur.error.line } : {}), message: cur.error.message } }
+      : {}),
     lines: { agentMd: lineCount(await readText(a.agentMdFileId)), vyreMd: lineCount(await readText(vyre?.fileId)) },
   };
 }
 
 export async function configValidate(ctx: AgentsCtx, input: { agentId: string; toml: string }) {
   const a = visible(ctx, input.agentId);
-  const names = (await tolerant<{ agents?: Array<{ name: string }> }>(ctx, "agents.list", {}, {})).agents?.map((x) => x.name);
+  const names = (await tolerant<{ agents?: Array<{ name: string }> }>(ctx, "agents.list", {}, {})).agents?.map(
+    (x) => x.name,
+  );
   const checked = checkToml(input.toml, { ...(names ? { agentNames: names } : {}), self: a.name });
   return {
     ok: checked.ok,
-    errors: [...checked.errors, ...checked.warnings].map((p) => ({ ...(p.line !== undefined ? { line: p.line } : {}), message: p.message })),
+    errors: [...checked.errors, ...checked.warnings].map((p) => ({
+      ...(p.line !== undefined ? { line: p.line } : {}),
+      message: p.message,
+    })),
     widens: checked.ok && checked.config ? widenings(a.config, checked.config) : [],
   };
 }
@@ -475,32 +875,67 @@ export async function configValidate(ctx: AgentsCtx, input: { agentId: string; t
  */
 export async function configMaySave(ctx: AgentsCtx, input: { fileId: string }) {
   ensure(ctx.db);
-  const row = (ctx.db.all("SELECT * FROM agents_agent WHERE tomlFileId = ? ORDER BY deletedAt IS NULL DESC LIMIT 1", input.fileId) as Row[])[0];
+  const row = (
+    ctx.db.all(
+      "SELECT * FROM agents_agent WHERE tomlFileId = ? ORDER BY deletedAt IS NULL DESC LIMIT 1",
+      input.fileId,
+    ) as Row[]
+  )[0];
   if (!row) return { agentId: null, allowed: true };
   const a = agentOf(row);
   const why = settingsRefusal(ctx, a);
   // which agent the file belongs to is said only to someone who may see that agent
   const agentId = canSee(ctx, a) ? a.id : null;
   if (why === null) return { agentId, allowed: true };
-  return { agentId, allowed: false, reason: why === "outside" ? "person_only" : "no_edit", message: why === "outside"
-    ? "agent.toml is this agent's settings, and only a person can change an agent's settings. Ask the person you act for, or suggest the change with agents.suggestion.propose."
-    : "agent.toml is this agent's settings, and you can read this agent but not change it. Suggest the change with agents.suggestion.propose, or ask someone who can edit the agent." };
+  return {
+    agentId,
+    allowed: false,
+    reason: why === "outside" ? "person_only" : "no_edit",
+    message:
+      why === "outside"
+        ? "agent.toml is this agent's settings, and only a person can change an agent's settings. Ask the person you act for, or suggest the change with agents.suggestion.propose."
+        : "agent.toml is this agent's settings, and you can read this agent but not change it. Suggest the change with agents.suggestion.propose, or ask someone who can edit the agent.",
+  };
 }
 
 export async function limitsGet(ctx: AgentsCtx, input: { agentId: string }) {
   const a = visible(ctx, input.agentId);
   if (!seesSetup(ctx, a)) return { limits: {}, source: {} };
-  const caps = async (scope: "space" | "person", scopeId?: string) => (await tolerant<{ caps?: { run?: number; dayMicros?: number; monthMicros?: number; turnsPerDay?: number; timeMinutesPerRun?: number } }>(ctx, "engine.spend.get", { scope, ...(scopeId ? { scopeId } : {}) }, {})).caps ?? {};
-  const space = await caps("space"), person = await caps("person", a.ownerId);
+  const caps = async (scope: "space" | "person", scopeId?: string) =>
+    (
+      await tolerant<{
+        caps?: {
+          run?: number;
+          dayMicros?: number;
+          monthMicros?: number;
+          turnsPerDay?: number;
+          timeMinutesPerRun?: number;
+        };
+      }>(ctx, "engine.spend.get", { scope, ...(scopeId ? { scopeId } : {}) }, {})
+    ).caps ?? {};
+  const space = await caps("space"),
+    person = await caps("person", a.ownerId);
   const capFor = (c: typeof space, k: keyof Limits): number | undefined =>
-    ({ runCostMicros: c.run, dayCostMicros: c.dayMicros, monthCostMicros: c.monthMicros, turnsPerDay: c.turnsPerDay, minutesPerRun: c.timeMinutesPerRun, tokensPerDay: undefined } as Record<keyof Limits, number | undefined>)[k];
+    (
+      ({
+        runCostMicros: c.run,
+        dayCostMicros: c.dayMicros,
+        monthCostMicros: c.monthMicros,
+        turnsPerDay: c.turnsPerDay,
+        minutesPerRun: c.timeMinutesPerRun,
+        tokensPerDay: undefined,
+      }) as Record<keyof Limits, number | undefined>
+    )[k];
   const limits: Limits = {};
   const source: Record<string, "agent" | "person" | "space"> = {};
   for (const k of LIMIT_KEYS) {
     const candidates: Array<[number, "agent" | "person" | "space"]> = [];
-    const own = a.config.limits[k]; if (own !== undefined) candidates.push([own, "agent"]);
-    const p = capFor(person, k); if (p !== undefined) candidates.push([p, "person"]);
-    const s = capFor(space, k); if (s !== undefined) candidates.push([s, "space"]);
+    const own = a.config.limits[k];
+    if (own !== undefined) candidates.push([own, "agent"]);
+    const p = capFor(person, k);
+    if (p !== undefined) candidates.push([p, "person"]);
+    const s = capFor(space, k);
+    if (s !== undefined) candidates.push([s, "space"]);
     if (candidates.length === 0) continue;
     // agent.toml can never exceed a cap: the smallest wins, and the answer says whose it is
     const [v, who] = candidates.reduce((m, c) => (c[0] < m[0] ? c : m));
@@ -513,24 +948,46 @@ export async function limitsGet(ctx: AgentsCtx, input: { agentId: string }) {
 export async function snapshotTake(ctx: AgentsCtx, input: { agentId: string; runId?: string }) {
   const a = visible(ctx, input.agentId);
   if (input.runId !== undefined) {
-    const same = (ctx.db.all("SELECT id, version FROM agents_snapshot WHERE agentId = ? AND runId = ?", a.id, input.runId) as Row[])[0];
+    const same = (
+      ctx.db.all("SELECT id, version FROM agents_snapshot WHERE agentId = ? AND runId = ?", a.id, input.runId) as Row[]
+    )[0];
     if (same) return { snapshotId: String(same["id"]), version: Number(same["version"]) };
   }
   const newest = async (fileId: string | undefined): Promise<string | undefined> => {
     if (fileId === undefined) return undefined;
-    try { return [...(await versionsOf(ctx, fileId))].sort((x, y) => y.n - x.n)[0]?.versionId; } catch { return undefined; }
+    try {
+      return [...(await versionsOf(ctx, fileId))].sort((x, y) => y.n - x.n)[0]?.versionId;
+    } catch {
+      return undefined;
+    }
   };
-  const tomlV = await newest(a.tomlFileId), mdV = await newest(a.agentMdFileId);
-  const last = (ctx.db.all("SELECT * FROM agents_snapshot WHERE agentId = ? ORDER BY version DESC LIMIT 1", a.id) as Row[])[0];
+  const tomlV = await newest(a.tomlFileId),
+    mdV = await newest(a.agentMdFileId);
+  const last = (
+    ctx.db.all("SELECT * FROM agents_snapshot WHERE agentId = ? ORDER BY version DESC LIMIT 1", a.id) as Row[]
+  )[0];
   // Nothing changed since the last snapshot and no run asked for its own: the same snapshot serves.
-  if (last && input.runId === undefined && (last["tomlVersionId"] ?? null) === (tomlV ?? null) && (last["agentMdVersionId"] ?? null) === (mdV ?? null) && String(last["config"]) === JSON.stringify(a.config)) {
+  if (
+    last &&
+    input.runId === undefined &&
+    (last["tomlVersionId"] ?? null) === (tomlV ?? null) &&
+    (last["agentMdVersionId"] ?? null) === (mdV ?? null) &&
+    String(last["config"]) === JSON.stringify(a.config)
+  ) {
     return { snapshotId: String(last["id"]), version: Number(last["version"]) };
   }
   const version = last ? Number(last["version"]) + 1 : 1;
   const id = mintId("snp", ctx.now());
   ctx.db.run(
     "INSERT INTO agents_snapshot (id, agentId, version, runId, tomlVersionId, agentMdVersionId, config, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    id, a.id, version, input.runId ?? null, tomlV ?? null, mdV ?? null, JSON.stringify(a.config), ctx.now(),
+    id,
+    a.id,
+    version,
+    input.runId ?? null,
+    tomlV ?? null,
+    mdV ?? null,
+    JSON.stringify(a.config),
+    ctx.now(),
   );
   return { snapshotId: id, version };
 }
@@ -538,23 +995,43 @@ export async function snapshotTake(ctx: AgentsCtx, input: { agentId: string; run
 type AgentFile = "AGENT.md" | "agent.toml";
 export async function versions(ctx: AgentsCtx, input: { agentId: string; file?: AgentFile }) {
   const a = visible(ctx, input.agentId);
-  const files: Array<[AgentFile, string | undefined]> = [["agent.toml", a.tomlFileId], ["AGENT.md", a.agentMdFileId]];
+  const files: Array<[AgentFile, string | undefined]> = [
+    ["agent.toml", a.tomlFileId],
+    ["AGENT.md", a.agentMdFileId],
+  ];
   const out: VersionOut[] = [];
   for (const [name, id] of files) {
     if (id === undefined || (input.file !== undefined && input.file !== name)) continue;
     out.push(...(await versionsOf(ctx, id)));
   }
-  return { versions: out.sort((x, y) => y.at - x.at || y.n - x.n).map((v) => ({ versionId: v.versionId, n: v.n, by: v.by, at: v.at, ...(v.reason !== undefined ? { reason: v.reason } : {}), ...(v.name !== undefined ? { name: v.name } : {}) })) };
+  return {
+    versions: out
+      .sort((x, y) => y.at - x.at || y.n - x.n)
+      .map((v) => ({
+        versionId: v.versionId,
+        n: v.n,
+        by: v.by,
+        at: v.at,
+        ...(v.reason !== undefined ? { reason: v.reason } : {}),
+        ...(v.name !== undefined ? { name: v.name } : {}),
+      })),
+  };
 }
 
 export async function restoreVersion(ctx: AgentsCtx, input: { agentId: string; versionId: string; file?: AgentFile }) {
   const a = visible(ctx, input.agentId);
   mustChangeSettings(ctx, a);
   const candidates: Array<[AgentFile, string]> = [];
-  if (a.tomlFileId !== undefined && (input.file === undefined || input.file === "agent.toml")) candidates.push(["agent.toml", a.tomlFileId]);
-  if (a.agentMdFileId !== undefined && (input.file === undefined || input.file === "AGENT.md")) candidates.push(["AGENT.md", a.agentMdFileId]);
+  if (a.tomlFileId !== undefined && (input.file === undefined || input.file === "agent.toml"))
+    candidates.push(["agent.toml", a.tomlFileId]);
+  if (a.agentMdFileId !== undefined && (input.file === undefined || input.file === "AGENT.md"))
+    candidates.push(["AGENT.md", a.agentMdFileId]);
   let target: [AgentFile, string] | undefined;
-  for (const c of candidates) if ((await versionsOf(ctx, c[1])).some((v) => v.versionId === input.versionId)) { target = c; break; }
+  for (const c of candidates)
+    if ((await versionsOf(ctx, c[1])).some((v) => v.versionId === input.versionId)) {
+      target = c;
+      break;
+    }
   if (!target) raise(ctx, "validation.not_found", "That version is not one of this agent's files.");
   const [file, fileId] = target;
   let nextConfig: AgentConfig | undefined, nextText: string | undefined;
@@ -562,17 +1039,33 @@ export async function restoreVersion(ctx: AgentsCtx, input: { agentId: string; v
     // An old version that would not pass today is not brought back: the last good configuration keeps running.
     nextText = await textOf(ctx, fileId, input.versionId);
     const checked = checkToml(nextText, { self: a.name });
-    if (!checked.ok || !checked.config) raise(ctx, "validation.bad_input", `That version of agent.toml does not pass: ${checked.errors[0]?.message ?? "it has an error"}`);
+    if (!checked.ok || !checked.config)
+      raise(
+        ctx,
+        "validation.bad_input",
+        `That version of agent.toml does not pass: ${checked.errors[0]?.message ?? "it has an error"}`,
+      );
     nextConfig = checked.config;
   }
   let restoredId: string;
-  try { restoredId = (await call<{ versionId: string }>(ctx, "files.restore_version", { fileId, versionId: input.versionId })).versionId; } catch (e) {
+  try {
+    restoredId = (
+      await call<{ versionId: string }>(ctx, "files.restore_version", { fileId, versionId: input.versionId })
+    ).versionId;
+  } catch (e) {
     if (codeOf(e) === "validation.not_found") raise(ctx, "validation.not_found", "That version does not exist.");
     throw e;
   }
   const now = ctx.now();
   const fields = nextConfig ? changedFields(a.config, nextConfig) : ["AGENT.md"];
-  if (nextConfig && nextText !== undefined) storeConfig(ctx.db, a.id, { name: nextConfig.name, text: nextText, config: nextConfig, versionId: restoredId, at: now });
+  if (nextConfig && nextText !== undefined)
+    storeConfig(ctx.db, a.id, {
+      name: nextConfig.name,
+      text: nextText,
+      config: nextConfig,
+      versionId: restoredId,
+      at: now,
+    });
   ctx.emit("agent.config_changed", a.id, { agentId: a.id, fields, versionId: restoredId, by: by(ctx) });
   return { agent: agentOut(agentBy(ctx.db, a.id)!, now) };
 }
@@ -580,11 +1073,24 @@ export async function restoreVersion(ctx: AgentsCtx, input: { agentId: string; v
 /** Which fields differ between two configurations, by the names agents.update uses. */
 export function changedFields(a: AgentConfig, b: AgentConfig): string[] {
   const out: string[] = [];
-  const diff = (k: string, x: unknown, y: unknown): void => { if (JSON.stringify(x) !== JSON.stringify(y)) out.push(k); };
-  diff("name", a.name, b.name); diff("role", a.description, b.description); diff("model", a.model, b.model); diff("fallbackModel", a.fallbackModel, b.fallbackModel);
-  diff("accountPolicy", a.accountPolicy, b.accountPolicy); diff("accountKey", a.accountKey, b.accountKey); diff("accountFallback", (a.accountFallback ?? []).join(", "), (b.accountFallback ?? []).join(", ")); diff("memoryKey", a.memoryKey, b.memoryKey); diff("workKey", a.workKey, b.workKey); diff("handoffs", a.handoffs, b.handoffs);
-  diff("toolsAllowed", a.toolsAllowed, b.toolsAllowed); diff("toolsDenied", a.toolsDenied, b.toolsDenied); diff("vaultKeys", a.vaultKeys, b.vaultKeys);
-  diff("limits", a.limits, b.limits); diff("captureMode", a.captureMode, b.captureMode);
+  const diff = (k: string, x: unknown, y: unknown): void => {
+    if (JSON.stringify(x) !== JSON.stringify(y)) out.push(k);
+  };
+  diff("name", a.name, b.name);
+  diff("role", a.description, b.description);
+  diff("model", a.model, b.model);
+  diff("fallbackModel", a.fallbackModel, b.fallbackModel);
+  diff("accountPolicy", a.accountPolicy, b.accountPolicy);
+  diff("accountKey", a.accountKey, b.accountKey);
+  diff("accountFallback", (a.accountFallback ?? []).join(", "), (b.accountFallback ?? []).join(", "));
+  diff("memoryKey", a.memoryKey, b.memoryKey);
+  diff("workKey", a.workKey, b.workKey);
+  diff("handoffs", a.handoffs, b.handoffs);
+  diff("toolsAllowed", a.toolsAllowed, b.toolsAllowed);
+  diff("toolsDenied", a.toolsDenied, b.toolsDenied);
+  diff("vaultKeys", a.vaultKeys, b.vaultKeys);
+  diff("limits", a.limits, b.limits);
+  diff("captureMode", a.captureMode, b.captureMode);
   return out.length > 0 ? out : ["agent.toml"];
 }
 
@@ -595,14 +1101,24 @@ export function changedFields(a: AgentConfig, b: AgentConfig): string[] {
 import { possessive } from "../../../lib/words/agent-name.ts";
 export { possessive };
 
-const cleanName = (raw: string | undefined): string => (raw ?? "").trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").replace(/^\.+/, "").slice(0, MAX_NAME - 12);
+const cleanName = (raw: string | undefined): string =>
+  (raw ?? "")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/^\.+/, "")
+    .slice(0, MAX_NAME - 12);
 
 /** The names a person's assistant may take, in order: "<First>’s Assistant" (the first name only, its first letter capitalised and the rest as typed), then the same with the start of the person's id when that is taken, then "Assistant <id>". No name at all gives "Assistant", "My Assistant", then the id form. */
 export function assistantNames(person: string, rawName: string | undefined, capitalise = true): string[] {
   const base = cleanName(rawName);
   const first = base.split(" ")[0] ?? "";
   const cap = (n: string): string => (capitalise ? n.charAt(0).toUpperCase() + n.slice(1) : n);
-  return [first === "" ? "Assistant" : `${possessive(cap(first))} Assistant`, first === "" ? "My Assistant" : `${possessive(cap(first))} Assistant ${person.slice(4, 8)}`, `Assistant ${person.slice(4, 10)}`];
+  return [
+    first === "" ? "Assistant" : `${possessive(cap(first))} Assistant`,
+    first === "" ? "My Assistant" : `${possessive(cap(first))} Assistant ${person.slice(4, 8)}`,
+    `Assistant ${person.slice(4, 10)}`,
+  ];
 }
 
 /** The names the assistant had before the possessive rule, for the same person: "<First> Assistant" and "<Full name> Assistant". Index i here is replaced by index i in assistantNames. */
@@ -616,19 +1132,29 @@ const oldAssistantNames = (rawName: string | undefined): Array<string | null> =>
 const defaultsOf = (raw: string | undefined): Array<{ slot: 0 | 1; name: string }> => {
   const old = oldAssistantNames(raw);
   const out: Array<{ slot: 0 | 1; name: string }> = [];
-  old.forEach((n, i) => { if (n !== null) out.push({ slot: i as 0 | 1, name: n }); });
+  old.forEach((n, i) => {
+    if (n !== null) out.push({ slot: i as 0 | 1, name: n });
+  });
   // both spellings of the possessive default count: the first letter as typed (before it was capitalised) and capitalised; and "<Full name>’s Assistant", which an earlier rule gave when the first name was taken
   const base = cleanName(raw);
   for (const cap of [false, true]) {
     const n = assistantNames("usr_000000", raw, cap)[0]!;
     if (!out.some((d) => d.slot === 0 && d.name === n)) out.push({ slot: 0, name: n });
-    if (base !== "") { const full = `${possessive(cap ? base.charAt(0).toUpperCase() + base.slice(1) : base)} Assistant`; if (!out.some((d) => d.slot === 1 && d.name === full)) out.push({ slot: 1, name: full }); }
+    if (base !== "") {
+      const full = `${possessive(cap ? base.charAt(0).toUpperCase() + base.slice(1) : base)} Assistant`;
+      if (!out.some((d) => d.slot === 1 && d.name === full)) out.push({ slot: 1, name: full });
+    }
   }
   return out;
 };
 
 /** Rename one person's assistant when its name still exactly equals a default of `from`; the new name is the same default for `to`. A name the person chose, or one that is taken, is left alone. */
-async function renameFollowing(ctx: AgentsCtx, a: AgentRec, from: string | undefined, to: string | undefined): Promise<boolean> {
+async function renameFollowing(
+  ctx: AgentsCtx,
+  a: AgentRec,
+  from: string | undefined,
+  to: string | undefined,
+): Promise<boolean> {
   const hit = defaultsOf(from).find((d) => d.name === a.name);
   const target = hit === undefined ? undefined : assistantNames(a.ownerId, to)[hit.slot];
   if (target === undefined || target === a.name || agentByName(ctx.db, target)) return false;
@@ -636,7 +1162,10 @@ async function renameFollowing(ctx: AgentsCtx, a: AgentRec, from: string | undef
     await update({ ...ctx, actingFor: a.ownerId }, { agentId: a.id, patch: { name: target } });
     return true;
   } catch (e) {
-    ctx.log.warn("agents: an assistant could not be renamed", { agent: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+    ctx.log.warn("agents: an assistant could not be renamed", {
+      agent: a.id,
+      error: e instanceof Error ? e.message.slice(0, 200) : "error",
+    });
     return false;
   }
 }
@@ -647,37 +1176,59 @@ async function renameFollowing(ctx: AgentsCtx, a: AgentRec, from: string | undef
  */
 export async function renameOldAssistants(ctx: AgentsCtx): Promise<string[]> {
   ensure(ctx.db);
-  const mine = allAgents(ctx.db).filter((a) => isAssistant(a) && a.ownerId.startsWith("usr_") && /^\S.* Assistant$/.test(a.name));
+  const mine = allAgents(ctx.db).filter(
+    (a) => isAssistant(a) && a.ownerId.startsWith("usr_") && /^\S.* Assistant$/.test(a.name),
+  );
   if (mine.length === 0) return [];
-  const listed = await tolerant<{ principals?: Array<{ id: string; name: string }> }>(ctx, "access.principals.list", { kind: "person", limit: 500 }, {});
+  const listed = await tolerant<{ principals?: Array<{ id: string; name: string }> }>(
+    ctx,
+    "access.principals.list",
+    { kind: "person", limit: 500 },
+    {},
+  );
   const done: string[] = [];
   for (const a of mine) {
     const who = listed.principals?.find((p) => p.id === a.ownerId);
-    if (who && await renameFollowing(ctx, a, who.name, who.name)) { done.push(a.id); continue; }
+    if (who && (await renameFollowing(ctx, a, who.name, who.name))) {
+      done.push(a.id);
+      continue;
+    }
     // The person's name may be unreadable here (the list not ready at boot, or the name changed since the assistant was made): the exact old shape "<First> Assistant" is still the old default.
     const first = /^([^\s’']+) Assistant$/.exec(a.name)?.[1];
     if (first === undefined) continue;
     const target = assistantNames(a.ownerId, first, false)[0]!;
     if (target === a.name || agentByName(ctx.db, target)) continue;
-    try { await update({ ...ctx, actingFor: a.ownerId }, { agentId: a.id, patch: { name: target } }); done.push(a.id); }
-    catch (e) { ctx.log.warn("agents: an assistant could not be renamed", { agent: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" }); }
+    try {
+      await update({ ...ctx, actingFor: a.ownerId }, { agentId: a.id, patch: { name: target } });
+      done.push(a.id);
+    } catch (e) {
+      ctx.log.warn("agents: an assistant could not be renamed", {
+        agent: a.id,
+        error: e instanceof Error ? e.message.slice(0, 200) : "error",
+      });
+    }
   }
   return done;
 }
 
-export interface SettingChangedEvent { payload: { key?: string; scope?: string; person?: string; before?: unknown; after?: unknown } }
+export interface SettingChangedEvent {
+  payload: { key?: string; scope?: string; person?: string; before?: unknown; after?: unknown };
+}
 
 /** A person changed their display name: an assistant still wearing the default for the old name takes the default for the new one. */
 export async function onDisplayNameChanged(ctx: AgentsCtx, event: SettingChangedEvent): Promise<string[]> {
   const { key, scope, person, before, after } = event.payload;
-  if (key !== "profile.display_name" || scope !== "person" || typeof person !== "string" || !person.startsWith("usr_")) return [];
+  if (key !== "profile.display_name" || scope !== "person" || typeof person !== "string" || !person.startsWith("usr_"))
+    return [];
   ensure(ctx.db);
   const text = (v: unknown): string => (typeof v === "string" ? v : "");
   const a = allAgents(ctx.db).find((x) => x.ownerId === person && isAssistant(x));
-  return a && await renameFollowing(ctx, a, text(before), text(after)) ? [a.id] : [];
+  return a && (await renameFollowing(ctx, a, text(before), text(after))) ? [a.id] : [];
 }
 
-export interface PrincipalEvent { payload: { principalId?: string; kind?: string; name?: string } }
+export interface PrincipalEvent {
+  payload: { principalId?: string; kind?: string; name?: string };
+}
 
 /**
  * Every person has a private assistant from the moment their account exists (the owner at claim, a member at join), whether or not an AI account is connected yet.
@@ -694,13 +1245,19 @@ export async function onPersonCreated(ctx: AgentsCtx, event: PrincipalEvent): Pr
   for (const name of names) {
     if (agentByName(ctx.db, name)) continue;
     // the person is the asker, so the maker and the owner are the same and no one is asked to manage access
-    const made = await make({ ...ctx, actingFor: person }, { name, role: "assistant", ownerId: person, idempotencyKey: `assistant-${person}` }, "assistant");
+    const made = await make(
+      { ...ctx, actingFor: person },
+      { name, role: "assistant", ownerId: person, idempotencyKey: `assistant-${person}` },
+      "assistant",
+    );
     return [made.agent.agentId];
   }
   return [];
 }
 
-export interface PersonLeftEvent { payload: { personId?: string } }
+export interface PersonLeftEvent {
+  payload: { personId?: string };
+}
 
 /**
  * A person was removed from the Space or left it (member.removed, at least once). Their assistant goes with them, even when they owned nothing else and the removal wizard had nothing to do for agents.
@@ -713,9 +1270,20 @@ export async function onPersonLeft(ctx: AgentsCtx, event: PersonLeftEvent): Prom
   const touched: string[] = [];
   const now = ctx.now();
   for (const a of allAgents(ctx.db).filter((x) => x.ownerId === person)) {
-    if (isAssistant(a) || isOutside(a)) { await retire(ctx, a, person); touched.push(a.id); continue; }
+    if (isAssistant(a) || isOutside(a)) {
+      await retire(ctx, a, person);
+      touched.push(a.id);
+      continue;
+    }
     if (a.paused) continue;
-    ctx.db.run("UPDATE agents_agent SET paused = 1, pausedReason = ?, pausedBy = ?, pausedAt = ?, updatedAt = ? WHERE id = ?", OWNER_LEFT, person, now, now, a.id);
+    ctx.db.run(
+      "UPDATE agents_agent SET paused = 1, pausedReason = ?, pausedBy = ?, pausedAt = ?, updatedAt = ? WHERE id = ?",
+      OWNER_LEFT,
+      person,
+      now,
+      now,
+      a.id,
+    );
     ctx.emit("agent.paused", a.id, { agentId: a.id, reason: OWNER_LEFT, by: person });
     touched.push(a.id);
   }
@@ -723,8 +1291,12 @@ export async function onPersonLeft(ctx: AgentsCtx, event: PersonLeftEvent): Prom
   return touched;
 }
 
-export interface FileVersionEvent { payload: { fileId: string; versionId: string; n?: number; by?: string } }
-export interface TurnEvent { payload: { agentId: string } }
+export interface FileVersionEvent {
+  payload: { fileId: string; versionId: string; n?: number; by?: string };
+}
+export interface TurnEvent {
+  payload: { agentId: string };
+}
 
 /**
  * Someone saved agent.toml or AGENT.md in Files. Files writes agent.toml only after agents.config.may_save said the writer may change this agent's settings (the right agents.update takes), so what
@@ -734,7 +1306,13 @@ export interface TurnEvent { payload: { agentId: string } }
 export async function onFileVersion(ctx: AgentsCtx, event: FileVersionEvent): Promise<string[]> {
   ensure(ctx.db);
   const { fileId, versionId } = event.payload;
-  const row = (ctx.db.all("SELECT * FROM agents_agent WHERE (tomlFileId = ? OR agentMdFileId = ?) AND deletedAt IS NULL", fileId, fileId) as Row[])[0];
+  const row = (
+    ctx.db.all(
+      "SELECT * FROM agents_agent WHERE (tomlFileId = ? OR agentMdFileId = ?) AND deletedAt IS NULL",
+      fileId,
+      fileId,
+    ) as Row[]
+  )[0];
   if (!row) return [];
   const a = agentOf(row);
   const who = event.payload.by ?? "unknown";
@@ -744,15 +1322,27 @@ export async function onFileVersion(ctx: AgentsCtx, event: FileVersionEvent): Pr
   }
   // The host delivers this after commit and at least once, so the event for an older version (the one agents.create wrote, or a replay after a restart) can arrive after a newer save
   // (agents.update, a later edit). Only the file's newest version is the configuration: an older one would undo what was saved after it, such as a memory key just set.
-  const newest = (await versionsOf(ctx, fileId)).reduce<VersionOut | undefined>((m, v) => (m === undefined || v.n > m.n ? v : m), undefined);
+  const newest = (await versionsOf(ctx, fileId)).reduce<VersionOut | undefined>(
+    (m, v) => (m === undefined || v.n > m.n ? v : m),
+    undefined,
+  );
   if (newest !== undefined && newest.versionId !== versionId) return [a.id];
   const text = await textOf(ctx, fileId, versionId);
   if (text === a.tomlText) return [a.id];
   const checked = checkToml(text, { self: a.name });
   if (!checked.ok || !checked.config) {
     const first = checked.errors[0] ?? { message: "agent.toml does not pass." };
-    ctx.db.run("UPDATE agents_agent SET configError = ?, updatedAt = ? WHERE id = ?", JSON.stringify(first), ctx.now(), a.id);
-    ctx.emit("agent.config_error", a.id, { agentId: a.id, message: first.message, ...(first.line !== undefined ? { line: first.line } : {}) });
+    ctx.db.run(
+      "UPDATE agents_agent SET configError = ?, updatedAt = ? WHERE id = ?",
+      JSON.stringify(first),
+      ctx.now(),
+      a.id,
+    );
+    ctx.emit("agent.config_error", a.id, {
+      agentId: a.id,
+      message: first.message,
+      ...(first.line !== undefined ? { line: first.line } : {}),
+    });
     return [a.id];
   }
   const fields = changedFields(a.config, checked.config);
@@ -765,14 +1355,25 @@ export async function onFileVersion(ctx: AgentsCtx, event: FileVersionEvent): Pr
 export function onTurn(ctx: AgentsCtx, kind: "started" | "ended", event: TurnEvent): void {
   ensure(ctx.db);
   const now = ctx.now();
-  if (kind === "started") ctx.db.run("UPDATE agents_agent SET working = working + 1, lastActiveAt = ? WHERE id = ?", now, event.payload.agentId);
-  else ctx.db.run("UPDATE agents_agent SET working = CASE WHEN working > 0 THEN working - 1 ELSE 0 END, lastActiveAt = ? WHERE id = ?", now, event.payload.agentId);
+  if (kind === "started")
+    ctx.db.run(
+      "UPDATE agents_agent SET working = working + 1, lastActiveAt = ? WHERE id = ?",
+      now,
+      event.payload.agentId,
+    );
+  else
+    ctx.db.run(
+      "UPDATE agents_agent SET working = CASE WHEN working > 0 THEN working - 1 ELSE 0 END, lastActiveAt = ? WHERE id = ?",
+      now,
+      event.payload.agentId,
+    );
 }
-
 
 // ---- the boot check ------------------------------------------------------------------------------------------------------------------------------------------
 
-interface FileGot { file?: { fileId: string; folderId: string; name: string; deletedAt?: number } }
+interface FileGot {
+  file?: { fileId: string; folderId: string; name: string; deletedAt?: number };
+}
 
 /**
  * An agent folder is never without its two files. For every live agent, AGENT.md and agent.toml must be in Agents/<name> under those names; a missing one is put back from the agent record:
@@ -787,29 +1388,57 @@ export async function restoreAgentFiles(ctx: AgentsCtx): Promise<string[]> {
     if (a.folderId === undefined) {
       // a record with no home: make Agents/<name> with the decided tree and both files, and point the record at them
       try {
-        const tree = await createTree(ctx, a.id, a.name, a.tomlText, AGENT_MD_DEFAULT(a.name, a.config.description, a.kind));
-        ctx.db.run("UPDATE agents_agent SET folderId = ?, tomlFileId = ?, agentMdFileId = ?, updatedAt = ? WHERE id = ?", tree.folderId, tree.tomlFileId, tree.agentMdFileId, ctx.now(), a.id);
+        const tree = await createTree(
+          ctx,
+          a.id,
+          a.name,
+          a.tomlText,
+          AGENT_MD_DEFAULT(a.name, a.config.description, a.kind),
+        );
+        ctx.db.run(
+          "UPDATE agents_agent SET folderId = ?, tomlFileId = ?, agentMdFileId = ?, updatedAt = ? WHERE id = ?",
+          tree.folderId,
+          tree.tomlFileId,
+          tree.agentMdFileId,
+          ctx.now(),
+          a.id,
+        );
         put.push(`${a.name}/agent.toml`, `${a.name}/AGENT.md`);
         ctx.log.warn("agents: an agent had no folder and has been given one", { agent: a.id });
         a = { ...a, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId };
       } catch (e) {
-        ctx.log.warn("agents: an agent without a folder could not be given one", { agent: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+        ctx.log.warn("agents: an agent without a folder could not be given one", {
+          agent: a.id,
+          error: e instanceof Error ? e.message.slice(0, 200) : "error",
+        });
         continue;
       }
     }
     if (a.folderId === undefined) continue;
     const folderId = a.folderId;
-    const wanted: Array<{ name: "agent.toml" | "AGENT.md"; id: string | undefined; column: "tomlFileId" | "agentMdFileId"; text: () => string }> = [
+    const wanted: Array<{
+      name: "agent.toml" | "AGENT.md";
+      id: string | undefined;
+      column: "tomlFileId" | "agentMdFileId";
+      text: () => string;
+    }> = [
       { name: "agent.toml", id: a.tomlFileId, column: "tomlFileId", text: () => a.tomlText },
-      { name: "AGENT.md", id: a.agentMdFileId, column: "agentMdFileId", text: () => AGENT_MD_DEFAULT(a.name, a.config.description, a.kind) },
+      {
+        name: "AGENT.md",
+        id: a.agentMdFileId,
+        column: "agentMdFileId",
+        text: () => AGENT_MD_DEFAULT(a.name, a.config.description, a.kind),
+      },
     ];
     for (const w of wanted) {
       try {
-        const got = w.id === undefined ? null : await tolerant<FileGot | null>(ctx, "files.get", { fileId: w.id }, null);
+        const got =
+          w.id === undefined ? null : await tolerant<FileGot | null>(ctx, "files.get", { fileId: w.id }, null);
         const f = got?.file;
         if (f && f.deletedAt === undefined && f.folderId === folderId && f.name === w.name) continue;
         let id = w.id;
-        if (f && f.deletedAt !== undefined) await call(ctx, "files.restore", { fileId: f.fileId, toFolderId: folderId });
+        if (f && f.deletedAt !== undefined)
+          await call(ctx, "files.restore", { fileId: f.fileId, toFolderId: folderId });
         else if (f) await call(ctx, "files.move", { fileId: f.fileId, toFolderId: folderId, name: w.name });
         else {
           const made = await makeFile(ctx, folderId, w.name, w.text(), `agents:${a.id}:restore:${w.name}:${ctx.now()}`);
@@ -819,7 +1448,11 @@ export async function restoreAgentFiles(ctx: AgentsCtx): Promise<string[]> {
         put.push(`${a.name}/${w.name}`);
         ctx.log.warn("agents: an agent file was missing and has been put back", { agent: a.id, file: w.name });
       } catch (e) {
-        ctx.log.warn("agents: an agent file could not be put back", { agent: a.id, file: w.name, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+        ctx.log.warn("agents: an agent file could not be put back", {
+          agent: a.id,
+          file: w.name,
+          error: e instanceof Error ? e.message.slice(0, 200) : "error",
+        });
       }
     }
   }
@@ -832,7 +1465,9 @@ export async function restoreAgentFiles(ctx: AgentsCtx): Promise<string[]> {
  * Outside agents are kind actor, not agent, and are never adopted.
  */
 async function adoptAgentPrincipals(ctx: AgentsCtx, put: string[]): Promise<void> {
-  const listed = await tolerant<{ principals?: Array<{ id: string; kind: string; name: string; owner?: string; status: string }> }>(ctx, "access.principals.list", { kind: "agent", limit: 200 }, {});
+  const listed = await tolerant<{
+    principals?: Array<{ id: string; kind: string; name: string; owner?: string; status: string }>;
+  }>(ctx, "access.principals.list", { kind: "agent", limit: 200 }, {});
   for (const p of listed.principals ?? []) {
     // Only the Space's own agents (kind agent, id agt_...). An outside agent (Claude Code, Codex over MCP) registers as an outside actor (kind actor) and never gets a Vyre agent record or home;
     // the kind is checked here as well as in the query so a list that ignored the filter could not adopt one.
@@ -850,13 +1485,34 @@ async function adoptAgentPrincipals(ctx: AgentsCtx, put: string[]): Promise<void
       const tree = await createTree(ctx, p.id, name, tomlText, AGENT_MD_DEFAULT(name, undefined));
       const now = ctx.now();
       insertAgent(ctx.db, {
-        id: p.id, name, kind: "agent", runtime: "vyre", face: slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: false,
-        templateVersion: await templateVersion(ctx), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
+        id: p.id,
+        name,
+        kind: "agent",
+        runtime: "vyre",
+        face: slug(name),
+        ownerId: owner,
+        folderId: tree.folderId,
+        tomlFileId: tree.tomlFileId,
+        agentMdFileId: tree.agentMdFileId,
+        tomlText,
+        config,
+        hasComputer: false,
+        templateVersion: await templateVersion(ctx),
+        paused: false,
+        working: 0,
+        lastActiveAt: now,
+        createdAt: now,
+        updatedAt: now,
       });
       put.push(`${name}/agent.toml`, `${name}/AGENT.md`);
-      ctx.log.warn("agents: an agent principal had no record, folder or files and has been given them", { agent: p.id });
+      ctx.log.warn("agents: an agent principal had no record, folder or files and has been given them", {
+        agent: p.id,
+      });
     } catch (e) {
-      ctx.log.warn("agents: an agent principal could not be adopted", { agent: p.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+      ctx.log.warn("agents: an agent principal could not be adopted", {
+        agent: p.id,
+        error: e instanceof Error ? e.message.slice(0, 200) : "error",
+      });
     }
   }
 }
@@ -880,12 +1536,23 @@ export async function upgradeStarterAgentMd(ctx: AgentsCtx): Promise<string[]> {
     try {
       const versions = await versionsOf(ctx, a.agentMdFileId);
       const text = versions.length === 1 ? await textOf(ctx, a.agentMdFileId) : "";
-      if (versions.length !== 1 || !isAgentMdV1(text)) { setMeta(ctx.db, key, "kept"); continue; }
-      await saveFile(ctx, a.agentMdFileId, AGENT_MD_DEFAULT(a.name, a.config.description, a.kind), "Vyre wrote a fuller starter AGENT.md");
+      if (versions.length !== 1 || !isAgentMdV1(text)) {
+        setMeta(ctx.db, key, "kept");
+        continue;
+      }
+      await saveFile(
+        ctx,
+        a.agentMdFileId,
+        AGENT_MD_DEFAULT(a.name, a.config.description, a.kind),
+        "Vyre wrote a fuller starter AGENT.md",
+      );
       setMeta(ctx.db, key, "upgraded");
       done.push(a.id);
     } catch (e) {
-      ctx.log.warn("agents: a starter AGENT.md could not be upgraded", { agent: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+      ctx.log.warn("agents: a starter AGENT.md could not be upgraded", {
+        agent: a.id,
+        error: e instanceof Error ? e.message.slice(0, 200) : "error",
+      });
     }
   }
   return done;
@@ -899,7 +1566,12 @@ export async function announcePrivacy(ctx: AgentsCtx): Promise<string[]> {
     // an Assistant told before access learnt which agents are Assistants is told once more, so it can be its person's hands
     const toldAssistant = !isAssistant(a) || meta(ctx.db, `assistant:${a.id}`) !== undefined;
     if (!isPrivateAgent(a) || (meta(ctx.db, `privacy:${a.id}`) !== undefined && toldAssistant)) continue;
-    ctx.emit("agent.privacy_set", a.id, { agentId: a.id, ownerId: a.ownerId, private: true, ...(isAssistant(a) ? { assistant: true } : {}) });
+    ctx.emit("agent.privacy_set", a.id, {
+      agentId: a.id,
+      ownerId: a.ownerId,
+      private: true,
+      ...(isAssistant(a) ? { assistant: true } : {}),
+    });
     setMeta(ctx.db, `privacy:${a.id}`, "1");
     if (isAssistant(a)) setMeta(ctx.db, `assistant:${a.id}`, "1");
     told.push(a.id);
@@ -907,10 +1579,16 @@ export async function announcePrivacy(ctx: AgentsCtx): Promise<string[]> {
   return told;
 }
 
-
 // ---------------------------------------------------------------- people's own agents: governance without access
 
-export interface PersonSummary { personId: string; assistant: boolean; privateAgents: number; spendMonthMicros: number; capMicros?: number; paused: boolean }
+export interface PersonSummary {
+  personId: string;
+  assistant: boolean;
+  privateAgents: number;
+  spendMonthMicros: number;
+  capMicros?: number;
+  paused: boolean;
+}
 
 /**
  * One row per person whose agents the asker cannot see: their Assistant and the agents they keep private (or shared with others but not with the asker). Names, instructions and chats never leave:
@@ -925,8 +1603,20 @@ export async function peopleSummary(ctx: AgentsCtx, _input: Record<string, never
   }
   const people: PersonSummary[] = [];
   for (const [personId, rows] of groups) {
-    const sp = await tolerant<{ monthMicros?: number; caps?: { monthMicros?: number } }>(ctx, "engine.spend.get", { scope: "person", scopeId: personId }, {});
-    people.push({ personId, assistant: rows.some((a) => isAssistant(a)), privateAgents: rows.filter((a) => !isAssistant(a)).length, spendMonthMicros: sp.monthMicros ?? 0, ...(sp.caps?.monthMicros !== undefined ? { capMicros: sp.caps.monthMicros } : {}), paused: rows.every((a) => a.paused) });
+    const sp = await tolerant<{ monthMicros?: number; caps?: { monthMicros?: number } }>(
+      ctx,
+      "engine.spend.get",
+      { scope: "person", scopeId: personId },
+      {},
+    );
+    people.push({
+      personId,
+      assistant: rows.some((a) => isAssistant(a)),
+      privateAgents: rows.filter((a) => !isAssistant(a)).length,
+      spendMonthMicros: sp.monthMicros ?? 0,
+      ...(sp.caps?.monthMicros !== undefined ? { capMicros: sp.caps.monthMicros } : {}),
+      paused: rows.every((a) => a.paused),
+    });
   }
   return { people: people.sort((a, b) => (a.personId < b.personId ? -1 : 1)) };
 }
@@ -942,15 +1632,38 @@ export async function pausePerson(ctx: AgentsCtx, input: { personId: string; pau
   for (const a of allAgents(ctx.db)) {
     if (a.ownerId !== input.personId || isOutside(a) || teammateOf(a) !== undefined) continue;
     if (input.paused && !a.paused) {
-      ctx.db.run("UPDATE agents_agent SET paused = 1, pausedReason = ?, pausedBy = ?, pausedAt = ?, updatedAt = ? WHERE id = ?", "Paused by an admin", by(ctx), now, now, a.id);
+      ctx.db.run(
+        "UPDATE agents_agent SET paused = 1, pausedReason = ?, pausedBy = ?, pausedAt = ?, updatedAt = ? WHERE id = ?",
+        "Paused by an admin",
+        by(ctx),
+        now,
+        now,
+        a.id,
+      );
       ctx.emit("agent.paused", a.id, { agentId: a.id, reason: "Paused by an admin", by: by(ctx) });
       changed++;
     } else if (!input.paused && a.paused) {
-      ctx.db.run("UPDATE agents_agent SET paused = 0, pausedReason = NULL, pausedBy = NULL, pausedAt = NULL, lastActiveAt = ?, updatedAt = ? WHERE id = ?", now, now, a.id);
+      ctx.db.run(
+        "UPDATE agents_agent SET paused = 0, pausedReason = NULL, pausedBy = NULL, pausedAt = NULL, lastActiveAt = ?, updatedAt = ? WHERE id = ?",
+        now,
+        now,
+        a.id,
+      );
       ctx.emit("agent.resumed", a.id, { agentId: a.id, by: by(ctx) });
       changed++;
     }
   }
-  if (changed > 0) await tolerant(ctx, "notifications.send", { to: input.personId, kind: "agent.blocked", title: input.paused ? "An admin paused your agents" : "An admin let your agents run again", data: { agent: "Your agents", reason: input.paused ? "an admin paused them" : "an admin resumed them" } }, {});
+  if (changed > 0)
+    await tolerant(
+      ctx,
+      "notifications.send",
+      {
+        to: input.personId,
+        kind: "agent.blocked",
+        title: input.paused ? "An admin paused your agents" : "An admin let your agents run again",
+        data: { agent: "Your agents", reason: input.paused ? "an admin paused them" : "an admin resumed them" },
+      },
+      {},
+    );
   return { changed };
 }

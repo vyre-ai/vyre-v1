@@ -8,7 +8,10 @@ const SLOT = /\{\{\s*([A-Za-z0-9_.]+)\s*\}\}/g;
 function lookup(data: unknown, path: string): string {
   let cur: unknown = data;
   for (const part of path.split(".")) {
-    if (part === "length" && (Array.isArray(cur) || typeof cur === "string")) { cur = cur.length; continue; }
+    if (part === "length" && (Array.isArray(cur) || typeof cur === "string")) {
+      cur = cur.length;
+      continue;
+    }
     if (cur === null || typeof cur !== "object" || Array.isArray(cur)) return "";
     cur = (cur as Record<string, unknown>)[part];
   }
@@ -16,7 +19,10 @@ function lookup(data: unknown, path: string): string {
 }
 
 export function fillTemplate(template: string, data: unknown): string {
-  return template.replace(SLOT, (_all, path: string) => lookup(data, path)).replace(/\s+/g, " ").trim();
+  return template
+    .replace(SLOT, (_all, path: string) => lookup(data, path))
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** What a client without a renderer for this block shows, as text. */

@@ -28,7 +28,11 @@ export function localDb(driver: DriverLike): LocalDb {
   return { all: (sql, params = []) => driver.prepare(sql).all(params) };
 }
 
-export function createSpaceStore(spaceId: string, driver: DriverLike, changes: ChangeSink = createChangeFeed()): SpaceStore {
+export function createSpaceStore(
+  spaceId: string,
+  driver: DriverLike,
+  changes: ChangeSink = createChangeFeed(),
+): SpaceStore {
   if (!spaceId) throw new Error("a Space store needs its spaceId");
   return { spaceId, db: localDb(driver), changes };
 }
@@ -54,8 +58,16 @@ export function observeReplica<T extends ReplicaLike>(replica: T, changes: Chang
           return r;
         };
       }
-      if (prop === "hide") return (entity: string, id: string, seq: number) => { target.hide(entity, id, seq); changes.emit({ entity, id }); };
-      if (prop === "keep") return (entity: string, id: string, flags: { starred?: boolean; follows?: boolean }) => { target.keep(entity, id, flags); changes.emit({ entity, id }); };
+      if (prop === "hide")
+        return (entity: string, id: string, seq: number) => {
+          target.hide(entity, id, seq);
+          changes.emit({ entity, id });
+        };
+      if (prop === "keep")
+        return (entity: string, id: string, flags: { starred?: boolean; follows?: boolean }) => {
+          target.keep(entity, id, flags);
+          changes.emit({ entity, id });
+        };
       const v: unknown = Reflect.get(target, prop, target);
       return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(target) : v;
     },

@@ -2,7 +2,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { registry } from "../../../generated/registry.ts";
-import { EXCHANGE_MS, ARTIFACT_SESSION_MS, configureRoutes, exchangeArtifactCode, routeByArtifactSession, routeBySlug, routeByTicket } from "../handlers/route.ts";
+import {
+  EXCHANGE_MS,
+  ARTIFACT_SESSION_MS,
+  configureRoutes,
+  exchangeArtifactCode,
+  routeByArtifactSession,
+  routeBySlug,
+  routeByTicket,
+} from "../handlers/route.ts";
 import { configureDomainEdge } from "../handlers/route.ts";
 import { handlers } from "../impl.ts";
 import { DatabaseSync } from "node:sqlite";
@@ -13,16 +21,32 @@ import { harness as base } from "../fixtures/world.ts";
 function harness() {
   const w = base();
   const db = new DatabaseSync(":memory:");
-  for (const f of ["0001_sites_core.sql", "0002_promote_tables.sql", "0003_routes.sql"]) db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
-  const ctx = { ...w.ctx, db: { all: (sql: string, ...a: unknown[]) => db.prepare(sql).all(...(a as never[])), run: (sql: string, ...a: unknown[]) => ({ changes: Number(db.prepare(sql).run(...(a as never[])).changes) }) }, call: async () => ({}) };
+  for (const f of ["0001_sites_core.sql", "0002_promote_tables.sql", "0003_routes.sql"])
+    db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
+  const ctx = {
+    ...w.ctx,
+    db: {
+      all: (sql: string, ...a: unknown[]) => db.prepare(sql).all(...(a as never[])),
+      run: (sql: string, ...a: unknown[]) => ({ changes: Number(db.prepare(sql).run(...(a as never[])).changes) }),
+    },
+    call: async () => ({}),
+  };
   return { ...w, ctx };
 }
 
 const h = handlers as unknown as Record<string, (ctx: unknown, input: unknown) => Promise<any>>;
-const host = (over: Record<string, unknown> = {}) => ({ origin: () => ({ origin: "https://harbor.vyre.run", relay: true }), probe: async () => ({ answering: true }), ...over });
+const host = (over: Record<string, unknown> = {}) => ({
+  origin: () => ({ origin: "https://harbor.vyre.run", relay: true }),
+  probe: async () => ({ answering: true }),
+  ...over,
+});
 
 test("the manifest: going public is held for an agent and a person's press is their yes; reads do not write", () => {
-  const cap = (n: string) => registry.capabilities.find((c) => c.name === n) as unknown as { gate?: { act: string; when?: string }; effects: string };
+  const cap = (n: string) =>
+    registry.capabilities.find((c) => c.name === n) as unknown as {
+      gate?: { act: string; when?: string };
+      effects: string;
+    };
   assert.deepEqual(cap("sites.promote").gate, { act: "site_promote", when: "actor.kind != 'person'" });
   assert.equal(cap("sites.promote").effects, "outward");
   for (const n of ["sites.status", "sites.host", "sites.domain_check"]) assert.equal(cap(n).effects, "read", n);
@@ -30,7 +54,8 @@ test("the manifest: going public is held for an agent and a person's press is th
 
 test("what stays dormant refuses, and what ships answers", async () => {
   // deploy, rollback and env came back with sites Vyre builds and runs (handlers/release.ts); the staging and preview pipeline stays dormant
-  for (const n of ["sites.build", "sites.previews", "sites.table_create", "sites.staging_password_set"]) await assert.rejects(async () => h[n]!({ trace: { traceId: "0" } }, {}), /Not in this version yet|unavailable/i, n);
+  for (const n of ["sites.build", "sites.previews", "sites.table_create", "sites.staging_password_set"])
+    await assert.rejects(async () => h[n]!({ trace: { traceId: "0" } }, {}), /Not in this version yet|unavailable/i, n);
 });
 
 test("a site: created with a free name, not live, reachable by slug once published, and stop takes it down", async () => {
@@ -49,7 +74,9 @@ test("a site: created with a free name, not live, reachable by slug once publish
     assert.equal(routeBySlug(w.ctx, "acme-shop")?.live, true);
     await h["sites.stop"]!(w.ctx, { siteId: made.site.siteId });
     assert.equal(routeBySlug(w.ctx, "acme-shop")?.live, false);
-  } finally { configureRoutes(null); }
+  } finally {
+    configureRoutes(null);
+  }
 });
 
 test("a live site made public comes down until it is published again; the ports Vyre itself uses are refused; forms is not a name", async () => {
@@ -63,12 +90,16 @@ test("a live site made public comes down until it is published again; the ports 
     await assert.rejects(() => h["sites.publish"]!(w.ctx, { siteId: made.site.siteId }), /held for approval/);
     await assert.rejects(() => h["sites.create"]!(w.ctx, { name: "x", port: 8420 }), /cannot be served/);
     assert.notEqual((await h["sites.create"]!(w.ctx, { name: "Forms", port: 3000 })).site.slug, "forms");
-  } finally { configureRoutes(null); }
+  } finally {
+    configureRoutes(null);
+  }
 });
 
 test("status: a target that does not answer says why; a folder needs no port; a site with no target cannot go live", async () => {
   const w = harness();
-  configureRoutes(host({ probe: async () => ({ answering: false, detail: "Nothing is listening on port 3000." }) }) as never);
+  configureRoutes(
+    host({ probe: async () => ({ answering: false, detail: "Nothing is listening on port 3000." }) }) as never,
+  );
   try {
     const made = await h["sites.create"]!(w.ctx, { name: "Down", port: 3000 });
     const s = await h["sites.status"]!(w.ctx, { siteId: made.site.siteId });
@@ -76,17 +107,25 @@ test("status: a target that does not answer says why; a folder needs no port; a 
     assert.match(s.detail, /Nothing is listening/);
     const none = await h["sites.create"]!(w.ctx, { name: "Empty" });
     await assert.rejects(() => h["sites.promote"]!(w.ctx, { siteId: none.site.siteId }), /Say where it runs/);
-  } finally { configureRoutes(null); }
+  } finally {
+    configureRoutes(null);
+  }
 });
 
 test("custom domains: the records are exact, an apex takes an A, the three states follow what is true, and no public address says what is needed", async () => {
   const w = harness();
   configureRoutes(host() as never);
-  let dns = false, cert = false;
+  let dns = false,
+    cert = false;
   const routes: string[] = [];
   configureDomainEdge({
-    public: async () => ({ hostname: "team.example.com", ip: "203.0.113.5" }), dnsOk: async () => dns, certIssued: async () => cert,
-    setRoute: async (_t, d, p) => { routes.push(`${d}:${p}`); }, removeRoute: async () => undefined,
+    public: async () => ({ hostname: "team.example.com", ip: "203.0.113.5" }),
+    dnsOk: async () => dns,
+    certIssued: async () => cert,
+    setRoute: async (_t, d, p) => {
+      routes.push(`${d}:${p}`);
+    },
+    removeRoute: async () => undefined,
   });
   try {
     const made = await h["sites.create"]!(w.ctx, { name: "Shop", port: 3000 });
@@ -97,17 +136,37 @@ test("custom domains: the records are exact, an apex takes an A, the three state
     assert.deepEqual(routes, [], "a domain waits for the site to go live: adding one never goes around the Gate");
     await h["sites.promote"]!(w.ctx, { siteId });
     assert.deepEqual(routes, ["shop.example.org:3000"]);
-    assert.deepEqual((await h["sites.domain_add"]!(w.ctx, { siteId, domain: "example.org" })).records, [{ type: "A", name: "example.org", value: "203.0.113.5" }]);
+    assert.deepEqual((await h["sites.domain_add"]!(w.ctx, { siteId, domain: "example.org" })).records, [
+      { type: "A", name: "example.org", value: "203.0.113.5" },
+    ]);
     dns = true;
     assert.equal((await h["sites.domain_check"]!(w.ctx, { siteId, domain: "shop.example.org" })).state, "issuing");
     cert = true;
     assert.equal((await h["sites.domain_check"]!(w.ctx, { siteId, domain: "shop.example.org" })).state, "live");
     const closed = await h["sites.create"]!(w.ctx, { name: "Closed", access: "space", port: 3000 });
-    await assert.rejects(() => h["sites.domain_add"]!(w.ctx, { siteId: closed.site.siteId, domain: "closed.example.org" }), /A custom domain is public/);
-    await assert.rejects(() => h["sites.update"]!(w.ctx, { siteId, access: "password" }), /A password needs a site Vyre deploys/);
-    configureDomainEdge({ public: async () => null, dnsOk: async () => false, certIssued: async () => false, setRoute: async () => undefined, removeRoute: async () => undefined });
-    await assert.rejects(() => h["sites.domain_add"]!(w.ctx, { siteId, domain: "other.example.org" }), /needs a server with a public address/);
-  } finally { configureRoutes(null); configureDomainEdge(null); }
+    await assert.rejects(
+      () => h["sites.domain_add"]!(w.ctx, { siteId: closed.site.siteId, domain: "closed.example.org" }),
+      /A custom domain is public/,
+    );
+    await assert.rejects(
+      () => h["sites.update"]!(w.ctx, { siteId, access: "password" }),
+      /A password needs a site Vyre deploys/,
+    );
+    configureDomainEdge({
+      public: async () => null,
+      dnsOk: async () => false,
+      certIssued: async () => false,
+      setRoute: async () => undefined,
+      removeRoute: async () => undefined,
+    });
+    await assert.rejects(
+      () => h["sites.domain_add"]!(w.ctx, { siteId, domain: "other.example.org" }),
+      /needs a server with a public address/,
+    );
+  } finally {
+    configureRoutes(null);
+    configureDomainEdge(null);
+  }
 });
 
 test("without an artifact host there is no address to open: nothing with a token in it is ever made", async () => {
@@ -116,14 +175,34 @@ test("without an artifact host there is no address to open: nothing with a token
   try {
     const made = await h["sites.create"]!(w.ctx, { name: "Numbers", kind: "artifact", port: 3000 });
     await h["sites.publish"]!(w.ctx, { siteId: made.site.siteId });
-    await assert.rejects(() => h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId }), /no address for artifacts/);
-    assert.equal((w.ctx.db.all("SELECT COUNT(*) AS n FROM sites_ticket") as { n: number }[])[0]!.n, 0, "no ticket was made");
+    await assert.rejects(
+      () => h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId }),
+      /no address for artifacts/,
+    );
+    assert.equal(
+      (w.ctx.db.all("SELECT COUNT(*) AS n FROM sites_ticket") as { n: number }[])[0]!.n,
+      0,
+      "no ticket was made",
+    );
     configureRoutes(host({ artifactHost: () => "mla-a.vyre.run" }) as never);
-    await assert.rejects(() => h["sites.artifact_open"]!({ ...w.ctx, principal: { kind: "agent", id: "agt_x" } }, { artifactId: made.site.siteId }), /Only a person/);
+    await assert.rejects(
+      () =>
+        h["sites.artifact_open"]!(
+          { ...w.ctx, principal: { kind: "agent", id: "agt_x" } },
+          { artifactId: made.site.siteId },
+        ),
+      /Only a person/,
+    );
     configureRoutes(host({ artifactHost: () => "a.localhost:4100" }) as never);
     const open = await h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId });
-    assert.match(open.url, /^http:\/\/a\.localhost:4100\/x\/[0-9a-f]{48}$/, "a Space on this computer: plain http on a.localhost");
-  } finally { configureRoutes(null); }
+    assert.match(
+      open.url,
+      /^http:\/\/a\.localhost:4100\/x\/[0-9a-f]{48}$/,
+      "a Space on this computer: plain http on a.localhost",
+    );
+  } finally {
+    configureRoutes(null);
+  }
 });
 
 test("a site cannot point at what its maker could not use: the server reads for it, so the caller is asked first", async () => {
@@ -131,24 +210,45 @@ test("a site cannot point at what its maker could not use: the server reads for 
   configureRoutes(host() as never);
   const ctx = { ...w.ctx, authorize: () => ({ effect: "deny", reason: "no_grant", decisionId: "d" }) };
   try {
-    await assert.rejects(() => h["sites.create"]!(ctx, { name: "Leak", folderId: "fld_private" }), /cannot read that folder/);
-    await assert.rejects(() => h["sites.create"]!(ctx, { name: "Leak", computerId: "cmt_other", port: 3000 }), /cannot use that computer/);
-    await assert.rejects(() => h["sites.artifact_publish"]!(ctx, { title: "Leak", folderId: "fld_private" }), /cannot read that folder/);
+    await assert.rejects(
+      () => h["sites.create"]!(ctx, { name: "Leak", folderId: "fld_private" }),
+      /cannot read that folder/,
+    );
+    await assert.rejects(
+      () => h["sites.create"]!(ctx, { name: "Leak", computerId: "cmt_other", port: 3000 }),
+      /cannot use that computer/,
+    );
+    await assert.rejects(
+      () => h["sites.artifact_publish"]!(ctx, { title: "Leak", folderId: "fld_private" }),
+      /cannot read that folder/,
+    );
     const made = await h["sites.create"]!(w.ctx, { name: "Mine", port: 3000 });
-    await assert.rejects(() => h["sites.update"]!(ctx, { siteId: made.site.siteId, folderId: "fld_private" }), /cannot read that folder/);
-  } finally { configureRoutes(null); }
+    await assert.rejects(
+      () => h["sites.update"]!(ctx, { siteId: made.site.siteId, folderId: "fld_private" }),
+      /cannot read that folder/,
+    );
+  } finally {
+    configureRoutes(null);
+  }
 });
 
 test("artifact_publish's result says whether it was opened for the person (required), and the agent's words follow it", async () => {
   const { readFileSync } = await import("node:fs");
-  const out = (registry.capabilities.find((c) => c.name === "sites.artifact_publish") as unknown as { output: { properties: Record<string, unknown>; required: string[] } }).output;
+  const out = (
+    registry.capabilities.find((c) => c.name === "sites.artifact_publish") as unknown as {
+      output: { properties: Record<string, unknown>; required: string[] };
+    }
+  ).output;
   assert.ok("opened" in out.properties && out.required.includes("opened"));
-  const words = [readFileSync(new URL("../../../agent/skills/working-in-vyre/SKILL.md", import.meta.url), "utf8"), readFileSync(new URL("../../../agent/skills/artifacts/SKILL.md", import.meta.url), "utf8"), readFileSync(new URL("../../engine/context.ts", import.meta.url), "utf8")].join("\n");
+  const words = [
+    readFileSync(new URL("../../../agent/skills/working-in-vyre/SKILL.md", import.meta.url), "utf8"),
+    readFileSync(new URL("../../../agent/skills/artifacts/SKILL.md", import.meta.url), "utf8"),
+    readFileSync(new URL("../../engine/context.ts", import.meta.url), "utf8"),
+  ].join("\n");
   assert.ok(!/opens in a tab/.test(words), "no text promises a tab that nothing opens");
   assert.match(words, /only when the result says `opened: true`/);
   assert.match(words, /Report only what a tool result confirms/);
 });
-
 
 test("with an artifact host, artifact_open gives a one-time code for it: one use, a minute, and the session it starts is for that artifact only", async () => {
   const w = harness();
@@ -172,13 +272,19 @@ test("with an artifact host, artifact_open gives a one-time code for it: one use
     const session = await routeByArtifactSession(w.ctx, made.site.siteId, got!.token, now + 1000);
     assert.equal(session?.principal, w.ctx.principal.id);
     assert.equal(await routeByArtifactSession(w.ctx, "sit_other", got!.token, now), null, "for this artifact only");
-    assert.equal(await routeByArtifactSession(w.ctx, made.site.siteId, got!.token, now + ARTIFACT_SESSION_MS + 1), null, "twelve hours");
+    assert.equal(
+      await routeByArtifactSession(w.ctx, made.site.siteId, got!.token, now + ARTIFACT_SESSION_MS + 1),
+      null,
+      "twelve hours",
+    );
     // a code unused for a minute ends
     const again = await h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId });
     const code2 = /^\/x\/([0-9a-f]{48})$/.exec(again.path)?.[1] as string;
     assert.equal(await exchangeArtifactCode(w.ctx, code2, again.expiresAt + 1), null);
     assert.equal(await exchangeArtifactCode(w.ctx, "0".repeat(48), now), null);
-  } finally { configureRoutes(null); }
+  } finally {
+    configureRoutes(null);
+  }
 });
 
 test("an artifact keeps its picture and the chat that made it, and reads back the chat's title and who it is shared with", async () => {
@@ -187,32 +293,54 @@ test("an artifact keeps its picture and the chat that made it, and reads back th
   const thumb = "data:image/png;base64,iVBORw0KGgo=";
   const calls: string[] = [];
   const ctx = {
-    ...w.ctx, thread: "thr_1",
+    ...w.ctx,
+    thread: "thr_1",
     call: async (cap: string) => {
       calls.push(cap);
       if (cap === "threads.get") return { thread: { title: "Monthly numbers" } };
-      if (cap === "access.shares_of") return { shares: [{ through: "direct", grant: { subject: { kind: "person", id: "usr_sara" } } }, { through: "direct", grant: { subject: { kind: "link", id: "lnk_1" } } }, { through: "folder", grant: { subject: { kind: "person", id: "usr_omar" } } }, { through: "group", grant: { subject: { kind: "group", id: "grp_everyone" } } }, { through: "owner", grant: { subject: { kind: "person", id: w.ctx.principal.id } } }] };
+      if (cap === "access.shares_of")
+        return {
+          shares: [
+            { through: "direct", grant: { subject: { kind: "person", id: "usr_sara" } } },
+            { through: "direct", grant: { subject: { kind: "link", id: "lnk_1" } } },
+            { through: "folder", grant: { subject: { kind: "person", id: "usr_omar" } } },
+            { through: "group", grant: { subject: { kind: "group", id: "grp_everyone" } } },
+            { through: "owner", grant: { subject: { kind: "person", id: w.ctx.principal.id } } },
+          ],
+        };
       return {};
     },
   };
   try {
-    await assert.rejects(() => h["sites.artifact_publish"]!(ctx, { title: "Bad", html: "<p>x</p>", thumb: "javascript:alert(1)" }), /small png, jpeg or webp/);
+    await assert.rejects(
+      () => h["sites.artifact_publish"]!(ctx, { title: "Bad", html: "<p>x</p>", thumb: "javascript:alert(1)" }),
+      /small png, jpeg or webp/,
+    );
     const pub = await h["sites.artifact_publish"]!(ctx, { title: "Numbers", html: "<p>42</p>", thumb });
     const got = await h["sites.get"]!(ctx, { siteId: pub.artifactId });
     assert.equal(got.site.thumb, thumb);
     assert.equal(got.site.chatId, "thr_1");
     assert.equal(got.site.chatTitle, "Monthly numbers");
-    assert.deepEqual(got.site.sharedWith, ["usr_sara", "usr_omar"], "people with a grant, direct or from a folder; never the owner");
+    assert.deepEqual(
+      got.site.sharedWith,
+      ["usr_sara", "usr_omar"],
+      "people with a grant, direct or from a folder; never the owner",
+    );
     assert.deepEqual(got.site.sharedAudience, ["link", "space"], "a link and the whole Space say so");
     const list = await h["sites.list"]!(ctx, { kind: "artifact" });
     assert.equal(list.sites[0].chatTitle, "Monthly numbers");
     // a republish from another chat keeps the first chat as the source, and without a picture keeps the old one
-    const again = await h["sites.artifact_publish"]!({ ...ctx, thread: "thr_2" }, { title: "Numbers", html: "<p>43</p>" });
+    const again = await h["sites.artifact_publish"]!(
+      { ...ctx, thread: "thr_2" },
+      { title: "Numbers", html: "<p>43</p>" },
+    );
     assert.equal(again.artifactId, pub.artifactId);
     const kept = await h["sites.get"]!(ctx, { siteId: pub.artifactId });
     assert.equal(kept.site.chatId, "thr_1");
     assert.equal(kept.site.thumb, thumb);
-  } finally { configureRoutes(null); }
+  } finally {
+    configureRoutes(null);
+  }
 });
 
 test("a picture taken on open is kept once, and again only after the artifact changes", async () => {
@@ -220,18 +348,36 @@ test("a picture taken on open is kept once, and again only after the artifact ch
   let t0 = 1_000;
   const ctx = { ...w.ctx, now: () => t0, thread: undefined };
   configureRoutes(host({ artifacts: { folder: async () => "fld_a", put: async () => undefined } }) as never);
-  const a = "data:image/webp;base64,AAAA", b = "data:image/webp;base64,BBBB";
+  const a = "data:image/webp;base64,AAAA",
+    b = "data:image/webp;base64,BBBB";
   try {
     const pub = await h["sites.artifact_publish"]!(ctx, { title: "Numbers", html: "<p>1</p>" });
-    assert.equal((await h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: a })).set, true, "the first open sets it");
+    assert.equal(
+      (await h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: a })).set,
+      true,
+      "the first open sets it",
+    );
     t0 += 10;
-    assert.equal((await h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: b })).set, false, "the same version keeps the first");
+    assert.equal(
+      (await h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: b })).set,
+      false,
+      "the same version keeps the first",
+    );
     assert.equal((await h["sites.get"]!(ctx, { siteId: pub.artifactId })).site.thumb, a);
     t0 += 10;
     await h["sites.artifact_publish"]!(ctx, { title: "Numbers", html: "<p>2</p>" });
     t0 += 10;
-    assert.equal((await h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: b })).set, true, "a republish takes a new one on its next open");
+    assert.equal(
+      (await h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: b })).set,
+      true,
+      "a republish takes a new one on its next open",
+    );
     assert.equal((await h["sites.get"]!(ctx, { siteId: pub.artifactId })).site.thumb, b);
-    await assert.rejects(() => h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: "javascript:1" }), /small png, jpeg or webp/);
-  } finally { configureRoutes(null); }
+    await assert.rejects(
+      () => h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: "javascript:1" }),
+      /small png, jpeg or webp/,
+    );
+  } finally {
+    configureRoutes(null);
+  }
 });

@@ -13,15 +13,30 @@ const call = async (hn: Harness, ctx: Harness["ctx"], cap: string, input: Record
   assert.deepEqual(contractErrors(cap, "out", out), [], `${cap}: output`);
   return out;
 };
-const withChat = (hn: Harness, threadId = "thr_chat1") => hn.world.answer("threads.get", (i) => { if (i.threadId !== threadId) throw Object.assign(new Error("gone"), { error: { code: "validation.not_found" } }); return { thread: { threadId } }; });
+const withChat = (hn: Harness, threadId = "thr_chat1") =>
+  hn.world.answer("threads.get", (i) => {
+    if (i.threadId !== threadId) throw Object.assign(new Error("gone"), { error: { code: "validation.not_found" } });
+    return { thread: { threadId } };
+  });
 
 test("an agent made for a chat is a teammate of that chat: it carries chatOf, the Agents page leaves it out, and the chat lists it", async () => {
   const hn = harness();
   withChat(hn);
   const space = (await call(hn, hn.ctx, "agents.create", { name: "Intake", role: "Takes intake." })).agent;
-  const mine = (await call(hn, hn.ctx, "agents.create", { name: "Checker", role: "Checks every upload against the spec", threadId: "thr_chat1" })).agent;
-  assert.deepEqual([mine.kind, mine.chatOf, mine.teammateOf], ["teammate", "thr_chat1", "thr_chat1"], "teammateOf is the chat too, the shape crews and teammates read");
-  const ids = async (input: Record<string, unknown>): Promise<string[]> => (await call(hn, hn.ctx, "agents.list", input)).agents.map((a: { agentId: string }) => a.agentId);
+  const mine = (
+    await call(hn, hn.ctx, "agents.create", {
+      name: "Checker",
+      role: "Checks every upload against the spec",
+      threadId: "thr_chat1",
+    })
+  ).agent;
+  assert.deepEqual(
+    [mine.kind, mine.chatOf, mine.teammateOf],
+    ["teammate", "thr_chat1", "thr_chat1"],
+    "teammateOf is the chat too, the shape crews and teammates read",
+  );
+  const ids = async (input: Record<string, unknown>): Promise<string[]> =>
+    (await call(hn, hn.ctx, "agents.list", input)).agents.map((a: { agentId: string }) => a.agentId);
   assert.deepEqual(await ids({}), [space.agentId]);
   assert.deepEqual((await ids({ teammates: "include" })).sort(), [space.agentId, mine.agentId].sort());
   assert.deepEqual(await ids({ threadId: "thr_chat1" }), [mine.agentId]);
@@ -33,8 +48,16 @@ test("an agent made for a chat is a teammate of that chat: it carries chatOf, th
 test("an agent for a chat needs a chat its maker can open, and belongs to a chat or a project, not both", async () => {
   const hn = harness();
   withChat(hn);
-  assert.equal(await failure(() => h["agents.create"]!(hn.ctx, { name: "Lost", threadId: "thr_nowhere", idempotencyKey: "k1" })), "validation.not_found");
-  assert.equal(await failure(() => h["agents.create"]!(hn.ctx, { name: "Both", threadId: "thr_chat1", projectId: "prj_a", idempotencyKey: "k2" })), "validation.bad_input");
+  assert.equal(
+    await failure(() => h["agents.create"]!(hn.ctx, { name: "Lost", threadId: "thr_nowhere", idempotencyKey: "k1" })),
+    "validation.not_found",
+  );
+  assert.equal(
+    await failure(() =>
+      h["agents.create"]!(hn.ctx, { name: "Both", threadId: "thr_chat1", projectId: "prj_a", idempotencyKey: "k2" }),
+    ),
+    "validation.bad_input",
+  );
   assert.equal(hn.rows("SELECT * FROM agents_agent").length, 0);
 });
 
@@ -57,20 +80,48 @@ test("Can chat with (view): Leo sees and reads the agent, so he can add it to hi
   const a = await dana(hn);
   const leo = hn.person(LEO);
   assert.equal((await call(hn, leo, "agents.get", { agentId: a.agentId })).agent.name, "Ember");
-  assert.equal(await failure(() => h["agents.update"]!(leo, { agentId: a.agentId, patch: { model: "claude-sonnet-5-5" } })), "permission.no_grant", "settings need Can edit");
-  assert.equal(await failure(() => h["agents.update"]!(leo, { agentId: a.agentId, patch: { name: "Ember2" } })), "permission.no_grant");
+  assert.equal(
+    await failure(() => h["agents.update"]!(leo, { agentId: a.agentId, patch: { model: "claude-sonnet-5-5" } })),
+    "permission.no_grant",
+    "settings need Can edit",
+  );
+  assert.equal(
+    await failure(() => h["agents.update"]!(leo, { agentId: a.agentId, patch: { name: "Ember2" } })),
+    "permission.no_grant",
+  );
 });
 
 test("Can use in their work (use): an agent can be given work only with Can use; Can chat with is not enough, and the owner and the host always can", async () => {
   const view = leoHolds("view");
   const a = await dana(view);
   const asLeo = (hn: Harness) => hn.person(LEO);
-  assert.deepEqual(await h["agents.outside.usable"]!(asLeo(view), { agentId: a.agentId }), { usable: false }, "Can chat with: not for tasks, automations or crews");
-  const use = harness({ raw: view.raw, clock: view.clock, files: view.world, allow: (x, r) => r.type !== "agent" || rank("use") >= rank(x.level) });
+  assert.deepEqual(
+    await h["agents.outside.usable"]!(asLeo(view), { agentId: a.agentId }),
+    { usable: false },
+    "Can chat with: not for tasks, automations or crews",
+  );
+  const use = harness({
+    raw: view.raw,
+    clock: view.clock,
+    files: view.world,
+    allow: (x, r) => r.type !== "agent" || rank("use") >= rank(x.level),
+  });
   assert.deepEqual(await h["agents.outside.usable"]!(use.person(LEO), { agentId: a.agentId }), { usable: true });
-  assert.deepEqual(await h["agents.outside.usable"]!(view.person(DANA), { agentId: a.agentId }), { usable: true }, "the owner");
-  assert.deepEqual(await h["agents.outside.usable"]!(view.as({ kind: "service", id: "svc_host" } as never), { agentId: a.agentId }), { usable: true }, "the host");
-  assert.deepEqual(await h["agents.outside.usable"]!(view.person(LEO), { agentId: "agt_unknown" }), { usable: false }, "an agent that is not there takes no work (review 12 Nov, 9: not found is not usable; before, it said yes)");
+  assert.deepEqual(
+    await h["agents.outside.usable"]!(view.person(DANA), { agentId: a.agentId }),
+    { usable: true },
+    "the owner",
+  );
+  assert.deepEqual(
+    await h["agents.outside.usable"]!(view.as({ kind: "service", id: "svc_host" } as never), { agentId: a.agentId }),
+    { usable: true },
+    "the host",
+  );
+  assert.deepEqual(
+    await h["agents.outside.usable"]!(view.person(LEO), { agentId: "agt_unknown" }),
+    { usable: false },
+    "an agent that is not there takes no work (review 12 Nov, 9: not found is not usable; before, it said yes)",
+  );
 });
 
 test("Can edit (edit): settings (agent.toml, AGENT.md, memory) change; renaming does not. Pause, delete and share are level manage in the pipeline and in access.share", async () => {
@@ -79,7 +130,11 @@ test("Can edit (edit): settings (agent.toml, AGENT.md, memory) change; renaming 
   const leo = hn.person(LEO);
   const upd = await h["agents.update"]!(leo, { agentId: a.agentId, patch: { model: "claude-sonnet-5-5" } });
   assert.equal(upd.agent.model, "claude-sonnet-5-5");
-  assert.equal(await failure(() => h["agents.update"]!(leo, { agentId: a.agentId, patch: { name: "Renamed" } })), "permission.no_grant", "rename is Can manage");
+  assert.equal(
+    await failure(() => h["agents.update"]!(leo, { agentId: a.agentId, patch: { name: "Renamed" } })),
+    "permission.no_grant",
+    "rename is Can manage",
+  );
 });
 
 test("Can manage (manage): the person who manages the agent renames it, and so does its owner", async () => {
@@ -93,22 +148,34 @@ test("Can manage (manage): the person who manages the agent renames it, and so d
 
 test("a person's own Assistant is theirs alone: nobody else can see it, open it or be given work for it, whatever level they hold", async () => {
   const hn = harness();
-  const [id] = await (await import("../impl.ts")).consumers["agents.ensure_assistant"].run(hn.person(DANA), { payload: { principalId: DANA, kind: "person", name: "Dana Reyes" } });
+  const [id] = await (
+    await import("../impl.ts")
+  ).consumers["agents.ensure_assistant"].run(hn.person(DANA), {
+    payload: { principalId: DANA, kind: "person", name: "Dana Reyes" },
+  });
   const allowAll = hn.person(MAYA);
   assert.equal(await failure(() => h["agents.get"]!(allowAll, { agentId: id })), "validation.not_found");
   assert.deepEqual(await h["agents.outside.usable"]!(allowAll, { agentId: id }), { usable: false });
   assert.deepEqual(await h["agents.outside.usable"]!(hn.person(DANA), { agentId: id }), { usable: true });
-  assert.equal(hn.named("agent.privacy_set").length, 1, "access is told it is private, which is how access.share refuses it");
+  assert.equal(
+    hn.named("agent.privacy_set").length,
+    1,
+    "access is told it is private, which is how access.share refuses it",
+  );
 });
 
 test("agents.outside.usable: an agent a private chat made, asked by someone who may not see it, answers exactly as an agent that is not there", async () => {
-  const none = harness({ allow: (_a, r) => r.type !== "agent" });   // Leo holds nothing on any agent: the chat's agent is cut off from him
+  const none = harness({ allow: (_a, r) => r.type !== "agent" }); // Leo holds nothing on any agent: the chat's agent is cut off from him
   const owner = harness({ raw: none.raw, clock: none.clock, files: none.world });
   const made = (await call(owner, owner.ctx, "agents.create", { name: "Rivera helper" })).agent as { agentId: string };
   // made by a chat: a teammate of that thread (what agents.create with a threadId writes)
   owner.raw.run("UPDATE agents_agent SET kind = 'teammate', threadId = 'thr_private1' WHERE id = ?", made.agentId);
   const hidden = await h["agents.outside.usable"]!(none.person(LEO), { agentId: made.agentId });
   const missing = await h["agents.outside.usable"]!(none.person(LEO), { agentId: "agt_unknown" });
-  assert.deepEqual(hidden, missing, "the same answer: a task, a hand-off or an Add for it reads as one for a missing agent");
+  assert.deepEqual(
+    hidden,
+    missing,
+    "the same answer: a task, a hand-off or an Add for it reads as one for a missing agent",
+  );
   assert.deepEqual(hidden, { usable: false });
 });

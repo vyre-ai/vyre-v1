@@ -9,13 +9,23 @@ import { consumers, kindOf } from "../impl.ts";
 
 const sender = as(svc);
 const me = as(alice);
-const rows = (h: Harness): any[] => h.sqlite.prepare("SELECT * FROM notifications_items ORDER BY rowid").all() as any[];   // eslint-disable-line @typescript-eslint/no-explicit-any
+const rows = (h: Harness): any[] => h.sqlite.prepare("SELECT * FROM notifications_items ORDER BY rowid").all() as any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
 const reply = (from: string, over: Record<string, unknown> = {}): Record<string, unknown> =>
-  sendInput({ kind: "reply.thread", subject: { type: "thread", id: "thr_rivera" }, data: { from, fromId: "usr_maya", where: "#intake", threadId: "thr_rivera" }, collapseKey: "reply.thread:thr_rivera", body: `${from} says hi`, ...over });
+  sendInput({
+    kind: "reply.thread",
+    subject: { type: "thread", id: "thr_rivera" },
+    data: { from, fromId: "usr_maya", where: "#intake", threadId: "thr_rivera" },
+    collapseKey: "reply.thread:thr_rivera",
+    body: `${from} says hi`,
+    ...over,
+  });
 
 test("reply.thread interrupts in Chats with a Reply action", () => {
   const k = kindOf("reply.thread")!;
-  assert.deepEqual([k.level, k.place, k.title, k.actions], ["interrupt", "chats", "{{from}} replied in {{where}}", [{ label: "Reply", cap: "chat.post" }]]);
+  assert.deepEqual(
+    [k.level, k.place, k.title, k.actions],
+    ["interrupt", "chats", "{{from}} replied in {{where}}", [{ label: "Reply", cap: "chat.post" }]],
+  );
   assert.equal(k.respectHours, true, "outside working hours it waits as a dot");
 });
 
@@ -31,7 +41,11 @@ test("three replies in a minute are one row that says 3 new replies, and it inte
   assert.equal(c.notificationId, a.notificationId);
   const r = rows(h);
   assert.equal(r.length, 1);
-  assert.deepEqual([r[0].count, r[0].title, r[0].body], [3, "3 new replies in #intake", "Maya Chen says hi"], "the newest line under the count");
+  assert.deepEqual(
+    [r[0].count, r[0].title, r[0].body],
+    [3, "3 new replies in #intake", "Maya Chen says hi"],
+    "the newest line under the count",
+  );
   assert.equal(h.events[0]!.payload.collapsed, true, "the third folded into the first row");
   assert.equal(h.events[0]!.payload.pushed, false, "and did not push again");
   // seen, the next reply is news again
@@ -50,6 +64,20 @@ test("a muted thread or a muted sender stays quiet; quiet hours hold the reply",
   await g.call("notifications.mute.set", { target: { kind: "person", id: "usr_maya" } }, me);
   assert.equal((await g.call("notifications.send", reply("Maya Chen"), sender)).outcome, "dropped_muted");
   const q = harness();
-  await consumers["notifications.settings_sync"].run(q.ctxFor("notifications.send", sender), { name: "settings.changed", payload: { key: "notifications.quiet_hours", scope: "person", person: alice.id, before: null, after: { on: true, from: "09:00", to: "11:30", needs: true }, by: alice.id } });
-  assert.equal((await q.call("notifications.send", reply("Maya Chen"), sender)).outcome, "digest", "held until quiet hours end");
+  await consumers["notifications.settings_sync"].run(q.ctxFor("notifications.send", sender), {
+    name: "settings.changed",
+    payload: {
+      key: "notifications.quiet_hours",
+      scope: "person",
+      person: alice.id,
+      before: null,
+      after: { on: true, from: "09:00", to: "11:30", needs: true },
+      by: alice.id,
+    },
+  });
+  assert.equal(
+    (await q.call("notifications.send", reply("Maya Chen"), sender)).outcome,
+    "digest",
+    "held until quiet hours end",
+  );
 });

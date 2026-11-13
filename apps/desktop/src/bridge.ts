@@ -2,14 +2,27 @@
 // notifications, picker and badge controls. App clients import the lower
 // structural bridge directly and never depend on this sibling app package.
 import { makeDesktopLinkBridge } from "../../../client/src/connection/desktop-link.ts";
-import type { DesktopDeepLink, DesktopInfo, DesktopLinkBridge, Invoke, Listen, Unlisten } from "../../../client/src/connection/desktop-link.ts";
+import type {
+  DesktopDeepLink,
+  DesktopInfo,
+  DesktopLinkBridge,
+  Invoke,
+  Listen,
+  Unlisten,
+} from "../../../client/src/connection/desktop-link.ts";
 import { checkPicked, pickOptions } from "./files.ts";
 import type { PickRequest } from "./files.ts";
 import { osNotification } from "./notify.ts";
 import type { NotificationInput } from "./notify.ts";
 import { badgeText } from "./notify.ts";
 
-export type { DesktopDeepLink, DesktopInfo, Invoke, Listen, Unlisten } from "../../../client/src/connection/desktop-link.ts";
+export type {
+  DesktopDeepLink,
+  DesktopInfo,
+  Invoke,
+  Listen,
+  Unlisten,
+} from "../../../client/src/connection/desktop-link.ts";
 
 import type { SessionSource } from "./session-import/types.ts";
 type NativeSessionSource = Omit<SessionSource, "transcriptPath"> & { gitOriginUrl?: string };
@@ -28,8 +41,12 @@ export type Bridge = DesktopLinkBridge & {
 export function makeBridge(invoke: Invoke, listen: Listen): Bridge {
   const links = makeDesktopLinkBridge(invoke, listen);
   return {
-    async discoverCodexSessions() { return await invoke("discover_codex_sessions") as NativeSessionSource[]; },
-    async discoverSessionSources() { return await invoke("discover_session_sources") as NativeSessionSource[]; },
+    async discoverCodexSessions() {
+      return (await invoke("discover_codex_sessions")) as NativeSessionSource[];
+    },
+    async discoverSessionSources() {
+      return (await invoke("discover_session_sources")) as NativeSessionSource[];
+    },
     async notify(n, opts) {
       const os = osNotification(n, opts);
       if (!os) return false;
@@ -39,10 +56,16 @@ export function makeBridge(invoke: Invoke, listen: Listen): Bridge {
     async pick(req) {
       const options = pickOptions(req);
       const got = await invoke("pick_paths", { options });
-      return checkPicked(options, Array.isArray(got) ? got.filter((path): path is string => typeof path === "string") : null);
+      return checkPicked(
+        options,
+        Array.isArray(got) ? got.filter((path): path is string => typeof path === "string") : null,
+      );
     },
     async setBadge(count) {
-      await invoke("set_badge", { count: Math.max(0, Math.floor(Number.isFinite(count) ? count : 0)), text: badgeText(count) });
+      await invoke("set_badge", {
+        count: Math.max(0, Math.floor(Number.isFinite(count) ? count : 0)),
+        text: badgeText(count),
+      });
     },
     bootstrap: links.bootstrap,
     listenLinks: links.listenLinks,

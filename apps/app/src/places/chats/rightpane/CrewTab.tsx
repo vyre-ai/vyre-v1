@@ -20,7 +20,8 @@ type CrewOut = CapMap["engine.crew.list"]["out"];
 
 /** Which jobs wait for a person's yes: a finished teammate has work to merge. */
 export const canMerge = (j: CrewJob): boolean => j.state === "done";
-export const canStop = (j: CrewJob): boolean => j.state === "working" || j.state === "waiting" || j.state === "paused" || j.state === "lost";
+export const canStop = (j: CrewJob): boolean =>
+  j.state === "working" || j.state === "waiting" || j.state === "paused" || j.state === "lost";
 /** A Job the server lost may have done part of its work, so it never runs again by itself: a person presses Run again. */
 export const canRunAgain = (j: CrewJob): boolean => j.state === "lost";
 
@@ -33,27 +34,80 @@ export function CrewTab({ deps, window }: { deps: PaneDeps; window?: VirtualWind
   const { add, row: addRow } = usePaneAdd(deps);
   const entries: Entry[] = [addRow];
   // a Personal Space has no server: its crew works while this computer is on, and says so
-  if (data.space.personal && (jobs.length > 0 || waits.length > 0)) entries.push({ key: "runs-here", type: "label", text: "Runs while this computer is on" });
+  if (data.space.personal && (jobs.length > 0 || waits.length > 0))
+    entries.push({ key: "runs-here", type: "label", text: "Runs while this computer is on" });
   // what the lead waits on besides teammates: a live row, "Waiting on checks, 12 of 40", until the host sees them end and wakes the lead
-  for (const w of waits) entries.push({ key: `w-${w.waitId}`, type: "row", title: `Checks of ${w.label}`, note: w.total > 0 ? `Waiting · ${w.done} of ${w.total} done` : "Waiting for the first check", leading: <View style={{ marginRight: 8 }}><LeadIcon name="clock" color="var(--accent)" /></View>, testID: `crew-wait-${w.waitId}` });
-  if (jobs.length === 0 && waits.length === 0) entries.push({ key: "none", type: "empty", text: "No teammates working for this chat.", testID: "crew-empty" });
+  for (const w of waits)
+    entries.push({
+      key: `w-${w.waitId}`,
+      type: "row",
+      title: `Checks of ${w.label}`,
+      note: w.total > 0 ? `Waiting · ${w.done} of ${w.total} done` : "Waiting for the first check",
+      leading: (
+        <View style={{ marginRight: 8 }}>
+          <LeadIcon name="clock" color="var(--accent)" />
+        </View>
+      ),
+      testID: `crew-wait-${w.waitId}`,
+    });
+  if (jobs.length === 0 && waits.length === 0)
+    entries.push({ key: "none", type: "empty", text: "No teammates working for this chat.", testID: "crew-empty" });
   for (const j of jobs) {
     const name = j.name ?? "Teammate";
     entries.push({
-      key: `j-${j.jobId}`, type: "row", title: `${name} · ${j.title}`, note: crewNote(j, clock), testID: `crew-${j.jobId}`,
-      leading: <View style={{ marginRight: 8 }}><Face name={name} seedId={j.agentId} size={16} pulse={j.state === "working"} /></View>,
+      key: `j-${j.jobId}`,
+      type: "row",
+      title: `${name} · ${j.title}`,
+      note: crewNote(j, clock),
+      testID: `crew-${j.jobId}`,
+      leading: (
+        <View style={{ marginRight: 8 }}>
+          <Face name={name} seedId={j.agentId} size={16} pulse={j.state === "working"} />
+        </View>
+      ),
       onPress: () => data.nav.openThread(j.threadId, "side"),
       trailing: (): ReactElement => (
         <>
-          {canMerge(j) ? <TextButton label="Merge" primary onPress={() => { void crewMerge(deps, j.jobId, name, j.branch); }} testID={`crew-merge-${j.jobId}`} /> : null}
-          {canRunAgain(j) ? <TextButton label="Run again" primary onPress={() => { void crewRunAgain(deps, j.jobId, name); }} testID={`crew-again-${j.jobId}`} /> : null}
-          {canStop(j) ? <TextButton label="Stop" onPress={() => { void crewStop(deps, j.jobId, name); }} testID={`crew-stop-${j.jobId}`} /> : null}
+          {canMerge(j) ? (
+            <TextButton
+              label="Merge"
+              primary
+              onPress={() => {
+                void crewMerge(deps, j.jobId, name, j.branch);
+              }}
+              testID={`crew-merge-${j.jobId}`}
+            />
+          ) : null}
+          {canRunAgain(j) ? (
+            <TextButton
+              label="Run again"
+              primary
+              onPress={() => {
+                void crewRunAgain(deps, j.jobId, name);
+              }}
+              testID={`crew-again-${j.jobId}`}
+            />
+          ) : null}
+          {canStop(j) ? (
+            <TextButton
+              label="Stop"
+              onPress={() => {
+                void crewStop(deps, j.jobId, name);
+              }}
+              testID={`crew-stop-${j.jobId}`}
+            />
+          ) : null}
           {j.state === "merged" ? <LeadIcon name="check" /> : null}
         </>
       ),
     });
   }
-  const list = <><PaneList entries={entries} {...(window ? { window } : {})} testID="crew-list" />{add.element}</>;
+  const list = (
+    <>
+      <PaneList entries={entries} {...(window ? { window } : {})} testID="crew-list" />
+      {add.element}
+    </>
+  );
   // with the live read of the chat's crew (the strip's own), the pane shows the overview or one helper's peek; the teammate list below keeps Merge, Run again and Stop for code work
   const crew = useCrew();
   const status = crew?.status ?? null;
@@ -61,9 +115,24 @@ export function CrewTab({ deps, window }: { deps: PaneDeps; window?: VirtualWind
     const sel = crew.selected !== null ? status.members.find((m) => m.id === crew.selected) : undefined;
     return (
       <>
-        {sel
-          ? <CrewPeek member={sel} call={data.call} {...(data.nameOf ? { nameOfId: data.nameOf } : {})} onBack={() => crew.show(null)} onOpenChat={(id) => data.nav.openHelper(id)} onRefresh={crew.refresh} />
-          : <CrewOverview status={status} call={data.call} threadId={data.threadId} onPeek={(id) => crew.show(id)} onRefresh={crew.refresh} />}
+        {sel ? (
+          <CrewPeek
+            member={sel}
+            call={data.call}
+            {...(data.nameOf ? { nameOfId: data.nameOf } : {})}
+            onBack={() => crew.show(null)}
+            onOpenChat={(id) => data.nav.openHelper(id)}
+            onRefresh={crew.refresh}
+          />
+        ) : (
+          <CrewOverview
+            status={status}
+            call={data.call}
+            threadId={data.threadId}
+            onPeek={(id) => crew.show(id)}
+            onRefresh={crew.refresh}
+          />
+        )}
         {jobs.length > 0 && !sel ? list : null}
       </>
     );

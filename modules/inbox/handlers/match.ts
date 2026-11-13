@@ -6,7 +6,35 @@
 // stays undoable: Undo gives the history back to the sender. Nothing is ever deleted, only folded (the sender's row is hidden) and restored.
 // DECISION: a match remembers the sender's address on the record (contacts.address.add) unless the caller says rememberAddress false; Undo takes it back off again.
 // DECISION: the Needs you task is assigned to the person route_owner names, else to the admin role; closing it when the sender is matched is the task module's job.
-import { conversationsShowing, itemsOf, newId, bad, ensure, findRecord, first, followOf, getConversation, isId, privateIds, kindOfAddress, list, missing, nameOf, nextVersion, normAddress, num, obj, refuse, rowsOf, str, strOrNull, text, toConversation, toJson, codeOf } from "../projections.ts";
+import {
+  conversationsShowing,
+  itemsOf,
+  newId,
+  bad,
+  ensure,
+  findRecord,
+  first,
+  followOf,
+  getConversation,
+  isId,
+  privateIds,
+  kindOfAddress,
+  list,
+  missing,
+  nameOf,
+  nextVersion,
+  normAddress,
+  num,
+  obj,
+  refuse,
+  rowsOf,
+  str,
+  strOrNull,
+  text,
+  toConversation,
+  toJson,
+  codeOf,
+} from "../projections.ts";
 import type { Channel, ConversationRow, InboxCtx, Json, RecordLite, Row } from "../projections.ts";
 
 const REF_KIND: Record<Channel, string> = { email: "mail_message", sms: "sms", call: "call" };
@@ -27,12 +55,21 @@ export interface Suggestion {
   why: string;
 }
 
-const WHY: Record<Candidate["via"], string> = { address: "Same email address", phone: "Same phone number", handle: "Same handle", name: "Similar name" };
+const WHY: Record<Candidate["via"], string> = {
+  address: "Same email address",
+  phone: "Same phone number",
+  handle: "Same handle",
+  name: "Similar name",
+};
 
 // ---- reading the sender's candidates
 
 /** Sure and unsure records for an address (and a name, when it is more than the address). Bad input from the matcher (a number it cannot read) means no candidates. */
-export async function candidatesFor(ctx: InboxCtx, address: string, name?: string): Promise<{ sure: Candidate[]; unsure: Candidate[] }> {
+export async function candidatesFor(
+  ctx: InboxCtx,
+  address: string,
+  name?: string,
+): Promise<{ sure: Candidate[]; unsure: Candidate[] }> {
   const kind = kindOfAddress(address);
   const q: Json = kind === "email" ? { email: address } : kind === "phone" ? { phone: address } : { handle: address };
   if (name && name !== address && name.length <= 200) q.name = name;
@@ -43,15 +80,30 @@ export async function candidatesFor(ctx: InboxCtx, address: string, name?: strin
     if (codeOf(e) === "validation.bad_input") return { sure: [], unsure: [] };
     throw e;
   }
-  const read = (v: unknown): Candidate[] => list(v).map((c) => {
-    const o = obj(c);
-    return { recordId: text(o.recordId), type: o.type === "company" ? "company" : "contact", name: text(o.name), via: (["address", "phone", "handle", "name"].includes(text(o.via)) ? text(o.via) : "address") as Candidate["via"], score: typeof o.score === "number" ? o.score : 0 } satisfies Candidate;
-  }).filter((c) => c.recordId !== "").sort((a, b) => b.score - a.score);
+  const read = (v: unknown): Candidate[] =>
+    list(v)
+      .map((c) => {
+        const o = obj(c);
+        return {
+          recordId: text(o.recordId),
+          type: o.type === "company" ? "company" : "contact",
+          name: text(o.name),
+          via: (["address", "phone", "handle", "name"].includes(text(o.via))
+            ? text(o.via)
+            : "address") as Candidate["via"],
+          score: typeof o.score === "number" ? o.score : 0,
+        } satisfies Candidate;
+      })
+      .filter((c) => c.recordId !== "")
+      .sort((a, b) => b.score - a.score);
   return { sure: read(res.sure), unsure: read(res.unsure) };
 }
 
 /** Who gets an unowned reply: the contact owner, then the shared inbox's owner. Never blocks linking. */
-async function ownerFor(ctx: InboxCtx, a: { contactId?: string | null | undefined; mailboxId?: string | undefined }): Promise<string | null> {
+async function ownerFor(
+  ctx: InboxCtx,
+  a: { contactId?: string | null | undefined; mailboxId?: string | undefined },
+): Promise<string | null> {
   const q: Json = {};
   if (a.contactId) q.contactId = a.contactId;
   if (a.mailboxId) q.mailboxId = a.mailboxId;
@@ -77,28 +129,67 @@ export function refresh(ctx: InboxCtx, id: string): void {
   const numberIds = items.map((i) => strOrNull(i, "numberId")).filter((v): v is string => v !== null);
   ctx.db.run(
     `UPDATE inbox_conversation SET "lastMessageAt" = ?, "lastChannel" = ?, "lastPreview" = ?, "unreadCount" = ?, "mailboxIds" = ?, "numberIds" = ?, version = ?, updated_at = ? WHERE id = ?`,
-    num(latest, "at"), str(latest, "kind"), str(latest, "preview"), items.filter((i) => num(i, "unread") === 1).length, toJson(mailboxIds), toJson(numberIds),
-    nextVersion(conv), ctx.now(), id,
+    num(latest, "at"),
+    str(latest, "kind"),
+    str(latest, "preview"),
+    items.filter((i) => num(i, "unread") === 1).length,
+    toJson(mailboxIds),
+    toJson(numberIds),
+    nextVersion(conv),
+    ctx.now(),
+    id,
   );
 }
 
 function moveItems(ctx: InboxCtx, ids: string[], to: string): void {
   for (let i = 0; i < ids.length; i += CHUNK) {
     const part = ids.slice(i, i + CHUNK);
-    ctx.db.run(`UPDATE inbox_item SET "conversationId" = ? WHERE id IN (${part.map(() => "?").join(", ")})`, to, ...part);
+    ctx.db.run(
+      `UPDATE inbox_item SET "conversationId" = ? WHERE id IN (${part.map(() => "?").join(", ")})`,
+      to,
+      ...part,
+    );
   }
 }
 
 function itemIdsOf(ctx: InboxCtx, conversationId: string): string[] {
-  return rowsOf(ctx.db.all(`SELECT id FROM inbox_item WHERE "conversationId" = ?`, conversationId)).map((r) => str(r, "id"));
+  return rowsOf(ctx.db.all(`SELECT id FROM inbox_item WHERE "conversationId" = ?`, conversationId)).map((r) =>
+    str(r, "id"),
+  );
 }
 
-function insertConversation(ctx: InboxCtx, c: { contactId: string | null; address: string; displayName: string; at: number; channel: Channel; preview: string; needsMatch: boolean; ownerId: string | null }): Row {
+function insertConversation(
+  ctx: InboxCtx,
+  c: {
+    contactId: string | null;
+    address: string;
+    displayName: string;
+    at: number;
+    channel: Channel;
+    preview: string;
+    needsMatch: boolean;
+    ownerId: string | null;
+  },
+): Row {
   const id = newId("cnv", ctx.now());
   ctx.db.run(
     `INSERT INTO inbox_conversation (id, "contactId", address, "displayName", "lastMessageAt", "lastChannel", "lastPreview", "unreadCount", "needsMatch", "ownerId", "mailboxIds", "numberIds", version, updated_at, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, c.contactId, c.address, c.displayName, c.at, c.channel, c.preview, 0, c.needsMatch ? 1 : 0, c.ownerId, "[]", "[]", 1, ctx.now(), null,
+    id,
+    c.contactId,
+    c.address,
+    c.displayName,
+    c.at,
+    c.channel,
+    c.preview,
+    0,
+    c.needsMatch ? 1 : 0,
+    c.ownerId,
+    "[]",
+    "[]",
+    1,
+    ctx.now(),
+    null,
   );
   return getConversation(ctx, id) as Row;
 }
@@ -108,35 +199,80 @@ function insertConversation(ctx: InboxCtx, c: { contactId: string | null; addres
 const byOf = (ctx: InboxCtx): "person" | "agent" => (ctx.principal.kind === "agent" ? "agent" : "person");
 
 /** Link a sender's conversation to a record: the conversation takes the record, or, when the record already has one, folds into it. Returns the surviving conversation and the Undo token. */
-async function attach(ctx: InboxCtx, source: Row, rec: RecordLite, by: "rule" | "person" | "agent", addedAddressId?: string): Promise<{ conversation: Row; token: string }> {
+async function attach(
+  ctx: InboxCtx,
+  source: Row,
+  rec: RecordLite,
+  by: "rule" | "person" | "agent",
+  addedAddressId?: string,
+): Promise<{ conversation: Row; token: string }> {
   const sourceId = str(source, "id");
   const token = newId("und", ctx.now());
-  const target = first(ctx.db.all(`SELECT * FROM inbox_conversation WHERE "contactId" = ? AND deleted_at IS NULL`, rec.id));
+  const target = first(
+    ctx.db.all(`SELECT * FROM inbox_conversation WHERE "contactId" = ? AND deleted_at IS NULL`, rec.id),
+  );
   const itemIds = itemIdsOf(ctx, sourceId);
   let survivor: string;
   if (target) {
     survivor = str(target, "id");
     moveItems(ctx, itemIds, survivor);
-    ctx.db.run(`UPDATE inbox_conversation SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, ctx.now(), nextVersion(source), ctx.now(), sourceId);
+    ctx.db.run(
+      `UPDATE inbox_conversation SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`,
+      ctx.now(),
+      nextVersion(source),
+      ctx.now(),
+      sourceId,
+    );
     refresh(ctx, survivor);
     ctx.db.run(
       `INSERT INTO inbox_undo (token, mode, "sourceId", "targetId", "recordId", snapshot, "itemIds", at, undone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      token, "merge", sourceId, survivor, rec.id, JSON.stringify({ addedAddressId: addedAddressId ?? null }), JSON.stringify(itemIds), ctx.now(), 0,
+      token,
+      "merge",
+      sourceId,
+      survivor,
+      rec.id,
+      JSON.stringify({ addedAddressId: addedAddressId ?? null }),
+      JSON.stringify(itemIds),
+      ctx.now(),
+      0,
     );
   } else {
     survivor = sourceId;
     const owner = strOrNull(source, "ownerId") ?? (await ownerFor(ctx, { contactId: rec.id }));
     ctx.db.run(
       `UPDATE inbox_conversation SET "contactId" = ?, "displayName" = ?, "needsMatch" = ?, "ownerId" = ?, version = ?, updated_at = ? WHERE id = ?`,
-      rec.id, nameOf(rec), 0, owner, nextVersion(source), ctx.now(), sourceId,
+      rec.id,
+      nameOf(rec),
+      0,
+      owner,
+      nextVersion(source),
+      ctx.now(),
+      sourceId,
     );
     ctx.db.run(
       `INSERT INTO inbox_undo (token, mode, "sourceId", "targetId", "recordId", snapshot, "itemIds", at, undone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      token, "rename", sourceId, sourceId, rec.id,
-      JSON.stringify({ displayName: str(source, "displayName"), needsMatch: num(source, "needsMatch"), ownerId: strOrNull(source, "ownerId"), addedAddressId: addedAddressId ?? null }), JSON.stringify(itemIds), ctx.now(), 0,
+      token,
+      "rename",
+      sourceId,
+      sourceId,
+      rec.id,
+      JSON.stringify({
+        displayName: str(source, "displayName"),
+        needsMatch: num(source, "needsMatch"),
+        ownerId: strOrNull(source, "ownerId"),
+        addedAddressId: addedAddressId ?? null,
+      }),
+      JSON.stringify(itemIds),
+      ctx.now(),
+      0,
     );
   }
-  ctx.emit("conversation.matched", `record/${rec.id}`, { conversationId: survivor, recordId: rec.id, by, undoable: true });
+  ctx.emit("conversation.matched", `record/${rec.id}`, {
+    conversationId: survivor,
+    recordId: rec.id,
+    by,
+    undoable: true,
+  });
   return { conversation: getConversation(ctx, survivor) as Row, token };
 }
 
@@ -161,11 +297,21 @@ export interface LinkIn {
 }
 
 /** The thread, subject and people of an email, from mail. A message mail will not show (private to another inbox) still gets a thread of its own. */
-async function emailFacts(ctx: InboxCtx, id: string, address: string): Promise<{ threadId: string; subject: string; participants: string[] }> {
+async function emailFacts(
+  ctx: InboxCtx,
+  id: string,
+  address: string,
+): Promise<{ threadId: string; subject: string; participants: string[] }> {
   try {
     const m = obj(obj(await ctx.call("mail.message.get", { messageId: id })).message);
-    const people = [obj(m.from), ...list(m.to).map(obj), ...list(m.cc).map(obj)].map((p) => text(p.address).toLowerCase()).filter(Boolean);
-    return { threadId: text(m.threadId) || `mail:${id}`, subject: text(m.subject), participants: people.length ? people : [address] };
+    const people = [obj(m.from), ...list(m.to).map(obj), ...list(m.cc).map(obj)]
+      .map((p) => text(p.address).toLowerCase())
+      .filter(Boolean);
+    return {
+      threadId: text(m.threadId) || `mail:${id}`,
+      subject: text(m.subject),
+      participants: people.length ? people : [address],
+    };
   } catch (e) {
     ctx.log.warn("inbox: could not read the message for its thread", { code: codeOf(e) });
     return { threadId: `mail:${id}`, subject: "", participants: [address] };
@@ -173,36 +319,82 @@ async function emailFacts(ctx: InboxCtx, id: string, address: string): Promise<{
 }
 
 /** A message from a person's private mailbox: the person's own conversation with this address, never matched to a record and never merged with shared mail. */
-async function linkPrivate(ctx: InboxCtx, input: LinkIn, address: string, itemId: string): Promise<{ conversationId: string; linked: "none" }> {
+async function linkPrivate(
+  ctx: InboxCtx,
+  input: LinkIn,
+  address: string,
+  itemId: string,
+): Promise<{ conversationId: string; linked: "none" }> {
   const owner = input.ownerId ?? "";
   if (!isId("usr", owner)) bad(ctx, "A private message names the person it belongs to.");
   const mine = privateIds(ctx);
-  let conv = rowsOf(ctx.db.all(`SELECT * FROM inbox_conversation WHERE address = ? AND "contactId" IS NULL AND "ownerId" = ? AND deleted_at IS NULL`, address, owner)).find((r) => mine.has(str(r, "id"))) ?? null;
+  let conv =
+    rowsOf(
+      ctx.db.all(
+        `SELECT * FROM inbox_conversation WHERE address = ? AND "contactId" IS NULL AND "ownerId" = ? AND deleted_at IS NULL`,
+        address,
+        owner,
+      ),
+    ).find((r) => mine.has(str(r, "id"))) ?? null;
   if (!conv) {
-    conv = insertConversation(ctx, { contactId: null, address, displayName: address, at: input.at, channel: input.channel, preview: input.preview ?? "", needsMatch: false, ownerId: owner });
+    conv = insertConversation(ctx, {
+      contactId: null,
+      address,
+      displayName: address,
+      at: input.at,
+      channel: input.channel,
+      preview: input.preview ?? "",
+      needsMatch: false,
+      ownerId: owner,
+    });
     ctx.db.run(`INSERT INTO inbox_private ("conversationId") VALUES (?)`, str(conv, "id"));
-    ctx.emit("conversation.created", `entity/${str(conv, "id")}`, { conversationId: str(conv, "id"), channel: input.channel });
+    ctx.emit("conversation.created", `entity/${str(conv, "id")}`, {
+      conversationId: str(conv, "id"),
+      channel: input.channel,
+    });
   }
   const id = str(conv, "id");
-  const given = typeof input.threadId === "string" && input.threadId !== "" && typeof input.subject === "string"
-    ? { threadId: input.threadId, subject: input.subject, participants: Array.isArray(input.participants) && input.participants.length ? input.participants.map((p) => String(p).toLowerCase()) : [address] }
-    : { threadId: `${input.channel}:private:${address}`, subject: "", participants: [address] };
+  const given =
+    typeof input.threadId === "string" && input.threadId !== "" && typeof input.subject === "string"
+      ? {
+          threadId: input.threadId,
+          subject: input.subject,
+          participants:
+            Array.isArray(input.participants) && input.participants.length
+              ? input.participants.map((p) => String(p).toLowerCase())
+              : [address],
+        }
+      : { threadId: `${input.channel}:private:${address}`, subject: "", participants: [address] };
   ctx.db.run(
     `INSERT INTO inbox_item (id, "conversationId", kind, "refId", address, direction, at, "mailboxId", "numberId", "threadId", subject, preview, participants, unread)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    itemId, id, input.channel, input.ref.id, address, input.direction, input.at, input.mailboxId ?? null, null, given.threadId, given.subject,
-    input.preview ?? given.subject, JSON.stringify(given.participants), input.direction === "in" ? 1 : 0,
+    itemId,
+    id,
+    input.channel,
+    input.ref.id,
+    address,
+    input.direction,
+    input.at,
+    input.mailboxId ?? null,
+    null,
+    given.threadId,
+    given.subject,
+    input.preview ?? given.subject,
+    JSON.stringify(given.participants),
+    input.direction === "in" ? 1 : 0,
   );
   refresh(ctx, id);
   return { conversationId: id, linked: "none" };
 }
 
 export async function linkMessage(
-  ctx: InboxCtx, input: LinkIn,
+  ctx: InboxCtx,
+  input: LinkIn,
 ): Promise<{ conversationId: string; contactId?: string; linked: "sure" | "unsure" | "none"; taskId?: string }> {
   ensure(ctx);
   if (!["email", "sms", "call"].includes(input.channel)) bad(ctx, "The channel is email, sms or call.");
-  if (input.ref?.kind !== REF_KIND[input.channel] || typeof input.ref.id !== "string" || input.ref.id === "") bad(ctx, `A ${input.channel} is linked by its ${REF_KIND[input.channel]} reference.`);
+  if (input.ref?.kind !== REF_KIND[input.channel] || typeof input.ref.id !== "string" || input.ref.id === "")
+    bad(ctx, `A ${input.channel} is linked by its ${REF_KIND[input.channel]} reference.`);
   if (input.direction !== "in" && input.direction !== "out") bad(ctx, "The direction is in or out.");
   if (!Number.isSafeInteger(input.at) || input.at < 0) bad(ctx, "The time must be milliseconds since the epoch.");
   const address = typeof input.address === "string" ? normAddress(input.address) : "";
@@ -211,7 +403,7 @@ export async function linkMessage(
   const itemId = `${input.ref.kind}:${input.ref.id}`;
   const seen = first(ctx.db.all(`SELECT "conversationId" FROM inbox_item WHERE id = ?`, itemId));
   if (seen) {
-    const id = str(seen, "conversationId");   // linked before: natural idempotency; a Needs you task that failed to raise is raised now
+    const id = str(seen, "conversationId"); // linked before: natural idempotency; a Needs you task that failed to raise is raised now
     return answer(ctx, getConversation(ctx, id) as Row, await ensureTask(ctx, id));
   }
 
@@ -227,9 +419,17 @@ export async function linkMessage(
   let created = false;
   let ruleMatched: RecordLite | null = null;
   const hidden = privateIds(ctx);
-  const ofAddress = rowsOf(ctx.db.all(`SELECT * FROM inbox_conversation WHERE address = ? AND "contactId" IS NULL AND deleted_at IS NULL`, address)).find((r) => !hidden.has(str(r, "id"))) ?? null;
+  const ofAddress =
+    rowsOf(
+      ctx.db.all(
+        `SELECT * FROM inbox_conversation WHERE address = ? AND "contactId" IS NULL AND deleted_at IS NULL`,
+        address,
+      ),
+    ).find((r) => !hidden.has(str(r, "id"))) ?? null;
   if (sure) {
-    conv = first(ctx.db.all(`SELECT * FROM inbox_conversation WHERE "contactId" = ? AND deleted_at IS NULL`, sure.recordId));
+    conv = first(
+      ctx.db.all(`SELECT * FROM inbox_conversation WHERE "contactId" = ? AND deleted_at IS NULL`, sure.recordId),
+    );
     if (!conv) {
       if (ofAddress) {
         conv = ofAddress;
@@ -237,7 +437,14 @@ export async function linkMessage(
       } else {
         const owner = await ownerFor(ctx, { contactId: sure.recordId, mailboxId: input.mailboxId });
         conv = insertConversation(ctx, {
-          contactId: sure.recordId, address, displayName: sure.name || address, at: input.at, channel: input.channel, preview: input.preview ?? "", needsMatch: false, ownerId: owner,
+          contactId: sure.recordId,
+          address,
+          displayName: sure.name || address,
+          at: input.at,
+          channel: input.channel,
+          preview: input.preview ?? "",
+          needsMatch: false,
+          ownerId: owner,
         });
         created = true;
       }
@@ -250,30 +457,69 @@ export async function linkMessage(
     conv = ofAddress;
     if (!conv) {
       conv = insertConversation(ctx, {
-        contactId: null, address, displayName: address, at: input.at, channel: input.channel, preview: input.preview ?? "", needsMatch: false, ownerId: await ownerFor(ctx, { mailboxId: input.mailboxId }),
+        contactId: null,
+        address,
+        displayName: address,
+        at: input.at,
+        channel: input.channel,
+        preview: input.preview ?? "",
+        needsMatch: false,
+        ownerId: await ownerFor(ctx, { mailboxId: input.mailboxId }),
       });
       created = true;
     }
   }
   let id = str(conv, "id");
   if (created) {
-    ctx.emit("conversation.created", `entity/${id}`, { conversationId: id, ...(sure ? { contactId: sure.recordId } : {}), channel: input.channel });
-    if (sure) ctx.emit("conversation.matched", `record/${sure.recordId}`, { conversationId: id, recordId: sure.recordId, by: "rule", undoable: false });
+    ctx.emit("conversation.created", `entity/${id}`, {
+      conversationId: id,
+      ...(sure ? { contactId: sure.recordId } : {}),
+      channel: input.channel,
+    });
+    if (sure)
+      ctx.emit("conversation.matched", `record/${sure.recordId}`, {
+        conversationId: id,
+        recordId: sure.recordId,
+        by: "rule",
+        undoable: false,
+      });
   }
 
   // the item
-  const given = typeof input.threadId === "string" && input.threadId !== "" && typeof input.subject === "string"
-    ? { threadId: input.threadId, subject: input.subject, participants: Array.isArray(input.participants) && input.participants.length ? input.participants.map((p) => String(p).toLowerCase()) : [address] }
-    : null;
-  const facts = input.channel === "email"
-    ? given ?? await emailFacts(ctx, input.ref.id, address)
-    : { threadId: `${input.channel}:${input.numberId ?? "-"}:${address}`, subject: "", participants: [address] };
-  const priorOut = first(ctx.db.all(`SELECT id FROM inbox_item WHERE "conversationId" = ? AND direction = ?`, id, "out")) !== null;
+  const given =
+    typeof input.threadId === "string" && input.threadId !== "" && typeof input.subject === "string"
+      ? {
+          threadId: input.threadId,
+          subject: input.subject,
+          participants:
+            Array.isArray(input.participants) && input.participants.length
+              ? input.participants.map((p) => String(p).toLowerCase())
+              : [address],
+        }
+      : null;
+  const facts =
+    input.channel === "email"
+      ? (given ?? (await emailFacts(ctx, input.ref.id, address)))
+      : { threadId: `${input.channel}:${input.numberId ?? "-"}:${address}`, subject: "", participants: [address] };
+  const priorOut =
+    first(ctx.db.all(`SELECT id FROM inbox_item WHERE "conversationId" = ? AND direction = ?`, id, "out")) !== null;
   ctx.db.run(
     `INSERT INTO inbox_item (id, "conversationId", kind, "refId", address, direction, at, "mailboxId", "numberId", "threadId", subject, preview, participants, unread)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    itemId, id, input.channel, input.ref.id, address, input.direction, input.at, input.mailboxId ?? null, input.numberId ?? null, facts.threadId, facts.subject,
-    input.preview ?? facts.subject, JSON.stringify(facts.participants), input.direction === "in" ? 1 : 0,
+    itemId,
+    id,
+    input.channel,
+    input.ref.id,
+    address,
+    input.direction,
+    input.at,
+    input.mailboxId ?? null,
+    input.numberId ?? null,
+    facts.threadId,
+    facts.subject,
+    input.preview ?? facts.subject,
+    JSON.stringify(facts.participants),
+    input.direction === "in" ? 1 : 0,
   );
 
   if (ruleMatched) {
@@ -286,23 +532,42 @@ export async function linkMessage(
   // an unowned conversation goes to the right person
   if (!strOrNull(conv, "ownerId")) {
     const owner = await ownerFor(ctx, { contactId: strOrNull(conv, "contactId"), mailboxId: input.mailboxId });
-    if (owner) ctx.db.run(`UPDATE inbox_conversation SET "ownerId" = ?, version = ?, updated_at = ? WHERE id = ?`, owner, nextVersion(conv), ctx.now(), id);
+    if (owner)
+      ctx.db.run(
+        `UPDATE inbox_conversation SET "ownerId" = ?, version = ?, updated_at = ? WHERE id = ?`,
+        owner,
+        nextVersion(conv),
+        ctx.now(),
+        id,
+      );
   }
 
   // Needs a match: an unsure sender, or a stranger who answers a message we sent
   const contactId = strOrNull(conv, "contactId");
   if (!contactId && input.direction === "in" && (unsure || priorOut) && num(conv, "needsMatch") !== 1) {
-    ctx.db.run(`UPDATE inbox_conversation SET "needsMatch" = ?, version = ?, updated_at = ? WHERE id = ?`, 1, nextVersion(conv), ctx.now(), id);
+    ctx.db.run(
+      `UPDATE inbox_conversation SET "needsMatch" = ?, version = ?, updated_at = ? WHERE id = ?`,
+      1,
+      nextVersion(conv),
+      ctx.now(),
+      id,
+    );
   }
   const taskId = await ensureTask(ctx, id);
 
   // replies reach the people who follow
   conv = getConversation(ctx, id) as Row;
   const cid = strOrNull(conv, "contactId");
-  if (input.channel === "email" && facts.participants.length > 1) await linkOthers(ctx, input, itemId, facts.participants, address, cid);
+  if (input.channel === "email" && facts.participants.length > 1)
+    await linkOthers(ctx, input, itemId, facts.participants, address, cid);
   if (cid && input.direction === "in") {
     if (first(ctx.db.all(`SELECT id FROM inbox_follow WHERE "contactId" = ? AND deleted_at IS NULL`, cid))) {
-      ctx.emit("conversation.reply_received", `record/${cid}`, { conversationId: id, contactId: cid, channel: input.channel }, { vis: "participants" });
+      ctx.emit(
+        "conversation.reply_received",
+        `record/${cid}`,
+        { conversationId: id, contactId: cid, channel: input.channel },
+        { vis: "participants" },
+      );
     }
   }
   return answer(ctx, conv, taskId);
@@ -315,21 +580,48 @@ const OTHERS_MAX = 12;
  * their own conversation too, opened for them when they have none, so the thread shows whole under each of them and its read state is the item's, shared.
  * A lookup that fails costs that participant only.
  */
-async function linkOthers(ctx: InboxCtx, input: LinkIn, itemId: string, participants: string[], address: string, primary: string | null): Promise<void> {
-  const others = [...new Set(participants.map((p) => normAddress(p)).filter((p) => p && p !== address))].slice(0, OTHERS_MAX);
+async function linkOthers(
+  ctx: InboxCtx,
+  input: LinkIn,
+  itemId: string,
+  participants: string[],
+  address: string,
+  primary: string | null,
+): Promise<void> {
+  const others = [...new Set(participants.map((p) => normAddress(p)).filter((p) => p && p !== address))].slice(
+    0,
+    OTHERS_MAX,
+  );
   for (const other of others) {
     try {
       const sure = (await candidatesFor(ctx, other)).sure[0];
       if (!sure || sure.recordId === primary) continue;
-      let conv = first(ctx.db.all(`SELECT * FROM inbox_conversation WHERE "contactId" = ? AND deleted_at IS NULL`, sure.recordId));
+      let conv = first(
+        ctx.db.all(`SELECT * FROM inbox_conversation WHERE "contactId" = ? AND deleted_at IS NULL`, sure.recordId),
+      );
       if (!conv) {
         conv = insertConversation(ctx, {
-          contactId: sure.recordId, address: other, displayName: sure.name || other, at: input.at, channel: "email", preview: input.preview ?? "", needsMatch: false,
+          contactId: sure.recordId,
+          address: other,
+          displayName: sure.name || other,
+          at: input.at,
+          channel: "email",
+          preview: input.preview ?? "",
+          needsMatch: false,
           ownerId: await ownerFor(ctx, { contactId: sure.recordId, mailboxId: input.mailboxId }),
         });
         const cid = str(conv, "id");
-        ctx.emit("conversation.created", `entity/${cid}`, { conversationId: cid, contactId: sure.recordId, channel: "email" });
-        ctx.emit("conversation.matched", `record/${sure.recordId}`, { conversationId: cid, recordId: sure.recordId, by: "rule", undoable: false });
+        ctx.emit("conversation.created", `entity/${cid}`, {
+          conversationId: cid,
+          contactId: sure.recordId,
+          channel: "email",
+        });
+        ctx.emit("conversation.matched", `record/${sure.recordId}`, {
+          conversationId: cid,
+          recordId: sure.recordId,
+          by: "rule",
+          undoable: false,
+        });
       }
       ctx.db.run(`INSERT OR IGNORE INTO inbox_party ("itemId", "contactId") VALUES (?, ?)`, itemId, sure.recordId);
       refresh(ctx, str(conv, "id"));
@@ -356,12 +648,24 @@ async function ensureTask(ctx: InboxCtx, id: string): Promise<string | undefined
   }
 }
 
-function answer(ctx: InboxCtx, conv: Row, taskId?: string): { conversationId: string; contactId?: string; linked: "sure" | "unsure" | "none"; taskId?: string } {
+function answer(
+  ctx: InboxCtx,
+  conv: Row,
+  taskId?: string,
+): { conversationId: string; contactId?: string; linked: "sure" | "unsure" | "none"; taskId?: string } {
   const id = str(conv, "id");
   const contactId = strOrNull(conv, "contactId");
-  const task = taskId ?? (num(conv, "needsMatch") === 1 ? strOrNull(first(ctx.db.all(`SELECT "taskId" FROM inbox_match_task WHERE "conversationId" = ?`, id)), "taskId") ?? undefined : undefined);
+  const task =
+    taskId ??
+    (num(conv, "needsMatch") === 1
+      ? (strOrNull(
+          first(ctx.db.all(`SELECT "taskId" FROM inbox_match_task WHERE "conversationId" = ?`, id)),
+          "taskId",
+        ) ?? undefined)
+      : undefined);
   const out: { conversationId: string; contactId?: string; linked: "sure" | "unsure" | "none"; taskId?: string } = {
-    conversationId: id, linked: contactId ? "sure" : num(conv, "needsMatch") === 1 ? "unsure" : "none",
+    conversationId: id,
+    linked: contactId ? "sure" : num(conv, "needsMatch") === 1 ? "unsure" : "none",
   };
   if (contactId) out.contactId = contactId;
   if (task) out.taskId = task;
@@ -371,11 +675,17 @@ function answer(ctx: InboxCtx, conv: Row, taskId?: string): { conversationId: st
 async function raiseTask(ctx: InboxCtx, conv: Row): Promise<string> {
   const owner = strOrNull(conv, "ownerId");
   const who = str(conv, "displayName") || str(conv, "address");
-  const res = obj(await ctx.call("tasks.create", {
-    title: `Match ${who} to a record`, kind: "work", assigned: owner ? { kind: "person", id: owner } : { kind: "role", id: "admin" },
-    why: "A sender wrote to you and could not be matched to a contact or company with certainty.", summary: str(conv, "lastPreview") || who,
-    idempotencyKey: `inbox-match-${str(conv, "id")}`, source: { kind: "manual", id: str(conv, "id") },
-  }));
+  const res = obj(
+    await ctx.call("tasks.create", {
+      title: `Match ${who} to a record`,
+      kind: "work",
+      assigned: owner ? { kind: "person", id: owner } : { kind: "role", id: "admin" },
+      why: "A sender wrote to you and could not be matched to a contact or company with certainty.",
+      summary: str(conv, "lastPreview") || who,
+      idempotencyKey: `inbox-match-${str(conv, "id")}`,
+      source: { kind: "manual", id: str(conv, "id") },
+    }),
+  );
   const id = text(obj(res.task).id);
   if (!id) throw new Error("tasks.create answered without a task");
   return id;
@@ -384,39 +694,66 @@ async function raiseTask(ctx: InboxCtx, conv: Row): Promise<string> {
 // ---- inbox.match / unmatch / match_new
 
 export async function match(
-  ctx: InboxCtx, input: { conversationId: string; recordId: string; rememberAddress?: boolean },
+  ctx: InboxCtx,
+  input: { conversationId: string; recordId: string; rememberAddress?: boolean },
 ): Promise<{ conversation: ConversationRow; undoToken: string }> {
   ensure(ctx);
   if (!isId("cnv", input.conversationId)) bad(ctx, "That is not a conversation id.");
   if (!isId("rec", input.recordId)) bad(ctx, "That is not a record id.");
   const conv = getConversation(ctx, input.conversationId) ?? missing(ctx, "There is no such conversation.");
-  if (strOrNull(conv, "contactId")) refuse(ctx, "This conversation is already matched to a record. Undo that match first.");
+  if (strOrNull(conv, "contactId"))
+    refuse(ctx, "This conversation is already matched to a record. Undo that match first.");
   if (privateIds(ctx).has(input.conversationId)) refuse(ctx, "Mail from a private mailbox stays out of records.");
   const rec = (await findRecord(ctx, input.recordId)) ?? missing(ctx, "There is no such contact or company.");
-  const added = input.rememberAddress === false ? undefined : await remember(ctx, rec.id, str(conv, "address"), input.conversationId);
+  const added =
+    input.rememberAddress === false
+      ? undefined
+      : await remember(ctx, rec.id, str(conv, "address"), input.conversationId);
   const out = await attach(ctx, conv, rec, byOf(ctx), added);
   return { conversation: toConversation(ctx, out.conversation), undoToken: out.token };
 }
 
 /** Teach the record the sender's address, so the next message matches by itself. A record that already has it is fine. Returns the address row to take back on Undo. */
-async function remember(ctx: InboxCtx, contactId: string, address: string, conversationId: string): Promise<string | undefined> {
+async function remember(
+  ctx: InboxCtx,
+  contactId: string,
+  address: string,
+  conversationId: string,
+): Promise<string | undefined> {
   if (!address) return undefined;
   try {
-    const res = obj(await ctx.call("contacts.address.add", { contactId, kind: kindOfAddress(address), value: address, idempotencyKey: `inbox-remember-${conversationId}-${contactId}` }));
+    const res = obj(
+      await ctx.call("contacts.address.add", {
+        contactId,
+        kind: kindOfAddress(address),
+        value: address,
+        idempotencyKey: `inbox-remember-${conversationId}-${contactId}`,
+      }),
+    );
     return text(obj(res.address).id) || undefined;
   } catch (e) {
-    if (codeOf(e) === "validation.duplicate") return undefined;   // the record already had it: nothing to take back later
+    if (codeOf(e) === "validation.duplicate") return undefined; // the record already had it: nothing to take back later
     ctx.log.warn("inbox: could not remember the address on the record", { code: codeOf(e) });
     return undefined;
   }
 }
 
-export async function unmatch(ctx: InboxCtx, input: { conversationId: string; undoToken?: string }): Promise<{ conversation: ConversationRow }> {
+export async function unmatch(
+  ctx: InboxCtx,
+  input: { conversationId: string; undoToken?: string },
+): Promise<{ conversation: ConversationRow }> {
   ensure(ctx);
   if (!isId("cnv", input.conversationId)) bad(ctx, "That is not a conversation id.");
-  const row = input.undoToken !== undefined
-    ? first(ctx.db.all(`SELECT * FROM inbox_undo WHERE token = ? AND undone = ?`, input.undoToken, 0))
-    : first(ctx.db.all(`SELECT * FROM inbox_undo WHERE "targetId" = ? AND undone = ? ORDER BY at DESC, token ASC`, input.conversationId, 0));
+  const row =
+    input.undoToken !== undefined
+      ? first(ctx.db.all(`SELECT * FROM inbox_undo WHERE token = ? AND undone = ?`, input.undoToken, 0))
+      : first(
+          ctx.db.all(
+            `SELECT * FROM inbox_undo WHERE "targetId" = ? AND undone = ? ORDER BY at DESC, token ASC`,
+            input.conversationId,
+            0,
+          ),
+        );
   if (!row || (str(row, "targetId") !== input.conversationId && str(row, "sourceId") !== input.conversationId)) {
     refuse(ctx, "There is no match to undo for this conversation.");
   }
@@ -426,8 +763,16 @@ export async function unmatch(ctx: InboxCtx, input: { conversationId: string; un
   const itemIds = list(JSON.parse(str(row, "itemIds") || "[]")).filter((x): x is string => typeof x === "string");
   const now = ctx.now();
   if (str(row, "mode") === "merge") {
-    const src = first(ctx.db.all(`SELECT * FROM inbox_conversation WHERE id = ?`, sourceId)) ?? missing(ctx, "The sender's conversation is gone.");
-    ctx.db.run(`UPDATE inbox_conversation SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, null, nextVersion(src), now, sourceId);
+    const src =
+      first(ctx.db.all(`SELECT * FROM inbox_conversation WHERE id = ?`, sourceId)) ??
+      missing(ctx, "The sender's conversation is gone.");
+    ctx.db.run(
+      `UPDATE inbox_conversation SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`,
+      null,
+      nextVersion(src),
+      now,
+      sourceId,
+    );
     moveItems(ctx, itemIds, sourceId);
     refresh(ctx, sourceId);
     refresh(ctx, targetId);
@@ -435,7 +780,13 @@ export async function unmatch(ctx: InboxCtx, input: { conversationId: string; un
     const cur = getConversation(ctx, sourceId) ?? missing(ctx, "The sender's conversation is gone.");
     ctx.db.run(
       `UPDATE inbox_conversation SET "contactId" = ?, "displayName" = ?, "needsMatch" = ?, "ownerId" = ?, version = ?, updated_at = ? WHERE id = ?`,
-      null, text(before.displayName) || str(cur, "address"), typeof before.needsMatch === "number" ? before.needsMatch : 0, typeof before.ownerId === "string" ? before.ownerId : null, nextVersion(cur), now, sourceId,
+      null,
+      text(before.displayName) || str(cur, "address"),
+      typeof before.needsMatch === "number" ? before.needsMatch : 0,
+      typeof before.ownerId === "string" ? before.ownerId : null,
+      nextVersion(cur),
+      now,
+      sourceId,
     );
   }
   ctx.db.run(`UPDATE inbox_undo SET undone = ? WHERE token = ?`, 1, str(row, "token"));
@@ -447,7 +798,10 @@ export async function unmatch(ctx: InboxCtx, input: { conversationId: string; un
       ctx.log.warn("inbox: could not take the remembered address back", { code: codeOf(e) });
     }
   }
-  ctx.emit("conversation.unmatched", `record/${str(row, "recordId")}`, { conversationId: sourceId, recordId: str(row, "recordId") });
+  ctx.emit("conversation.unmatched", `record/${str(row, "recordId")}`, {
+    conversationId: sourceId,
+    recordId: str(row, "recordId"),
+  });
   return { conversation: toConversation(ctx, getConversation(ctx, sourceId) as Row) };
 }
 
@@ -455,29 +809,66 @@ export async function unmatch(ctx: InboxCtx, input: { conversationId: string; un
  * Add as a client, the rest of the job: the attachments of every mail in the conversation are copied into the record's folder, and a Reply task is put on the person's list. Each step is
  * its own call as the person, so their access decides (a file they cannot read is skipped and counted, never filed). A step that fails is reported in the answer and never undoes the match.
  */
-async function followUp(ctx: InboxCtx, recordId: string, type: string, name: string, conversationId: string, o: { files: boolean; task: boolean }): Promise<{ filed: number; skipped: number; taskId?: string }> {
-  let filed = 0, skipped = 0, taskId: string | undefined;
+async function followUp(
+  ctx: InboxCtx,
+  recordId: string,
+  type: string,
+  name: string,
+  conversationId: string,
+  o: { files: boolean; task: boolean },
+): Promise<{ filed: number; skipped: number; taskId?: string }> {
+  let filed = 0,
+    skipped = 0,
+    taskId: string | undefined;
   if (o.files) {
-
-    const mails = rowsOf(ctx.db.all(`SELECT "refId" FROM inbox_item WHERE "conversationId" = ? AND kind = ? ORDER BY "at"`, conversationId, "email")).map((r) => str(r, "refId"));
+    const mails = rowsOf(
+      ctx.db.all(
+        `SELECT "refId" FROM inbox_item WHERE "conversationId" = ? AND kind = ? ORDER BY "at"`,
+        conversationId,
+        "email",
+      ),
+    ).map((r) => str(r, "refId"));
     let folderId: string | null = null;
     for (const messageId of mails) {
       let attachments: Json[] = [];
-      try { attachments = list(obj(await ctx.call("mail.message.get", { messageId })).attachments).map(obj); } catch (e) { ctx.log.warn("inbox: could not read a message to file its attachments", { code: codeOf(e) }); continue; }
+      try {
+        attachments = list(obj(await ctx.call("mail.message.get", { messageId })).attachments).map(obj);
+      } catch (e) {
+        ctx.log.warn("inbox: could not read a message to file its attachments", { code: codeOf(e) });
+        continue;
+      }
 
       for (const a of attachments) {
         const fileId = text(a.fileId);
         const attachmentId = text(a.attachmentId);
-        if (!fileId && !attachmentId) { skipped++; continue; }
+        if (!fileId && !attachmentId) {
+          skipped++;
+          continue;
+        }
         try {
           folderId ??= text(obj(await ctx.call("projects.files_folder", { type, recordId })).folderId) || null;
-          if (!folderId) { skipped++; continue; }
+          if (!folderId) {
+            skipped++;
+            continue;
+          }
           // a file Files already holds is copied; one that is still only in the message is saved straight into the record's folder
-          if (fileId) await ctx.call("files.copy", { fileId, toFolderId: folderId, ...(text(a.name) ? { name: text(a.name) } : {}), idempotencyKey: `inbox-file-${conversationId}-${fileId}` });
-          else await ctx.call("mail.attachment.save", { messageId, attachmentId, folderId, idempotencyKey: `inbox-file-${conversationId}-${messageId}-${attachmentId}` });
+          if (fileId)
+            await ctx.call("files.copy", {
+              fileId,
+              toFolderId: folderId,
+              ...(text(a.name) ? { name: text(a.name) } : {}),
+              idempotencyKey: `inbox-file-${conversationId}-${fileId}`,
+            });
+          else
+            await ctx.call("mail.attachment.save", {
+              messageId,
+              attachmentId,
+              folderId,
+              idempotencyKey: `inbox-file-${conversationId}-${messageId}-${attachmentId}`,
+            });
           filed++;
         } catch (e) {
-          if (codeOf(e) === "validation.duplicate") continue;   // the same name is already there from an earlier try
+          if (codeOf(e) === "validation.duplicate") continue; // the same name is already there from an earlier try
           skipped++;
           ctx.log.warn("inbox: an attachment could not be filed on the record", { code: codeOf(e) });
         }
@@ -486,45 +877,87 @@ async function followUp(ctx: InboxCtx, recordId: string, type: string, name: str
   }
   if (o.task) {
     try {
-      const made = obj(obj(await ctx.call("tasks.create", {
-        title: `Reply to ${name}`, assigned: { kind: "person", id: ctx.actingFor ?? ctx.principal.id }, recordId, due: ctx.now() + 86_400_000, source: { kind: "manual", id: conversationId },
-        idempotencyKey: `inbox-reply-${conversationId}`,
-      })).task);
+      const made = obj(
+        obj(
+          await ctx.call("tasks.create", {
+            title: `Reply to ${name}`,
+            assigned: { kind: "person", id: ctx.actingFor ?? ctx.principal.id },
+            recordId,
+            due: ctx.now() + 86_400_000,
+            source: { kind: "manual", id: conversationId },
+            idempotencyKey: `inbox-reply-${conversationId}`,
+          }),
+        ).task,
+      );
       taskId = text(made.id) || undefined;
-    } catch (e) { ctx.log.warn("inbox: the reply task could not be made", { code: codeOf(e) }); }
+    } catch (e) {
+      ctx.log.warn("inbox: the reply task could not be made", { code: codeOf(e) });
+    }
   }
   return { filed, skipped, ...(taskId ? { taskId } : {}) };
 }
 
 export async function matchNew(
-  ctx: InboxCtx, input: { conversationId: string; type: "contact" | "company"; name?: string; fileAttachments?: boolean; replyTask?: boolean },
+  ctx: InboxCtx,
+  input: {
+    conversationId: string;
+    type: "contact" | "company";
+    name?: string;
+    fileAttachments?: boolean;
+    replyTask?: boolean;
+  },
 ): Promise<{ recordId: string; conversation: ConversationRow; filed?: number; skipped?: number; taskId?: string }> {
   ensure(ctx);
   if (!isId("cnv", input.conversationId)) bad(ctx, "That is not a conversation id.");
   if (input.type !== "contact" && input.type !== "company") bad(ctx, "Create a contact or a company.");
-  if (input.name !== undefined && (typeof input.name !== "string" || input.name.trim() === "" || input.name.length > 200)) bad(ctx, "The name must be 1 to 200 characters.");
+  if (
+    input.name !== undefined &&
+    (typeof input.name !== "string" || input.name.trim() === "" || input.name.length > 200)
+  )
+    bad(ctx, "The name must be 1 to 200 characters.");
   const conv = getConversation(ctx, input.conversationId) ?? missing(ctx, "There is no such conversation.");
   if (strOrNull(conv, "contactId")) refuse(ctx, "This conversation is already matched to a record.");
   if (privateIds(ctx).has(input.conversationId)) refuse(ctx, "Mail from a private mailbox stays out of records.");
   const address = str(conv, "address");
   const display = str(conv, "displayName");
-  const name = input.name?.trim() || (display && display !== address ? display : address.includes("@") ? address.split("@")[0] ?? address : address);
+  const name =
+    input.name?.trim() ||
+    (display && display !== address ? display : address.includes("@") ? (address.split("@")[0] ?? address) : address);
   const fields: Json = { name };
   const kind = kindOfAddress(address);
   if (input.type === "contact" && kind === "email") fields.email = address;
   if (input.type === "contact" && kind === "phone") fields.phone = address;
-  const made = obj(obj(await ctx.call("records.create", { type: input.type, fields, idempotencyKey: `inbox-new-${input.conversationId}` })).record);
+  const made = obj(
+    obj(
+      await ctx.call("records.create", {
+        type: input.type,
+        fields,
+        idempotencyKey: `inbox-new-${input.conversationId}`,
+      }),
+    ).record,
+  );
   const recordId = text(made.id);
   if (!recordId) throw new Error("records.create answered without a record");
   const rec: RecordLite = { id: recordId, type: input.type, fields: obj(made.fields).name ? obj(made.fields) : fields };
-  const added = input.type === "company" || kind === "handle" ? await remember(ctx, recordId, address, input.conversationId) : undefined;
+  const added =
+    input.type === "company" || kind === "handle"
+      ? await remember(ctx, recordId, address, input.conversationId)
+      : undefined;
   const out = await attach(ctx, conv, rec, byOf(ctx), added);
-  const more = input.fileAttachments === true || input.replyTask === true
-    ? await followUp(ctx, recordId, input.type, name, text(conv["id"]), { files: input.fileAttachments === true, task: input.replyTask === true }) : {};
+  const more =
+    input.fileAttachments === true || input.replyTask === true
+      ? await followUp(ctx, recordId, input.type, name, text(conv["id"]), {
+          files: input.fileAttachments === true,
+          task: input.replyTask === true,
+        })
+      : {};
   return { recordId, conversation: toConversation(ctx, out.conversation), ...more };
 }
 
-export async function matchSuggestions(ctx: InboxCtx, input: { conversationId: string }): Promise<{ suggestions: Suggestion[] }> {
+export async function matchSuggestions(
+  ctx: InboxCtx,
+  input: { conversationId: string },
+): Promise<{ suggestions: Suggestion[] }> {
   ensure(ctx);
   if (!isId("cnv", input.conversationId)) bad(ctx, "That is not a conversation id.");
   const conv = getConversation(ctx, input.conversationId) ?? missing(ctx, "There is no such conversation.");
@@ -542,7 +975,10 @@ export async function matchSuggestions(ctx: InboxCtx, input: { conversationId: s
 
 // ---- inbox.mark_read, inbox.follow_set
 
-export function markRead(ctx: InboxCtx, input: { conversationId: string; read?: boolean }): { conversation: ConversationRow } {
+export function markRead(
+  ctx: InboxCtx,
+  input: { conversationId: string; read?: boolean },
+): { conversation: ConversationRow } {
   ensure(ctx);
   if (!isId("cnv", input.conversationId)) bad(ctx, "That is not a conversation id.");
   const conv = getConversation(ctx, input.conversationId) ?? missing(ctx, "There is no such conversation.");
@@ -550,43 +986,89 @@ export function markRead(ctx: InboxCtx, input: { conversationId: string; read?: 
   // read state is the item's: an email read under one contact is read under every contact on it
   const changed: string[] = [];
   if (read) {
-    for (const i of itemsOf(ctx, conv, "unread = ?", 1)) { ctx.db.run(`UPDATE inbox_item SET unread = ? WHERE id = ?`, 0, str(i, "id")); changed.push(str(i, "id")); }
+    for (const i of itemsOf(ctx, conv, "unread = ?", 1)) {
+      ctx.db.run(`UPDATE inbox_item SET unread = ? WHERE id = ?`, 0, str(i, "id"));
+      changed.push(str(i, "id"));
+    }
   } else {
-    const latest = itemsOf(ctx, conv, "direction = ?", "in").sort((a, b) => num(b, "at") - num(a, "at") || str(a, "id").localeCompare(str(b, "id")))[0];
-    if (latest) { ctx.db.run(`UPDATE inbox_item SET unread = ? WHERE id = ?`, 1, str(latest, "id")); changed.push(str(latest, "id")); }
+    const latest = itemsOf(ctx, conv, "direction = ?", "in").sort(
+      (a, b) => num(b, "at") - num(a, "at") || str(a, "id").localeCompare(str(b, "id")),
+    )[0];
+    if (latest) {
+      ctx.db.run(`UPDATE inbox_item SET unread = ? WHERE id = ?`, 1, str(latest, "id"));
+      changed.push(str(latest, "id"));
+    }
   }
   const unread = itemsOf(ctx, conv).filter((i) => num(i, "unread") === 1).length;
   if (unread !== num(conv, "unreadCount")) {
-    ctx.db.run(`UPDATE inbox_conversation SET "unreadCount" = ?, version = ?, updated_at = ? WHERE id = ?`, unread, nextVersion(conv), ctx.now(), input.conversationId);
+    ctx.db.run(
+      `UPDATE inbox_conversation SET "unreadCount" = ?, version = ?, updated_at = ? WHERE id = ?`,
+      unread,
+      nextVersion(conv),
+      ctx.now(),
+      input.conversationId,
+    );
   }
   for (const other of conversationsShowing(ctx, changed)) if (other !== input.conversationId) refresh(ctx, other);
   return { conversation: toConversation(ctx, getConversation(ctx, input.conversationId) as Row) };
 }
 
 export async function followSet(
-  ctx: InboxCtx, input: { contactId: string; follow: boolean; alertOnReplies?: boolean },
+  ctx: InboxCtx,
+  input: { contactId: string; follow: boolean; alertOnReplies?: boolean },
 ): Promise<{ following: boolean; alertOnReplies: boolean }> {
   ensure(ctx);
   if (!isId("rec", input.contactId)) bad(ctx, "That is not a record id.");
   if (typeof input.follow !== "boolean") bad(ctx, "Say whether to follow.");
   await ctx.call("follows.toggle", { resource: { type: "record", id: input.contactId }, on: input.follow });
   const now = ctx.now();
-  const existing = first(ctx.db.all(`SELECT * FROM inbox_follow WHERE "contactId" = ? AND "principalId" = ? AND deleted_at IS NULL`, input.contactId, ctx.principal.id));
+  const existing = first(
+    ctx.db.all(
+      `SELECT * FROM inbox_follow WHERE "contactId" = ? AND "principalId" = ? AND deleted_at IS NULL`,
+      input.contactId,
+      ctx.principal.id,
+    ),
+  );
   const had = followOf(ctx, input.contactId);
   const alert = input.follow ? (input.alertOnReplies ?? had.alertOnReplies) : false;
   if (input.follow) {
-    if (existing) ctx.db.run(`UPDATE inbox_follow SET "alertOnReplies" = ?, version = ?, updated_at = ? WHERE id = ?`, alert ? 1 : 0, nextVersion(existing), now, str(existing, "id"));
+    if (existing)
+      ctx.db.run(
+        `UPDATE inbox_follow SET "alertOnReplies" = ?, version = ?, updated_at = ? WHERE id = ?`,
+        alert ? 1 : 0,
+        nextVersion(existing),
+        now,
+        str(existing, "id"),
+      );
     else {
       ctx.db.run(
         `INSERT INTO inbox_follow (id, "contactId", "principalId", "alertOnReplies", version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        newId("fol", now), input.contactId, ctx.principal.id, alert ? 1 : 0, 1, now, null,
+        newId("fol", now),
+        input.contactId,
+        ctx.principal.id,
+        alert ? 1 : 0,
+        1,
+        now,
+        null,
       );
     }
   } else if (existing) {
-    ctx.db.run(`UPDATE inbox_follow SET deleted_at = ?, "alertOnReplies" = ?, version = ?, updated_at = ? WHERE id = ?`, now, 0, nextVersion(existing), now, str(existing, "id"));
+    ctx.db.run(
+      `UPDATE inbox_follow SET deleted_at = ?, "alertOnReplies" = ?, version = ?, updated_at = ? WHERE id = ?`,
+      now,
+      0,
+      nextVersion(existing),
+      now,
+      str(existing, "id"),
+    );
   }
   if (input.follow !== had.followed || alert !== had.alertOnReplies) {
-    ctx.emit("conversation.follow_changed", `record/${input.contactId}`, { contactId: input.contactId, principalId: ctx.principal.id, following: input.follow, alertOnReplies: alert }, { vis: "participants" });
+    ctx.emit(
+      "conversation.follow_changed",
+      `record/${input.contactId}`,
+      { contactId: input.contactId, principalId: ctx.principal.id, following: input.follow, alertOnReplies: alert },
+      { vis: "participants" },
+    );
   }
   return { following: input.follow, alertOnReplies: alert };
 }

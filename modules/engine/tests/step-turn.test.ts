@@ -10,13 +10,66 @@ import { capsSet, pauseAll, usageQuery } from "../handlers/spend.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
 import type { DriverEvent } from "../../../agent/src/turn-engine/types.ts";
 
-type Prov = { id: string; handle?: string; itemId: string; name: string; providerKey: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; uses?: Record<string, unknown>; capped?: boolean };
-const key = (over: Partial<Prov> = {}): Prov => ({ id: "prv_1", handle: "#Mine_Anthropic", itemId: "vit_1", name: "Mine Anthropic", providerKey: "anthropic", connection: "api_key", scope: "mine", engine: "anthropic", spaceMayUse: false, state: "ok", ...over });
-const team = (over: Partial<Prov> = {}): Prov => key({ id: "prv_t", handle: "#Team_Key", itemId: "vit_t", name: "Team key", scope: "shared", ...over });
-const sub = (over: Partial<Prov> = {}): Prov => key({ id: "prv_s", handle: "#My_Claude", itemId: "vit_c", name: "My Claude", providerKey: "claude-code", connection: "subscription", engine: "claude-code", spaceMayUse: true, ...over });
-const answer: DriverEvent[] = [{ type: "text", text: "Hello " }, { type: "text", text: "there." }, { type: "usage", inputTokens: 40, outputTokens: 7 }, { type: "done" }];
+type Prov = {
+  id: string;
+  handle?: string;
+  itemId: string;
+  name: string;
+  providerKey: string;
+  connection: "subscription" | "api_key" | "local_model";
+  scope: "mine" | "shared";
+  engine: string;
+  spaceMayUse: boolean;
+  state: "ok" | "needs_sign_in" | "failing";
+  uses?: Record<string, unknown>;
+  capped?: boolean;
+};
+const key = (over: Partial<Prov> = {}): Prov => ({
+  id: "prv_1",
+  handle: "#Mine_Anthropic",
+  itemId: "vit_1",
+  name: "Mine Anthropic",
+  providerKey: "anthropic",
+  connection: "api_key",
+  scope: "mine",
+  engine: "anthropic",
+  spaceMayUse: false,
+  state: "ok",
+  ...over,
+});
+const team = (over: Partial<Prov> = {}): Prov =>
+  key({ id: "prv_t", handle: "#Team_Key", itemId: "vit_t", name: "Team key", scope: "shared", ...over });
+const sub = (over: Partial<Prov> = {}): Prov =>
+  key({
+    id: "prv_s",
+    handle: "#My_Claude",
+    itemId: "vit_c",
+    name: "My Claude",
+    providerKey: "claude-code",
+    connection: "subscription",
+    engine: "claude-code",
+    spaceMayUse: true,
+    ...over,
+  });
+const answer: DriverEvent[] = [
+  { type: "text", text: "Hello " },
+  { type: "text", text: "there." },
+  { type: "usage", inputTokens: 40, outputTokens: 7 },
+  { type: "done" },
+];
 
-function scene(o: { principal?: Harness["ctx"]["principal"]; providers?: Prov[]; script?: readonly DriverEvent[]; agent?: Record<string, unknown>; facts?: string[]; policy?: "any" | "company"; limits?: { allowedModels?: string[]; allowedProviders?: string[] }; extra?: Record<string, (input: unknown) => unknown> } = {}) {
+function scene(
+  o: {
+    principal?: Harness["ctx"]["principal"];
+    providers?: Prov[];
+    script?: readonly DriverEvent[];
+    agent?: Record<string, unknown>;
+    facts?: string[];
+    policy?: "any" | "company";
+    limits?: { allowedModels?: string[]; allowedProviders?: string[] };
+    extra?: Record<string, (input: unknown) => unknown>;
+  } = {},
+) {
   const h = harness({ principal: o.principal ?? { kind: "person", id: "usr_dana" } });
   const provider = scriptedProvider({ script: o.script ?? answer });
   bindStepOpen(provider.openSession);
@@ -25,26 +78,55 @@ function scene(o: { principal?: Harness["ctx"]["principal"]; providers?: Prov[];
   h.ctx.call = async (cap: string, input: unknown): Promise<unknown> => {
     seen.push(cap);
     if (cap === "providers.list") return { providers: o.providers ?? [key()] };
-    if (cap === "engine.policy.get") return { allowedAccounts: o.policy ?? "any", allowedModels: o.limits?.allowedModels ?? [], allowedProviders: o.limits?.allowedProviders ?? [] };
-    if (cap === "agents.get") return { agent: { agentId: "agt_intake", name: "Intake", role: "You answer intake questions.", model: "claude-sonnet-5-5", accountPolicy: "asker", status: "awake", ...(o.agent ?? {}) } };
+    if (cap === "engine.policy.get")
+      return {
+        allowedAccounts: o.policy ?? "any",
+        allowedModels: o.limits?.allowedModels ?? [],
+        allowedProviders: o.limits?.allowedProviders ?? [],
+      };
+    if (cap === "agents.get")
+      return {
+        agent: {
+          agentId: "agt_intake",
+          name: "Intake",
+          role: "You answer intake questions.",
+          model: "claude-sonnet-5-5",
+          accountPolicy: "asker",
+          status: "awake",
+          ...(o.agent ?? {}),
+        },
+      };
     if (cap === "memory.facts.list") return { facts: (o.facts ?? []).map((text) => ({ text })) };
     if (o.extra?.[cap]) return o.extra[cap]!(input);
     return base(cap, input);
   };
   return { h, provider, seen };
 }
-const run = (h: Harness, over: Partial<StepTurnIn> = {}) => stepTurn(h.ctx, { prompt: "Say hello.", runId: "run_1", stepId: "ask", idempotencyKey: "run_1:ask:1", ...over });
-afterEach(() => { bindStepOpen(null); setMinuteForTests(60_000); });
+const run = (h: Harness, over: Partial<StepTurnIn> = {}) =>
+  stepTurn(h.ctx, { prompt: "Say hello.", runId: "run_1", stepId: "ask", idempotencyKey: "run_1:ask:1", ...over });
+afterEach(() => {
+  bindStepOpen(null);
+  setMinuteForTests(60_000);
+});
 
 test("a Personal turn runs on the owner's own key with no tools, and returns the answer, the key by handle and the model", async () => {
   const { h, provider } = scene();
   const out = await run(h);
-  assert.deepEqual(out, { text: "Hello there.", keyUsed: "#Mine_Anthropic", modelUsed: "anthropic", tokensIn: 40, tokensOut: 7 });
+  assert.deepEqual(out, {
+    text: "Hello there.",
+    keyUsed: "#Mine_Anthropic",
+    modelUsed: "anthropic",
+    tokensIn: 40,
+    tokensOut: 7,
+  });
   const spec = provider.specs[0]!;
   assert.equal(spec.tools, "none");
   assert.equal(spec.asker, "usr_dana");
   assert.equal(spec.agent.id, STEP_AGENT);
-  assert.deepEqual([spec.account?.ref, spec.account?.driver, spec.account?.payer, spec.account?.kind], ["#Mine_Anthropic", "anthropic", "usr_dana", "api_key"]);
+  assert.deepEqual(
+    [spec.account?.ref, spec.account?.driver, spec.account?.payer, spec.account?.kind],
+    ["#Mine_Anthropic", "anthropic", "usr_dana", "api_key"],
+  );
   assert.equal(provider.sessions[0]!.closed, true, "the session is given back");
   assert.equal(provider.sessions[0]!.inputs[0]!.trigger?.body, "Say hello.");
   assert.deepEqual(provider.sessions[0]!.inputs[0]!.history, []);
@@ -58,9 +140,19 @@ test("a Personal turn prefers the owner's subscription sign-in over an API key",
 });
 
 test("a subscription the Space may not use, a broken key and no key at all are refused, naming what to add", async () => {
-  for (const providers of [[], [sub({ spaceMayUse: false })], [key({ state: "failing" })], [key({ state: "needs_sign_in" })]]) {
+  for (const providers of [
+    [],
+    [sub({ spaceMayUse: false })],
+    [key({ state: "failing" })],
+    [key({ state: "needs_sign_in" })],
+  ]) {
     const { h, provider } = scene({ providers });
-    await assert.rejects(run(h), (e) => { assert.equal(codeOf(e), "provider.auth_failed"); assert.match((e as { error: { message: string } }).error.message, /AI account/); assert.match((e as { error: { message: string } }).error.message, /AI settings/); return true; });
+    await assert.rejects(run(h), (e) => {
+      assert.equal(codeOf(e), "provider.auth_failed");
+      assert.match((e as { error: { message: string } }).error.message, /AI account/);
+      assert.match((e as { error: { message: string } }).error.message, /AI settings/);
+      return true;
+    });
     assert.equal(provider.specs.length, 0, "nothing was opened");
   }
 });
@@ -68,16 +160,28 @@ test("a subscription the Space may not use, a broken key and no key at all are r
 test("a step key picks the account, and the backup covers a key that is not there", async () => {
   const { h } = scene({ providers: [key(), key({ id: "prv_2", handle: "#Other", itemId: "vit_2" })] });
   assert.equal((await run(h, { keyId: "#Other", idempotencyKey: "k2" })).keyUsed, "#Other");
-  assert.equal((await run(h, { keyId: "#Missing", backupKeyId: "#Other", idempotencyKey: "k3" })).keyUsed, "#Other", "the backup is used when the key is not there");
-  await assert.rejects(run(h, { keyId: "#Missing", idempotencyKey: "k4" }), (e) => codeOf(e) === "provider.auth_failed");
+  assert.equal(
+    (await run(h, { keyId: "#Missing", backupKeyId: "#Other", idempotencyKey: "k3" })).keyUsed,
+    "#Other",
+    "the backup is used when the key is not there",
+  );
+  await assert.rejects(
+    run(h, { keyId: "#Missing", idempotencyKey: "k4" }),
+    (e) => codeOf(e) === "provider.auth_failed",
+  );
 });
 
 test("a key named by provider id, Vault item id or name is the account with that handle", async () => {
-  const { h } = scene({ providers: [key({ id: "prv_other", handle: "#Other", itemId: "vit_other", name: "Other key" }), key()] });
+  const { h } = scene({
+    providers: [key({ id: "prv_other", handle: "#Other", itemId: "vit_other", name: "Other key" }), key()],
+  });
   assert.equal((await run(h, { keyId: "prv_other", idempotencyKey: "p1" })).keyUsed, "#Other");
   assert.equal((await run(h, { keyId: "vit_other", idempotencyKey: "p2" })).keyUsed, "#Other");
   assert.equal((await run(h, { keyId: "Other key", idempotencyKey: "p3" })).keyUsed, "#Other");
-  assert.equal((await run(h, { keyId: "prv_nope", backupKeyId: "prv_1", idempotencyKey: "p4" })).keyUsed, "#Mine_Anthropic");
+  assert.equal(
+    (await run(h, { keyId: "prv_nope", backupKeyId: "prv_1", idempotencyKey: "p4" })).keyUsed,
+    "#Mine_Anthropic",
+  );
 });
 
 test("a Space automation runs as its service on a Space-shared key only", async () => {
@@ -88,9 +192,19 @@ test("a Space automation runs as its service on a Space-shared key only", async 
   assert.equal(ok.provider.specs[0]!.asker, "svc_abc");
   assert.equal(ok.provider.specs[0]!.account?.payer, "svc_abc");
   const mine = scene({ principal: svc, providers: [key()] });
-  await assert.rejects(run(mine.h, { keyId: "#Mine_Anthropic" }), (e) => { assert.equal(codeOf(e), "provider.auth_failed"); assert.match((e as { error: { message: string } }).error.message, /Space-shared/); return true; });
+  await assert.rejects(run(mine.h, { keyId: "#Mine_Anthropic" }), (e) => {
+    assert.equal(codeOf(e), "provider.auth_failed");
+    assert.match((e as { error: { message: string } }).error.message, /Space-shared/);
+    return true;
+  });
   const none = scene({ principal: svc, providers: [team()] });
-  await assert.rejects(run(none.h), (e) => { assert.match((e as { error: { message: string } }).error.message, /Space automation needs a Space AI account that pays for automations/); return true; });
+  await assert.rejects(run(none.h), (e) => {
+    assert.match(
+      (e as { error: { message: string } }).error.message,
+      /Space automation needs a Space AI account that pays for automations/,
+    );
+    return true;
+  });
   assert.equal(none.provider.specs.length, 0);
 });
 
@@ -124,7 +238,9 @@ test("the same attempt key returns the stored answer and asks the model nothing;
 });
 
 test("a vendor error comes back by its catalogued code and carries neither the prompt nor the key", async () => {
-  const { h } = scene({ script: [{ type: "error", code: "provider.rate_limited", message: "Rate limited. Slow down." }] });
+  const { h } = scene({
+    script: [{ type: "error", code: "provider.rate_limited", message: "Rate limited. Slow down." }],
+  });
   await assert.rejects(run(h, { prompt: "SECRET-PROMPT-TEXT" }), (e) => {
     assert.equal(codeOf(e), "provider.rate_limited");
     assert.equal(JSON.stringify(e).includes("SECRET-PROMPT-TEXT"), false);
@@ -138,7 +254,9 @@ test("a vendor error comes back by its catalogued code and carries neither the p
 });
 
 test("a tool request is refused: the step gives the model none", async () => {
-  const { h, provider } = scene({ script: [{ type: "tool_call", id: "c1", name: "mail.send", input: {} }, { type: "done" }] });
+  const { h, provider } = scene({
+    script: [{ type: "tool_call", id: "c1", name: "mail.send", input: {} }, { type: "done" }],
+  });
   await assert.rejects(run(h), (e) => codeOf(e) === "provider.unavailable");
   assert.equal(provider.sessions[0]!.cancelled, true);
   assert.equal(provider.sessions[0]!.toolResults.length, 0);
@@ -157,11 +275,20 @@ test("the turn is counted: usage by person, agent and model, and the meters can 
   const { h } = scene();
   await run(h);
   const u = await usageQuery(h.ctx, { by: "person" });
-  assert.deepEqual(u.rows.map((r) => [r.key, r.totals.turns, r.totals.tokensIn, r.totals.tokensOut]), [["usr_dana", 1, 40, 7]]);
-  assert.deepEqual((await usageQuery(h.ctx, { by: "agent" })).rows.map((r) => r.key), [STEP_AGENT]);
+  assert.deepEqual(
+    u.rows.map((r) => [r.key, r.totals.turns, r.totals.tokensIn, r.totals.tokensOut]),
+    [["usr_dana", 1, 40, 7]],
+  );
+  assert.deepEqual(
+    (await usageQuery(h.ctx, { by: "agent" })).rows.map((r) => r.key),
+    [STEP_AGENT],
+  );
   capsSet(h.ctx, { scope: "person", caps: { turnsPerDay: 1 } });
   await run(h, { idempotencyKey: "n2" });
-  await assert.rejects(run(h, { idempotencyKey: "n3" }), (e) => { assert.equal(codeOf(e), "permission.limit"); return true; });
+  await assert.rejects(run(h, { idempotencyKey: "n3" }), (e) => {
+    assert.equal(codeOf(e), "permission.limit");
+    return true;
+  });
 });
 
 test("paused AI spend refuses the step before it asks anything", async () => {
@@ -182,7 +309,14 @@ test("the Space's label rule is asked of every record the run read: a provider i
   const { h, provider } = scene();
   const base = h.ctx.call;
   h.ctx.call = async (cap: string, i: unknown) => {
-    if (cap === "access.provider_check") { asked.push(i); return { blocked: (i as { resources: { id: string }[] }).resources.filter((r) => r.id === "rec_secret").map((r) => ({ id: r.id, label: "restricted" })) }; }
+    if (cap === "access.provider_check") {
+      asked.push(i);
+      return {
+        blocked: (i as { resources: { id: string }[] }).resources
+          .filter((r) => r.id === "rec_secret")
+          .map((r) => ({ id: r.id, label: "restricted" })),
+      };
+    }
     return base(cap, i);
   };
   await assert.rejects(run(h, { recordIds: ["rec_ok", "rec_secret"], idempotencyKey: "l1" }), (e) => {
@@ -199,9 +333,27 @@ test("the Space's label rule is asked of every record the run read: a provider i
 
 test("an automation's AI account pays only when the Space kept it for automations, and its cap and backup are honoured; a step's own key keeps the old rule", async () => {
   const svc = { kind: "service" as const, id: "svc_abc" };
-  const credits = team({ id: "prv_c", handle: "#Team_Credits", itemId: "vit_c", name: "Team credits", uses: { automations: true } });
-  const chatsOnly = team({ id: "prv_o", handle: "#Chats_Only", itemId: "vit_o", name: "Chats only", uses: { teamChats: { who: "everyone" } } });
-  const backup = team({ id: "prv_b", handle: "#Backup_Credits", itemId: "vit_b", name: "Backup credits", uses: { automations: true } });
+  const credits = team({
+    id: "prv_c",
+    handle: "#Team_Credits",
+    itemId: "vit_c",
+    name: "Team credits",
+    uses: { automations: true },
+  });
+  const chatsOnly = team({
+    id: "prv_o",
+    handle: "#Chats_Only",
+    itemId: "vit_o",
+    name: "Chats only",
+    uses: { teamChats: { who: "everyone" } },
+  });
+  const backup = team({
+    id: "prv_b",
+    handle: "#Backup_Credits",
+    itemId: "vit_b",
+    name: "Backup credits",
+    uses: { automations: true },
+  });
   const withAccount = { keyFrom: "automation" as const };
   // the picked account pays, ahead of a cheaper one kept for the same thing
   const a = scene({ principal: svc, providers: [backup, credits] });
@@ -214,28 +366,46 @@ test("an automation's AI account pays only when the Space kept it for automation
   assert.equal((await run(b.h, { ...withAccount, keyId: "prv_o", idempotencyKey: "b1" })).keyUsed, "#Team_Credits");
   // and with nothing else kept for automations the step is refused, naming the account and what to tick
   const c = scene({ principal: svc, providers: [chatsOnly] });
-  await assert.rejects(run(c.h, { ...withAccount, keyId: "prv_o", idempotencyKey: "c1" }), (e) => { assert.equal(codeOf(e), "provider.auth_failed"); assert.match((e as { error: { message: string } }).error.message, /Chats only.*not set to pay for automations/); return true; });
+  await assert.rejects(run(c.h, { ...withAccount, keyId: "prv_o", idempotencyKey: "c1" }), (e) => {
+    assert.equal(codeOf(e), "provider.auth_failed");
+    assert.match((e as { error: { message: string } }).error.message, /Chats only.*not set to pay for automations/);
+    return true;
+  });
   assert.equal(c.provider.specs.length, 0, "nothing ran on the wrong account");
   // a main at its cap hands the step to the backup, and with no backup the refusal names the cap
   const d = scene({ principal: svc, providers: [{ ...credits, capped: true }, backup] });
-  assert.equal((await run(d.h, { ...withAccount, keyId: "prv_c", backupKeyId: "prv_b", idempotencyKey: "d1" })).keyUsed, "#Backup_Credits");
+  assert.equal(
+    (await run(d.h, { ...withAccount, keyId: "prv_c", backupKeyId: "prv_b", idempotencyKey: "d1" })).keyUsed,
+    "#Backup_Credits",
+  );
   const e = scene({ principal: svc, providers: [{ ...credits, capped: true }] });
-  await assert.rejects(run(e.h, { ...withAccount, keyId: "prv_c", idempotencyKey: "e1" }), (x) => { assert.match((x as { error: { message: string } }).error.message, /Team credits.*reached its monthly cap/); return true; });
+  await assert.rejects(run(e.h, { ...withAccount, keyId: "prv_c", idempotencyKey: "e1" }), (x) => {
+    assert.match((x as { error: { message: string } }).error.message, /Team credits.*reached its monthly cap/);
+    return true;
+  });
   assert.equal(e.provider.specs.length, 0);
   // a backup that is not kept for automations does not pay
   const f = scene({ principal: svc, providers: [{ ...credits, capped: true }, chatsOnly] });
-  await assert.rejects(run(f.h, { ...withAccount, keyId: "prv_c", backupKeyId: "prv_o", idempotencyKey: "f1" }), (x) => codeOf(x) === "provider.auth_failed");
+  await assert.rejects(
+    run(f.h, { ...withAccount, keyId: "prv_c", backupKeyId: "prv_o", idempotencyKey: "f1" }),
+    (x) => codeOf(x) === "provider.auth_failed",
+  );
   // a key named on the step itself (no keyFrom) keeps the old rule: it pays even where uses would not reach
   const g = scene({ principal: svc, providers: [chatsOnly, credits] });
   assert.equal((await run(g.h, { keyId: "prv_o", idempotencyKey: "g1" })).keyUsed, "#Chats_Only");
 });
 
 test("an account that needs a model and gets none: the step fails in its own words, not as a provider error, and is not retried", async () => {
-  const { h } = scene({ script: [{ type: "error", code: "engine.no_model", message: "No model is set for this chat." }] });
+  const { h } = scene({
+    script: [{ type: "error", code: "engine.no_model", message: "No model is set for this chat." }],
+  });
   await assert.rejects(run(h), (e: unknown) => {
     const err = (e as { error?: { code?: string; message?: string; retryable?: boolean } }).error;
     assert.equal(err?.code, "validation.precondition_failed");
-    assert.equal(err?.message, "This AI step has no model. Give it an agent that has a model, or set a model on its agent.");
+    assert.equal(
+      err?.message,
+      "This AI step has no model. Give it an agent that has a model, or set a model on its agent.",
+    );
     assert.notEqual(err?.retryable, true);
     return true;
   });
@@ -249,23 +419,55 @@ test("an agent-less step on OpenRouter runs on OpenRouter's own default; a Space
   assert.equal(free.provider.specs[0]!.agent.model, undefined, "no model is named: OpenRouter picks its own");
   for (const limits of [{ allowedModels: ["anthropic/claude-sonnet-5-5"] }, { allowedProviders: ["anthropic"] }]) {
     const s = scene({ providers: [router], agent: { model: undefined }, limits });
-    await assert.rejects(() => run(s.h), (e: unknown) => (e as { error?: { code?: string; details?: { reason?: string } } }).error?.code === "permission.provider_label" && (e as { error: { details: { reason?: string } } }).error.details.reason === "policy_model", JSON.stringify(limits));
+    await assert.rejects(
+      () => run(s.h),
+      (e: unknown) =>
+        (e as { error?: { code?: string; details?: { reason?: string } } }).error?.code ===
+          "permission.provider_label" &&
+        (e as { error: { details: { reason?: string } } }).error.details.reason === "policy_model",
+      JSON.stringify(limits),
+    );
     assert.equal(s.provider.specs.length, 0, "nothing was sent");
   }
 });
 
 test("an agent-less step on a person's API key runs on the key's default chat model (its own list, read once, no completion); a subscription keeps its CLI's own default", async () => {
   const asked: string[] = [];
-  const extra = { "providers.test": () => { asked.push("providers.test"); return { ok: true, models: ["dall-e-3", "whisper-1", "text-embedding-3-small", "gpt-4o-mini"] }; }, "engine.complete": () => { asked.push("engine.complete"); return {}; } };
-  const s = scene({ providers: [key({ handle: "#Mine_OpenAI", providerKey: "openai", engine: "openai" })], agent: { model: undefined }, extra });
+  const extra = {
+    "providers.test": () => {
+      asked.push("providers.test");
+      return { ok: true, models: ["dall-e-3", "whisper-1", "text-embedding-3-small", "gpt-4o-mini"] };
+    },
+    "engine.complete": () => {
+      asked.push("engine.complete");
+      return {};
+    },
+  };
+  const s = scene({
+    providers: [key({ handle: "#Mine_OpenAI", providerKey: "openai", engine: "openai" })],
+    agent: { model: undefined },
+    extra,
+  });
   await run(s.h);
   assert.equal(s.provider.specs[0]!.agent.model, "gpt-4o-mini");
   assert.deepEqual(asked, ["providers.test"], "no completion was spent choosing");
-  const blocked = scene({ providers: [key({ handle: "#Mine_OpenAI", providerKey: "openai", engine: "openai" })], agent: { model: undefined }, extra, limits: { allowedModels: ["claude-sonnet-5-5"] } });
-  await assert.rejects(() => run(blocked.h), (e: unknown) => (e as { error?: { details?: { reason?: string } } }).error?.details?.reason === "policy_model");
+  const blocked = scene({
+    providers: [key({ handle: "#Mine_OpenAI", providerKey: "openai", engine: "openai" })],
+    agent: { model: undefined },
+    extra,
+    limits: { allowedModels: ["claude-sonnet-5-5"] },
+  });
+  await assert.rejects(
+    () => run(blocked.h),
+    (e: unknown) => (e as { error?: { details?: { reason?: string } } }).error?.details?.reason === "policy_model",
+  );
   assert.equal(blocked.provider.specs.length, 0);
   const cli = scene({ providers: [sub()], agent: { model: undefined }, extra });
   await run(cli.h);
   assert.equal(cli.provider.specs.length, 1);
-  assert.equal(cli.provider.specs[0]!.agent.model, undefined, "a subscription sends no model: its CLI keeps its own default");
+  assert.equal(
+    cli.provider.specs[0]!.agent.model,
+    undefined,
+    "a subscription sends no model: its CLI keeps its own default",
+  );
 });

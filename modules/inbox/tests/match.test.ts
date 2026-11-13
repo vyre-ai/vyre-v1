@@ -16,8 +16,13 @@ async function refused(p: Promise<unknown>, code: string): Promise<void> {
 }
 
 const convs = (h: Harness) => h.rows(`SELECT * FROM inbox_conversation ORDER BY "lastMessageAt" ASC, id ASC`);
-const items = (h: Harness, conversationId: string) => h.rows(`SELECT * FROM inbox_item WHERE "conversationId" = ? ORDER BY at ASC, id ASC`, conversationId);
-const setup = (extra: { mail?: Parameters<typeof harness>[0] extends infer O ? (O extends { mail?: infer M } ? M : never) : never } = {}) => {
+const items = (h: Harness, conversationId: string) =>
+  h.rows(`SELECT * FROM inbox_item WHERE "conversationId" = ? ORDER BY at ASC, id ASC`, conversationId);
+const setup = (
+  extra: {
+    mail?: Parameters<typeof harness>[0] extends infer O ? (O extends { mail?: infer M } ? M : never) : never;
+  } = {},
+) => {
   const h = harness({ contacts: [{ ...LEE }, { ...DANA }], ...(extra.mail ? { mail: extra.mail } : {}) });
   h.mailboxOwners.set("mbx_work1", "usr_maya01");
   return h;
@@ -37,28 +42,61 @@ test("a message from an address a contact holds is filed in that contact's conve
   const [row] = convs(h);
   assert.equal(row!.id, out.conversationId);
   assert.deepEqual(
-    [row!.contactId, row!.displayName, row!.address, row!.unreadCount, row!.ownerId, row!.lastPreview, row!.lastChannel, row!.lastMessageAt, row!.mailboxIds, row!.needsMatch],
+    [
+      row!.contactId,
+      row!.displayName,
+      row!.address,
+      row!.unreadCount,
+      row!.ownerId,
+      row!.lastPreview,
+      row!.lastChannel,
+      row!.lastMessageAt,
+      row!.mailboxIds,
+      row!.needsMatch,
+    ],
     [LEE.id, "Pat Lee", "pat@acme.test", 1, "usr_maya01", "Hello", "email", NOW + 1, '["mbx_work1"]', 0],
   );
   assert.equal(items(h, out.conversationId).length, 1);
-  assert.deepEqual(h.named("conversation.created").map((e) => e.payload), [{ conversationId: out.conversationId, contactId: LEE.id, channel: "email" }]);
-  assert.deepEqual(h.named("conversation.matched").map((e) => [e.subject, e.payload]), [[`record/${LEE.id}`, { conversationId: out.conversationId, recordId: LEE.id, by: "rule", undoable: false }]]);
+  assert.deepEqual(
+    h.named("conversation.created").map((e) => e.payload),
+    [{ conversationId: out.conversationId, contactId: LEE.id, channel: "email" }],
+  );
+  assert.deepEqual(
+    h.named("conversation.matched").map((e) => [e.subject, e.payload]),
+    [[`record/${LEE.id}`, { conversationId: out.conversationId, recordId: LEE.id, by: "rule", undoable: false }]],
+  );
 });
 
 test("a second message joins the same conversation, a replay of the same message changes nothing, and the thread comes from mail", async () => {
   const h = setup();
-  h.mail.set("eml_a1", { id: "eml_a1", threadId: "thr_intake", subject: "Intake form", from: "pat@acme.test", to: ["maya@vyre.test"], cc: ["boss@vyre.test"] });
+  h.mail.set("eml_a1", {
+    id: "eml_a1",
+    threadId: "thr_intake",
+    subject: "Intake form",
+    from: "pat@acme.test",
+    to: ["maya@vyre.test"],
+    cc: ["boss@vyre.test"],
+  });
   const first = link({ address: "pat@acme.test", id: "eml_a1", mailboxId: "mbx_work1", at: NOW + 1 });
   const a = await linkMessage(h.ctx, first);
-  const b = await linkMessage(h.ctx, link({ channel: "sms", address: "+14155550177", numberId: "num_main1", preview: "On my way", at: NOW + 2 }));
+  const b = await linkMessage(
+    h.ctx,
+    link({ channel: "sms", address: "+14155550177", numberId: "num_main1", preview: "On my way", at: NOW + 2 }),
+  );
   assert.equal(b.conversationId, a.conversationId, "an email and a text from one person are one conversation");
   const asked = h.calls("contacts.resolve").length;
   assert.deepEqual(await linkMessage(h.ctx, first), a);
   assert.equal(h.calls("contacts.resolve").length, asked, "a message already linked asks nobody");
   const [row] = convs(h);
-  assert.deepEqual([row!.unreadCount, row!.lastChannel, row!.lastPreview, row!.numberIds], [2, "sms", "On my way", '["num_main1"]']);
+  assert.deepEqual(
+    [row!.unreadCount, row!.lastChannel, row!.lastPreview, row!.numberIds],
+    [2, "sms", "On my way", '["num_main1"]'],
+  );
   const [mail, sms] = items(h, a.conversationId);
-  assert.deepEqual([mail!.threadId, mail!.subject, JSON.parse(String(mail!.participants))], ["thr_intake", "Intake form", ["pat@acme.test", "maya@vyre.test", "boss@vyre.test"]]);
+  assert.deepEqual(
+    [mail!.threadId, mail!.subject, JSON.parse(String(mail!.participants))],
+    ["thr_intake", "Intake form", ["pat@acme.test", "maya@vyre.test", "boss@vyre.test"]],
+  );
   assert.match(String(sms!.threadId), /^sms:num_main1:\+14155550177$/);
   assert.equal(h.named("conversation.created").length, 1);
 });
@@ -75,21 +113,36 @@ test("an outbound message does not add to the unread count, and a message mail w
 
 test("a call is linked by its number, and a bad link is refused", async () => {
   const h = setup();
-  const out = await linkMessage(h.ctx, link({ channel: "call", address: "+14155550177", numberId: "num_main1", preview: "Missed call" }));
+  const out = await linkMessage(
+    h.ctx,
+    link({ channel: "call", address: "+14155550177", numberId: "num_main1", preview: "Missed call" }),
+  );
   assert.equal(out.linked, "sure");
   assert.equal(convs(h)[0]!.lastChannel, "call");
-  await refused(linkMessage(h.ctx, { ...link({ address: "x@y.test" }), ref: { kind: "sms", id: "sms_1" } }), "validation.bad_input");
-  await refused(linkMessage(h.ctx, { ...link({ address: "x@y.test" }), direction: "sideways" as "in" }), "validation.bad_input");
+  await refused(
+    linkMessage(h.ctx, { ...link({ address: "x@y.test" }), ref: { kind: "sms", id: "sms_1" } }),
+    "validation.bad_input",
+  );
+  await refused(
+    linkMessage(h.ctx, { ...link({ address: "x@y.test" }), direction: "sideways" as "in" }),
+    "validation.bad_input",
+  );
   await refused(linkMessage(h.ctx, link({ address: "  " })), "validation.bad_input");
   await refused(linkMessage(h.ctx, { ...link({ address: "x@y.test" }), at: -1 }), "validation.bad_input");
-  await refused(linkMessage(h.ctx, { ...link({ address: "x@y.test" }), channel: "fax" as "sms" }), "validation.bad_input");
+  await refused(
+    linkMessage(h.ctx, { ...link({ address: "x@y.test" }), channel: "fax" as "sms" }),
+    "validation.bad_input",
+  );
 });
 
 // ---- an unsure sender raises Needs a match, once
 
 test("an unsure sender is kept apart and raises one Needs you task, however many messages follow", async () => {
   const h = setup();
-  const a = await linkMessage(h.ctx, link({ address: "sam@fox.test", mailboxId: "mbx_work1", preview: "Quick question" }));
+  const a = await linkMessage(
+    h.ctx,
+    link({ address: "sam@fox.test", mailboxId: "mbx_work1", preview: "Quick question" }),
+  );
   assert.equal(a.linked, "unsure");
   assert.equal(a.contactId, undefined);
   assert.match(a.taskId ?? "", /^tsk_/);
@@ -97,8 +150,14 @@ test("an unsure sender is kept apart and raises one Needs you task, however many
   const row = convs(h)[0]!;
   assert.deepEqual([row.contactId, row.needsMatch, row.displayName], [null, 1, "sam@fox.test"]);
   const task = h.calls("tasks.create")[0]!.input;
-  assert.deepEqual([task.title, task.assigned, task.idempotencyKey], ["Match sam@fox.test to a record", { kind: "person", id: "usr_maya01" }, `inbox-match-${a.conversationId}`]);
-  assert.deepEqual(h.named("conversation.needs_match").map((e) => e.payload), [{ conversationId: a.conversationId, taskId: a.taskId }]);
+  assert.deepEqual(
+    [task.title, task.assigned, task.idempotencyKey],
+    ["Match sam@fox.test to a record", { kind: "person", id: "usr_maya01" }, `inbox-match-${a.conversationId}`],
+  );
+  assert.deepEqual(
+    h.named("conversation.needs_match").map((e) => e.payload),
+    [{ conversationId: a.conversationId, taskId: a.taskId }],
+  );
 
   const b = await linkMessage(h.ctx, link({ address: "sam@fox.test", mailboxId: "mbx_work1" }));
   assert.equal(b.taskId, a.taskId);
@@ -164,7 +223,10 @@ test("an address the contact learns later folds the stranger's history into the 
   const live = convs(h).filter((c) => c.deleted_at === null);
   assert.equal(live.length, 1);
   assert.equal(items(h, String(live[0]!.id)).length, 2, "the old message came along");
-  assert.deepEqual(h.named("conversation.matched").map((e) => e.payload.by), ["rule"]);
+  assert.deepEqual(
+    h.named("conversation.matched").map((e) => e.payload.by),
+    ["rule"],
+  );
   assert.equal(h.named("conversation.matched")[0]!.payload.undoable, true);
 });
 
@@ -176,18 +238,44 @@ test("match: the sender's whole history moves to the record, the address is reme
   await linkMessage(h.ctx, link({ address: "sam@fox.test", preview: "two" }));
   const out = await match(h.ctx, { conversationId: a.conversationId, recordId: DANA.id });
   assert.deepEqual(contractErrors("inbox.match", "out", out), []);
-  assert.deepEqual([out.conversation.id, out.conversation.contactId, out.conversation.displayName, out.conversation.needsMatch, out.conversation.unreadCount], [a.conversationId, DANA.id, "Dana Fox", false, 2]);
+  assert.deepEqual(
+    [
+      out.conversation.id,
+      out.conversation.contactId,
+      out.conversation.displayName,
+      out.conversation.needsMatch,
+      out.conversation.unreadCount,
+    ],
+    [a.conversationId, DANA.id, "Dana Fox", false, 2],
+  );
   assert.match(out.undoToken, /^und_/);
   assert.deepEqual(h.contacts.get(DANA.id)!.emails, ["dana@fox.test", "sam@fox.test"]);
-  assert.deepEqual(h.calls("contacts.address.add")[0]!.input, { contactId: DANA.id, kind: "email", value: "sam@fox.test", idempotencyKey: `inbox-remember-${a.conversationId}-${DANA.id}` });
-  assert.deepEqual(h.named("conversation.matched").map((e) => [e.subject, e.payload]), [[`record/${DANA.id}`, { conversationId: a.conversationId, recordId: DANA.id, by: "person", undoable: true }]]);
+  assert.deepEqual(h.calls("contacts.address.add")[0]!.input, {
+    contactId: DANA.id,
+    kind: "email",
+    value: "sam@fox.test",
+    idempotencyKey: `inbox-remember-${a.conversationId}-${DANA.id}`,
+  });
+  assert.deepEqual(
+    h.named("conversation.matched").map((e) => [e.subject, e.payload]),
+    [[`record/${DANA.id}`, { conversationId: a.conversationId, recordId: DANA.id, by: "person", undoable: true }]],
+  );
 
   const undone = await unmatch(h.ctx, { conversationId: a.conversationId, undoToken: out.undoToken });
   assert.deepEqual(contractErrors("inbox.unmatch", "out", undone), []);
-  assert.deepEqual([undone.conversation.contactId, undone.conversation.displayName, undone.conversation.needsMatch], [undefined, "sam@fox.test", true]);
+  assert.deepEqual(
+    [undone.conversation.contactId, undone.conversation.displayName, undone.conversation.needsMatch],
+    [undefined, "sam@fox.test", true],
+  );
   assert.deepEqual(h.contacts.get(DANA.id)!.emails, ["dana@fox.test"], "the remembered address is taken back");
-  assert.deepEqual(h.named("conversation.unmatched").map((e) => e.payload), [{ conversationId: a.conversationId, recordId: DANA.id }]);
-  await refused(unmatch(h.ctx, { conversationId: a.conversationId, undoToken: out.undoToken }), "validation.precondition_failed");
+  assert.deepEqual(
+    h.named("conversation.unmatched").map((e) => e.payload),
+    [{ conversationId: a.conversationId, recordId: DANA.id }],
+  );
+  await refused(
+    unmatch(h.ctx, { conversationId: a.conversationId, undoToken: out.undoToken }),
+    "validation.precondition_failed",
+  );
   await refused(unmatch(h.ctx, { conversationId: a.conversationId }), "validation.precondition_failed");
 });
 
@@ -200,15 +288,28 @@ test("match: when the record already has a conversation the sender's rows fold i
   assert.equal(out.conversation.id, lee.conversationId, "the record's own conversation survives");
   assert.equal(out.conversation.unreadCount, 2);
   assert.equal(items(h, lee.conversationId).length, 2);
-  assert.equal(h.rows(`SELECT deleted_at FROM inbox_conversation WHERE id = ?`, other.conversationId)[0]!.deleted_at !== null, true, "the sender's row is hidden, not deleted");
+  assert.equal(
+    h.rows(`SELECT deleted_at FROM inbox_conversation WHERE id = ?`, other.conversationId)[0]!.deleted_at !== null,
+    true,
+    "the sender's row is hidden, not deleted",
+  );
   assert.equal(h.calls("contacts.address.add").length, 0, "rememberAddress false remembers nothing");
 
   const undone = await unmatch(h.ctx, { conversationId: lee.conversationId });
   assert.equal(undone.conversation.id, other.conversationId);
   assert.equal(items(h, lee.conversationId).length, 1);
   assert.equal(items(h, other.conversationId).length, 1);
-  assert.equal(h.rows(`SELECT deleted_at FROM inbox_conversation WHERE id = ?`, other.conversationId)[0]!.deleted_at, null);
-  assert.deepEqual([convs(h).find((c) => c.id === lee.conversationId)!.lastPreview, convs(h).find((c) => c.id === other.conversationId)!.lastPreview], ["from work", "from home"]);
+  assert.equal(
+    h.rows(`SELECT deleted_at FROM inbox_conversation WHERE id = ?`, other.conversationId)[0]!.deleted_at,
+    null,
+  );
+  assert.deepEqual(
+    [
+      convs(h).find((c) => c.id === lee.conversationId)!.lastPreview,
+      convs(h).find((c) => c.id === other.conversationId)!.lastPreview,
+    ],
+    ["from work", "from home"],
+  );
 });
 
 test("match refuses a bad id, a missing conversation or record, and one already matched; an agent's match says so", async () => {
@@ -221,7 +322,10 @@ test("match refuses a bad id, a missing conversation or record, and one already 
   const agent = h.as({ kind: "agent", id: "agt_scout1" });
   await match(agent, { conversationId: a.conversationId, recordId: LEE.id });
   assert.equal(h.named("conversation.matched").at(-1)!.payload.by, "agent");
-  await refused(match(h.ctx, { conversationId: a.conversationId, recordId: DANA.id }), "validation.precondition_failed");
+  await refused(
+    match(h.ctx, { conversationId: a.conversationId, recordId: DANA.id }),
+    "validation.precondition_failed",
+  );
 });
 
 test("a record that already holds the address is not asked to add it again, and a failed remember does not undo the match", async () => {
@@ -231,7 +335,11 @@ test("a record that already holds the address is not asked to add it again, and 
   const out = await match(h.ctx, { conversationId: a.conversationId, recordId: LEE.id });
   assert.equal(out.conversation.contactId, LEE.id);
   const [back] = [await unmatch(h.ctx, { conversationId: a.conversationId })];
-  assert.deepEqual(h.contacts.get(LEE.id)!.emails.includes("who@nowhere.test"), true, "an address the record had before is left alone");
+  assert.deepEqual(
+    h.contacts.get(LEE.id)!.emails.includes("who@nowhere.test"),
+    true,
+    "an address the record had before is left alone",
+  );
   assert.equal(back.conversation.contactId, undefined);
 });
 
@@ -242,7 +350,11 @@ test("match_new makes a contact from the sender's email and matches it", async (
   const a = await linkMessage(h.ctx, link({ address: "robin@fresh.test" }));
   const out = await matchNew(h.ctx, { conversationId: a.conversationId, type: "contact" });
   assert.deepEqual(contractErrors("inbox.match_new", "out", out), []);
-  assert.deepEqual(h.calls("records.create")[0]!.input, { type: "contact", fields: { name: "robin", email: "robin@fresh.test" }, idempotencyKey: `inbox-new-${a.conversationId}` });
+  assert.deepEqual(h.calls("records.create")[0]!.input, {
+    type: "contact",
+    fields: { name: "robin", email: "robin@fresh.test" },
+    idempotencyKey: `inbox-new-${a.conversationId}`,
+  });
   assert.equal(out.conversation.contactId, out.recordId);
   assert.equal(out.conversation.displayName, "robin");
   assert.equal(h.calls("contacts.address.add").length, 0, "a contact made from the address already holds it");
@@ -255,9 +367,18 @@ test("match_new takes the name given, makes a company from a phone number, and t
   assert.deepEqual(h.calls("records.create")[0]!.input.fields, { name: "Fresh Holdings" });
   assert.equal(out.conversation.displayName, "Fresh Holdings");
   assert.deepEqual(h.calls("contacts.address.add")[0]!.input.kind, "phone");
-  await refused(matchNew(h.ctx, { conversationId: a.conversationId, type: "company" }), "validation.precondition_failed");
-  await refused(matchNew(h.ctx, { conversationId: a.conversationId, type: "robot" as "contact" }), "validation.bad_input");
-  await refused(matchNew(h.ctx, { conversationId: a.conversationId, type: "contact", name: " " }), "validation.bad_input");
+  await refused(
+    matchNew(h.ctx, { conversationId: a.conversationId, type: "company" }),
+    "validation.precondition_failed",
+  );
+  await refused(
+    matchNew(h.ctx, { conversationId: a.conversationId, type: "robot" as "contact" }),
+    "validation.bad_input",
+  );
+  await refused(
+    matchNew(h.ctx, { conversationId: a.conversationId, type: "contact", name: " " }),
+    "validation.bad_input",
+  );
 });
 
 // ---- suggestions
@@ -266,7 +387,9 @@ test("suggestions list the sure and unsure records with the reason, and a matche
   const h = setup();
   const a = await linkMessage(h.ctx, link({ address: "sam@fox.test" }));
   const out = await matchSuggestions(h.ctx, { conversationId: a.conversationId });
-  assert.deepEqual(out.suggestions, [{ recordId: DANA.id, type: "contact", name: "Dana Fox", score: 0.5, why: "Same email address" }]);
+  assert.deepEqual(out.suggestions, [
+    { recordId: DANA.id, type: "contact", name: "Dana Fox", score: 0.5, why: "Same email address" },
+  ]);
   assert.deepEqual(contractErrors("inbox.match_suggestions", "out", out), []);
   await match(h.ctx, { conversationId: a.conversationId, recordId: DANA.id });
   assert.deepEqual((await matchSuggestions(h.ctx, { conversationId: a.conversationId })).suggestions, []);
@@ -279,7 +402,10 @@ test("a reply from a followed contact raises the follow event; our own message d
   const h = setup();
   await followSet(h.ctx, { contactId: LEE.id, follow: true, alertOnReplies: true });
   await linkMessage(h.ctx, link({ address: "pat@acme.test" }));
-  assert.deepEqual(h.named("conversation.reply_received").map((e) => [e.subject, e.vis]), [[`record/${LEE.id}`, "participants"]]);
+  assert.deepEqual(
+    h.named("conversation.reply_received").map((e) => [e.subject, e.vis]),
+    [[`record/${LEE.id}`, "participants"]],
+  );
   await linkMessage(h.ctx, link({ address: "pat@acme.test", direction: "out" }));
   assert.equal(h.named("conversation.reply_received").length, 1);
 });
@@ -291,25 +417,55 @@ test("mark_read clears the unread count; read false marks the newest inbound mes
   const a = await linkMessage(h.ctx, link({ address: "pat@acme.test" }));
   await linkMessage(h.ctx, link({ address: "pat@acme.test" }));
   assert.equal(markRead(h.ctx, { conversationId: a.conversationId }).conversation.unreadCount, 0);
-  assert.equal(h.rows(`SELECT unread FROM inbox_item`).every((r) => r.unread === 0), true);
+  assert.equal(
+    h.rows(`SELECT unread FROM inbox_item`).every((r) => r.unread === 0),
+    true,
+  );
   const out = markRead(h.ctx, { conversationId: a.conversationId, read: false });
   assert.equal(out.conversation.unreadCount, 1);
   assert.deepEqual(contractErrors("inbox.mark_read", "out", out), []);
-  assert.throws(() => markRead(h.ctx, { conversationId: "cnv_missing1" }), (e: unknown) => codeOf(e) === "validation.not_found");
+  assert.throws(
+    () => markRead(h.ctx, { conversationId: "cnv_missing1" }),
+    (e: unknown) => codeOf(e) === "validation.not_found",
+  );
 });
 
 test("following a contact and Alert me on replies: stored per person, the follow itself goes through follows.toggle, and Alert only holds while following", async () => {
   const h = setup();
-  assert.deepEqual(await followSet(h.ctx, { contactId: LEE.id, follow: true }), { following: true, alertOnReplies: false });
+  assert.deepEqual(await followSet(h.ctx, { contactId: LEE.id, follow: true }), {
+    following: true,
+    alertOnReplies: false,
+  });
   assert.deepEqual(h.calls("follows.toggle")[0]!.input, { resource: { type: "record", id: LEE.id }, on: true });
-  assert.deepEqual(await followSet(h.ctx, { contactId: LEE.id, follow: true, alertOnReplies: true }), { following: true, alertOnReplies: true });
-  assert.deepEqual(await followSet(h.ctx, { contactId: LEE.id, follow: true }), { following: true, alertOnReplies: true }, "unsaid keeps what was set");
-  assert.deepEqual(h.named("conversation.follow_changed").map((e) => [e.payload.following, e.payload.alertOnReplies]), [[true, false], [true, true]]);
+  assert.deepEqual(await followSet(h.ctx, { contactId: LEE.id, follow: true, alertOnReplies: true }), {
+    following: true,
+    alertOnReplies: true,
+  });
+  assert.deepEqual(
+    await followSet(h.ctx, { contactId: LEE.id, follow: true }),
+    { following: true, alertOnReplies: true },
+    "unsaid keeps what was set",
+  );
+  assert.deepEqual(
+    h.named("conversation.follow_changed").map((e) => [e.payload.following, e.payload.alertOnReplies]),
+    [
+      [true, false],
+      [true, true],
+    ],
+  );
   const a = await linkMessage(h.ctx, link({ address: "pat@acme.test" }));
   const row = markRead(h.ctx, { conversationId: a.conversationId }).conversation;
   assert.deepEqual([row.followed, row.alertOnReplies], [true, true]);
-  assert.deepEqual(await followSet(h.ctx, { contactId: LEE.id, follow: false, alertOnReplies: true }), { following: false, alertOnReplies: false });
-  assert.deepEqual(h.named("conversation.follow_changed").at(-1)!.payload, { contactId: LEE.id, principalId: "usr_maya01", following: false, alertOnReplies: false });
+  assert.deepEqual(await followSet(h.ctx, { contactId: LEE.id, follow: false, alertOnReplies: true }), {
+    following: false,
+    alertOnReplies: false,
+  });
+  assert.deepEqual(h.named("conversation.follow_changed").at(-1)!.payload, {
+    contactId: LEE.id,
+    principalId: "usr_maya01",
+    following: false,
+    alertOnReplies: false,
+  });
   assert.equal(h.rows(`SELECT * FROM inbox_follow WHERE deleted_at IS NULL`).length, 0);
   await followSet(h.ctx, { contactId: LEE.id, follow: false });
   assert.equal(h.named("conversation.follow_changed").length, 3, "unfollowing twice says nothing the second time");
@@ -323,15 +479,23 @@ test("following a contact and Alert me on replies: stored per person, the follow
 
 test("every capability of the inbox manifest has a handler, and none is extra", () => {
   // the module also owns the composer's sender list (comms.senders.*), so the match is by module, not by name prefix
-  const caps = registry.capabilities.filter((c) => c.module === "inbox").map((c) => c.name).sort();
-  assert.equal(caps.length, 21);   // with inbox.thread_conversation (a mail chip opens its conversation)
-  assert.deepEqual(caps.filter((n) => !n.startsWith("inbox.")), ["comms.senders.list", "comms.senders.set_default"]);
+  const caps = registry.capabilities
+    .filter((c) => c.module === "inbox")
+    .map((c) => c.name)
+    .sort();
+  assert.equal(caps.length, 21); // with inbox.thread_conversation (a mail chip opens its conversation)
+  assert.deepEqual(
+    caps.filter((n) => !n.startsWith("inbox.")),
+    ["comms.senders.list", "comms.senders.set_default"],
+  );
   assert.deepEqual(Object.keys(handlers).sort(), caps);
 });
 
 test("link_message through the registered handler links like the function does", async () => {
   const h = setup();
-  const out = (await handlers["inbox.link_message"]!(h.ctx as never, link({ address: "pat@acme.test" }) as never)) as { linked: string };
+  const out = (await handlers["inbox.link_message"]!(h.ctx as never, link({ address: "pat@acme.test" }) as never)) as {
+    linked: string;
+  };
   assert.equal(out.linked, "sure");
 });
 
@@ -346,15 +510,31 @@ test("the time stamps follow the clock the host gives", async () => {
 
 test("private mail gets its owner's own conversation: matched to no record even for a known address, shared by that person's later mail, apart from the shared conversation of the same address", async () => {
   const h = setup();
-  const mine = { ...link({ address: "pat@acme.test", mailboxId: "mbx_work1", preview: "For Maya only" }), private: true, ownerId: "usr_maya01" };
+  const mine = {
+    ...link({ address: "pat@acme.test", mailboxId: "mbx_work1", preview: "For Maya only" }),
+    private: true,
+    ownerId: "usr_maya01",
+  };
   const first = await linkMessage(h.ctx, mine);
   assert.deepEqual(contractErrors("inbox.link_message", "in", mine), []);
   assert.equal(first.linked, "none");
   assert.equal(first.contactId, undefined, "Pat Lee is a known contact, and private mail still meets no record");
-  const again = await linkMessage(h.ctx, { ...link({ address: "pat@acme.test", mailboxId: "mbx_work1" }), private: true, ownerId: "usr_maya01" });
+  const again = await linkMessage(h.ctx, {
+    ...link({ address: "pat@acme.test", mailboxId: "mbx_work1" }),
+    private: true,
+    ownerId: "usr_maya01",
+  });
   assert.equal(again.conversationId, first.conversationId, "the same person's next mail joins it");
-  const other = await linkMessage(h.ctx, { ...link({ address: "pat@acme.test", mailboxId: "mbx_work1" }), private: true, ownerId: "usr_omar01" });
-  assert.notEqual(other.conversationId, first.conversationId, "another person's private mail from the same address is theirs");
+  const other = await linkMessage(h.ctx, {
+    ...link({ address: "pat@acme.test", mailboxId: "mbx_work1" }),
+    private: true,
+    ownerId: "usr_omar01",
+  });
+  assert.notEqual(
+    other.conversationId,
+    first.conversationId,
+    "another person's private mail from the same address is theirs",
+  );
   const shared = await linkMessage(h.ctx, link({ address: "pat@acme.test", mailboxId: "mbx_work1" }));
   assert.equal(shared.linked, "sure");
   assert.notEqual(shared.conversationId, first.conversationId, "shared mail never merges into a private conversation");
@@ -366,19 +546,46 @@ test("private mail gets its owner's own conversation: matched to no record even 
 
 test("a private conversation cannot be matched to a record, and a private message names whose it is", async () => {
   const h = setup();
-  const made = await linkMessage(h.ctx, { ...link({ address: "new@nowhere.test", mailboxId: "mbx_work1" }), private: true, ownerId: "usr_maya01" });
-  await refused(match(h.ctx, { conversationId: made.conversationId, recordId: LEE.id }), "validation.precondition_failed");
-  await refused(matchNew(h.ctx, { conversationId: made.conversationId, type: "contact", idempotencyKey: "pm-1" } as never), "validation.precondition_failed");
+  const made = await linkMessage(h.ctx, {
+    ...link({ address: "new@nowhere.test", mailboxId: "mbx_work1" }),
+    private: true,
+    ownerId: "usr_maya01",
+  });
+  await refused(
+    match(h.ctx, { conversationId: made.conversationId, recordId: LEE.id }),
+    "validation.precondition_failed",
+  );
+  await refused(
+    matchNew(h.ctx, { conversationId: made.conversationId, type: "contact", idempotencyKey: "pm-1" } as never),
+    "validation.precondition_failed",
+  );
   await refused(linkMessage(h.ctx, { ...link({ address: "x@y.test" }), private: true }), "validation.bad_input");
 });
 
 test("Add as a client: the attachments are filed in the record's folder, a file the person cannot read is skipped and counted, and a Reply task is made", async () => {
-  const mail = [{ id: "eml_att1", threadId: "t1", subject: "Hello", from: "robin@fresh.test", to: ["me@x.test"], attachments: [
-    { attachmentId: "a1", name: "id.pdf", mime: "application/pdf", size: 10, fileId: "fil_one" }, { attachmentId: "a2", name: "contract.docx", mime: "application/msword", size: 10, fileId: "fil_secret" }, { attachmentId: "a3", name: "inline.png", mime: "image/png", size: 5 }, { attachmentId: "a_secret", name: "private.png", mime: "image/png", size: 5 },
-  ] }];
+  const mail = [
+    {
+      id: "eml_att1",
+      threadId: "t1",
+      subject: "Hello",
+      from: "robin@fresh.test",
+      to: ["me@x.test"],
+      attachments: [
+        { attachmentId: "a1", name: "id.pdf", mime: "application/pdf", size: 10, fileId: "fil_one" },
+        { attachmentId: "a2", name: "contract.docx", mime: "application/msword", size: 10, fileId: "fil_secret" },
+        { attachmentId: "a3", name: "inline.png", mime: "image/png", size: 5 },
+        { attachmentId: "a_secret", name: "private.png", mime: "image/png", size: 5 },
+      ],
+    },
+  ];
   const h = setup({ mail });
   const a = await linkMessage(h.ctx, link({ address: "robin@fresh.test", id: "eml_att1" }));
-  const out = await matchNew(h.ctx, { conversationId: a.conversationId, type: "contact", fileAttachments: true, replyTask: true });
+  const out = await matchNew(h.ctx, {
+    conversationId: a.conversationId,
+    type: "contact",
+    fileAttachments: true,
+    replyTask: true,
+  });
   assert.deepEqual(contractErrors("inbox.match_new", "out", out), []);
   assert.equal(out.filed, 2, "one copied from Files, one saved from the message");
   assert.equal(out.skipped, 2, "two the person may not file");
@@ -389,7 +596,10 @@ test("Add as a client: the attachments are filed in the record's folder, a file 
   assert.equal(copies[0]!.input.toFolderId, `fld_${out.recordId.replace(/^rec_/, "")}`);
   assert.equal(h.calls("projects.files_folder").length, 1, "the folder is asked for once");
   const task = h.calls("tasks.create").find((c) => /^Reply to/.test(String(c.input.title)))!.input;
-  assert.deepEqual([task.title, task.assigned, task.recordId, task.idempotencyKey], ["Reply to robin", { kind: "person", id: "usr_maya01" }, out.recordId, `inbox-reply-${a.conversationId}`]);
+  assert.deepEqual(
+    [task.title, task.assigned, task.recordId, task.idempotencyKey],
+    ["Reply to robin", { kind: "person", id: "usr_maya01" }, out.recordId, `inbox-reply-${a.conversationId}`],
+  );
   assert.match(out.taskId ?? "", /^tsk_/);
 });
 

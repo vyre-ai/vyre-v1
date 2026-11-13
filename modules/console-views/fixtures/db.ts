@@ -8,7 +8,12 @@ export const SPACE = "spc_test";
 export const DAY = 86_400_000;
 
 export type Answer = unknown | Error | ((input: Record<string, unknown>) => unknown);
-export interface World { ctx: ViewCtx; calls: { cap: string; input: Record<string, unknown> }[]; answers: Map<string, Answer>; allow: Set<string> }
+export interface World {
+  ctx: ViewCtx;
+  calls: { cap: string; input: Record<string, unknown> }[];
+  answers: Map<string, Answer>;
+  allow: Set<string>;
+}
 
 export function world(answers: Record<string, Answer> = {}, allow: string[] = ["console.access"]): World {
   const map = new Map<string, Answer>(Object.entries(answers));
@@ -34,8 +39,25 @@ export function world(answers: Record<string, Answer> = {}, allow: string[] = ["
   return { ctx, calls, answers: map, allow: allowed };
 }
 
-export const healthy = { overall: "healthy", checks: [{ key: "sync.lag", title: "Sync lag", state: "healthy", checkedAt: NOW - 1000, module: "sync", next: "Nothing to do." }] };
-export const certOk = { address: "maya.vyre.run", mode: "relay", certificate: { host: "maya.vyre.run", expiresAt: NOW + 60 * DAY, state: "healthy" }, publicIngress: true };
+export const healthy = {
+  overall: "healthy",
+  checks: [
+    {
+      key: "sync.lag",
+      title: "Sync lag",
+      state: "healthy",
+      checkedAt: NOW - 1000,
+      module: "sync",
+      next: "Nothing to do.",
+    },
+  ],
+};
+export const certOk = {
+  address: "maya.vyre.run",
+  mode: "relay",
+  certificate: { host: "maya.vyre.run", expiresAt: NOW + 60 * DAY, state: "healthy" },
+  publicIngress: true,
+};
 export const quiet: Record<string, Answer> = {
   "health.status": healthy,
   "network.status": certOk,

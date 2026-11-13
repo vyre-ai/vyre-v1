@@ -21,18 +21,37 @@ export function CallEndedStrip(p: SoftphoneViewProps): ReactElement {
       <Avatar name={name} kind="person" size={22} />
       <View style={s.who}>
         <Text numberOfLines={1} style={s.title}>{`Call ended · ${formatClock(secs)}`}</Text>
-        <Text numberOfLines={1} style={s.note}>{ready ? (p.endedNote ?? `Saved to ${name}'s conversation`) : "Saving your notes"}</Text>
+        <Text numberOfLines={1} style={s.note}>
+          {ready ? (p.endedNote ?? `Saved to ${name}'s conversation`) : "Saving your notes"}
+        </Text>
       </View>
       <View style={s.grow} />
       {logged ? (
-        <View style={s.done}><Icon name="check" size={13} color="var(--ok)" /><Text style={s.doneText}>Task logged</Text></View>
+        <View style={s.done}>
+          <Icon name="check" size={13} color="var(--ok)" />
+          <Text style={s.doneText}>Task logged</Text>
+        </View>
       ) : (
-        <Pressable accessibilityRole="button" testID="call-strip-log-task" onPress={() => { p.onLogTask?.(`Follow up with ${name}`); setLogged(true); }} style={({ hovered }: Hover) => [s.btn, hovered === true && s.btnHover]}>
+        <Pressable
+          accessibilityRole="button"
+          testID="call-strip-log-task"
+          onPress={() => {
+            p.onLogTask?.(`Follow up with ${name}`);
+            setLogged(true);
+          }}
+          style={({ hovered }: Hover) => [s.btn, hovered === true && s.btnHover]}
+        >
           <Icon name="check" size={13} color="var(--ink-2)" />
           <Text style={s.btnText}>Log a task</Text>
         </Pressable>
       )}
-      <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" testID="call-strip-dismiss" onPress={p.onDismiss ?? p.onClose} style={({ hovered }: Hover) => [s.x, hovered === true && s.btnHover]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss"
+        testID="call-strip-dismiss"
+        onPress={p.onDismiss ?? p.onClose}
+        style={({ hovered }: Hover) => [s.x, hovered === true && s.btnHover]}
+      >
         <Icon name="x" size={13} color="var(--ink-3)" />
       </Pressable>
     </View>
@@ -40,12 +59,28 @@ export function CallEndedStrip(p: SoftphoneViewProps): ReactElement {
 }
 
 const s = StyleSheet.create({
-  strip: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, paddingHorizontal: 16, alignSelf: "stretch" },
+  strip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignSelf: "stretch",
+  },
   who: { minWidth: 0, flexShrink: 1 },
   grow: { flex: 1 },
   title: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "600" },
   note: { color: "var(--ink-3)" as string, fontSize: 11.5 },
-  btn: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string },
+  btn: {
+    height: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+  },
   btnHover: { backgroundColor: "var(--sel)" as string },
   btnText: { color: "var(--ink-2)" as string, fontSize: 12.5, fontWeight: "500" },
   x: { width: 26, height: 26, borderRadius: 7, alignItems: "center", justifyContent: "center" },

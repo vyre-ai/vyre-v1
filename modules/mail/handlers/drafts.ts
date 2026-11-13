@@ -3,7 +3,24 @@
 // An agent draft carries a Gate line that tells the person why the send waits for approval. A person editing the draft does not clear who drafted it.
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
-  allow, bad, can, EMAIL, ensure, first, isId, missing, newId, normalizeEmail, num, partyJson, readParties, readStrings, rowsOf, snippetOf, str, strOrNull,
+  allow,
+  bad,
+  can,
+  EMAIL,
+  ensure,
+  first,
+  isId,
+  missing,
+  newId,
+  normalizeEmail,
+  num,
+  partyJson,
+  readParties,
+  readStrings,
+  rowsOf,
+  snippetOf,
+  str,
+  strOrNull,
 } from "../projections.ts";
 import type { MailCtx, Party, Row } from "../projections.ts";
 
@@ -47,9 +64,14 @@ export interface MessageRowOut {
 }
 
 /** What an agent's draft said before the same agent drafted again on the same thread: one pending draft per thread per agent, the earlier text one click away. */
-const PRIOR = 'CREATE TABLE IF NOT EXISTS "mail_draft_prior" ("draftId" TEXT PRIMARY KEY, "at" INTEGER NOT NULL, "subject" TEXT NOT NULL, "text" TEXT NOT NULL)';
+const PRIOR =
+  'CREATE TABLE IF NOT EXISTS "mail_draft_prior" ("draftId" TEXT PRIMARY KEY, "at" INTEGER NOT NULL, "subject" TEXT NOT NULL, "text" TEXT NOT NULL)';
 const priorReady = new WeakSet<object>();
-function ensurePrior(ctx: MailCtx): void { if (priorReady.has(ctx.db)) return; ctx.db.run(PRIOR); priorReady.add(ctx.db); }
+function ensurePrior(ctx: MailCtx): void {
+  if (priorReady.has(ctx.db)) return;
+  ctx.db.run(PRIOR);
+  priorReady.add(ctx.db);
+}
 
 const GATE_LINE = "An agent wrote this draft. It is sent only after a person approves.";
 const DEFAULT_LIMIT = 50;
@@ -57,11 +79,15 @@ const DEFAULT_LIMIT = 50;
 export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
   ensure(ctx);
   if (!isId("mbx", input.mailboxId)) bad(ctx, "Mailbox id is not valid.");
-  if (typeof input.idempotencyKey !== "string" || input.idempotencyKey.length === 0) bad(ctx, "Idempotency key is required.");
+  if (typeof input.idempotencyKey !== "string" || input.idempotencyKey.length === 0)
+    bad(ctx, "Idempotency key is required.");
   const box = first(ctx.db.all(`SELECT * FROM mail_mailbox WHERE id = ? AND deleted_at IS NULL`, input.mailboxId));
   if (!box) missing(ctx, "Mailbox does not exist.");
 
-  const prior = strOrNull(first(ctx.db.all(`SELECT "refId" FROM mail_idem WHERE "idemKey" = ? AND kind = ?`, input.idempotencyKey, "draft")), "refId");
+  const prior = strOrNull(
+    first(ctx.db.all(`SELECT "refId" FROM mail_idem WHERE "idemKey" = ? AND kind = ?`, input.idempotencyKey, "draft")),
+    "refId",
+  );
   if (prior) return answer(ctx, prior);
 
   let existing = input.draftId === undefined ? null : loadDraft(ctx, input.draftId);
@@ -75,12 +101,24 @@ export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
   const drafting = ctx.principal.kind === "agent" && isId("agt", ctx.principal.id) ? ctx.principal.id : null;
   let replaced: Row | null = null;
   if (!existing && drafting && parent) {
-    replaced = first(ctx.db.all(`SELECT * FROM mail_message WHERE "threadId" = ? AND "draftedByAgent" = ? AND status = ? AND "mailboxId" = ? AND deleted_at IS NULL ORDER BY updated_at DESC`, str(parent, "threadId"), drafting, "draft", input.mailboxId)) ?? null;
+    replaced =
+      first(
+        ctx.db.all(
+          `SELECT * FROM mail_message WHERE "threadId" = ? AND "draftedByAgent" = ? AND status = ? AND "mailboxId" = ? AND deleted_at IS NULL ORDER BY updated_at DESC`,
+          str(parent, "threadId"),
+          drafting,
+          "draft",
+          input.mailboxId,
+        ),
+      ) ?? null;
     if (replaced) existing = replaced;
   }
   const own = str(box, "address");
   const text = input.text;
-  const to = cleanParties(ctx, input.to ?? (parent ? replyTargets(parent, own) : existing ? readParties(str(existing, "toAddresses")) : []));
+  const to = cleanParties(
+    ctx,
+    input.to ?? (parent ? replyTargets(parent, own) : existing ? readParties(str(existing, "toAddresses")) : []),
+  );
   const cc = cleanParties(ctx, input.cc ?? (existing ? readParties(str(existing, "ccAddresses")) : []));
   const bcc = cleanParties(ctx, input.bcc ?? (existing ? readParties(bccOf(ctx, str(existing, "id"))) : []));
   const lists = dedupeRecipients(to, cc, bcc);
@@ -88,32 +126,63 @@ export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
   const files = input.attachments ?? (existing ? attachmentIds(str(existing, "attachments")) : []);
   for (const f of files) if (!isId("fil", f)) bad(ctx, "Attachment id is not valid.");
 
-  const subject = input.subject ?? (existing ? str(existing, "subject") : parent ? replySubject(str(parent, "subject")) : "");
+  const subject =
+    input.subject ?? (existing ? str(existing, "subject") : parent ? replySubject(str(parent, "subject")) : "");
   const bodyText = text ?? (existing ? textOf(ctx, str(existing, "id")) : undefined);
   const bodyHtml = input.html ?? (existing ? htmlOf(ctx, str(existing, "id")) : undefined);
-  const contactId = contactFor(ctx, [input.contactId ?? null, strOrNull(existing, "contactId"), strOrNull(parent, "contactId")], lists.to, parent);
+  const contactId = contactFor(
+    ctx,
+    [input.contactId ?? null, strOrNull(existing, "contactId"), strOrNull(parent, "contactId")],
+    lists.to,
+    parent,
+  );
   const agentId = ctx.principal.kind === "agent" && isId("agt", ctx.principal.id) ? ctx.principal.id : null;
   const now = ctx.now();
   const draftId = existing ? str(existing, "id") : newId("eml", now);
-  const threadId = existing ? str(existing, "threadId") : strOrNull(parent, "threadId") ?? draftId;
+  const threadId = existing ? str(existing, "threadId") : (strOrNull(parent, "threadId") ?? draftId);
   const draftedBy = strOrNull(existing, "draftedByAgent") ?? agentId;
 
   const was = existing ? textOf(ctx, str(existing, "id")) : undefined;
   if (replaced) {
     ensurePrior(ctx);
-    ctx.db.run('INSERT OR IGNORE INTO "mail_draft_prior" ("draftId", "at", "subject", "text") VALUES (?, ?, ?, ?)', str(replaced, "id"), num(replaced, "updated_at"), str(replaced, "subject"), was ?? "");
-    ctx.db.run('UPDATE "mail_draft_prior" SET "at" = ?, "subject" = ?, "text" = ? WHERE "draftId" = ?', num(replaced, "updated_at"), str(replaced, "subject"), was ?? "", str(replaced, "id"));
+    ctx.db.run(
+      'INSERT OR IGNORE INTO "mail_draft_prior" ("draftId", "at", "subject", "text") VALUES (?, ?, ?, ?)',
+      str(replaced, "id"),
+      num(replaced, "updated_at"),
+      str(replaced, "subject"),
+      was ?? "",
+    );
+    ctx.db.run(
+      'UPDATE "mail_draft_prior" SET "at" = ?, "subject" = ?, "text" = ? WHERE "draftId" = ?',
+      num(replaced, "updated_at"),
+      str(replaced, "subject"),
+      was ?? "",
+      str(replaced, "id"),
+    );
   }
   if (existing) {
     ctx.db.run(
       `UPDATE mail_message SET "toAddresses" = ?, "ccAddresses" = ?, subject = ?, snippet = ?, body = ?, "sentAt" = ?, "contactId" = ?,
         attachments = ?, "draftedByAgent" = ?, version = ?, updated_at = ? WHERE id = ?`,
-      partyJson(lists.to), partyJson(lists.cc), subject, snippetOf(bodyText, subject), bodyText ?? bodyHtml ?? "", now, contactId,
-      JSON.stringify(files.map((fileId) => ({ fileId }))), draftedBy, num(existing, "version") + 1, now, draftId,
+      partyJson(lists.to),
+      partyJson(lists.cc),
+      subject,
+      snippetOf(bodyText, subject),
+      bodyText ?? bodyHtml ?? "",
+      now,
+      contactId,
+      JSON.stringify(files.map((fileId) => ({ fileId }))),
+      draftedBy,
+      num(existing, "version") + 1,
+      now,
+      draftId,
     );
     ctx.db.run(
       `UPDATE mail_body SET text = ?, html = ?, bcc = ? WHERE "messageId" = ?`,
-      bodyText ?? null, bodyHtml ?? null, partyJson(lists.bcc), draftId,
+      bodyText ?? null,
+      bodyHtml ?? null,
+      partyJson(lists.bcc),
+      draftId,
     );
   } else {
     ctx.db.run(
@@ -122,22 +191,73 @@ export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
         "fromAddress", "toAddresses", "ccAddresses", subject, snippet, body, "sentAt", "contactId",
         "isPrivate", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      draftId, input.mailboxId, JSON.stringify([input.mailboxId]), null, null, threadId, "out", "draft",
-      own, partyJson(lists.to), partyJson(lists.cc), subject, snippetOf(bodyText, subject), bodyText ?? bodyHtml ?? "", now, contactId,
-      str(box, "privacy") === "private" ? 1 : 0, JSON.stringify(files.map((fileId) => ({ fileId }))), draftedBy, ctx.trace.traceId, 1, now, null,
+      draftId,
+      input.mailboxId,
+      JSON.stringify([input.mailboxId]),
+      null,
+      null,
+      threadId,
+      "out",
+      "draft",
+      own,
+      partyJson(lists.to),
+      partyJson(lists.cc),
+      subject,
+      snippetOf(bodyText, subject),
+      bodyText ?? bodyHtml ?? "",
+      now,
+      contactId,
+      str(box, "privacy") === "private" ? 1 : 0,
+      JSON.stringify(files.map((fileId) => ({ fileId }))),
+      draftedBy,
+      ctx.trace.traceId,
+      1,
+      now,
+      null,
     );
     ctx.db.run(
       `INSERT INTO mail_body ("messageId", text, html, "fromName", bcc, headers) VALUES (?, ?, ?, ?, ?, ?)`,
-      draftId, bodyText ?? null, bodyHtml ?? null, null, partyJson(lists.bcc), null,
+      draftId,
+      bodyText ?? null,
+      bodyHtml ?? null,
+      null,
+      partyJson(lists.bcc),
+      null,
     );
   }
-  ctx.db.run(`INSERT OR IGNORE INTO mail_idem ("idemKey", kind, "refId") VALUES (?, ?, ?)`, input.idempotencyKey, "draft", draftId);
+  ctx.db.run(
+    `INSERT OR IGNORE INTO mail_idem ("idemKey", kind, "refId") VALUES (?, ?, ?)`,
+    input.idempotencyKey,
+    "draft",
+    draftId,
+  );
 
   // a person edits what an agent drafted: memory keeps a lesson from it (memory.corrections.record, as the person), when their switch is on. A failing memory never holds the save up.
-  if (existing && draftedBy && ctx.principal.kind === "person" && was !== undefined && bodyText !== undefined && was.trim() !== bodyText.trim() && bodyText.trim() !== "") {
-    try { await ctx.call("memory.corrections.record", { agentId: draftedBy, how: "edit", was, now: bodyText, ref: `${draftId}:v${num(existing, "version")}` }); } catch { /* the draft is saved; the lesson is a courtesy */ }
+  if (
+    existing &&
+    draftedBy &&
+    ctx.principal.kind === "person" &&
+    was !== undefined &&
+    bodyText !== undefined &&
+    was.trim() !== bodyText.trim() &&
+    bodyText.trim() !== ""
+  ) {
+    try {
+      await ctx.call("memory.corrections.record", {
+        agentId: draftedBy,
+        how: "edit",
+        was,
+        now: bodyText,
+        ref: `${draftId}:v${num(existing, "version")}`,
+      });
+    } catch {
+      /* the draft is saved; the lesson is a courtesy */
+    }
   }
-  const payload: { draftId: string; mailboxId: string; byAgent?: string; contactId?: string } = { draftId, mailboxId: input.mailboxId };
+  const payload: { draftId: string; mailboxId: string; byAgent?: string; contactId?: string } = {
+    draftId,
+    mailboxId: input.mailboxId,
+  };
   if (draftedBy) payload.byAgent = draftedBy;
   if (contactId) payload.contactId = contactId;
   ctx.emit("mail_draft.saved", `mail_message/${draftId}`, payload);
@@ -158,21 +278,36 @@ export async function draftsList(
 
   const where = [`status = ?`, `deleted_at IS NULL`];
   const args: unknown[] = ["draft"];
-  if (input.mailboxId) { where.push(`"mailboxId" = ?`); args.push(input.mailboxId); }
-  if (input.contactId) { where.push(`"contactId" = ?`); args.push(input.contactId); }
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM mail_message WHERE ${where.join(" AND ")} ORDER BY updated_at DESC`, ...args));
+  if (input.mailboxId) {
+    where.push(`"mailboxId" = ?`);
+    args.push(input.mailboxId);
+  }
+  if (input.contactId) {
+    where.push(`"contactId" = ?`);
+    args.push(input.contactId);
+  }
+  const rows = rowsOf(
+    ctx.db.all(`SELECT * FROM mail_message WHERE ${where.join(" AND ")} ORDER BY updated_at DESC`, ...args),
+  );
 
   // Drafts are mail: a caller sees the drafts of mailboxes they may read.
   const verdict = new Map<string, boolean>();
   // By contact shows only what is to or from that contact: a draft filed under a contact by mistake (to someone else) is left out
-  const ofContact = input.contactId ? rows.filter((r) => contactFor(ctx, [input.contactId!], readParties(str(r, "toAddresses")), null) === input.contactId) : rows;
+  const ofContact = input.contactId
+    ? rows.filter(
+        (r) => contactFor(ctx, [input.contactId!], readParties(str(r, "toAddresses")), null) === input.contactId,
+      )
+    : rows;
   const visible = ofContact.filter((r) => {
     const id = str(r, "mailboxId");
     if (!verdict.has(id)) verdict.set(id, can(ctx, "view", { type: "mailbox", id }));
     return verdict.get(id) === true;
   });
   const page = visible.slice(offset, offset + limit);
-  const out: { drafts: MessageRowOut[]; next?: string; total: number } = { drafts: page.map((r) => rowOut(r, ctx)), total: visible.length };
+  const out: { drafts: MessageRowOut[]; next?: string; total: number } = {
+    drafts: page.map((r) => rowOut(r, ctx)),
+    total: visible.length,
+  };
   if (offset + limit < visible.length) out.next = String(offset + limit);
   return out;
 }
@@ -186,7 +321,13 @@ export async function draftsDiscard(ctx: MailCtx, input: { draftId: string }): P
   if (str(row, "status") !== "draft") {
     throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Only a draft can be discarded." });
   }
-  ctx.db.run(`UPDATE mail_message SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, ctx.now(), num(row, "version") + 1, ctx.now(), input.draftId);
+  ctx.db.run(
+    `UPDATE mail_message SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`,
+    ctx.now(),
+    num(row, "version") + 1,
+    ctx.now(),
+    input.draftId,
+  );
   ctx.emit("mail_draft.discarded", `mail_message/${input.draftId}`, { draftId: input.draftId });
   return { discarded: true };
 }
@@ -214,14 +355,17 @@ function loadParent(ctx: MailCtx, input: DraftIn, box: Row): Row {
   if (!isId("eml", id)) bad(ctx, "Reply target id is not valid.");
   const parent = first(ctx.db.all(`SELECT * FROM mail_message WHERE id = ? AND deleted_at IS NULL`, id));
   // The reply goes out from an inbox the message sits in; a message in none of the caller's mailboxes is not theirs to answer.
-  if (!parent || !readStrings(str(parent, "inboxIds")).includes(str(box, "id"))) missing(ctx, "The message you are replying to is not in this mailbox.");
+  if (!parent || !readStrings(str(parent, "inboxIds")).includes(str(box, "id")))
+    missing(ctx, "The message you are replying to is not in this mailbox.");
   return parent;
 }
 
 /** Who a reply goes to: the sender of mail we received, the recipients of mail we sent. Never this mailbox itself. */
 function replyTargets(parent: Row, own: string): Party[] {
   const sentByUs = str(parent, "direction") === "out";
-  const people: Party[] = sentByUs ? readParties(str(parent, "toAddresses")) : [{ address: str(parent, "fromAddress") }];
+  const people: Party[] = sentByUs
+    ? readParties(str(parent, "toAddresses"))
+    : [{ address: str(parent, "fromAddress") }];
   return people.filter((p) => normalizeEmail(p.address) !== normalizeEmail(own));
 }
 
@@ -243,11 +387,12 @@ function cleanParties(ctx: MailCtx, parties: Party[]): Party[] {
 /** One recipient field everywhere (spec 2.18): an address appears once, in To before Cc before Bcc. */
 function dedupeRecipients(to: Party[], cc: Party[], bcc: Party[]): { to: Party[]; cc: Party[]; bcc: Party[] } {
   const seen = new Set<string>();
-  const keep = (list: Party[]): Party[] => list.filter((p) => {
-    if (seen.has(p.address)) return false;
-    seen.add(p.address);
-    return true;
-  });
+  const keep = (list: Party[]): Party[] =>
+    list.filter((p) => {
+      if (seen.has(p.address)) return false;
+      seen.add(p.address);
+      return true;
+    });
   const a = keep(to);
   const b = keep(cc);
   return { to: a, cc: b, bcc: keep(bcc) };
@@ -265,7 +410,9 @@ function attachmentIds(value: string): string[] {
     const parsed = JSON.parse(value) as unknown;
     if (!Array.isArray(parsed)) return [];
     const out: string[] = [];
-    for (const item of parsed) if (item && typeof item === "object" && typeof (item as { fileId?: unknown }).fileId === "string") out.push((item as { fileId: string }).fileId);
+    for (const item of parsed)
+      if (item && typeof item === "object" && typeof (item as { fileId?: unknown }).fileId === "string")
+        out.push((item as { fileId: string }).fileId);
     return out;
   } catch {
     return [];
@@ -294,7 +441,9 @@ function rowOut(row: Row, ctx?: MailCtx): MessageRowOut {
   if (agent) out.draftedByAgent = agent;
   if (ctx && agent && str(row, "status") === "draft") {
     ensurePrior(ctx);
-    const prior = first(ctx.db.all('SELECT "at", "subject", "text" FROM "mail_draft_prior" WHERE "draftId" = ?', str(row, "id")));
+    const prior = first(
+      ctx.db.all('SELECT "at", "subject", "text" FROM "mail_draft_prior" WHERE "draftId" = ?', str(row, "id")),
+    );
     if (prior) out.earlier = { at: num(prior, "at"), subject: str(prior, "subject"), text: str(prior, "text") };
   }
   return out;
@@ -305,17 +454,36 @@ function rowOut(row: Row, ctx?: MailCtx): MessageRowOut {
  * with (the agent's own, or the thread's) holds only if a TO recipient is an address that contact has written from or been written to at; a draft to someone else belongs to no one's view but its thread.
  * Only the people a draft is addressed to count: someone on Cc (Aliza, copied on two contacts' threads) never files it under herself or under the other contact.
  */
-export function contactFor(ctx: MailCtx, candidates: readonly (string | null)[], recipients: readonly Party[], parent: Row | null): string | null {
+export function contactFor(
+  ctx: MailCtx,
+  candidates: readonly (string | null)[],
+  recipients: readonly Party[],
+  parent: Row | null,
+): string | null {
   const named = recipients.find((p) => typeof (p as { contactId?: unknown }).contactId === "string");
   if (named) return (named as { contactId: string }).contactId;
   const to = new Set(recipients.map((p) => p.address.toLowerCase()));
   for (const candidate of [...new Set(candidates.filter((c): c is string => typeof c === "string" && c !== ""))]) {
     if (to.size === 0) return candidate;
     const known = new Set<string>();
-    const add = (v: unknown): void => { if (typeof v === "string" && v !== "") for (const a of v.match(/[^\s"<>,;\[\]{}:]+@[^\s"<>,;\[\]{}:]+/g) ?? []) known.add(a.toLowerCase().replace(/[.,;]+$/, "")); };
-    for (const r of ctx.db.all(`SELECT "fromAddress", "toAddresses", direction, status FROM mail_message WHERE "contactId" = ? AND deleted_at IS NULL`, candidate) as Row[]) { if (r["status"] === "draft") continue; if (r["direction"] === "in") add(r["fromAddress"]); else add(r["toAddresses"]); }   // the contact is who wrote in, or who we wrote to: never someone only copied
+    const add = (v: unknown): void => {
+      if (typeof v === "string" && v !== "")
+        for (const a of v.match(/[^\s"<>,;\[\]{}:]+@[^\s"<>,;\[\]{}:]+/g) ?? [])
+          known.add(a.toLowerCase().replace(/[.,;]+$/, ""));
+    };
+    for (const r of ctx.db.all(
+      `SELECT "fromAddress", "toAddresses", direction, status FROM mail_message WHERE "contactId" = ? AND deleted_at IS NULL`,
+      candidate,
+    ) as Row[]) {
+      if (r["status"] === "draft") continue;
+      if (r["direction"] === "in") add(r["fromAddress"]);
+      else add(r["toAddresses"]);
+    } // the contact is who wrote in, or who we wrote to: never someone only copied
 
-    if (parent && strOrNull(parent, "contactId") === candidate) { if (str(parent, "direction") === "in") add(parent["fromAddress"]); else add(parent["toAddresses"]); }
+    if (parent && strOrNull(parent, "contactId") === candidate) {
+      if (str(parent, "direction") === "in") add(parent["fromAddress"]);
+      else add(parent["toAddresses"]);
+    }
     // a contact with no mail on record yet cannot be checked: the draft keeps what it was given
     if (known.size === 0) return candidate;
     for (const a of to) if (known.has(a)) return candidate;

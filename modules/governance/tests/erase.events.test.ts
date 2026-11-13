@@ -23,16 +23,26 @@ function port(over: { erased?: number[] } = {}) {
   return {
     calls,
     p: {
-      async compact(subject: unknown) { calls.push({ op: "compact", arg: subject }); return { erased: over.erased ?? [4, 5, 9], already: 0 }; },
-      async compactSeqs(seqs: readonly number[]) { calls.push({ op: "compactSeqs", arg: [...seqs] }); return { erased: [...seqs], already: 0 }; },
+      async compact(subject: unknown) {
+        calls.push({ op: "compact", arg: subject });
+        return { erased: over.erased ?? [4, 5, 9], already: 0 };
+      },
+      async compactSeqs(seqs: readonly number[]) {
+        calls.push({ op: "compactSeqs", arg: [...seqs] });
+        return { erased: [...seqs], already: 0 };
+      },
     },
   };
 }
 const find = (h: Harness) => g.eraseFind(h.ctx, { subject: { email: EMAIL, name: "Pat Lee" } });
-const apply = (h: Harness, findingId: string, include: string[]) => g.eraseApply(h.ctx, { findingId, include, idempotencyKey: `k-${findingId}` } as Parameters<typeof g.eraseApply>[1]);
+const apply = (h: Harness, findingId: string, include: string[]) =>
+  g.eraseApply(h.ctx, { findingId, include, idempotencyKey: `k-${findingId}` } as Parameters<typeof g.eraseApply>[1]);
 
 /** Only the host replays tombstones, as itself. */
-const reapply = (h: ReturnType<typeof harness>) => { h.actAs("service", "svc_host"); return g.tombstonesReapply(h.ctx); };
+const reapply = (h: ReturnType<typeof harness>) => {
+  h.actAs("service", "svc_host");
+  return g.tombstonesReapply(h.ctx);
+};
 
 test("erase compacts the log once, with the erased ids and the person's own text read before the records went, and keeps only the seqs", async () => {
   const h = harness();
@@ -44,14 +54,26 @@ test("erase compacts the log once, with the erased ids and the person's own text
     await apply(h, String(f["findingId"]), ["records", "files"]);
     assert.equal(x.calls.filter((c) => c.op === "compact").length, 1);
     const subject = x.calls[0]!.arg as { entities: Array<{ id: string }>; identifiers: string[] };
-    assert.ok(subject.entities.some((e) => e.id === PAT), "the contact record");
-    assert.ok(subject.entities.some((e) => e.id === "fil_pat00001"), "the file");
+    assert.ok(
+      subject.entities.some((e) => e.id === PAT),
+      "the contact record",
+    );
+    assert.ok(
+      subject.entities.some((e) => e.id === "fil_pat00001"),
+      "the file",
+    );
     assert.ok(subject.identifiers.includes("Pat Lee"), "the name, read from the record before it was deleted");
     const row = h.rows(`SELECT * FROM governance_tombstone WHERE "kind" = ?`, "events");
     assert.equal(row.length, 1);
     assert.equal(row[0]!["subjectId"], JSON.stringify([4, 5, 9]));
-    assert.equal(JSON.stringify(h.rows(`SELECT * FROM governance_tombstone`)).includes("Pat Lee"), false, "the tombstones hold ids and seqs, never the name");
-  } finally { g.setEventsCompact(null); }
+    assert.equal(
+      JSON.stringify(h.rows(`SELECT * FROM governance_tombstone`)).includes("Pat Lee"),
+      false,
+      "the tombstones hold ids and seqs, never the name",
+    );
+  } finally {
+    g.setEventsCompact(null);
+  }
 });
 
 test("a restore replays the seqs: the older events.db comes back with its payloads and they leave again", async () => {
@@ -65,7 +87,9 @@ test("a restore replays the seqs: the older events.db comes back with its payloa
     x.calls.length = 0;
     await reapply(h);
     assert.deepEqual(x.calls, [{ op: "compactSeqs", arg: [4, 5, 9] }]);
-  } finally { g.setEventsCompact(null); }
+  } finally {
+    g.setEventsCompact(null);
+  }
 });
 
 test("with no event log bound erase works as before, and when the log erased nothing no tombstone is written", async () => {
@@ -82,7 +106,9 @@ test("with no event log bound erase works as before, and when the log erased not
     const f2 = (await find(h2)) as Json;
     await apply(h2, String(f2["findingId"]), ["records", "files"]);
     assert.equal(h2.rows(`SELECT * FROM governance_tombstone WHERE "kind" = ?`, "events").length, 0);
-  } finally { g.setEventsCompact(null); }
+  } finally {
+    g.setEventsCompact(null);
+  }
 });
 
 test("the module hands the host its events port setter, and the setter is the one the handlers use", async () => {
@@ -95,5 +121,7 @@ test("the module hands the host its events port setter, and the setter is the on
     const f = (await find(h)) as Json;
     await apply(h, String(f["findingId"]), ["records"]);
     assert.equal(x.calls.filter((c) => c.op === "compact").length, 1);
-  } finally { hostSeams.setEventsCompact(null); }
+  } finally {
+    hostSeams.setEventsCompact(null);
+  }
 });

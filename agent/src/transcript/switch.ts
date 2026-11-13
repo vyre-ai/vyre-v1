@@ -10,8 +10,16 @@ import type { Transcript } from "./store.ts";
 import type { EngineRef } from "./types.ts";
 
 const TITLE: Readonly<Record<string, string>> = {
-  anthropic: "Anthropic", openai: "OpenAI", openrouter: "OpenRouter", google: "Google", xai: "xAI", opencode_go: "OpenCode Go", local: "a local model",
-  claude_code: "Claude Code", codex: "Codex", grok: "Grok",
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  openrouter: "OpenRouter",
+  google: "Google",
+  xai: "xAI",
+  opencode_go: "OpenCode Go",
+  local: "a local model",
+  claude_code: "Claude Code",
+  codex: "Codex",
+  grok: "Grok",
 };
 export const engineTitle = (driver: string): string => TITLE[driver] ?? driver;
 
@@ -65,7 +73,11 @@ export interface SwitchResult {
   block: ModelSwitchBlock;
 }
 
-const compact = (e: EngineRef): { provider: string; model: string; effort?: string } => ({ provider: e.provider, model: e.model, ...(e.effort === undefined ? {} : { effort: e.effort }) });
+const compact = (e: EngineRef): { provider: string; model: string; effort?: string } => ({
+  provider: e.provider,
+  model: e.model,
+  ...(e.effort === undefined ? {} : { effort: e.effort }),
+});
 const id = (prefix: string): string => `${prefix}_${mintUuid().replaceAll("-", "")}`;
 const plural = (n: number, w: string): string => `${n} ${w}${n === 1 ? "" : "s"}`;
 
@@ -75,7 +87,10 @@ export async function switchEngine(deps: SwitchDeps, req: SwitchRequest): Promis
   const atTurn = t.count(req.threadId);
 
   // A model that left earlier and comes back: the turn it left at is where the row that switched it away stopped.
-  const left = t.switches(req.threadId).filter((r) => r.agentId === req.agentId && r.from.driver === req.to.driver && r.from.model === req.to.model).at(-1);
+  const left = t
+    .switches(req.threadId)
+    .filter((r) => r.agentId === req.agentId && r.from.driver === req.to.driver && r.from.model === req.to.model)
+    .at(-1);
   const returning = left !== undefined;
 
   // The summary is brought up to date first (a cheap background turn, or the plain extract), so the new engine is not handed turns that were already summarised away.
@@ -93,18 +108,51 @@ export async function switchEngine(deps: SwitchDeps, req: SwitchRequest): Promis
   const to = engineTitle(req.to.driver);
   const quietLine = returning
     ? `Switched back to ${to}, caught up on ${plural(n, "turn")} since it left`
-    : n === 0 ? `Switched to ${to}`
-      : ctx.summary ? `Switched to ${to}, picked up from the summary and the last ${plural(n, "turn")}`
+    : n === 0
+      ? `Switched to ${to}`
+      : ctx.summary
+        ? `Switched to ${to}, picked up from the summary and the last ${plural(n, "turn")}`
         : `Switched to ${to}, picked up from the last ${plural(n, "turn")}`;
 
-  t.recordSwitch({ threadId: req.threadId, agentId: req.agentId, at: now(), atTurn, from: req.from, to: req.to, handoffTurns: n, by: req.by });
+  t.recordSwitch({
+    threadId: req.threadId,
+    agentId: req.agentId,
+    at: now(),
+    atTurn,
+    from: req.from,
+    to: req.to,
+    handoffTurns: n,
+    by: req.by,
+  });
 
   return {
-    quietLine, handoffTurns: n, returning, context: ctx, seed,
-    event: { threadId: req.threadId, agentId: req.agentId, from: req.from.driver, to: req.to.driver, handoffTurns: n, by: req.by },
+    quietLine,
+    handoffTurns: n,
+    returning,
+    context: ctx,
+    seed,
+    event: {
+      threadId: req.threadId,
+      agentId: req.agentId,
+      from: req.from.driver,
+      to: req.to.driver,
+      handoffTurns: n,
+      by: req.by,
+    },
     block: {
-      type: "model_switch", v: 1, id: req.blockId ?? id("blk"), state: "done", traceId: req.traceId ?? mintUuid().replaceAll("-", ""),
-      data: { threadId: req.threadId, agentId: req.agentId, scope: "thread", from: compact(req.from), to: compact(req.to), reason: quietLine },
+      type: "model_switch",
+      v: 1,
+      id: req.blockId ?? id("blk"),
+      state: "done",
+      traceId: req.traceId ?? mintUuid().replaceAll("-", ""),
+      data: {
+        threadId: req.threadId,
+        agentId: req.agentId,
+        scope: "thread",
+        from: compact(req.from),
+        to: compact(req.to),
+        reason: quietLine,
+      },
     },
   };
 }

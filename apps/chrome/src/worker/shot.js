@@ -27,13 +27,24 @@ export function sensitiveRects() {
     const type = String(el.getAttribute("type") || "").toLowerCase();
     const auto = String(el.getAttribute("autocomplete") || "").toLowerCase();
     const words = `${el.getAttribute("name") || ""} ${el.id || ""} ${el.getAttribute("aria-label") || ""} ${el.getAttribute("placeholder") || ""}`;
-    if (el.hasAttribute("data-vyre-private") || type === "password" || CARD.test(auto) || auto === "one-time-code" || auto.includes("password") || (type !== "email" && type !== "search" && SECRET_NAME.test(words))) add(el);
+    if (
+      el.hasAttribute("data-vyre-private") ||
+      type === "password" ||
+      CARD.test(auto) ||
+      auto === "one-time-code" ||
+      auto.includes("password") ||
+      (type !== "email" && type !== "search" && SECRET_NAME.test(words))
+    )
+      add(el);
   }
   // Fields inside open shadow roots and same-origin frames are covered too.
   const walk = (/** @type {any} */ root) => {
     for (const el of root.querySelectorAll("*")) {
       if (el.shadowRoot) {
-        for (const f of el.shadowRoot.querySelectorAll("input[type=password], input[autocomplete^=cc-], input[autocomplete=one-time-code]")) add(f);
+        for (const f of el.shadowRoot.querySelectorAll(
+          "input[type=password], input[autocomplete^=cc-], input[autocomplete=one-time-code]",
+        ))
+          add(f);
         walk(el.shadowRoot);
       }
     }
@@ -41,10 +52,16 @@ export function sensitiveRects() {
   walk(doc);
   for (const frame of doc.querySelectorAll("iframe")) {
     let inner = null;
-    try { inner = frame.contentDocument; } catch { inner = null; }
+    try {
+      inner = frame.contentDocument;
+    } catch {
+      inner = null;
+    }
     const fr = frame.getBoundingClientRect();
     if (!inner) continue;
-    for (const f of inner.querySelectorAll("input[type=password], input[autocomplete^=cc-], input[autocomplete=one-time-code]")) {
+    for (const f of inner.querySelectorAll(
+      "input[type=password], input[autocomplete^=cc-], input[autocomplete=one-time-code]",
+    )) {
       const r = f.getBoundingClientRect();
       rects.push({ x: fr.left + r.left - 2, y: fr.top + r.top - 2, w: r.width + 4, h: r.height + 4 });
     }
@@ -128,14 +145,23 @@ export async function maskedShot(ext, tabId, o = {}) {
   try {
     const [r] = await ext.scripting.executeScript({ target: { tabId }, func: sensitiveRects, args: [] });
     where = r && r.result;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
   if (!where || !Array.isArray(where.rects)) return null;
   let raw;
-  try { raw = await ext.tabs.captureVisibleTab(tab.windowId, { format: "png" }); } catch { return null; }
+  try {
+    raw = await ext.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+  } catch {
+    return null;
+  }
   // The page could have scrolled between the two calls; ask once more and cover the union.
   try {
     const [again] = await ext.scripting.executeScript({ target: { tabId }, func: sensitiveRects, args: [] });
-    if (again && again.result && Array.isArray(again.result.rects)) where = { ...where, rects: [...where.rects, ...again.result.rects] };
-  } catch { /* the first answer stands */ }
+    if (again && again.result && Array.isArray(again.result.rects))
+      where = { ...where, rects: [...where.rects, ...again.result.rects] };
+  } catch {
+    /* the first answer stands */
+  }
   return (o.paint ?? paintMask)(raw, where, o);
 }

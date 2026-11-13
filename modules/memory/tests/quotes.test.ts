@@ -7,12 +7,28 @@ import { forget, remember } from "../handlers/tools.ts";
 import { contractErrors, harness } from "../fixtures/harness.ts";
 
 const hit = {
-  source: "message", ref: "msg_a1", messageId: "msg_a1", threadId: "thr_1", threadTitle: "Retainers", threadKind: "chat", seq: 4, role: "person", author: { kind: "person", id: "usr_dana" },
-  text: "The Henderson retainer is capped at 4,500 dollars per month.", at: 1_760_000_000_000, link: "vyre://thread/thr_1?m=msg_a1", score: 1.5,
+  source: "message",
+  ref: "msg_a1",
+  messageId: "msg_a1",
+  threadId: "thr_1",
+  threadTitle: "Retainers",
+  threadKind: "chat",
+  seq: 4,
+  role: "person",
+  author: { kind: "person", id: "usr_dana" },
+  text: "The Henderson retainer is capped at 4,500 dollars per month.",
+  at: 1_760_000_000_000,
+  link: "vyre://thread/thr_1?m=msg_a1",
+  score: 1.5,
 };
 
 test("a quote carries the exact words, the author's name, the time and a link", async () => {
-  const h = harness({ respond: { "chat.history.search": () => ({ hits: [hit] }), "search.resolve": () => ({ hit: { title: "Dana Cole" } }) } });
+  const h = harness({
+    respond: {
+      "chat.history.search": () => ({ hits: [hit] }),
+      "search.resolve": () => ({ hit: { title: "Dana Cole" } }),
+    },
+  });
   const out = await quote(h.ctx, { q: "Henderson retainer cap" });
   assert.deepEqual(contractErrors("memory.quote", "out", out), []);
   assert.equal(out.quotes[0]!.text, hit.text);

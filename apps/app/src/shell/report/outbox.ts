@@ -21,8 +21,12 @@ export interface Outbox {
 export function createMemoryOutbox(initial: readonly PendingOp[] = []): Outbox {
   let ops: PendingOp[] = initial.slice();
   return {
-    enqueue: (op) => { ops = [...ops, op]; },
+    enqueue: (op) => {
+      ops = [...ops, op];
+    },
     list: () => ops.slice(),
-    remove: (id) => { ops = ops.filter((o) => o.id !== id); },
+    remove: (id) => {
+      ops = ops.filter((o) => o.id !== id);
+    },
   };
 }

@@ -25,18 +25,46 @@ export const SCROLL_BLOCK = 4;
 // ---------------------------------------------------------------- columns
 
 const WIDTHS: Record<string, number> = {
-  checkbox: 90, rating: 110, number: 110, money: 130, duration: 110, date: 130, datetime: 150, choice: 140, multichoice: 170, status: 140, person: 150, email: 200, phone: 130, url: 200,
-  address: 220, longtext: 240, relation: 160, files: 120, sealed: 130, autonumber: 100, formula: 130, lookup: 170, rollup: 130, button: 110, ai: 240,
+  checkbox: 90,
+  rating: 110,
+  number: 110,
+  money: 130,
+  duration: 110,
+  date: 130,
+  datetime: 150,
+  choice: 140,
+  multichoice: 170,
+  status: 140,
+  person: 150,
+  email: 200,
+  phone: 130,
+  url: 200,
+  address: 220,
+  longtext: 240,
+  relation: 160,
+  files: 120,
+  sealed: 130,
+  autonumber: 100,
+  formula: 130,
+  lookup: 170,
+  rollup: 130,
+  button: 110,
+  ai: 240,
 };
 
 export function widthOf(f: FieldDef, primary: boolean): number {
-  return primary ? 240 : WIDTHS[f.type] ?? 140;   // a contact's six columns fit a 1440 window beside the sidebar; wider tables scroll sideways
+  return primary ? 240 : (WIDTHS[f.type] ?? 140); // a contact's six columns fit a 1440 window beside the sidebar; wider tables scroll sideways
 }
 
 const NUMERIC = new Set(["number", "money", "duration", "autonumber", "rollup", "formula"]);
 export const isNumeric = (f: FieldDef): boolean => NUMERIC.has(f.type);
 
-export interface Column { field: FieldDef; width: number; left: number; primary: boolean }
+export interface Column {
+  field: FieldDef;
+  width: number;
+  left: number;
+  primary: boolean;
+}
 
 /** The columns in order with their left edges. The primary (title) field comes first and stays; hidden fields drop out. */
 export function columnsOf(def: TypeDef, hidden: readonly string[]): Column[] {
@@ -59,19 +87,31 @@ export function totalWidth(cols: readonly Column[]): number {
 }
 
 /** The columns to draw for a horizontal scroll: the primary always, then those that meet the viewport, plus a spacer for the ones skipped on the left. */
-export function columnWindow(cols: readonly Column[], scrollLeft: number, viewport: number): { from: number; to: number; pad: number } {
-  const x0 = Math.max(0, scrollLeft - GUTTER), x1 = x0 + viewport + 240;
-  let from = 1, to = cols.length;
+export function columnWindow(
+  cols: readonly Column[],
+  scrollLeft: number,
+  viewport: number,
+): { from: number; to: number; pad: number } {
+  const x0 = Math.max(0, scrollLeft - GUTTER),
+    x1 = x0 + viewport + 240;
+  let from = 1,
+    to = cols.length;
   while (from < cols.length && cols[from]!.left + cols[from]!.width < x0) from++;
   while (to > from && cols[to - 1]!.left > x1) to--;
-  const first = cols[from], primary = cols[0];
+  const first = cols[from],
+    primary = cols[0];
   return { from, to, pad: first && primary ? Math.max(0, first.left - (primary.left + primary.width)) : 0 };
 }
 
 // ---------------------------------------------------------------- rows
 
 /** The rows to draw for a vertical scroll. */
-export function rowWindow(scrollTop: number, viewport: number, total: number, overscan: number = OVERSCAN): { first: number; last: number } {
+export function rowWindow(
+  scrollTop: number,
+  viewport: number,
+  total: number,
+  overscan: number = OVERSCAN,
+): { first: number; last: number } {
   const first = Math.max(0, Math.floor(scrollTop / ROW_H) - overscan);
   const last = Math.min(total, Math.ceil((scrollTop + viewport) / ROW_H) + overscan);
   return { first, last };
@@ -84,10 +124,18 @@ export const FLING_BEHIND = 2;
  * The rows to draw while scrolling in a direction: FLING_OVERSCAN ahead, and behind only FLING_BEHIND (plus a block when the scroll moves up, since the scroll top is rounded down to a
  * block). Every drawn row is in the browser's layers, paint and hit testing each frame; a fling carried twelve rows it had already left, a quarter of the table's rows.
  */
-export function flingWindow(scrollTop: number, viewport: number, total: number, dir: 1 | -1): { first: number; last: number } {
+export function flingWindow(
+  scrollTop: number,
+  viewport: number,
+  total: number,
+  dir: 1 | -1,
+): { first: number; last: number } {
   const above = dir > 0 ? FLING_BEHIND : FLING_OVERSCAN;
   const below = dir > 0 ? FLING_OVERSCAN : SCROLL_BLOCK + FLING_BEHIND;
-  return { first: Math.max(0, Math.floor(scrollTop / ROW_H) - above), last: Math.min(total, Math.ceil((scrollTop + viewport) / ROW_H) + below) };
+  return {
+    first: Math.max(0, Math.floor(scrollTop / ROW_H) - above),
+    last: Math.min(total, Math.ceil((scrollTop + viewport) / ROW_H) + below),
+  };
 }
 
 /** Round scroll state down to a small row boundary without ever moving it ahead of the real viewport. */
@@ -105,7 +153,10 @@ export function queryOffset(first: number, total: number): number {
 // ---------------------------------------------------------------- the view
 
 export type Clause = { field: string; op: "eq" | "in" | "empty" | "notempty" | "contains"; value?: unknown };
-export interface SortKey { field: string; dir: "asc" | "desc" }
+export interface SortKey {
+  field: string;
+  dir: "asc" | "desc";
+}
 export interface TableViewState {
   clauses: readonly Clause[];
   sort: readonly SortKey[];
@@ -125,11 +176,20 @@ export function filterOf(v: TableViewState, titleField: string): unknown {
   return all.length === 0 ? undefined : all.length === 1 ? all[0] : { and: all };
 }
 
-export function querySpec(type: string, v: TableViewState, titleField: string, offset: number): CapMap["records.query"]["in"] {
+export function querySpec(
+  type: string,
+  v: TableViewState,
+  titleField: string,
+  offset: number,
+): CapMap["records.query"]["in"] {
   const filter = filterOf(v, titleField);
   return {
-    type, ...(filter === undefined ? {} : { filter }), ...(v.sort.length ? { sort: v.sort.map((s) => ({ ...s })) } : {}),
-    ...(v.group ? { group: v.group } : {}), offset: v.group ? 0 : offset, limit: v.group ? GROUP_LIMIT : WINDOW,
+    type,
+    ...(filter === undefined ? {} : { filter }),
+    ...(v.sort.length ? { sort: v.sort.map((s) => ({ ...s })) } : {}),
+    ...(v.group ? { group: v.group } : {}),
+    offset: v.group ? 0 : offset,
+    limit: v.group ? GROUP_LIMIT : WINDOW,
   };
 }
 
@@ -139,7 +199,10 @@ export function countSpec(type: string, v: TableViewState, titleField: string): 
 }
 
 export function isEdited(v: TableViewState, base: TableViewState): boolean {
-  return JSON.stringify([v.clauses, v.sort, v.group, v.hidden, v.colour]) !== JSON.stringify([base.clauses, base.sort, base.group, base.hidden, base.colour]);
+  return (
+    JSON.stringify([v.clauses, v.sort, v.group, v.hidden, v.colour]) !==
+    JSON.stringify([base.clauses, base.sort, base.group, base.hidden, base.colour])
+  );
 }
 
 function clausesOf(filter: unknown): Clause[] {
@@ -157,14 +220,34 @@ export function fromSaved(view: ViewRow | undefined): TableViewState {
   return {
     clauses: clausesOf(view.filter),
     sort: Array.isArray(view.sort) ? (view.sort as SortKey[]) : [],
-    group: view.group ?? null, hidden: view.hidden ?? [], colour, find: "",
+    group: view.group ?? null,
+    hidden: view.hidden ?? [],
+    colour,
+    find: "",
   };
 }
 
 /** What a save writes: the clauses as an and-list (or the one clause), the sort, the group, the hidden fields and the colour field. */
-export function toSaved(v: TableViewState): { filter?: unknown; sort?: unknown; group?: string; hidden: string[]; config: Record<string, unknown> } {
-  const filter = v.clauses.length === 0 ? undefined : v.clauses.length === 1 ? { ...v.clauses[0]! } : { and: v.clauses.map((c) => ({ ...c })) };
-  return { ...(filter === undefined ? {} : { filter }), ...(v.sort.length ? { sort: v.sort.map((s) => ({ ...s })) } : {}), ...(v.group ? { group: v.group } : {}), hidden: [...v.hidden], config: v.colour ? { colour: v.colour } : {} };
+export function toSaved(v: TableViewState): {
+  filter?: unknown;
+  sort?: unknown;
+  group?: string;
+  hidden: string[];
+  config: Record<string, unknown>;
+} {
+  const filter =
+    v.clauses.length === 0
+      ? undefined
+      : v.clauses.length === 1
+        ? { ...v.clauses[0]! }
+        : { and: v.clauses.map((c) => ({ ...c })) };
+  return {
+    ...(filter === undefined ? {} : { filter }),
+    ...(v.sort.length ? { sort: v.sort.map((s) => ({ ...s })) } : {}),
+    ...(v.group ? { group: v.group } : {}),
+    hidden: [...v.hidden],
+    config: v.colour ? { colour: v.colour } : {},
+  };
 }
 
 // ---------------------------------------------------------------- editing the view
@@ -172,7 +255,8 @@ export function toSaved(v: TableViewState): { filter?: unknown; sort?: unknown; 
 /** Header click on a column: ascending, then descending, then not sorted. */
 export function cycleSort(v: TableViewState, field: string): TableViewState {
   const cur = v.sort[0];
-  const next: SortKey[] = !cur || cur.field !== field ? [{ field, dir: "asc" }] : cur.dir === "asc" ? [{ field, dir: "desc" }] : [];
+  const next: SortKey[] =
+    !cur || cur.field !== field ? [{ field, dir: "asc" }] : cur.dir === "asc" ? [{ field, dir: "desc" }] : [];
   return { ...v, sort: next };
 }
 
@@ -187,7 +271,11 @@ export function toggleHidden(v: TableViewState, field: string): TableViewState {
 /** A checked option of a choice-like field: one clause per field, `eq` for one value and `in` for several. */
 export function toggleOption(v: TableViewState, field: string, value: unknown): TableViewState {
   const cur = v.clauses.find((c) => c.field === field && (c.op === "eq" || c.op === "in"));
-  const have: unknown[] = cur ? (cur.op === "in" && Array.isArray(cur.value) ? (cur.value as unknown[]) : [cur.value]) : [];
+  const have: unknown[] = cur
+    ? cur.op === "in" && Array.isArray(cur.value)
+      ? (cur.value as unknown[])
+      : [cur.value]
+    : [];
   const next = have.includes(value) ? have.filter((x) => x !== value) : [...have, value];
   const others = v.clauses.filter((c) => c !== cur);
   if (next.length === 0) return { ...v, clauses: others };
@@ -206,19 +294,32 @@ export function clearClauses(v: TableViewState): TableViewState {
 
 // ---------------------------------------------------------------- field options
 
-export interface Option { key: string; title: string; color?: string }
+export interface Option {
+  key: string;
+  title: string;
+  color?: string;
+}
 
 export function optionsOf(f: FieldDef): Option[] {
   const o = f.options ?? {};
   const list = (f.type === "status" ? o["stages"] : o["choices"]) as unknown;
-  if (Array.isArray(list)) return list.filter((x): x is Option => !!x && typeof x === "object" && typeof (x as Option).key === "string").map((x) => ({ key: x.key, title: x.title, ...(x.color ? { color: x.color } : {}) }));
-  if (f.type === "checkbox") return [{ key: "true", title: "Checked" }, { key: "false", title: "Unchecked" }];
+  if (Array.isArray(list))
+    return list
+      .filter((x): x is Option => !!x && typeof x === "object" && typeof (x as Option).key === "string")
+      .map((x) => ({ key: x.key, title: x.title, ...(x.color ? { color: x.color } : {}) }));
+  if (f.type === "checkbox")
+    return [
+      { key: "true", title: "Checked" },
+      { key: "false", title: "Unchecked" },
+    ];
   return [];
 }
 
 export const hasOptions = (f: FieldDef): boolean => f.type === "choice" || f.type === "status" || f.type === "checkbox";
-export const groupable = (f: FieldDef): boolean => f.type === "choice" || f.type === "status" || f.type === "checkbox" || f.type === "person";
-export const sortable = (f: FieldDef): boolean => !["longtext", "multichoice", "address", "files", "button"].includes(f.type);
+export const groupable = (f: FieldDef): boolean =>
+  f.type === "choice" || f.type === "status" || f.type === "checkbox" || f.type === "person";
+export const sortable = (f: FieldDef): boolean =>
+  !["longtext", "multichoice", "address", "files", "button"].includes(f.type);
 
 /** The value a clause compares: a checkbox option is a boolean. */
 export function optionValue(f: FieldDef, key: string): unknown {
@@ -235,12 +336,18 @@ export function hueOf(key: string): number {
 
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
-export function dateText(v: unknown, withTime = false, now: number = Date.now(), zone: string = currentZones().space): string {
+export function dateText(
+  v: unknown,
+  withTime = false,
+  now: number = Date.now(),
+  zone: string = currentZones().space,
+): string {
   const d = typeof v === "number" ? new Date(v) : typeof v === "string" ? new Date(v) : null;
   if (!d || Number.isNaN(d.getTime())) return "";
   // a date is a calendar day (the same on every device: UTC); a date with a time is a moment, read in the Space's zone
   const z = withTime ? zone : "UTC";
-  const p = partsIn(d.getTime(), z), nowYear = partsIn(now, z).year;
+  const p = partsIn(d.getTime(), z),
+    nowYear = partsIn(now, z).year;
   // this year's dates are short, as the prototype writes them ("23 Oct"); another year's keep the year ("Oct 24, 2025")
   const base = p.year === nowYear ? `${p.day} ${MONTH[p.month - 1]}` : `${MONTH[p.month - 1]} ${p.day}, ${p.year}`;
   if (!withTime) return base;
@@ -248,16 +355,27 @@ export function dateText(v: unknown, withTime = false, now: number = Date.now(),
 }
 
 export function moneyText(v: unknown): string {
-  const amount = typeof v === "number" ? v : v && typeof v === "object" && typeof (v as { amount?: unknown }).amount === "number" ? (v as { amount: number }).amount : null;
+  const amount =
+    typeof v === "number"
+      ? v
+      : v && typeof v === "object" && typeof (v as { amount?: unknown }).amount === "number"
+        ? (v as { amount: number }).amount
+        : null;
   if (amount === null) return "";
-  const cur = v && typeof v === "object" && typeof (v as { currency?: unknown }).currency === "string" ? (v as { currency: string }).currency : "USD";
+  const cur =
+    v && typeof v === "object" && typeof (v as { currency?: unknown }).currency === "string"
+      ? (v as { currency: string }).currency
+      : "USD";
   const sym = cur === "USD" ? "$" : cur === "EUR" ? "€" : cur === "GBP" ? "£" : `${cur} `;
-  return `${sym}${Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
+  return `${sym}${Math.round(amount)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
 }
 
 export function durationText(v: unknown): string {
   if (typeof v !== "number") return "";
-  const h = Math.floor(v / 3600), m = Math.floor((v % 3600) / 60);
+  const h = Math.floor(v / 3600),
+    m = Math.floor((v % 3600) / 60);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
@@ -265,34 +383,67 @@ export function durationText(v: unknown): string {
 export function cellText(f: FieldDef, v: unknown, names: (id: string) => string): string {
   if (v === undefined || v === null || v === "") return "";
   switch (f.type) {
-    case "money": return moneyText(v);
-    case "date": return dateText(v);
-    case "datetime": return dateText(v, true);
-    case "duration": return durationText(v);
-    case "person": return names(String(v));
+    case "money":
+      return moneyText(v);
+    case "date":
+      return dateText(v);
+    case "datetime":
+      return dateText(v, true);
+    case "duration":
+      return durationText(v);
+    case "person":
+      return names(String(v));
     case "choice":
-    case "status": return optionsOf(f).find((o) => o.key === v)?.title ?? String(v);
-    case "multichoice": return Array.isArray(v) ? v.map((x) => optionsOf(f).find((o) => o.key === x)?.title ?? String(x)).join(", ") : String(v);
-    case "sealed": return "••••••";
-    case "files": return Array.isArray(v) ? `${v.length} file${v.length === 1 ? "" : "s"}` : "";
-    case "relation": return Array.isArray(v) ? (v.length === 1 ? "1 linked" : `${v.length} linked`) : String(v);
-    case "checkbox": return v === true ? "Yes" : "";
-    case "address": return v && typeof v === "object" ? [(v as Record<string, unknown>)["line1"], (v as Record<string, unknown>)["city"], (v as Record<string, unknown>)["region"]].filter((x) => typeof x === "string" && x).join(", ") : String(v);
-    default: return typeof v === "object" ? JSON.stringify(v) : String(v);
+    case "status":
+      return optionsOf(f).find((o) => o.key === v)?.title ?? String(v);
+    case "multichoice":
+      return Array.isArray(v)
+        ? v.map((x) => optionsOf(f).find((o) => o.key === x)?.title ?? String(x)).join(", ")
+        : String(v);
+    case "sealed":
+      return "••••••";
+    case "files":
+      return Array.isArray(v) ? `${v.length} file${v.length === 1 ? "" : "s"}` : "";
+    case "relation":
+      return Array.isArray(v) ? (v.length === 1 ? "1 linked" : `${v.length} linked`) : String(v);
+    case "checkbox":
+      return v === true ? "Yes" : "";
+    case "address":
+      return v && typeof v === "object"
+        ? [
+            (v as Record<string, unknown>)["line1"],
+            (v as Record<string, unknown>)["city"],
+            (v as Record<string, unknown>)["region"],
+          ]
+            .filter((x) => typeof x === "string" && x)
+            .join(", ")
+        : String(v);
+    default:
+      return typeof v === "object" ? JSON.stringify(v) : String(v);
   }
 }
 
 // ---------------------------------------------------------------- groups
 
-export type GroupItem = { g: true; key: string; label: string; n: number; closed: boolean } | { g: false; row: RecordRow; n: number };
+export type GroupItem =
+  | { g: true; key: string; label: string; n: number; closed: boolean }
+  | { g: false; row: RecordRow; n: number };
 
 /** Rows under their group headers, in the order the groups first appear; a folded group keeps its header and drops its rows. Row numbers run through the visible rows. */
-export function groupItems(rows: readonly RecordRow[], f: FieldDef, folded: readonly string[], names: (id: string) => string): GroupItem[] {
+export function groupItems(
+  rows: readonly RecordRow[],
+  f: FieldDef,
+  folded: readonly string[],
+  names: (id: string) => string,
+): GroupItem[] {
   const order: string[] = [];
   const by = new Map<string, RecordRow[]>();
   for (const r of rows) {
     const k = String(r.fields[f.key] ?? "");
-    if (!by.has(k)) { by.set(k, []); order.push(k); }
+    if (!by.has(k)) {
+      by.set(k, []);
+      order.push(k);
+    }
     by.get(k)!.push(r);
   }
   const out: GroupItem[] = [];
@@ -300,7 +451,13 @@ export function groupItems(rows: readonly RecordRow[], f: FieldDef, folded: read
   for (const k of order) {
     const list = by.get(k)!;
     const closed = folded.includes(k);
-    out.push({ g: true, key: k, label: k === "" ? `No ${f.title.toLowerCase()}` : cellText(f, f.type === "checkbox" ? k === "true" : k, names), n: list.length, closed });
+    out.push({
+      g: true,
+      key: k,
+      label: k === "" ? `No ${f.title.toLowerCase()}` : cellText(f, f.type === "checkbox" ? k === "true" : k, names),
+      n: list.length,
+      closed,
+    });
     if (!closed) for (const row of list) out.push({ g: false, row, n: ++n });
   }
   return out;
@@ -319,13 +476,17 @@ export function colourOf(f: FieldDef | undefined, r: RecordRow): string | null {
 // ---------------------------------------------------------------- picking rows
 
 /** The rows picked in the table: the ids ticked one by one, or every row of the table. */
-export interface RowPick { ids: ReadonlySet<string>; every: boolean }
+export interface RowPick {
+  ids: ReadonlySet<string>;
+  every: boolean;
+}
 export const NO_PICK: RowPick = { ids: new Set(), every: false };
 
 /** Cmd-click: that row joins or leaves the pick. Picking one by one after "all" starts again from that row. */
 export function togglePick(p: RowPick, id: string): RowPick {
   const ids = new Set(p.every ? [] : p.ids);
-  if (ids.has(id)) ids.delete(id); else ids.add(id);
+  if (ids.has(id)) ids.delete(id);
+  else ids.add(id);
   return { ids, every: false };
 }
 
@@ -339,7 +500,6 @@ export const isPickedRow = (p: RowPick, id: string): boolean => p.every || p.ids
 
 /** How many the pick holds, given the table's count. */
 export const pickCount = (p: RowPick, total: number): number => (p.every ? total : p.ids.size);
-
 
 // ---------------------------------------------------------------- faces in cells
 
@@ -368,14 +528,28 @@ export function faceRule(name: string, bitmap?: string): string {
  */
 export class FaceLru {
   private readonly keys = new Map<string, true>();
-  constructor(readonly max: number, readonly batch: number) {}
-  get size(): number { return this.keys.size; }
-  has(key: string): boolean { return this.keys.has(key); }
+  constructor(
+    readonly max: number,
+    readonly batch: number,
+  ) {}
+  get size(): number {
+    return this.keys.size;
+  }
+  has(key: string): boolean {
+    return this.keys.has(key);
+  }
   use(key: string): { added: boolean; evicted: string[] } {
-    if (this.keys.has(key)) { this.keys.delete(key); this.keys.set(key, true); return { added: false, evicted: [] }; }
+    if (this.keys.has(key)) {
+      this.keys.delete(key);
+      this.keys.set(key, true);
+      return { added: false, evicted: [] };
+    }
     const evicted: string[] = [];
     if (this.keys.size >= this.max) {
-      for (const old of this.keys.keys()) { if (evicted.length >= this.batch) break; evicted.push(old); }
+      for (const old of this.keys.keys()) {
+        if (evicted.length >= this.batch) break;
+        evicted.push(old);
+      }
       for (const old of evicted) this.keys.delete(old);
     }
     this.keys.set(key, true);

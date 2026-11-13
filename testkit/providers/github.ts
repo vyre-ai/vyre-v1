@@ -1,5 +1,13 @@
 // Fake GitHub App behind api.github.com (ARCH 8.5, 10.1). Health is GET /app.
-import { handledFetch, hostIs, recordingFetch, type FetchLike, type Handler, type ReplayTape, type SeenCall } from "./replay.ts";
+import {
+  handledFetch,
+  hostIs,
+  recordingFetch,
+  type FetchLike,
+  type Handler,
+  type ReplayTape,
+  type SeenCall,
+} from "./replay.ts";
 
 export interface GithubIssue {
   number: number;
@@ -47,7 +55,7 @@ export function fakeGithub(opts: { tape?: ReplayTape; fetch?: FetchLike } = {}):
       const res = await fetch(`https://api.github.com/repos/${repo}/issues`);
       if (res.status !== 200) throw new Error(`github issues returned ${res.status}`);
       const body = JSON.parse(await res.text()) as unknown;
-      return Array.isArray(body) ? body as GithubIssue[] : [];
+      return Array.isArray(body) ? (body as GithubIssue[]) : [];
     },
   };
 }

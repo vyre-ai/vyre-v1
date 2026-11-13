@@ -11,22 +11,47 @@ import { searchRing } from "../itemenv/AddAnything.tsx";
 import { otherTemplates } from "../layout/sections.ts";
 import { TEMPLATES, MASK, understandPaste, mergeFields, fieldsFor, templateById } from "../itemenv/env.ts";
 
-Dimensions.set({ window: { width: 1280, height: 800, scale: 1, fontScale: 1 }, screen: { width: 1280, height: 800, scale: 1, fontScale: 1 } });
-const html = (v: SampleVault, props: Record<string, unknown>): string => renderToStaticMarkup(<Vault data={v.data} {...props} />).replaceAll("<!-- -->", "");
+Dimensions.set({
+  window: { width: 1280, height: 800, scale: 1, fontScale: 1 },
+  screen: { width: 1280, height: 800, scale: 1, fontScale: 1 },
+});
+const html = (v: SampleVault, props: Record<string, unknown>): string =>
+  renderToStaticMarkup(<Vault data={v.data} {...props} />).replaceAll("<!-- -->", "");
 const has = (s: string, n: string): boolean => s.includes(n);
 
 test("Add: a search and a reel of app icons with Custom first, one hint line, folder footer", () => {
   const out = html(createSampleVault(), { sheet: { add: {} } });
   assert.ok(has(out, 'data-testid="add-sheet"') && has(out, 'aria-label="Add to the Vault"'));
   const order = otherTemplates(TEMPLATES).map((t) => out.indexOf(`data-testid="add-app-${t.id}"`));
-  assert.ok(order.every((i) => i >= 0), "every app of this section is in the reel");
-  assert.ok(TEMPLATES.filter((t) => !otherTemplates(TEMPLATES).includes(t)).every((t) => !out.includes(`data-testid="add-app-${t.id}"`)), "AI providers are added under AI accounts, not here");
-  assert.deepEqual([...order].sort((a, b) => a - b), order, "Custom first, then the apps in order");
+  assert.ok(
+    order.every((i) => i >= 0),
+    "every app of this section is in the reel",
+  );
+  assert.ok(
+    TEMPLATES.filter((t) => !otherTemplates(TEMPLATES).includes(t)).every(
+      (t) => !out.includes(`data-testid="add-app-${t.id}"`),
+    ),
+    "AI providers are added under AI accounts, not here",
+  );
+  assert.deepEqual(
+    [...order].sort((a, b) => a - b),
+    order,
+    "Custom first, then the apps in order",
+  );
   assert.equal(TEMPLATES[0]!.id, "custom");
-  assert.ok(has(out, 'data-testid="add-hint"') && has(out, "Paste a key or .env, or pick an app"), "one hint line, no paste box");
-  assert.ok(!has(out, 'data-testid="add-paste"') && !has(out, 'data-testid="add-name"') && !has(out, 'data-testid="add-field"'), "no name or fields until an app or a paste");
-  assert.ok(has(out, 'aria-label="Adding to Mine"') , "the footer names where it will go: your Mine folder by default");
-  assert.ok(has(out, 'data-testid="add-save"') && has(out, 'aria-disabled="true"'), "Add stays off until there is a name and a value");
+  assert.ok(
+    has(out, 'data-testid="add-hint"') && has(out, "Paste a key or .env, or pick an app"),
+    "one hint line, no paste box",
+  );
+  assert.ok(
+    !has(out, 'data-testid="add-paste"') && !has(out, 'data-testid="add-name"') && !has(out, 'data-testid="add-field"'),
+    "no name or fields until an app or a paste",
+  );
+  assert.ok(has(out, 'aria-label="Adding to Mine"'), "the footer names where it will go: your Mine folder by default");
+  assert.ok(
+    has(out, 'data-testid="add-save"') && has(out, 'aria-disabled="true"'),
+    "Add stays off until there is a name and a value",
+  );
 });
 
 test("Add: a pasted .env becomes a field per line and the status says what was understood", () => {
@@ -35,25 +60,41 @@ test("Add: a pasted .env becomes a field per line and the status says what was u
   assert.equal(u.fields.length, 2);
   assert.match(u.note, /Read a \.env: 2 keys/);
   const merged = mergeFields(fieldsFor(templateById("highlevel")!), u.fields);
-  assert.deepEqual(merged.map((f) => f.key), ["GHL_PIT", "GHL_LOCATION_ID"], "a template's own rows are filled, not duplicated");
+  assert.deepEqual(
+    merged.map((f) => f.key),
+    ["GHL_PIT", "GHL_LOCATION_ID"],
+    "a template's own rows are filled, not duplicated",
+  );
   assert.ok(merged.every((f) => f.value !== ""));
 });
 
 test("Add saves with vault.item.put and the new item shows by name; a name taken in that folder is refused", async () => {
   const v = createSampleVault();
   const u = understandPaste("sk_live_51NwFakeFakeFake00aa"); // secret-scan: fake
-  const out = (await v.data.call("vault.item.put", { folderId: "fld_finance", name: "Stripe test", kind: u.itemKind, fields: u.fields, template: u.template })) as { item: { id: string; fieldKeys: string[] } };
+  const out = (await v.data.call("vault.item.put", {
+    folderId: "fld_finance",
+    name: "Stripe test",
+    kind: u.itemKind,
+    fields: u.fields,
+    template: u.template,
+  })) as { item: { id: string; fieldKeys: string[] } };
   assert.deepEqual(out.item.fieldKeys, ["STRIPE_SECRET_KEY"]);
   assert.ok(has(html(v, {}), 'aria-label="Stripe test"'));
   assert.ok(!has(html(v, {}), "sk_live_51NwFakeFakeFake00aa")); // secret-scan: fake
-  await assert.rejects(() => v.data.call("vault.item.put", { folderId: "fld_finance", name: "Stripe test", kind: "api_key", fields: [] }), /duplicate/);
+  await assert.rejects(
+    () => v.data.call("vault.item.put", { folderId: "fld_finance", name: "Stripe test", kind: "api_key", fields: [] }),
+    /duplicate/,
+  );
 });
 
 test("Edit: the sheet opens in .env with every value masked, a diff line and Save off until something changes", () => {
   const v = createSampleVault();
   const out = html(v, { sheet: { edit: "vit_ghl" } });
   assert.ok(has(out, 'data-testid="edit-sheet"') && has(out, "Edit GoHighLevel"));
-  assert.ok(has(out, `GHL_PIT=${MASK}`) && has(out, `GHL_LOCATION_ID=${MASK}`), "values are never loaded into the editor");
+  assert.ok(
+    has(out, `GHL_PIT=${MASK}`) && has(out, `GHL_LOCATION_ID=${MASK}`),
+    "values are never loaded into the editor",
+  );
   assert.ok(has(out, 'data-testid="edit-diff"') && has(out, "No changes"));
   assert.ok(has(out, 'data-testid="edit-save"') && has(out, 'aria-disabled="true"'));
   assert.ok(has(out, 'data-testid="edit-mode-fields"') && has(out, 'data-testid="edit-mode-env"'));
@@ -62,18 +103,31 @@ test("Edit: the sheet opens in .env with every value masked, a diff line and Sav
 
 test("Edit saves through vault.item.update: a new key, a changed value, a removed key; the list's field names follow", async () => {
   const v = createSampleVault();
-  await v.data.call("vault.item.update", { itemId: "vit_ghl", fieldsSet: [{ key: "GHL_PIPELINE_ID", value: "pl_9f2c", secret: false }, { key: "GHL_PIT", value: "pit-new-5521" }], fieldsRemove: ["GHL_LOCATION_ID"] });
+  await v.data.call("vault.item.update", {
+    itemId: "vit_ghl",
+    fieldsSet: [
+      { key: "GHL_PIPELINE_ID", value: "pl_9f2c", secret: false },
+      { key: "GHL_PIT", value: "pit-new-5521" },
+    ],
+    fieldsRemove: ["GHL_LOCATION_ID"],
+  });
   const out = html(v, {});
   assert.ok(has(out, "GHL_PIT · GHL_PIPELINE_ID"), "the second line shows the new field names");
   assert.ok(!has(out, "GHL_LOCATION_ID"));
   assert.ok(!has(out, "pit-new-5521") && !has(out, "pl_9f2c"));
-  const reveal = (await v.data.call("vault.item.reveal", { itemId: "vit_ghl", fields: ["GHL_PIT"] })) as { fields: { value: string }[] };
+  const reveal = (await v.data.call("vault.item.reveal", { itemId: "vit_ghl", fields: ["GHL_PIT"] })) as {
+    fields: { value: string }[];
+  };
   assert.equal(reveal.fields[0]!.value, "pit-new-5521", "the changed value is what a reveal returns");
 });
 
 test("the Add sheet search box draws the prototype's quiet ring and no browser focus ring", () => {
   assert.equal(searchRing(false).boxShadow, "inset 0 0 0 1px var(--line-2)", "a 1 px line at rest");
-  assert.equal(searchRing(true).boxShadow, "inset 0 0 0 1.5px var(--accent)", "a 1.5 px accent ring while the field has focus");
+  assert.equal(
+    searchRing(true).boxShadow,
+    "inset 0 0 0 1.5px var(--accent)",
+    "a 1.5 px accent ring while the field has focus",
+  );
   const out = html(createSampleVault(), { sheet: { add: {} } });
   const tag = (id: string): string => new RegExp(`<[^<>]*data-testid="${id}"[^<>]*>`).exec(out)?.[0] ?? "";
   assert.ok(has(tag("add-search"), "outline-style:none"), "the field has no browser outline");

@@ -59,12 +59,17 @@ export function createPanel({ ext, bridge, store, privacy, context, views = new 
   function tell(m, windowId = null) {
     for (const p of ports) {
       if (windowId !== null && p.windowId !== null && p.windowId !== windowId) continue;
-      try { p.port.postMessage(m); } catch { ports.delete(p); }
+      try {
+        p.port.postMessage(m);
+      } catch {
+        ports.delete(p);
+      }
     }
   }
 
   bridge.onPush((m) => {
-    if (m && m.type === "chat.delta") tell({ type: "delta", threadId: m.threadId, turnId: m.turnId, text: m.text, done: m.done, error: m.error });
+    if (m && m.type === "chat.delta")
+      tell({ type: "delta", threadId: m.threadId, turnId: m.turnId, text: m.text, done: m.done, error: m.error });
     if (m && m.type === "spaces") tell({ type: "spaces", spaces: m.spaces, active: m.active });
   });
 
@@ -85,7 +90,12 @@ export function createPanel({ ext, bridge, store, privacy, context, views = new 
 
   /** The version this extension is running, from its own manifest. */
   function ownVersion() {
-    try { const m = ext.runtime && ext.runtime.getManifest ? ext.runtime.getManifest() : null; return m ? m.version_name || m.version : ""; } catch { return ""; }
+    try {
+      const m = ext.runtime && ext.runtime.getManifest ? ext.runtime.getManifest() : null;
+      return m ? m.version_name || m.version : "";
+    } catch {
+      return "";
+    }
   }
 
   /** @param {any} msg */
@@ -98,23 +108,58 @@ export function createPanel({ ext, bridge, store, privacy, context, views = new 
         /** @type {any} */
         let hello = null;
         let status = "online";
-        try { hello = await bridge.op("hello"); } catch (e) { status = e instanceof BridgeFailure && e.code === "no_host" ? "no_host" : "offline"; }
+        try {
+          hello = await bridge.op("hello");
+        } catch (e) {
+          status = e instanceof BridgeFailure && e.code === "no_host" ? "no_host" : "offline";
+        }
         if (hello && hello.signedIn === false) status = "signed_out";
         const mismatch = hello ? versionState(hello.appVersion, ownVersion()) : "ok";
-        if (mismatch !== "ok" && status === "online") status = mismatch === "reload" ? "needs_reload" : "needs_app_update";
-        if (hello && Array.isArray(hello.spaces)) await store.set({ spaces: hello.spaces.map((/** @type {any} */ s) => ({ id: String(s.id), name: String(s.name), webUrl: String(s.webUrl ?? "") })), activeSpace: typeof hello.active === "string" ? hello.active : null }).catch(() => {});
+        if (mismatch !== "ok" && status === "online")
+          status = mismatch === "reload" ? "needs_reload" : "needs_app_update";
+        if (hello && Array.isArray(hello.spaces))
+          await store
+            .set({
+              spaces: hello.spaces.map((/** @type {any} */ s) => ({
+                id: String(s.id),
+                name: String(s.name),
+                webUrl: String(s.webUrl ?? ""),
+              })),
+              activeSpace: typeof hello.active === "string" ? hello.active : null,
+            })
+            .catch(() => {});
         /** @type {any} */
         let agents = { agents: [], suggested: null };
-        if (hello && !hello.locked && status === "online") { try { agents = await bridge.op("agents.list", { page: may.read ? may.host : null }); } catch { /* the picker shows nobody */ } }
+        if (hello && !hello.locked && status === "online") {
+          try {
+            agents = await bridge.op("agents.list", { page: may.read ? may.host : null });
+          } catch {
+            /* the picker shows nobody */
+          }
+        }
         const pick = await picks();
-        const view = tab ? views.get(tab.windowId) ?? null : null;
+        const view = tab ? (views.get(tab.windowId) ?? null) : null;
         if (tab) views.delete(tab.windowId);
         return {
           data: {
-            off: null, status, view, locked: Boolean(hello && hello.locked),
-            spaces: hello ? hello.spaces ?? [] : [], active: hello ? hello.active ?? null : null,
-            agents: Array.isArray(agents && agents.agents) ? agents.agents : [], suggested: agents ? agents.suggested ?? null : null, pick,
-            page: tab ? { tabId: tab.id, url: may.read ? String(tab.url || "") : "", title: may.read ? String(tab.title || "") : "", host: may.host, privacy: may } : null,
+            off: null,
+            status,
+            view,
+            locked: Boolean(hello && hello.locked),
+            spaces: hello ? (hello.spaces ?? []) : [],
+            active: hello ? (hello.active ?? null) : null,
+            agents: Array.isArray(agents && agents.agents) ? agents.agents : [],
+            suggested: agents ? (agents.suggested ?? null) : null,
+            pick,
+            page: tab
+              ? {
+                  tabId: tab.id,
+                  url: may.read ? String(tab.url || "") : "",
+                  title: may.read ? String(tab.title || "") : "",
+                  host: may.host,
+                  privacy: may,
+                }
+              : null,
           },
         };
       }
@@ -131,14 +176,28 @@ export function createPanel({ ext, bridge, store, privacy, context, views = new 
         if (!may.read || !may.records) return { data: { records: [] } };
         const got = await context.read(tab.id);
         try {
-          const out = await bridge.op("records.match", { url: String(tab.url), title: str(tab.title, 300), emails: got ? got.emails : [], phones: got ? got.phones : [] });
+          const out = await bridge.op("records.match", {
+            url: String(tab.url),
+            title: str(tab.title, 300),
+            emails: got ? got.emails : [],
+            phones: got ? got.phones : [],
+          });
           return { data: { records: Array.isArray(out && out.records) ? out.records.slice(0, 5) : [] } };
-        } catch { return { data: { records: [] } }; }
+        } catch {
+          return { data: { records: [] } };
+        }
       }
       case "panel.models": {
         const out = await bridge.invoke("engine.models.list", msg.threadId ? { threadId: str(msg.threadId, 80) } : {});
         const models = (Array.isArray(out && out.models) ? out.models : []).map((/** @type {any} */ m) => ({
-          id: `${m.provider}/${m.model}`, provider: String(m.provider), model: String(m.model), title: String(m.title || m.model), driver: String(m.driver || ""), allowed: m.allowed !== false, reason: m.reason ?? null, isDefault: Boolean(m.isDefault),
+          id: `${m.provider}/${m.model}`,
+          provider: String(m.provider),
+          model: String(m.model),
+          title: String(m.title || m.model),
+          driver: String(m.driver || ""),
+          allowed: m.allowed !== false,
+          reason: m.reason ?? null,
+          isDefault: Boolean(m.isDefault),
         }));
         return { data: { models, listed: out && out.listed ? out.listed : null } };
       }
@@ -146,23 +205,53 @@ export function createPanel({ ext, bridge, store, privacy, context, views = new 
         const tab = await tabOf(msg.windowId);
         const may = await privacy.of(tab);
         if (may.why === "incognito") throw new BridgeFailure("incognito", "");
-        const chips = { text: str(msg.text, 20_000), page: Boolean(msg.page), shot: Boolean(msg.shot), selection: str(msg.selection, 4000) };
+        const chips = {
+          text: str(msg.text, 20_000),
+          page: Boolean(msg.page),
+          shot: Boolean(msg.shot),
+          selection: str(msg.selection, 4000),
+        };
         if (!chips.text.trim()) return { data: { sent: false } };
         // The screenshot is taken again at send time, so what goes is what the page shows now, masked.
-        const ctx = may.read && (chips.page || chips.selection) && tab ? await context.page(tab, { shot: chips.page && chips.shot }) : null;
+        const ctx =
+          may.read && (chips.page || chips.selection) && tab
+            ? await context.page(tab, { shot: chips.page && chips.shot })
+            : null;
         const body = outgoing(chips, may, ctx);
         const pick = await picks();
-        const out = await bridge.op("chat.ask", { agentId: str(msg.agentId || pick.agent, 80) || null, model: str(msg.model || pick.model, 120) || null, threadId: msg.threadId ? str(msg.threadId, 80) : null, ...body, from: "chrome" });
-        return { data: { sent: true, threadId: out && out.threadId ? String(out.threadId) : null, turnId: out && out.turnId ? String(out.turnId) : null, carried: { page: Boolean(body.page), shot: Boolean(body.page && body.page.shot), selection: Boolean(body.selection) } } };
+        const out = await bridge.op("chat.ask", {
+          agentId: str(msg.agentId || pick.agent, 80) || null,
+          model: str(msg.model || pick.model, 120) || null,
+          threadId: msg.threadId ? str(msg.threadId, 80) : null,
+          ...body,
+          from: "chrome",
+        });
+        return {
+          data: {
+            sent: true,
+            threadId: out && out.threadId ? String(out.threadId) : null,
+            turnId: out && out.turnId ? String(out.turnId) : null,
+            carried: {
+              page: Boolean(body.page),
+              shot: Boolean(body.page && body.page.shot),
+              selection: Boolean(body.selection),
+            },
+          },
+        };
       }
       case "panel.search": {
         const tab = await tabOf(msg.windowId);
         const page = pageOf(tab && tab.url);
         const may = await privacy.of(tab);
-        const out = await bridge.op("chat.search", { q: str(msg.q, 200), host: may.read && page ? page.host : null, limit: 40 });
+        const out = await bridge.op("chat.search", {
+          q: str(msg.q, 200),
+          host: may.read && page ? page.host : null,
+          limit: 40,
+        });
         return { data: { threads: Array.isArray(out && out.threads) ? out.threads : [] } };
       }
-      case "panel.thread": return { data: await bridge.op("chat.thread", { threadId: str(msg.threadId, 80) }) };
+      case "panel.thread":
+        return { data: await bridge.op("chat.thread", { threadId: str(msg.threadId, 80) }) };
       case "panel.openArtifact": {
         const id = str(msg.id, 80);
         const r = await artifacts.open({ id });
@@ -170,22 +259,43 @@ export function createPanel({ ext, bridge, store, privacy, context, views = new 
           // not opened as the person (no app, nothing to mint with): the Space's own link, which the web app opens if it is signed in
           const kept = await store.get(["spaces", "activeSpace"]);
           const sp = (kept["spaces"] ?? []).find((/** @type {any} */ x) => x.id === kept["activeSpace"]);
-          const web = sp && /^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)[:/]/.test(sp.webUrl) ? new URL(sp.webUrl).origin : null;
+          const web =
+            sp && /^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)[:/]/.test(sp.webUrl)
+              ? new URL(sp.webUrl).origin
+              : null;
           if (web && /^sit_[a-z0-9]+$/.test(id)) await ext.tabs.create({ url: `${web}/a/${id}` });
         }
         return { data: r };
       }
       case "panel.open": {
-        const place = ["chats", "notes", "vault", "watching", "skill", "goal", "record"].includes(msg.place) ? msg.place : "chats";
+        const place = ["chats", "notes", "vault", "watching", "skill", "goal", "record"].includes(msg.place)
+          ? msg.place
+          : "chats";
         const id = msg.id ? str(msg.id, 80) : null;
-        try { return { data: await bridge.op("app.open", { place, id }) }; } catch (e) {
+        try {
+          return { data: await bridge.op("app.open", { place, id }) };
+        } catch (e) {
           // No desktop app to open it: the Space's web app, at the same place.
           const kept = await store.get(["spaces", "activeSpace"]);
           const sp = (kept["spaces"] ?? []).find((/** @type {any} */ s) => s.id === kept["activeSpace"]);
-          const web = sp && /^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)[:/]/.test(sp.webUrl) ? new URL(sp.webUrl).origin : null;
+          const web =
+            sp && /^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)[:/]/.test(sp.webUrl)
+              ? new URL(sp.webUrl).origin
+              : null;
           if (!web) throw e;
-          const path = { chats: "/chats", notes: "/chats/notes", vault: "/vault", watching: "/automations#screen=watching", skill: "/settings/skills", goal: "/goals", record: "/records" }[place] ?? "/";
-          await ext.tabs.create({ url: place === "watching" ? `${web}${path}` : `${web}${path}${id ? `/${encodeURIComponent(id)}` : ""}` });
+          const path =
+            {
+              chats: "/chats",
+              notes: "/chats/notes",
+              vault: "/vault",
+              watching: "/automations#screen=watching",
+              skill: "/settings/skills",
+              goal: "/goals",
+              record: "/records",
+            }[place] ?? "/";
+          await ext.tabs.create({
+            url: place === "watching" ? `${web}${path}` : `${web}${path}${id ? `/${encodeURIComponent(id)}` : ""}`,
+          });
           return { data: { opened: "web" } };
         }
       }
@@ -216,7 +326,8 @@ export function createPanel({ ext, bridge, store, privacy, context, views = new 
         tell({ type: "site", host: page.host, privacy: await privacy.of(tab) }, tab.windowId);
         return { data: next };
       }
-      default: throw new BridgeFailure("not_allowed", String(msg.type));
+      default:
+        throw new BridgeFailure("not_allowed", String(msg.type));
     }
   }
 
@@ -227,16 +338,21 @@ export function createPanel({ ext, bridge, store, privacy, context, views = new 
     connect(port) {
       const entry = { port, windowId: /** @type {number | null} */ (null) };
       ports.add(entry);
-      port.onMessage.addListener((/** @type {any} */ m) => { if (m && m.type === "hello" && typeof m.windowId === "number") entry.windowId = m.windowId; });
+      port.onMessage.addListener((/** @type {any} */ m) => {
+        if (m && m.type === "hello" && typeof m.windowId === "number") entry.windowId = m.windowId;
+      });
       port.onDisconnect.addListener(() => ports.delete(entry));
     },
-    get open() { return ports.size; },
+    get open() {
+      return ports.size;
+    },
     /** A content script saw the selection change (select.js). Kept per tab, sent to that window's panel, never for a never-site or incognito. @param {any} tab @param {string} text */
     async selected(tab, text) {
       const may = await privacy.of(tab);
       if (!may.read) return false;
       const t = str(text, 4000).trim();
-      if (t) selections.set(tab.id, t); else selections.delete(tab.id);
+      if (t) selections.set(tab.id, t);
+      else selections.delete(tab.id);
       tell({ type: "selection", tabId: tab.id, text: t }, tab.windowId);
       return true;
     },
@@ -247,7 +363,11 @@ export function createPanel({ ext, bridge, store, privacy, context, views = new 
       return true;
     },
     /** The active tab changed or loaded: the panel refreshes its chips. @param {any} tab */
-    tabChanged(tab) { if (tab) tell({ type: "tab", tabId: tab.id }, tab.windowId); },
-    tabClosed(/** @type {number} */ tabId) { selections.delete(tabId); },
+    tabChanged(tab) {
+      if (tab) tell({ type: "tab", tabId: tab.id }, tab.windowId);
+    },
+    tabClosed(/** @type {number} */ tabId) {
+      selections.delete(tabId);
+    },
   };
 }

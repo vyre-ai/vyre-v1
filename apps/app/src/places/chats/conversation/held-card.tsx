@@ -8,14 +8,30 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { CARD_INSET, Card, CardActions, CardDeny, CardDone, CardField, CardHead } from "../../../../../../ui/src/Card/index.tsx";
+import {
+  CARD_INSET,
+  Card,
+  CardActions,
+  CardDeny,
+  CardDone,
+  CardField,
+  CardHead,
+} from "../../../../../../ui/src/Card/index.tsx";
 import { MarkdownEditor } from "../../../../../../ui/src/RichEditor/MarkdownEditor.tsx";
 import { MarkdownText } from "../../../../../../ui/src/stream/MarkdownText.tsx";
 import { Face } from "../needsyou/parts.tsx";
 import { Glyph } from "./parts.tsx";
 
-export interface HeldRecipient { name: string; seed: string; kind?: "person" | "agent" }
-export interface HeldSaved { body: string; subject?: string; to?: string }
+export interface HeldRecipient {
+  name: string;
+  seed: string;
+  kind?: "person" | "agent";
+}
+export interface HeldSaved {
+  body: string;
+  subject?: string;
+  to?: string;
+}
 
 export interface HeldCardProps {
   testID: string;
@@ -38,7 +54,14 @@ export interface HeldCardProps {
   /** The face in the header when it is not the recipient's: the agent that wrote the draft. */
   headFace?: { name: string; seed: string; kind: "agent" | "person" };
   /** Who it goes to, as faces and names, above the subject: "To", and "Cc" when there is one. The recipient must be seen before Send. */
-  peopleRows?: ReadonlyArray<{ label: string; people: ReadonlyArray<{ name: string; seed: string; /** under the name: the number or address it goes to */ sub?: string }> }>;
+  peopleRows?: ReadonlyArray<{
+    label: string;
+    people: ReadonlyArray<{
+      name: string;
+      seed: string;
+      /** under the name: the number or address it goes to */ sub?: string;
+    }>;
+  }>;
   /** A calendar entry's guests, as faces and names, shown after its When line; and whether they are emailed. */
   invitees?: ReadonlyArray<{ name: string; seed: string }>;
   inviteNote?: string;
@@ -73,7 +96,9 @@ export interface HeldCardProps {
 }
 
 export type HeldEditor = (p: { value: string; onChange: (markdown: string) => void; label: string }) => ReactElement;
-const SharedEditor: HeldEditor = ({ value, onChange, label }) => <MarkdownEditor value={value} onChange={onChange} label={label} bare minHeight={120} autoFocus />;
+const SharedEditor: HeldEditor = ({ value, onChange, label }) => (
+  <MarkdownEditor value={value} onChange={onChange} label={label} bare minHeight={120} autoFocus />
+);
 
 /** How many lines of the body show before "Show all". */
 export const BODY_LINES = 12;
@@ -87,7 +112,11 @@ export function linesOf(markdown: string): number {
 
 export function HeldCard(p: HeldCardProps): ReactElement {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState({ body: p.body, subject: p.subject ?? "", to: p.to.map((r) => r.name).join(", ") });
+  const [draft, setDraft] = useState({
+    body: p.body,
+    subject: p.subject ?? "",
+    to: p.to.map((r) => r.name).join(", "),
+  });
   const [denying, setDenying] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -99,80 +128,318 @@ export function HeldCard(p: HeldCardProps): ReactElement {
   const state = done ?? p.state;
   const long = linesOf(p.body) > BODY_LINES;
   const run = (f: () => Promise<void>, after?: () => void): void => {
-    setBusy(true); setError("");
-    f().then(() => { setBusy(false); after?.(); }, (e: unknown) => { setBusy(false); setError(e instanceof Error && e.message ? e.message : "That did not work. Try again."); });
+    setBusy(true);
+    setError("");
+    f().then(
+      () => {
+        setBusy(false);
+        after?.();
+      },
+      (e: unknown) => {
+        setBusy(false);
+        setError(e instanceof Error && e.message ? e.message : "That did not work. Try again.");
+      },
+    );
   };
   const faces = p.headFace ? [p.headFace] : p.to.slice(0, 2);
   const title = p.title ?? `${p.agent} wants to ${p.verb}`;
 
   if (state !== "waiting") {
     return (
-      <CardDone testID={p.testID} ok={state === "sent"} glyph={<Glyph name={state === "sent" ? "check" : "x"} size={13} color={state === "sent" ? "var(--ok)" : "var(--ink-3)"} />} text={state === "sent" ? (p.state === "dropped" ? "Sent" : p.doneLine ?? "Sent") : (p.state === "dropped" ? p.doneLine ?? "Not sent" : "Not sent")} />
+      <CardDone
+        testID={p.testID}
+        ok={state === "sent"}
+        glyph={
+          <Glyph
+            name={state === "sent" ? "check" : "x"}
+            size={13}
+            color={state === "sent" ? "var(--ok)" : "var(--ink-3)"}
+          />
+        }
+        text={
+          state === "sent"
+            ? p.state === "dropped"
+              ? "Sent"
+              : (p.doneLine ?? "Sent")
+            : p.state === "dropped"
+              ? (p.doneLine ?? "Not sent")
+              : "Not sent"
+        }
+      />
     );
   }
-  const reset = (): void => { setEditing(false); setError(""); setDraft({ body: p.body, subject: p.subject ?? "", to: p.to.map((r) => r.name).join(", ") }); };
-  const save = (): void => { if (busy || draft.body.trim() === "") return; run(() => (p.onSave ? p.onSave({ body: draft.body, ...(p.editSubject ? { subject: draft.subject } : {}), ...(p.editTo ? { to: draft.to } : {}) }) : Promise.resolve()), () => setEditing(false)); };
+  const reset = (): void => {
+    setEditing(false);
+    setError("");
+    setDraft({ body: p.body, subject: p.subject ?? "", to: p.to.map((r) => r.name).join(", ") });
+  };
+  const save = (): void => {
+    if (busy || draft.body.trim() === "") return;
+    run(
+      () =>
+        p.onSave
+          ? p.onSave({
+              body: draft.body,
+              ...(p.editSubject ? { subject: draft.subject } : {}),
+              ...(p.editTo ? { to: draft.to } : {}),
+            })
+          : Promise.resolve(),
+      () => setEditing(false),
+    );
+  };
   return (
-    <Card kind="decision" testID={p.testID} label={title} onCancel={editing ? reset : denying ? () => setDenying(false) : undefined} {...(editing && (p.editTo || p.editSubject) ? { onEnter: save } : {})}>
+    <Card
+      kind="decision"
+      testID={p.testID}
+      label={title}
+      onCancel={editing ? reset : denying ? () => setDenying(false) : undefined}
+      {...(editing && (p.editTo || p.editSubject) ? { onEnter: save } : {})}
+    >
       <CardHead
-        title={title} {...(p.schedule ? { meta: p.schedule, metaTestID: `${p.testID}-schedule` } : {})}
-        lead={faces.length > 0 ? (
-          // ui-rows-lint: not a list (the faces of who it goes to)
-          <View style={st.faces}>{faces.map((r, i) => <View key={`${r.seed}${i}`} style={i > 0 ? st.faceNext : undefined}><Face name={r.name} seedId={r.seed} kind={r.kind ?? "person"} size={22} /></View>)}</View>
-        ) : undefined}
-        trailing={<>
-          {p.edited ? <Text style={st.edited} testID={`${p.testID}-edited`}>Edited by you</Text> : null}
-          {p.onAlways && p.alwaysLabel && !editing && !denying ? <Pressable accessibilityRole="button" accessibilityLabel="More" onPress={() => setMenu((m) => !m)} testID={`${p.testID}-more`}><Text style={st.more}>...</Text></Pressable> : null}
-        </>}
+        title={title}
+        {...(p.schedule ? { meta: p.schedule, metaTestID: `${p.testID}-schedule` } : {})}
+        lead={
+          faces.length > 0 ? (
+            // ui-rows-lint: not a list (the faces of who it goes to)
+            <View style={st.faces}>
+              {faces.map((r, i) => (
+                <View key={`${r.seed}${i}`} style={i > 0 ? st.faceNext : undefined}>
+                  <Face name={r.name} seedId={r.seed} kind={r.kind ?? "person"} size={22} />
+                </View>
+              ))}
+            </View>
+          ) : undefined
+        }
+        trailing={
+          <>
+            {p.edited ? (
+              <Text style={st.edited} testID={`${p.testID}-edited`}>
+                Edited by you
+              </Text>
+            ) : null}
+            {p.onAlways && p.alwaysLabel && !editing && !denying ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="More"
+                onPress={() => setMenu((m) => !m)}
+                testID={`${p.testID}-more`}
+              >
+                <Text style={st.more}>...</Text>
+              </Pressable>
+            ) : null}
+          </>
+        }
       />
       {menu && p.onAlways && p.alwaysLabel && !editing && !denying ? (
-        <View style={st.menu}><Pressable accessibilityRole="button" disabled={busy} onPress={() => { setMenu(false); void run(() => p.onAlways!(), () => setDone("sent")); }} testID={`${p.testID}-always`}><Text style={st.menuItem}>{p.alwaysLabel}</Text></Pressable></View>
+        <View style={st.menu}>
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy}
+            onPress={() => {
+              setMenu(false);
+              void run(
+                () => p.onAlways!(),
+                () => setDone("sent"),
+              );
+            }}
+            testID={`${p.testID}-always`}
+          >
+            <Text style={st.menuItem}>{p.alwaysLabel}</Text>
+          </Pressable>
+        </View>
       ) : null}
       <View style={st.rows}>
-        {(p.peopleRows ?? []).filter((r) => r.people.length > 0).map((r) => (
-          // ui-rows-lint: not a list (the people a message goes to, faces with names in one line)
-          <View key={r.label} style={st.row} testID={`${p.testID}-people-${r.label.toLowerCase()}`}><Text style={st.label}>{r.label}</Text><View style={st.guests}>{r.people.slice(0, 6).map((g, i) => <View key={`${g.seed}${i}`} style={st.guest}><Face name={g.name} seedId={g.seed} kind="person" size={g.sub ? 24 : 18} /><View><Text style={st.value}>{g.name}</Text>{g.sub ? <Text style={st.sub}>{g.sub}</Text> : null}</View></View>)}{r.people.length > 6 ? <Text style={st.sub}>{`and ${r.people.length - 6} more`}</Text> : null}</View></View>
-        ))}
-        {editing && p.editTo ? <CardField label="To" testID={`${p.testID}-to`} value={draft.to} onChange={(v) => setDraft((d) => ({ ...d, to: v }))} /> : null}
-        {editing && p.editSubject ? <CardField label={p.subjectLabel ?? "Subject"} testID={`${p.testID}-subject`} value={draft.subject} onChange={(v) => setDraft((d) => ({ ...d, subject: v }))} />
-        : p.subject ? <View style={st.row}><Text style={st.label}>{p.subjectLabel ?? "Subject"}</Text><Text style={[st.value, p.subjectLabel ? st.strong : undefined]} testID={`${p.testID}-subject-text`}>{p.subject}</Text></View> : null}
-        {!editing ? (p.fields ?? []).flatMap(([label, text]) => [
-          <View key={label} style={st.row}><Text style={st.label}>{label}</Text>{(p.fieldMd ?? []).includes(label) ? <View style={{ flex: 1 }}><MarkdownText text={text} /></View> : <Text style={st.value} testID={`${p.testID}-field-${label.toLowerCase()}`}>{text}</Text>}</View>,
-          // ui-rows-lint: not a list (the invitees of an event, faces with names in one line)
-          ...(label === "When" && p.invitees && (p.invitees.length > 0 || p.inviteNote) ? [<View key="who" style={st.row} testID={`${p.testID}-invitees`}><Text style={st.label}>Who</Text><View style={st.guests}>{p.invitees.slice(0, 8).map((g, i) => <View key={`${g.seed}${i}`} style={st.guest}><Face name={g.name} seedId={g.seed} kind="person" size={18} /><Text style={st.value}>{g.name}</Text></View>)}{p.invitees.length > 8 ? <Text style={st.sub}>{`and ${p.invitees.length - 8} more`}</Text> : null}{p.inviteNote ? <Text style={st.sub} testID={`${p.testID}-invite-note`}>{p.inviteNote}</Text> : null}</View></View>] : []),
-        ]) : null}
+        {(p.peopleRows ?? [])
+          .filter((r) => r.people.length > 0)
+          .map((r) => (
+            // ui-rows-lint: not a list (the people a message goes to, faces with names in one line)
+            <View key={r.label} style={st.row} testID={`${p.testID}-people-${r.label.toLowerCase()}`}>
+              <Text style={st.label}>{r.label}</Text>
+              <View style={st.guests}>
+                {r.people.slice(0, 6).map((g, i) => (
+                  <View key={`${g.seed}${i}`} style={st.guest}>
+                    <Face name={g.name} seedId={g.seed} kind="person" size={g.sub ? 24 : 18} />
+                    <View>
+                      <Text style={st.value}>{g.name}</Text>
+                      {g.sub ? <Text style={st.sub}>{g.sub}</Text> : null}
+                    </View>
+                  </View>
+                ))}
+                {r.people.length > 6 ? <Text style={st.sub}>{`and ${r.people.length - 6} more`}</Text> : null}
+              </View>
+            </View>
+          ))}
+        {editing && p.editTo ? (
+          <CardField
+            label="To"
+            testID={`${p.testID}-to`}
+            value={draft.to}
+            onChange={(v) => setDraft((d) => ({ ...d, to: v }))}
+          />
+        ) : null}
+        {editing && p.editSubject ? (
+          <CardField
+            label={p.subjectLabel ?? "Subject"}
+            testID={`${p.testID}-subject`}
+            value={draft.subject}
+            onChange={(v) => setDraft((d) => ({ ...d, subject: v }))}
+          />
+        ) : p.subject ? (
+          <View style={st.row}>
+            <Text style={st.label}>{p.subjectLabel ?? "Subject"}</Text>
+            <Text style={[st.value, p.subjectLabel ? st.strong : undefined]} testID={`${p.testID}-subject-text`}>
+              {p.subject}
+            </Text>
+          </View>
+        ) : null}
+        {!editing
+          ? (p.fields ?? []).flatMap(([label, text]) => [
+              <View key={label} style={st.row}>
+                <Text style={st.label}>{label}</Text>
+                {(p.fieldMd ?? []).includes(label) ? (
+                  <View style={{ flex: 1 }}>
+                    <MarkdownText text={text} />
+                  </View>
+                ) : (
+                  <Text style={st.value} testID={`${p.testID}-field-${label.toLowerCase()}`}>
+                    {text}
+                  </Text>
+                )}
+              </View>,
+              // ui-rows-lint: not a list (the invitees of an event, faces with names in one line)
+              ...(label === "When" && p.invitees && (p.invitees.length > 0 || p.inviteNote)
+                ? [
+                    <View key="who" style={st.row} testID={`${p.testID}-invitees`}>
+                      <Text style={st.label}>Who</Text>
+                      <View style={st.guests}>
+                        {p.invitees.slice(0, 8).map((g, i) => (
+                          <View key={`${g.seed}${i}`} style={st.guest}>
+                            <Face name={g.name} seedId={g.seed} kind="person" size={18} />
+                            <Text style={st.value}>{g.name}</Text>
+                          </View>
+                        ))}
+                        {p.invitees.length > 8 ? (
+                          <Text style={st.sub}>{`and ${p.invitees.length - 8} more`}</Text>
+                        ) : null}
+                        {p.inviteNote ? (
+                          <Text style={st.sub} testID={`${p.testID}-invite-note`}>
+                            {p.inviteNote}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>,
+                  ]
+                : []),
+            ])
+          : null}
       </View>
       {editing ? (
         <View style={st.editor} testID={`${p.testID}-editor`}>
-          {(p.editor ?? SharedEditor)({ value: draft.body, onChange: (md) => setDraft((d) => ({ ...d, body: md })), label: p.fold ? "Edit the agenda" : "Edit the message" })}
-          <CardActions busy={busy} secondary={[{ label: "Cancel", onPress: reset, testID: `${p.testID}-cancel` }]} primary={{ label: "Save", onPress: save, disabled: draft.body.trim() === "", testID: `${p.testID}-save` }} />
+          {(p.editor ?? SharedEditor)({
+            value: draft.body,
+            onChange: (md) => setDraft((d) => ({ ...d, body: md })),
+            label: p.fold ? "Edit the agenda" : "Edit the message",
+          })}
+          <CardActions
+            busy={busy}
+            secondary={[{ label: "Cancel", onPress: reset, testID: `${p.testID}-cancel` }]}
+            primary={{ label: "Save", onPress: save, disabled: draft.body.trim() === "", testID: `${p.testID}-save` }}
+          />
         </View>
+      ) : p.fold && p.body.trim() === "" ? null : p.fold && !agenda ? (
+        <Pressable accessibilityRole="button" onPress={() => setAgenda(true)} testID={`${p.testID}-fold`}>
+          <Text style={st.link}>{`${p.fold}  \u203a`}</Text>
+        </Pressable>
       ) : (
-        p.fold && p.body.trim() === "" ? null : p.fold && !agenda ? (
-          <Pressable accessibilityRole="button" onPress={() => setAgenda(true)} testID={`${p.testID}-fold`}><Text style={st.link}>{`${p.fold}  \u203a`}</Text></Pressable>
-        ) : <View>
-          {p.fold ? <Pressable accessibilityRole="button" onPress={() => setAgenda(false)}><Text style={st.link}>{`${p.fold}  \u2304`}</Text></Pressable> : null}
-          <View testID={`${p.testID}-body`} style={[st.body, long && !all && { maxHeight: BODY_LINES * LINE_PX, overflow: "hidden" }]}><MarkdownText text={p.body} /></View>
-          {long ? <Pressable accessibilityRole="button" onPress={() => setAll((x) => !x)} testID={`${p.testID}-all`}><Text style={st.link}>{all ? "Show less" : "Show all"}</Text></Pressable> : null}
+        <View>
+          {p.fold ? (
+            <Pressable accessibilityRole="button" onPress={() => setAgenda(false)}>
+              <Text style={st.link}>{`${p.fold}  \u2304`}</Text>
+            </Pressable>
+          ) : null}
+          <View
+            testID={`${p.testID}-body`}
+            style={[st.body, long && !all && { maxHeight: BODY_LINES * LINE_PX, overflow: "hidden" }]}
+          >
+            <MarkdownText text={p.body} />
+          </View>
+          {long ? (
+            <Pressable accessibilityRole="button" onPress={() => setAll((x) => !x)} testID={`${p.testID}-all`}>
+              <Text style={st.link}>{all ? "Show less" : "Show all"}</Text>
+            </Pressable>
+          ) : null}
         </View>
       )}
       {p.earlier && !editing ? (
         <View>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: earlierOpen }} onPress={() => setEarlierOpen((v) => !v)} testID={`${p.testID}-earlier`}><Text style={st.link}>{earlierOpen ? "Hide the earlier draft" : "Show the earlier draft"}</Text></Pressable>
-          {earlierOpen ? <View testID={`${p.testID}-earlier-text`} style={st.body}><MarkdownText text={p.earlier.text} /></View> : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: earlierOpen }}
+            onPress={() => setEarlierOpen((v) => !v)}
+            testID={`${p.testID}-earlier`}
+          >
+            <Text style={st.link}>{earlierOpen ? "Hide the earlier draft" : "Show the earlier draft"}</Text>
+          </Pressable>
+          {earlierOpen ? (
+            <View testID={`${p.testID}-earlier-text`} style={st.body}>
+              <MarkdownText text={p.earlier.text} />
+            </View>
+          ) : null}
         </View>
       ) : null}
       {denying ? (
-        <CardDeny ids={{ reason: `${p.testID}-reason`, back: `${p.testID}-back`, go: `${p.testID}-drop-go` }} busy={busy} onBack={() => setDenying(false)} onDeny={(r) => run(() => p.onDrop(r), () => setDone("dropped"))} />
+        <CardDeny
+          ids={{ reason: `${p.testID}-reason`, back: `${p.testID}-back`, go: `${p.testID}-drop-go` }}
+          busy={busy}
+          onBack={() => setDenying(false)}
+          onDeny={(r) =>
+            run(
+              () => p.onDrop(r),
+              () => setDone("dropped"),
+            )
+          }
+        />
       ) : !editing ? (
         <CardActions
           busy={busy}
-          {...(p.stoppedNote ? { note: <Text style={st.sub} testID={`${p.testID}-stopped`}>{p.stoppedNote}</Text> } : {})}
-          secondary={[...(p.editable ? [{ label: "Edit", icon: <Glyph name="edit" size={13} color="var(--ink-2)" />, onPress: () => { setDraft({ body: p.body, subject: p.subject ?? "", to: p.to.map((r) => r.name).join(", ") }); setEditing(true); }, testID: `${p.testID}-edit` }] : []), { label: "Deny", onPress: () => setDenying(true), testID: `${p.testID}-drop` }]}
-          primary={{ label: "Allow", icon: <Glyph name="check" size={13} color="var(--accent-ink)" />, onPress: () => run(p.onSend, () => setDone("sent")), testID: `${p.testID}-send` }}
+          {...(p.stoppedNote
+            ? {
+                note: (
+                  <Text style={st.sub} testID={`${p.testID}-stopped`}>
+                    {p.stoppedNote}
+                  </Text>
+                ),
+              }
+            : {})}
+          secondary={[
+            ...(p.editable
+              ? [
+                  {
+                    label: "Edit",
+                    icon: <Glyph name="edit" size={13} color="var(--ink-2)" />,
+                    onPress: () => {
+                      setDraft({ body: p.body, subject: p.subject ?? "", to: p.to.map((r) => r.name).join(", ") });
+                      setEditing(true);
+                    },
+                    testID: `${p.testID}-edit`,
+                  },
+                ]
+              : []),
+            { label: "Deny", onPress: () => setDenying(true), testID: `${p.testID}-drop` },
+          ]}
+          primary={{
+            label: "Allow",
+            icon: <Glyph name="check" size={13} color="var(--accent-ink)" />,
+            onPress: () => run(p.onSend, () => setDone("sent")),
+            testID: `${p.testID}-send`,
+          }}
         />
       ) : null}
-      {error ? <Text accessibilityRole="alert" style={st.error} testID={`${p.testID}-error`}>{error}</Text> : null}
+      {error ? (
+        <Text accessibilityRole="alert" style={st.error} testID={`${p.testID}-error`}>
+          {error}
+        </Text>
+      ) : null}
     </Card>
   );
 }
@@ -186,7 +453,13 @@ const st = StyleSheet.create({
   guest: { flexDirection: "row", alignItems: "center", gap: 6 },
   edited: { fontSize: 12, color: "var(--ink-3)" as string },
   more: { fontSize: 16, color: "var(--ink-3)" as string, paddingHorizontal: 6, letterSpacing: 1 },
-  menu: { alignSelf: "flex-end", paddingVertical: 4, paddingHorizontal: 10, borderRadius: 12, backgroundColor: CARD_INSET },
+  menu: {
+    alignSelf: "flex-end",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: CARD_INSET,
+  },
   menuItem: { fontSize: 13, color: "var(--ink-2)" as string },
   rows: { gap: 6 },
   row: { flexDirection: "row", gap: 10, alignItems: "flex-start" },

@@ -39,7 +39,17 @@ export function dataDirs(env) {
  * @param {string[]} dirs @param {(pid: number) => boolean} [alive]
  * @returns {{ url: string, token: string } | null}
  */
-export function findDaemon(dirs, alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return /** @type {any} */ (e).code === "EPERM"; } }) {
+export function findDaemon(
+  dirs,
+  alive = (pid) => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (e) {
+      return /** @type {any} */ (e).code === "EPERM";
+    }
+  },
+) {
   /** @type {{ url: string, token: string } | null} */
   let first = null;
   for (const dir of dirs) {
@@ -53,7 +63,9 @@ export function findDaemon(dirs, alive = (pid) => { try { process.kill(pid, 0); 
       const found = { url: u.origin, token };
       if (Array.isArray(info.roles) && info.roles.includes("space")) return found;
       first ??= found;
-    } catch { /* not this directory */ }
+    } catch {
+      /* not this directory */
+    }
   }
   return first;
 }
@@ -65,14 +77,29 @@ export function findDaemon(dirs, alive = (pid) => { try { process.kill(pid, 0); 
 export function rpc(daemon, pathname, body) {
   return new Promise((resolve, reject) => {
     const payload = Buffer.from(JSON.stringify(body), "utf8");
-    const req = http.request(new URL(pathname, daemon.url), { method: "POST", headers: { "content-type": "application/json", "content-length": payload.length, authorization: `Bearer ${daemon.token}` } }, (res) => {
-      /** @type {Buffer[]} */
-      const chunks = [];
-      res.on("data", (c) => chunks.push(c));
-      res.on("end", () => {
-        try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8"))); } catch { reject(new Error("bad_reply")); }
-      });
-    });
+    const req = http.request(
+      new URL(pathname, daemon.url),
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "content-length": payload.length,
+          authorization: `Bearer ${daemon.token}`,
+        },
+      },
+      (res) => {
+        /** @type {Buffer[]} */
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => {
+          try {
+            resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+          } catch {
+            reject(new Error("bad_reply"));
+          }
+        });
+      },
+    );
     req.setTimeout(30_000, () => req.destroy(new Error("timeout")));
     req.on("error", reject);
     req.end(payload);
@@ -86,7 +113,13 @@ export function rpc(daemon, pathname, body) {
  */
 export function runHost({ stdin, stdout, daemon, onError = () => {} }) {
   /** @param {unknown} m */
-  const send = (m) => { try { stdout.write(encode(m)); } catch { onError("write"); } };
+  const send = (m) => {
+    try {
+      stdout.write(encode(m));
+    } catch {
+      onError("write");
+    }
+  };
   /** @param {string} id @param {string} code @param {string} message */
   const fail = (id, code, message) => send({ id, ok: false, error: { code, message } });
   const decoder = createDecoder();
@@ -94,20 +127,28 @@ export function runHost({ stdin, stdout, daemon, onError = () => {} }) {
   let events = null;
 
   if (daemon) {
-    events = http.request(new URL("/chrome-bridge/v1/events", daemon.url), { method: "GET", headers: { authorization: `Bearer ${daemon.token}` } }, (res) => {
-      let buf = "";
-      res.setEncoding("utf8");
-      res.on("data", (chunk) => {
-        buf += chunk;
-        let at;
-        while ((at = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, at).trim();
-          buf = buf.slice(at + 1);
-          if (!line) continue;
-          try { send(JSON.parse(line)); } catch { onError("bad_event"); }
-        }
-      });
-    });
+    events = http.request(
+      new URL("/chrome-bridge/v1/events", daemon.url),
+      { method: "GET", headers: { authorization: `Bearer ${daemon.token}` } },
+      (res) => {
+        let buf = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          buf += chunk;
+          let at;
+          while ((at = buf.indexOf("\n")) >= 0) {
+            const line = buf.slice(0, at).trim();
+            buf = buf.slice(at + 1);
+            if (!line) continue;
+            try {
+              send(JSON.parse(line));
+            } catch {
+              onError("bad_event");
+            }
+          }
+        });
+      },
+    );
     events.on("error", () => onError("events"));
     events.end();
   }
@@ -116,15 +157,36 @@ export function runHost({ stdin, stdout, daemon, onError = () => {} }) {
     stdin.on("data", (chunk) => {
       /** @type {unknown[]} */
       let messages;
-      try { messages = decoder.push(/** @type {Buffer} */ (chunk)); } catch { onError("framing"); resolve(); return; }
+      try {
+        messages = decoder.push(/** @type {Buffer} */ (chunk));
+      } catch {
+        onError("framing");
+        resolve();
+        return;
+      }
       for (const m of messages) {
-        const id = m && typeof m === "object" && typeof (/** @type {any} */ (m)).id === "string" ? (/** @type {any} */ (m)).id : "";
-        if (!daemon) { fail(id, "offline", "The Vyre app is not running."); continue; }
-        rpc(daemon, "/chrome-bridge/v1/rpc", m).then((reply) => send(reply), () => fail(id, "offline", "The Vyre app did not answer."));
+        const id =
+          m && typeof m === "object" && typeof (/** @type {any} */ (m).id) === "string"
+            ? /** @type {any} */ (m).id
+            : "";
+        if (!daemon) {
+          fail(id, "offline", "The Vyre app is not running.");
+          continue;
+        }
+        rpc(daemon, "/chrome-bridge/v1/rpc", m).then(
+          (reply) => send(reply),
+          () => fail(id, "offline", "The Vyre app did not answer."),
+        );
       }
     });
-    stdin.on("end", () => { events?.destroy(); resolve(); });
-    stdin.on("close", () => { events?.destroy(); resolve(); });
+    stdin.on("end", () => {
+      events?.destroy();
+      resolve();
+    });
+    stdin.on("close", () => {
+      events?.destroy();
+      resolve();
+    });
   });
 }
 
@@ -137,5 +199,10 @@ export function callerOk(argv) {
 // Run as the program Chrome starts (node host.js <origin>), not when a test imports it.
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (!callerOk(process.argv)) process.exit(2);
-  void runHost({ stdin: process.stdin, stdout: process.stdout, daemon: findDaemon(dataDirs(process.env)), onError: (code) => process.stderr.write(`bridge host: ${code}\n`) }).then(() => process.exit(0));
+  void runHost({
+    stdin: process.stdin,
+    stdout: process.stdout,
+    daemon: findDaemon(dataDirs(process.env)),
+    onError: (code) => process.stderr.write(`bridge host: ${code}\n`),
+  }).then(() => process.exit(0));
 }

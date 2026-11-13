@@ -8,13 +8,18 @@ import { DANA, INTAKE, LEO, harness as baseHarness } from "../fixtures/harness.t
 import { addMember, insertThread } from "../projections.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
-type Fn = (ctx: Harness["ctx"], input: any) => Promise<any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+type Fn = (ctx: Harness["ctx"], input: any) => Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const h = handlers as unknown as Record<string, Fn>;
 let n = 0;
 const key = () => `of${++n}`;
 const MIA = "usr_mia";
 
-interface G { resource: { type: string; id: string }; subject: { kind: string; id: string }; level: string; source?: string }
+interface G {
+  resource: { type: string; id: string };
+  subject: { kind: string; id: string };
+  level: string;
+  source?: string;
+}
 function world(o: { audienceFails?: boolean } = {}) {
   const grants: G[] = [];
   const audience = new Map<string, string>();
@@ -24,14 +29,33 @@ function world(o: { audienceFails?: boolean } = {}) {
   let hold: { match: (g: G) => boolean; gate: Promise<void>; reached: () => void } | null = null;
   const hn = baseHarness({
     calls: {
-      "agents.get": (i) => ({ agent: { agentId: i["agentId"], name: String(i["agentId"]), runtime: "vyre", folderId: `fld_${String(i["agentId"])}` } }),
+      "agents.get": (i) => ({
+        agent: {
+          agentId: i["agentId"],
+          name: String(i["agentId"]),
+          runtime: "vyre",
+          folderId: `fld_${String(i["agentId"])}`,
+        },
+      }),
       "access.principals.get": () => ({ principal: { name: "Someone" } }),
       // a replayed key answers the agent that key made, as the agents module's key cache does
-      "agents.create": (i) => { const k = String(i["idempotencyKey"] ?? ""); const had = byKey.get(k); if (had) return { agent: { agentId: had } }; const id = `agt_made${++made}`; if (k) byKey.set(k, id); return { agent: { agentId: id } }; },
-      "agents.delete": (i) => { deleted.push(String(i["agentId"])); return { deleted: true }; },
+      "agents.create": (i) => {
+        const k = String(i["idempotencyKey"] ?? "");
+        const had = byKey.get(k);
+        if (had) return { agent: { agentId: had } };
+        const id = `agt_made${++made}`;
+        if (k) byKey.set(k, id);
+        return { agent: { agentId: id } };
+      },
+      "agents.delete": (i) => {
+        deleted.push(String(i["agentId"]));
+        return { deleted: true };
+      },
       "engine.set_mode": (i) => ({ mode: i["mode"], leadAgentId: null }),
       "engine.stop_all": () => ({ stopped: 0 }),
-      "files.resolve": () => { throw Object.assign(new Error("gone"), { error: { code: "validation.not_found" } }); },
+      "files.resolve": () => {
+        throw Object.assign(new Error("gone"), { error: { code: "validation.not_found" } });
+      },
       "access.audience_set": (i) => {
         if (o.audienceFails) throw Object.assign(new Error("refused"), { error: { code: "permission.no_grant" } });
         const r = i["resource"] as { type: string; id: string };
@@ -41,17 +65,36 @@ function world(o: { audienceFails?: boolean } = {}) {
       // paged as the access module pages (limit, and a cursor that is the offset)
       "access.grants.list": (i) => {
         const all = grants.filter((g) => i["source"] === undefined || g.source === i["source"]);
-        const from = Number(i["cursor"] ?? 0), limit = Number(i["limit"] ?? 100);
-        return { grants: all.slice(from, from + limit), ...(from + limit < all.length ? { next: String(from + limit) } : {}) };
+        const from = Number(i["cursor"] ?? 0),
+          limit = Number(i["limit"] ?? 100);
+        return {
+          grants: all.slice(from, from + limit),
+          ...(from + limit < all.length ? { next: String(from + limit) } : {}),
+        };
       },
       "access.share": async (i) => {
-        const g = { resource: i["resource"], subject: i["subject"], level: String(i["level"]), ...(i["source"] ? { source: String(i["source"]) } : {}) } as G;
-        if (hold && hold.match(g)) { const x = hold; hold = null; x.reached(); await x.gate; }
-        if (!grants.some((x) => x.resource.id === g.resource.id && x.subject.id === g.subject.id && x.source === g.source)) grants.push(g);
+        const g = {
+          resource: i["resource"],
+          subject: i["subject"],
+          level: String(i["level"]),
+          ...(i["source"] ? { source: String(i["source"]) } : {}),
+        } as G;
+        if (hold && hold.match(g)) {
+          const x = hold;
+          hold = null;
+          x.reached();
+          await x.gate;
+        }
+        if (
+          !grants.some((x) => x.resource.id === g.resource.id && x.subject.id === g.subject.id && x.source === g.source)
+        )
+          grants.push(g);
         return { grant: { id: `gnt_${grants.length}` } };
       },
       "access.unshare": (i) => {
-        const r = i["resource"] as { type: string; id: string } | undefined, s = i["subject"] as { kind: string; id: string } | undefined, src = i["source"] as string | undefined;
+        const r = i["resource"] as { type: string; id: string } | undefined,
+          s = i["subject"] as { kind: string; id: string } | undefined,
+          src = i["source"] as string | undefined;
         const before = grants.length;
         for (let k = grants.length - 1; k >= 0; k--) {
           const g = grants[k]!;
@@ -67,22 +110,43 @@ function world(o: { audienceFails?: boolean } = {}) {
   /** hold the next access.share that matches until released */
   const holdShare = (match: (g: G) => boolean): { held: Promise<void>; release: () => void } => {
     let release!: () => void, reached!: () => void;
-    const gate = new Promise<void>((r) => { release = r; });
-    const held = new Promise<void>((r) => { reached = r; });
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const held = new Promise<void>((r) => {
+      reached = r;
+    });
     hold = { match, gate, reached };
     return { held, release };
   };
   return { hn, grants, audience, deleted, holdShare };
 }
-const folderOf = (grants: G[], who: string, agentId: string): G[] => grants.filter((g) => g.subject.id === who && g.resource.type === "folder" && g.resource.id === `fld_${agentId}`);
-const agentOf = (grants: G[], who: string, agentId: string): G[] => grants.filter((g) => g.subject.id === who && g.resource.type === "agent" && g.resource.id === agentId);
+const folderOf = (grants: G[], who: string, agentId: string): G[] =>
+  grants.filter((g) => g.subject.id === who && g.resource.type === "folder" && g.resource.id === `fld_${agentId}`);
+const agentOf = (grants: G[], who: string, agentId: string): G[] =>
+  grants.filter((g) => g.subject.id === who && g.resource.type === "agent" && g.resource.id === agentId);
 
 async function inviteThread(w: ReturnType<typeof world>) {
-  const ch = (await h["channels.create"]!(w.hn.ctx, { name: "legal", visibility: "invite", memberIds: [LEO], idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
-  const t = insertThread(w.hn.ctx, { kind: "chat", title: "T", starter: DANA, listed: true, channelId: ch.channelId, parentThreadId: ch.mainThreadId });
+  const ch = (
+    await h["channels.create"]!(w.hn.ctx, {
+      name: "legal",
+      visibility: "invite",
+      memberIds: [LEO],
+      idempotencyKey: key(),
+    })
+  ).channel as { channelId: string; mainThreadId: string };
+  const t = insertThread(w.hn.ctx, {
+    kind: "chat",
+    title: "T",
+    starter: DANA,
+    listed: true,
+    channelId: ch.channelId,
+    parentThreadId: ch.mainThreadId,
+  });
   addMember(w.hn.ctx, t.id, DANA, "owner");
   addMember(w.hn.ctx, t.id, LEO);
-  const a = (await h["threads.agent.create"]!(w.hn.ctx, { threadId: t.id, name: "T helper", idempotencyKey: key() })).agentId as string;
+  const a = (await h["threads.agent.create"]!(w.hn.ctx, { threadId: t.id, name: "T helper", idempotencyKey: key() }))
+    .agentId as string;
   return { ch, t, a };
 }
 
@@ -90,32 +154,62 @@ test("an agent made in a thread of an invite-only channel: its folder is cut off
   const w = world();
   const { t, a } = await inviteThread(w);
   assert.equal(w.audience.get(`fld_${a}`), "added", "the folder is open only to people added");
-  for (const who of [DANA, LEO]) assert.deepEqual(folderOf(w.grants, who, a).map((g) => [g.level, g.source]), [["edit", `chat:${t.id}`]], `${who} reads it as a reader of the thread`);
-  assert.equal(w.grants.some((g) => g.resource.type === "folder" && g.subject.kind === "group"), false, "no group is given the folder");
+  for (const who of [DANA, LEO])
+    assert.deepEqual(
+      folderOf(w.grants, who, a).map((g) => [g.level, g.source]),
+      [["edit", `chat:${t.id}`]],
+      `${who} reads it as a reader of the thread`,
+    );
+  assert.equal(
+    w.grants.some((g) => g.resource.type === "folder" && g.subject.kind === "group"),
+    false,
+    "no group is given the folder",
+  );
 });
 
 test("taken out of the channel: the folder goes in the same call; a share of the folder by hand stays", async () => {
   const w = world();
   const { ch, a } = await inviteThread(w);
-  w.grants.push({ resource: { type: "folder", id: `fld_${a}` }, subject: { kind: "person", id: LEO }, level: "view", source: "direct" });
+  w.grants.push({
+    resource: { type: "folder", id: `fld_${a}` },
+    subject: { kind: "person", id: LEO },
+    level: "view",
+    source: "direct",
+  });
   await h["channels.members.remove"]!(w.hn.ctx, { channelId: ch.channelId, personId: LEO });
-  assert.deepEqual(folderOf(w.grants, LEO, a).map((g) => g.source), ["direct"], "only what the thread gave is gone");
+  assert.deepEqual(
+    folderOf(w.grants, LEO, a).map((g) => g.source),
+    ["direct"],
+    "only what the thread gave is gone",
+  );
   assert.deepEqual(agentOf(w.grants, LEO, a), [], "and the agent with it");
   assert.equal(folderOf(w.grants, DANA, a).length, 1, "the one still in keeps it");
 });
 
 test("an agent made in an open channel keeps its folder open to the Space, and no one is given the folder", async () => {
   const w = world();
-  const ch = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
-  const a = (await h["threads.agent.create"]!(w.hn.ctx, { threadId: ch.mainThreadId, name: "Open helper", idempotencyKey: key() })).agentId as string;
+  const ch = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() }))
+    .channel as { channelId: string; mainThreadId: string };
+  const a = (
+    await h["threads.agent.create"]!(w.hn.ctx, {
+      threadId: ch.mainThreadId,
+      name: "Open helper",
+      idempotencyKey: key(),
+    })
+  ).agentId as string;
   assert.equal(w.audience.get(`fld_${a}`), "space");
-  assert.equal(w.grants.some((g) => g.resource.type === "folder"), false);
+  assert.equal(
+    w.grants.some((g) => g.resource.type === "folder"),
+    false,
+  );
 });
 
 test("an agent made in a private chat: its folder is closed, and the people of the chat hold it", async () => {
   const w = world();
-  const threadId = (await h["chat.start"]!(w.hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread.threadId as string;
-  const a = (await h["threads.agent.create"]!(w.hn.ctx, { threadId, name: "Chat helper", idempotencyKey: key() })).agentId as string;
+  const threadId = (await h["chat.start"]!(w.hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() }))
+    .thread.threadId as string;
+  const a = (await h["threads.agent.create"]!(w.hn.ctx, { threadId, name: "Chat helper", idempotencyKey: key() }))
+    .agentId as string;
   assert.equal(w.audience.get(`fld_${a}`), "added");
   assert.equal(folderOf(w.grants, DANA, a).length, 1, "the starter holds it");
   await h["threads.members.add"]!(w.hn.ctx, { threadId, personId: LEO });
@@ -137,18 +231,29 @@ test("the channel made public opens the folder to the Space; made invite-only ag
   const { ch, a } = await inviteThread(w);
   await h["channels.update"]!(w.hn.ctx, { channelId: ch.channelId, visibility: "public" });
   assert.equal(w.audience.get(`fld_${a}`), "space", "open with the channel");
-  assert.equal(w.grants.some((g) => g.resource.id === a && g.subject.kind === "group" && g.subject.id === "space"), true, "the whole Space sees the agent, as for an agent an open channel made");
-  w.grants.splice(0, w.grants.length, ...w.grants.filter((g) => g.resource.type !== "folder"));   // as if its people's folder grants were gone
+  assert.equal(
+    w.grants.some((g) => g.resource.id === a && g.subject.kind === "group" && g.subject.id === "space"),
+    true,
+    "the whole Space sees the agent, as for an agent an open channel made",
+  );
+  w.grants.splice(0, w.grants.length, ...w.grants.filter((g) => g.resource.type !== "folder")); // as if its people's folder grants were gone
   await h["channels.update"]!(w.hn.ctx, { channelId: ch.channelId, visibility: "invite" });
   assert.equal(w.audience.get(`fld_${a}`), "added", "closed with the channel");
-  assert.equal(w.grants.some((g) => g.resource.id === a && g.subject.kind === "group"), false, "the Space no longer sees the agent");
+  assert.equal(
+    w.grants.some((g) => g.resource.id === a && g.subject.kind === "group"),
+    false,
+    "the Space no longer sees the agent",
+  );
   for (const who of [DANA, LEO]) assert.equal(folderOf(w.grants, who, a).length, 1, `${who} holds the folder again`);
 });
 
 test("an agent whose folder cannot be closed is not made", async () => {
   const w = world({ audienceFails: true });
-  const ch = (await h["channels.create"]!(w.hn.ctx, { name: "legal", visibility: "invite", idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
-  await assert.rejects(() => h["threads.agent.create"]!(w.hn.ctx, { threadId: ch.mainThreadId, name: "Leaky", idempotencyKey: key() }));
+  const ch = (await h["channels.create"]!(w.hn.ctx, { name: "legal", visibility: "invite", idempotencyKey: key() }))
+    .channel as { channelId: string; mainThreadId: string };
+  await assert.rejects(() =>
+    h["threads.agent.create"]!(w.hn.ctx, { threadId: ch.mainThreadId, name: "Leaky", idempotencyKey: key() }),
+  );
   assert.equal(w.deleted.length, 1, "the agent made for it is put in Trash");
 });
 
@@ -157,7 +262,9 @@ test("the start sweep brings an agent made before folders followed their chats i
   const { a } = await inviteThread(w);
   w.audience.delete(`fld_${a}`);
   w.grants.splice(0, w.grants.length, ...w.grants.filter((g) => g.resource.type !== "folder"));
-  await (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run(w.hn.ctx);
+  await (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)[
+    "chat.agent_homes"
+  ]!.run(w.hn.ctx);
   assert.equal(w.audience.get(`fld_${a}`), "added");
   for (const who of [DANA, LEO]) assert.equal(folderOf(w.grants, who, a).length, 1, `${who} holds the folder`);
 });
@@ -165,69 +272,124 @@ test("the start sweep brings an agent made before folders followed their chats i
 test("added to an open channel as well, the agent keeps one folder, as private as its home chat: the open channel gives no one the folder", async () => {
   const w = world();
   const { a } = await inviteThread(w);
-  const open = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
+  const open = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() }))
+    .channel as { channelId: string; mainThreadId: string };
   await h["threads.add_agent"]!(w.hn.ctx, { threadId: open.mainThreadId, agentId: a }).catch(() => undefined);
   await h["channels.agents.add"]!(w.hn.ctx, { channelId: open.channelId, agentId: a }).catch(() => undefined);
   assert.equal(w.audience.get(`fld_${a}`), "added", "still closed");
-  assert.equal(w.grants.some((g) => g.resource.id === `fld_${a}` && g.subject.kind === "group"), false, "no group holds the folder");
-  await (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run(w.hn.ctx);
+  assert.equal(
+    w.grants.some((g) => g.resource.id === `fld_${a}` && g.subject.kind === "group"),
+    false,
+    "no group holds the folder",
+  );
+  await (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)[
+    "chat.agent_homes"
+  ]!.run(w.hn.ctx);
   assert.equal(w.audience.get(`fld_${a}`), "added", "the sweep keeps it closed: only its home chat counts");
 });
 
 test("the start sweep run twice, or run after one stopped half way, ends in the same place", async () => {
   const w = world();
   const { a } = await inviteThread(w);
-  const run = (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run;
+  const run = (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)[
+    "chat.agent_homes"
+  ]!.run;
   await run(w.hn.ctx);
   const once = JSON.stringify([...w.grants].sort((x, y) => JSON.stringify(x).localeCompare(JSON.stringify(y))));
   await run(w.hn.ctx);
-  assert.equal(JSON.stringify([...w.grants].sort((x, y) => JSON.stringify(x).localeCompare(JSON.stringify(y)))), once, "twice: the same grants");
+  assert.equal(
+    JSON.stringify([...w.grants].sort((x, y) => JSON.stringify(x).localeCompare(JSON.stringify(y)))),
+    once,
+    "twice: the same grants",
+  );
   // stopped half way: Leo's folder grant written, the cut not yet made
   w.audience.set(`fld_${a}`, "space");
   await run(w.hn.ctx);
   assert.equal(w.audience.get(`fld_${a}`), "added");
-  assert.equal(JSON.stringify([...w.grants].sort((x, y) => JSON.stringify(x).localeCompare(JSON.stringify(y)))), once, "and after a stop: the same grants");
+  assert.equal(
+    JSON.stringify([...w.grants].sort((x, y) => JSON.stringify(x).localeCompare(JSON.stringify(y)))),
+    once,
+    "and after a stop: the same grants",
+  );
 });
 
 test("a Space-wide agent added to an invite-only channel is not touched: its folder keeps the Space, and the channel gives no one its folder", async () => {
   const w = world();
   const { ch } = await inviteThread(w);
   await h["channels.agents.add"]!(w.hn.ctx, { channelId: ch.channelId, agentId: INTAKE }).catch(() => undefined);
-  await (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run(w.hn.ctx);
+  await (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)[
+    "chat.agent_homes"
+  ]!.run(w.hn.ctx);
   assert.equal(w.audience.has(`fld_${INTAKE}`), false, "no audience is set on a Space agent's folder");
-  assert.equal(w.grants.some((g) => g.resource.id === `fld_${INTAKE}`), false, "and no one is given it");
+  assert.equal(
+    w.grants.some((g) => g.resource.id === `fld_${INTAKE}`),
+    false,
+    "and no one is given it",
+  );
 });
 
 test("the same key sent to make an agent in two chats makes two agents: one chat's own agent never becomes another chat's", async () => {
   const w = world();
-  const priv = (await h["chat.start"]!(w.hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread.threadId as string;
-  const open = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
-  const a = (await h["threads.agent.create"]!(w.hn.ctx, { threadId: priv, name: "Mine", idempotencyKey: "same" })).agentId as string;
-  const b = (await h["threads.agent.create"]!(w.hn.ctx, { threadId: open.mainThreadId, name: "Mine", idempotencyKey: "same" }).catch(() => ({ agentId: "" }))).agentId as string;
+  const priv = (await h["chat.start"]!(w.hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread
+    .threadId as string;
+  const open = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() }))
+    .channel as { channelId: string; mainThreadId: string };
+  const a = (await h["threads.agent.create"]!(w.hn.ctx, { threadId: priv, name: "Mine", idempotencyKey: "same" }))
+    .agentId as string;
+  const b = (
+    await h["threads.agent.create"]!(w.hn.ctx, {
+      threadId: open.mainThreadId,
+      name: "Mine",
+      idempotencyKey: "same",
+    }).catch(() => ({ agentId: "" }))
+  ).agentId as string;
   assert.notEqual(b, a, "the open channel did not get the private chat's agent");
-  assert.equal(w.hn.rows(`SELECT * FROM chat_thread_agent WHERE "agentId" = ? AND "owned" = 1 AND "deleted_at" IS NULL`, a).length, 1, "the private chat's agent has one home");
+  assert.equal(
+    w.hn.rows(`SELECT * FROM chat_thread_agent WHERE "agentId" = ? AND "owned" = 1 AND "deleted_at" IS NULL`, a).length,
+    1,
+    "the private chat's agent has one home",
+  );
   assert.equal(w.audience.get(`fld_${a}`), "added", "and its folder stays closed");
 });
 
 test("an agent with two homes (an older build): its folder is as private as its most private home, whichever row the sweep meets last", async () => {
-  const sweep = (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run;
+  const sweep = (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)[
+    "chat.agent_homes"
+  ]!.run;
   const secondHome = (w: ReturnType<typeof world>, thread: string, agentId: string) =>
-    w.hn.ctx.db.run(`INSERT INTO chat_thread_agent (id, thread, agentId, mode, addedBy, version, updated_at, owned) VALUES (?, ?, ?, 'listen', ?, 1, 1, 1)`, `tha_second_${thread}`, thread, agentId, DANA);
+    w.hn.ctx.db.run(
+      `INSERT INTO chat_thread_agent (id, thread, agentId, mode, addedBy, version, updated_at, owned) VALUES (?, ?, ?, 'listen', ?, 1, 1, 1)`,
+      `tha_second_${thread}`,
+      thread,
+      agentId,
+      DANA,
+    );
   // the private home first, the open one last
   {
     const w = world();
     const { a } = await inviteThread(w);
-    const open = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
+    const open = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() }))
+      .channel as { channelId: string; mainThreadId: string };
     secondHome(w, open.mainThreadId, a);
     await sweep(w.hn.ctx);
     assert.equal(w.audience.get(`fld_${a}`), "added", "open home last: still closed");
-    assert.equal(w.grants.some((g) => g.resource.id === `fld_${a}` && g.subject.kind === "group"), false);
+    assert.equal(
+      w.grants.some((g) => g.resource.id === `fld_${a}` && g.subject.kind === "group"),
+      false,
+    );
   }
   // the open home first, the private one last
   {
     const w = world();
-    const open = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
-    const a = (await h["threads.agent.create"]!(w.hn.ctx, { threadId: open.mainThreadId, name: "Open first", idempotencyKey: key() })).agentId as string;
+    const open = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() }))
+      .channel as { channelId: string; mainThreadId: string };
+    const a = (
+      await h["threads.agent.create"]!(w.hn.ctx, {
+        threadId: open.mainThreadId,
+        name: "Open first",
+        idempotencyKey: key(),
+      })
+    ).agentId as string;
     const { t } = await inviteThread(w);
     secondHome(w, t.id, a);
     await sweep(w.hn.ctx);
@@ -238,44 +400,91 @@ test("an agent with two homes (an older build): its folder is as private as its 
 test("S7-1: the sweep reads Leo as a reader, Leo is removed before his grant is written: he ends with nothing", async () => {
   const w = world();
   const { ch, a } = await inviteThread(w);
-  w.grants.splice(0, w.grants.length);   // as before the sweep: nobody holds anything yet
+  w.grants.splice(0, w.grants.length); // as before the sweep: nobody holds anything yet
   // Dana's grant is held, so the sweep has read its readers (Dana, Leo) and waits on Dana while Leo is taken out
   const hold = w.holdShare((g) => g.subject.id === DANA && g.resource.id === a);
-  const sweeping = (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run(w.hn.ctx);
+  const sweeping = (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)[
+    "chat.agent_homes"
+  ]!.run(w.hn.ctx);
   await hold.held;
   await h["channels.members.remove"]!(w.hn.ctx, { channelId: ch.channelId, personId: LEO });
   hold.release();
   await sweeping;
-  assert.deepEqual(w.grants.filter((g) => g.subject.id === LEO), [], "Leo holds nothing on the agent or its folder");
-  assert.ok(w.grants.some((g) => g.subject.id === DANA && g.resource.id === a), "Dana, still a reader, holds the agent");
+  assert.deepEqual(
+    w.grants.filter((g) => g.subject.id === LEO),
+    [],
+    "Leo holds nothing on the agent or its folder",
+  );
+  assert.ok(
+    w.grants.some((g) => g.subject.id === DANA && g.resource.id === a),
+    "Dana, still a reader, holds the agent",
+  );
 });
 
 test("S7-1: a chat grant left on someone who no longer reads the chat is gone after one sweep", async () => {
   const w = world();
   const { t, a } = await inviteThread(w);
   // stale: Mia never read the chat, yet holds the agent and its folder by the chat's source (a race, or an older version)
-  w.grants.push({ resource: { type: "agent", id: a }, subject: { kind: "person", id: MIA }, level: "use", source: `chat:${t.id}` });
-  w.grants.push({ resource: { type: "folder", id: `fld_${a}` }, subject: { kind: "person", id: MIA }, level: "edit", source: `chat:${t.id}` });
-  w.grants.push({ resource: { type: "agent", id: a }, subject: { kind: "person", id: MIA }, level: "view", source: "direct" });
-  await (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run(w.hn.ctx);
-  assert.deepEqual(w.grants.filter((g) => g.subject.id === MIA).map((g) => g.source), ["direct"], "the chat's grants are gone; a share by hand stays");
-  assert.ok(w.grants.some((g) => g.subject.id === LEO && g.resource.id === a), "a reader keeps his");
+  w.grants.push({
+    resource: { type: "agent", id: a },
+    subject: { kind: "person", id: MIA },
+    level: "use",
+    source: `chat:${t.id}`,
+  });
+  w.grants.push({
+    resource: { type: "folder", id: `fld_${a}` },
+    subject: { kind: "person", id: MIA },
+    level: "edit",
+    source: `chat:${t.id}`,
+  });
+  w.grants.push({
+    resource: { type: "agent", id: a },
+    subject: { kind: "person", id: MIA },
+    level: "view",
+    source: "direct",
+  });
+  await (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)[
+    "chat.agent_homes"
+  ]!.run(w.hn.ctx);
+  assert.deepEqual(
+    w.grants.filter((g) => g.subject.id === MIA).map((g) => g.source),
+    ["direct"],
+    "the chat's grants are gone; a share by hand stays",
+  );
+  assert.ok(
+    w.grants.some((g) => g.subject.id === LEO && g.resource.id === a),
+    "a reader keeps his",
+  );
 });
 
 test("the agent itself is cut off with its chat, and keeps its own hold on itself", async () => {
   const w = world();
   const { t, a } = await inviteThread(w);
   assert.equal(w.audience.get(a), "added", "the agent is open only to people added");
-  assert.ok(w.grants.some((g) => g.resource.id === a && g.subject.kind === "agent" && g.subject.id === a && g.source === `chat:${t.id}`), "it holds itself by the chat's grant");
-  const open = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
-  const b = (await h["threads.agent.create"]!(w.hn.ctx, { threadId: open.mainThreadId, name: "Open helper", idempotencyKey: key() })).agentId as string;
+  assert.ok(
+    w.grants.some(
+      (g) => g.resource.id === a && g.subject.kind === "agent" && g.subject.id === a && g.source === `chat:${t.id}`,
+    ),
+    "it holds itself by the chat's grant",
+  );
+  const open = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() }))
+    .channel as { channelId: string; mainThreadId: string };
+  const b = (
+    await h["threads.agent.create"]!(w.hn.ctx, {
+      threadId: open.mainThreadId,
+      name: "Open helper",
+      idempotencyKey: key(),
+    })
+  ).agentId as string;
   assert.equal(w.audience.get(b) ?? "space", "space", "an open channel's agent stays open to the Space");
 });
 
 test("a quiet day: the daily sweep over agents already in line writes nothing", async () => {
   const w = world();
   await inviteThread(w);
-  const run = (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run;
+  const run = (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)[
+    "chat.agent_homes"
+  ]!.run;
   await run(w.hn.ctx);
   const writes = () => w.hn.callLog.filter((c) => c.cap === "access.share" || c.cap === "access.unshare").length;
   const before = writes();
@@ -287,8 +496,25 @@ test("the sweep reads every page of what a chat gave, so a stale grant past the 
   const w = world();
   const { t, a } = await inviteThread(w);
   // 600 grants of the chat's source, the stale one last
-  for (let i = 0; i < 599; i++) w.grants.push({ resource: { type: "agent", id: `agt_other${i}` }, subject: { kind: "group", id: `grp_${i}` }, level: "use", source: `chat:${t.id}` });
-  w.grants.push({ resource: { type: "agent", id: a }, subject: { kind: "person", id: MIA }, level: "use", source: `chat:${t.id}` });
-  await (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run(w.hn.ctx);
-  assert.equal(w.grants.some((g) => g.subject.id === MIA), false, "Mia's stale grant, on the second page, is gone");
+  for (let i = 0; i < 599; i++)
+    w.grants.push({
+      resource: { type: "agent", id: `agt_other${i}` },
+      subject: { kind: "group", id: `grp_${i}` },
+      level: "use",
+      source: `chat:${t.id}`,
+    });
+  w.grants.push({
+    resource: { type: "agent", id: a },
+    subject: { kind: "person", id: MIA },
+    level: "use",
+    source: `chat:${t.id}`,
+  });
+  await (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)[
+    "chat.agent_homes"
+  ]!.run(w.hn.ctx);
+  assert.equal(
+    w.grants.some((g) => g.subject.id === MIA),
+    false,
+    "Mia's stale grant, on the second page, is gone",
+  );
 });

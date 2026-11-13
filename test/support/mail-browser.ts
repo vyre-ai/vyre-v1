@@ -16,15 +16,29 @@ type Browser = import("playwright-core").Browser;
 type BrowserContext = import("playwright-core").BrowserContext;
 type Page = import("playwright-core").Page;
 
-export interface Screens { browser: Browser; web: Edge; world: MailWorld; seats: Seat[]; /** what every browser shows and what the app was refused, saved when a journey fails */ debug(dir: string): Promise<void>; close(): Promise<void> }
-
+export interface Screens {
+  browser: Browser;
+  web: Edge;
+  world: MailWorld;
+  seats: Seat[];
+  /** what every browser shows and what the app was refused, saved when a journey fails */ debug(
+    dir: string,
+  ): Promise<void>;
+  close(): Promise<void>;
+}
 
 /** Null (with the reason) when this machine cannot run the journeys: no web export, no Chromium. */
-export async function browserOrSkip(): Promise<{ dist: string; chromium: import("playwright-core").BrowserType; exe: string } | string> {
+export async function browserOrSkip(): Promise<
+  { dist: string; chromium: import("playwright-core").BrowserType; exe: string } | string
+> {
   const required = process.env["VYRE_REQUIRE_CHROME"] === "1";
-  const refuse = (why: string): string => { if (required) throw new Error(`${why} (VYRE_REQUIRE_CHROME=1: release evidence may not skip)`); return why; };
+  const refuse = (why: string): string => {
+    if (required) throw new Error(`${why} (VYRE_REQUIRE_CHROME=1: release evidence may not skip)`);
+    return why;
+  };
   const dist = process.env["VYRE_APP_DIST"];
-  if (!dist) return refuse("VYRE_APP_DIST is not set: the release-evidence job builds the web export and points it there");
+  if (!dist)
+    return refuse("VYRE_APP_DIST is not set: the release-evidence job builds the web export and points it there");
   const pw = await import("playwright-core");
   const chromium = pw.chromium ?? (pw as unknown as { default: typeof pw }).default.chromium;
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
@@ -33,7 +47,10 @@ export async function browserOrSkip(): Promise<{ dist: string; chromium: import(
 }
 
 /** A mail world whose address is the edge the browser opens, so the redirect a sign-in comes back to lands on the app. */
-export async function bootScreens(o: Omit<WorldOptions, "address">, env: { dist: string; chromium: import("playwright-core").BrowserType; exe: string }): Promise<Screens> {
+export async function bootScreens(
+  o: Omit<WorldOptions, "address">,
+  env: { dist: string; chromium: import("playwright-core").BrowserType; exe: string },
+): Promise<Screens> {
   // The edge listens first, so its port is held from the start. It used to pick a free port, give it back, and bind it only after the world had booted (seconds later, longer on a busy host): another process could take the
   // port in between, the listen failed with an error nobody caught, the test failed and the world already running kept the process alive until the watchdog killed it.
   let daemonUrl = "";
@@ -56,35 +73,90 @@ export async function bootScreens(o: Omit<WorldOptions, "address">, env: { dist:
     fs.mkdirSync(`${dir}/_failed`, { recursive: true });
     for (const [i, st] of seats.entries()) {
       await st.page.screenshot({ path: `${dir}/_failed/seat${i}-${st.who.username}.png` }).catch(() => undefined);
-      fs.writeFileSync(`${dir}/_failed/seat${i}-${st.who.username}.log`, `${st.page.url()}\nerrors: ${JSON.stringify(st.errors)}\n${st.logs.join("\n")}\n`);
+      fs.writeFileSync(
+        `${dir}/_failed/seat${i}-${st.who.username}.log`,
+        `${st.page.url()}\nerrors: ${JSON.stringify(st.errors)}\n${st.logs.join("\n")}\n`,
+      );
     }
   };
   const live = { browser: browser!, world: world! };
   // every part is closed even when an earlier one fails to: a close that throws halfway used to leave the daemon running
-  return { browser: live.browser, web, world: live.world, seats, debug, async close() { await live.browser.close().catch(() => undefined); web.close(); await live.world.stop(); } };
+  return {
+    browser: live.browser,
+    web,
+    world: live.world,
+    seats,
+    debug,
+    async close() {
+      await live.browser.close().catch(() => undefined);
+      web.close();
+      await live.world.stop();
+    },
+  };
 }
 
 /** What the browser holds once signed in as this person. */
 async function sessionFor(s: Screens, who: Person, role: string): Promise<string> {
-  const marker = ((await createCapCaller({ baseUrl: s.world.d.url, token: () => who.token })("spaces.get", {})) as { space: { fingerprint: string } }).space.fingerprint;
-  const def = { spaceId: "spc_pmail", name: s.world.kind === "personal" ? "Personal" : "Fresh Co", kind: s.world.kind, address: s.web.origin, role, tint: ["#6E5CF0", "#9B6BE8"], kit: "northwind", skinDefault: "system", starred: true, needsYou: false, console: role === "Owner", terminal: role === "Owner", counts: {}, dots: {} };
-  return JSON.stringify({ sessions: { [s.web.origin]: { baseUrl: s.web.origin, token: who.token, def, personId: who.id, marker } } });
+  const marker = (
+    (await createCapCaller({ baseUrl: s.world.d.url, token: () => who.token })("spaces.get", {})) as {
+      space: { fingerprint: string };
+    }
+  ).space.fingerprint;
+  const def = {
+    spaceId: "spc_pmail",
+    name: s.world.kind === "personal" ? "Personal" : "Fresh Co",
+    kind: s.world.kind,
+    address: s.web.origin,
+    role,
+    tint: ["#6E5CF0", "#9B6BE8"],
+    kit: "northwind",
+    skinDefault: "system",
+    starred: true,
+    needsYou: false,
+    console: role === "Owner",
+    terminal: role === "Owner",
+    counts: {},
+    dots: {},
+  };
+  return JSON.stringify({
+    sessions: { [s.web.origin]: { baseUrl: s.web.origin, token: who.token, def, personId: who.id, marker } },
+  });
 }
 
-export interface Seat { ctx: BrowserContext; page: Page; who: Person; errors: string[]; /** console errors and refused calls, for a failure to explain itself */ logs: string[]; setEmail(email: string): void }
+export interface Seat {
+  ctx: BrowserContext;
+  page: Page;
+  who: Person;
+  errors: string[];
+  /** console errors and refused calls, for a failure to explain itself */ logs: string[];
+  setEmail(email: string): void;
+}
 
 /**
  * A browser for one person. Opening a provider's sign-in page is answered the way the provider does after the person approves: a redirect back to the app with a code for the
  * account `setEmail` named last. The app's own popup then finishes the sign-in as that person.
  */
-export async function seat(s: Screens, who: Person, role: string, o: { touch?: { width: number; height: number } } = {}): Promise<Seat> {
+export async function seat(
+  s: Screens,
+  who: Person,
+  role: string,
+  o: { touch?: { width: number; height: number } } = {},
+): Promise<Seat> {
   const saved = await sessionFor(s, who, role);
   // The app on this computer shows its launch lock until the daemon holds the person's key (KeyGate). A person types their password once; the world's passwords are stand-ins that open nothing,
   // so the seat hands the daemon a key the way that entry would. The lock screen itself is walked by test/vault.lock-screen.live.test.ts.
   await holdKeyOnOwnNode(s.web.origin, who.token, new Uint8Array(32).fill(7)).catch(() => false);
   // a touch seat is a tablet: a finger for a pointer (no hover), whatever the width
-  const ctx = await s.browser.newContext(o.touch ? { viewport: o.touch, hasTouch: true, isMobile: false } : { viewport: SIZES.desktop });
-  await ctx.addInitScript((v: string) => { try { if (!localStorage.getItem("vyre.session.v1")) localStorage.setItem("vyre.session.v1", v); } catch { /* blocked storage */ } }, saved);
+  const ctx = await s.browser.newContext(
+    o.touch ? { viewport: o.touch, hasTouch: true, isMobile: false } : { viewport: SIZES.desktop },
+  );
+  await ctx.addInitScript((v: string) => {
+    try {
+      if (!localStorage.getItem("vyre.session.v1")) localStorage.setItem("vyre.session.v1", v);
+    } catch {
+      /* blocked storage */
+    }
+  }, saved);
   let email = "";
   await ctx.route(/^https:\/\/(accounts\.google\.com|login\.microsoftonline\.com)\//, async (route) => {
     const u = new URL(route.request().url());
@@ -97,9 +169,22 @@ export async function seat(s: Screens, who: Person, role: string, o: { touch?: {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message.slice(0, 200)));
   const logs: string[] = [];
-  page.on("console", (m) => { if (m.type() === "error") logs.push(`console ${m.text().slice(0, 300)}`); });
-  page.on("response", (r) => { if (r.status() >= 400) logs.push(`${r.status()} ${new URL(r.url()).pathname}`); });
-  const made: Seat = { ctx, page, who, errors, logs, setEmail: (e) => { email = e; } };
+  page.on("console", (m) => {
+    if (m.type() === "error") logs.push(`console ${m.text().slice(0, 300)}`);
+  });
+  page.on("response", (r) => {
+    if (r.status() >= 400) logs.push(`${r.status()} ${new URL(r.url()).pathname}`);
+  });
+  const made: Seat = {
+    ctx,
+    page,
+    who,
+    errors,
+    logs,
+    setEmail: (e) => {
+      email = e;
+    },
+  };
   s.seats.push(made);
   return made;
 }
@@ -108,17 +193,50 @@ export async function open(seatOf: Seat, s: Screens, route: string): Promise<voi
   await seatOf.page.goto(`${s.web.origin}${route}`, { waitUntil: "load" });
   // The app asks for the password at launch while nobody holds the person's key (owner, 4 Nov): the person types it, as they would
   const lock = seatOf.page.getByTestId("lock-password");
-  if (await lock.waitFor({ timeout: 6_000 }).then(() => true, () => false)) { await lock.fill(PASSWORD); await lock.press("Enter"); }
-  try { await seatOf.page.getByTestId("shell").or(seatOf.page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30_000 }); }
-  catch (e) {
+  if (
+    await lock.waitFor({ timeout: 6_000 }).then(
+      () => true,
+      () => false,
+    )
+  ) {
+    await lock.fill(PASSWORD);
+    await lock.press("Enter");
+  }
+  try {
+    await seatOf.page
+      .getByTestId("shell")
+      .or(seatOf.page.getByTestId("mobile-shell"))
+      .first()
+      .waitFor({ timeout: 30_000 });
+  } catch (e) {
     // say what is on the screen instead: the picture and the refused calls are the evidence
     await seatOf.page.screenshot({ path: "shots-evidence/open-failed.png" }).catch(() => undefined);
-    throw new Error(`${route}: the shell did not appear. Page says: ${(await seatOf.page.locator("body").innerText().catch(() => "")).slice(0, 300).replace(/\s+/g, " ")} | refused: ${seatOf.logs.slice(-6).join("; ")} | ${(e as Error).message.split("\n")[0]}`);
+    throw new Error(
+      `${route}: the shell did not appear. Page says: ${(
+        await seatOf.page
+          .locator("body")
+          .innerText()
+          .catch(() => "")
+      )
+        .slice(0, 300)
+        .replace(/\s+/g, " ")} | refused: ${seatOf.logs.slice(-6).join("; ")} | ${(e as Error).message.split("\n")[0]}`,
+    );
   }
   const onboarding = seatOf.page.getByTestId("onboarding");
-  if (await onboarding.waitFor({ timeout: 4_000 }).then(() => true, () => false)) {
+  if (
+    await onboarding.waitFor({ timeout: 4_000 }).then(
+      () => true,
+      () => false,
+    )
+  ) {
     // a person leaves onboarding with Finish later; when this Space's screen has no such button the picture says what is there instead
-    const closed = await seatOf.page.getByTestId("onboarding-close").click({ timeout: 4_000 }).then(() => true, () => false);
+    const closed = await seatOf.page
+      .getByTestId("onboarding-close")
+      .click({ timeout: 4_000 })
+      .then(
+        () => true,
+        () => false,
+      );
     if (!closed) {
       fs.mkdirSync("shots-evidence/personal-mail/_debug", { recursive: true });
       await seatOf.page.screenshot({ path: `shots-evidence/personal-mail/_debug/onboarding-${Date.now()}.png` });
@@ -140,8 +258,17 @@ function darkTokens(p: Page): Promise<{ css: string; mode: string; skin: string 
       const q = await ctx.newPage();
       try {
         await q.goto(`${new URL(p.url()).origin}/home?skin=graphite`, { waitUntil: "domcontentloaded" });
-        return await q.evaluate(() => { const r = document.documentElement; return { css: r.getAttribute("style") ?? "", mode: r.getAttribute("data-mode") ?? "dark", skin: r.getAttribute("data-skin") ?? "graphite" }; });
-      } finally { await q.close(); }
+        return await q.evaluate(() => {
+          const r = document.documentElement;
+          return {
+            css: r.getAttribute("style") ?? "",
+            mode: r.getAttribute("data-mode") ?? "dark",
+            skin: r.getAttribute("data-skin") ?? "graphite",
+          };
+        });
+      } finally {
+        await q.close();
+      }
     })();
     darkByContext.set(ctx, t);
   }
@@ -157,8 +284,18 @@ export async function setScheme(p: Page, scheme: "light" | "dark"): Promise<void
     const dark = await darkTokens(p);
     await p.evaluate((d) => {
       const r = document.documentElement;
-      if (r.getAttribute("data-shot-orig") === null) r.setAttribute("data-shot-orig", JSON.stringify({ style: r.getAttribute("style") ?? "", mode: r.getAttribute("data-mode") ?? "", skin: r.getAttribute("data-skin") ?? "" }));
-      r.setAttribute("style", d.css); r.setAttribute("data-mode", d.mode); r.setAttribute("data-skin", d.skin);
+      if (r.getAttribute("data-shot-orig") === null)
+        r.setAttribute(
+          "data-shot-orig",
+          JSON.stringify({
+            style: r.getAttribute("style") ?? "",
+            mode: r.getAttribute("data-mode") ?? "",
+            skin: r.getAttribute("data-skin") ?? "",
+          }),
+        );
+      r.setAttribute("style", d.css);
+      r.setAttribute("data-mode", d.mode);
+      r.setAttribute("data-skin", d.skin);
     }, dark);
   } else {
     await p.evaluate(() => {
@@ -166,7 +303,10 @@ export async function setScheme(p: Page, scheme: "light" | "dark"): Promise<void
       const o = r.getAttribute("data-shot-orig");
       if (o === null) return;
       const v = JSON.parse(o) as { style: string; mode: string; skin: string };
-      r.setAttribute("style", v.style); r.setAttribute("data-mode", v.mode); r.setAttribute("data-skin", v.skin); r.removeAttribute("data-shot-orig");
+      r.setAttribute("style", v.style);
+      r.setAttribute("data-mode", v.mode);
+      r.setAttribute("data-skin", v.skin);
+      r.removeAttribute("data-shot-orig");
     });
   }
 }
@@ -191,13 +331,20 @@ export async function shoot(p: Page, dir: string, step: string): Promise<string[
  * The phone pass, at the end of a journey: the phone width draws another shell, so it is not done mid-flow. Each route is opened fresh at phone width and shot in light and dark.
  * A route that cannot draw at phone width fails the journey like any other step.
  */
-export async function phonePass(seatOf: Seat, s: Screens, dir: string, steps: { name: string; route: string; /** the phone tab to open (Home is the You tab) */ tab?: string }[]): Promise<void> {
+export async function phonePass(
+  seatOf: Seat,
+  s: Screens,
+  dir: string,
+  steps: { name: string; route: string; /** the phone tab to open (Home is the You tab) */ tab?: string }[],
+): Promise<void> {
   await seatOf.page.setViewportSize(SIZES.phone);
   for (const st of steps) {
     await open(seatOf, s, st.route);
     if (st.tab) await seatOf.page.getByText(st.tab, { exact: true }).last().click();
     await seatOf.page.waitForTimeout(800);
-    await shoot(seatOf.page, dir, `phone-${st.name}`).then((files) => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))));
+    await shoot(seatOf.page, dir, `phone-${st.name}`).then((files) =>
+      files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))),
+    );
   }
   await seatOf.page.setViewportSize(SIZES.desktop);
 }
