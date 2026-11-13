@@ -53,7 +53,11 @@ async function sha12(text) {
   return Buffer.from(d).toString("hex").slice(0, 12);
 }
 
+/** Which process and session served a turn, for a test that proves one warm session served several (added to the "toolfind" and goal wake-up answers only). */
+const servedBy = () => ` [pid=${process.pid} session=${session}]`;
+let lastReply = "";
 function reply(parts) {
+  lastReply = parts.join("");
   init();
   out({ type: "stream_event", event: { type: "message_start", message: { id: `m_${Date.now()}` } } });
   for (const text of parts) out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } } });
@@ -138,18 +142,20 @@ async function sendMail(prompt) {
 /** The turn context an engine puts in front of the message is system context a real model reads and does not act on as a command: this fake picks its scenario from the words after it. */
 const withoutContext = (p) => p.replace(/^<vyre-context>[\s\S]*?<\/vyre-context>\s*/, "");
 
-async function callTool(prompt) {
-  const m = /^\s*tool\s+(\S+)\s*(.*)$/s.exec(prompt);
+async function callTool(prompt, search = false) {
+  const m = /^\s*tool(?:find)?\s+(\S+)\s*(.*)$/s.exec(prompt);
   if (!m) { reply(["mcp error: say which tool"]); return; }
   let args = {};
   try { args = m[2].trim() === "" ? {} : JSON.parse(m[2]); } catch { reply(["mcp error: the arguments are not JSON"]); return; }
   let mcp;
   try {
     mcp = await mcpOpen();
+    // a tool that is not in the first list is found with tool_search first, as a CLI engine's model does
+    if (search) await mcp.call("tool_search", { query: m[1] });
     const r = await mcp.call(m[1], args);
     if (r?.error) { reply([`mcp error: ${r.error.message ?? "the call failed"}`]); return; }
     const text = (r?.result?.content ?? []).map((c) => c.text ?? "").join("\n");
-    reply([`${m[1]} ${r?.result?.isError ? "refused" : "answered"}: ${text}`]);
+    reply([`${m[1]} ${r?.result?.isError ? "refused" : "answered"}: ${text}${search ? servedBy() : ""}`]);
   } catch (e) {
     reply([`mcp error: ${e instanceof Error ? e.message : "the call failed"}`]);
   } finally { mcp?.close(); }
@@ -335,9 +341,39 @@ async function run(raw) {
     out({ type: "result", subtype: "success", is_error: false, result: "", session_id: session, usage: { input_tokens: 42_000, output_tokens: 700 } });
     return;
   }
+  // a goal's wake-up (its context names the goal and why the lead was woken): the lead tries the owner's control, as a model might, so a test can prove nobody asked
+  // (a resumed session is sent only the parts of its context that changed, so the goal's id may be in an earlier turn: it is kept in the folder)
+  let woken = /goalId (gol_[a-z0-9]+)/.exec(raw);
+  const idFile = path.join(process.cwd(), "fake-goal-id.txt");
+  if (woken) { try { fs.writeFileSync(idFile, woken[1]); } catch { /* not writable */ } }
+  else if (/You were woken because/.test(raw)) { try { const id = fs.readFileSync(idFile, "utf8").trim(); if (id) woken = [id, id]; } catch { /* none kept */ } }
+  if (woken && /You were woken because/.test(raw)) {
+    // the lead tries the owner's control, then reports its check-in as a good lead does, so the next wake-up is not held back by this one
+    let said = "";
+    let mcp;
+    try {
+      mcp = await mcpOpen();
+      await mcp.call("tool_search", { query: "goals_extend" });
+      const r = await mcp.call("goals_extend", { goalId: woken[1], deadline: Date.now() + 30 * 86_400_000 });
+      said = r?.error ? `mcp error: ${r.error.message ?? "the call failed"}` : `goals_extend ${r?.result?.isError ? "refused" : "answered"}: ${(r?.result?.content ?? []).map((c) => c.text ?? "").join("\n")}`;
+      said = `${said}${servedBy()}`;
+      const wakeId = /wakeId (\S+)\. End this turn/.exec(raw)?.[1];
+      await mcp.call("tool_search", { query: "goals_checkin_post" });
+      await mcp.call("goals_checkin_post", { goalId: woken[1], ...(wakeId ? { wakeId } : {}), summary: "Checked in." });
+    } catch (e) { said = said || `mcp error: ${e instanceof Error ? e.message : "the call failed"}`; } finally { mcp?.close(); }
+    // the lead's text is also left in the folder it works in, for a test to read
+    try { fs.appendFileSync(path.join(process.cwd(), "fake-wake-result.txt"), `${said.replace(/\n/g, " ")}\n`); } catch { /* a folder that cannot be written is the test's to notice */ }
+    reply([said]);
+    return;
+  }
+  // (the wake-up is judged before any "tool" line: a wake-up turn is sent the chat's earlier lines too)
   // a "tool" line is the person's message, which comes last and may follow context or memory the engine put in front of it
   const toolLine = prompt.split("\n").reverse().find((l) => /^tool\s+\S+/.test(l));
   if (toolLine) { await callTool(toolLine); return; }
+  // "toolfind <name> <json>": the same, after tool_search found the tool (a goal tool is not in the first list)
+  // (a poke's line reads "<person> poked <agent>: toolfind ...", so the words may follow a prefix)
+  const findLine = prompt.split("\n").reverse().find((l) => /(^|:\s)toolfind\s+\S+/.test(l));
+  if (findLine) { await callTool(findLine.slice(findLine.indexOf("toolfind")), true); return; }
   if (prompt.split("\n").some((l) => l.trim() === "skillscheck")) { reply([skillsCheck()]); return; }
   const first = prompt.trim().split(/\s+/)[0];
   // a side question (/btw): its first message carries "The question: ..."; the answer streams a few words

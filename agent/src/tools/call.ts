@@ -19,7 +19,7 @@ import { withLocalTimes } from "../../../lib/time-convert.ts";
 export const NO_COMPUTER_WORDS = "Agents no longer get a desktop computer. You already have a terminal in your own workspace (terminal_run, terminal_open) and a browser in the Space browser (chrome_open, chrome_snapshot, chrome_act). Use those. Use the person's own Chrome only if they ask for it.";
 
 /** The capabilities whose results are times a person schedules by. */
-const TIMED = /^(?:calendar|mail|inbox|tasks|meetings|events)\./;
+const TIMED = /^(?:calendar|mail|inbox|tasks|meetings|events|goals)\./;
 
 export type ToolOutcome =
   /** `parkOn`: a question asked of the person (ask_question): the turn waits on its block and makes no further model call until it is answered. */

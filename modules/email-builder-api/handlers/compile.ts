@@ -658,7 +658,7 @@ async function create(ctx: Ctx, input: unknown): Promise<{ email: EmailDoc }> {
   if (mode === "plain") doc.plain = "";
   ctx.db.run(
     "INSERT INTO email_builder_api_email (id, name, mode, owner, folder_id, subject, blocks, html, plain, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, name, mode, ctx.principal.id, folderId, null, doc.blocks === undefined ? null : JSON.stringify(doc.blocks), doc.html ?? null, doc.plain ?? null, 1, now, now,
+    id, name, mode, mine(ctx), folderId, null, doc.blocks === undefined ? null : JSON.stringify(doc.blocks), doc.html ?? null, doc.plain ?? null, 1, now, now,
   );
   ctx.db.run("INSERT INTO email_builder_api_version (email_id, version, doc, at, author) VALUES (?, ?, ?, ?, ?)", id, 1, snapshot(doc), now, ctx.principal.id);
   ctx.emit("email.created", `email/${id}`, folderId === null ? { emailId: id } : { emailId: id, folderId });
@@ -812,6 +812,9 @@ async function mergeFields(ctx: Ctx, input: unknown): Promise<{ fields: { key: s
   return { fields };
 }
 
+/** Whose library and designs these are: the person an agent acts for, else the caller. What an agent makes while acting for a person belongs to that person. */
+const mine = (ctx: Ctx): string => (ctx.principal.kind === "agent" && typeof ctx.actingFor === "string" && ctx.actingFor.startsWith("usr_") ? ctx.actingFor : ctx.principal.id);
+
 // ---- snippets -----------------------------------------------------------------------------------------------------------
 
 interface SnippetOut { snippetId: string; name: string; body: string; shortcut?: string; shared: boolean; updatedAt: number }
@@ -824,7 +827,7 @@ function snippetOut(r: Row): SnippetOut {
 
 async function snippetsList(ctx: Ctx, _input: unknown): Promise<{ snippets: SnippetOut[] }> {
   const rows = many(ctx, "SELECT * FROM email_builder_api_snippet")
-    .filter((r) => r.owner === ctx.principal.id || r.shared === 1)
+    .filter((r) => r.owner === mine(ctx) || r.shared === 1)
     .sort((a, b) => str(a.name).localeCompare(str(b.name)) || str(a.id).localeCompare(str(b.id)));
   return { snippets: rows.map(snippetOut) };
 }
@@ -840,9 +843,9 @@ async function snippetsSave(ctx: Ctx, input: unknown): Promise<{ snippet: Snippe
   if (sharedIn !== undefined && sharedIn !== null && typeof sharedIn !== "boolean") fail(ctx, "validation.bad_input", "Shared is true or false.", { field: "shared" });
   const snippetId = optStr(ctx, o, "snippetId");
   const existing = snippetId === undefined ? undefined : one(ctx, "SELECT * FROM email_builder_api_snippet WHERE id = ?", snippetId);
-  if (snippetId !== undefined && (!existing || existing.owner !== ctx.principal.id)) fail(ctx, "validation.not_found", "That snippet does not exist.");
+  if (snippetId !== undefined && (!existing || existing.owner !== mine(ctx))) fail(ctx, "validation.not_found", "That snippet does not exist.");
   if (shortcut !== undefined) {
-    const clash = many(ctx, "SELECT * FROM email_builder_api_snippet WHERE owner = ?", ctx.principal.id).find((r) => r.shortcut === shortcut && r.id !== snippetId);
+    const clash = many(ctx, "SELECT * FROM email_builder_api_snippet WHERE owner = ?", mine(ctx)).find((r) => r.shortcut === shortcut && r.id !== snippetId);
     if (clash) fail(ctx, "validation.duplicate", "You already have a snippet with that shortcut.", { field: "shortcut" });
   }
   const shared = sharedIn === true ? 1 : sharedIn === false ? 0 : existing ? num(existing.shared) : 0;
@@ -851,7 +854,7 @@ async function snippetsSave(ctx: Ctx, input: unknown): Promise<{ snippet: Snippe
   if (existing) {
     ctx.db.run("UPDATE email_builder_api_snippet SET name = ?, body = ?, shortcut = ?, shared = ?, updated_at = ? WHERE id = ?", name, body, shortcut ?? null, shared, now, id);
   } else {
-    ctx.db.run("INSERT INTO email_builder_api_snippet (id, owner, name, body, shortcut, shared, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", id, ctx.principal.id, name, body, shortcut ?? null, shared, now);
+    ctx.db.run("INSERT INTO email_builder_api_snippet (id, owner, name, body, shortcut, shared, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", id, mine(ctx), name, body, shortcut ?? null, shared, now);
   }
   return { snippet: snippetOut(one(ctx, "SELECT * FROM email_builder_api_snippet WHERE id = ?", id) ?? {}) };
 }
@@ -859,7 +862,7 @@ async function snippetsSave(ctx: Ctx, input: unknown): Promise<{ snippet: Snippe
 async function snippetsDelete(ctx: Ctx, input: unknown): Promise<{ deleted: boolean }> {
   const o = rec(ctx, input);
   const row = one(ctx, "SELECT * FROM email_builder_api_snippet WHERE id = ?", reqStr(ctx, o, "snippetId"));
-  if (!row || row.owner !== ctx.principal.id) return { deleted: false };
+  if (!row || row.owner !== mine(ctx)) return { deleted: false };
   ctx.db.run("DELETE FROM email_builder_api_snippet WHERE id = ?", row.id);
   return { deleted: true };
 }
@@ -876,7 +879,7 @@ function savedOut(r: Row): SavedBlockOut {
 
 async function savedBlocksList(ctx: Ctx, _input: unknown): Promise<{ blocks: SavedBlockOut[] }> {
   const rows = many(ctx, "SELECT * FROM email_builder_api_block")
-    .filter((r) => r.owner === ctx.principal.id || r.shared === 1)
+    .filter((r) => r.owner === mine(ctx) || r.shared === 1)
     .sort((a, b) => str(a.name).localeCompare(str(b.name)) || str(a.id).localeCompare(str(b.id)));
   return { blocks: rows.map(savedOut) };
 }
@@ -891,15 +894,15 @@ async function savedBlocksSave(ctx: Ctx, input: unknown): Promise<{ block: Saved
   if (sharedIn !== undefined && sharedIn !== null && typeof sharedIn !== "boolean") fail(ctx, "validation.bad_input", "Shared is true or false.", { field: "shared" });
   const blockId = optStr(ctx, o, "blockId");
   const existing = blockId === undefined ? undefined : one(ctx, "SELECT * FROM email_builder_api_block WHERE id = ?", blockId);
-  if (blockId !== undefined && (!existing || (existing.owner !== ctx.principal.id && existing.shared !== 1))) fail(ctx, "validation.not_found", "That saved block does not exist.");
-  if (existing && existing.owner !== ctx.principal.id) fail(ctx, "permission.no_grant", "Only the person who saved a block can change it.");
+  if (blockId !== undefined && (!existing || (existing.owner !== mine(ctx) && existing.shared !== 1))) fail(ctx, "validation.not_found", "That saved block does not exist.");
+  if (existing && existing.owner !== mine(ctx)) fail(ctx, "permission.no_grant", "Only the person who saved a block can change it.");
   const shared = sharedIn === true ? 1 : sharedIn === false ? 0 : existing ? num(existing.shared) : 0;
   const now = ctx.now();
   const id = existing ? str(existing.id) : nid(ctx, "blk");
   const json = JSON.stringify(block);
   if (json.length > MAX_HTML) fail(ctx, "validation.too_large", "A saved block is at most 1 MB.", { field: "block" });
   if (existing) ctx.db.run("UPDATE email_builder_api_block SET name = ?, block = ?, shared = ?, updated_at = ? WHERE id = ?", name, json, shared, now, id);
-  else ctx.db.run("INSERT INTO email_builder_api_block (id, owner, name, block, shared, updated_at) VALUES (?, ?, ?, ?, ?, ?)", id, ctx.principal.id, name, json, shared, now);
+  else ctx.db.run("INSERT INTO email_builder_api_block (id, owner, name, block, shared, updated_at) VALUES (?, ?, ?, ?, ?, ?)", id, mine(ctx), name, json, shared, now);
   ctx.emit("email_block.saved", `entity/${id}`, { blockId: id, shared: shared === 1 }, { vis: "owner" });
   return { block: savedOut(one(ctx, "SELECT * FROM email_builder_api_block WHERE id = ?", id) ?? {}) };
 }

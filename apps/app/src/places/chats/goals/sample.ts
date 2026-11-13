@@ -42,13 +42,13 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
     : [];
   const readings: Reading[] = [96, 118, 140, 171, 194, 212, ...(state === "missed" ? [240, 268] : state === "done" ? [253, 301] : [])].map((v, i) => ({ at: created + i * 0.75 * DAY, value: v, ok: true }));
   const activity: ActivityLine[] = [
-    { at: now - 4 * 60_000, kind: "reading", text: "Luma, Lab 8 event: 212 (+18 since the last check-in)" },
-    { at: now - 4 * HOUR, kind: "checkin", text: "Check-in 4: 212 of 300 registrations." },
+    { at: now - 4 * 60_000, kind: "reading", text: "Luma, Lab 8 event: 212, up 18 since the last check-in" },
+    { at: now - 4 * HOUR, kind: "checkin", text: "Check-in: 212 of 300 registrations." },
     { at: now - 4 * HOUR + 60_000, kind: "report", text: "212, behind pace by 30. The Lab 7 reminder is the biggest lever; it waits on your approval.", by: "agt_labdesk>usr_irfad" },
-    { at: now - 26 * HOUR, kind: "waiting", text: "Waiting: Approve: email to 1,240 Lab 7 attendees", ref: "tsk_hold" },
-    { at: now - 2 * DAY, kind: "task", text: "Done: VY-312 Post Lab 8 in the MLA AI Labs community", ref: "tsk_skool" },
+    { at: now - 26 * HOUR, kind: "waiting", text: `${whoToken("agt_labdesk")} asked ${whoToken("usr_irfad")}: Approve: email to 1,240 Lab 7 attendees?`, ref: "tsk_hold" },
+    { at: now - 2 * DAY, kind: "task", text: "VY-312 Post Lab 8 in the MLA AI Labs community is done.", ref: "tsk_skool" },
     { at: now - 4 * DAY, kind: "plan", text: "Planned VY-311 Remind Lab 7 attendees who have not registered. Why: past attendees registered at 31% after one reminder. Expected: +40 to +60", ref: "tsk_rem" },
-    { at: now - 5 * DAY, kind: "started", text: `Started. Due ${atToken(goal.deadline)}.` },
+    { at: now - 5 * DAY, kind: "started", text: `${whoToken("usr_irfad")} started the goal. Due ${atToken(goal.deadline)}.` },
     { at: now - 5 * DAY - 60_000, kind: "created", text: `${whoToken("agt_labdesk")} drafted this goal for ${whoToken("usr_irfad")}.`, by: "agt_labdesk>usr_irfad" },
   ];
   const page: GoalPageData = { goal: state === "draft" ? { ...goal, status: "draft", permissions: goal.permissions.map((p) => ({ ...p, granted: false })) } : goal, tasks: state === "draft" ? [] : tasks, ...(state === "draft" ? { draftPlan: [{ key: "rem", title: "Remind Lab 7 attendees who have not registered", why: "Past attendees registered at 31% after one reminder", assigned: { kind: "agent" as const, id: "agt_labdesk" } }, { key: "reels", title: "Two short reels from the Lab 7 recording", why: "Short video moved the number last time", assigned: { kind: "person" as const, id: "usr_aliza" } }] } : {}), waiting, activity, readings };
@@ -68,7 +68,7 @@ export function goalsCall(base: (cap: string, input: unknown) => Promise<unknown
     const i = (input ?? {}) as Record<string, unknown>;
     if (cap === "goals.list") return { goals: i["scope"] === "helping" ? [] : lines };
     if (cap === "goals.get") return i["goalId"] === "gol_lab8" ? page : { ...page, goal: { ...page.goal, ...lines.find((l) => l.id === i["goalId"]) } };
-    if (cap === "goals.activity") return { activity: page.activity };
+    if (cap === "goals.activity") { const before = typeof i["before"] === "number" ? i["before"] : Infinity; return { activity: page.activity.filter((a) => a.at < before).slice(0, typeof i["limit"] === "number" ? i["limit"] : 50) }; }
     if (cap === "files.list" && i["folder"] === "fld_goal") return { files: [{ fileId: "fil_r1", name: "Reel 1, the three questions.mp4" }, { fileId: "fil_r2", name: "Reel 2, before and after.mp4" }, { fileId: "fil_csv", name: "Lab 7 not registered.csv" }], folders: [{ folderId: "fld_drafts", name: "Drafts" }, { folderId: "fld_research", name: "Research" }] };
     if (cap === "tasks.get" && i["taskId"] === "tsk_hold") return { task: { id: "tsk_hold", kind: "approve", state: "awaiting_approval", actions: [{ key: "approve", label: "Allow" }], blocks: [] } };
     if (cap === "tasks.get" && i["taskId"] === "tsk_ask") return { task: { id: "tsk_ask", kind: "answer", state: "todo", actions: [{ key: "answer", label: "Answer" }], blocks: [{ type: "question", data: { options: ["Yes, them too", "Only attendees"] } }] } };

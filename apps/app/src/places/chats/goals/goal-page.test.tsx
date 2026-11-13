@@ -1,8 +1,10 @@
 // The goal page and the goal card over the sample Space's goals: what each state says, the one-tap answers and controls call the right capability, and a draft card starts the goal.
 import test from "node:test";
-import { act } from "react";
+import { act, useState } from "react";
+import type { ReactElement } from "react";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
+import { Dimensions } from "react-native";
 import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
 import type { ConversationData } from "../conversation/data.tsx";
 import { Activity, GoalPage } from "./GoalPage.tsx";
@@ -42,6 +44,16 @@ test("an active goal: the number Vyre read, its source, what waits on you with o
   await press(find(p, "goal-pause"));
   assert.ok(calls.some((c) => c.cap === "goals.pause" && c.input["goalId"] === "gol_lab8"));
   assert.deepEqual(opened, []);
+});
+
+test("the goal's side pane opens on Details, with the tabs in the order Details, Activity, Files; Activity is one press away", async () => {
+  const was = Dimensions.get("window");
+  Dimensions.set({ window: { width: 1280, height: 800, scale: 1, fontScale: 1 }, screen: { width: 1280, height: 800, scale: 1, fontScale: 1 } });
+  const { root } = await page("active", true).finally(() => Dimensions.set({ window: was, screen: was }));
+  const p = find(root!, "goal-page")!;
+  assert.ok(!find(p, "goal-activity"), "Activity is not what opens");
+  assert.match(textOf(p), /Details.*Activity.*Files/s);
+  assert.ok(find(p, "goal-set-deadline"), "the Details settings are showing");
 });
 
 test("stuck, paused at the budget, missed and done each say what happened and offer what to do", async () => {
@@ -91,7 +103,7 @@ test("the Activity pane names who did it as the reader sees it: a Space agent by
   assert.match(text, /Lab Desk/);
   assert.doesNotMatch(text, /Irfad Imtiaz \(Agent\)|Made by|an agent|the owner|usr_|agt_|\{at:|\{who:/);
   assert.doesNotMatch(text, /your time/, "a list of times shows only the Space zone; yours is on hover");
-  assert.match(text, /Started\. Due \w{3} \d{1,2} \w{3}, \d{1,2}:\d{2} [AP]M\./);
+  assert.match(text, /started the goal\. Due \w{3} \d{1,2} \w{3}, \d{1,2}:\d{2} [AP]M\./);
 });
 
 test("a draft card says what to do in plain words", async () => {
@@ -176,4 +188,59 @@ test("a running goal's step renames where it stands", async () => {
   await typeInto(find(p, "goal-task-name-tsk_ads"), "Retarget the Lab 8 form, week two");
   await fire(find(p, "goal-task-name-tsk_ads"), "onBlur", { nativeEvent: { target: { value: "x" } }, target: { value: "x" }, currentTarget: null });
   assert.deepEqual(calls.find((c) => c.cap === "tasks.update")?.input, { taskId: "tsk_ads", title: "Retarget the Lab 8 form, week two" });
+});
+
+test("the Activity tab reads earlier rows through goals.activity as it is scrolled, until the start of the goal's story", async () => {
+  installDom();
+  // 100 rows, newest first; goals.get carries the latest 30
+  const rows = Array.from({ length: 100 }, (_, i) => ({ at: NOW - i * 3_600_000, kind: "reading", text: `Reading number ${100 - i}` }));
+  const asked: Array<{ before: number; limit: number }> = [];
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    assert.equal(cap, "goals.activity");
+    const { before, limit } = input as { before: number; limit: number };
+    asked.push({ before, limit });
+    return { activity: rows.filter((r) => r.at < before).slice(0, limit) };
+  };
+  const data = { goal: { id: "gol_lab8" }, tasks: [], waiting: [], readings: [], activity: rows.slice(0, 30) } as never;
+  const root = await mount(createRoot as never, <Activity data={data} me="usr_irfad" nameOf={(id) => id} now={NOW} zones={{ space: "Asia/Karachi", viewer: "Asia/Karachi" }} openTask={() => undefined} call={call} />);
+  await flush();
+  const list = find(root!, "goal-activity")!;
+  assert.match(textOf(list), /Reading number 100/);
+  assert.doesNotMatch(textOf(list), /Reading number 1(?!\d)/, "the start of the story is not there yet");
+  for (let i = 0; i < 5; i++) { const more = find(root!, "row-goal-activity-earlier"); if (more) { await press(more); await flush(); } }
+  assert.match(textOf(find(root!, "goal-activity")), /Reading number 1(?!\d)/, "the first row is there after paging");
+  assert.deepEqual(asked.map((a) => a.before).slice(0, 2), [rows[29]!.at, rows[79]!.at], "each page asks from the oldest row it has");
+  assert.equal((textOf(find(root!, "goal-activity")).match(/Reading number/g) ?? []).length, 100, "every row once");
+  // nothing earlier: the end is remembered, the row goes, and no further call is made
+  assert.equal(find(root!, "row-goal-activity-earlier"), null, "no more to show");
+  assert.equal(asked.length, 3, "two pages of rows, then one empty answer");
+});
+
+test("the Activity tab keeps what it loaded when new rows arrive, fills in the rows that fell between, and shows rows that share a moment", async () => {
+  installDom();
+  const rows = Array.from({ length: 100 }, (_, i) => ({ at: NOW - i * 3_600_000, kind: "reading", text: `Reading number ${100 - i}` }));
+  const fresh = Array.from({ length: 5 }, (_, i) => ({ at: NOW + (5 - i) * 60_000, kind: "reading", text: `Fresh ${5 - i}` }));
+  const twin = [{ at: NOW - 200 * 3_600_000, kind: "note", text: "Twin A" }, { at: NOW - 200 * 3_600_000, kind: "note", text: "Twin B" }];
+  const all = [...fresh, ...rows, ...twin];
+  const served = (before: number, limit: number): typeof rows => all.filter((r) => r.at < before).slice(0, limit);
+  const call = async (_cap: string, input: unknown): Promise<unknown> => { const { before, limit } = input as { before: number; limit: number }; return { activity: served(before, limit) }; };
+  const g = { id: "gol_lab8" };
+  let setData: (d: unknown) => void = () => undefined;
+  const Wrapper = (): ReactElement => {
+    const [d, set] = useState<unknown>({ goal: g, tasks: [], waiting: [], readings: [], activity: rows.slice(0, 30) });
+    setData = set;
+    return <Activity data={d as never} me="usr_irfad" nameOf={(id) => id} now={NOW} zones={{ space: "Asia/Karachi", viewer: "Asia/Karachi" }} openTask={() => undefined} call={call} />;
+  };
+  const root = await mount(createRoot as never, <Wrapper />);
+  await flush();
+  for (let i = 0; i < 6; i++) { const more = find(root!, "row-goal-activity-earlier"); if (more) { await press(more); await flush(); } }
+  const count = (re: RegExp): number => (textOf(find(root!, "goal-activity")).match(re) ?? []).length;
+  assert.equal(count(/Reading number/g), 100);
+  assert.equal(count(/Twin [AB]/g), 2, "two rows in one moment are both shown");
+  // five rows arrive: the latest page moves forward by five rows; the first reading still shows and nothing is shown twice
+  await act(async () => { setData({ goal: g, tasks: [], waiting: [], readings: [], activity: [...fresh, ...rows].slice(0, 30) }); });
+  await flush(); await flush();
+  assert.equal(count(/Reading number/g), 100, "loaded history stays and the rows that fell between are filled in");
+  assert.equal(count(/Fresh/g), 5);
+  assert.equal(count(/Twin [AB]/g), 2);
 });

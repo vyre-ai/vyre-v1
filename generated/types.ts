@@ -12677,6 +12677,16 @@ export type EngineTurnAppendIn = {
 export type EngineTurnAppendOut = {
   idx: number;
 };
+export type EngineTurnAskedByIn = Record<string, unknown>;
+export type EngineTurnAskedByOut = {
+  kind: "message" | "interrupt" | "wake" | "handoff" | "none";
+  routine: boolean;
+  askedBy?: {
+    person: string;
+    messageIds: Array<string>;
+    at: number;
+  };
+};
 export type EngineTurnEnqueueIn = {
   threadId: string;
   agentId: string;
@@ -16328,6 +16338,7 @@ export type GoalsActivityOut = {
       text: string;
       by?: string;
       ref?: string;
+      data?: Record<string, unknown>;
       tpl?: string;
     }>;
 };
@@ -17150,6 +17161,7 @@ export type GoalsGetOut = {
       text: string;
       by?: string;
       ref?: string;
+      data?: Record<string, unknown>;
       tpl?: string;
     }>;
   readings: Array<{
@@ -45634,6 +45646,7 @@ export interface CapMap {
   "engine.switch": { in: EngineSwitchIn; out: EngineSwitchOut };
   "engine.time_convert": { in: EngineTimeConvertIn; out: EngineTimeConvertOut };
   "engine.turn.append": { in: EngineTurnAppendIn; out: EngineTurnAppendOut };
+  "engine.turn.asked_by": { in: EngineTurnAskedByIn; out: EngineTurnAskedByOut };
   "engine.turn.enqueue": { in: EngineTurnEnqueueIn; out: EngineTurnEnqueueOut };
   "engine.turn.fallback": { in: EngineTurnFallbackIn; out: EngineTurnFallbackOut };
   "engine.turn.finish": { in: EngineTurnFinishIn; out: EngineTurnFinishOut };

@@ -278,6 +278,10 @@ export default defineManifest({
     read('engine.queue.peek', 'Steering check between tool calls: the next queued messages for a running turn', {
       in: threadT, out: { messages: t.arr(id.message) }, on: ['thread', '/threadId'],
     }),
+    read('engine.turn.asked_by', 'System use only: who asked for the calling agent\'s running turn in this chat (answers only to a module\'s own nested call). askedBy is set only when a person\'s own message started the turn or joined it', {
+      in: {}, out: { kind: t.enm('message', 'interrupt', 'wake', 'handoff', 'none'), routine: t.bool(), askedBy: t.opt(t.obj({ person: id.user, messageIds: t.arr(id.message), at: t.ts() })) },
+      perm: null, level: 'view', errors: ['permission.role_lacks_permission'],
+    }),
     read('engine.placement.decide', 'Decide where a turn runs: host or the asker device (private chat rules, computers, routines, phone and web askers)', {
       in: { ...threadT, agentId: id.agent, kind: t.enm('message', 'interrupt', 'wake', 'handoff') },
       out: { placement: t.enm('host', 'device', 'wait'), reason: t.str(), wakeLine: t.opt(t.str({ examples: ['Your computer is off'] })), nodeId: t.opt(t.str()), deviceId: t.opt(t.str({ description: 'The computer of the asker\'s the turn runs on, or the pinned one it waits for' })), moved: t.opt(t.obj({ from: t.str(), why: t.str() }, { description: 'Automatic passed over a busy machine for this one: where it would have gone and why not' })) }, on: ['thread', '/threadId'],

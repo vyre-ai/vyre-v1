@@ -37,7 +37,7 @@ export function expandWords(text: string, v: Viewer): string {
 export function creditOf(by: string | undefined, v: Viewer): string {
   if (!by) return "";
   const actor = by.split(">")[0] ?? by;
-  if (actor.startsWith("svc_")) return "Vyre";
+  if (actor.startsWith("svc_")) return "";   // the server is not a name to credit: the sentence already says what happened
   return actor === v.me ? "You" : v.nameOf(actor);
 }
 
