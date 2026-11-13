@@ -323,6 +323,63 @@ jobs:
           node --test --test-force-exit --test-timeout=1500000 --test-reporter=spec sandbox/computer/stream.heavy.test.ts 2>&1 | tee s9-heavy.out
           grep -E "^ℹ skipped 0$" s9-heavy.out
           grep -E "METRIC s9" s9-heavy.out
+  l2-browser:
+    # The Space browser and the sandbox identity proofs on real Docker and real bubblewrap (13 Nov 2026). Taking over an agent's browser (click, type, scroll) was broken on rc.26 and no job ran the tests that
+    # would have shown it. Same shape as l2-heavy: the hourly run on main (schedule, or a dispatch on main) runs everything, a branch runs it when it touches the browser, its image, the sandbox or the live view.
+    # The image is built once per run from this commit (scripts/ci/build-space-browser.sh, about 2 minutes with no cache and a few seconds with it on a runner that has built it before); every test is told to use it
+    # and `^ℹ skipped 0$` makes a skipped test a failure, so a green job means the proofs ran. Needs on the runner: Docker for the runner's user, bubblewrap with unprivileged user namespaces (the steps print what the runner allows), about 3 GB of disk.
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
+        run: bash scripts/ci-iolock.sh shared
+      - name: Did the Space browser, its image, the sandbox or the live view change on this branch?
+        id: scope
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] || { [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.ref_name }}" = "main" ]; }; then echo "changed=true" >> "$GITHUB_OUTPUT"; echo "full run on main"; exit 0; fi
+          git fetch -q origin main
+          base="$(git merge-base origin/main HEAD)"
+          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(modules/computers/|images/space-browser/|images/agent-computer/|apps/chrome/|lib/chrome-bridge|sandbox/|host/src/routes/browser-stream|apps/app/src/places/chats/(rightpane|computer)/|scripts/ci/build-space-browser|\.github/workflows/check\.yml)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the browser proofs cover changed"; fi
+      - name: Install bubblewrap when the runner does not have it
+        if: steps.scope.outputs.changed == 'true'
+        run: |
+          command -v bwrap >/dev/null || { sudo -n apt-get update -q && sudo -n apt-get install -y -q bubblewrap; }
+          bwrap --version
+      - name: What this runner allows (printed so a failure below can be read against it)
+        if: steps.scope.outputs.changed == 'true'
+        run: |
+          id; uname -r
+          docker version --format 'docker server {{.Server.Version}}'
+          free -m | head -2; df -h . | tail -1
+          sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>/dev/null || true
+          if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib --symlink usr/lib64 /lib64 --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
+      - name: The Space browser image, built once for this run
+        if: steps.scope.outputs.changed == 'true'
+        run: bash scripts/ci/build-space-browser.sh "vyre/space-browser:ci-${{ github.run_id }}"
+      - name: The sandbox user's name and the symlink it cannot use, real bubblewrap, none skipped (sandbox/tests/sandbox.identity*.test.ts)
+        if: steps.scope.outputs.changed == 'true'
+        run: |
+          set -o pipefail
+          node --test --test-force-exit --test-timeout=300000 --test-reporter=spec sandbox/tests/sandbox.identity.test.ts sandbox/tests/sandbox.identity.symlink.test.ts 2>&1 | tee identity.out
+          grep -E "^ℹ skipped 0$" identity.out
+          grep -E "^ℹ fail 0$" identity.out
+      - name: The Space browser on real Docker, none skipped
+        if: always() && steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+          VYRE_SPACE_BROWSER_IMAGE: vyre/space-browser:ci-${{ github.run_id }}
+        run: |
+          set -o pipefail
+          node --test --test-force-exit --test-timeout=1800000 --test-reporter=spec modules/computers/tests/sbrowser.heavy.test.ts modules/computers/tests/sbrowser.firstcall.heavy.test.ts modules/computers/tests/sbrowser.scale.heavy.test.ts modules/computers/tests/sbrowser.stop.heavy.test.ts modules/computers/tests/sbrowser.purge.heavy.test.ts 2>&1 | tee sbrowser-heavy.out
+          grep -E "^ℹ skipped 0$" sbrowser-heavy.out
+          grep -E "^ℹ fail 0$" sbrowser-heavy.out
+      - name: Images and containers left behind
+        if: always()
+        run: |
+          docker rmi -f "vyre/space-browser:ci-${{ github.run_id }}" || true
+          docker ps -a --filter "name=vyre-sbrowser" --format '{{.Names}} {{.Status}}' || true
   computer-lifecycle:
     # Release gate for the agent Computer: host/tests/computers.{lifecycle,control,home-sync,home-links,home-changes}.live.test.ts on real Docker, every run, never path-selected. It covers provision, wake, screen, the desktop, the Files home mirror (both ways, the read-only AGENT.md, the symlink and escape cases, conflicts, access removal, downloads), sleep and remove. A skipped test is a failure: the output must say pass 1 and skipped 0. Gates `check`.
     # Four jobs, split by behaviour (the one 278 s test was the floor under the 5 minute push budget): lifecycle and control (token, provision, wake, screen, desktop, sleep, remove; download, take the wheel), and three for the Files home mirror (sync, links, changes).
