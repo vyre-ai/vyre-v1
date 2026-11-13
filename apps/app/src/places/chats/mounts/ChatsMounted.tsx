@@ -24,7 +24,7 @@ import { ComputerPopup, ComputerPopupLoading } from "../computer/ComputerPopup.t
 import { NO_CAPTURE } from "../computer/model.ts";
 import { Conversation, ConversationLoading } from "../conversation/Conversation.tsx";
 import { createComposerFill } from "../conversation/data.tsx";
-import type { ComposerFill } from "../conversation/data.tsx";
+import type { ComposerFill, ConversationNav } from "../conversation/data.tsx";
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { AgentPane } from "../AgentPane.tsx";
 import { CrewProvider } from "../crew/context.tsx";
@@ -121,9 +121,11 @@ export interface ChatsMountedProps {
   openInNewTab?: (hash: string) => void;
   /** Where Notes starts: a sheet, a menu or the bar open (tests and screenshots). */
   notesInitial?: NotesInitial;
+  /** The chat's doors (open Skills, open Hooks, ...) as the conversation gets them: tests press them the way a card or a hook line does. */
+  onNav?: (nav: ConversationNav) => void;
 }
 
-export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch, closeSelf, stacked = false, openInNewTab, notesInitial }: ChatsMountedProps): ReactElement {
+export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch, closeSelf, stacked = false, openInNewTab, notesInitial, onNav }: ChatsMountedProps): ReactElement {
   const [shown, setShown] = useState<Shown>(() => initial ?? (hash === "" ? START : fromHash(hash)));
   const [line, setLineState] = useState<{ text: string; action?: LineAction } | null>(null);
   const setLine = useCallback((text: string, action?: LineAction): void => setLineState(action ? { text, action } : { text }), []);
@@ -221,7 +223,9 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   // a hook line in the chat opens the pane on Hooks, at that hook
   const [paneTab, setPaneTab] = useState<TabKey | undefined>(undefined);
   // "Back to Chats" on a refusal (ui/States) shows the start, where the list is
-  useEffect(() => onBackToStart(() => act({ t: "new" })), [act]);
+  const placeRef = useRef<{ getBoundingClientRect?: () => { width: number; height: number } } | null>(null);
+  // only the Chats place that is on screen hears it: a copy kept mounted behind another place has no size
+  useEffect(() => onBackToStart(() => { const b = placeRef.current?.getBoundingClientRect?.(); if (b !== undefined && (b.width === 0 || b.height === 0)) return; act({ t: "new" }); }), [act]);
   const [hookSel, setHookSel] = useState<string | null>(null);
   // each chat opens on what it is: a tab asked for in one chat (Hooks, Knows, Skills) is not carried to the next
   // the task open beside the chat it was pressed in; it closes when the chat changes
@@ -363,6 +367,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     },
     [rt, go, threadId, list, nameOf, leadId, fill, focus, focusN, profile, openSideTask, replyDetails],
   );
+  useEffect(() => { if (conv) onNav?.(conv.nav); }, [conv, onNav]);
   // the thread beside the chat: its parent box goes back to the message in the chat (on a phone the sheet steps aside first)
   const sideId = route.view === "chat" && threadId !== null ? shown.side ?? null : null;
   // the chat on screen (and the thread beside it) is not announced in the top bar: the person is reading it
@@ -520,7 +525,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   return (
     <CrewProvider call={rt.call as (cap: string, input: unknown) => Promise<unknown>} threadId={threadId ?? ""} >
     <SessionProvider threadId={threadId ?? ""}>
-    <View testID="chats-place" style={st.row}>
+    <View testID="chats-place" ref={placeRef as never} style={st.row}>
       <ChatsSidebarSlot data={side} open={openKey} {...(window ? { window } : {})} />
       {showMain ? (
         <View testID="chats-main" style={st.main}>
