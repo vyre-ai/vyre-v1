@@ -86,10 +86,18 @@ const INTERVAL = /\bsetInterval\s*\(/g;
  * The timers allowed on purpose: one entry per timer, with the file, the start of its arguments, what it is, why it is allowed and when. The test pins this list: an entry whose timer is no longer in
  * its file fails (so a stale entry cannot be left to excuse a new poll), and a new entry is a visible change of this list in review.
  */
-export const EXCEPTIONS: ReadonlyArray<{ file: string; timer: string; what: string; why: string; added: string }> = [
+export const EXCEPTIONS: ReadonlyArray<{
+  file: string;
+  timer: string;
+  count: number;
+  what: string;
+  why: string;
+  added: string;
+}> = [
   {
     file: "apps/app/src/places/chats/conversation/Conversation.tsx",
     timer: "retryLoads, 1500",
+    count: 1,
     what: "asks the session to read a chat again every 1.5 s while the chat this person just started is not readable yet",
     why: "it ends by itself: it runs only while `refusalIsPending` is true, which is false 30 s after the chat was made (JUST_MADE_MS in shell/session/just-made.ts, tested there), when the place shows the failed state; the effect clears it on unmount. Added by 42926d5c7.",
     added: "2026-11-13",
@@ -113,6 +121,7 @@ const found = new Map<string, Set<string>>();
 export function countFile(rel: string, source: string): Partial<Record<Kind, number>> {
   const src = stripComments(source);
   const out: Partial<Record<Kind, number>> = {};
+  const used = new Map<(typeof EXCEPTIONS)[number], number>();
   found.delete(rel);
   const add = (k: Kind, n: number): void => {
     if (n > 0) out[k] = (out[k] ?? 0) + n;
@@ -143,8 +152,9 @@ export function countFile(rel: string, source: string): Partial<Record<Kind, num
     for (const m of src.matchAll(INTERVAL)) {
       const args = argsAt(src, m.index! + m[0].length);
       // a clock ticker reads Date.now(); anything else is a poll unless EXCEPTIONS names this one timer
-      if (!/Date\.now\(\)/.test(args) && !EXCEPTIONS.some((x) => x.file === rel && args.trim().startsWith(x.timer)))
-        add("crew-poll", 1);
+      const excused = EXCEPTIONS.find((x) => x.file === rel && args.trim() === x.timer && (used.get(x) ?? 0) < x.count);
+      if (excused) used.set(excused, (used.get(excused) ?? 0) + 1);
+      else if (!/Date\.now\(\)/.test(args)) add("crew-poll", 1);
     }
   return out;
 }
@@ -331,4 +341,20 @@ test("a second Status or StatusLabel outside ui/Status is a copy", () => {
     declared: 1,
   });
   assert.deepEqual(countFile("ui/src/Status/index.tsx", "export function Status() { return null; }"), {});
+});
+
+test("the timer exception is exact and counts one: a second copy in the same file is a poll", () => {
+  const file = "apps/app/src/places/chats/conversation/Conversation.tsx";
+  const one = 'data.call("engine.crew.status"); setInterval(retryLoads, 1500);';
+  assert.deepEqual(countFile(file, one), {});
+  assert.deepEqual(
+    countFile(file, `${one} setInterval(retryLoads, 1500);`),
+    { "crew-poll": 1 },
+    "the second is not excused",
+  );
+  assert.deepEqual(
+    countFile(file, 'data.call("engine.crew.status"); setInterval(retryLoads, 15000);'),
+    { "crew-poll": 1 },
+    "a different delay is a different timer",
+  );
 });
