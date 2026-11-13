@@ -49,7 +49,7 @@ import type { RefNames } from "./form-model.ts";
 import { usePersonZone } from "./TriggerForm.tsx";
 import { Glyph } from "./icons.tsx";
 import { CANVAS, CONFIG, useAutomationsData, useScreenOrRead, useScreenQuery } from "./data.tsx";
-import {
+import { REMOVED_KEY,
   addAfter, addInto, addTrigger, check, offersMoveToSpace, clampZoom, describeTrigger, duplicateStep, fitScale, kindOfKey, layout, liveBlockerStep, moveStep, neighbour, removeStep, removeTrigger, sortedIssues, updateStep,
   startsByHand, withPreset,
 } from "./model.ts";
@@ -223,7 +223,7 @@ function CanvasBody({ a, canEdit, tab, setTab, failedRuns, versions, tabBodies, 
     if (catalog.phase === "ready") for (const step of catalog.steps) { const r = requiredOf(step.input); if (r.length > 0) out[step.key] = r; }
     return out;
   }, [catalog]);
-  const lay = useMemo(() => layout(def, { issues, tested, required, ...(shownRun ? { run: shownRun.states } : {}), keyName: (id) => data.keys.find((k) => k.id === id)?.name ?? data.name(id) }), [def, issues, shownRun, data, tested, required]);
+  const lay = useMemo(() => layout(def, { issues, tested, required, ...(shownRun ? { run: shownRun.states } : {}), keyName: (id) => data.keys.find((k) => k.id === id)?.name ?? REMOVED_KEY }), [def, issues, shownRun, data, tested, required]);
   const errors = issues.filter((i) => i.severity === "error");
   const moveToSpace = offersMoveToSpace(a.kind === "space" ? "space" : "personal", def, errors[0], { ...(data.personalSpace !== undefined ? { personalSpace: data.personalSpace } : {}), ...(data.canSpace !== undefined ? { canSpace: data.canSpace } : {}) });
   const agentOf = (n: CardNode): string | undefined => (n.node?.ai?.agentId ? data.name(n.node.ai.agentId) : n.node?.ai ? "Assistant" : undefined);

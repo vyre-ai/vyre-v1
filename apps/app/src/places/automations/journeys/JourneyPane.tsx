@@ -22,6 +22,7 @@ import { StageFields } from "./StageFields.tsx";
 import type { Selection } from "./JourneyDesigner.tsx";
 import { DUE_CHOICES, automationsByStage, initials, agentNames as seatNames, EXIT_RULES, LIMIT_CHOICES, SLOTS, agentSeats, clearTaskField, countOf, doneByWords, dueWords, exitRuleId, exitWords, findTask, limitWords, plural, renameStage, setSeat, tasksWords, updateTask } from "./model.ts";
 import type { Journey, Ref, Slot, Stage, StageCounts, Task } from "./model.ts";
+import { REMOVED_KEY } from "../canvas/model.ts";
 
 export interface JourneyPaneProps { journeyId: string; selection: Selection | null; canDesign?: boolean }
 
@@ -159,7 +160,7 @@ function TaskPane({ journey: j, stage: g, task: t, canDesign }: { journey: Journ
   const seat = (slot: Slot): Ref | undefined => t[slot];
   const agents = agentSeats(t);
   const agentNames = seatNames(t, data.name);
-  const keyName = (id: string | undefined): string => (id ? data.keys.find((k) => k.id === id)?.name ?? data.name(id) : "None");
+  const keyName = (id: string | undefined): string => (id ? data.keys.find((k) => k.id === id)?.name ?? REMOVED_KEY : "None");
   const commitTitle = (): void => { const v = title.trim(); if (!v || v === t.title) { setTitle(t.title); return; } edit(updateTask(j.stages, g.key, t.key, { title: v }), `Renamed to ${v}`); };
   const commitBrief = (): void => { const v = brief.trim(); if (v === (t.description ?? "")) return; edit(v ? updateTask(j.stages, g.key, t.key, { description: v }) : clearTaskField(j.stages, g.key, t.key, "description"), "Saved the instructions"); };
   const keyMenu = (field: "keyId" | "backupKeyId", x: number, y: number): void => {

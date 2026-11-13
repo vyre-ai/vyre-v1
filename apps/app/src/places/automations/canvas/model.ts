@@ -234,6 +234,9 @@ export function triggerCardHeight(count: number): number {
   return TRIG_HEAD + Math.max(1, count) * TRIG_ROW;
 }
 
+/** What an AI account that is no longer in the list is called (never its id). */
+export const REMOVED_KEY = "A removed AI account";
+
 /** The second line of a card: what the step does, from its inputs, in words. */
 export function subtitleOf(n: DefNode, names: { key?: (id: string) => string; step?: (id: string) => string } = {}): string {
   // a `{{ }}` reference is never the text of a card: it reads as the chip it is in the editor (owner, 13 Nov 2026)
@@ -281,8 +284,8 @@ function subtitleRaw(n: DefNode, names: { key?: (id: string) => string }): strin
     // one short line: what it is asked to do (data references become an ellipsis, not braces), and where it runs only when that was chosen
     const prompt = str(inp["prompt"]).replace(/\{\{[^}]*\}\}/g, "\u2026").replace(/\s+/g, " ").trim().replace(/\u2026[.]+$/, "\u2026").replace(/[.]+$/, "");
     if (!prompt) return "Write what the AI should do";
-    const key = n.ai?.keyId ? (names.key?.(n.ai.keyId) ?? n.ai.keyId) : "";
-    const back = n.ai?.backupKeyId ? (names.key?.(n.ai.backupKeyId) ?? n.ai.backupKeyId) : "";
+    const key = n.ai?.keyId ? (names.key?.(n.ai.keyId) ?? REMOVED_KEY) : "";
+    const back = n.ai?.backupKeyId ? (names.key?.(n.ai.backupKeyId) ?? REMOVED_KEY) : "";
     const tail = n.ai?.mode === "task" ? "Agent task" : key ? (back ? `${key}, then ${back}` : key) : "";
     return `${prompt.length > 60 ? `${prompt.slice(0, 60)}...` : prompt}${tail ? `${prompt.endsWith("\u2026") ? " \u00b7 " : ". "}${tail}` : ""}`;
   }

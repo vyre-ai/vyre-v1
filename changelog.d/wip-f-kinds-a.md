@@ -6,3 +6,4 @@
 - An automation's step cards show a data reference in words ("Trigger · Record id") instead of template code like {{ trigger.recordId }}.
 - Settings, Profile no longer shows "Saved  Undo" when you open it with nothing changed.
 - Esc puts away the new-folder name box beside Shared in Vault.
+- An automation step that uses an AI account that was removed says "A removed AI account" instead of showing its id.

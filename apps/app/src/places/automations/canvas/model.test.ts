@@ -362,3 +362,9 @@ test("no card's second line is template code: a {{ }} reference reads as the chi
   const def: Definition = { triggers: [{ key: "record_change" }], start: ["a"], nodes: nodes.map((n, i) => ({ ...n, next: i + 1 < nodes.length ? [nodes[i + 1]!.id] : [] })) };
   for (const c of layout(def).cards) assert.ok(!c.sub.includes("{{"), `card ${c.id}: "${c.sub}"`);
 });
+
+test("an AI step whose account is gone says so in words, never with the account's id (owner, 13 Nov 2026)", () => {
+  const ai = { id: "a", key: "ai", input: { prompt: "Reply to the lead" }, ai: { keyId: "acc_0a1b2c3d4e5f6071", backupKeyId: "acc_ffeeddccbbaa9988" }, next: [] } as unknown as Parameters<typeof subtitleOf>[0];
+  assert.equal(subtitleOf(ai), "Reply to the lead. A removed AI account, then A removed AI account");
+  assert.equal(subtitleOf(ai, { key: (id) => (id === "acc_0a1b2c3d4e5f6071" ? "Team account" : (undefined as unknown as string)) }), "Reply to the lead. Team account, then A removed AI account");
+});

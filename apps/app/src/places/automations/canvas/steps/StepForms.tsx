@@ -8,7 +8,7 @@ import { Avatar } from "../../../../../../../ui/src/Avatar/index.tsx";
 import { ChipText, Choice, Field, Group, Hint, More, Rows, Segmented } from "../fields.tsx";
 import { useOpenConnect } from "../../../../shell/connect/context.ts";
 import { connectEntries } from "../../../../shell/connect/model.ts";
-import { cardTitle, updateStep } from "../model.ts";
+import { REMOVED_KEY, cardTitle, updateStep } from "../model.ts";
 import type { DefNode, Definition, KeyChoice } from "../model.ts";
 import {
   AUTH_LABEL, CODE_STARTER, HTTP_METHODS, answerKindOf, authOf, bodyKindOf, headerProblem, hostsOf, joinHandle, pairsOf, readsOnly, recordOf, setAnswerKind, setAuth, setBodyKind, setHosts, setJsonBody, setMethod,
@@ -162,7 +162,7 @@ export function AiForm({ def, node, onChange, openMenu, kind, keys, agents, who,
   const [minutesProblem, setMinutesProblem] = useState<string | null>(null);
   const ai = node.ai ?? {};
   const answer = answerKindOf(input);
-  const keyName = (id: string | undefined, none: string): string => (id ? (keys.find((k) => k.id === id)?.name ?? id) : none);
+  const keyName = (id: string | undefined, none: string): string => (id ? (keys.find((k) => k.id === id)?.name ?? REMOVED_KEY) : none);
   /** A Space step that names no account runs on the automation's (Settings > AI account), else Automatic. */
   const spaceNone = def.ai?.keyId ? "The automation's AI account" : "Automatic";
   const pickable = kind === "space" ? keys.filter((k) => k.shared !== false) : keys;

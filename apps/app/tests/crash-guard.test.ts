@@ -36,3 +36,10 @@ test("a React error or a script error in the console fails the next check; a ref
   await assert.rejects(() => g.check("next"), /a crash was logged/);
   assert.equal(g.crashes().length, 2);
 });
+
+test("an id shown on the page fails the check, naming the step and the id; names and words do not (owner, 13 Nov 2026: an id is never shown to a person)", async () => {
+  await guardCrashes(fakePage("Spring launch  Olivia Owner  person  Lead  Someone  Docs").page).check("a clean page");
+  const { page } = fakePage("People and agents  usr_ec028017ceefaf270b  person  Lead");
+  await assert.rejects(() => guardCrashes(page).check("Overview"), /Overview: an id is shown to the person \(usr_ec028017ceefaf270b\)/);
+  await assert.rejects(() => guardCrashes(fakePage("Home folder fld_01a1d27b165742ddb20032cbd182aaf9").page).check("Agent"), /an id is shown to the person/);
+});

@@ -25,7 +25,7 @@ import { RunStepIo } from "../builder/RunStepIo.tsx";
 import { StepTest } from "../builder/StepTest.tsx";
 import { CONNECT_LIMIT } from "../connect/trust-view.ts";
 import { Glyph } from "./icons.tsx";
-import { ERROR_MODES, groupOfKey, iconOfKey, kindOfKey, setBranch, subtitleOf, titleOfKey, updateStep, triggerMeta } from "./model.ts";
+import { ERROR_MODES, REMOVED_KEY, groupOfKey, iconOfKey, kindOfKey, setBranch, subtitleOf, titleOfKey, updateStep, triggerMeta } from "./model.ts";
 import { SchemaForm } from "./SchemaForm.tsx";
 import { TriggerForm, usePersonZone } from "./TriggerForm.tsx";
 import { controlsFor, humanize, specOf } from "./form-model.ts";
@@ -249,7 +249,7 @@ export function Inspector({ automationId, def, node, trigger, triggerIndex, issu
         {section === "configure" ? (
           <>
         {node.key === "connector_request" ? <Text style={i.hint}>{`${CONNECT_LIMIT} The request runs a named action on the connection.`}</Text> : null}
-        <Text testID="plain-language" style={i.hint}>{subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? id })}</Text>
+        <Text testID="plain-language" style={i.hint}>{subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? REMOVED_KEY })}</Text>
         {headerMode ? null : (
           <View accessibilityLabel="Builder mode" testID="inspector-mode" style={i.seg}>
             {/* ui-rows-lint: not a list (Basic and Advanced toggle) */}
