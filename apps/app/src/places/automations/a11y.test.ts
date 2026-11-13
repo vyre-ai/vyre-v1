@@ -115,7 +115,7 @@ test("labels name the action and the state, not the icon", () => {
   const canvas = source("./canvas/AutomationCanvas.tsx");
   const marks = source("./builder/marks.tsx");
   assert.match(cards, /cardLabel/);
-  assert.match(cards, /\{card\.chip\}/);
+  assert.match(cards, /\{chipText\(card\.chip, card\.issues, card\.state\)\}/, "the card draws its chip, in words");
   assert.match(cards, /runStateText/);
   assert.match(cards, /triggerLabel/);
   assert.match(cards, /moreLabel/);
