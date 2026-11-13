@@ -163,9 +163,6 @@
   "apps/app/src/places/inbox/calendar/eventpane/EventPane.tsx": {
     "declared": 1
   },
-  "apps/app/src/places/inbox/meetings/MeetingsTab.tsx": {
-    "declared": 1
-  },
   "apps/app/src/places/inbox/sidebar/data.tsx": {
     "read-hook": 1
   },
@@ -197,9 +194,6 @@
     "read-hook": 1
   },
   "apps/app/src/places/vault/layout/Sheet.tsx": {
-    "declared": 1
-  },
-  "apps/app/src/shell/connect/sheets.tsx": {
     "declared": 1
   },
   "ui/src/EmailBuilder/index.tsx": {
