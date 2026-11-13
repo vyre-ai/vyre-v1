@@ -37,7 +37,13 @@ const ITEM_HEIGHT = 44;
 const ATT_HEIGHT = 84;
 const keyOfItem = (it: Item): string => (it.k === "lab" ? it.id : it.run.id);
 
-export function RunHistory({ subject, scope = subject ? "subject" : "mine", currentVersion, selectedRunId = null, initialFilter = "all" }: RunHistoryProps): ReactElement {
+export function RunHistory({
+  subject,
+  scope = subject ? "subject" : "mine",
+  currentVersion,
+  selectedRunId = null,
+  initialFilter = "all",
+}: RunHistoryProps): ReactElement {
   const data = useRunsData();
   const actions = useRunActions();
   const { element, show } = useMenu();
@@ -48,54 +54,120 @@ export function RunHistory({ subject, scope = subject ? "subject" : "mine", curr
   const [marks, setMarks] = useState<ReadonlyMap<string, WorkMark>>(new Map());
   useEffect(() => {
     let live = true;
-    void loadOpenWork(data.call).then((tasks) => { if (live) setMarks(marksByRun(tasks)); });
-    return () => { live = false; };
+    void loadOpenWork(data.call).then((tasks) => {
+      if (live) setMarks(marksByRun(tasks));
+    });
+    return () => {
+      live = false;
+    };
   }, [data, runs]);
   const now = data.clock().now;
   const handled = useMemo(() => handledIds(runs), [runs]);
   const shown = useMemo(() => runs.filter((r) => matchesFilter(r, filter)), [runs, filter]);
   const items = useMemo<Item[]>(() => {
     const out: Item[] = [];
-    const bad = filter === "all" ? shown.filter((r) => needsAttention(r, handled)).sort((a, b) => b.startedAt - a.startedAt) : [];
-    if (bad.length) { out.push({ k: "lab", id: "lab-attention", text: "Needs attention" }); for (const r of bad) out.push({ k: "att", run: r }); }
-    for (const sec of daySections(shown.filter((r) => !bad.includes(r)), now)) {
+    const bad =
+      filter === "all" ? shown.filter((r) => needsAttention(r, handled)).sort((a, b) => b.startedAt - a.startedAt) : [];
+    if (bad.length) {
+      out.push({ k: "lab", id: "lab-attention", text: "Needs attention" });
+      for (const r of bad) out.push({ k: "att", run: r });
+    }
+    for (const sec of daySections(
+      shown.filter((r) => !bad.includes(r)),
+      now,
+    )) {
       out.push({ k: "lab", id: `lab-${sec.group}`, text: sec.group });
       for (const r of sec.runs) out.push({ k: "run", run: r });
     }
     return out;
   }, [shown, handled, filter, now]);
 
-  const menu = (run: Run, x: number, y: number): void => show(runMenu(run, actions, data.nav, show, { x, y }, needsAttention(run, handled)), x, y, "context", { label: runTitle(run) });
-  const filterMenu = (x: number, y: number): void => show([{ head: "Show" }, ...each(FILTERS, (f) => ({ label: f.label, checked: f.key === filter, onSelect: () => setFilter(f.key) }))], x, y, "other");
+  const menu = (run: Run, x: number, y: number): void =>
+    show(runMenu(run, actions, data.nav, show, { x, y }, needsAttention(run, handled)), x, y, "context", {
+      label: runTitle(run),
+    });
+  const filterMenu = (x: number, y: number): void =>
+    show(
+      [
+        { head: "Show" },
+        ...each(FILTERS, (f) => ({ label: f.label, checked: f.key === filter, onSelect: () => setFilter(f.key) })),
+      ],
+      x,
+      y,
+      "other",
+    );
   const def = FILTERS.find((f) => f.key === filter)!;
 
   const onKey = (e: KeyEventLike & { currentTarget?: unknown; target?: unknown }): void => {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") { if (moveRowFocus(e.currentTarget, e.target, e.key === "ArrowDown" ? 1 : -1)) e.preventDefault?.(); }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      if (moveRowFocus(e.currentTarget, e.target, e.key === "ArrowDown" ? 1 : -1)) e.preventDefault?.();
+    }
   };
 
   const attention = items.filter((it): it is Extract<Item, { k: "att" }> => it.k === "att");
   const listed = items.filter((it) => it.k !== "att" && !(it.k === "lab" && it.id === "lab-attention"));
   const attRows: ReactElement[] = [];
   const renderAtt = (r: Run): ReactElement => {
-      return (
-        <View {...webOnly({ dataSet: { row: `att:${r.id}` } })} style={h.attWrap}>
-          <Row
-            id={`attention-${r.id}`} title={runTitle(r)} note={`${metaLine(r)} · ${ago(r.startedAt, now)}`} selected={selectedRunId === r.id}
-            onPress={() => data.nav.openRunSide(r.id)}
-            leading={<StatusMark status="failed" />}
+    return (
+      <View {...webOnly({ dataSet: { row: `att:${r.id}` } })} style={h.attWrap}>
+        <Row
+          id={`attention-${r.id}`}
+          title={runTitle(r)}
+          note={`${metaLine(r)} · ${ago(r.startedAt, now)}`}
+          selected={selectedRunId === r.id}
+          onPress={() => data.nav.openRunSide(r.id)}
+          leading={<StatusMark status="failed" />}
+        />
+        <View style={h.acts}>
+          <QuietButton
+            label="Retry step"
+            icon="retry"
+            tone="accent"
+            testID={`retry-step-${r.id}`}
+            onPress={() => void actions.retryStep(r)}
           />
-          <View style={h.acts}><QuietButton label="Retry step" icon="retry" tone="accent" testID={`retry-step-${r.id}`} onPress={() => void actions.retryStep(r)} /><QuietButton label="Copy trace id" testID={`copy-trace-${r.id}`} title={r.traceId} onPress={() => actions.copy(r.traceId, "the trace id")} /><QuietButton label="Skip step" testID={`skip-step-${r.id}`} onPress={() => void actions.skipStep(r)} /></View>
+          <QuietButton
+            label="Copy trace id"
+            testID={`copy-trace-${r.id}`}
+            title={r.traceId}
+            onPress={() => actions.copy(r.traceId, "the trace id")}
+          />
+          <QuietButton label="Skip step" testID={`skip-step-${r.id}`} onPress={() => void actions.skipStep(r)} />
+        </View>
+      </View>
+    );
+  };
+  for (const it of attention)
+    attRows.push(
+      <View key={it.run.id} style={{ height: ATT_HEIGHT }}>
+        {renderAtt(it.run)}
+      </View>,
+    );
+  const render = (it: Item): ReactElement => {
+    if (it.k === "lab")
+      return (
+        <View style={h.lab}>
+          <Text accessibilityRole="header" style={h.labText}>
+            {it.text}
+          </Text>
         </View>
       );
-  };
-  for (const it of attention) attRows.push(<View key={it.run.id} style={{ height: ATT_HEIGHT }}>{renderAtt(it.run)}</View>);
-  const render = (it: Item): ReactElement => {
-    if (it.k === "lab") return <View style={h.lab}><Text accessibilityRole="header" style={h.labText}>{it.text}</Text></View>;
     if (it.k === "att") return renderAtt(it.run);
     return (
       <RunRow
-        run={it.run} now={now} rowKey={it.run.id} {...(marks.get(it.run.id) ? { work: { mark: marks.get(it.run.id)!, name: data.name(marks.get(it.run.id)!.who.id) } } : {})} selected={selectedRunId === it.run.id} open={needsAttention(it.run, handled)} {...(currentVersion !== undefined ? { currentVersion } : {})}
-        onOpen={(r) => data.nav.openRunSide(r.id)} onOpenMain={(r) => data.nav.openRun(r.id)} onRetry={(r) => void actions.retryStep(r)} onMenu={menu}
+        run={it.run}
+        now={now}
+        rowKey={it.run.id}
+        {...(marks.get(it.run.id)
+          ? { work: { mark: marks.get(it.run.id)!, name: data.name(marks.get(it.run.id)!.who.id) } }
+          : {})}
+        selected={selectedRunId === it.run.id}
+        open={needsAttention(it.run, handled)}
+        {...(currentVersion !== undefined ? { currentVersion } : {})}
+        onOpen={(r) => data.nav.openRunSide(r.id)}
+        onOpenMain={(r) => data.nav.openRun(r.id)}
+        onRetry={(r) => void actions.retryStep(r)}
+        onMenu={menu}
       />
     );
   };
@@ -103,30 +175,63 @@ export function RunHistory({ subject, scope = subject ? "subject" : "mine", curr
   return (
     <View testID="run-history" accessibilityLabel="Run history" style={h.frame} {...webOnly({ onKeyDown: onKey })}>
       <View style={h.head}>
-        <Text accessibilityRole="header" style={h.title}>Runs</Text>
+        <Text accessibilityRole="header" style={h.title}>
+          Runs
+        </Text>
         <View style={{ flex: 1 }} />
-        <IconButton icon="filter" label="Filter the runs" testID="run-filter" onPress={(e) => { const p = pressPoint(e); filterMenu(p.x, p.y); }} />
+        <IconButton
+          icon="filter"
+          label="Filter the runs"
+          testID="run-filter"
+          onPress={(e) => {
+            const p = pressPoint(e);
+            filterMenu(p.x, p.y);
+          }}
+        />
       </View>
       {filter !== "all" ? (
         <View style={h.showing} testID="run-showing">
-          <Text style={h.showText}>Showing <Text style={h.showB}>{def.showing}</Text></Text>
+          <Text style={h.showText}>
+            Showing <Text style={h.showB}>{def.showing}</Text>
+          </Text>
           <Text style={h.dim}>·</Text>
           <QuietButton label="Show all" tone="accent" onPress={() => setFilter("all")} />
         </View>
       ) : null}
       <View style={{ flex: 1, minHeight: 0 }}>
         {q.status === "loading" ? (
-          <View testID="run-history-loading" style={h.skeleton}>{each([0, 1, 2, 3, 4], (i) => <View key={i} style={h.skRow} />)}</View>
+          <View testID="run-history-loading" style={h.skeleton}>
+            {each([0, 1, 2, 3, 4], (i) => (
+              <View key={i} style={h.skRow} />
+            ))}
+          </View>
         ) : items.length === 0 ? (
-          <View style={h.blank} testID="run-history-empty"><Text style={h.blankText}>{filter === "all" ? "No runs yet. Run a test to see one." : "Nothing matches."}</Text></View>
+          <View style={h.blank} testID="run-history-empty">
+            <Text style={h.blankText}>
+              {filter === "all" ? "No runs yet. Run a test to see one." : "Nothing matches."}
+            </Text>
+          </View>
         ) : (
           <>
-            {attention.length ? <View testID="run-attention"><View style={h.lab}><Text accessibilityRole="header" style={h.labText}>Needs attention</Text></View>{attRows}</View> : null}
+            {attention.length ? (
+              <View testID="run-attention">
+                <View style={h.lab}>
+                  <Text accessibilityRole="header" style={h.labText}>
+                    Needs attention
+                  </Text>
+                </View>
+                {attRows}
+              </View>
+            ) : null}
             <VirtualList data={listed} rowHeight={ITEM_HEIGHT} keyOf={keyOfItem} renderItem={render} />
           </>
         )}
       </View>
-      {actions.note ? <Text style={h.note} accessibilityLiveRegion="polite" testID="run-note">{actions.note}</Text> : null}
+      {actions.note ? (
+        <Text style={h.note} accessibilityLiveRegion="polite" testID="run-note">
+          {actions.note}
+        </Text>
+      ) : null}
       {element}
     </View>
   );
@@ -148,5 +253,11 @@ export const h = StyleSheet.create({
   skRow: { height: 32, marginBottom: 12, borderRadius: 9, backgroundColor: "var(--sunk)" as string },
   blank: { flex: 1, alignItems: "center", justifyContent: "center", padding: 48 },
   blankText: { fontSize: 13, color: "var(--ink-3)" as string, textAlign: "center" },
-  note: { fontSize: 12, color: "var(--ink-2)" as string, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  note: {
+    fontSize: 12,
+    color: "var(--ink-2)" as string,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
 });

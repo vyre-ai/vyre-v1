@@ -13,8 +13,24 @@ test("a chat tab starts as New chat, takes the chat's one name as the chat fills
   const listeners = new Set<() => void>();
   const session: TitleSession = {
     me: { id: "usr_me" },
-    call: async (cap) => (cap === "threads.get" ? { thread } : cap === "agents.list" ? { agents: [{ agentId: "agt_dex", name: "Dex" }] } : cap === "access.principals.list" ? { principals: [] } : (messagesRead++, { messages: [{ body: "Can you draft the renewal letter?" }] })),
-    hooks: { capQuery: () => ({ subscribe: (l) => { listeners.add(l); return () => { listeners.delete(l); }; } }) },
+    call: async (cap) =>
+      cap === "threads.get"
+        ? { thread }
+        : cap === "agents.list"
+          ? { agents: [{ agentId: "agt_dex", name: "Dex" }] }
+          : cap === "access.principals.list"
+            ? { principals: [] }
+            : (messagesRead++, { messages: [{ body: "Can you draft the renewal letter?" }] }),
+    hooks: {
+      capQuery: () => ({
+        subscribe: (l) => {
+          listeners.add(l);
+          return () => {
+            listeners.delete(l);
+          };
+        },
+      }),
+    },
   };
   const shown: string[] = [];
   const subject = { type: "thread", id: "thr_1" };
@@ -39,7 +55,15 @@ test("a chat tab starts as New chat, takes the chat's one name as the chat fills
 
 test("a record tab is read once and is not live", async () => {
   let subscribed = 0;
-  const session: TitleSession = { call: async () => ({ record: { fields: { name: "Elena Rivera" } } }), hooks: { capQuery: () => { subscribed++; return { subscribe: () => () => undefined }; } } };
+  const session: TitleSession = {
+    call: async () => ({ record: { fields: { name: "Elena Rivera" } } }),
+    hooks: {
+      capQuery: () => {
+        subscribed++;
+        return { subscribe: () => () => undefined };
+      },
+    },
+  };
   const subject = { type: "record", id: "r1" };
   const shown: string[] = [];
   followTitle(session, titleAsk(subject, { type: "contact" })!, (t) => shown.push(t));
@@ -53,8 +77,24 @@ test("an agent's page and its form follow the agent's name, and a rename shows o
   const listeners = new Set<() => void>();
   const asked: string[] = [];
   const session: TitleSession = {
-    call: async (cap, input) => { asked.push(cap); void input; return { agent: { name } }; },
-    hooks: { capQuery: (cap) => { asked.push(`live:${cap}`); return { subscribe: (l) => { listeners.add(l); return () => { listeners.delete(l); }; } }; } },
+    call: async (cap, input) => {
+      asked.push(cap);
+      void input;
+      return { agent: { name } };
+    },
+    hooks: {
+      capQuery: (cap) => {
+        asked.push(`live:${cap}`);
+        return {
+          subscribe: (l) => {
+            listeners.add(l);
+            return () => {
+              listeners.delete(l);
+            };
+          },
+        };
+      },
+    },
   };
   const page = screenAsk("chats.agent-page", { agentId: "agt_scout" })!;
   const shown: string[] = [];
@@ -85,27 +125,69 @@ test("every chat tab follows its chat, the selected one or not: a chat named whi
   const listeners = new Set<() => void>();
   const session: TitleSession = {
     me: { id: "usr_me" },
-    call: async (cap, input) => (cap === "threads.get" ? { thread: { kind: "chat", agents: [], members: [{ kind: "person", id: "usr_me" }], ...(titles[(input as { threadId: string }).threadId] ? { title: titles[(input as { threadId: string }).threadId] } : {}) } } : {}),
-    hooks: { capQuery: () => ({ subscribe: (l) => { listeners.add(l); return () => { listeners.delete(l); }; } }) },
+    call: async (cap, input) =>
+      cap === "threads.get"
+        ? {
+            thread: {
+              kind: "chat",
+              agents: [],
+              members: [{ kind: "person", id: "usr_me" }],
+              ...(titles[(input as { threadId: string }).threadId]
+                ? { title: titles[(input as { threadId: string }).threadId] }
+                : {}),
+            },
+          }
+        : {},
+    hooks: {
+      capQuery: () => ({
+        subscribe: (l) => {
+          listeners.add(l);
+          return () => {
+            listeners.delete(l);
+          };
+        },
+      }),
+    },
   };
   let tabs = [
     { key: "chats:subject=thread:thr_a", place: "chats", hash: "subject=thread:thr_a" },
     { key: "chats:subject=thread:thr_b", place: "chats", hash: "subject=thread:thr_b" },
-    { key: "chats:subject=thread:thr_c", place: "chats", hash: "screen=chats.conversation&threadId=thr_c" },   // the other spelling of a chat
+    { key: "chats:subject=thread:thr_c", place: "chats", hash: "screen=chats.conversation&threadId=thr_c" }, // the other spelling of a chat
     { key: "chats", place: "chats" },
     { key: "new:1", place: "chats", isNew: true },
   ];
   const shown = new Map<string, string>();
   const tabListeners = new Set<() => void>();
-  const stop = followAllTabs(session, { tabs: () => tabs, subscribe: (l) => { tabListeners.add(l); return () => { tabListeners.delete(l); }; } }, (k, t) => shown.set(k, t));
+  const stop = followAllTabs(
+    session,
+    {
+      tabs: () => tabs,
+      subscribe: (l) => {
+        tabListeners.add(l);
+        return () => {
+          tabListeners.delete(l);
+        };
+      },
+    },
+    (k, t) => shown.set(k, t),
+  );
   await flush();
-  assert.deepEqual([...shown.keys()].sort(), ["chats:subject=thread:thr_a", "chats:subject=thread:thr_b", "chats:subject=thread:thr_c"], "all three chats, not a place tab or a + tab");
-  assert.ok([...shown.values()].every((t) => t === "New chat"), "untitled: New chat, only while it truly has no title");
-  titles["thr_a"] = "Landing page"; titles["thr_b"] = "Onboarding goal"; titles["thr_c"] = "Retainer letters";
-  listeners.forEach((l) => l());      // the chats are named while the person is on some other tab
+  assert.deepEqual(
+    [...shown.keys()].sort(),
+    ["chats:subject=thread:thr_a", "chats:subject=thread:thr_b", "chats:subject=thread:thr_c"],
+    "all three chats, not a place tab or a + tab",
+  );
+  assert.ok(
+    [...shown.values()].every((t) => t === "New chat"),
+    "untitled: New chat, only while it truly has no title",
+  );
+  titles["thr_a"] = "Landing page";
+  titles["thr_b"] = "Onboarding goal";
+  titles["thr_c"] = "Retainer letters";
+  listeners.forEach((l) => l()); // the chats are named while the person is on some other tab
   await flush();
   assert.deepEqual([...shown.values()], ["Landing page", "Onboarding goal", "Retainer letters"]);
-  tabs = tabs.filter((t) => t.key !== "chats:subject=thread:thr_b");   // a tab closed
+  tabs = tabs.filter((t) => t.key !== "chats:subject=thread:thr_b"); // a tab closed
   tabListeners.forEach((l) => l());
   const before = listeners.size;
   assert.equal(before, 2, "the closed tab's chat is no longer listened to");
@@ -115,6 +197,12 @@ test("every chat tab follows its chat, the selected one or not: a chat named whi
 
 test("a chat is one tab whichever way it was opened: the subject hash, the conversation hash and an opaque id of the same chat share a key", async () => {
   const { tabKey } = await import("./store.ts");
-  assert.equal(tabKey("chats", "screen=chats.conversation&threadId=thr_1&m=msg_9&side=thr_r"), tabKey("chats", "subject=thread:thr_1"));
-  assert.notEqual(tabKey("chats", "screen=chats.conversation&threadId=thr_1"), tabKey("chats", "screen=chats.conversation&threadId=thr_2"));
+  assert.equal(
+    tabKey("chats", "screen=chats.conversation&threadId=thr_1&m=msg_9&side=thr_r"),
+    tabKey("chats", "subject=thread:thr_1"),
+  );
+  assert.notEqual(
+    tabKey("chats", "screen=chats.conversation&threadId=thr_1"),
+    tabKey("chats", "screen=chats.conversation&threadId=thr_2"),
+  );
 });

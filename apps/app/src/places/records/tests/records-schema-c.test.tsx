@@ -9,10 +9,13 @@ import { RecordTypesList, SchemaDataProvider, SchemaMap, appName, typeTag } from
 import { createSampleSchema, northwind } from "../schemamap/sample.ts";
 import type { SampleSchema } from "../schemamap/sample.ts";
 
-const html = (s: SampleSchema, el: ReactElement): string => renderToStaticMarkup(<SchemaDataProvider value={s.data}>{el}</SchemaDataProvider>).replaceAll("<!-- -->", "");
+const html = (s: SampleSchema, el: ReactElement): string =>
+  renderToStaticMarkup(<SchemaDataProvider value={s.data}>{el}</SchemaDataProvider>).replaceAll("<!-- -->", "");
 const has = (s: string, needle: string): boolean => s.includes(needle);
-const textOf = (s: string, id: string): string | null => new RegExp(`data-testid="${id}"[^>]*>([^<]*)<`).exec(s)?.[1] ?? null;
-const map = (s: SampleSchema, props: Parameters<typeof SchemaMap>[0] = {}): string => html(s, <SchemaMap details={s.details} {...props} />);
+const textOf = (s: string, id: string): string | null =>
+  new RegExp(`data-testid="${id}"[^>]*>([^<]*)<`).exec(s)?.[1] ?? null;
+const map = (s: SampleSchema, props: Parameters<typeof SchemaMap>[0] = {}): string =>
+  html(s, <SchemaMap details={s.details} {...props} />);
 
 test("nothing selected: no fields pane", () => {
   const out = map(createSampleSchema());
@@ -21,18 +24,24 @@ test("nothing selected: no fields pane", () => {
 
 test("selecting a type opens the fields pane: its header, N fields and records, every field with its kind, the Name tag, Add a field", () => {
   const out = map(createSampleSchema(), { selected: "projects" });
-  assert.ok(has(out, 'data-testid="schema-fields-pane"') && has(out, 'data-testid="side-pane"'), "the pane is the shared SidePane");
+  assert.ok(
+    has(out, 'data-testid="schema-fields-pane"') && has(out, 'data-testid="side-pane"'),
+    "the pane is the shared SidePane",
+  );
   assert.equal(textOf(out, "pane-type-title"), "Projects");
   assert.equal(textOf(out, "pane-type-counts"), "9 fields · 12 records");
   const fields = out.split('data-testid="pane-fields"')[1] ?? "";
-  for (const key of ["name", "status", "lead", "due", "client", "tasks", "invoices", "budget", "brief"]) assert.ok(has(fields, `data-testid="row-field:projects:${key}"`), `field ${key} is a Row`);
+  for (const key of ["name", "status", "lead", "due", "client", "tasks", "invoices", "budget", "brief"])
+    assert.ok(has(fields, `data-testid="row-field:projects:${key}"`), `field ${key} is a Row`);
   assert.equal(textOf(out, "pane-kind-status"), "Status");
   assert.equal(textOf(out, "pane-kind-budget"), "Money");
   assert.equal(textOf(out, "pane-kind-tasks"), "Link to Tasks");
   assert.equal(textOf(out, "pane-kind-client"), "Linked from Clients");
   assert.equal(textOf(out, "pane-name-name"), "Name", "the title field carries the Name tag");
   assert.ok(!has(out, 'data-testid="pane-name-status"'));
-  assert.ok(has(out, ">Add a field<") && has(out, 'data-testid="pane-add-field"') && has(out, "Add a field in the Console"));
+  assert.ok(
+    has(out, ">Add a field<") && has(out, 'data-testid="pane-add-field"') && has(out, "Add a field in the Console"),
+  );
   assert.ok(has(out, 'aria-label="Open Projects"'));
 });
 
@@ -55,17 +64,25 @@ test("types get their line icon, not a letter: a person for Clients, a folder fo
 
 test("Record types: plural names, a type icon on each row, rows divided inside one inset list", () => {
   const out = html(createSampleSchema(northwind, { withSynced: true }), <RecordTypesList />);
-  for (const plural of ["Clients", "Projects", "Tasks", "Invoices", "Meetings"]) assert.ok(has(out, `>${plural}<`), plural);
+  for (const plural of ["Clients", "Projects", "Tasks", "Invoices", "Meetings"])
+    assert.ok(has(out, `>${plural}<`), plural);
   assert.ok(!has(out, ">Client<") && !has(out, ">Project<"), "singular names are not the row titles");
   assert.ok(has(out, 'data-testid="record-types-list"'));
-  assert.ok(has(out, 'data-testid="tile-clients"') && (out.split('data-testid="tile-clients"')[1] ?? "").split("</div>")[0]?.includes("<svg"));
+  assert.ok(
+    has(out, 'data-testid="tile-clients"') &&
+      (out.split('data-testid="tile-clients"')[1] ?? "").split("</div>")[0]?.includes("<svg"),
+  );
 });
 
 test("Record types: each source label, and the source app's icon beside Synced from", () => {
   const out = html(createSampleSchema(northwind, { withSynced: true }), <RecordTypesList />);
   // Built in, Journey and Site table are sections of the page now, not a tag on each row
   assert.equal(textOf(out, "type-tag-clients"), null);
-  assert.ok(has(out, 'data-testid="types-section-Journeys"') && has(out, 'data-testid="types-section-Sites"') && has(out, 'data-testid="types-section-Built in"'));
+  assert.ok(
+    has(out, 'data-testid="types-section-Journeys"') &&
+      has(out, 'data-testid="types-section-Sites"') &&
+      has(out, 'data-testid="types-section-Built in"'),
+  );
   assert.equal(textOf(out, "type-tag-hires"), "Synced from HubSpot");
   assert.equal(textOf(out, "type-tag-issues"), "Synced from GitHub");
   const hub = out.split('data-testid="type-source-hires"')[1]?.split("</div></div>")[0] ?? "";
@@ -83,7 +100,11 @@ test("source labels in words", () => {
   assert.equal(appName("hubspot"), "HubSpot");
   assert.equal(appName("github"), "GitHub");
   assert.equal(appName("zendesk"), "Zendesk");
-  assert.deepEqual(typeTag({ system: false, syncedFrom: "github" }), { kind: "synced", text: "Synced from GitHub", app: "github" });
+  assert.deepEqual(typeTag({ system: false, syncedFrom: "github" }), {
+    kind: "synced",
+    text: "Synced from GitHub",
+    app: "github",
+  });
   assert.deepEqual(typeTag({ system: false, group: "Journeys" }), { kind: "plain", text: "Journey" });
   assert.deepEqual(typeTag({ system: true, group: "Sites" }), { kind: "plain", text: "Site table" });
   assert.deepEqual(typeTag({ system: true }), { kind: "plain", text: "Built in" });

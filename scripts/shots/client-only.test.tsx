@@ -6,7 +6,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ClientOnly } from "./app/src/ClientOnly.tsx";
 import fs from "node:fs";
 
-const wide = (width: number) => <ClientOnly><p data-width={width}>the Vault, laid out for {width}</p></ClientOnly>;
+const wide = (width: number) => (
+  <ClientOnly>
+    <p data-width={width}>the Vault, laid out for {width}</p>
+  </ClientOnly>
+);
 
 test("the server draws the same page twice, and for every window size: no mount content in it", () => {
   const first = renderToStaticMarkup(wide(1440));
@@ -17,5 +21,5 @@ test("the server draws the same page twice, and for every window size: no mount 
 
 test("the mount route wraps every mount in it", () => {
   const route = fs.readFileSync(new URL("./app/app/m/[id].tsx", import.meta.url), "utf8");
-  assert.match(route, /<ClientOnly><Mount \/><\/ClientOnly>/);
+  assert.match(route, /<ClientOnly>\s*<Mount \/>\s*<\/ClientOnly>/);
 });

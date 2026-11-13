@@ -22,16 +22,35 @@ export async function readDocs(ctx: AutoCtx, input: In): Promise<unknown> {
   // the query string is where a link carries data, so a log line never has it
   ctx.log?.info("link read", { link: logLink(url), ok: fetched.ok });
   if (!fetched.ok) return { ok: false, reason: fetched.reason };
-  const view = docsView(fetched.text, new URL(fetched.finalUrl), typeof input.focus === "string" ? input.focus : undefined);
+  const view = docsView(
+    fetched.text,
+    new URL(fetched.finalUrl),
+    typeof input.focus === "string" ? input.focus : undefined,
+  );
   const meta = view.kind === "html" ? pageMeta(fetched.text, new URL(fetched.finalUrl)) : null;
   // a link card's picture, fetched here so no browser asks the third-party site for it: the page image, else the site's icon, else none
   let preview: { contentType: string; data: string; from: "image" | "icon" } | null = null;
   if (input.preview === true && meta) {
-    for (const [from, src] of [["image", meta.image], ["icon", meta.icon]] as const) {
+    for (const [from, src] of [
+      ["image", meta.image],
+      ["icon", meta.icon],
+    ] as const) {
       if (!src) continue;
       const got = await fetchPublicImage(src, net);
-      if (got.ok) { preview = { contentType: got.contentType, data: Buffer.from(got.bytes).toString("base64"), from }; break; }
+      if (got.ok) {
+        preview = { contentType: got.contentType, data: Buffer.from(got.bytes).toString("base64"), from };
+        break;
+      }
     }
   }
-  return { ok: true, finalUrl: fetched.finalUrl, kind: view.kind, text: view.text, links: view.links, truncated: view.truncated, ...(meta && Object.keys(meta).length ? { meta } : {}), ...(preview ? { preview } : {}) };
+  return {
+    ok: true,
+    finalUrl: fetched.finalUrl,
+    kind: view.kind,
+    text: view.text,
+    links: view.links,
+    truncated: view.truncated,
+    ...(meta && Object.keys(meta).length ? { meta } : {}),
+    ...(preview ? { preview } : {}),
+  };
 }

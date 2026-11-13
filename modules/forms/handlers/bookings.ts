@@ -8,7 +8,24 @@
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { Row } from "../projections.ts";
 import {
-  fail, formOut, insertForm, isNull, isRec, many, mustForm, nid, num, one, pageOf, parseJson, publishedBySlug, rec, reqInt, reqStr, str, strList,
+  fail,
+  formOut,
+  insertForm,
+  isNull,
+  isRec,
+  many,
+  mustForm,
+  nid,
+  num,
+  one,
+  pageOf,
+  parseJson,
+  publishedBySlug,
+  rec,
+  reqInt,
+  reqStr,
+  str,
+  strList,
 } from "../projections.ts";
 import { checkAnswers, typedAnswers, formPrincipal, principalOk, publicChecks, writeAnswers } from "./submit.ts";
 
@@ -20,9 +37,26 @@ const MAX_SLOTS = 500;
 const ALERT_EVERY_MS = 12 * 60 * MINUTE;
 const DEFAULT_HOURS = { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:00", tz: "UTC" };
 
-interface Hours { days: number[]; from: string; to: string; tz: string }
-interface Slot { startsAt: number; endsAt: number; hostId: string }
-interface BookingOut { bookingId: string; formId: string; recordId: string; startsAt: number; endsAt: number; hostId: string; state: "booked" | "cancelled" | "rescheduled" }
+interface Hours {
+  days: number[];
+  from: string;
+  to: string;
+  tz: string;
+}
+interface Slot {
+  startsAt: number;
+  endsAt: number;
+  hostId: string;
+}
+interface BookingOut {
+  bookingId: string;
+  formId: string;
+  recordId: string;
+  startsAt: number;
+  endsAt: number;
+  hostId: string;
+  state: "booked" | "cancelled" | "rescheduled";
+}
 
 // ---- time -----------------------------------------------------------------------------------------------------------
 
@@ -40,7 +74,13 @@ function validZone(tz: string): boolean {
 function zoneParts(ts: number, tz: string): { day: number; minutes: number } {
   let f = formatters.get(tz);
   if (!f) {
-    f = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
     formatters.set(tz, f);
   }
   let weekday = "Sun";
@@ -63,7 +103,9 @@ function clock(text: string): number {
 function hoursOf(page: Row): Hours {
   const h = parseJson(page.hours);
   if (!isRec(h)) return DEFAULT_HOURS;
-  const days = Array.isArray(h.days) ? h.days.filter((d): d is number => typeof d === "number" && d >= 0 && d <= 6) : DEFAULT_HOURS.days;
+  const days = Array.isArray(h.days)
+    ? h.days.filter((d): d is number => typeof d === "number" && d >= 0 && d <= 6)
+    : DEFAULT_HOURS.days;
   return {
     days,
     from: typeof h.from === "string" ? h.from : DEFAULT_HOURS.from,
@@ -73,7 +115,8 @@ function hoursOf(page: Row): Hours {
 }
 
 function checkZone(ctx: Ctx, tz: string): void {
-  if (tz.length === 0 || tz.length > 64 || !validZone(tz)) fail(ctx, "validation.bad_input", "That time zone is not known.", { field: "tz" });
+  if (tz.length === 0 || tz.length > 64 || !validZone(tz))
+    fail(ctx, "validation.bad_input", "That time zone is not known.", { field: "tz" });
 }
 
 // ---- availability ---------------------------------------------------------------------------------------------------
@@ -102,13 +145,19 @@ async function openSlots(ctx: Ctx, form: Row, page: Row, from: number, to: numbe
   let busy: { who: string; startsAt: number; endsAt: number }[] = [];
   let unknown: string[] = [];
   try {
-    const res = (await ctx.call("calendar.availability", { people: hosts, from: from - buffer, to: to + buffer })) as { busy?: unknown; unknown?: unknown };
+    const res = (await ctx.call("calendar.availability", { people: hosts, from: from - buffer, to: to + buffer })) as {
+      busy?: unknown;
+      unknown?: unknown;
+    };
     busy = Array.isArray(res.busy)
       ? res.busy.filter(isRec).map((b) => ({ who: str(b.who), startsAt: num(b.startsAt), endsAt: num(b.endsAt) }))
       : [];
     unknown = Array.isArray(res.unknown) ? res.unknown.filter((u): u is string => typeof u === "string") : [];
   } catch (e) {
-    ctx.log.warn("forms: calendar availability failed", { form: str(form.id), error: e instanceof Error ? e.message : String(e) });
+    ctx.log.warn("forms: calendar availability failed", {
+      form: str(form.id),
+      error: e instanceof Error ? e.message : String(e),
+    });
     unknown = hosts;
   }
   const live = hosts.filter((h) => !unknown.includes(h));
@@ -123,14 +172,19 @@ async function openSlots(ctx: Ctx, form: Row, page: Row, from: number, to: numbe
     if (b.form_id === form.id) counts.set(str(b.host_id), (counts.get(str(b.host_id)) ?? 0) + 1);
   }
   const blocks = new Map<string, { s: number; e: number }[]>();
-  for (const h of live) blocks.set(h, [...(booked.get(h) ?? []), ...busy.filter((b) => b.who === h).map((b) => ({ s: b.startsAt, e: b.endsAt }))]);
+  for (const h of live)
+    blocks.set(h, [
+      ...(booked.get(h) ?? []),
+      ...busy.filter((b) => b.who === h).map((b) => ({ s: b.startsAt, e: b.endsAt })),
+    ]);
 
   const earliest = Math.max(from, ctx.now() + num(page.notice_minutes) * MINUTE);
   const step = GRID_MINUTES * MINUTE;
   const slots: Slot[] = [];
   for (let s = Math.ceil(earliest / step) * step; s + length <= to && slots.length < MAX_SLOTS; s += step) {
     const local = zoneParts(s, hours.tz);
-    if (!hours.days.includes(local.day) || local.minutes < fromMin || local.minutes + num(page.length_minutes) > toMin) continue;
+    if (!hours.days.includes(local.day) || local.minutes < fromMin || local.minutes + num(page.length_minutes) > toMin)
+      continue;
     const e = s + length;
     const free = live.filter((h) => (blocks.get(h) ?? []).every((b) => !(b.s < e + buffer && b.e > s - buffer)));
     if (free.length === 0) continue;
@@ -155,14 +209,18 @@ async function alertOwner(ctx: Ctx, form: Row, page: Row, hosts: string[]): Prom
       source: { kind: "manual", id: str(form.id) },
     });
   } catch (e) {
-    ctx.log.warn("forms: could not alert the owner of a booking page", { form: str(form.id), error: e instanceof Error ? e.message : String(e) });
+    ctx.log.warn("forms: could not alert the owner of a booking page", {
+      form: str(form.id),
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 }
 
 function rangeOf(ctx: Ctx, o: Record<string, unknown>): { from: number; to: number } {
   const from = reqInt(ctx, o, "from", 0);
   const to = reqInt(ctx, o, "to", 0);
-  if (to <= from || to - from > MAX_RANGE_DAYS * DAY) fail(ctx, "validation.bad_input", `Ask for a range of up to ${MAX_RANGE_DAYS} days.`, { field: "to" });
+  if (to <= from || to - from > MAX_RANGE_DAYS * DAY)
+    fail(ctx, "validation.bad_input", `Ask for a range of up to ${MAX_RANGE_DAYS} days.`, { field: "to" });
   return { from, to };
 }
 
@@ -195,29 +253,53 @@ async function pageCreate(ctx: Ctx, input: unknown): Promise<{ form: ReturnType<
   const o = rec(ctx, input);
   const name = reqStr(ctx, o, "name").trim();
   const hostIds = o.hostIds;
-  if (name.length === 0 || name.length > 120) fail(ctx, "validation.bad_input", "Give the page a name.", { field: "name" });
-  if (!Array.isArray(hostIds) || hostIds.length === 0 || hostIds.length > 50 || !hostIds.every((h) => typeof h === "string" && h.length > 0)) {
+  if (name.length === 0 || name.length > 120)
+    fail(ctx, "validation.bad_input", "Give the page a name.", { field: "name" });
+  if (
+    !Array.isArray(hostIds) ||
+    hostIds.length === 0 ||
+    hostIds.length > 50 ||
+    !hostIds.every((h) => typeof h === "string" && h.length > 0)
+  ) {
     fail(ctx, "validation.bad_input", "Pick at least one host.", { field: "hostIds" });
   }
   const hosts = [...new Set(hostIds as string[])];
   const length = reqInt(ctx, o, "lengthMinutes", 5, 480);
-  const buffer = o.bufferMinutes === undefined || o.bufferMinutes === null ? 0 : reqInt(ctx, o, "bufferMinutes", 0, 240);
+  const buffer =
+    o.bufferMinutes === undefined || o.bufferMinutes === null ? 0 : reqInt(ctx, o, "bufferMinutes", 0, 240);
   const recordType = reqStr(ctx, o, "recordType");
-  if (!/^[a-z][a-z0-9_]*$/.test(recordType)) fail(ctx, "validation.bad_input", "That record type is not valid.", { field: "recordType" });
+  if (!/^[a-z][a-z0-9_]*$/.test(recordType))
+    fail(ctx, "validation.bad_input", "That record type is not valid.", { field: "recordType" });
   const form = insertForm(ctx, { name, recordType, kind: "booking" });
   ctx.emit("form.created", `form/${str(form.id)}`, { formId: str(form.id), name, kind: "booking" });
   ctx.db.run(
     "INSERT INTO forms_booking_page (form_id, host_ids, length_minutes, buffer_minutes, hours, notice_minutes, alerted_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    str(form.id), JSON.stringify(hosts), length, buffer, JSON.stringify(DEFAULT_HOURS), 60, null,
+    str(form.id),
+    JSON.stringify(hosts),
+    length,
+    buffer,
+    JSON.stringify(DEFAULT_HOURS),
+    60,
+    null,
   );
   // Every booking needs an email: it matches the person to a record and invites them to the meeting.
-  ctx.db.run("INSERT INTO forms_field (form_id, field, mode, prefill_key, step, position) VALUES (?, ?, ?, ?, ?, ?)", str(form.id), "email", "ask", null, null, 0);
+  ctx.db.run(
+    "INSERT INTO forms_field (form_id, field, mode, prefill_key, step, position) VALUES (?, ?, ?, ?, ?, ?)",
+    str(form.id),
+    "email",
+    "ask",
+    null,
+    null,
+    0,
+  );
   return { form: formOut(ctx, form) };
 }
 
 /** True when the host has a booking that overlaps [s, e) once the buffer is added. */
 function hostConflict(ctx: Ctx, hostId: string, s: number, e: number, buffer: number): boolean {
-  return many(ctx, "SELECT * FROM forms_booking WHERE host_id = ?", hostId).some((b) => b.state === "booked" && num(b.starts_at) < e + buffer && num(b.ends_at) > s - buffer);
+  return many(ctx, "SELECT * FROM forms_booking WHERE host_id = ?", hostId).some(
+    (b) => b.state === "booked" && num(b.starts_at) < e + buffer && num(b.ends_at) > s - buffer,
+  );
 }
 
 async function hostCalendar(ctx: Ctx, hostId: string): Promise<string | undefined> {
@@ -247,7 +329,8 @@ async function book(ctx: Ctx, input: unknown): Promise<{ booking: BookingOut }> 
   const consent = await publicChecks(ctx, form, rawAnswers, o, "book");
   const answers = await typedAnswers(ctx, form, checkAnswers(ctx, form, null, rawAnswers));
   const email = typeof answers.email === "string" ? answers.email : "";
-  if (email.length === 0) fail(ctx, "validation.bad_input", "An email address is needed to book.", { field: "answers.email" });
+  if (email.length === 0)
+    fail(ctx, "validation.bad_input", "An email address is needed to book.", { field: "answers.email" });
 
   const length = num(page.length_minutes) * MINUTE;
   const buffer = num(page.buffer_minutes) * MINUTE;
@@ -268,7 +351,14 @@ async function book(ctx: Ctx, input: unknown): Promise<{ booking: BookingOut }> 
   if (calendarId) {
     const name = typeof answers.name === "string" && answers.name.length > 0 ? answers.name : email;
     const res = (await ctx.call("calendar.create_event", {
-      idempotencyKey: `${bookKey}:event`, calendarId, title: `${str(form.name)}: ${name}`, startsAt, endsAt, attendees: [{ email }], recordIds: [written.recordId], fromBookingPage: formId,
+      idempotencyKey: `${bookKey}:event`,
+      calendarId,
+      title: `${str(form.name)}: ${name}`,
+      startsAt,
+      endsAt,
+      attendees: [{ email }],
+      recordIds: [written.recordId],
+      fromBookingPage: formId,
     })) as { event?: { id?: unknown } };
     eventId = res.event && typeof res.event.id === "string" ? res.event.id : null;
   } else {
@@ -281,7 +371,10 @@ async function book(ctx: Ctx, input: unknown): Promise<{ booking: BookingOut }> 
       try {
         await ctx.call("calendar.delete_event", { eventId });
       } catch (e) {
-        ctx.log.warn("forms: could not remove the event of a lost slot", { eventId, error: e instanceof Error ? e.message : String(e) });
+        ctx.log.warn("forms: could not remove the event of a lost slot", {
+          eventId,
+          error: e instanceof Error ? e.message : String(e),
+        });
       }
     }
     fail(ctx, "validation.precondition_failed", "That time was just taken. Pick another.");
@@ -290,11 +383,29 @@ async function book(ctx: Ctx, input: unknown): Promise<{ booking: BookingOut }> 
   const now = ctx.now();
   ctx.db.run(
     "INSERT INTO forms_booking (id, form_id, record_id, host_id, starts_at, ends_at, state, tz, event_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, formId, written.recordId, slot.hostId, startsAt, endsAt, "booked", tz, eventId, now,
+    id,
+    formId,
+    written.recordId,
+    slot.hostId,
+    startsAt,
+    endsAt,
+    "booked",
+    tz,
+    eventId,
+    now,
   );
   ctx.db.run(
     "INSERT INTO forms_submission (id, form_id, record_id, at, matched, principal, link_id, consent, digest, answers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    nid(ctx, "sub"), formId, written.recordId, now, written.matched ? 1 : 0, formPrincipal(formId), null, consent ? 1 : 0, id, null,
+    nid(ctx, "sub"),
+    formId,
+    written.recordId,
+    now,
+    written.matched ? 1 : 0,
+    formPrincipal(formId),
+    null,
+    consent ? 1 : 0,
+    id,
+    null,
   );
   ctx.emit("booking.created", `form/${formId}`, { bookingId: id, formId, recordId: written.recordId });
   return { booking: bookingOut(mustBooking(ctx, id)) };
@@ -315,7 +426,10 @@ async function cancel(ctx: Ctx, input: unknown): Promise<{ booking: BookingOut }
     try {
       await ctx.call("calendar.delete_event", { eventId: str(b.event_id) });
     } catch (e) {
-      ctx.log.warn("forms: could not remove the event of a cancelled booking", { booking: str(b.id), error: e instanceof Error ? e.message : String(e) });
+      ctx.log.warn("forms: could not remove the event of a cancelled booking", {
+        booking: str(b.id),
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
   ctx.emit("booking.cancelled", `form/${str(b.form_id)}`, { bookingId: str(b.id), formId: str(b.form_id) });
@@ -326,8 +440,13 @@ async function list(ctx: Ctx, input: unknown): Promise<{ bookings: BookingOut[];
   const o = rec(ctx, input);
   const form = mustForm(ctx, reqStr(ctx, o, "formId"));
   const { offset, limit } = pageOf(ctx, o);
-  const rows = many(ctx, "SELECT * FROM forms_booking WHERE form_id = ?", str(form.id)).sort((a, b) => num(a.starts_at) - num(b.starts_at) || str(a.id).localeCompare(str(b.id)));
-  const out: { bookings: BookingOut[]; next?: string; total: number } = { bookings: rows.slice(offset, offset + limit).map(bookingOut), total: rows.length };
+  const rows = many(ctx, "SELECT * FROM forms_booking WHERE form_id = ?", str(form.id)).sort(
+    (a, b) => num(a.starts_at) - num(b.starts_at) || str(a.id).localeCompare(str(b.id)),
+  );
+  const out: { bookings: BookingOut[]; next?: string; total: number } = {
+    bookings: rows.slice(offset, offset + limit).map(bookingOut),
+    total: rows.length,
+  };
   if (offset + limit < rows.length) out.next = String(offset + limit);
   return out;
 }

@@ -18,7 +18,10 @@ test("a seed that is only used by tests and shots is not wired into the app's ro
   // route files at any depth (app/claim/[token].tsx is one); a directory itself has nothing to read
   for (const f of fs.readdirSync(routes, { recursive: true }) as string[]) {
     if (!fs.statSync(path.join(routes, f)).isFile()) continue;
-    assert.ok(!fs.readFileSync(path.join(routes, f), "utf8").includes("fixtures"), `${f} does not pull the fixtures in`);
+    assert.ok(
+      !fs.readFileSync(path.join(routes, f), "utf8").includes("fixtures"),
+      `${f} does not pull the fixtures in`,
+    );
   }
 });
 

@@ -16,16 +16,28 @@ import type { Daemon } from "../src/daemon/daemon.ts";
 import { createUpdatesHost, githubFeedBase } from "../src/seams/updates.ts";
 import type { FeedFetch, RunCommand } from "../src/seams/updates.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const tmp = (p: string): string => fs.mkdtempSync(path.join(os.tmpdir(), p));
 const PREFIX = "vyre-release-sums\n";
 
 const pair = crypto.generateKeyPairSync("ed25519");
 const PUB_HEX = Buffer.from(pair.publicKey.export({ type: "spki", format: "der" }).subarray(-32)).toString("hex");
-const sign = (manifest: string): string => crypto.sign(null, Buffer.from(PREFIX + manifest), pair.privateKey).toString("base64");
+const sign = (manifest: string): string =>
+  crypto.sign(null, Buffer.from(PREFIX + manifest), pair.privateKey).toString("base64");
 
 const manifest = (channel: string, version: string): string =>
-  JSON.stringify({ v: 1, channel, server: { version, tarball: "vyre.tgz", sha256: "a".repeat(64), notes: "Faster sync" }, apps: { mac: "1.0.0" } });
+  JSON.stringify({
+    v: 1,
+    channel,
+    server: { version, tarball: "vyre.tgz", sha256: "a".repeat(64), notes: "Faster sync" },
+    apps: { mac: "1.0.0" },
+  });
 
 function seededDir(): string {
   const core = bootCore();
@@ -36,7 +48,10 @@ function seededDir(): string {
   return dir;
 }
 
-interface Feed { urls: string[]; tamper: boolean }
+interface Feed {
+  urls: string[];
+  tamper: boolean;
+}
 
 async function boot(dir: string, feed: Feed, key = PUB_HEX, runOverride?: RunCommand): Promise<Daemon> {
   const fetchFeed: FeedFetch = async (url) => {
@@ -46,12 +61,17 @@ async function boot(dir: string, feed: Feed, key = PUB_HEX, runOverride?: RunCom
     const body = url.endsWith(".sig") ? sign(feed.tamper ? m.replace("1.1.0", "9.9.9") : m) : m;
     return { status: 200, text: async () => body };
   };
-  const run: RunCommand = runOverride ?? (async (argv) => (argv[1] === "version" ? { code: 0, stdout: "1.0.0\n", stderr: "" } : { code: 0, stdout: "", stderr: "" }));
+  const run: RunCommand =
+    runOverride ??
+    (async (argv) =>
+      argv[1] === "version" ? { code: 0, stdout: "1.0.0\n", stderr: "" } : { code: 0, stdout: "", stderr: "" });
   return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     codeRoot: CODE_ROOT,
     platform: fakePlatform({
-      os: "linux", hostname: "updates-live", free: 80e9,
+      os: "linux",
+      hostname: "updates-live",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -59,13 +79,22 @@ async function boot(dir: string, feed: Feed, key = PUB_HEX, runOverride?: RunCom
       },
     }),
     fetch: caddyFetch,
-    seams: { drivers: { configureUpdates: () => createUpdatesHost({ releaseKeyHex: key, fetch: fetchFeed, run, readText: () => null }) } },
+    seams: {
+      drivers: {
+        configureUpdates: () => createUpdatesHost({ releaseKeyHex: key, fetch: fetchFeed, run, readText: () => null }),
+      },
+    },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
 }
 
-async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: number; data: any }> {   // eslint-disable-line @typescript-eslint/no-explicit-any
-  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(input) });
+async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: number; data: any }> {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
+  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` },
+    body: JSON.stringify(input),
+  });
   const body = (await r.json()) as { data?: unknown; error?: unknown };
   return { status: r.status, data: body.data ?? body };
 }
@@ -74,7 +103,10 @@ test("updates live: the daemon wires configureUpdates, reports the running versi
   const feed: Feed = { urls: [], tamper: false };
   const d = await boot(seededDir(), feed);
   try {
-    assert.ok(d.seams?.wired.includes("configureUpdates"), "configureUpdates is wired by the generic loader and daemon");
+    assert.ok(
+      d.seams?.wired.includes("configureUpdates"),
+      "configureUpdates is wired by the generic loader and daemon",
+    );
     assert.deepEqual(d.seams?.missing, [], "no module is left without its driver");
 
     const before = await call(d, "updates.status", {});
@@ -86,7 +118,10 @@ test("updates live: the daemon wires configureUpdates, reports the running versi
     const checked = await call(d, "updates.check", {});
     assert.equal(checked.status, 200, JSON.stringify(checked.data));
     assert.equal(checked.data.available, "1.1.0");
-    assert.deepEqual(feed.urls, ["https://github.com/vyre-ai/vyre-v1/releases/latest/download/stable.json", "https://github.com/vyre-ai/vyre-v1/releases/latest/download/stable.json.sig"]);
+    assert.deepEqual(feed.urls, [
+      "https://github.com/vyre-ai/vyre-v1/releases/latest/download/stable.json",
+      "https://github.com/vyre-ai/vyre-v1/releases/latest/download/stable.json.sig",
+    ]);
 
     const after = await call(d, "updates.status", {});
     assert.equal(after.data.available, "1.1.0", "the finding is kept");
@@ -95,8 +130,13 @@ test("updates live: the daemon wires configureUpdates, reports the running versi
     feed.urls.length = 0;
     const beta = await call(d, "updates.check", {});
     assert.equal(beta.status, 200, JSON.stringify(beta.data));
-    assert.ok(feed.urls[0]?.startsWith("https://github.com/vyre-ai/vyre-v1/releases/download/channel-beta/beta.json"), "beta is read from its rolling release");
-  } finally { await d.stop(); }
+    assert.ok(
+      feed.urls[0]?.startsWith("https://github.com/vyre-ai/vyre-v1/releases/download/channel-beta/beta.json"),
+      "beta is read from its rolling release",
+    );
+  } finally {
+    await d.stop();
+  }
 });
 
 test("updates live: a manifest whose signature does not match the release key is refused and nothing is recorded as available", async () => {
@@ -107,7 +147,9 @@ test("updates live: a manifest whose signature does not match the release key is
     assert.notEqual(r.status, 200);
     assert.match(JSON.stringify(r.data), /signature/i);
     assert.equal((await call(d, "updates.status", {})).data.available, undefined);
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("updates live: a build with no release key cannot read any feed", async () => {
@@ -116,7 +158,9 @@ test("updates live: a build with no release key cannot read any feed", async () 
     const r = await call(d, "updates.check", {});
     assert.notEqual(r.status, 200);
     assert.match(JSON.stringify(r.data), /release feed could not be reached/i);
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("updates seam: the feed address, the installer through vyre-server, and the release kept to go back to", async () => {
@@ -127,56 +171,147 @@ test("updates seam: the feed address, the installer through vyre-server, and the
   const run: RunCommand = async (argv) => {
     ran.push([...argv]);
     if (argv[1] === "version") return { code: 0, stdout: `${version}\n`, stderr: "" };
-    if (argv[1] === "update") { version = "1.1.0"; return { code: 0, stdout: "", stderr: "" }; }
+    if (argv[1] === "update") {
+      version = "1.1.0";
+      return { code: 0, stdout: "", stderr: "" };
+    }
     if (argv[1] === "doctor") return { code: 0, stdout: "", stderr: "" };
-    if (argv[1] === "rollback") { version = "1.0.0"; return { code: 0, stdout: "", stderr: "" }; }
+    if (argv[1] === "rollback") {
+      version = "1.0.0";
+      return { code: 0, stdout: "", stderr: "" };
+    }
     return { code: 1, stdout: "", stderr: "unknown" };
   };
-  const h = createUpdatesHost({ releaseKeyHex: PUB_HEX, run, readText: (f) => (f.endsWith("/previous") ? "releases/1.0.0\n" : null), dir: "/srv/vyre" });
+  const h = createUpdatesHost({
+    releaseKeyHex: PUB_HEX,
+    run,
+    readText: (f) => (f.endsWith("/previous") ? "releases/1.0.0\n" : null),
+    dir: "/srv/vyre",
+  });
   assert.equal(h.releaseKey.length, 32);
   assert.equal(await h.installer.current(), "1.0.0");
   assert.deepEqual(await h.installer.previous(), ["1.0.0"]);
   await h.installer.install({ version: "1.1.0", tarball: "vyre.tgz", sha256: "a".repeat(64) }, "beta");
-  assert.deepEqual(ran.find((a) => a[1] === "update"), ["vyre-server", "update", "--yes", "--channel", "beta", "--version", "1.1.0", "--sha256", "a".repeat(64), "--feed-base", githubFeedBase("beta")]);
+  assert.deepEqual(
+    ran.find((a) => a[1] === "update"),
+    [
+      "vyre-server",
+      "update",
+      "--yes",
+      "--channel",
+      "beta",
+      "--version",
+      "1.1.0",
+      "--sha256",
+      "a".repeat(64),
+      "--feed-base",
+      githubFeedBase("beta"),
+    ],
+  );
   assert.equal(await h.installer.healthy(), true);
   await assert.rejects(h.installer.switchTo("0.9.0"), /not the release kept/);
   await h.installer.switchTo("1.0.0");
   assert.equal(version, "1.0.0");
-  await assert.rejects(h.installer.install({ version: "2.0.0", tarball: "vyre.tgz", sha256: "a".repeat(64) }), /installed 1\.1\.0, not 2\.0\.0|installed 1\.0\.0/);
+  await assert.rejects(
+    h.installer.install({ version: "2.0.0", tarball: "vyre.tgz", sha256: "a".repeat(64) }),
+    /installed 1\.1\.0, not 2\.0\.0|installed 1\.0\.0/,
+  );
 });
-
 
 test("updates HTTP pins beta installation and refuses competing apply or rollback while in flight", async () => {
-  const dir=seededDir(),feed:Feed={urls:[],tamper:false};let version='1.0.0';const commands:string[][]=[];let entered=()=>{},finish=()=>{};const installing=new Promise<void>(resolve=>{entered=resolve;}),gate=new Promise<void>(resolve=>{finish=resolve;});let pendingApply:ReturnType<typeof call>|undefined;
-  const run:RunCommand=async argv=>{
+  const dir = seededDir(),
+    feed: Feed = { urls: [], tamper: false };
+  let version = "1.0.0";
+  const commands: string[][] = [];
+  let entered = () => {},
+    finish = () => {};
+  const installing = new Promise<void>((resolve) => {
+      entered = resolve;
+    }),
+    gate = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+  let pendingApply: ReturnType<typeof call> | undefined;
+  const run: RunCommand = async (argv) => {
     commands.push([...argv]);
-    if(argv[1]==='version')return{code:0,stdout:version,stderr:''};
-    if(argv[1]==='update'){assert.equal(argv[argv.indexOf('--channel')+1],'beta');assert.equal(argv[argv.indexOf('--version')+1],'1.1.0');assert.equal(argv[argv.indexOf('--sha256')+1],'a'.repeat(64));assert.equal(argv[argv.indexOf('--feed-base')+1],githubFeedBase('beta'));version='1.1.0';entered();await gate;return{code:0,stdout:'',stderr:''};}
-    if(argv[1]==='doctor')return{code:0,stdout:'',stderr:''};
-    return{code:1,stdout:'',stderr:'fixture unsupported command'};
+    if (argv[1] === "version") return { code: 0, stdout: version, stderr: "" };
+    if (argv[1] === "update") {
+      assert.equal(argv[argv.indexOf("--channel") + 1], "beta");
+      assert.equal(argv[argv.indexOf("--version") + 1], "1.1.0");
+      assert.equal(argv[argv.indexOf("--sha256") + 1], "a".repeat(64));
+      assert.equal(argv[argv.indexOf("--feed-base") + 1], githubFeedBase("beta"));
+      version = "1.1.0";
+      entered();
+      await gate;
+      return { code: 0, stdout: "", stderr: "" };
+    }
+    if (argv[1] === "doctor") return { code: 0, stdout: "", stderr: "" };
+    return { code: 1, stdout: "", stderr: "fixture unsupported command" };
   };
-  const d=await boot(dir,feed,PUB_HEX,run);
-  try{
-    assert.equal((await call(d,'backup.config_set',{target:{kind:'local',path:path.join(dir,'fixture-backups')},schedule:'0 3 * * *',enabled:false})).status,200);
-    assert.equal((await call(d,'updates.channel_set',{channel:'beta'})).status,200);
-    pendingApply=call(d,'updates.apply',{to:'1.1.0'});await installing;
-    const competing=await call(d,'updates.apply',{});assert.equal(competing.status,422,JSON.stringify(competing));assert.match(JSON.stringify(competing.data),/Another server update or rollback/);
-    const rollback=await call(d,'updates.rollback',{to:'1.0.0'});assert.equal(rollback.status,422,JSON.stringify(rollback));assert.match(JSON.stringify(rollback.data),/Another server update or rollback/);assert.equal(commands.filter(argv=>argv[1]==='update').length,1);assert.ok(!commands.some(argv=>argv[1]==='rollback'));
-    finish();const applied=await pendingApply;assert.equal(applied.status,200,JSON.stringify(applied));
-    assert.ok(commands.some(argv=>argv[1]==='update'));const status=await call(d,'updates.status',{});assert.equal(status.data.current,'1.1.0');assert.equal(status.data.lastResult,'ok');
-  }finally{finish();await pendingApply?.catch(()=>undefined);await d.stop();fs.rmSync(dir,{recursive:true,force:true});}
+  const d = await boot(dir, feed, PUB_HEX, run);
+  try {
+    assert.equal(
+      (
+        await call(d, "backup.config_set", {
+          target: { kind: "local", path: path.join(dir, "fixture-backups") },
+          schedule: "0 3 * * *",
+          enabled: false,
+        })
+      ).status,
+      200,
+    );
+    assert.equal((await call(d, "updates.channel_set", { channel: "beta" })).status, 200);
+    pendingApply = call(d, "updates.apply", { to: "1.1.0" });
+    await installing;
+    const competing = await call(d, "updates.apply", {});
+    assert.equal(competing.status, 422, JSON.stringify(competing));
+    assert.match(JSON.stringify(competing.data), /Another server update or rollback/);
+    const rollback = await call(d, "updates.rollback", { to: "1.0.0" });
+    assert.equal(rollback.status, 422, JSON.stringify(rollback));
+    assert.match(JSON.stringify(rollback.data), /Another server update or rollback/);
+    assert.equal(commands.filter((argv) => argv[1] === "update").length, 1);
+    assert.ok(!commands.some((argv) => argv[1] === "rollback"));
+    finish();
+    const applied = await pendingApply;
+    assert.equal(applied.status, 200, JSON.stringify(applied));
+    assert.ok(commands.some((argv) => argv[1] === "update"));
+    const status = await call(d, "updates.status", {});
+    assert.equal(status.data.current, "1.1.0");
+    assert.equal(status.data.lastResult, "ok");
+  } finally {
+    finish();
+    await pendingApply?.catch(() => undefined);
+    await d.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
-test('installer busy exit is a typed refusal for apply and rollback without leaking CLI details',async()=>{
- const host=createUpdatesHost({run:async argv=>argv[1]==='version'?{code:0,stdout:'1.0.0',stderr:''}:{code:75,stdout:'',stderr:'fixture internal lock path'},readText:()=> 'releases/0.9.0\n'});
- const busy=(error:unknown)=>{assert.equal((error as {code?:string}).code,'update.operation_busy');assert.doesNotMatch((error as Error).message,/internal lock path/);return true;};
- await assert.rejects(host.installer.install({version:'1.1.0',tarball:'fixture.tgz',sha256:'a'.repeat(64)}),busy);
- await assert.rejects(host.installer.switchTo('0.9.0'),busy);
+test("installer busy exit is a typed refusal for apply and rollback without leaking CLI details", async () => {
+  const host = createUpdatesHost({
+    run: async (argv) =>
+      argv[1] === "version"
+        ? { code: 0, stdout: "1.0.0", stderr: "" }
+        : { code: 75, stdout: "", stderr: "fixture internal lock path" },
+    readText: () => "releases/0.9.0\n",
+  });
+  const busy = (error: unknown) => {
+    assert.equal((error as { code?: string }).code, "update.operation_busy");
+    assert.doesNotMatch((error as Error).message, /internal lock path/);
+    return true;
+  };
+  await assert.rejects(
+    host.installer.install({ version: "1.1.0", tarball: "fixture.tgz", sha256: "a".repeat(64) }),
+    busy,
+  );
+  await assert.rejects(host.installer.switchTo("0.9.0"), busy);
 });
 
 test("updates seam: without vyre-server the installer is missing (ENOENT) and names the daemon's own version as the one running", async () => {
   const host = createUpdatesHost({ version: "1.0.0-rc.21", run: async () => ({ code: 127, stdout: "", stderr: "" }) });
   await assert.rejects(host.installer.current(), (e: unknown) => (e as { code?: string }).code === "ENOENT");
   assert.equal(host.installer.running?.(), "1.0.0-rc.21");
-  assert.equal(createUpdatesHost({ run: async () => ({ code: 127, stdout: "", stderr: "" }) }).installer.running?.(), undefined);
+  assert.equal(
+    createUpdatesHost({ run: async () => ({ code: 127, stdout: "", stderr: "" }) }).installer.running?.(),
+    undefined,
+  );
 });

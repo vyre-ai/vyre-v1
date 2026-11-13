@@ -9,26 +9,58 @@ import { BrowserLive } from "../../../apps/app/src/places/chats/rightpane/Browse
 import { ChatRightPane } from "../../../apps/app/src/places/chats/rightpane/ChatRightPane.tsx";
 import { createSample } from "../../../apps/app/src/places/chats/rightpane/sample.ts";
 import type { ChatRightPaneData } from "../../../apps/app/src/places/chats/rightpane/data.tsx";
-import type { BrowserData, BrowserView, WorkspaceData, WorkspaceView } from "../../../apps/app/src/places/chats/rightpane/work-model.ts";
+import type {
+  BrowserData,
+  BrowserView,
+  WorkspaceData,
+  WorkspaceView,
+} from "../../../apps/app/src/places/chats/rightpane/work-model.ts";
 
 export const title = "Computer tab: Terminal and Browser";
 
 // A page the browser might be showing, as the picture the stream would carry (MJPEG frames are JPEGs; an SVG data address stands in so the shot needs no browser service).
-const PAGE = "data:image/svg+xml;base64," + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800"><rect width="1280" height="800" fill="#f7f7fa"/><rect width="1280" height="64" fill="#fff"/><rect x="40" y="20" width="160" height="24" rx="6" fill="#d9d8e6"/><rect x="1060" y="18" width="180" height="28" rx="14" fill="#5b57d6"/><text x="80" y="170" font-family="Helvetica" font-size="44" font-weight="700" fill="#1c1b29">New request form</text><rect x="80" y="220" width="520" height="56" rx="8" fill="#fff" stroke="#cfcedb"/><text x="100" y="256" font-family="Helvetica" font-size="24" fill="#1c1b29">Northwind Holdings LLC</text><rect x="80" y="310" width="520" height="56" rx="8" fill="#fff" stroke="#cfcedb"/><text x="100" y="346" font-family="Helvetica" font-size="24" fill="#8a89a0">Contact email</text><rect x="80" y="400" width="520" height="140" rx="8" fill="#fff" stroke="#cfcedb"/><rect x="80" y="580" width="200" height="56" rx="10" fill="#5b57d6"/><text x="118" y="616" font-family="Helvetica" font-size="24" fill="#fff">Submit</text><rect x="700" y="220" width="480" height="420" rx="12" fill="#ececf4"/></svg>`);
+const PAGE =
+  "data:image/svg+xml;base64," +
+  btoa(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800"><rect width="1280" height="800" fill="#f7f7fa"/><rect width="1280" height="64" fill="#fff"/><rect x="40" y="20" width="160" height="24" rx="6" fill="#d9d8e6"/><rect x="1060" y="18" width="180" height="28" rx="14" fill="#5b57d6"/><text x="80" y="170" font-family="Helvetica" font-size="44" font-weight="700" fill="#1c1b29">New request form</text><rect x="80" y="220" width="520" height="56" rx="8" fill="#fff" stroke="#cfcedb"/><text x="100" y="256" font-family="Helvetica" font-size="24" fill="#1c1b29">Northwind Holdings LLC</text><rect x="80" y="310" width="520" height="56" rx="8" fill="#fff" stroke="#cfcedb"/><text x="100" y="346" font-family="Helvetica" font-size="24" fill="#8a89a0">Contact email</text><rect x="80" y="400" width="520" height="140" rx="8" fill="#fff" stroke="#cfcedb"/><rect x="80" y="580" width="200" height="56" rx="10" fill="#5b57d6"/><text x="118" y="616" font-family="Helvetica" font-size="24" fill="#fff">Submit</text><rect x="700" y="220" width="480" height="420" rx="12" fill="#ececf4"/></svg>`,
+  );
 const LINE = "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.";
 const SITES = [
   { site: "app.example.com", signedInAs: "intake@northwind.example", since: Date.UTC(2026, 9, 28) },
   { site: "mail.google.com", signedInAs: "dex@northwind.example", since: Date.UTC(2026, 10, 2) },
 ];
-const SESSIONS = [{ name: "main", owner: { kind: "agent" as const }, windows: 2, attached: 0 }, { name: "tests", owner: { kind: "helper" as const, name: "Tess" }, windows: 1, attached: 0 }, { name: "dev server", owner: { kind: "person" as const, name: "Maya" }, windows: 1, attached: 1 }];
+const SESSIONS = [
+  { name: "main", owner: { kind: "agent" as const }, windows: 2, attached: 0 },
+  { name: "tests", owner: { kind: "helper" as const, name: "Tess" }, windows: 1, attached: 0 },
+  { name: "dev server", owner: { kind: "person" as const, name: "Maya" }, windows: 1, attached: 1 },
+];
 
 const VIEWS: Record<string, { ws: WorkspaceView | null; br: BrowserView | null }> = {
   running: {
-    ws: { state: "running", host: "Northwind server", canAttach: true, sessions: SESSIONS, projects: ["Client portal launch", "Northwind renewal"] },
-    br: { state: "open", host: "Northwind server", tabs: 3, caption: "Reading the intake form on app.example.com", canTakeOver: true, sites: SITES },
+    ws: {
+      state: "running",
+      host: "Northwind server",
+      canAttach: true,
+      sessions: SESSIONS,
+      projects: ["Client portal launch", "Northwind renewal"],
+    },
+    br: {
+      state: "open",
+      host: "Northwind server",
+      tabs: 3,
+      caption: "Reading the intake form on app.example.com",
+      canTakeOver: true,
+      sites: SITES,
+    },
   },
   asleep: {
-    ws: { state: "asleep", host: "Northwind server", canAttach: true, sessions: SESSIONS.slice(0, 1).map((s) => ({ ...s, attached: 0 })), projects: ["Client portal launch"] },
+    ws: {
+      state: "asleep",
+      host: "Northwind server",
+      canAttach: true,
+      sessions: SESSIONS.slice(0, 1).map((s) => ({ ...s, attached: 0 })),
+      projects: ["Client portal launch"],
+    },
     br: { state: "closed", host: "Northwind server", canTakeOver: true, sites: SITES },
   },
   starting: {
@@ -40,54 +72,164 @@ const VIEWS: Record<string, { ws: WorkspaceView | null; br: BrowserView | null }
     br: { state: "waiting", host: "Northwind server", line: LINE, canTakeOver: true, sites: SITES },
   },
   takeover: {
-    ws: { state: "running", host: "Northwind server", canAttach: true, sessions: SESSIONS, projects: ["Client portal launch"] },
-    br: { state: "takeover", host: "Northwind server", tabs: 2, mine: true, takenBy: "You", canTakeOver: true, sites: SITES },
+    ws: {
+      state: "running",
+      host: "Northwind server",
+      canAttach: true,
+      sessions: SESSIONS,
+      projects: ["Client portal launch"],
+    },
+    br: {
+      state: "takeover",
+      host: "Northwind server",
+      tabs: 2,
+      mine: true,
+      takenBy: "You",
+      canTakeOver: true,
+      sites: SITES,
+    },
   },
   member: {
-    ws: { state: "running", host: "Northwind server", canAttach: false, cannotAttach: "A team agent's terminal is for owners and admins.", sessions: SESSIONS.slice(0, 2), projects: ["Client portal launch"] },
-    br: { state: "open", host: "Northwind server", tabs: 3, canTakeOver: false, cannotTakeOver: "A team agent's browser is for owners and admins.", sites: SITES },
+    ws: {
+      state: "running",
+      host: "Northwind server",
+      canAttach: false,
+      cannotAttach: "A team agent's terminal is for owners and admins.",
+      sessions: SESSIONS.slice(0, 2),
+      projects: ["Client portal launch"],
+    },
+    br: {
+      state: "open",
+      host: "Northwind server",
+      tabs: 3,
+      canTakeOver: false,
+      cannotTakeOver: "A team agent's browser is for owners and admins.",
+      sites: SITES,
+    },
   },
   "terminal-only": {
-    ws: { state: "running", host: "Northwind server", canAttach: true, sessions: SESSIONS, projects: ["Client portal launch"] },
+    ws: {
+      state: "running",
+      host: "Northwind server",
+      canAttach: true,
+      sessions: SESSIONS,
+      projects: ["Client portal launch"],
+    },
     br: null,
   },
 };
 
-const live = (agentId: string, o: { state: string; control: boolean }): ReactNode => (
-  o.control
+const live = (agentId: string, o: { state: string; control: boolean }): ReactNode =>
+  o.control ? (
     // the controlled view draws frames from a WebSocket the shots app does not have: its picture stands in
-    ? <Image accessibilityLabel="Live view" source={{ uri: PAGE }} resizeMode="contain" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0 }} />
-    : <BrowserLive agentId={agentId} control={false} call={async () => ({ url: PAGE })} />
-);
+    <Image
+      accessibilityLabel="Live view"
+      source={{ uri: PAGE }}
+      resizeMode="contain"
+      style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0 }}
+    />
+  ) : (
+    <BrowserLive agentId={agentId} control={false} call={async () => ({ url: PAGE })} />
+  );
 
 function bind(ws: WorkspaceView | null, br: BrowserView | null): { workspace?: WorkspaceData; browser?: BrowserData } {
   const none = async (): Promise<void> => undefined;
   return {
-    ...(ws ? { workspace: { watch: (_a: string, on: (v: WorkspaceView) => void) => { on(ws); return () => undefined; }, wake: none, attach: none } } : {}),
-    ...(br ? { browser: { watch: (_a: string, on: (v: BrowserView) => void) => { on(br); return () => undefined; }, open: none, takeOver: none, giveBack: none, signOut: none, renderLive: (a, o) => live(a, o) as never } } : {}),
+    ...(ws
+      ? {
+          workspace: {
+            watch: (_a: string, on: (v: WorkspaceView) => void) => {
+              on(ws);
+              return () => undefined;
+            },
+            wake: none,
+            attach: none,
+          },
+        }
+      : {}),
+    ...(br
+      ? {
+          browser: {
+            watch: (_a: string, on: (v: BrowserView) => void) => {
+              on(br);
+              return () => undefined;
+            },
+            open: none,
+            takeOver: none,
+            giveBack: none,
+            signOut: none,
+            renderLive: (a, o) => live(a, o) as never,
+          },
+        }
+      : {}),
   };
 }
 
 const MOVED: Record<string, unknown> = {
   none: undefined,
   done: { state: "done", at: Date.UTC(2026, 10, 12, 12) },
-  partial: { state: "partial", at: Date.UTC(2026, 10, 12, 12), error: "Intake already uses its browser on the Space, so the sign-ins from its older desktop were not copied. Open the older desktop to see them, or sign in again." },
-  interrupted: { state: "failed", at: Date.UTC(2026, 10, 12, 12), error: "Moving its sign-ins was interrupted. It will be tried again." },
+  partial: {
+    state: "partial",
+    at: Date.UTC(2026, 10, 12, 12),
+    error:
+      "Intake already uses its browser on the Space, so the sign-ins from its older desktop were not copied. Open the older desktop to see them, or sign in again.",
+  },
+  interrupted: {
+    state: "failed",
+    at: Date.UTC(2026, 10, 12, 12),
+    error: "Moving its sign-ins was interrupted. It will be tried again.",
+  },
 };
 
 function Pane({ part, old, moved }: { part: string; old: boolean; moved: string }): ReactNode {
   const s = useMemo(() => createSample("northwind"), []);
   const v = VIEWS[part] ?? VIEWS["running"]!;
-  const data: ChatRightPaneData = useMemo(() => ({ ...s.data, agent: old ? s.data.agent : { agentId: s.data.agent.agentId, name: s.data.agent.name }, ...bind(v.ws, v.br),
-    call: ((cap: string, input: unknown) => cap === "computers.get" && old ? Promise.resolve({ computer: { computerId: s.data.agent.computerId, agentId: s.data.agent.agentId, state: "asleep", tabs: 0, tabLimit: 8, host: "server", recording: false, ...(MOVED[moved] ? { moved: MOVED[moved] } : {}) } }) : s.data.call(cap as never, input as never)) as ChatRightPaneData["call"] }), [s, v, old, moved]);
-  return <View style={{ flex: 1, alignItems: "flex-end", backgroundColor: "var(--win)" as string }}><ChatRightPane data={data} open onToggle={() => undefined} initialTab="computer" window={{ start: 0, end: 500 }} /></View>;
+  const data: ChatRightPaneData = useMemo(
+    () => ({
+      ...s.data,
+      agent: old ? s.data.agent : { agentId: s.data.agent.agentId, name: s.data.agent.name },
+      ...bind(v.ws, v.br),
+      call: ((cap: string, input: unknown) =>
+        cap === "computers.get" && old
+          ? Promise.resolve({
+              computer: {
+                computerId: s.data.agent.computerId,
+                agentId: s.data.agent.agentId,
+                state: "asleep",
+                tabs: 0,
+                tabLimit: 8,
+                host: "server",
+                recording: false,
+                ...(MOVED[moved] ? { moved: MOVED[moved] } : {}),
+              },
+            })
+          : s.data.call(cap as never, input as never)) as ChatRightPaneData["call"],
+    }),
+    [s, v, old, moved],
+  );
+  return (
+    <View style={{ flex: 1, alignItems: "flex-end", backgroundColor: "var(--win)" as string }}>
+      <ChatRightPane
+        data={data}
+        open
+        onToggle={() => undefined}
+        initialTab="computer"
+        window={{ start: 0, end: 500 }}
+      />
+    </View>
+  );
 }
 
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   const [old, setOld] = useState(false);
   const [moved, setMoved] = useState("none");
-  useEffect(() => { const q = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""); setPart(q.get("part") ?? "running"); setOld(q.get("old") === "1"); setMoved(q.get("moved") ?? "none"); }, []);
+  useEffect(() => {
+    const q = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "");
+    setPart(q.get("part") ?? "running");
+    setOld(q.get("old") === "1");
+    setMoved(q.get("moved") ?? "none");
+  }, []);
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   return <Pane part={part} old={old} moved={moved} />;
 }

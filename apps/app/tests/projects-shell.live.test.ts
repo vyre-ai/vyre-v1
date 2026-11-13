@@ -2,4 +2,6 @@
 import test from "node:test";
 import { projectsShellWalk } from "./projects-shell-kit.test.ts";
 
-test("Projects shell as an admin, wide: sidebar group, project tab, header, tabs and status", async (t) => { await projectsShellWalk(t, "admin", "wide"); });
+test("Projects shell as an admin, wide: sidebar group, project tab, header, tabs and status", async (t) => {
+  await projectsShellWalk(t, "admin", "wide");
+});

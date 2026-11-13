@@ -18,7 +18,12 @@ export function ActivityTab({ type, recordId, def }: { type: string; recordId: s
   const data = usePageData();
   const [limit, setLimit] = useState(PAGE);
   const q = useLive("records.activity", { type, recordId, limit });
-  if (q.status !== "ready") return <Text style={s.quiet} testID="pane-activity-loading">Loading</Text>;
+  if (q.status !== "ready")
+    return (
+      <Text style={s.quiet} testID="pane-activity-loading">
+        Loading
+      </Text>
+    );
   const entries: readonly Activity[] = q.data.entries;
   if (entries.length === 0) return <PaneEmpty icon="activity" text="Nothing yet" testID="pane-activity-empty" />;
   const now = data.now();
@@ -28,8 +33,13 @@ export function ActivityTab({ type, recordId, def }: { type: string; recordId: s
     rows.push(
       <View key={e.id} style={s.row}>
         <Row
-          id={`act:${e.id}`} title={activityLine(e, def, data.nameOf)}
-          leading={<View style={s.face}><Avatar name={data.nameOf(e.actor)} seedId={e.actor} kind={kindOfId(e.actor)} size={20} /></View>}
+          id={`act:${e.id}`}
+          title={activityLine(e, def, data.nameOf)}
+          leading={
+            <View style={s.face}>
+              <Avatar name={data.nameOf(e.actor)} seedId={e.actor} kind={kindOfId(e.actor)} size={20} />
+            </View>
+          }
           trailing={<Text style={s.when}>{ago(e.at, now)}</Text>}
           domProps={{ title: detail }}
         />
@@ -39,7 +49,11 @@ export function ActivityTab({ type, recordId, def }: { type: string; recordId: s
   return (
     <View testID="pane-activity">
       {rows}
-      {q.data.next !== undefined ? <Text accessibilityRole="button" testID="activity-more" onPress={() => setLimit(limit + PAGE)} style={s.more}>Show more</Text> : null}
+      {q.data.next !== undefined ? (
+        <Text accessibilityRole="button" testID="activity-more" onPress={() => setLimit(limit + PAGE)} style={s.more}>
+          Show more
+        </Text>
+      ) : null}
     </View>
   );
 }

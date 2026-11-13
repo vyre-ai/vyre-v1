@@ -11,9 +11,16 @@ export function world() {
   for (const [h, v] of Object.entries(KEYS)) k.vault[h] = v;
   const probe: Probe = async (_ctx, req) => {
     const key = KEYS[req.handle] ?? "";
-    const headers: Record<string, string> = req.style === "bearer" ? { authorization: `Bearer ${key}` } : { [(req.header ?? "authorization").toLowerCase()]: `${req.prefix ?? ""}${key}` };
+    const headers: Record<string, string> =
+      req.style === "bearer"
+        ? { authorization: `Bearer ${key}` }
+        : { [(req.header ?? "authorization").toLowerCase()]: `${req.prefix ?? ""}${key}` };
     const r = c.handle({ method: "GET", url: req.url, headers });
-    return { status: r.status, text: r.body === undefined ? "" : JSON.stringify(r.body), ...(r.headers?.["link"] ? { link: r.headers["link"] } : {}) };
+    return {
+      status: r.status,
+      text: r.body === undefined ? "" : JSON.stringify(r.body),
+      ...(r.headers?.["link"] ? { link: r.headers["link"] } : {}),
+    };
   };
   k.deps.probe = probe;
   const types = new Map<string, Set<string>>();
@@ -27,11 +34,14 @@ export function world() {
       if (cap === "runs.start") return { runId: `run_${calls.filter((x) => x.cap === "runs.start").length}` };
       if (cap === "runs.finish") return { run: { id: (input as { runId: string }).runId } };
       if (cap === "schema.diff") return { previewToken: "tok", items: [], additive: 0, destructive: 0, problems: [] };
-      if (cap === "schema.describe") return { types: [...types].map(([key, f]) => ({ key, fields: [...f].map((x) => ({ key: x })) })) };
+      if (cap === "schema.describe")
+        return { types: [...types].map(([key, f]) => ({ key, fields: [...f].map((x) => ({ key: x })) })) };
       if (cap === "schema.apply") {
         for (const op of (input as { ops: any[] }).ops) {
-          if (op.op === "type.create") types.set(op.type, new Set((op.def.fields as { key: string }[]).map((f) => f.key)));
-          if (op.op === "field.add" || op.op === "relation.add") types.set(op.type, new Set([...(types.get(op.type) ?? []), op.field]));
+          if (op.op === "type.create")
+            types.set(op.type, new Set((op.def.fields as { key: string }[]).map((f) => f.key)));
+          if (op.op === "field.add" || op.op === "relation.add")
+            types.set(op.type, new Set([...(types.get(op.type) ?? []), op.field]));
         }
         return { applied: 1 };
       }

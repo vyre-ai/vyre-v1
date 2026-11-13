@@ -14,16 +14,33 @@ import { configureReports, handlers } from "../handlers/index.ts";
 import type { Bundle, ReportsCtx } from "../handlers/index.ts";
 
 interface RegCap {
-  name: string; module: string; v: number; input: JsonSchema; output: JsonSchema; emits: string[];
+  name: string;
+  module: string;
+  v: number;
+  input: JsonSchema;
+  output: JsonSchema;
+  emits: string[];
   examples: { name: string; input: unknown; output: unknown }[];
 }
-interface RegEvent { name: string; module: string; payload: JsonSchema }
-interface Registry { $defs: Record<string, JsonSchema>; capabilities: RegCap[]; events: RegEvent[] }
+interface RegEvent {
+  name: string;
+  module: string;
+  payload: JsonSchema;
+}
+interface Registry {
+  $defs: Record<string, JsonSchema>;
+  capabilities: RegCap[];
+  events: RegEvent[];
+}
 
-const registry = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as Registry;
+const registry = JSON.parse(
+  readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8"),
+) as Registry;
 const defs = registry.$defs;
 const caps = registry.capabilities.filter((c) => c.module === "reports-client");
-const eventSchemas = new Map(registry.events.filter((e) => e.module === "reports-client").map((e) => [e.name, e.payload]));
+const eventSchemas = new Map(
+  registry.events.filter((e) => e.module === "reports-client").map((e) => [e.name, e.payload]),
+);
 
 /** The id every example and schema sample names. */
 const EXAMPLE_REPORT = "rpt_a1b2c3";
@@ -37,8 +54,10 @@ const run = (name: string, ctx: ReportsCtx, input: unknown): Promise<unknown> =>
 
 const bundle: Bundle = {
   context: { place: "Records", itemId: "rec_a1b2" },
-  traceIds: [trace(1)], events: [{ type: "records.update", at: NOW, traceId: trace(1) }],
-  versions: { app: "1.2.0", server: "1.2.1", device: "mac-14" }, note: "blank page",
+  traceIds: [trace(1)],
+  events: [{ type: "records.update", at: NOW, traceId: trace(1) }],
+  versions: { app: "1.2.0", server: "1.2.1", device: "mac-14" },
+  note: "blank page",
   errors: [{ code: "provider.network", message: "could not reach the model", at: NOW, traceId: trace(1) }],
 };
 
@@ -48,7 +67,18 @@ function populated(): World {
   configureReports(w.drivers);
   w.raw.run(
     "INSERT INTO reports_client_report (report_id, title, status, reporter, at, trace_ids, bundle_json, redactions, task_id, issue_number, sent_at, fixed_in) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    EXAMPLE_REPORT, "Problem report from Omar", "sent", "usr_omar", NOW, JSON.stringify(bundle.traceIds), JSON.stringify(bundle), 0, "tsk_seed", 1, NOW, null,
+    EXAMPLE_REPORT,
+    "Problem report from Omar",
+    "sent",
+    "usr_omar",
+    NOW,
+    JSON.stringify(bundle.traceIds),
+    JSON.stringify(bundle),
+    0,
+    "tsk_seed",
+    1,
+    NOW,
+    null,
   );
   return w;
 }
@@ -93,20 +123,39 @@ test("every declared event is emitted by the handler that declares it", async ()
     const w = populated();
     prep?.(w);
     await run(cap, w.ctx, input);
-    for (const e of w.events) assert.deepEqual(validate(eventSchemas.get(e.name)!, e.payload, "", defs), [], `${e.name} payload`);
+    for (const e of w.events)
+      assert.deepEqual(validate(eventSchemas.get(e.name)!, e.payload, "", defs), [], `${e.name} payload`);
     return [...new Set(w.events.map((e) => e.name))].sort();
   };
   // submit announces the report; the post it makes (policy On) is its own call and announces itself
   assert.deepEqual(await emitted("reports.submit", { bundle }), ["report.sent_to_vyre", "report.submitted"]);
-  assert.deepEqual(await emitted("reports.submit", { bundle }, (w) => { w.settings.set("reports.vyre", "ask"); }), ["report.submitted"]);
-  assert.deepEqual(await emitted("reports.resolved", { reportId: EXAMPLE_REPORT, issueNumber: 1 }), ["report.resolved"]);
+  assert.deepEqual(
+    await emitted("reports.submit", { bundle }, (w) => {
+      w.settings.set("reports.vyre", "ask");
+    }),
+    ["report.submitted"],
+  );
+  assert.deepEqual(await emitted("reports.resolved", { reportId: EXAMPLE_REPORT, issueNumber: 1 }), [
+    "report.resolved",
+  ]);
   const fresh = async (): Promise<string[]> => {
     const w = populated();
-    w.raw.run("UPDATE reports_client_report SET status = ?, issue_number = ?, sent_at = ? WHERE report_id = ?", "new", null, null, EXAMPLE_REPORT);
+    w.raw.run(
+      "UPDATE reports_client_report SET status = ?, issue_number = ?, sent_at = ? WHERE report_id = ?",
+      "new",
+      null,
+      null,
+      EXAMPLE_REPORT,
+    );
     await run("reports.send_to_vyre", w.ctx, { reportId: EXAMPLE_REPORT });
     return w.events.map((e) => e.name);
   };
   assert.deepEqual(await fresh(), ["report.sent_to_vyre"]);
-  for (const c of caps.filter((x) => x.emits.length === 0)) assert.deepEqual(await emitted(c.name, sample(c.input, 0, defs)), [], c.name);
-  assert.deepEqual([...new Set(caps.flatMap((c) => c.emits))].sort(), ["report.resolved", "report.sent_to_vyre", "report.submitted"]);
+  for (const c of caps.filter((x) => x.emits.length === 0))
+    assert.deepEqual(await emitted(c.name, sample(c.input, 0, defs)), [], c.name);
+  assert.deepEqual([...new Set(caps.flatMap((c) => c.emits))].sort(), [
+    "report.resolved",
+    "report.sent_to_vyre",
+    "report.submitted",
+  ]);
 });

@@ -10,38 +10,104 @@ import type { SampleImported } from "./sample.ts";
 
 export const D = (m: number, d: number, h = 9): number => Date.UTC(2025, m - 1, d, h, 0, 0);
 export const IMPORTED: SampleImported[] = [
-  { conversationId: "isc_a", provider: "claude_code", title: "Fix the login", startedAt: D(10, 20), importedAt: D(10, 21) },
+  {
+    conversationId: "isc_a",
+    provider: "claude_code",
+    title: "Fix the login",
+    startedAt: D(10, 20),
+    importedAt: D(10, 21),
+  },
   // continued in the chat "October invoices" (c3), last active 24 Oct
-  { conversationId: "isc_b", provider: "codex", title: "Release work", startedAt: D(9, 1), importedAt: D(9, 2), continuedThreadId: "c3" },
+  {
+    conversationId: "isc_b",
+    provider: "codex",
+    title: "Release work",
+    startedAt: D(9, 1),
+    importedAt: D(9, 2),
+    continuedThreadId: "c3",
+  },
 ];
 
 /** Row ids only, not the slots inside a row. */
-export const rowIds = (root: Node, prefix: string): string[] => ids(root).filter((i) => i.startsWith(prefix) && !i.endsWith("-leading") && !i.endsWith("-trailing"));
-export const ids = (n: Node | string, out: string[] = []): string[] => { if (typeof n === "string") return out; const t = n.props["data-testid"]; if (typeof t === "string") out.push(t); (n.children ?? []).forEach((c) => ids(c, out)); return out; };
+export const rowIds = (root: Node, prefix: string): string[] =>
+  ids(root).filter((i) => i.startsWith(prefix) && !i.endsWith("-leading") && !i.endsWith("-trailing"));
+export const ids = (n: Node | string, out: string[] = []): string[] => {
+  if (typeof n === "string") return out;
+  const t = n.props["data-testid"];
+  if (typeof t === "string") out.push(t);
+  (n.children ?? []).forEach((c) => ids(c, out));
+  return out;
+};
 /** The rows drawn selected, by their entry key. */
 export const selectedRows = (root: Node): string[] => {
   const out: string[] = [];
-  const walk = (n: Node | string): void => { if (typeof n === "string") return; const t = n.props["data-testid"]; if (typeof t === "string" && t.startsWith("row-") && n.props["aria-selected"] === true) out.push(t.slice(4)); (n.children ?? []).forEach(walk); };
+  const walk = (n: Node | string): void => {
+    if (typeof n === "string") return;
+    const t = n.props["data-testid"];
+    if (typeof t === "string" && t.startsWith("row-") && n.props["aria-selected"] === true) out.push(t.slice(4));
+    (n.children ?? []).forEach(walk);
+  };
   walk(root);
   return out;
 };
-export const chainTo = (n: Node, id: string, up: Node[] = []): Node[] | null => { if (n.props["data-testid"] === id) return up; for (const c of n.children ?? []) if (typeof c !== "string") { const f = chainTo(c, id, [...up, n]); if (f) return f; } return null; };
+export const chainTo = (n: Node, id: string, up: Node[] = []): Node[] | null => {
+  if (n.props["data-testid"] === id) return up;
+  for (const c of n.children ?? [])
+    if (typeof c !== "string") {
+      const f = chainTo(c, id, [...up, n]);
+      if (f) return f;
+    }
+  return null;
+};
 /** Right-click on a row: the nearest ancestor that opens its menu. */
 
 /** The sidebar drawn with what the middle shows; `show` changes that the way a tab, a link or Cmd-K does (the place re-renders it with the new open key). */
 /** `make` is test-renderer's createRoot, handed in by the test file (only test files may import that dev dependency). */
-export async function drawn(make: () => { render(el: ReactElement): void; container: unknown }, o: { imported?: SampleImported[]; open?: string | null; artifacts?: boolean; people?: { id: string; name: string }[]; goals?: readonly Record<string, unknown>[]; /** the Space has telephony: Call in a person's menu lands here */ calls?: string[] } = {}) {
+export async function drawn(
+  make: () => { render(el: ReactElement): void; container: unknown },
+  o: {
+    imported?: SampleImported[];
+    open?: string | null;
+    artifacts?: boolean;
+    people?: { id: string; name: string }[];
+    goals?: readonly Record<string, unknown>[];
+    /** the Space has telephony: Call in a person's menu lands here */ calls?: string[];
+  } = {},
+) {
   installDom();
-  const s = createSampleSidebar(northwind, { ...(o.imported ? { imported: o.imported } : {}), ...(o.goals ? { goals: o.goals } : {}) });
+  const s = createSampleSidebar(northwind, {
+    ...(o.imported ? { imported: o.imported } : {}),
+    ...(o.goals ? { goals: o.goals } : {}),
+  });
   const news: string[] = [];
   // imported coding sessions exist only in a Personal Space (a Team Space refuses the read), so a draw with them is one, on the same clock and rows
-  const data = { ...s.data, ...(o.imported ? { space: { ...s.data.space, personal: true } } : {}), ...(o.people ? { people: o.people } : {}), nav: { ...s.data.nav, openImported: (id: string) => void s.opened.push(`imported:${id}`), openNew: () => void news.push("new"), ...(o.artifacts ? { openArtifacts: () => void s.opened.push("artifacts") } : {}), ...(o.calls ? { callPerson: (id: string, name: string) => void o.calls!.push(`${id}:${name}`) } : {}) } };
+  const data = {
+    ...s.data,
+    ...(o.imported ? { space: { ...s.data.space, personal: true } } : {}),
+    ...(o.people ? { people: o.people } : {}),
+    nav: {
+      ...s.data.nav,
+      openImported: (id: string) => void s.opened.push(`imported:${id}`),
+      openNew: () => void news.push("new"),
+      ...(o.artifacts ? { openArtifacts: () => void s.opened.push("artifacts") } : {}),
+      ...(o.calls ? { callPerson: (id: string, name: string) => void o.calls!.push(`${id}:${name}`) } : {}),
+    },
+  };
   const r = make();
-  const el = (open: string | null): ReactElement => <ChatsSidebar data={data} window={{ start: 0, end: 500 }} open={open} />;
-  await act(async () => { r.render(el(o.open ?? null)); });
+  const el = (open: string | null): ReactElement => (
+    <ChatsSidebar data={data} window={{ start: 0, end: 500 }} open={open} />
+  );
+  await act(async () => {
+    r.render(el(o.open ?? null));
+  });
   await flush();
   const root = r.container as unknown as Node;
-  const show = async (open: string | null): Promise<void> => { await act(async () => { r.render(el(open)); }); await flush(); };
+  const show = async (open: string | null): Promise<void> => {
+    await act(async () => {
+      r.render(el(open));
+    });
+    await flush();
+  };
   return { s, root, show, news };
 }
 
@@ -51,6 +117,8 @@ export async function drawn(make: () => { render(el: ReactElement): void; contai
 export const fireUp = async (root: Node, rowId: string, prop: string, event: unknown): Promise<void> => {
   const w = [...(chainTo(root, rowId) ?? [])].reverse().find((n) => typeof n.props[prop] === "function");
   assert.ok(w, `${rowId} has ${prop}`);
-  await act(async () => { (w.props[prop] as (e: unknown) => void)(event); });
+  await act(async () => {
+    (w.props[prop] as (e: unknown) => void)(event);
+  });
   await flush();
 };

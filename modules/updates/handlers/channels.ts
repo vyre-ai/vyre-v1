@@ -17,18 +17,30 @@ import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts"
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 
 /** The part of the host Ctx the updates handlers use. The full Ctx satisfies it. */
-export type UpdateCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "call" | "run">;
+export type UpdateCtx = Pick<
+  Ctx,
+  "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "call" | "run"
+>;
 
 // ---- the drivers the host supplies
 
 /** One signed document from the release feed: the manifest text and its detached signature (base64). */
-export interface SignedManifest { manifest: string; signature: string }
+export interface SignedManifest {
+  manifest: string;
+  signature: string;
+}
 
 export interface ReleaseFeed {
   fetch(channel: Channel): Promise<SignedManifest>;
 }
 
-export interface ReleaseInfo { version: string; tarball: string; sha256: string; notes?: string; security?: boolean }
+export interface ReleaseInfo {
+  version: string;
+  tarball: string;
+  sha256: string;
+  notes?: string;
+  security?: boolean;
+}
 
 /** What changes the running server. The host implements it (the supervisor, the image pull, the restart). */
 export interface Installer {
@@ -62,9 +74,16 @@ export function configureUpdates(d: UpdateDrivers | null): void {
 // ---- errors and small readers
 
 const NEXT_LABEL: Record<NextStep["kind"], string> = {
-  retry: "Try again", switch_model: "Use another model", use_backup_key: "Use the backup key", ask_access: "Ask for access",
-  open_settings: "Open settings", reconnect: "Reconnect", edit_input: "Change what you sent", wait: "Wait a moment",
-  contact_admin: "Contact an admin", report: "Report a problem",
+  retry: "Try again",
+  switch_model: "Use another model",
+  use_backup_key: "Use the backup key",
+  ask_access: "Ask for access",
+  open_settings: "Open settings",
+  reconnect: "Reconnect",
+  edit_input: "Change what you sent",
+  wait: "Wait a moment",
+  contact_admin: "Contact an admin",
+  report: "Report a problem",
 };
 
 /** Throw a typed error from the global catalogue with the trace id and the catalogue's next steps. */
@@ -72,7 +91,10 @@ export function failWith(traceId: string, code: ErrorCode, message?: string, det
   const def = ERROR_CODES.find((e) => e.code === code) ?? ERROR_CODES.find((e) => e.code === "internal.unexpected");
   if (!def) throw new Error("error catalogue is empty");
   const error: VyreError = {
-    code: def.code, message: message ?? def.what, retryable: def.retryable, traceId,
+    code: def.code,
+    message: message ?? def.what,
+    retryable: def.retryable,
+    traceId,
     next: def.next.map((kind) => ({ kind, label: NEXT_LABEL[kind] })),
   };
   if (details) error.details = details;
@@ -92,13 +114,17 @@ export function mint(prefix: string): string {
 }
 
 export function need(ctx: UpdateCtx): UpdateDrivers {
-  if (!drivers) return failWith(ctx.trace.traceId, "internal.unavailable", "Updates are not available on this server yet.", { service: "updates" });
+  if (!drivers)
+    return failWith(ctx.trace.traceId, "internal.unavailable", "Updates are not available on this server yet.", {
+      service: "updates",
+    });
   return drivers;
 }
 
 export const CHANNELS = ["stable", "beta", "nightly"] as const;
 export type Channel = (typeof CHANNELS)[number];
-export const isChannel = (v: unknown): v is Channel => typeof v === "string" && (CHANNELS as readonly string[]).includes(v);
+export const isChannel = (v: unknown): v is Channel =>
+  typeof v === "string" && (CHANNELS as readonly string[]).includes(v);
 export const DEFAULT_CHANNEL: Channel = "stable";
 /** The server supports apps up to this many minor versions away (spec 3.10). */
 export const APP_WINDOW = 2;
@@ -109,7 +135,12 @@ export const STALE_CHECK_MS = 7 * 86_400_000;
 // ---- versions
 
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*))?$/;
-export interface Version { major: number; minor: number; patch: number; pre: string[] }
+export interface Version {
+  major: number;
+  minor: number;
+  patch: number;
+  pre: string[];
+}
 
 export function parseVersion(v: unknown): Version | null {
   const m = typeof v === "string" ? SEMVER.exec(v.trim()) : null;
@@ -119,16 +150,19 @@ export function parseVersion(v: unknown): Version | null {
 
 /** Semver order, -1, 0 or 1. A prerelease sorts before its release; beta.10 after beta.9. Throws on a string that is not a version. */
 export function compareVersions(a: string, b: string): number {
-  const x = parseVersion(a), y = parseVersion(b);
+  const x = parseVersion(a),
+    y = parseVersion(b);
   if (!x || !y) throw new Error(`not a version: ${!x ? a : b}`);
   for (const k of ["major", "minor", "patch"] as const) if (x[k] !== y[k]) return x[k] < y[k] ? -1 : 1;
   if (!x.pre.length || !y.pre.length) return x.pre.length === y.pre.length ? 0 : x.pre.length ? -1 : 1;
   for (let i = 0; i < Math.max(x.pre.length, y.pre.length); i++) {
-    const p = x.pre[i], q = y.pre[i];
+    const p = x.pre[i],
+      q = y.pre[i];
     if (p === undefined) return -1;
     if (q === undefined) return 1;
     if (p === q) continue;
-    const pn = /^\d+$/.test(p), qn = /^\d+$/.test(q);
+    const pn = /^\d+$/.test(p),
+      qn = /^\d+$/.test(q);
     if (pn && qn) return Number(p) < Number(q) ? -1 : 1;
     if (pn !== qn) return pn ? -1 : 1;
     return p < q ? -1 : 1;
@@ -150,11 +184,16 @@ const MAX_PATCH = 9999;
 
 /** Is an app of `app` inside the window of a server of `server`? An app outside it (older or newer) must update; an older one reads only. */
 export function appSupported(server: string, app: string): boolean {
-  const w = appWindow(server), a = parseVersion(app);
+  const w = appWindow(server),
+    a = parseVersion(app);
   if (!w || !a) return false;
-  const lo = parseVersion(w.min), hi = parseVersion(w.max);
+  const lo = parseVersion(w.min),
+    hi = parseVersion(w.max);
   if (!lo || !hi) return false;
-  return compareVersions(`${a.major}.${a.minor}.${a.patch}`, `${lo.major}.${lo.minor}.0`) >= 0 && compareVersions(`${a.major}.${a.minor}.${a.patch}`, `${hi.major}.${hi.minor}.${MAX_PATCH}`) <= 0;
+  return (
+    compareVersions(`${a.major}.${a.minor}.${a.patch}`, `${lo.major}.${lo.minor}.0`) >= 0 &&
+    compareVersions(`${a.major}.${a.minor}.${a.patch}`, `${hi.major}.${hi.minor}.${MAX_PATCH}`) <= 0
+  );
 }
 
 // ---- hashing and signature checks over Web Crypto
@@ -182,7 +221,12 @@ export async function verifySignature(manifest: string, signatureB64: string, ke
   if (!sig || sig.length !== 64 || key.length !== 32) return false;
   try {
     const k = await globalThis.crypto.subtle.importKey("raw", copy(key), { name: "Ed25519" }, false, ["verify"]);
-    return await globalThis.crypto.subtle.verify({ name: "Ed25519" }, k, copy(sig), copy(enc.encode(SIGNATURE_PREFIX + manifest)));
+    return await globalThis.crypto.subtle.verify(
+      { name: "Ed25519" },
+      k,
+      copy(sig),
+      copy(enc.encode(SIGNATURE_PREFIX + manifest)),
+    );
   } catch {
     return false;
   }
@@ -200,21 +244,29 @@ export interface Manifest {
 /** Read a manifest's text. Returns null with a reason when it is not one this server may act on. Does not check the signature. */
 export function parseManifest(text: string, channel: Channel): { manifest: Manifest } | { reason: string } {
   let doc: Row | null;
-  try { doc = asRow(JSON.parse(text)); } catch { return { reason: "the manifest is not JSON" }; }
+  try {
+    doc = asRow(JSON.parse(text));
+  } catch {
+    return { reason: "the manifest is not JSON" };
+  }
   if (!doc || doc["v"] !== 1) return { reason: "the manifest version is not one this server reads" };
-  if (doc["channel"] !== channel) return { reason: `the manifest is for the ${String(doc["channel"])} channel, not ${channel}` };
+  if (doc["channel"] !== channel)
+    return { reason: `the manifest is for the ${String(doc["channel"])} channel, not ${channel}` };
   const server = asRow(doc["server"]);
   const version = str(server?.["version"]);
   if (!server || !version || !parseVersion(version)) return { reason: "the manifest has no server version" };
-  const tarball = str(server["tarball"]), sha256 = str(server["sha256"]);
-  if (!tarball || !sha256 || !/^[0-9a-f]{64}$/.test(sha256)) return { reason: "the manifest does not name the artifact and its sha256" };
+  const tarball = str(server["tarball"]),
+    sha256 = str(server["sha256"]);
+  if (!tarball || !sha256 || !/^[0-9a-f]{64}$/.test(sha256))
+    return { reason: "the manifest does not name the artifact and its sha256" };
   const info: ReleaseInfo = { version, tarball, sha256 };
   const notes = str(server["notes"]);
   if (notes) info.notes = notes.slice(0, 4000);
   if (server["security"] === true) info.security = true;
   const apps: Manifest["apps"] = [];
   const appDoc = asRow(doc["apps"]);
-  for (const [platform, v] of Object.entries(appDoc ?? {})) if (typeof v === "string" && parseVersion(v)) apps.push({ platform, version: v });
+  for (const [platform, v] of Object.entries(appDoc ?? {}))
+    if (typeof v === "string" && parseVersion(v)) apps.push({ platform, version: v });
   return { manifest: { channel, server: info, apps } };
 }
 
@@ -225,13 +277,25 @@ export async function fetchVerified(ctx: UpdateCtx, channel: Channel): Promise<M
   try {
     signed = await d.feed.fetch(channel);
   } catch (e) {
-    return failWith(ctx.trace.traceId, "provider.unavailable", `The release feed could not be reached: ${e instanceof Error ? e.message : "unknown error"}`);
+    return failWith(
+      ctx.trace.traceId,
+      "provider.unavailable",
+      `The release feed could not be reached: ${e instanceof Error ? e.message : "unknown error"}`,
+    );
   }
   if (!(await verifySignature(signed.manifest, signed.signature, d.releaseKey))) {
-    return failWith(ctx.trace.traceId, "provider.bad_response", "The release signature does not match Vyre's release key, so nothing was read from it and nothing will be installed.", { reason: "bad_signature" });
+    return failWith(
+      ctx.trace.traceId,
+      "provider.bad_response",
+      "The release signature does not match Vyre's release key, so nothing was read from it and nothing will be installed.",
+      { reason: "bad_signature" },
+    );
   }
   const parsed = parseManifest(signed.manifest, channel);
-  if ("reason" in parsed) return failWith(ctx.trace.traceId, "provider.bad_response", `The release manifest was refused: ${parsed.reason}.`, { reason: "bad_manifest" });
+  if ("reason" in parsed)
+    return failWith(ctx.trace.traceId, "provider.bad_response", `The release manifest was refused: ${parsed.reason}.`, {
+      reason: "bad_manifest",
+    });
   return parsed.manifest;
 }
 
@@ -255,7 +319,16 @@ export function channelOf(state: Map<string, string>): Channel {
   return isChannel(c) ? c : DEFAULT_CHANNEL;
 }
 
-export interface HistoryRow { id: string; at: number; from: string; to: string; result: "ok" | "failed" | "rolled_back"; seconds: number; backupId?: string; reason?: string }
+export interface HistoryRow {
+  id: string;
+  at: number;
+  from: string;
+  to: string;
+  result: "ok" | "failed" | "rolled_back";
+  seconds: number;
+  backupId?: string;
+  reason?: string;
+}
 
 export function historyRows(ctx: UpdateCtx, limit = HISTORY_MAX): HistoryRow[] {
   const out: HistoryRow[] = [];
@@ -264,8 +337,18 @@ export function historyRows(ctx: UpdateCtx, limit = HISTORY_MAX): HistoryRow[] {
     const id = str(x?.["id"]);
     const result = x?.["result"];
     if (!x || !id || (result !== "ok" && result !== "failed" && result !== "rolled_back")) continue;
-    const backupId = str(x["backup_id"]), reason = str(x["reason"]);
-    out.push({ id, at: num(x["at"]), from: str(x["from_version"]) ?? "", to: str(x["to_version"]) ?? "", result, seconds: num(x["seconds"]), ...(backupId ? { backupId } : {}), ...(reason ? { reason } : {}) });
+    const backupId = str(x["backup_id"]),
+      reason = str(x["reason"]);
+    out.push({
+      id,
+      at: num(x["at"]),
+      from: str(x["from_version"]) ?? "",
+      to: str(x["to_version"]) ?? "",
+      result,
+      seconds: num(x["seconds"]),
+      ...(backupId ? { backupId } : {}),
+      ...(reason ? { reason } : {}),
+    });
   }
   return out;
 }
@@ -273,19 +356,37 @@ export function historyRows(ctx: UpdateCtx, limit = HISTORY_MAX): HistoryRow[] {
 export function recordHistory(ctx: UpdateCtx, h: HistoryRow): void {
   ctx.db.run(
     "INSERT OR REPLACE INTO updates_history (id, at, from_version, to_version, result, seconds, backup_id, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    h.id, h.at, h.from, h.to, h.result, h.seconds, h.backupId ?? null, h.reason ?? null,
+    h.id,
+    h.at,
+    h.from,
+    h.to,
+    h.result,
+    h.seconds,
+    h.backupId ?? null,
+    h.reason ?? null,
   );
 }
 
 /** What the last look found, newer than the running version or null. */
-function waiting(state: Map<string, string>, current: string): { version: string; notes?: string; security: boolean; apps: Manifest["apps"] } | null {
+function waiting(
+  state: Map<string, string>,
+  current: string,
+): { version: string; notes?: string; security: boolean; apps: Manifest["apps"] } | null {
   const v = state.get("available");
   if (!v || !parseVersion(v) || compareVersions(v, current) <= 0) return null;
   let apps: Manifest["apps"] = [];
   try {
     const parsed = JSON.parse(state.get("apps_json") ?? "[]") as unknown;
-    if (Array.isArray(parsed)) apps = parsed.flatMap((a) => { const r = asRow(a); const p = str(r?.["platform"]), ver = str(r?.["version"]); return p && ver ? [{ platform: p, version: ver }] : []; });
-  } catch { /* an unreadable cache is an empty one */ }
+    if (Array.isArray(parsed))
+      apps = parsed.flatMap((a) => {
+        const r = asRow(a);
+        const p = str(r?.["platform"]),
+          ver = str(r?.["version"]);
+        return p && ver ? [{ platform: p, version: ver }] : [];
+      });
+  } catch {
+    /* an unreadable cache is an empty one */
+  }
   const notes = str(state.get("notes"));
   return { version: v, ...(notes ? { notes } : {}), security: state.get("security") === "1", apps };
 }
@@ -296,13 +397,22 @@ export async function status(ctx: UpdateCtx, _input: Record<string, unknown>) {
   const d = need(ctx);
   // a server run from source has no vyre-server: it is updated outside Vyre, which is an answer, not a failure
   let current: string | null;
-  try { current = await d.installer.current(); } catch (e) {
+  try {
+    current = await d.installer.current();
+  } catch (e) {
     if ((e as { code?: unknown } | null)?.code !== "ENOENT") throw e;
     current = null;
   }
   const state = readState(ctx);
   // it still knows the version it runs (l-consolidate): say it, with nothing waiting and nothing ran
-  if (current === null) { const running = d.installer.running?.(); return { ...(parseVersion(running) ? { current: running as string } : {}), managedElsewhere: true, channel: channelOf(state) }; }
+  if (current === null) {
+    const running = d.installer.running?.();
+    return {
+      ...(parseVersion(running) ? { current: running as string } : {}),
+      managedElsewhere: true,
+      channel: channelOf(state),
+    };
+  }
   const w = waiting(state, current);
   const last = historyRows(ctx, 1)[0];
   return {
@@ -315,12 +425,16 @@ export async function status(ctx: UpdateCtx, _input: Record<string, unknown>) {
 
 export async function channel_set(ctx: UpdateCtx, input: { channel: string }) {
   need(ctx);
-  if (!isChannel(input.channel)) return failWith(ctx.trace.traceId, "validation.bad_input", "Choose stable, beta or nightly.", { errors: ["channel: not a channel"] });
+  if (!isChannel(input.channel))
+    return failWith(ctx.trace.traceId, "validation.bad_input", "Choose stable, beta or nightly.", {
+      errors: ["channel: not a channel"],
+    });
   const state = readState(ctx);
   if (channelOf(state) !== input.channel || !state.has("channel")) {
     writeState(ctx, "channel", input.channel);
     // what the last look found belongs to the old channel
-    for (const k of ["available", "notes", "security", "apps_json", "checked_at"]) ctx.db.run("DELETE FROM updates_state WHERE key = ?", k);
+    for (const k of ["available", "notes", "security", "apps_json", "checked_at"])
+      ctx.db.run("DELETE FROM updates_state WHERE key = ?", k);
   }
   return { ok: true };
 }
@@ -342,7 +456,9 @@ export async function check(ctx: UpdateCtx, _input: Record<string, unknown>) {
   }
   // the apps this server will serve once it is on the version on offer (or the running one when nothing is on offer)
   const target = newer ? manifest.server.version : current;
-  const supportedApps = manifest.apps.filter((a) => appSupported(target, a.version)).map((a) => `${a.platform} ${a.version}`);
+  const supportedApps = manifest.apps
+    .filter((a) => appSupported(target, a.version))
+    .map((a) => `${a.platform} ${a.version}`);
   return {
     ...(newer ? { available: manifest.server.version } : {}),
     ...(newer && manifest.server.notes ? { notes: manifest.server.notes } : {}),
@@ -351,14 +467,19 @@ export async function check(ctx: UpdateCtx, _input: Record<string, unknown>) {
 }
 
 export async function history(ctx: UpdateCtx, _input: Record<string, unknown>) {
-  return { updates: historyRows(ctx).map((h) => ({ from: h.from, to: h.to, at: h.at, result: h.result, seconds: h.seconds })) };
+  return {
+    updates: historyRows(ctx).map((h) => ({ from: h.from, to: h.to, at: h.at, result: h.result, seconds: h.seconds })),
+  };
 }
 
 export async function app_compat(ctx: UpdateCtx, _input: Record<string, unknown>) {
   const d = need(ctx);
   const current = await d.installer.current();
   const w = appWindow(current);
-  if (!w) return failWith(ctx.trace.traceId, "internal.unexpected", "The running server version is not a version.", { current });
+  if (!w)
+    return failWith(ctx.trace.traceId, "internal.unexpected", "The running server version is not a version.", {
+      current,
+    });
   // an app older than min gets update_required and opens read-only (ARCH 5.x handshake)
   return { min: w.min, max: w.max, updateRequiredBelow: w.min };
 }
@@ -367,18 +488,36 @@ export async function health(ctx: UpdateCtx, _input: Record<string, unknown>) {
   const d = need(ctx);
   const started = ctx.now();
   let current: string;
-  try { current = await d.installer.current(); } catch (e) {
+  try {
+    current = await d.installer.current();
+  } catch (e) {
     // Only a missing vyre-server is "not installed here" (a server run from source). Any other failure is a real one: say what it was.
-    if ((e as { code?: unknown } | null)?.code === "ENOENT") return { state: "healthy" as const, detail: "Updates are run by vyre-server, which is not installed here." };
-    return { state: "degraded" as const, detail: `Could not check updates: ${e instanceof Error ? e.message : "vyre-server did not answer"}.`, latencyMs: Math.max(0, ctx.now() - started) };
+    if ((e as { code?: unknown } | null)?.code === "ENOENT")
+      return { state: "healthy" as const, detail: "Updates are run by vyre-server, which is not installed here." };
+    return {
+      state: "degraded" as const,
+      detail: `Could not check updates: ${e instanceof Error ? e.message : "vyre-server did not answer"}.`,
+      latencyMs: Math.max(0, ctx.now() - started),
+    };
   }
   const latencyMs = Math.max(0, ctx.now() - started);
   const state = readState(ctx);
   const w = waiting(state, current);
   const last = historyRows(ctx, 1)[0];
-  if (last && last.result === "failed") return { state: "degraded" as const, detail: `The last update to ${last.to} failed${last.reason ? `: ${last.reason}` : ""}. The server is on ${current}.`, latencyMs };
-  if (w?.security) return { state: "degraded" as const, detail: `A security update (${w.version}) is waiting. Update from Console, Infrastructure, Server, Updates.`, latencyMs };
+  if (last && last.result === "failed")
+    return {
+      state: "degraded" as const,
+      detail: `The last update to ${last.to} failed${last.reason ? `: ${last.reason}` : ""}. The server is on ${current}.`,
+      latencyMs,
+    };
+  if (w?.security)
+    return {
+      state: "degraded" as const,
+      detail: `A security update (${w.version}) is waiting. Update from Console, Infrastructure, Server, Updates.`,
+      latencyMs,
+    };
   const checkedAt = Number(state.get("checked_at"));
-  if (state.has("checked_at") && Number.isFinite(checkedAt) && ctx.now() - checkedAt > STALE_CHECK_MS) return { state: "degraded" as const, detail: "The server has not looked for updates in over a week.", latencyMs };
+  if (state.has("checked_at") && Number.isFinite(checkedAt) && ctx.now() - checkedAt > STALE_CHECK_MS)
+    return { state: "degraded" as const, detail: "The server has not looked for updates in over a week.", latencyMs };
   return { state: "healthy" as const, latencyMs };
 }

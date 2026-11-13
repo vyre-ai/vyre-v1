@@ -3,15 +3,21 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { preAuthSession, sourceOf } from "../src/daemon/preauth.ts";
 
-const idOf = (h: Record<string, string>, caller: "anonymous" | "pending" = "anonymous") => preAuthSession("spc_x", caller, h).principal.id;
+const idOf = (h: Record<string, string>, caller: "anonymous" | "pending" = "anonymous") =>
+  preAuthSession("spc_x", caller, h).principal.id;
 
 test("two different addresses get separate ids, the same address the same id, and the id says which kind of caller", () => {
-  const a = idOf({ "x-vyre-remote": "203.0.113.9" }), b = idOf({ "x-vyre-remote": "198.51.100.4" });
+  const a = idOf({ "x-vyre-remote": "203.0.113.9" }),
+    b = idOf({ "x-vyre-remote": "198.51.100.4" });
   assert.notEqual(a, b);
   assert.equal(a, idOf({ "x-vyre-remote": "203.0.113.9" }));
   assert.match(a, /^act_anon_[0-9a-f]{16}$/);
   assert.match(idOf({ "x-vyre-remote": "203.0.113.9" }, "pending"), /^act_pending_[0-9a-f]{16}$/);
-  assert.notEqual(a, idOf({ "x-vyre-remote": "203.0.113.9" }, "pending"), "an anonymous and a pending caller from one address are two buckets");
+  assert.notEqual(
+    a,
+    idOf({ "x-vyre-remote": "203.0.113.9" }, "pending"),
+    "an anonymous and a pending caller from one address are two buckets",
+  );
 });
 
 test("the principal is an actor, never a person or a service, and carries no address", () => {
@@ -21,10 +27,21 @@ test("the principal is an actor, never a person or a service, and carries no add
 });
 
 test("a client cannot pick its own bucket: x-forwarded-for counts only behind a proxy on this machine", () => {
-  assert.equal(sourceOf({ "x-vyre-remote": "203.0.113.9", "x-forwarded-for": "198.51.100.4" }), "203.0.113.9", "a remote socket's forwarded header is ignored");
-  assert.equal(sourceOf({ "x-vyre-remote": "127.0.0.1", "x-forwarded-for": "198.51.100.4, 10.0.0.1" }), "10.0.0.1", "behind the local proxy the last entry is the one the proxy added; a client-set first entry cannot pick the bucket");
+  assert.equal(
+    sourceOf({ "x-vyre-remote": "203.0.113.9", "x-forwarded-for": "198.51.100.4" }),
+    "203.0.113.9",
+    "a remote socket's forwarded header is ignored",
+  );
+  assert.equal(
+    sourceOf({ "x-vyre-remote": "127.0.0.1", "x-forwarded-for": "198.51.100.4, 10.0.0.1" }),
+    "10.0.0.1",
+    "behind the local proxy the last entry is the one the proxy added; a client-set first entry cannot pick the bucket",
+  );
   assert.equal(sourceOf({ "x-vyre-remote": "::1", "x-forwarded-for": "198.51.100.4" }), "198.51.100.4");
   assert.equal(sourceOf({ "x-vyre-remote": "127.0.0.1" }), "127.0.0.1");
   assert.equal(sourceOf({}), "unknown");
-  assert.equal(idOf({ "x-vyre-remote": "203.0.113.9", "x-forwarded-for": "1.1.1.1" }), idOf({ "x-vyre-remote": "203.0.113.9" }));
+  assert.equal(
+    idOf({ "x-vyre-remote": "203.0.113.9", "x-forwarded-for": "1.1.1.1" }),
+    idOf({ "x-vyre-remote": "203.0.113.9" }),
+  );
 });

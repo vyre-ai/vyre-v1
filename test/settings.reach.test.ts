@@ -33,18 +33,24 @@ test("gate: a change through settings.set_space moves the Gate's timeout", async
 
 test("tasks: a change through settings.set_space moves the task rules", async () => {
   const h = tasksHarness();
-  await tasks["tasks.settings_sync"].run({ db: h.db } as never, { payload: await changed("tasks.require_human_approver", true) });
+  await tasks["tasks.settings_sync"].run({ db: h.db } as never, {
+    payload: await changed("tasks.require_human_approver", true),
+  });
   assert.equal(tasksPolicy(h.db).requireHumanApprover, true);
 });
 
 test("automations: a change through settings.set_space moves the import rule", async () => {
   const h = autoHarness();
-  await automations["automations.settings_sync"].run({ db: h.db } as never, { payload: await changed("automations.run_automations_on_import", true) });
+  await automations["automations.settings_sync"].run({ db: h.db } as never, {
+    payload: await changed("automations.run_automations_on_import", true),
+  });
   assert.equal(autoPolicy(h.db).runOnImport, true);
 });
 
 test("scheduler: a change through settings.set_space moves the missed window", async () => {
   const h = schedHarness();
-  await scheduler["scheduler.settings_sync"].run({ db: h.db } as never, { payload: await changed("scheduler.missed_window_minutes", 5) });
+  await scheduler["scheduler.settings_sync"].run({ db: h.db } as never, {
+    payload: await changed("scheduler.missed_window_minutes", 5),
+  });
   assert.equal(schedPolicy(h.db).missedWindowMs, 300_000);
 });

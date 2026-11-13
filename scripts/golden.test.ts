@@ -15,7 +15,11 @@ function steps(files: Record<string, string>): string {
   for (const [name, body] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), body);
   return dir;
 }
-const run = (dir: string) => spawnSync(process.execPath, [SCRIPT, "--dir", dir, "--no-ready"], { encoding: "utf8", env: { ...process.env, NODE_TEST_CONTEXT: "" } });
+const run = (dir: string) =>
+  spawnSync(process.execPath, [SCRIPT, "--dir", dir, "--no-ready"], {
+    encoding: "utf8",
+    env: { ...process.env, NODE_TEST_CONTEXT: "" },
+  });
 
 const PASS = `import test from "node:test"; test("flow a", () => {});`;
 const READY_FAIL = `import test from "node:test"; import assert from "node:assert/strict"; test("flow b is ready", () => { assert.equal(1, 2); });`;
@@ -42,17 +46,32 @@ test("golden: no step test means failure, and a heavy test is not run here", () 
 
 test("golden: shards split the step tests with none lost or run twice, a shard with nothing is a failure, a bad shard is refused", () => {
   const dir = steps({ "01-a.test.ts": PASS, "02-b.test.ts": PASS, "03-c.test.ts": PASS, "04-d.test.ts": READY_FAIL });
-  const one = spawnSync(process.execPath, [SCRIPT, "--dir", dir, "--no-ready", "--shard", "1/2"], { encoding: "utf8", env: { ...process.env, NODE_TEST_CONTEXT: "" } });
-  const two = spawnSync(process.execPath, [SCRIPT, "--dir", dir, "--no-ready", "--shard", "2/2"], { encoding: "utf8", env: { ...process.env, NODE_TEST_CONTEXT: "" } });
+  const one = spawnSync(process.execPath, [SCRIPT, "--dir", dir, "--no-ready", "--shard", "1/2"], {
+    encoding: "utf8",
+    env: { ...process.env, NODE_TEST_CONTEXT: "" },
+  });
+  const two = spawnSync(process.execPath, [SCRIPT, "--dir", dir, "--no-ready", "--shard", "2/2"], {
+    encoding: "utf8",
+    env: { ...process.env, NODE_TEST_CONTEXT: "" },
+  });
   assert.equal(one.status, 0, one.stdout + one.stderr);
   assert.match(one.stdout, /shard 1\/2, 2 step tests/);
   assert.notEqual(two.status, 0, "the failing flow is in shard 2 and turns it red");
   assert.match(two.stdout, /shard 2\/2, 2 step tests/);
-  const none = spawnSync(process.execPath, [SCRIPT, "--dir", steps({ "01-a.test.ts": PASS }), "--no-ready", "--shard", "2/2"], { encoding: "utf8", env: { ...process.env, NODE_TEST_CONTEXT: "" } });
+  const none = spawnSync(
+    process.execPath,
+    [SCRIPT, "--dir", steps({ "01-a.test.ts": PASS }), "--no-ready", "--shard", "2/2"],
+    { encoding: "utf8", env: { ...process.env, NODE_TEST_CONTEXT: "" } },
+  );
   assert.notEqual(none.status, 0);
   assert.match(none.stderr, /has no step test/);
   assert.equal(spawnSync(process.execPath, [SCRIPT, "--dir", dir, "--shard", "3/2"], { encoding: "utf8" }).status, 2);
-  assert.deepEqual(shardOf(["a", "b", "c", "d", "e"], 1, 2).concat(shardOf(["a", "b", "c", "d", "e"], 2, 2)).sort(), ["a", "b", "c", "d", "e"]);
+  assert.deepEqual(
+    shardOf(["a", "b", "c", "d", "e"], 1, 2)
+      .concat(shardOf(["a", "b", "c", "d", "e"], 2, 2))
+      .sort(),
+    ["a", "b", "c", "d", "e"],
+  );
 });
 
 test("golden: the long step tests are spread over three shards, none lost, none twice", () => {
@@ -61,5 +80,9 @@ test("golden: the long step tests are spread over three shards, none lost, none 
   assert.deepEqual(parts.flat().sort(), [...files].sort());
   const heavy = parts.map((xs) => xs.filter((f) => HEAVY.some((h) => path.basename(f).startsWith(h))).length);
   assert.ok(Math.max(...heavy) - Math.min(...heavy) <= 1, `heavy files per shard: ${heavy}`);
-  assert.equal(heavy.reduce((a, b) => a + b, 0), HEAVY.length, "every name in HEAVY matches a step test");
+  assert.equal(
+    heavy.reduce((a, b) => a + b, 0),
+    HEAVY.length,
+    "every name in HEAVY matches a step test",
+  );
 });

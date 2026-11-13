@@ -23,51 +23,132 @@ export interface Item {
 }
 
 /** The words that name a kind at the left of a row. */
-export const KIND_LABEL: Readonly<Record<Kind, string>> = { edit: "Edit", comment: "Comment", mail: "Email", text: "Text", call: "Call", meeting: "Meeting", file: "File", task: "Task", run: "Run", chat: "Chat" };
+export const KIND_LABEL: Readonly<Record<Kind, string>> = {
+  edit: "Edit",
+  comment: "Comment",
+  mail: "Email",
+  text: "Text",
+  call: "Call",
+  meeting: "Meeting",
+  file: "File",
+  task: "Task",
+  run: "Run",
+  chat: "Chat",
+};
 
 const clip = (s: string, n = 120): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 type Activity = CapMap["records.activity"]["out"]["entries"][number];
-export const fromActivity = (rows: readonly Activity[], def: TypeDef | undefined, names: (id: string) => string): Item[] =>
-  rows.map((e) => ({ id: `edit:${e.id}`, kind: "edit", at: e.at, title: activityLine(e, def, names), ...(e.actor ? { actor: e.actor } : {}) }));
+export const fromActivity = (
+  rows: readonly Activity[],
+  def: TypeDef | undefined,
+  names: (id: string) => string,
+): Item[] =>
+  rows.map((e) => ({
+    id: `edit:${e.id}`,
+    kind: "edit",
+    at: e.at,
+    title: activityLine(e, def, names),
+    ...(e.actor ? { actor: e.actor } : {}),
+  }));
 
 type Comment = CapMap["records.comments.list"]["out"]["comments"][number];
 export const fromComments = (rows: readonly Comment[], names: (id: string) => string): Item[] =>
-  rows.map((c) => ({ id: `comment:${c.commentId}`, kind: "comment", at: c.at, title: clip(c.text), note: `${names(c.by)} commented${c.parentId ? " in reply" : ""}`, actor: c.by }));
+  rows.map((c) => ({
+    id: `comment:${c.commentId}`,
+    kind: "comment",
+    at: c.at,
+    title: clip(c.text),
+    note: `${names(c.by)} commented${c.parentId ? " in reply" : ""}`,
+    actor: c.by,
+  }));
 
 type TimelineItem = CapMap["inbox.thread"]["out"]["items"][number];
-const MAIL_KIND: Partial<Record<TimelineItem["kind"], Kind>> = { email: "mail", sms: "text", call: "call", meeting: "meeting" };
+const MAIL_KIND: Partial<Record<TimelineItem["kind"], Kind>> = {
+  email: "mail",
+  sms: "text",
+  call: "call",
+  meeting: "meeting",
+};
 export const fromConversation = (rows: readonly TimelineItem[]): Item[] =>
   rows.flatMap((m): Item[] => {
     const kind = MAIL_KIND[m.kind];
     if (!kind) return [];
     const way = m.direction === "out" ? "Sent" : "Received";
-    return [{ id: `${kind}:${m.id}`, kind, at: m.at, title: clip(m.title ?? m.preview ?? KIND_LABEL[kind]), note: m.title && m.preview ? `${way}. ${clip(m.preview, 80)}` : way }];
+    return [
+      {
+        id: `${kind}:${m.id}`,
+        kind,
+        at: m.at,
+        title: clip(m.title ?? m.preview ?? KIND_LABEL[kind]),
+        note: m.title && m.preview ? `${way}. ${clip(m.preview, 80)}` : way,
+      },
+    ];
   });
 
 type FileRow = CapMap["files.list"]["out"]["files"][number];
 export const fromFiles = (rows: readonly FileRow[], names: (id: string) => string): Item[] =>
-  rows.filter((f) => f.deletedAt === undefined).map((f) => ({ id: `file:${f.fileId}`, kind: "file", at: f.updatedAt, title: f.name, note: `${names(f.updatedBy)} updated it`, actor: f.updatedBy, subject: { type: "file", id: f.fileId } }));
+  rows
+    .filter((f) => f.deletedAt === undefined)
+    .map((f) => ({
+      id: `file:${f.fileId}`,
+      kind: "file",
+      at: f.updatedAt,
+      title: f.name,
+      note: `${names(f.updatedBy)} updated it`,
+      actor: f.updatedBy,
+      subject: { type: "file", id: f.fileId },
+    }));
 
 type Task = CapMap["tasks.list"]["out"]["tasks"][number];
 export const fromTasks = (rows: readonly Task[]): Item[] =>
-  rows.map((t) => ({ id: `task:${t.id}`, kind: "task", at: t.updatedAt, title: t.title, note: t.state === "done" ? "Done" : t.state === "todo" ? "To do" : t.state.replace(/_/g, " "), subject: { type: "task", id: t.id } }));
+  rows.map((t) => ({
+    id: `task:${t.id}`,
+    kind: "task",
+    at: t.updatedAt,
+    title: t.title,
+    note: t.state === "done" ? "Done" : t.state === "todo" ? "To do" : t.state.replace(/_/g, " "),
+    subject: { type: "task", id: t.id },
+  }));
 
 type Run = CapMap["runs.list"]["out"]["runs"][number];
 export const fromRuns = (rows: readonly Run[]): Item[] =>
-  rows.map((r) => ({ id: `run:${r.id}`, kind: "run", at: r.endedAt ?? r.startedAt, title: r.name ?? "A run", note: r.status.replace(/_/g, " "), subject: { type: "run", id: r.id } }));
+  rows.map((r) => ({
+    id: `run:${r.id}`,
+    kind: "run",
+    at: r.endedAt ?? r.startedAt,
+    title: r.name ?? "A run",
+    note: r.status.replace(/_/g, " "),
+    subject: { type: "run", id: r.id },
+  }));
 
 type Thread = CapMap["threads.list"]["out"]["threads"][number];
 export const fromThreads = (rows: readonly Thread[]): Item[] =>
-  rows.map((t) => ({ id: `chat:${t.threadId}`, kind: "chat", at: t.lastMessageAt ?? t.createdAt, title: t.title ?? "Chat", ...(t.replyCount ? { note: `${t.replyCount} ${t.replyCount === 1 ? "message" : "messages"}` } : {}), subject: { type: "thread", id: t.threadId } }));
+  rows.map((t) => ({
+    id: `chat:${t.threadId}`,
+    kind: "chat",
+    at: t.lastMessageAt ?? t.createdAt,
+    title: t.title ?? "Chat",
+    ...(t.replyCount ? { note: `${t.replyCount} ${t.replyCount === 1 ? "message" : "messages"}` } : {}),
+    subject: { type: "thread", id: t.threadId },
+  }));
 
 type Meeting = CapMap["meetings.closeout.list"]["out"]["meetings"][number];
-const MEETING_STATE: Readonly<Record<Meeting["state"], string>> = { ready: "Ready to close", closed: "Closed", nothing: "Nothing to do", preparing: "Preparing" };
+const MEETING_STATE: Readonly<Record<Meeting["state"], string>> = {
+  ready: "Ready to close",
+  closed: "Closed",
+  nothing: "Nothing to do",
+  preparing: "Preparing",
+};
 /** The meetings this record was in (or that proposed something for it), with where their close-out stands; a tap opens the close-out in the Inbox's Meetings tab. */
 export const fromMeetings = (rows: readonly Meeting[]): Item[] =>
   rows.map((m) => ({
-    id: `meeting:${m.meetingId}`, kind: "meeting", at: m.startsAt, title: m.title,
-    note: `${MEETING_STATE[m.state]}${m.done ? ` · ${m.done} done` : ""}${m.state === "ready" && m.proposed ? ` · ${m.proposed} to approve` : ""}`, subject: { type: "meeting", id: m.meetingId },
+    id: `meeting:${m.meetingId}`,
+    kind: "meeting",
+    at: m.startsAt,
+    title: m.title,
+    note: `${MEETING_STATE[m.state]}${m.done ? ` · ${m.done} done` : ""}${m.state === "ready" && m.proposed ? ` · ${m.proposed} to approve` : ""}`,
+    subject: { type: "meeting", id: m.meetingId },
   }));
 
 /** Newest first, one item per id, at most `limit`. */
@@ -89,21 +170,51 @@ export type Call = (cap: string, input: unknown) => Promise<unknown>;
  * Read every source as the person and merge. A source that fails (no access, or the record is not that kind of thing: only a contact has a mail history) adds nothing and is not reported:
  * what a person may not see is not hinted at. `folderOf` finds the record's own folder, if it has one.
  */
-export async function loadEverything(o: { call: Call; type: string; recordId: string; def?: TypeDef | undefined; names: (id: string) => string; folderOf: () => Promise<string | null> }): Promise<Item[]> {
-  const ask = async <T,>(cap: string, input: unknown): Promise<T | null> => { try { return (await o.call(cap, input)) as T; } catch { return null; } };
+export async function loadEverything(o: {
+  call: Call;
+  type: string;
+  recordId: string;
+  def?: TypeDef | undefined;
+  names: (id: string) => string;
+  folderOf: () => Promise<string | null>;
+}): Promise<Item[]> {
+  const ask = async <T>(cap: string, input: unknown): Promise<T | null> => {
+    try {
+      return (await o.call(cap, input)) as T;
+    } catch {
+      return null;
+    }
+  };
   const [activity, comments, thread, tasks, runs, threads, files, meetings] = await Promise.all([
     ask<CapMap["records.activity"]["out"]>("records.activity", { type: o.type, recordId: o.recordId, limit: 50 }),
-    ask<CapMap["records.comments.list"]["out"]>("records.comments.list", { type: o.type, recordId: o.recordId, includeResolved: true }),
+    ask<CapMap["records.comments.list"]["out"]>("records.comments.list", {
+      type: o.type,
+      recordId: o.recordId,
+      includeResolved: true,
+    }),
     ask<CapMap["inbox.thread"]["out"]>("inbox.thread", { contactId: o.recordId, limit: 50 }),
     ask<CapMap["tasks.list"]["out"]>("tasks.list", { scope: "record", recordId: o.recordId, limit: 50 }),
-    ask<CapMap["runs.list"]["out"]>("runs.list", { scope: "subject", subject: { type: "record", id: o.recordId }, limit: 50 }),
+    ask<CapMap["runs.list"]["out"]>("runs.list", {
+      scope: "subject",
+      subject: { type: "record", id: o.recordId },
+      limit: 50,
+    }),
     ask<CapMap["threads.list"]["out"]>("threads.list", { recordId: o.recordId, limit: 50 }),
-    (async () => { const folder = await o.folderOf().catch(() => null); return folder ? ask<CapMap["files.list"]["out"]>("files.list", { folder, limit: 50 }) : null; })(),
+    (async () => {
+      const folder = await o.folderOf().catch(() => null);
+      return folder ? ask<CapMap["files.list"]["out"]>("files.list", { folder, limit: 50 }) : null;
+    })(),
     ask<CapMap["meetings.closeout.list"]["out"]>("meetings.closeout.list", { recordId: o.recordId, limit: 50 }),
   ]);
   const feed = merge([
-    fromActivity(activity?.entries ?? [], o.def, o.names), fromComments(comments?.comments ?? [], o.names), fromConversation(thread?.items ?? []), fromFiles(files?.files ?? [], o.names),
-    fromTasks(tasks?.tasks ?? []), fromRuns(runs?.runs ?? []), fromThreads(threads?.threads ?? []), fromMeetings(meetings?.meetings ?? []),
+    fromActivity(activity?.entries ?? [], o.def, o.names),
+    fromComments(comments?.comments ?? [], o.names),
+    fromConversation(thread?.items ?? []),
+    fromFiles(files?.files ?? [], o.names),
+    fromTasks(tasks?.tasks ?? []),
+    fromRuns(runs?.runs ?? []),
+    fromThreads(threads?.threads ?? []),
+    fromMeetings(meetings?.meetings ?? []),
   ]);
   return withReach(o.call, feed);
 }
@@ -114,7 +225,8 @@ export async function loadEverything(o: { call: Call; type: string; recordId: st
  */
 /** Rows whose own read already answers for this viewer: tasks.list returns the tasks a person is assigned or may see, a rule access.reach (the kernel's grants) does not know, so asking reach would hide a task assigned to them. */
 const ANSWERED_BY_THE_LIST: ReadonlySet<string> = new Set(["task"]);
-const askable = (it: Item): string | undefined => (it.subject && !ANSWERED_BY_THE_LIST.has(it.subject.type) ? RESOURCE_OF[it.subject.type] : undefined);
+const askable = (it: Item): string | undefined =>
+  it.subject && !ANSWERED_BY_THE_LIST.has(it.subject.type) ? RESOURCE_OF[it.subject.type] : undefined;
 
 export async function withReach(call: Call, feed: Item[]): Promise<Item[]> {
   const asked = new Map<string, { type: string; id: string }>();
@@ -125,9 +237,13 @@ export async function withReach(call: Call, feed: Item[]): Promise<Item[]> {
   if (asked.size === 0) return feed;
   const level = new Map<string, string>();
   try {
-    const out = (await call("access.reach", { items: [...asked.values()].slice(0, 200) })) as { items?: Array<{ type: string; id: string; level: string }> };
+    const out = (await call("access.reach", { items: [...asked.values()].slice(0, 200) })) as {
+      items?: Array<{ type: string; id: string; level: string }>;
+    };
     for (const r of out.items ?? []) level.set(`${r.type}:${r.id}`, r.level);
-  } catch { return feed; }
+  } catch {
+    return feed;
+  }
   return feed.map((it) => {
     const type = askable(it);
     if (!it.subject || !type || level.get(`${type}:${it.subject.id}`) !== "none") return it;

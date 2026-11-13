@@ -3,10 +3,27 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  FOCUS_TOKEN, FOCUS_VISIBLE, cardLabel, focusRingCss, insertLabel, keyNeighbour, mappingLabel, moreLabel, runStateText, tabLabel, triggerLabel,
+  FOCUS_TOKEN,
+  FOCUS_VISIBLE,
+  cardLabel,
+  focusRingCss,
+  insertLabel,
+  keyNeighbour,
+  mappingLabel,
+  moreLabel,
+  runStateText,
+  tabLabel,
+  triggerLabel,
 } from "./a11y.ts";
 import { shelfRows } from "./builder/fields.ts";
-import { COMPACT_REGIONS, COMPACT_SECTION, canvasScale, compactRegionLabel, frameFor, regionOrder } from "./canvas/frame.ts";
+import {
+  COMPACT_REGIONS,
+  COMPACT_SECTION,
+  canvasScale,
+  compactRegionLabel,
+  frameFor,
+  regionOrder,
+} from "./canvas/frame.ts";
 import { stepStatusChip } from "./canvas/model.ts";
 
 const source = (path: string): string => readFileSync(new URL(path, import.meta.url), "utf8");
@@ -49,10 +66,22 @@ test("compact order is canvas overview, selected step, data, then test", () => {
 });
 
 test("labels name the action and the state, not the icon", () => {
-  assert.equal(cardLabel({ title: "Find the person", sub: "type contact", issues: 0 }), "Find the person. type contact");
-  assert.equal(cardLabel({ title: "Find the person", sub: "type contact", issues: 2 }), "Find the person. type contact. 2 to fix");
-  assert.equal(cardLabel({ title: "Send", sub: "to ada", issues: 0, chip: "tested", state: "done" }), "Send. to ada. tested. done");
-  assert.equal(cardLabel({ title: "Send", sub: "to ada", issues: 1, chip: "error", state: "failed" }), "Send. to ada. error. 1 to fix");
+  assert.equal(
+    cardLabel({ title: "Find the person", sub: "type contact", issues: 0 }),
+    "Find the person. type contact",
+  );
+  assert.equal(
+    cardLabel({ title: "Find the person", sub: "type contact", issues: 2 }),
+    "Find the person. type contact. 2 to fix",
+  );
+  assert.equal(
+    cardLabel({ title: "Send", sub: "to ada", issues: 0, chip: "tested", state: "done" }),
+    "Send. to ada. tested. done",
+  );
+  assert.equal(
+    cardLabel({ title: "Send", sub: "to ada", issues: 1, chip: "error", state: "failed" }),
+    "Send. to ada. error. 1 to fix",
+  );
   assert.equal(runStateText("error", "failed"), null);
   assert.equal(runStateText("waiting", "waiting"), null);
   assert.equal(runStateText("tested", "tested"), null);
@@ -71,8 +100,14 @@ test("labels name the action and the state, not the icon", () => {
   assert.equal(tabLabel("Data", false), "Data");
   assert.equal(tabLabel("Data", true), "Data, selected");
   assert.equal(tabLabel(COMPACT_SECTION.configure, true), "Selected step, selected");
-  assert.equal(mappingLabel({ name: "email", source: "Trigger version 4", typeName: "string", presence: "value" }), "Map email from Trigger version 4, string");
-  assert.equal(mappingLabel({ name: "note", source: "Look up, version 4", typeName: "string", presence: "empty" }), "Map note from Look up, version 4, string, empty");
+  assert.equal(
+    mappingLabel({ name: "email", source: "Trigger version 4", typeName: "string", presence: "value" }),
+    "Map email from Trigger version 4, string",
+  );
+  assert.equal(
+    mappingLabel({ name: "note", source: "Look up, version 4", typeName: "string", presence: "empty" }),
+    "Map note from Look up, version 4, string, empty",
+  );
   assert.equal(stepStatusChip("a", [], "waiting", new Set()), "waiting");
   assert.equal(stepStatusChip("a", [{ severity: "error" }], "waiting", new Set(["a"])), "error");
   assert.equal(stepStatusChip("a", [], "done", new Set(["a"])), "tested");
@@ -135,7 +170,13 @@ test("visible focus uses the existing accent line token and adds no motion", () 
   assert.match(source("./canvas/Inspector.tsx"), /installFocusRing/);
   assert.match(source("./canvas/parts.tsx"), /vyreFocus/);
   assert.match(source("./canvas/Cards.tsx"), /vyreFocus/);
-  for (const path of ["./canvas/AutomationCanvas.tsx", "./canvas/Inspector.tsx", "./canvas/Cards.tsx", "./builder/marks.tsx", "./config/Overlay.tsx"]) {
+  for (const path of [
+    "./canvas/AutomationCanvas.tsx",
+    "./canvas/Inspector.tsx",
+    "./canvas/Cards.tsx",
+    "./builder/marks.tsx",
+    "./config/Overlay.tsx",
+  ]) {
     const text = source(path);
     assert.doesNotMatch(text, /Animated\./);
     assert.doesNotMatch(text, /@keyframes/);

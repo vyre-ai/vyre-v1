@@ -10,7 +10,10 @@ const calls = (health: unknown): { seen: string[]; call: (cap: string) => Promis
     call: async (cap) => {
       seen.push(cap);
       if (cap === "connections.list") return { connections: [] };
-      if (cap === "github.health") { if (health instanceof Error) throw health; return health; }
+      if (cap === "github.health") {
+        if (health instanceof Error) throw health;
+        return health;
+      }
       if (cap === "github.installations.list") return { installations: [{ id: 1, account: "acme" }] };
       throw new Error(`unexpected ${cap}`);
     },
@@ -18,7 +21,10 @@ const calls = (health: unknown): { seen: string[]; call: (cap: string) => Promis
 };
 
 test("no GitHub App: installations are not asked for, and GitHub reads as not connected", async () => {
-  const c = calls({ state: "healthy", detail: "The GitHub App is not set up yet. Create it in Settings, Integrations." });
+  const c = calls({
+    state: "healthy",
+    detail: "The GitHub App is not set up yet. Create it in Settings, Integrations.",
+  });
   const a = await loadAccounts(c.call, null);
   assert.equal(c.seen.includes("github.installations.list"), false);
   assert.equal(a.github.connected, false);
@@ -53,10 +59,23 @@ test("connect GitHub in place: open the install page, poll until the installatio
 test("connect GitHub in place: an installation that already exists opens no page; no App set up says so; giving up returns null", async () => {
   const { connectGithub } = await import("./files-mounts-data.ts");
   const opened: string[] = [];
-  const has = async (cap: string): Promise<unknown> => (cap === "github.app.get" ? { slug: "s" } : { installations: [{ account: "acme" }] });
-  assert.deepEqual(await connectGithub(has, (u) => opened.push(u), { sleep: async () => undefined }), { label: "acme", connected: true });
+  const has = async (cap: string): Promise<unknown> =>
+    cap === "github.app.get" ? { slug: "s" } : { installations: [{ account: "acme" }] };
+  assert.deepEqual(await connectGithub(has, (u) => opened.push(u), { sleep: async () => undefined }), {
+    label: "acme",
+    connected: true,
+  });
   assert.equal(opened.length, 0);
-  assert.equal(await connectGithub(async () => { throw new Error("not set up"); }, () => undefined), "not_set_up");
-  const none = async (cap: string): Promise<unknown> => (cap === "github.app.get" ? { slug: "s" } : { installations: [] });
+  assert.equal(
+    await connectGithub(
+      async () => {
+        throw new Error("not set up");
+      },
+      () => undefined,
+    ),
+    "not_set_up",
+  );
+  const none = async (cap: string): Promise<unknown> =>
+    cap === "github.app.get" ? { slug: "s" } : { installations: [] };
   assert.equal(await connectGithub(none, () => undefined, { sleep: async () => undefined, tries: 3 }), null);
 });

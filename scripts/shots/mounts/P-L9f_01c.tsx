@@ -14,21 +14,45 @@ import { AutomationsSidebar } from "../../../apps/app/src/places/automations/sid
 
 export const title = "Journey detail";
 
-const STATES: Readonly<Record<string, TaskState>> = { t_confirm: "Done", t_intake: "Done", t_review: "In review", t_conflict: "Blocked" };
+const STATES: Readonly<Record<string, TaskState>> = {
+  t_confirm: "Done",
+  t_intake: "Done",
+  t_review: "In review",
+  t_conflict: "Blocked",
+};
 
 export default function Mount(): ReactNode {
   const q = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "");
   const tab = (["stages", "fields", "settings"].includes(q.get("tab") ?? "") ? q.get("tab") : "stages") as DesignerTab;
   const sample = useMemo(() => createConfigSample(northwind), []);
-  const extras = q.get("states") === "1" ? { ...sample.extras, taskStates: () => STATES, leaving: () => ({ intake: ["aut_intake3"] }) } : sample.extras;
+  const extras =
+    q.get("states") === "1"
+      ? { ...sample.extras, taskStates: () => STATES, leaving: () => ({ intake: ["aut_intake3"] }) }
+      : sample.extras;
   const { width, height } = useWindowDimensions();
   const phone = width < 640;
-  const designer = <View style={{ flex: 1, minWidth: 0 }}><JourneyDesigner journeyId="jrn_onboard" initialTab={tab} /></View>;
+  const designer = (
+    <View style={{ flex: 1, minWidth: 0 }}>
+      <JourneyDesigner journeyId="jrn_onboard" initialTab={tab} />
+    </View>
+  );
   return (
     <AutomationsDataProvider value={sample.data}>
       <ConfigExtrasProvider value={extras}>
         <View style={{ height, flexDirection: "row", backgroundColor: "var(--win)" as string }}>
-          {phone ? designer : (<><AutomationsSidebar selectedJourneyId="jrn_onboard" initialTab="journeys" shared={sample.shared} reasons={sample.space.reasons} />{designer}</>)}
+          {phone ? (
+            designer
+          ) : (
+            <>
+              <AutomationsSidebar
+                selectedJourneyId="jrn_onboard"
+                initialTab="journeys"
+                shared={sample.shared}
+                reasons={sample.space.reasons}
+              />
+              {designer}
+            </>
+          )}
         </View>
       </ConfigExtrasProvider>
     </AutomationsDataProvider>

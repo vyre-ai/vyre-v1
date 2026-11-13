@@ -22,7 +22,7 @@ import { saveTested, savedTested } from "./live-models.ts";
  */
 export const BALANCED_TIER: Readonly<Record<string, { match: RegExp; order: "vendor" | "newest" }>> = {
   anthropic: { match: /sonnet/i, order: "vendor" },
-  openai: { match: /^gpt-\d[\d.]*o?$/i, order: "newest" },   // the plain flagship: gpt-5, gpt-5.5, gpt-4o, gpt-4.1; no -mini, -nano, -pro, no dated or preview suffix
+  openai: { match: /^gpt-\d[\d.]*o?$/i, order: "newest" }, // the plain flagship: gpt-5, gpt-5.5, gpt-4o, gpt-4.1; no -mini, -nano, -pro, no dated or preview suffix
   google: { match: /gemini-[\d.]+-flash$/i, order: "newest" },
   xai: { match: /^grok-\d[\d.]*$/i, order: "newest" },
 };
@@ -30,10 +30,15 @@ export const BALANCED_TIER: Readonly<Record<string, { match: RegExp; order: "ven
 export const AVOID_DEFAULT = /pro$|-pro-|preview|audio|realtime|search|transcribe|image|tts|whisper|translate|diarize/i;
 
 /** Newest first by the version in the id (gpt-4.1 after gpt-5, before gpt-4o: 4.1 is above 4), then by name. */
-const versionOf = (m: string): number[] => (/(\d+(?:\.\d+)*)/.exec(m)?.[1] ?? "").split(".").filter(Boolean).map(Number);
+const versionOf = (m: string): number[] =>
+  (/(\d+(?:\.\d+)*)/.exec(m)?.[1] ?? "").split(".").filter(Boolean).map(Number);
 const newestFirst = (a: string, b: string): number => {
-  const va = versionOf(a), vb = versionOf(b);
-  for (let i = 0; i < Math.max(va.length, vb.length); i++) { const d = (vb[i] ?? 0) - (va[i] ?? 0); if (d !== 0) return d; }
+  const va = versionOf(a),
+    vb = versionOf(b);
+  for (let i = 0; i < Math.max(va.length, vb.length); i++) {
+    const d = (vb[i] ?? 0) - (va[i] ?? 0);
+    if (d !== 0) return d;
+  }
   return b.localeCompare(a, "en", { numeric: true });
 };
 const alias = (m: string): boolean => /-latest$/i.test(m);
@@ -41,7 +46,10 @@ const alias = (m: string): boolean => /-latest$/i.test(m);
 export const policyId = (m: string): string => m.replace(/^models\//, "");
 
 /** The pure rule. `blocked(model)` is the Space policy's answer for that model on this provider. */
-export function pickDefault(models: readonly string[], o: { provider: string; driver?: string; confirmed: ReadonlySet<string>; blocked: (model: string) => boolean }): string | undefined {
+export function pickDefault(
+  models: readonly string[],
+  o: { provider: string; driver?: string; confirmed: ReadonlySet<string>; blocked: (model: string) => boolean },
+): string | undefined {
   const filter = (ADAPTERS as Record<string, { chatModels?: RegExp }>)[o.driver ?? o.provider]?.chatModels;
   const chat = models.filter((m) => (filter === undefined || filter.test(m)) && abilities(m, o.provider).tools);
   const allowed = chat.filter((m) => !o.blocked(m));
@@ -51,37 +59,93 @@ export function pickDefault(models: readonly string[], o: { provider: string; dr
   if (ran) return ran;
   const tier = BALANCED_TIER[o.provider];
   const matches = tier ? pool.filter((m) => tier.match.test(m)) : [];
-  const balanced = tier?.order === "vendor" ? [...matches.filter((m) => !alias(m)), ...matches.filter(alias)][0] : [...matches].sort(newestFirst)[0];
+  const balanced =
+    tier?.order === "vendor"
+      ? [...matches.filter((m) => !alias(m)), ...matches.filter(alias)][0]
+      : [...matches].sort(newestFirst)[0];
   return balanced ?? pool[0];
 }
 
 type Db = Parameters<typeof savedTested>[0];
 export interface DefaultFor {
-  db: Db; now: number;
+  db: Db;
+  now: number;
   call(cap: string, input: unknown): Promise<unknown>;
   policy: Pick<Policy, "allowedModels" | "allowedProviders" | "labelProviders">;
 }
 /** What a turn with no model named runs on for this account: { model }, { why: "policy" } when the key lists chat models but the policy allows none, or {} (none: the plain words). */
-export async function defaultModelFor(d: DefaultFor, account: { ref: string; driver: string; provider: string; kind: string; providerId?: string | undefined; models?: readonly string[] | undefined }): Promise<{ model?: string; why?: "policy" }> {
+export async function defaultModelFor(
+  d: DefaultFor,
+  account: {
+    ref: string;
+    driver: string;
+    provider: string;
+    kind: string;
+    providerId?: string | undefined;
+    models?: readonly string[] | undefined;
+  },
+): Promise<{ model?: string; why?: "policy" }> {
   if (account.kind !== "api_key" || PROVIDER_DEFAULT_DRIVERS.has(account.driver)) return {};
   let listed: string[] = account.models?.length ? [...account.models] : [];
-  if (listed.length === 0) { try { listed = savedTested(d.db, account.ref); } catch { /* nothing kept */ } }
+  if (listed.length === 0) {
+    try {
+      listed = savedTested(d.db, account.ref);
+    } catch {
+      /* nothing kept */
+    }
+  }
   if (listed.length === 0 && account.providerId) {
     // the key's own check: one GET /models, kept; no completion and no model checks are started here
     try {
-      const r = (await d.call("providers.test", { providerId: account.providerId })) as { ok?: boolean; models?: string[] };
-      if (r.ok === true && Array.isArray(r.models) && r.models.length > 0) { listed = r.models; try { saveTested(d.db, account.ref, account.driver, d.now, listed); } catch { /* kept next time */ } }
-    } catch { /* the key could not be asked now: none */ }
+      const r = (await d.call("providers.test", { providerId: account.providerId })) as {
+        ok?: boolean;
+        models?: string[];
+      };
+      if (r.ok === true && Array.isArray(r.models) && r.models.length > 0) {
+        listed = r.models;
+        try {
+          saveTested(d.db, account.ref, account.driver, d.now, listed);
+        } catch {
+          /* kept next time */
+        }
+      }
+    } catch {
+      /* the key could not be asked now: none */
+    }
   }
   if (listed.length === 0) return {};
-  const pol = { allowedAccounts: "any", allowedModels: d.policy.allowedModels ?? [], allowedProviders: d.policy.allowedProviders ?? [], labelProviders: d.policy.labelProviders ?? {} } as unknown as Policy;
+  const pol = {
+    allowedAccounts: "any",
+    allowedModels: d.policy.allowedModels ?? [],
+    allowedProviders: d.policy.allowedProviders ?? [],
+    labelProviders: d.policy.labelProviders ?? {},
+  } as unknown as Policy;
   let confirmed: ReadonlySet<string> = new Set();
-  try { confirmed = new Set([...ranFor(d.db, account.ref, d.now)].map(bare)); } catch { /* none known */ }
+  try {
+    confirmed = new Set([...ranFor(d.db, account.ref, d.now)].map(bare));
+  } catch {
+    /* none known */
+  }
   // a model the account refused lately (a turn, a probe, or a default refused below) is not the default
-  try { const bad = new Set([...unavailableFor(d.db, account.ref, d.now)].map(bare)); if (bad.size > 0) listed = listed.filter((m) => !bad.has(bare(m))); } catch { /* none marked */ }
-  const model = pickDefault(listed, { provider: account.provider, driver: account.driver, confirmed, blocked: (m) => blockedBy(pol, { provider: account.provider, model: policyId(m) }) !== null });
+  try {
+    const bad = new Set([...unavailableFor(d.db, account.ref, d.now)].map(bare));
+    if (bad.size > 0) listed = listed.filter((m) => !bad.has(bare(m)));
+  } catch {
+    /* none marked */
+  }
+  const model = pickDefault(listed, {
+    provider: account.provider,
+    driver: account.driver,
+    confirmed,
+    blocked: (m) => blockedBy(pol, { provider: account.provider, model: policyId(m) }) !== null,
+  });
   if (model) return { model };
-  const anyChat = pickDefault(listed, { provider: account.provider, driver: account.driver, confirmed, blocked: () => false });
+  const anyChat = pickDefault(listed, {
+    provider: account.provider,
+    driver: account.driver,
+    confirmed,
+    blocked: () => false,
+  });
   return anyChat ? { why: "policy" } : {};
 }
 

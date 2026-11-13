@@ -8,10 +8,16 @@ import { webhookSecretMatches } from "../impl.ts";
 
 const names = (h: Harness): string[] => h.events.map((e) => e.name);
 async function refused(p: Promise<unknown>, code: string, reason?: string): Promise<void> {
-  await assert.rejects(p, (e) => { assert.equal(codeOf(e), code); if (reason) assert.equal(reasonOf(e), reason); return true; });
+  await assert.rejects(p, (e) => {
+    assert.equal(codeOf(e), code);
+    if (reason) assert.equal(reasonOf(e), reason);
+    return true;
+  });
 }
-const mk = async (h: Harness, over: Record<string, unknown> = {}, who = alice): Promise<string> => (await h.call("automations.create", create(over), who)).automation.id as string;
-const get = async (h: Harness, id: string, who = alice): Promise<any> => (await h.call("automations.get", { automationId: id }, who)).automation;   // eslint-disable-line @typescript-eslint/no-explicit-any
+const mk = async (h: Harness, over: Record<string, unknown> = {}, who = alice): Promise<string> =>
+  (await h.call("automations.create", create(over), who)).automation.id as string;
+const get = async (h: Harness, id: string, who = alice): Promise<any> =>
+  (await h.call("automations.get", { automationId: id }, who)).automation; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 // ---- create and get ----
 
@@ -25,12 +31,22 @@ test("a new Automation is a Personal draft at version 1 with the owner following
   assert.equal(a.ownerId, alice.id);
   assert.equal(a.description, "Greets new people");
   assert.deepEqual(a.followers, [alice.id]);
-  assert.deepEqual(a.alerts, { who: [{ kind: "person", id: alice.id }], when: { mode: "every" }, where: { needsYou: true, dm: false }, escalation: [] });
+  assert.deepEqual(a.alerts, {
+    who: [{ kind: "person", id: alice.id }],
+    when: { mode: "every" },
+    where: { needsYou: true, dm: false },
+    escalation: [],
+  });
   assert.equal(a.createdAt, NOW);
   assert.deepEqual(names(h), ["automation.created"]);
   assert.deepEqual(h.events[0]!.payload, { automationId: a.id, name: "Welcome new contacts", kind: "personal" });
   assert.equal(h.events[0]!.subject, `automation/${a.id}`);
-  assert.deepEqual((await h.call("automations.versions", { automationId: a.id }, alice)).versions.map((v: { n: number; reason: string }) => [v.n, v.reason]), [[1, "Created"]]);
+  assert.deepEqual(
+    (await h.call("automations.versions", { automationId: a.id }, alice)).versions.map(
+      (v: { n: number; reason: string }) => [v.n, v.reason],
+    ),
+    [[1, "Created"]],
+  );
 });
 
 test("create without a definition starts empty on the manual trigger; the default alert follows the Space setting", async () => {
@@ -45,8 +61,19 @@ test("create without a definition starts empty on the manual trigger; the defaul
 test("create refuses a blank name, a broken graph and a Group that is not there", async () => {
   const h = harness();
   await refused(h.call("automations.create", create({ name: "  " }), alice), "validation.bad_input");
-  await refused(h.call("automations.create", create({ definition: { triggers: [{ key: "manual" }], nodes: [node("a", "nope", {})] } }), alice), "validation.bad_input");
-  await refused(h.call("automations.create", create({ groupId: "agr_nothere" }), alice), "validation.not_found", "no_group");
+  await refused(
+    h.call(
+      "automations.create",
+      create({ definition: { triggers: [{ key: "manual" }], nodes: [node("a", "nope", {})] } }),
+      alice,
+    ),
+    "validation.bad_input",
+  );
+  await refused(
+    h.call("automations.create", create({ groupId: "agr_nothere" }), alice),
+    "validation.not_found",
+    "no_group",
+  );
 });
 
 test("an Automation is seen by its owner and followers, not by others", async () => {
@@ -70,12 +97,21 @@ test("a definition change saves a version; a name change does not; nothing chang
   await h.call("automations.update", { automationId: id, name: "Greeting" }, alice);
   assert.deepEqual(h.events, []);
 
-  const def2 = goodDefinition({ nodes: [node("a", "records.update", { type: "contact", recordId: "rec_abc", patch: { status: "won" } })] });
-  const r = await h.call("automations.update", { automationId: id, definition: def2, description: "Now sets won" }, alice);
+  const def2 = goodDefinition({
+    nodes: [node("a", "records.update", { type: "contact", recordId: "rec_abc", patch: { status: "won" } })],
+  });
+  const r = await h.call(
+    "automations.update",
+    { automationId: id, definition: def2, description: "Now sets won" },
+    alice,
+  );
   assert.equal(r.automation.version, 2);
   assert.deepEqual(h.events[0]!.payload, { automationId: id, version: 2, fields: ["description", "definition"] });
   const versions = (await h.call("automations.versions", { automationId: id }, alice)).versions;
-  assert.deepEqual(versions.map((v: { n: number }) => v.n), [2, 1]);
+  assert.deepEqual(
+    versions.map((v: { n: number }) => v.n),
+    [2, 1],
+  );
   assert.equal(versions[0].by, alice.id);
   await h.call("automations.update", { automationId: id, definition: def2 }, alice);
   assert.deepEqual(h.events, [], "the same definition again is not a change");
@@ -84,13 +120,23 @@ test("a definition change saves a version; a name change does not; nothing chang
 test("an edit based on an old version is refused with the current one", async () => {
   const h = harness();
   const id = await mk(h);
-  await h.call("automations.update", { automationId: id, definition: goodDefinition({ allowSelfTrigger: true }) }, alice);
-  await assert.rejects(h.call("automations.update", { automationId: id, name: "x", expectedVersion: 1 }, alice), (e) => {
-    assert.equal(codeOf(e), "validation.version_conflict");
-    assert.deepEqual((e as { error: { details: unknown } }).error.details, { current: 2, expected: 1 });
-    return true;
-  });
-  assert.equal((await h.call("automations.update", { automationId: id, name: "x", expectedVersion: 2 }, alice)).automation.name, "x");
+  await h.call(
+    "automations.update",
+    { automationId: id, definition: goodDefinition({ allowSelfTrigger: true }) },
+    alice,
+  );
+  await assert.rejects(
+    h.call("automations.update", { automationId: id, name: "x", expectedVersion: 1 }, alice),
+    (e) => {
+      assert.equal(codeOf(e), "validation.version_conflict");
+      assert.deepEqual((e as { error: { details: unknown } }).error.details, { current: 2, expected: 1 });
+      return true;
+    },
+  );
+  assert.equal(
+    (await h.call("automations.update", { automationId: id, name: "x", expectedVersion: 2 }, alice)).automation.name,
+    "x",
+  );
 });
 
 test("restore saves the old definition as the newest version", async () => {
@@ -98,7 +144,9 @@ test("restore saves the old definition as the newest version", async () => {
   const id = await mk(h);
   const def2 = goodDefinition({ allowSelfTrigger: true });
   await h.call("automations.update", { automationId: id, definition: def2 }, alice);
-  const first = (await h.call("automations.versions", { automationId: id }, alice)).versions.find((v: { n: number }) => v.n === 1);
+  const first = (await h.call("automations.versions", { automationId: id }, alice)).versions.find(
+    (v: { n: number }) => v.n === 1,
+  );
   const r = await h.call("automations.restore_version", { automationId: id, versionId: first.versionId }, alice);
   assert.equal(r.automation.version, 3);
   assert.deepEqual(r.automation.definition, goodDefinition());
@@ -107,15 +155,25 @@ test("restore saves the old definition as the newest version", async () => {
   const versions = (await h.call("automations.versions", { automationId: id }, alice)).versions;
   assert.equal(versions[0].reason, "Restored version 1");
   assert.equal(versions.length, 3);
-  await refused(h.call("automations.restore_version", { automationId: id, versionId: "ver_nothere" }, alice), "validation.not_found", "no_version");
+  await refused(
+    h.call("automations.restore_version", { automationId: id, versionId: "ver_nothere" }, alice),
+    "validation.not_found",
+    "no_version",
+  );
 });
 
 // ---- on and off ----
 
 test("an Automation turns on only when its definition has no errors, and says so on and off", async () => {
   const h = harness();
-  const bad = await mk(h, { definition: { triggers: [{ key: "manual" }], nodes: [node("a", "records.update", { type: "contact" })] } });
-  await refused(h.call("automations.set_enabled", { automationId: bad, enabled: true }, alice), "validation.precondition_failed", "invalid_definition");
+  const bad = await mk(h, {
+    definition: { triggers: [{ key: "manual" }], nodes: [node("a", "records.update", { type: "contact" })] },
+  });
+  await refused(
+    h.call("automations.set_enabled", { automationId: bad, enabled: true }, alice),
+    "validation.precondition_failed",
+    "invalid_definition",
+  );
   const id = await mk(h);
   const on = await h.call("automations.set_enabled", { automationId: id, enabled: true }, alice);
   assert.equal(on.automation.status, "on");
@@ -132,9 +190,16 @@ test("while it is on, a definition with errors is refused; off, it is saved as a
   const id = await mk(h);
   await h.call("automations.set_enabled", { automationId: id, enabled: true }, alice);
   const broken = goodDefinition({ nodes: [node("a", "records.update", { type: "contact" })] });
-  await refused(h.call("automations.update", { automationId: id, definition: broken }, alice), "validation.precondition_failed", "invalid_definition");
+  await refused(
+    h.call("automations.update", { automationId: id, definition: broken }, alice),
+    "validation.precondition_failed",
+    "invalid_definition",
+  );
   await h.call("automations.set_enabled", { automationId: id, enabled: false }, alice);
-  assert.equal((await h.call("automations.update", { automationId: id, definition: broken }, alice)).automation.version, 2);
+  assert.equal(
+    (await h.call("automations.update", { automationId: id, definition: broken }, alice)).automation.version,
+    2,
+  );
 });
 
 // ---- delete and undelete ----
@@ -172,7 +237,11 @@ test("list: sections, Group, status and search, newest first, with run counts fr
   assert.deepEqual(ids(await h.call("automations.list", {}, alice)), [a3, a2, a1]);
   assert.deepEqual(ids(await h.call("automations.list", { section: "personal" }, alice)), [a2, a1]);
   assert.deepEqual(ids(await h.call("automations.list", { section: "space" }, alice)), [a3]);
-  assert.deepEqual(ids(await h.call("automations.list", { section: "shared" }, bob)), [a2, a1], "Personal Automations of others that bob may view");
+  assert.deepEqual(
+    ids(await h.call("automations.list", { section: "shared" }, bob)),
+    [a2, a1],
+    "Personal Automations of others that bob may view",
+  );
   assert.deepEqual(ids(await h.call("automations.list", { groupId: g }, alice)), [a2]);
   assert.deepEqual(ids(await h.call("automations.list", { status: "on" }, alice)), [a3]);
   assert.deepEqual(ids(await h.call("automations.list", { q: "alp" }, alice)), [a1]);
@@ -212,8 +281,14 @@ test("the trigger and step palettes come from the catalogue", async () => {
   assert.ok(all.length > sheets.length);
   assert.ok(sheets.every((s: { category: string }) => s.category === "sheet"));
   assert.equal(all.find((s: { key: string }) => s.key === "send_email").effects, "outward");
-  assert.equal(all.find((s: { key: string }) => s.key === "ai"), undefined);
-  assert.equal(all.find((s: { key: string }) => s.key === "code"), undefined);
+  assert.equal(
+    all.find((s: { key: string }) => s.key === "ai"),
+    undefined,
+  );
+  assert.equal(
+    all.find((s: { key: string }) => s.key === "code"),
+    undefined,
+  );
   assert.ok(all.find((s: { key: string }) => s.key === "parallel"));
   assert.ok(all.find((s: { key: string }) => s.key === "loop"));
 });
@@ -243,8 +318,15 @@ test("Groups: create, rename, count, move in and out, delete leaves the Automati
   await h.call("automations.move", { automationId: id, groupId: g.id }, alice);
   assert.deepEqual(await h.call("automations.groups.delete", { groupId: g.id }, alice), { deleted: true });
   assert.equal((await get(h, id)).groupId, undefined);
-  assert.deepEqual((await h.call("automations.groups.list", {}, alice)).groups.map((x: { name: string }) => x.name), ["Billing"]);
-  await refused(h.call("automations.move", { automationId: id, groupId: g.id }, alice), "validation.not_found", "no_group");
+  assert.deepEqual(
+    (await h.call("automations.groups.list", {}, alice)).groups.map((x: { name: string }) => x.name),
+    ["Billing"],
+  );
+  await refused(
+    h.call("automations.move", { automationId: id, groupId: g.id }, alice),
+    "validation.not_found",
+    "no_group",
+  );
   await refused(h.call("automations.groups.delete", { groupId: g.id }, alice), "permission.not_found");
 });
 
@@ -254,25 +336,48 @@ test("error alerts: who, when, where and an escalation chain that grows later", 
   const h = harness();
   const id = await mk(h);
   const alerts = {
-    who: [{ kind: "person", id: alice.id }], when: { mode: "after_n", n: 3 }, where: { needsYou: true, dm: true },
-    escalation: [{ to: { kind: "person", id: bob.id }, afterHours: 2 }, { to: { kind: "role", id: "rol_admin" }, afterHours: 4 }],
+    who: [{ kind: "person", id: alice.id }],
+    when: { mode: "after_n", n: 3 },
+    where: { needsYou: true, dm: true },
+    escalation: [
+      { to: { kind: "person", id: bob.id }, afterHours: 2 },
+      { to: { kind: "role", id: "rol_admin" }, afterHours: 4 },
+    ],
   };
   const r = await h.call("automations.alerts.set", { automationId: id, alerts }, alice);
   assert.deepEqual(r.alerts, alerts);
   assert.deepEqual(names(h), ["automation.alerts_changed"]);
   assert.deepEqual((await h.call("automations.alerts.get", { automationId: id }, alice)).alerts, alerts);
-  await refused(h.call("automations.alerts.set", { automationId: id, alerts: { ...alerts, when: { mode: "after_n" } } }, alice), "validation.bad_input", "n_required");
-  await refused(h.call("automations.alerts.set", { automationId: id, alerts: { ...alerts, escalation: [alerts.escalation[1], alerts.escalation[0]] } }, alice), "validation.bad_input", "escalation_order");
+  await refused(
+    h.call("automations.alerts.set", { automationId: id, alerts: { ...alerts, when: { mode: "after_n" } } }, alice),
+    "validation.bad_input",
+    "n_required",
+  );
+  await refused(
+    h.call(
+      "automations.alerts.set",
+      { automationId: id, alerts: { ...alerts, escalation: [alerts.escalation[1], alerts.escalation[0]] } },
+      alice,
+    ),
+    "validation.bad_input",
+    "escalation_order",
+  );
 });
 
 test("followers: adding twice is one follower, removing one that is not there does nothing", async () => {
   const h = harness();
   const id = await mk(h);
-  assert.deepEqual((await h.call("automations.followers.add", { automationId: id, follower: bob.id }, alice)).followers, [alice.id, bob.id]);
+  assert.deepEqual(
+    (await h.call("automations.followers.add", { automationId: id, follower: bob.id }, alice)).followers,
+    [alice.id, bob.id],
+  );
   assert.deepEqual(names(h), ["automation.follower_added"]);
   await h.call("automations.followers.add", { automationId: id, follower: bob.id }, alice);
   assert.deepEqual(h.events, []);
-  assert.deepEqual((await h.call("automations.followers.remove", { automationId: id, follower: bob.id }, alice)).followers, [alice.id]);
+  assert.deepEqual(
+    (await h.call("automations.followers.remove", { automationId: id, follower: bob.id }, alice)).followers,
+    [alice.id],
+  );
   assert.deepEqual(names(h), ["automation.follower_removed"]);
   await h.call("automations.followers.remove", { automationId: id, follower: bob.id }, alice);
   assert.deepEqual(h.events, []);
@@ -283,7 +388,11 @@ test("followers: adding twice is one follower, removing one that is not there do
 test("the webhook URL needs a webhook trigger, stays the same until rotated, and the old one stops matching", async () => {
   const h = harness();
   const plain = await mk(h);
-  await refused(h.call("automations.webhook_url.get", { automationId: plain }, alice), "validation.precondition_failed", "no_webhook_trigger");
+  await refused(
+    h.call("automations.webhook_url.get", { automationId: plain }, alice),
+    "validation.precondition_failed",
+    "no_webhook_trigger",
+  );
   const id = await mk(h, { definition: { triggers: [{ key: "webhook" }], nodes: [] } });
   const a = await h.call("automations.webhook_url.get", { automationId: id }, alice);
   assert.equal(a.method, "POST");
@@ -302,11 +411,17 @@ test("the webhook URL needs a webhook trigger, stays the same until rotated, and
 test("set_owner hands a Space Automation to another person; a Personal one cannot be handed over", async () => {
   const h = harness({ calls: { "access.share": () => ({}) } });
   const personal = await mk(h, { name: "Mine" });
-  await refused(h.call("automations.set_owner", { automationId: personal, ownerId: bob.id }, alice), "validation.bad_input");
+  await refused(
+    h.call("automations.set_owner", { automationId: personal, ownerId: bob.id }, alice),
+    "validation.bad_input",
+  );
   const space = await mk(h, { name: "Shared" });
   await h.call("automations.set_enabled", { automationId: space, enabled: true }, alice);
   await h.call("automations.promote", { automationId: space, confirm: true }, alice);
-  await refused(h.call("automations.set_owner", { automationId: space, ownerId: alice.id }, alice), "validation.bad_input");
+  await refused(
+    h.call("automations.set_owner", { automationId: space, ownerId: alice.id }, alice),
+    "validation.bad_input",
+  );
   const r = await h.call("automations.set_owner", { automationId: space, ownerId: bob.id }, alice);
   assert.equal(r.automation.ownerId, bob.id);
   assert.equal((await get(h, space)).ownerId, bob.id);

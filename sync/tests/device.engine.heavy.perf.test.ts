@@ -7,12 +7,22 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { openCipherOpfs, rekeyCipherOpfs, createReplicaKeyVault, memoryKeyBox, openDeviceReplica } from "../src/device/index.ts";
+import {
+  openCipherOpfs,
+  rekeyCipherOpfs,
+  createReplicaKeyVault,
+  memoryKeyBox,
+  openDeviceReplica,
+} from "../src/device/index.ts";
 import type { McModule } from "../src/device/index.ts";
 
-interface Cipher { default: (opts?: { wasmBinary: Uint8Array }) => Promise<RealSqlite3> }
+interface Cipher {
+  default: (opts?: { wasmBinary: Uint8Array }) => Promise<RealSqlite3>;
+}
 type Fn = (...args: unknown[]) => number;
-interface Struct { [field: string]: number }
+interface Struct {
+  [field: string]: number;
+}
 interface RealSqlite3 extends McModule {
   capi: McModule["capi"] & {
     sqlite3_vfs_find(name: string | null): number;
@@ -46,7 +56,10 @@ async function loadEngine(): Promise<RealSqlite3> {
   const find = (d: string): string | null => {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
       const f = path.join(d, e.name);
-      if (e.isDirectory()) { const r = find(f); if (r) return r; } else if (e.name === "sqlite3.wasm") return f;
+      if (e.isDirectory()) {
+        const r = find(f);
+        if (r) return r;
+      } else if (e.name === "sqlite3.wasm") return f;
     }
     return null;
   };
@@ -88,19 +101,38 @@ function storedBytes(sqlite3: RealSqlite3, name: string): Uint8Array {
       try {
         assert.equal(xRead(pFile, buf, size, BigInt(0)), 0, "xRead returns SQLITE_OK for the whole file");
         return wasm.heap8u().slice(buf, buf + size);
-      } finally { wasm.dealloc(buf); }
-    } finally { xClose(pFile); }
-  } finally { wasm.dealloc(pName); wasm.dealloc(pOut); wasm.dealloc(pFile); }
+      } finally {
+        wasm.dealloc(buf);
+      }
+    } finally {
+      xClose(pFile);
+    }
+  } finally {
+    wasm.dealloc(pName);
+    wasm.dealloc(pOut);
+    wasm.dealloc(pFile);
+  }
 }
 
 test("real engine: a 200k-row replica reopens through the device path under the startup slice", async () => {
   const sqlite3 = await loadEngine();
   const vault = createReplicaKeyVault(memoryKeyBox());
-  const base = { target: "web" as const, spaceId: "spc_real", deviceId: "dev_1", vault, personKey: key(5), openers: { sqlite3mc: { mod: sqlite3, vfs: null } }, registryHash: "hash-real", personId: "prs_me" };
+  const base = {
+    target: "web" as const,
+    spaceId: "spc_real",
+    deviceId: "dev_1",
+    vault,
+    personKey: key(5),
+    openers: { sqlite3mc: { mod: sqlite3, vfs: null } },
+    registryHash: "hash-real",
+    personId: "prs_me",
+  };
   const seed = await openDeviceReplica(base);
   const ins = seed.driver.prepare('INSERT INTO "calendar_event" (id, calendarId, title) VALUES (?, ?, ?)');
   const t0 = performance.now();
-  seed.driver.transaction(() => { for (let i = 0; i < 200_000; i++) ins.run([`evt_${i}`, `cal_${i % 50}`, `Event ${i}`]); });
+  seed.driver.transaction(() => {
+    for (let i = 0; i < 200_000; i++) ins.run([`evt_${i}`, `cal_${i % 50}`, `Event ${i}`]);
+  });
   const seedMs = performance.now() - t0;
   await seed.store.close();
 
@@ -115,5 +147,8 @@ test("real engine: a 200k-row replica reopens through the device path under the 
   opens.sort((a, b) => a - b);
   const median = opens[1] ?? 0;
   // The measurement is the assertion message when it fails and the ok line when it holds: median open must stay under half of the 1000 ms app.usable budget.
-  assert.ok(median < 500, `real engine reopen median ${median.toFixed(1)} ms (seed ${seedMs.toFixed(0)} ms) is over 500 ms`);
+  assert.ok(
+    median < 500,
+    `real engine reopen median ${median.toFixed(1)} ms (seed ${seedMs.toFixed(0)} ms) is over 500 ms`,
+  );
 });

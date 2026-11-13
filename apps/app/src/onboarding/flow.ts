@@ -5,11 +5,35 @@ export type FlowKind = "personal" | "team" | "member";
 export type StepState = "open" | "done" | "later";
 /** The card a step shows in the chat. The scripted engine and the Assistant both speak through these, so the screen has one set of cards. */
 export type CardKind =
-  | "connect_ai" | "interview" | "import_sessions" | "local_folders" | "chrome" | "phone" | "first_win"
-  | "org" | "space_ai" | "google_microsoft" | "sign_in_domain" | "directory" | "invites" | "agents" | "shared_data" | "team_win" | "computers"
-  | "own_data" | "apps" | "meet_agents" | "optional_personal" | "bridge_team";
+  | "connect_ai"
+  | "interview"
+  | "import_sessions"
+  | "local_folders"
+  | "chrome"
+  | "phone"
+  | "first_win"
+  | "org"
+  | "space_ai"
+  | "google_microsoft"
+  | "sign_in_domain"
+  | "directory"
+  | "invites"
+  | "agents"
+  | "shared_data"
+  | "team_win"
+  | "computers"
+  | "own_data"
+  | "apps"
+  | "meet_agents"
+  | "optional_personal"
+  | "bridge_team";
 
-export interface StepDef { key: string; title: string; card: CardKind; /** one plain line under the title in the rail */ line: string }
+export interface StepDef {
+  key: string;
+  title: string;
+  card: CardKind;
+  /** one plain line under the title in the rail */ line: string;
+}
 
 const personal: StepDef[] = [
   { key: "ai", title: "Connect your AI", card: "connect_ai", line: "Claude, ChatGPT, Grok" },
@@ -44,9 +68,18 @@ const member: StepDef[] = [
 ];
 
 /** Cards nothing is built behind yet (their step would only say "not set up yet"). A step with nothing real in it is not shown, in the rail, the count, the checklist or the end screen. */
-export const UNBUILT: ReadonlySet<CardKind> = new Set<CardKind>(["agents", "shared_data", "team_win", "optional_personal"]);
+export const UNBUILT: ReadonlySet<CardKind> = new Set<CardKind>([
+  "agents",
+  "shared_data",
+  "team_win",
+  "optional_personal",
+]);
 const built = (steps: readonly StepDef[]): readonly StepDef[] => steps.filter((s) => !UNBUILT.has(s.card));
-const FLOWS: Record<FlowKind, readonly StepDef[]> = { personal: built(personal), team: built(team), member: built(member) };
+const FLOWS: Record<FlowKind, readonly StepDef[]> = {
+  personal: built(personal),
+  team: built(team),
+  member: built(member),
+};
 export const stepsOf = (flow: FlowKind): readonly StepDef[] => FLOWS[flow];
 export const stepDef = (flow: FlowKind, key: string): StepDef | undefined => FLOWS[flow].find((s) => s.key === key);
 export const isStepKey = (flow: FlowKind, key: string): boolean => stepDef(flow, key) !== undefined;
@@ -57,7 +90,11 @@ export const stateOf = (progress: Progress, key: string): StepState => progress[
 /** The step to open now: the first one still open, else the first one put off. Null when every step is done. */
 export function resumeAt(flow: FlowKind, progress: Progress): string | null {
   const steps = FLOWS[flow];
-  return steps.find((s) => stateOf(progress, s.key) === "open")?.key ?? steps.find((s) => stateOf(progress, s.key) === "later")?.key ?? null;
+  return (
+    steps.find((s) => stateOf(progress, s.key) === "open")?.key ??
+    steps.find((s) => stateOf(progress, s.key) === "later")?.key ??
+    null
+  );
 }
 
 /** The step after `key` that is not done, wrapping to a put-off one before it; null when none is left. */
@@ -71,7 +108,11 @@ export function nextAfter(flow: FlowKind, progress: Progress, key: string): stri
 
 export function counts(flow: FlowKind, progress: Progress): { done: number; later: number; total: number } {
   const steps = FLOWS[flow];
-  return { done: steps.filter((s) => stateOf(progress, s.key) === "done").length, later: steps.filter((s) => stateOf(progress, s.key) === "later").length, total: steps.length };
+  return {
+    done: steps.filter((s) => stateOf(progress, s.key) === "done").length,
+    later: steps.filter((s) => stateOf(progress, s.key) === "later").length,
+    total: steps.length,
+  };
 }
 
 /** Which flow a person walks: their own Personal Space, the owner of a Team Space, or any other member of one. */

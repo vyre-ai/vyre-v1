@@ -71,25 +71,44 @@ export function processExec(): Exec {
         resolve({ code: 127, stdout: "", stderr: "no command" });
         return;
       }
-      const child = spawn(cmd, rest, { cwd: opts.cwd, env: { ...process.env, ...(opts.env ?? {}) }, stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn(cmd, rest, {
+        cwd: opts.cwd,
+        env: { ...process.env, ...(opts.env ?? {}) },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
       const out: Buffer[] = [];
       let stderr = "";
       let timedOut = false;
-      const timer = opts.timeoutMs === undefined ? null : setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, opts.timeoutMs);
-      child.stdout.on("data", (d: Buffer) => { out.push(d); });
-      child.stderr.on("data", (d: Buffer) => { stderr += d.toString("utf8"); });
+      const timer =
+        opts.timeoutMs === undefined
+          ? null
+          : setTimeout(() => {
+              timedOut = true;
+              child.kill("SIGKILL");
+            }, opts.timeoutMs);
+      child.stdout.on("data", (d: Buffer) => {
+        out.push(d);
+      });
+      child.stderr.on("data", (d: Buffer) => {
+        stderr += d.toString("utf8");
+      });
       child.on("error", (e) => {
         if (timer) clearTimeout(timer);
         resolve({ code: 127, stdout: "", stderr: stderr + e.message });
       });
       child.on("close", (code) => {
         if (timer) clearTimeout(timer);
-        resolve({ code: timedOut ? 124 : (code ?? 1), stdout: Buffer.concat(out).toString("utf8"), stderr: timedOut ? `${stderr}\ntimed out after ${opts.timeoutMs} ms` : stderr });
+        resolve({
+          code: timedOut ? 124 : (code ?? 1),
+          stdout: Buffer.concat(out).toString("utf8"),
+          stderr: timedOut ? `${stderr}\ntimed out after ${opts.timeoutMs} ms` : stderr,
+        });
       });
     });
 }
 
-const tool = (d: PreviewDrivers, name: "pdftoppm" | "pdftotext" | "soffice" | "vips"): string => d.tools?.[name] ?? (name === "vips" ? "vipsthumbnail" : name);
+const tool = (d: PreviewDrivers, name: "pdftoppm" | "pdftotext" | "soffice" | "vips"): string =>
+  d.tools?.[name] ?? (name === "vips" ? "vipsthumbnail" : name);
 
 // ---- errors and helpers -------------------------------------------------------------------------------------
 
@@ -121,7 +140,8 @@ function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<stri
 }
 
 function record(ctx: Ctx, input: unknown): Row {
-  if (input === null || typeof input !== "object" || Array.isArray(input)) fail(ctx, "validation.bad_input", "The input is not valid.");
+  if (input === null || typeof input !== "object" || Array.isArray(input))
+    fail(ctx, "validation.bad_input", "The input is not valid.");
   return input as Row;
 }
 
@@ -145,7 +165,8 @@ function optStr(o: Row, key: string): string | undefined {
 function optInt(ctx: Ctx, o: Row, key: string, min: number, max: number): number | undefined {
   const v = o[key];
   if (v === undefined || v === null) return undefined;
-  if (typeof v !== "number" || !Number.isInteger(v) || v < min || v > max) fail(ctx, "validation.bad_input", `${key} must be a whole number from ${min} to ${max}.`);
+  if (typeof v !== "number" || !Number.isInteger(v) || v < min || v > max)
+    fail(ctx, "validation.bad_input", `${key} must be a whole number from ${min} to ${max}.`);
   return v;
 }
 
@@ -181,16 +202,19 @@ export const MAX_PAGES_PER_CALL = 50;
 
 const sizeOf = (ctx: Ctx, v: string | undefined): SizeKey => {
   if (v === undefined) return "m";
-  if (v !== "s" && v !== "m" && v !== "l" && v !== "xl") return fail(ctx, "validation.bad_input", "size must be s, m, l or xl.");
+  if (v !== "s" && v !== "m" && v !== "l" && v !== "xl")
+    return fail(ctx, "validation.bad_input", "size must be s, m, l or xl.");
   return v;
 };
 
 // ---- bytes --------------------------------------------------------------------------------------------------
 
 const u16be = (b: Uint8Array, i: number): number => ((b[i] ?? 0) << 8) | (b[i + 1] ?? 0);
-const u32be = (b: Uint8Array, i: number): number => (((b[i] ?? 0) * 2 ** 24) + (((b[i + 1] ?? 0) << 16) | ((b[i + 2] ?? 0) << 8) | (b[i + 3] ?? 0))) >>> 0;
+const u32be = (b: Uint8Array, i: number): number =>
+  ((b[i] ?? 0) * 2 ** 24 + (((b[i + 1] ?? 0) << 16) | ((b[i + 2] ?? 0) << 8) | (b[i + 3] ?? 0))) >>> 0;
 const u16le = (b: Uint8Array, i: number): number => (b[i] ?? 0) | ((b[i + 1] ?? 0) << 8);
-const u32le = (b: Uint8Array, i: number): number => ((b[i] ?? 0) | ((b[i + 1] ?? 0) << 8) | ((b[i + 2] ?? 0) << 16) | ((b[i + 3] ?? 0) << 24)) >>> 0;
+const u32le = (b: Uint8Array, i: number): number =>
+  ((b[i] ?? 0) | ((b[i + 1] ?? 0) << 8) | ((b[i + 2] ?? 0) << 16) | ((b[i + 3] ?? 0) << 24)) >>> 0;
 const ascii = (b: Uint8Array, i: number, n: number): string => String.fromCharCode(...Array.from(b.subarray(i, i + n)));
 const latin1 = (b: Uint8Array): string => Buffer.from(b.buffer, b.byteOffset, b.byteLength).toString("latin1");
 
@@ -212,20 +236,36 @@ function crc32(b: Uint8Array): number {
 
 // ---- pictures: probing, PNG decode, scaling, PNG encode -----------------------------------------------------
 
-export interface Dim { width: number; height: number; mime: string }
+export interface Dim {
+  width: number;
+  height: number;
+  mime: string;
+}
 
 /** Size and type of a picture from its header. Null when the bytes are not a picture this reads. */
 export function probeImage(b: Uint8Array): Dim | null {
-  if (b.length >= 24 && ascii(b, 1, 3) === "PNG" && b[0] === 137) return { width: u32be(b, 16), height: u32be(b, 20), mime: "image/png" };
-  if (b.length >= 10 && ascii(b, 0, 4) === "GIF8") return { width: u16le(b, 6), height: u16le(b, 8), mime: "image/gif" };
+  if (b.length >= 24 && ascii(b, 1, 3) === "PNG" && b[0] === 137)
+    return { width: u32be(b, 16), height: u32be(b, 20), mime: "image/png" };
+  if (b.length >= 10 && ascii(b, 0, 4) === "GIF8")
+    return { width: u16le(b, 6), height: u16le(b, 8), mime: "image/gif" };
   if (b.length >= 4 && b[0] === 0xff && b[1] === 0xd8) {
     let i = 2;
     while (i + 9 < b.length) {
-      if (b[i] !== 0xff) { i += 1; continue; }
+      if (b[i] !== 0xff) {
+        i += 1;
+        continue;
+      }
       const marker = b[i + 1] ?? 0;
-      if (marker === 0xff) { i += 1; continue; }
-      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) return { width: u16be(b, i + 7), height: u16be(b, i + 5), mime: "image/jpeg" };
-      if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) { i += 2; continue; }
+      if (marker === 0xff) {
+        i += 1;
+        continue;
+      }
+      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc)
+        return { width: u16be(b, i + 7), height: u16be(b, i + 5), mime: "image/jpeg" };
+      if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) {
+        i += 2;
+        continue;
+      }
       i += 2 + u16be(b, i + 2);
     }
     return null;
@@ -233,15 +273,30 @@ export function probeImage(b: Uint8Array): Dim | null {
   if (b.length >= 30 && ascii(b, 0, 4) === "RIFF" && ascii(b, 8, 4) === "WEBP") {
     const kind = ascii(b, 12, 4);
     if (kind === "VP8 ") return { width: u16le(b, 26) & 0x3fff, height: u16le(b, 28) & 0x3fff, mime: "image/webp" };
-    if (kind === "VP8L") return { width: 1 + ((b[21] ?? 0) | (((b[22] ?? 0) & 0x3f) << 8)), height: 1 + (((b[22] ?? 0) >> 6) | ((b[23] ?? 0) << 2) | (((b[24] ?? 0) & 0xf) << 10)), mime: "image/webp" };
-    if (kind === "VP8X") return { width: 1 + ((b[24] ?? 0) | ((b[25] ?? 0) << 8) | ((b[26] ?? 0) << 16)), height: 1 + ((b[27] ?? 0) | ((b[28] ?? 0) << 8) | ((b[29] ?? 0) << 16)), mime: "image/webp" };
+    if (kind === "VP8L")
+      return {
+        width: 1 + ((b[21] ?? 0) | (((b[22] ?? 0) & 0x3f) << 8)),
+        height: 1 + (((b[22] ?? 0) >> 6) | ((b[23] ?? 0) << 2) | (((b[24] ?? 0) & 0xf) << 10)),
+        mime: "image/webp",
+      };
+    if (kind === "VP8X")
+      return {
+        width: 1 + ((b[24] ?? 0) | ((b[25] ?? 0) << 8) | ((b[26] ?? 0) << 16)),
+        height: 1 + ((b[27] ?? 0) | ((b[28] ?? 0) << 8) | ((b[29] ?? 0) << 16)),
+        mime: "image/webp",
+      };
     return null;
   }
-  if (b.length >= 26 && b[0] === 0x42 && b[1] === 0x4d) return { width: u32le(b, 18), height: Math.abs(u32le(b, 22) | 0), mime: "image/bmp" };
+  if (b.length >= 26 && b[0] === 0x42 && b[1] === 0x4d)
+    return { width: u32le(b, 18), height: Math.abs(u32le(b, 22) | 0), mime: "image/bmp" };
   return null;
 }
 
-export interface Raster { width: number; height: number; /** RGBA, 8 bits */ data: Uint8Array }
+export interface Raster {
+  width: number;
+  height: number;
+  /** RGBA, 8 bits */ data: Uint8Array;
+}
 
 /** A non-interlaced PNG as RGBA, or null (interlaced, too large, damaged). */
 export function decodePng(b: Uint8Array): Raster | null {
@@ -273,7 +328,13 @@ export function decodePng(b: Uint8Array): Raster | null {
   }
   if (w < 1 || h < 1 || interlace !== 0 || w * h > MAX_PIXELS) return null;
   const channels = ct === 0 ? 1 : ct === 2 ? 3 : ct === 3 ? 1 : ct === 4 ? 2 : ct === 6 ? 4 : 0;
-  if (channels === 0 || ![1, 2, 4, 8, 16].includes(depth) || (ct === 3 && (!plte || depth > 8)) || ((ct === 2 || ct === 4 || ct === 6) && depth < 8)) return null;
+  if (
+    channels === 0 ||
+    ![1, 2, 4, 8, 16].includes(depth) ||
+    (ct === 3 && (!plte || depth > 8)) ||
+    ((ct === 2 || ct === 4 || ct === 6) && depth < 8)
+  )
+    return null;
   const bitsPerPixel = channels * depth;
   const rowBytes = Math.ceil((w * bitsPerPixel) / 8);
   const step = Math.max(1, bitsPerPixel >> 3);
@@ -291,9 +352,9 @@ export function decodePng(b: Uint8Array): Raster | null {
     const dst = y * rowBytes;
     for (let x = 0; x < rowBytes; x++) {
       const cur = raw[src + x] ?? 0;
-      const left = x >= step ? px[dst + x - step] ?? 0 : 0;
-      const up = y > 0 ? px[dst - rowBytes + x] ?? 0 : 0;
-      const upLeft = y > 0 && x >= step ? px[dst - rowBytes + x - step] ?? 0 : 0;
+      const left = x >= step ? (px[dst + x - step] ?? 0) : 0;
+      const up = y > 0 ? (px[dst - rowBytes + x] ?? 0) : 0;
+      const upLeft = y > 0 && x >= step ? (px[dst - rowBytes + x - step] ?? 0) : 0;
       let v: number;
       if (ft === 0) v = cur;
       else if (ft === 1) v = cur + left;
@@ -326,17 +387,32 @@ export function decodePng(b: Uint8Array): Raster | null {
       const o = (y * w + x) * 4;
       if (ct === 0) {
         const g = sample(y, x);
-        out[o] = g; out[o + 1] = g; out[o + 2] = g; out[o + 3] = 255;
+        out[o] = g;
+        out[o + 1] = g;
+        out[o + 2] = g;
+        out[o + 3] = 255;
       } else if (ct === 2) {
-        out[o] = sample(y, x * 3); out[o + 1] = sample(y, x * 3 + 1); out[o + 2] = sample(y, x * 3 + 2); out[o + 3] = 255;
+        out[o] = sample(y, x * 3);
+        out[o + 1] = sample(y, x * 3 + 1);
+        out[o + 2] = sample(y, x * 3 + 2);
+        out[o + 3] = 255;
       } else if (ct === 3) {
         const i = sample(y, x);
-        out[o] = plte?.[i * 3] ?? 0; out[o + 1] = plte?.[i * 3 + 1] ?? 0; out[o + 2] = plte?.[i * 3 + 2] ?? 0; out[o + 3] = trns?.[i] ?? 255;
+        out[o] = plte?.[i * 3] ?? 0;
+        out[o + 1] = plte?.[i * 3 + 1] ?? 0;
+        out[o + 2] = plte?.[i * 3 + 2] ?? 0;
+        out[o + 3] = trns?.[i] ?? 255;
       } else if (ct === 4) {
         const g = sample(y, x * 2);
-        out[o] = g; out[o + 1] = g; out[o + 2] = g; out[o + 3] = sample(y, x * 2 + 1);
+        out[o] = g;
+        out[o + 1] = g;
+        out[o + 2] = g;
+        out[o + 3] = sample(y, x * 2 + 1);
       } else {
-        out[o] = sample(y, x * 4); out[o + 1] = sample(y, x * 4 + 1); out[o + 2] = sample(y, x * 4 + 2); out[o + 3] = sample(y, x * 4 + 3);
+        out[o] = sample(y, x * 4);
+        out[o + 1] = sample(y, x * 4 + 1);
+        out[o + 2] = sample(y, x * 4 + 2);
+        out[o + 3] = sample(y, x * 4 + 3);
       }
     }
   }
@@ -355,17 +431,27 @@ export function scaleRaster(r: Raster, targetWidth: number): Raster {
     for (let dx = 0; dx < tw; dx++) {
       const x0 = Math.floor((dx * r.width) / tw);
       const x1 = Math.max(x0 + 1, Math.floor(((dx + 1) * r.width) / tw));
-      let sr = 0; let sg = 0; let sb = 0; let sa = 0; let n = 0;
+      let sr = 0;
+      let sg = 0;
+      let sb = 0;
+      let sa = 0;
+      let n = 0;
       for (let y = y0; y < y1 && y < r.height; y++) {
         for (let x = x0; x < x1 && x < r.width; x++) {
           const i = (y * r.width + x) * 4;
           const a = r.data[i + 3] ?? 0;
-          sr += (r.data[i] ?? 0) * a; sg += (r.data[i + 1] ?? 0) * a; sb += (r.data[i + 2] ?? 0) * a; sa += a; n += 1;
+          sr += (r.data[i] ?? 0) * a;
+          sg += (r.data[i + 1] ?? 0) * a;
+          sb += (r.data[i + 2] ?? 0) * a;
+          sa += a;
+          n += 1;
         }
       }
       const o = (dy * tw + dx) * 4;
       if (sa > 0) {
-        out[o] = Math.round(sr / sa); out[o + 1] = Math.round(sg / sa); out[o + 2] = Math.round(sb / sa);
+        out[o] = Math.round(sr / sa);
+        out[o + 1] = Math.round(sg / sa);
+        out[o + 2] = Math.round(sb / sa);
       }
       out[o + 3] = n > 0 ? Math.round(sa / n) : 0;
     }
@@ -386,7 +472,11 @@ function chunk(type: string, data: Uint8Array): Uint8Array {
 /** An 8-bit PNG: RGB when nothing is transparent, else RGBA. */
 export function encodePng(r: Raster): Uint8Array {
   let opaque = true;
-  for (let i = 3; i < r.data.length; i += 4) if (r.data[i] !== 255) { opaque = false; break; }
+  for (let i = 3; i < r.data.length; i += 4)
+    if (r.data[i] !== 255) {
+      opaque = false;
+      break;
+    }
   const channels = opaque ? 3 : 4;
   const rowBytes = r.width * channels;
   const raw = new Uint8Array(r.height * (rowBytes + 1));
@@ -396,7 +486,9 @@ export function encodePng(r: Raster): Uint8Array {
     for (let x = 0; x < r.width; x++) {
       const s = (y * r.width + x) * 4;
       const d = o + 1 + x * channels;
-      raw[d] = r.data[s] ?? 0; raw[d + 1] = r.data[s + 1] ?? 0; raw[d + 2] = r.data[s + 2] ?? 0;
+      raw[d] = r.data[s] ?? 0;
+      raw[d + 1] = r.data[s + 1] ?? 0;
+      raw[d + 2] = r.data[s + 2] ?? 0;
       if (!opaque) raw[d + 3] = r.data[s + 3] ?? 0;
     }
   }
@@ -406,10 +498,18 @@ export function encodePng(r: Raster): Uint8Array {
   dv.setUint32(4, r.height);
   ihdr[8] = 8;
   ihdr[9] = opaque ? 2 : 6;
-  const parts = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(raw)), chunk("IEND", new Uint8Array(0))];
+  const parts = [
+    new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", deflateSync(raw)),
+    chunk("IEND", new Uint8Array(0)),
+  ];
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   let at = 0;
-  for (const p of parts) { out.set(p, at); at += p.length; }
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
   return out;
 }
 
@@ -421,7 +521,10 @@ export type ZipEntries = Map<string, () => Uint8Array>;
 export function readZip(b: Uint8Array): ZipEntries | null {
   let eocd = -1;
   for (let i = b.length - 22; i >= Math.max(0, b.length - 22 - 65535); i--) {
-    if (u32le(b, i) === 0x06054b50) { eocd = i; break; }
+    if (u32le(b, i) === 0x06054b50) {
+      eocd = i;
+      break;
+    }
   }
   if (eocd < 0) return null;
   const count = u16le(b, eocd + 10);
@@ -441,7 +544,8 @@ export function readZip(b: Uint8Array): ZipEntries | null {
     const start = local + 30 + u16le(b, local + 26) + u16le(b, local + 28);
     const raw = b.subarray(start, start + comp);
     if (method === 0) out.set(name, () => raw);
-    else if (method === 8) out.set(name, () => new Uint8Array(inflateRawSync(raw, { maxOutputLength: 100 * 1024 * 1024 })));
+    else if (method === 8)
+      out.set(name, () => new Uint8Array(inflateRawSync(raw, { maxOutputLength: 100 * 1024 * 1024 })));
   }
   return out;
 }
@@ -458,7 +562,10 @@ const entryText = (z: ZipEntries, name: string): string | undefined => {
 
 // ---- office text --------------------------------------------------------------------------------------------
 
-export interface Extracted { text: string; pages?: number }
+export interface Extracted {
+  text: string;
+  pages?: number;
+}
 
 /** A Word document as Markdown (ooxml.ts): headings, lists, bold and italic, links, tables and pictures keep their shape. */
 function docxText(z: ZipEntries): Extracted | null {
@@ -468,7 +575,11 @@ function docxText(z: ZipEntries): Extracted | null {
 
 /** The slide files in the order the deck shows them (presentation.xml lists them by relationship id), or by file number when the deck does not say. */
 function slideFiles(z: ZipEntries): string[] {
-  const numbered = [...z.keys()].map((k) => /^ppt\/slides\/slide(\d+)\.xml$/.exec(k)).filter((m): m is RegExpExecArray => m !== null).sort((a, b) => Number(a[1]) - Number(b[1])).map((m) => m[0]);
+  const numbered = [...z.keys()]
+    .map((k) => /^ppt\/slides\/slide(\d+)\.xml$/.exec(k))
+    .filter((m): m is RegExpExecArray => m !== null)
+    .sort((a, b) => Number(a[1]) - Number(b[1]))
+    .map((m) => m[0]);
   const deck = entryText(z, "ppt/presentation.xml");
   const rels = entryText(z, "ppt/_rels/presentation.xml.rels");
   if (deck === undefined || rels === undefined) return numbered;
@@ -476,7 +587,8 @@ function slideFiles(z: ZipEntries): string[] {
   for (const r of rels.matchAll(/<Relationship\s[^>]*>/g)) {
     const id = /\bId="([^"]*)"/.exec(r[0])?.[1];
     const target = /\bTarget="([^"]*)"/.exec(r[0])?.[1];
-    if (id !== undefined && target !== undefined) targets.set(id, target.startsWith("/") ? target.slice(1) : `ppt/${target}`);
+    if (id !== undefined && target !== undefined)
+      targets.set(id, target.startsWith("/") ? target.slice(1) : `ppt/${target}`);
   }
   const ordered: string[] = [];
   for (const id of deck.matchAll(/<p:sldId\s[^>]*>/g)) {
@@ -490,7 +602,12 @@ function slideFiles(z: ZipEntries): string[] {
 /** The speaker notes of a slide: the text in the notes page's body placeholder (not the slide image, the slide number or the header). */
 function slideNotes(z: ZipEntries, slide: string): string {
   const rels = entryText(z, slide.replace("ppt/slides/", "ppt/slides/_rels/") + ".rels");
-  const target = rels === undefined ? undefined : [...rels.matchAll(/<Relationship\s[^>]*>/g)].map((r) => r[0]).find((r) => /\/notesSlide"|notesSlide/.test(/\bType="([^"]*)"/.exec(r)?.[1] ?? ""));
+  const target =
+    rels === undefined
+      ? undefined
+      : [...rels.matchAll(/<Relationship\s[^>]*>/g)]
+          .map((r) => r[0])
+          .find((r) => /\/notesSlide"|notesSlide/.test(/\bType="([^"]*)"/.exec(r)?.[1] ?? ""));
   const href = target === undefined ? undefined : /\bTarget="([^"]*)"/.exec(target)?.[1];
   if (href === undefined) return "";
   const file = href.startsWith("/") ? href.slice(1) : `ppt/${href.replace(/^(\.\.\/)+/, "")}`;
@@ -520,7 +637,10 @@ const colIndex = (ref: string): number => {
 };
 
 // Excel number formats that show a date or a time: the built-in ids, and any custom format code with a date or time letter outside quotes and brackets.
-const DATE_FORMAT_IDS = new Set([14, 15, 16, 17, 18, 19, 20, 21, 22, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 45, 46, 47, 50, 51, 52, 53, 54, 55, 56, 57, 58]);
+const DATE_FORMAT_IDS = new Set([
+  14, 15, 16, 17, 18, 19, 20, 21, 22, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 45, 46, 47, 50, 51, 52, 53, 54, 55, 56,
+  57, 58,
+]);
 
 /** The cell format indexes (the `s` of a cell) whose number format is a date or a time. */
 function dateStyles(z: ZipEntries): Set<number> {
@@ -533,7 +653,15 @@ function dateStyles(z: ZipEntries): Set<number> {
     const code = /\bformatCode="([^"]*)"/.exec(f[0])?.[1];
     if (Number.isFinite(id) && code !== undefined) custom.set(id, unxml(code));
   }
-  const isDateCode = (code: string): boolean => /[ymdhs]/i.test(code.replace(/"[^"]*"/g, "").replace(/\[[^\]]*\]/g, "").replace(/\\./g, "").replace(/_./g, "").replace(/\*./g, ""));
+  const isDateCode = (code: string): boolean =>
+    /[ymdhs]/i.test(
+      code
+        .replace(/"[^"]*"/g, "")
+        .replace(/\[[^\]]*\]/g, "")
+        .replace(/\\./g, "")
+        .replace(/_./g, "")
+        .replace(/\*./g, ""),
+    );
   const xfs = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(xml)?.[1] ?? "";
   let at = 0;
   for (const x of xfs.matchAll(/<xf\b([^>]*?)(?:\/>|>[\s\S]*?<\/xf>)/g)) {
@@ -550,10 +678,13 @@ export function excelDate(serial: number, date1904: boolean): string | undefined
   if (!Number.isFinite(serial) || serial < 0 || serial > 2_958_465) return undefined;
   const days = Math.floor(serial);
   const secs = Math.round((serial - days) * 86400);
-  const t = (s: number): string => `${String(Math.floor(s / 3600) % 24).padStart(2, "0")}:${String(Math.floor(s / 60) % 60).padStart(2, "0")}${s % 60 ? `:${String(s % 60).padStart(2, "0")}` : ""}`;
+  const t = (s: number): string =>
+    `${String(Math.floor(s / 3600) % 24).padStart(2, "0")}:${String(Math.floor(s / 60) % 60).padStart(2, "0")}${s % 60 ? `:${String(s % 60).padStart(2, "0")}` : ""}`;
   if (days === 0) return t(secs);
   // serial 1 is 1900-01-01 in a workbook that counts from 1900 (which also treats 1900 as a leap year, so day 60 does not exist); 1904 workbooks count from 1904-01-01
-  const ms = date1904 ? Date.UTC(1904, 0, 1) + days * 86_400_000 : Date.UTC(1899, 11, 30) + (days < 60 ? days + 1 : days) * 86_400_000;
+  const ms = date1904
+    ? Date.UTC(1904, 0, 1) + days * 86_400_000
+    : Date.UTC(1899, 11, 30) + (days < 60 ? days + 1 : days) * 86_400_000;
   const day = new Date(ms).toISOString().slice(0, 10);
   return secs === 0 ? day : `${day} ${t(secs)}`;
 }
@@ -578,7 +709,8 @@ function xlsxText(z: ZipEntries): Extracted | null {
     for (const r of (rels ?? "").matchAll(/<Relationship\s[^>]*>/g)) {
       const id = /\bId="([^"]*)"/.exec(r[0])?.[1];
       const target = /\bTarget="([^"]*)"/.exec(r[0])?.[1];
-      if (id !== undefined && target !== undefined) targets.set(id, target.startsWith("/") ? target.slice(1) : `xl/${target}`);
+      if (id !== undefined && target !== undefined)
+        targets.set(id, target.startsWith("/") ? target.slice(1) : `xl/${target}`);
     }
     for (const s of book.matchAll(/<sheet\s[^>]*>/g)) {
       const name = /\bname="([^"]*)"/.exec(s[0])?.[1];
@@ -588,7 +720,10 @@ function xlsxText(z: ZipEntries): Extracted | null {
     }
   }
   if (sheets.length === 0) {
-    const files = [...z.keys()].map((k) => /^xl\/worksheets\/sheet(\d+)\.xml$/.exec(k)).filter((m): m is RegExpExecArray => m !== null).sort((a, b) => Number(a[1]) - Number(b[1]));
+    const files = [...z.keys()]
+      .map((k) => /^xl\/worksheets\/sheet(\d+)\.xml$/.exec(k))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .sort((a, b) => Number(a[1]) - Number(b[1]));
     for (const m of files) sheets.push({ name: `Sheet${m[1]}`, file: m[0] });
   }
   if (sheets.length === 0) return null;
@@ -603,18 +738,23 @@ function xlsxText(z: ZipEntries): Extracted | null {
         const at = colIndex(/\br="([^"]*)"/.exec(attrs)?.[1] ?? "");
         const type = /\bt="([^"]*)"/.exec(attrs)?.[1] ?? "n";
         let value = "";
-        if (type === "inlineStr") for (const t of inner.matchAll(/<t(?:\s[^>]*)?>([^<]*)<\/t>/g)) value += unxml(t[1] ?? "");
+        if (type === "inlineStr")
+          for (const t of inner.matchAll(/<t(?:\s[^>]*)?>([^<]*)<\/t>/g)) value += unxml(t[1] ?? "");
         else {
           const v = /<v>([^<]*)<\/v>/.exec(inner)?.[1] ?? "";
-          value = type === "s" ? shared[Number(v)] ?? "" : type === "b" ? (v === "1" ? "TRUE" : "FALSE") : unxml(v);
+          value = type === "s" ? (shared[Number(v)] ?? "") : type === "b" ? (v === "1" ? "TRUE" : "FALSE") : unxml(v);
           // a number with a date format reads as a date; a formula nothing has calculated yet reads as the formula
-          if (type === "n" && v !== "" && dates.has(Number(/\bs="(\d+)"/.exec(attrs)?.[1]))) value = excelDate(Number(v), date1904) ?? value;
+          if (type === "n" && v !== "" && dates.has(Number(/\bs="(\d+)"/.exec(attrs)?.[1])))
+            value = excelDate(Number(v), date1904) ?? value;
           if (v === "") {
             const f = /<f(?:\s[^>]*)?>([^<]+)<\/f>/.exec(inner)?.[1];
             if (f !== undefined) value = `=${unxml(f)}`;
           }
         }
-        if (at >= 0) { while (cells.length < at) cells.push(""); cells[at] = value; } else cells.push(value);
+        if (at >= 0) {
+          while (cells.length < at) cells.push("");
+          cells[at] = value;
+        } else cells.push(value);
       }
       lines.push(cells.join("\t").replace(/\t+$/, ""));
     }
@@ -628,15 +768,21 @@ function odfText(z: ZipEntries): Extracted | null {
   if (xml === undefined) return null;
   const body = /<office:body>([\s\S]*)<\/office:body>/.exec(xml)?.[1] ?? xml;
   const text = body
-    .replace(/<text:tab\/>/g, "\t").replace(/<text:s(?:\s[^>]*)?\/>/g, " ").replace(/<text:line-break\/>/g, "\n")
-    .replace(/<\/(?:text:p|text:h|table:table-row)>/g, "\n").replace(/<\/table:table-cell>/g, "\t")
+    .replace(/<text:tab\/>/g, "\t")
+    .replace(/<text:s(?:\s[^>]*)?\/>/g, " ")
+    .replace(/<text:line-break\/>/g, "\n")
+    .replace(/<\/(?:text:p|text:h|table:table-row)>/g, "\n")
+    .replace(/<\/table:table-cell>/g, "\t")
     .replace(/<[^>]*>/g, "");
   return { text: unxml(text).replace(/\t+\n/g, "\n").trimEnd() };
 }
 
 // ---- pdf (pure reader: page count and the text layer of simple files) --------------------------------------
 
-interface PdfObj { dict: string; stream?: Uint8Array }
+interface PdfObj {
+  dict: string;
+  stream?: Uint8Array;
+}
 
 function pdfObjects(b: Uint8Array): Map<number, PdfObj> {
   const s = latin1(b);
@@ -647,7 +793,10 @@ function pdfObjects(b: Uint8Array): Map<number, PdfObj> {
     const end = s.indexOf("endobj", start);
     const body = s.slice(start, end < 0 ? s.length : end);
     const sIdx = body.search(/\bstream\r?\n/);
-    if (sIdx < 0) { objs.set(Number(m[1]), { dict: body }); continue; }
+    if (sIdx < 0) {
+      objs.set(Number(m[1]), { dict: body });
+      continue;
+    }
     const dict = body.slice(0, sIdx);
     const dataStart = start + sIdx + (/\bstream\r\n/.test(body.slice(sIdx, sIdx + 9)) ? 8 : 7);
     const dataEnd = s.indexOf("endstream", dataStart);
@@ -658,7 +807,11 @@ function pdfObjects(b: Uint8Array): Map<number, PdfObj> {
     let data = b.subarray(dataStart, Math.max(dataStart, dataStop));
     if (/\/FlateDecode/.test(dict)) {
       try {
-        data = new Uint8Array(inflateSync(Buffer.from(data.buffer, data.byteOffset, data.byteLength), { maxOutputLength: 50 * 1024 * 1024 }));
+        data = new Uint8Array(
+          inflateSync(Buffer.from(data.buffer, data.byteOffset, data.byteLength), {
+            maxOutputLength: 50 * 1024 * 1024,
+          }),
+        );
       } catch {
         continue;
       }
@@ -697,7 +850,9 @@ function pdfString(raw: string): string {
 function contentText(content: string): string {
   let out = "";
   let lastY: number | null = null;
-  const nl = (): void => { if (out !== "" && !out.endsWith("\n")) out += "\n"; };
+  const nl = (): void => {
+    if (out !== "" && !out.endsWith("\n")) out += "\n";
+  };
   const stack: (string | number | (string | number)[])[] = [];
   let i = 0;
   const n = content.length;
@@ -707,9 +862,16 @@ function contentText(content: string): string {
     i += 1;
     while (i < n && depth > 0) {
       const c = content[i] ?? "";
-      if (c === "\\") { s += c + (content[i + 1] ?? ""); i += 2; continue; }
+      if (c === "\\") {
+        s += c + (content[i + 1] ?? "");
+        i += 2;
+        continue;
+      }
       if (c === "(") depth += 1;
-      if (c === ")") { depth -= 1; if (depth === 0) break; }
+      if (c === ")") {
+        depth -= 1;
+        if (depth === 0) break;
+      }
       s += c;
       i += 1;
     }
@@ -730,7 +892,10 @@ function contentText(content: string): string {
   };
   while (i < n) {
     const c = content[i] ?? "";
-    if (c === "(") { stack.push(readString()); continue; }
+    if (c === "(") {
+      stack.push(readString());
+      continue;
+    }
     if (c === "[") {
       i += 1;
       const arr: (string | number)[] = [];
@@ -739,12 +904,16 @@ function contentText(content: string): string {
         if (d === "(") arr.push(readString());
         else if (/[-+.\d]/.test(d)) {
           const m = /^[-+]?\d*\.?\d+/.exec(content.slice(i, i + 24));
-          if (m) { arr.push(Number(m[0])); i += m[0].length; } else i += 1;
+          if (m) {
+            arr.push(Number(m[0]));
+            i += m[0].length;
+          } else i += 1;
         } else if (d === "<" && content[i + 1] !== "<") {
           const end = content.indexOf(">", i);
           const hex = content.slice(i + 1, end < 0 ? n : end).replace(/\s/g, "");
           let s = "";
-          for (let k = 0; k + 1 < hex.length; k += 2) s += String.fromCharCode(Number.parseInt(hex.slice(k, k + 2), 16));
+          for (let k = 0; k + 1 < hex.length; k += 2)
+            s += String.fromCharCode(Number.parseInt(hex.slice(k, k + 2), 16));
           arr.push(s);
           i = end < 0 ? n : end + 1;
         } else i += 1;
@@ -762,19 +931,29 @@ function contentText(content: string): string {
       i = end < 0 ? n : end + 1;
       continue;
     }
-    if (c === "%") { while (i < n && content[i] !== "\n" && content[i] !== "\r") i += 1; continue; }
+    if (c === "%") {
+      while (i < n && content[i] !== "\n" && content[i] !== "\r") i += 1;
+      continue;
+    }
     if (c === "/" || /[A-Za-z'"*]/.test(c)) {
       let j = i + 1;
       while (j < n && !/[\s()<>[\]/%]/.test(content[j] ?? " ")) j += 1;
       const word = content.slice(i, j);
       i = j;
-      if (c === "/") { stack.push(word); continue; }
+      if (c === "/") {
+        stack.push(word);
+        continue;
+      }
       const last = stack[stack.length - 1];
       if (word === "Tj") out += showArgs(last);
       else if (word === "TJ") out += showArgs(last);
-      else if (word === "'") { nl(); out += showArgs(last); }
-      else if (word === '"') { nl(); out += showArgs(last); }
-      else if (word === "T*") nl();
+      else if (word === "'") {
+        nl();
+        out += showArgs(last);
+      } else if (word === '"') {
+        nl();
+        out += showArgs(last);
+      } else if (word === "T*") nl();
       else if (word === "Td" || word === "TD") {
         const ty = Number(stack[stack.length - 1]);
         const tx = Number(stack[stack.length - 2]);
@@ -793,7 +972,10 @@ function contentText(content: string): string {
     }
     if (/[-+.\d]/.test(c)) {
       const m = /^[-+]?\d*\.?\d+/.exec(content.slice(i, i + 24));
-      if (m) { stack.push(Number(m[0])); i += m[0].length; } else i += 1;
+      if (m) {
+        stack.push(Number(m[0]));
+        i += m[0].length;
+      } else i += 1;
       continue;
     }
     i += 1;
@@ -804,11 +986,16 @@ function contentText(content: string): string {
 /** The text layer of the pages of a simple PDF (Flate or plain content streams, one-byte fonts), pages in file order separated by a form feed. */
 export function pdfTextPure(b: Uint8Array): { text: string; pages: number } {
   const objs = pdfObjects(b);
-  const pageNos = [...objs.entries()].filter(([, o]) => isPage(o.dict)).map(([no]) => no).sort((a, c) => a - c);
+  const pageNos = [...objs.entries()]
+    .filter(([, o]) => isPage(o.dict))
+    .map(([no]) => no)
+    .sort((a, c) => a - c);
   const texts: string[] = [];
   for (const no of pageNos) {
     const dict = objs.get(no)?.dict ?? "";
-    const refs = [...(/\/Contents\s*(\[[^\]]*\]|\d+\s+\d+\s+R)/.exec(dict)?.[1] ?? "").matchAll(/(\d+)\s+\d+\s+R/g)].map((m) => Number(m[1]));
+    const refs = [
+      ...(/\/Contents\s*(\[[^\]]*\]|\d+\s+\d+\s+R)/.exec(dict)?.[1] ?? "").matchAll(/(\d+)\s+\d+\s+R/g),
+    ].map((m) => Number(m[1]));
     let page = "";
     for (const r of refs) {
       const s = objs.get(r)?.stream;
@@ -825,7 +1012,50 @@ export function pdfTextPure(b: Uint8Array): { text: string; pages: number } {
 export type Kind = "image" | "pdf" | "office" | "text" | "other";
 export type OfficeType = "docx" | "pptx" | "xlsx" | "odf" | "legacy";
 
-const TEXT_EXT = new Set(["txt", "md", "markdown", "csv", "tsv", "json", "yaml", "yml", "xml", "html", "htm", "css", "js", "mjs", "cjs", "ts", "tsx", "jsx", "py", "rb", "go", "rs", "java", "c", "h", "cpp", "hpp", "cs", "php", "sh", "bash", "zsh", "sql", "log", "ini", "toml", "env", "conf", "cfg", "svg", "tex", "rst"]);
+const TEXT_EXT = new Set([
+  "txt",
+  "md",
+  "markdown",
+  "csv",
+  "tsv",
+  "json",
+  "yaml",
+  "yml",
+  "xml",
+  "html",
+  "htm",
+  "css",
+  "js",
+  "mjs",
+  "cjs",
+  "ts",
+  "tsx",
+  "jsx",
+  "py",
+  "rb",
+  "go",
+  "rs",
+  "java",
+  "c",
+  "h",
+  "cpp",
+  "hpp",
+  "cs",
+  "php",
+  "sh",
+  "bash",
+  "zsh",
+  "sql",
+  "log",
+  "ini",
+  "toml",
+  "env",
+  "conf",
+  "cfg",
+  "svg",
+  "tex",
+  "rst",
+]);
 const IMAGE_EXT = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "heic", "heif", "avif"]);
 
 const extOf = (name: string): string => {
@@ -842,15 +1072,38 @@ export function classify(name: string, mime: string): { kind: Kind; office?: Off
   if (ext === "docx" || m.includes("wordprocessingml")) return { kind: "office", office: "docx" };
   if (ext === "pptx" || m.includes("presentationml")) return { kind: "office", office: "pptx" };
   if (ext === "xlsx" || m.includes("spreadsheetml")) return { kind: "office", office: "xlsx" };
-  if (["odt", "ods", "odp"].includes(ext) || m.startsWith("application/vnd.oasis.opendocument")) return { kind: "office", office: "odf" };
-  if (["doc", "xls", "ppt", "rtf", "pages", "numbers", "key"].includes(ext) || m === "application/msword" || m === "application/vnd.ms-excel" || m === "application/vnd.ms-powerpoint" || m === "application/rtf") return { kind: "office", office: "legacy" };
-  if (m.startsWith("text/") || m === "application/json" || m === "application/xml" || m.endsWith("+json") || m.endsWith("+xml") || m === "application/x-yaml" || m === "application/javascript" || TEXT_EXT.has(ext)) return { kind: "text" };
+  if (["odt", "ods", "odp"].includes(ext) || m.startsWith("application/vnd.oasis.opendocument"))
+    return { kind: "office", office: "odf" };
+  if (
+    ["doc", "xls", "ppt", "rtf", "pages", "numbers", "key"].includes(ext) ||
+    m === "application/msword" ||
+    m === "application/vnd.ms-excel" ||
+    m === "application/vnd.ms-powerpoint" ||
+    m === "application/rtf"
+  )
+    return { kind: "office", office: "legacy" };
+  if (
+    m.startsWith("text/") ||
+    m === "application/json" ||
+    m === "application/xml" ||
+    m.endsWith("+json") ||
+    m.endsWith("+xml") ||
+    m === "application/x-yaml" ||
+    m === "application/javascript" ||
+    TEXT_EXT.has(ext)
+  )
+    return { kind: "text" };
   return { kind: "other" };
 }
 
 // ---- reading the file ---------------------------------------------------------------------------------------
 
-interface Loaded { bytes: Uint8Array; mime: string; version: number; name: string }
+interface Loaded {
+  bytes: Uint8Array;
+  mime: string;
+  version: number;
+  name: string;
+}
 
 type FailReason = "unsupported" | "too_large" | "corrupt" | "converter_down" | "timeout";
 
@@ -863,7 +1116,11 @@ class PreviewFail extends Error {
 }
 
 /** The version number to preview: the one asked for, else the file's current one (and its size, to refuse a huge file before reading it). */
-async function versionNumber(ctx: Ctx, fileId: string, versionId: string | undefined): Promise<{ n: number; size?: number }> {
+async function versionNumber(
+  ctx: Ctx,
+  fileId: string,
+  versionId: string | undefined,
+): Promise<{ n: number; size?: number }> {
   if (versionId !== undefined) {
     const rows = list(obj(await ctx.call("files.versions", { fileId }))["versions"]).map((v) => obj(v));
     const hit = rows.find((v) => str(v["versionId"]) === versionId);
@@ -876,20 +1133,41 @@ async function versionNumber(ctx: Ctx, fileId: string, versionId: string | undef
 
 async function loadFile(ctx: Ctx, fileId: string, versionId: string | undefined): Promise<Loaded> {
   const meta = obj(obj(await ctx.call("files.get", { fileId }))["file"]);
-  let first = obj(await ctx.call("files.read", { fileId, ...(versionId !== undefined ? { versionId } : {}), as: "base64", offset: 0, length: CHUNK }));
+  let first = obj(
+    await ctx.call("files.read", {
+      fileId,
+      ...(versionId !== undefined ? { versionId } : {}),
+      as: "base64",
+      offset: 0,
+      length: CHUNK,
+    }),
+  );
   const size = num(first["size"]);
   if (size > MAX_BYTES) throw new PreviewFail("too_large", "This file is too large to preview.");
   const parts: Buffer[] = [Buffer.from(str(first["base64"]), "base64")];
   let got = parts[0]?.length ?? 0;
   const version = num(first["version"]);
   while (got < size) {
-    first = obj(await ctx.call("files.read", { fileId, ...(versionId !== undefined ? { versionId } : {}), as: "base64", offset: got, length: CHUNK }));
+    first = obj(
+      await ctx.call("files.read", {
+        fileId,
+        ...(versionId !== undefined ? { versionId } : {}),
+        as: "base64",
+        offset: got,
+        length: CHUNK,
+      }),
+    );
     const part = Buffer.from(str(first["base64"]), "base64");
     if (part.length === 0) break;
     parts.push(part);
     got += part.length;
   }
-  return { bytes: new Uint8Array(Buffer.concat(parts)), mime: str(obj(first)["mime"]) || str(meta["mime"]), version, name: str(meta["name"]) };
+  return {
+    bytes: new Uint8Array(Buffer.concat(parts)),
+    mime: str(obj(first)["mime"]) || str(meta["mime"]),
+    version,
+    name: str(meta["name"]),
+  };
 }
 
 // ---- converters ---------------------------------------------------------------------------------------------
@@ -914,17 +1192,25 @@ async function vipsThumb(d: PreviewDrivers, bytes: Uint8Array, width: number): P
     const input = path.join(dir, "in");
     const output = path.join(dir, "out.png");
     fs.writeFileSync(input, bytes);
-    const res = await d.exec([tool(d, "vips"), input, "-s", `${width}x${width * 10}>`, "-o", output], { cwd: dir, timeoutMs: TOOL_MS });
+    const res = await d.exec([tool(d, "vips"), input, "-s", `${width}x${width * 10}>`, "-o", output], {
+      cwd: dir,
+      timeoutMs: TOOL_MS,
+    });
     if (res.code !== 0 || !fs.existsSync(output)) throw failOf(res, "The picture converter");
     return decodePng(new Uint8Array(fs.readFileSync(output)));
   });
 }
 
 /** A picture scaled down to `width` (never up) as PNG bytes. PNG is done here; other formats need vipsthumbnail. */
-export async function thumbnailOf(d: PreviewDrivers, bytes: Uint8Array, width: number): Promise<{ bytes: Uint8Array; width: number; height: number }> {
+export async function thumbnailOf(
+  d: PreviewDrivers,
+  bytes: Uint8Array,
+  width: number,
+): Promise<{ bytes: Uint8Array; width: number; height: number }> {
   const dim = probeImage(bytes);
   if (!dim || dim.width < 1 || dim.height < 1) throw new PreviewFail("corrupt", "This picture could not be read.");
-  if (dim.width * dim.height > MAX_PIXELS * 4) throw new PreviewFail("too_large", "This picture is too large to preview.");
+  if (dim.width * dim.height > MAX_PIXELS * 4)
+    throw new PreviewFail("too_large", "This picture is too large to preview.");
   if (dim.mime === "image/png") {
     const r = decodePng(bytes);
     if (r) {
@@ -938,12 +1224,34 @@ export async function thumbnailOf(d: PreviewDrivers, bytes: Uint8Array, width: n
   return { bytes: encodePng(r), width: r.width, height: r.height };
 }
 
-async function pdftoppmPage(d: PreviewDrivers, pdf: Uint8Array, page: number, width: number): Promise<{ bytes: Uint8Array; width: number; height: number }> {
+async function pdftoppmPage(
+  d: PreviewDrivers,
+  pdf: Uint8Array,
+  page: number,
+  width: number,
+): Promise<{ bytes: Uint8Array; width: number; height: number }> {
   return scratch(d, async (dir) => {
     const input = path.join(dir, "in.pdf");
     const prefix = path.join(dir, "page");
     fs.writeFileSync(input, pdf);
-    const res = await d.exec([tool(d, "pdftoppm"), "-png", "-singlefile", "-f", String(page), "-l", String(page), "-scale-to-x", String(width), "-scale-to-y", "-1", input, prefix], { cwd: dir, timeoutMs: TOOL_MS });
+    const res = await d.exec(
+      [
+        tool(d, "pdftoppm"),
+        "-png",
+        "-singlefile",
+        "-f",
+        String(page),
+        "-l",
+        String(page),
+        "-scale-to-x",
+        String(width),
+        "-scale-to-y",
+        "-1",
+        input,
+        prefix,
+      ],
+      { cwd: dir, timeoutMs: TOOL_MS },
+    );
     const out = `${prefix}.png`;
     if (res.code !== 0 || !fs.existsSync(out)) throw failOf(res, "The PDF converter");
     const bytes = new Uint8Array(fs.readFileSync(out));
@@ -968,7 +1276,10 @@ async function officeToPdf(d: PreviewDrivers, bytes: Uint8Array, name: string): 
     const ext = extOf(name) || "bin";
     const input = path.join(dir, `in.${ext}`);
     fs.writeFileSync(input, bytes);
-    const res = await d.exec([tool(d, "soffice"), "--headless", "--norestore", "--convert-to", "pdf", "--outdir", dir, input], { cwd: dir, env: { HOME: dir }, timeoutMs: 3 * TOOL_MS });
+    const res = await d.exec(
+      [tool(d, "soffice"), "--headless", "--norestore", "--convert-to", "pdf", "--outdir", dir, input],
+      { cwd: dir, env: { HOME: dir }, timeoutMs: 3 * TOOL_MS },
+    );
     const out = path.join(dir, "in.pdf");
     if (res.code !== 0 || !fs.existsSync(out)) throw failOf(res, "The document converter");
     return new Uint8Array(fs.readFileSync(out));
@@ -977,17 +1288,43 @@ async function officeToPdf(d: PreviewDrivers, bytes: Uint8Array, name: string): 
 
 // ---- the cache ----------------------------------------------------------------------------------------------
 
-interface Made extends StoredImage { size: SizeKey }
+interface Made extends StoredImage {
+  size: SizeKey;
+}
 
 function filesRow(ctx: Ctx, fileId: string, version: number): Row | undefined {
   return (ctx.db.all("SELECT * FROM previews_file WHERE file_id = ? AND version = ?", fileId, version) as Row[])[0];
 }
 
-function putFile(ctx: Ctx, fileId: string, version: number, f: { versionId?: string; state: "ready" | "failed"; reason?: string; pages?: number; source: string; text?: string; truncated?: boolean }): void {
+function putFile(
+  ctx: Ctx,
+  fileId: string,
+  version: number,
+  f: {
+    versionId?: string;
+    state: "ready" | "failed";
+    reason?: string;
+    pages?: number;
+    source: string;
+    text?: string;
+    truncated?: boolean;
+  },
+): void {
   ctx.db.run("DELETE FROM previews_file WHERE file_id = ? AND version = ?", fileId, version);
   ctx.db.run(
     "INSERT INTO previews_file (file_id, version, version_id, state, reason, pages, source, text, text_truncated, width, height, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    fileId, version, f.versionId ?? null, f.state, f.reason ?? null, f.pages ?? null, f.source, f.text ?? null, f.truncated ? 1 : 0, null, null, ctx.now(),
+    fileId,
+    version,
+    f.versionId ?? null,
+    f.state,
+    f.reason ?? null,
+    f.pages ?? null,
+    f.source,
+    f.text ?? null,
+    f.truncated ? 1 : 0,
+    null,
+    null,
+    ctx.now(),
   );
 }
 
@@ -1000,7 +1337,12 @@ async function trimOld(ctx: Ctx, fileId: string, keepFrom: number): Promise<void
   }
 }
 
-async function versionIdOf(ctx: Ctx, fileId: string, version: number, given: string | undefined): Promise<string | undefined> {
+async function versionIdOf(
+  ctx: Ctx,
+  fileId: string,
+  version: number,
+  given: string | undefined,
+): Promise<string | undefined> {
   if (given !== undefined) return given;
   try {
     const rows = list(obj(await ctx.call("files.versions", { fileId }))["versions"]).map((v) => obj(v));
@@ -1022,7 +1364,8 @@ interface Rendered {
   imageReason?: FailReason;
 }
 
-const clip = (text: string): { text: string; truncated: boolean } => (text.length > MAX_TEXT ? { text: text.slice(0, MAX_TEXT), truncated: true } : { text, truncated: false });
+const clip = (text: string): { text: string; truncated: boolean } =>
+  text.length > MAX_TEXT ? { text: text.slice(0, MAX_TEXT), truncated: true } : { text, truncated: false };
 
 async function renderImage(d: PreviewDrivers, bytes: Uint8Array): Promise<Rendered> {
   const made: Made[] = [];
@@ -1033,7 +1376,8 @@ async function renderImage(d: PreviewDrivers, bytes: Uint8Array): Promise<Render
     const width = SIZE_WIDTH[size];
     if (decoded) {
       // decoded once, scaled for each size; a picture already small enough is kept as it is
-      if (decoded.width <= width && bytes.length <= 1_500_000) made.push({ kind: "thumb", size, page: 0, bytes, width: decoded.width, height: decoded.height });
+      if (decoded.width <= width && bytes.length <= 1_500_000)
+        made.push({ kind: "thumb", size, page: 0, bytes, width: decoded.width, height: decoded.height });
       else {
         const sc = scaleRaster(decoded, width);
         made.push({ kind: "thumb", size, page: 0, bytes: encodePng(sc), width: sc.width, height: sc.height });
@@ -1087,7 +1431,12 @@ async function renderOffice(d: PreviewDrivers, bytes: Uint8Array, name: string, 
   const got = officeExtract(bytes, type);
   let out: Rendered;
   if (got) {
-    out = { ...clip(got.text), source: got.text.trim() === "" ? "none" : "office", made: [], ...(got.pages !== undefined ? { pages: got.pages } : {}) };
+    out = {
+      ...clip(got.text),
+      source: got.text.trim() === "" ? "none" : "office",
+      made: [],
+      ...(got.pages !== undefined ? { pages: got.pages } : {}),
+    };
   } else if (type === "legacy") {
     out = { text: "", truncated: false, source: "none", made: [] };
   } else {
@@ -1114,7 +1463,11 @@ async function renderOffice(d: PreviewDrivers, bytes: Uint8Array, name: string, 
 
 async function renderText(bytes: Uint8Array): Promise<Rendered> {
   const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-  return { ...clip(text.includes("\u0000") ? "" : text), source: text.includes("\u0000") ? "none" : "native", made: [] };
+  return {
+    ...clip(text.includes("\u0000") ? "" : text),
+    source: text.includes("\u0000") ? "none" : "native",
+    made: [],
+  };
 }
 
 async function renderBytes(d: PreviewDrivers, l: Loaded): Promise<Rendered> {
@@ -1129,13 +1482,23 @@ async function renderBytes(d: PreviewDrivers, l: Loaded): Promise<Rendered> {
   throw new PreviewFail("unsupported", "There is no preview for this kind of file.");
 }
 
-interface Outcome { state: "ready" | "failed"; version: number; reason?: FailReason; rendered?: Rendered }
+interface Outcome {
+  state: "ready" | "failed";
+  version: number;
+  reason?: FailReason;
+  rendered?: Rendered;
+}
 
 /** A stored failure for these reasons is final; the others (a missing converter, a timeout) are tried again on the next read. */
 const FINAL = new Set(["unsupported", "too_large", "corrupt"]);
 
 /** Makes (or reads from the cache) the preview of one version. Never throws for a file that cannot be previewed: that is a stored failure. */
-async function ensureRendered(ctx: Ctx, fileId: string, versionId: string | undefined, force: boolean): Promise<Outcome> {
+async function ensureRendered(
+  ctx: Ctx,
+  fileId: string,
+  versionId: string | undefined,
+  force: boolean,
+): Promise<Outcome> {
   const d = drivers();
   await sweepGc(ctx);
   const asked = await versionNumber(ctx, fileId, versionId);
@@ -1143,12 +1506,21 @@ async function ensureRendered(ctx: Ctx, fileId: string, versionId: string | unde
     const hit = filesRow(ctx, fileId, asked.n);
     if (hit && !force && (hit["state"] === "ready" || FINAL.has(str(hit["reason"])))) {
       ctx.db.run("DELETE FROM previews_queue WHERE file_id = ? AND version = ?", fileId, asked.n);
-      return { state: hit["state"] === "ready" ? "ready" : "failed", version: asked.n, ...(hit["state"] === "failed" ? { reason: str(hit["reason"]) as FailReason } : {}) };
+      return {
+        state: hit["state"] === "ready" ? "ready" : "failed",
+        version: asked.n,
+        ...(hit["state"] === "failed" ? { reason: str(hit["reason"]) as FailReason } : {}),
+      };
     }
     const failed = async (version: number, reason: FailReason): Promise<Outcome> => {
       const vid = await versionIdOf(ctx, fileId, version, versionId);
       await dropImages(ctx, fileId, version);
-      putFile(ctx, fileId, version, { state: "failed", reason, source: "none", ...(vid !== undefined ? { versionId: vid } : {}) });
+      putFile(ctx, fileId, version, {
+        state: "failed",
+        reason,
+        source: "none",
+        ...(vid !== undefined ? { versionId: vid } : {}),
+      });
       ctx.db.run("DELETE FROM previews_queue WHERE file_id = ? AND version = ?", fileId, version);
       ctx.emit("preview.failed", `file/${fileId}`, { fileId, versionId: vid ?? "ver_unknown", reason });
       return { state: "failed", version, reason };
@@ -1167,8 +1539,17 @@ async function ensureRendered(ctx: Ctx, fileId: string, versionId: string | unde
       await dropImages(ctx, fileId, l.version);
       for (const m of r.made) await putImage(ctx, fileId, l.version, m);
       putFile(ctx, fileId, l.version, {
-        state: "ready", source: r.source, text: r.text, truncated: r.truncated, ...(r.pages !== undefined ? { pages: r.pages } : {}), ...(vid !== undefined ? { versionId: vid } : {}),
-        ...(r.imageReason !== undefined ? { reason: r.imageReason } : r.made.length === 0 ? { reason: "no_image" } : {}),
+        state: "ready",
+        source: r.source,
+        text: r.text,
+        truncated: r.truncated,
+        ...(r.pages !== undefined ? { pages: r.pages } : {}),
+        ...(vid !== undefined ? { versionId: vid } : {}),
+        ...(r.imageReason !== undefined
+          ? { reason: r.imageReason }
+          : r.made.length === 0
+            ? { reason: "no_image" }
+            : {}),
       });
       await trimOld(ctx, fileId, l.version - 1);
       ctx.db.run("DELETE FROM previews_queue WHERE file_id = ? AND version = ?", fileId, l.version);
@@ -1176,7 +1557,13 @@ async function ensureRendered(ctx: Ctx, fileId: string, versionId: string | unde
       if (r.made.some((m) => m.kind === "thumb")) kinds.push("thumbnail");
       if (r.made.some((m) => m.kind === "page")) kinds.push("pages");
       if (r.source !== "none") kinds.push("text");
-      if (kinds.length > 0) ctx.emit("preview.ready", `file/${fileId}`, { fileId, versionId: vid ?? "ver_unknown", kinds, ...(r.pages !== undefined ? { pages: r.pages } : {}) });
+      if (kinds.length > 0)
+        ctx.emit("preview.ready", `file/${fileId}`, {
+          fileId,
+          versionId: vid ?? "ver_unknown",
+          kinds,
+          ...(r.pages !== undefined ? { pages: r.pages } : {}),
+        });
       return { state: "ready", version: l.version, rendered: r };
     } catch (e) {
       if (!(e instanceof PreviewFail)) throw e;
@@ -1186,7 +1573,14 @@ async function ensureRendered(ctx: Ctx, fileId: string, versionId: string | unde
 }
 
 /** A page image (or the thumbnail of a PDF or Office file) at a size that was not made yet: converts again and keeps it. */
-async function makePage(ctx: Ctx, fileId: string, versionId: string | undefined, version: number, page: number, size: SizeKey): Promise<Row | undefined> {
+async function makePage(
+  ctx: Ctx,
+  fileId: string,
+  versionId: string | undefined,
+  version: number,
+  page: number,
+  size: SizeKey,
+): Promise<Row | undefined> {
   const d = drivers();
   return exclusive(`render:${fileId}`, async () => {
     const have = findImage(ctx, fileId, version, "page", size, page);
@@ -1209,7 +1603,13 @@ async function makePage(ctx: Ctx, fileId: string, versionId: string | undefined,
   });
 }
 
-async function makeThumb(ctx: Ctx, fileId: string, versionId: string | undefined, version: number, size: SizeKey): Promise<Row | undefined> {
+async function makeThumb(
+  ctx: Ctx,
+  fileId: string,
+  versionId: string | undefined,
+  version: number,
+  size: SizeKey,
+): Promise<Row | undefined> {
   const d = drivers();
   return exclusive(`render:${fileId}`, async () => {
     const have = findImage(ctx, fileId, version, "thumb", size, 0);
@@ -1229,7 +1629,11 @@ async function makeThumb(ctx: Ctx, fileId: string, versionId: string | undefined
 
 // ---- capabilities -------------------------------------------------------------------------------------------
 
-const imageOut = (ctx: Ctx, r: Row): Row => ({ url: blobRef(ctx, r), width: num(r["width"]), height: num(r["height"]) });
+const imageOut = (ctx: Ctx, r: Row): Row => ({
+  url: blobRef(ctx, r),
+  width: num(r["width"]),
+  height: num(r["height"]),
+});
 
 function whyNot(row: Row | undefined, outcome: Outcome): string {
   if (outcome.state === "failed") return outcome.reason ?? "unsupported";
@@ -1237,7 +1641,11 @@ function whyNot(row: Row | undefined, outcome: Outcome): string {
   return reason !== "" ? reason : "no_image";
 }
 
-async function resolve(ctx: Ctx, fileId: string, versionId: string | undefined): Promise<{ outcome: Outcome; row: Row | undefined }> {
+async function resolve(
+  ctx: Ctx,
+  fileId: string,
+  versionId: string | undefined,
+): Promise<{ outcome: Outcome; row: Row | undefined }> {
   const outcome = await ensureRendered(ctx, fileId, versionId, false);
   return { outcome, row: filesRow(ctx, fileId, outcome.version) };
 }
@@ -1251,12 +1659,18 @@ async function get(ctx: Ctx, input: unknown): Promise<Row> {
   const { outcome, row } = await resolve(ctx, fileId, versionId);
   const pages = row && !isNull(row["pages"]) ? { pages: num(row["pages"]) } : {};
   if (outcome.state === "failed") return { ready: false, reason: whyNot(row, outcome) };
-  if (page !== undefined && row && !isNull(row["pages"]) && page > num(row["pages"])) return { ready: false, reason: "no_such_page", ...pages };
+  if (page !== undefined && row && !isNull(row["pages"]) && page > num(row["pages"]))
+    return { ready: false, reason: "no_such_page", ...pages };
   let img: Row | undefined;
   if (page !== undefined) {
-    img = findImage(ctx, fileId, outcome.version, "page", size, page) ?? (await makePage(ctx, fileId, versionId, outcome.version, page, size));
+    img =
+      findImage(ctx, fileId, outcome.version, "page", size, page) ??
+      (await makePage(ctx, fileId, versionId, outcome.version, page, size));
   } else {
-    img = findImage(ctx, fileId, outcome.version, "thumb", size, 0) ?? (await makeThumb(ctx, fileId, versionId, outcome.version, size)) ?? (await makePage(ctx, fileId, versionId, outcome.version, 1, size));
+    img =
+      findImage(ctx, fileId, outcome.version, "thumb", size, 0) ??
+      (await makeThumb(ctx, fileId, versionId, outcome.version, size)) ??
+      (await makePage(ctx, fileId, versionId, outcome.version, 1, size));
   }
   if (!img) {
     return { ready: false, reason: whyNot(row, outcome), ...pages };
@@ -1267,13 +1681,18 @@ async function get(ctx: Ctx, input: unknown): Promise<Row> {
 async function thumbnails(ctx: Ctx, input: unknown): Promise<{ items: Row[] }> {
   const o = record(ctx, input);
   const ids = list(o["fileIds"]);
-  if (ids.length < 1 || ids.length > 200 || !ids.every((x) => typeof x === "string" && x.length > 0)) fail(ctx, "validation.bad_input", "fileIds must be 1 to 200 file ids.");
+  if (ids.length < 1 || ids.length > 200 || !ids.every((x) => typeof x === "string" && x.length > 0))
+    fail(ctx, "validation.bad_input", "fileIds must be 1 to 200 file ids.");
   const size = sizeOf(ctx, optStr(o, "size"));
   const items: Row[] = [];
   for (const fileId of ids as string[]) {
     try {
       const got = await get(ctx, { fileId, size });
-      items.push(got["ready"] === true ? { fileId, ready: true, url: got["url"], width: got["width"], height: got["height"] } : { fileId, ready: false });
+      items.push(
+        got["ready"] === true
+          ? { fileId, ready: true, url: got["url"], width: got["width"], height: got["height"] }
+          : { fileId, ready: false },
+      );
     } catch (e) {
       if (!(e instanceof VyreErr)) throw e;
       items.push({ fileId, ready: false });
@@ -1294,7 +1713,9 @@ async function pagesOf(ctx: Ctx, input: unknown): Promise<Row> {
   if (outcome.state === "failed" || total === 0) return { total, pages: [] };
   const pages: Row[] = [];
   for (let n = from; n < from + count && n <= total; n++) {
-    const img = findImage(ctx, fileId, outcome.version, "page", size, n) ?? (await makePage(ctx, fileId, versionId, outcome.version, n, size));
+    const img =
+      findImage(ctx, fileId, outcome.version, "page", size, n) ??
+      (await makePage(ctx, fileId, versionId, outcome.version, n, size));
     if (!img) break;
     pages.push({ n, ...imageOut(ctx, img) });
   }
@@ -1313,9 +1734,19 @@ async function textOf(ctx: Ctx, input: unknown): Promise<Row> {
   const pages = !isNull(row["pages"]) ? { pages: num(row["pages"]) } : {};
   if (page !== undefined) {
     const parts = raw.split("\f");
-    return { text: parts.length > 1 ? parts[page - 1] ?? "" : page === 1 ? raw : "", truncated: false, source, ...pages };
+    return {
+      text: parts.length > 1 ? (parts[page - 1] ?? "") : page === 1 ? raw : "",
+      truncated: false,
+      source,
+      ...pages,
+    };
   }
-  return { text: raw.replace(/\f+$/, "").replace(/\f+/g, "\n\n"), truncated: flag(row["text_truncated"]), source, ...pages };
+  return {
+    text: raw.replace(/\f+$/, "").replace(/\f+/g, "\n\n"),
+    truncated: flag(row["text_truncated"]),
+    source,
+    ...pages,
+  };
 }
 
 const flag = (v: unknown): boolean => v === 1 || v === true;
@@ -1333,8 +1764,13 @@ async function render(ctx: Ctx, input: unknown): Promise<{ queued: boolean }> {
 const SAMPLE_PNG = encodePng({ width: 1, height: 1, data: Uint8Array.from([255, 0, 0, 255]) });
 
 /** missing: not on this computer (exit 127). broken: it is there and did not answer in time. ok: it ran. */
-async function probeTool(d: PreviewDrivers, name: "pdftoppm" | "pdftotext" | "soffice" | "vips"): Promise<"missing" | "broken" | "ok"> {
-  const res = await d.exec([tool(d, name), name === "vips" ? "--version" : name === "soffice" ? "--version" : "-v"], { timeoutMs: 8000 });
+async function probeTool(
+  d: PreviewDrivers,
+  name: "pdftoppm" | "pdftotext" | "soffice" | "vips",
+): Promise<"missing" | "broken" | "ok"> {
+  const res = await d.exec([tool(d, name), name === "vips" ? "--version" : name === "soffice" ? "--version" : "-v"], {
+    timeoutMs: 8000,
+  });
   return res.code === 127 ? "missing" : res.code === 124 ? "broken" : "ok";
 }
 
@@ -1348,18 +1784,32 @@ async function health(ctx: Ctx, _input: unknown): Promise<Row> {
   } catch {
     sampleOk = false;
   }
-  const missing: string[] = [], broken: string[] = [];
-  for (const [name, label] of [["pdftoppm", "pdftoppm (PDF page images)"], ["soffice", "soffice (Office page images and old Office files)"], ["vips", "vipsthumbnail (JPEG, WebP and GIF thumbnails)"]] as const) {
+  const missing: string[] = [],
+    broken: string[] = [];
+  for (const [name, label] of [
+    ["pdftoppm", "pdftoppm (PDF page images)"],
+    ["soffice", "soffice (Office page images and old Office files)"],
+    ["vips", "vipsthumbnail (JPEG, WebP and GIF thumbnails)"],
+  ] as const) {
     const state = await probeTool(d, name);
-    if (state === "missing") missing.push(label); else if (state === "broken") broken.push(label);
+    if (state === "missing") missing.push(label);
+    else if (state === "broken") broken.push(label);
   }
   const queued = (ctx.db.all("SELECT * FROM previews_queue") as Row[]).length;
   const latencyMs = Date.now() - started;
-  if (!sampleOk) return { state: "down", detail: "The thumbnail maker did not answer on the sample file.", latencyMs, queued };
+  if (!sampleOk)
+    return { state: "down", detail: "The thumbnail maker did not answer on the sample file.", latencyMs, queued };
   // A converter that is installed and does not answer is a failure. One that is not installed is not set up: a computer without them (a Mac that has not installed vips or LibreOffice) is healthy, with the hint.
   if (broken.length > 0) return { state: "degraded", detail: `Not answering: ${broken.join(", ")}`, latencyMs, queued };
-  if (missing.length > 0) return { state: "healthy", detail: `Previews of images and documents need vips and LibreOffice on this computer. Not installed: ${missing.join(", ")}`, latencyMs, queued };
-  if (queued > 500) return { state: "degraded", detail: `${queued} versions are waiting for a preview`, latencyMs, queued };
+  if (missing.length > 0)
+    return {
+      state: "healthy",
+      detail: `Previews of images and documents need vips and LibreOffice on this computer. Not installed: ${missing.join(", ")}`,
+      latencyMs,
+      queued,
+    };
+  if (queued > 500)
+    return { state: "degraded", detail: `${queued} versions are waiting for a preview`, latencyMs, queued };
   return { state: "healthy", latencyMs, queued };
 }
 

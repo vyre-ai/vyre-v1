@@ -14,8 +14,16 @@ test("pressing the Recent head folds its chats and pressing it again brings them
   const root = await mount(createRoot, <ChatsSidebar data={s.data} window={{ start: 0, end: 500 }} />);
   assert.ok(find(root, "head-recent"), "the Chats head is drawn");
   const ids: string[] = [];
-  const walk = (n: Node | string): void => { if (typeof n === "string") return; if (typeof n.props["data-testid"] === "string") ids.push(n.props["data-testid"] as string); (n.children ?? []).forEach(walk); };
-  const rowIds = (): string[] => { ids.length = 0; walk(root); return ids.filter((i) => i.startsWith("row-c:")); };
+  const walk = (n: Node | string): void => {
+    if (typeof n === "string") return;
+    if (typeof n.props["data-testid"] === "string") ids.push(n.props["data-testid"] as string);
+    (n.children ?? []).forEach(walk);
+  };
+  const rowIds = (): string[] => {
+    ids.length = 0;
+    walk(root);
+    return ids.filter((i) => i.startsWith("row-c:"));
+  };
   const before = rowIds().length;
   assert.ok(before > 0, "the sample Space has chats under the head");
   await press(find(root, "toggle-recent"));
@@ -28,14 +36,19 @@ test("pressing the Recent head folds its chats and pressing it again brings them
 
 test("the list is a listbox that points at the row the arrow keys are on", async () => {
   installDom();
-  const root = await mount(createRoot, <ChatsSidebar data={createSampleSidebar().data} window={{ start: 0, end: 500 }} />);
+  const root = await mount(
+    createRoot,
+    <ChatsSidebar data={createSampleSidebar().data} window={{ start: 0, end: 500 }} />,
+  );
   const list = find(root, "chats-sidebar");
   assert.ok(list, "the list is drawn");
   assert.equal(list.props.role, "listbox", "its true role");
   assert.equal(list.props.tabIndex, 0, "reachable by Tab for the arrow keys");
   assert.equal(list.props["data-noop-ok"], undefined, "no allowlist marker");
   const onKeyDown = list.props.onKeyDown as (e: { key: string; preventDefault(): void }) => void;
-  await act(async () => { onKeyDown({ key: "ArrowDown", preventDefault() {} }); });
+  await act(async () => {
+    onKeyDown({ key: "ArrowDown", preventDefault() {} });
+  });
   await flush();
   const now = find(root, "chats-sidebar")!;
   const id = now.props["aria-activedescendant"];

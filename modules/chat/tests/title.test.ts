@@ -9,20 +9,40 @@ import { update } from "../handlers/g24a.ts";
 import { planNotice } from "../handlers/notify.ts";
 import { post } from "../handlers/post.ts";
 
-const say = (...bodies: string[]) => ({ messages: bodies.map((b, i) => ({ messageId: `msg_${i}`, author: { kind: "person", id: DANA }, body: b })) });
+const say = (...bodies: string[]) => ({
+  messages: bodies.map((b, i) => ({ messageId: `msg_${i}`, author: { kind: "person", id: DANA }, body: b })),
+});
 const ACCOUNT = { ref: "#Dana_OpenRouter", driver: "openrouter", kind: "api_key", payer: DANA };
 const world = (bodies: string[], model: string | null = "GHL onboarding goal") => {
   const prompts: string[] = [];
   const completed: Array<Record<string, unknown>> = [];
-  const hn = harness({ calls: {
-    "chat.messages.list": () => say(...bodies),
-    "engine.models.list": () => ({ models: [{ provider: "openrouter", model: "google/gemini-flash-lite", allowed: true, pricing: { prompt: "0.0000001", completion: "0.0000004" } }] }),
-    "engine.complete": (i) => { prompts.push(String(i["prompt"])); completed.push(i); if (model === null) throw new Error("no model"); return { text: model, tokensIn: 30, tokensOut: 6 }; },
-  } });
+  const hn = harness({
+    calls: {
+      "chat.messages.list": () => say(...bodies),
+      "engine.models.list": () => ({
+        models: [
+          {
+            provider: "openrouter",
+            model: "google/gemini-flash-lite",
+            allowed: true,
+            pricing: { prompt: "0.0000001", completion: "0.0000004" },
+          },
+        ],
+      }),
+      "engine.complete": (i) => {
+        prompts.push(String(i["prompt"]));
+        completed.push(i);
+        if (model === null) throw new Error("no model");
+        return { text: model, tokensIn: 30, tokensOut: 6 };
+      },
+    },
+  });
   return { hn, prompts, completed };
 };
-const chatOf = async (hn: Harness): Promise<string> => (await start(hn.ctx, { kind: "chat", agentIds: [INTAKE] })).thread["threadId"] as string;
-const titleOf = (hn: Harness, id: string): unknown => hn.rows("SELECT title FROM chat_thread WHERE id = ?", id)[0]?.["title"];
+const chatOf = async (hn: Harness): Promise<string> =>
+  (await start(hn.ctx, { kind: "chat", agentIds: [INTAKE] })).thread["threadId"] as string;
+const titleOf = (hn: Harness, id: string): unknown =>
+  hn.rows("SELECT title FROM chat_thread WHERE id = ?", id)[0]?.["title"];
 
 test("rule 4: the first real request names the chat in 2 to 5 words, on the cheap model of the turn's account", async () => {
   const { hn, prompts, completed } = world(["Set up the GHL onboarding goal for the Lab 8 registrants"]);
@@ -63,21 +83,34 @@ test("with no account or a model that fails, the request's own words make the ti
 test("a title made from a thin request is made again once, from the first fuller one, and then it stands", async () => {
   const lines = ["test chat"];
   const prompts: string[] = [];
-  const hn = harness({ calls: {
-    "chat.messages.list": () => say(...lines),
-    "engine.models.list": () => ({ models: [] }),
-    "engine.complete": (i) => { prompts.push(String(i["prompt"])); return { text: prompts.length === 1 ? "Test chat" : "Lab 8 reminder emails", tokensIn: 1, tokensOut: 1 }; },
-  } });
+  const hn = harness({
+    calls: {
+      "chat.messages.list": () => say(...lines),
+      "engine.models.list": () => ({ models: [] }),
+      "engine.complete": (i) => {
+        prompts.push(String(i["prompt"]));
+        return { text: prompts.length === 1 ? "Test chat" : "Lab 8 reminder emails", tokensIn: 1, tokensOut: 1 };
+      },
+    },
+  });
   const id = await chatOf(hn);
   // "test chat" is not a greeting: it is thin, and names the chat for now
   assert.equal((await titleMake(hn.ctx, { threadId: id, account: { ...ACCOUNT, driver: "anthropic" } })).made, true);
   assert.equal(titleOf(hn, id), "Test chat");
-  assert.deepEqual(await titleMake(hn.ctx, { threadId: id, account: { ...ACCOUNT, driver: "anthropic" } }), { made: false, why: "small_talk" }, "nothing fuller yet: the thin title stands for now");
+  assert.deepEqual(
+    await titleMake(hn.ctx, { threadId: id, account: { ...ACCOUNT, driver: "anthropic" } }),
+    { made: false, why: "small_talk" },
+    "nothing fuller yet: the thin title stands for now",
+  );
   lines.push("Write the reminder emails for the Lab 8 registrants");
   const second = await titleMake(hn.ctx, { threadId: id, account: { ...ACCOUNT, driver: "anthropic" } });
   assert.deepEqual(second, { made: true, title: "Lab 8 reminder emails" });
   lines.push("Now also change the colour of the header on the registration page please");
-  assert.deepEqual(await titleMake(hn.ctx, { threadId: id, account: { ...ACCOUNT, driver: "anthropic" } }), { made: false, why: "done" }, "made again once, never twice");
+  assert.deepEqual(
+    await titleMake(hn.ctx, { threadId: id, account: { ...ACCOUNT, driver: "anthropic" } }),
+    { made: false, why: "done" },
+    "made again once, never twice",
+  );
 });
 
 test("a person's rename is theirs for good, from the header or the sidebar (threads.update)", async () => {
@@ -102,12 +135,30 @@ test("a direct message with a person and a channel are named by the rule, not by
 });
 
 test("a notification says where in the chat's one name: who is in an untitled chat, the title once it has one", async () => {
-  const hn = harness({ calls: { "access.principals.get": (i) => ({ principal: { name: ({ usr_dana: "Dana", usr_maya: "Maya", agt_intake: "Intake" } as Record<string, string>)[String((i["principal"] as { id: string }).id)] } }) } });
+  const hn = harness({
+    calls: {
+      "access.principals.get": (i) => ({
+        principal: {
+          name: ({ usr_dana: "Dana", usr_maya: "Maya", agt_intake: "Intake" } as Record<string, string>)[
+            String((i["principal"] as { id: string }).id)
+          ],
+        },
+      }),
+    },
+  });
   const id = (await start(hn.ctx, { kind: "chat", agentIds: [INTAKE] })).thread["threadId"] as string;
-  const said = (await post(hn.ctx, { threadId: id, body: "@Maya see this", mentions: [{ kind: "person", id: MAYA }], idempotencyKey: "n1" })) as { message: { messageId: string } };
-  const event = { name: "message.mentioned", payload: { threadId: id, messageId: said.message.messageId, personId: MAYA } };
+  const said = (await post(hn.ctx, {
+    threadId: id,
+    body: "@Maya see this",
+    mentions: [{ kind: "person", id: MAYA }],
+    idempotencyKey: "n1",
+  })) as { message: { messageId: string } };
+  const event = {
+    name: "message.mentioned",
+    payload: { threadId: id, messageId: said.message.messageId, personId: MAYA },
+  };
   const first = await planNotice(hn.ctx, event);
-  assert.equal(first?.data["where"], "Intake and Dana", "an untitled chat reads from the others in it, never \"a chat\"");
+  assert.equal(first?.data["where"], "Intake and Dana", 'an untitled chat reads from the others in it, never "a chat"');
   await update(hn.ctx, { threadId: id, title: "Lab 8 work" });
   assert.equal((await planNotice(hn.ctx, event))?.data["where"], "Lab 8 work");
 });

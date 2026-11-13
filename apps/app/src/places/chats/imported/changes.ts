@@ -8,5 +8,7 @@ export function importedChanged(): void {
 
 export function onImportedChange(l: () => void): () => void {
   listeners.add(l);
-  return () => { listeners.delete(l); };
+  return () => {
+    listeners.delete(l);
+  };
 }

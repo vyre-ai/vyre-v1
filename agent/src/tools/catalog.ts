@@ -4,9 +4,15 @@ import type { AgentToolRow, Catalog, Effects, LocalKind, McpToolRow, RegistryCap
 const EFFECT_RANK: Readonly<Record<Effects, number>> = { read: 0, write: 1, outward: 2 };
 const LOCAL: ReadonlySet<string> = new Set(["terminal", "chrome", "screen", "files", "none"]);
 
-export function buildCatalog(caps: readonly RegistryCapRow[], tools: readonly McpToolRow[], agentTools: readonly AgentToolRow[] = []): Catalog {
+export function buildCatalog(
+  caps: readonly RegistryCapRow[],
+  tools: readonly McpToolRow[],
+  agentTools: readonly AgentToolRow[] = [],
+): Catalog {
   const capBy = new Map(caps.map((c) => [`${c.name}@${c.v}`, c] as const));
-  const localBy = new Map(agentTools.filter((a) => a.local !== undefined).map((a) => [a.name, a.local as string] as const));
+  const localBy = new Map(
+    agentTools.filter((a) => a.local !== undefined).map((a) => [a.name, a.local as string] as const),
+  );
   const defs: ToolDef[] = [];
   const seen = new Set<string>();
   for (const t of tools) {
@@ -20,8 +26,19 @@ export function buildCatalog(caps: readonly RegistryCapRow[], tools: readonly Mc
     // The stricter of the two effect labels wins, so a tool can never look safer than its capability.
     const effects = EFFECT_RANK[cap.effects] >= EFFECT_RANK[t.effects] ? cap.effects : t.effects;
     defs.push({
-      name: t.name, cap: cap.name, v: cap.v, toolset: t.toolset, summary: t.description, inputSchema: t.inputSchema, effects, planMode: t.planMode,
-      level: cap.level === 'member' ? 'view' : cap.level, deferred: t.deferred, blocks: [...(t.blocks ?? [])], local, gated: cap.gate !== undefined,
+      name: t.name,
+      cap: cap.name,
+      v: cap.v,
+      toolset: t.toolset,
+      summary: t.description,
+      inputSchema: t.inputSchema,
+      effects,
+      planMode: t.planMode,
+      level: cap.level === "member" ? "view" : cap.level,
+      deferred: t.deferred,
+      blocks: [...(t.blocks ?? [])],
+      local,
+      gated: cap.gate !== undefined,
       ...(cap.resource?.id ? { resource: { type: cap.resource.type, id: cap.resource.id } } : {}),
     });
   }
@@ -34,7 +51,12 @@ export function buildCatalog(caps: readonly RegistryCapRow[], tools: readonly Mc
  * It is asked on every read and names nothing, so a capability that goes live comes back by itself. A call by name still resolves and is refused, never an unknown tool.
  */
 export function offerable(catalog: Catalog, refuses: (cap: string) => boolean): Catalog {
-  return { get all() { return catalog.all.filter((t) => !refuses(t.cap)); }, byName: catalog.byName };
+  return {
+    get all() {
+      return catalog.all.filter((t) => !refuses(t.cap));
+    },
+    byName: catalog.byName,
+  };
 }
 
 /** The default listed tool names from the frozen table in docs/frozen/agent-tools.md: rows that start with "| `name` |" under "Default listed toolset". */

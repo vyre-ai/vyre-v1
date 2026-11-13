@@ -28,20 +28,50 @@ export interface GateSheetProps {
   onClose(): void;
 }
 
-export function GateSheet({ call, journeyId, plainField, type, def, row, toStage, stageTitle, missing: first, onDone, onClose }: GateSheetProps): ReactElement {
+export function GateSheet({
+  call,
+  journeyId,
+  plainField,
+  type,
+  def,
+  row,
+  toStage,
+  stageTitle,
+  missing: first,
+  onDone,
+  onClose,
+}: GateSheetProps): ReactElement {
   const [missing, setMissing] = useState(first);
   const [entered, setEntered] = useState<Entered>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const put = (key: string, v: string | boolean): void => { setEntered((e) => ({ ...e, [key]: v })); setError(null); };
+  const put = (key: string, v: string | boolean): void => {
+    setEntered((e) => ({ ...e, [key]: v }));
+    setError(null);
+  };
   const save = (): void => {
     if (busy) return;
-    setBusy(true); setError(null);
-    fillAndMove(call, { ...(journeyId ? { journeyId } : {}), ...(plainField ? { plainField } : {}), type, row, def, missing, entered, toStage }).then((r) => {
-      if (r.ok) { onDone(); return; }
-      setError(r.message);
-      if (r.missing) setMissing(r.missing);
-    }).finally(() => setBusy(false));
+    setBusy(true);
+    setError(null);
+    fillAndMove(call, {
+      ...(journeyId ? { journeyId } : {}),
+      ...(plainField ? { plainField } : {}),
+      type,
+      row,
+      def,
+      missing,
+      entered,
+      toStage,
+    })
+      .then((r) => {
+        if (r.ok) {
+          onDone();
+          return;
+        }
+        setError(r.message);
+        if (r.missing) setMissing(r.missing);
+      })
+      .finally(() => setBusy(false));
   };
   const rows: ReactElement[] = [];
   for (const m of missing) {
@@ -55,27 +85,64 @@ export function GateSheet({ call, journeyId, plainField, type, def, row, toStage
         {f && kind === "choice" ? (
           <View style={s.chips} accessibilityRole="radiogroup">
             {/* ui-rows-lint: not a list (choice option chips in a wrapping strip, one picked) */}
-            {optionsOf(f).map((o) => <TextButton key={o.key} label={o.title} selected={mine === o.key} testID={`gate-${m.key}-${o.key}`} onPress={() => put(m.key, o.key)} />)}
+            {optionsOf(f).map((o) => (
+              <TextButton
+                key={o.key}
+                label={o.title}
+                selected={mine === o.key}
+                testID={`gate-${m.key}-${o.key}`}
+                onPress={() => put(m.key, o.key)}
+              />
+            ))}
           </View>
         ) : kind === "checkbox" ? (
           <View style={s.chips} accessibilityRole="radiogroup">
-            <TextButton label="Yes" selected={mine === true} testID={`gate-${m.key}-yes`} onPress={() => put(m.key, true)} />
-            <TextButton label="No" selected={mine === false} testID={`gate-${m.key}-no`} onPress={() => put(m.key, false)} />
+            <TextButton
+              label="Yes"
+              selected={mine === true}
+              testID={`gate-${m.key}-yes`}
+              onPress={() => put(m.key, true)}
+            />
+            <TextButton
+              label="No"
+              selected={mine === false}
+              testID={`gate-${m.key}-no`}
+              onPress={() => put(m.key, false)}
+            />
           </View>
         ) : (
-          <TextField value={typeof mine === "string" ? mine : ""} onChangeText={(t) => put(m.key, t)} accessibilityLabel={label} testID={`gate-input-${m.key}`} placeholder={kind === "date" ? "2025-10-24" : ""} onSubmitEditing={save} />
+          <TextField
+            value={typeof mine === "string" ? mine : ""}
+            onChangeText={(t) => put(m.key, t)}
+            accessibilityLabel={label}
+            testID={`gate-input-${m.key}`}
+            placeholder={kind === "date" ? "2025-10-24" : ""}
+            onSubmitEditing={save}
+          />
         )}
       </View>,
     );
   }
   return (
     <Dialog
-      title={`Before it moves to ${stageTitle}`} onClose={onClose} width={460} testID="gate-sheet"
-      actions={[{ label: "Cancel", onPress: onClose, testID: "gate-cancel" }, { label: busy ? "Saving" : "Save and move", primary: true, disabled: busy, onPress: save, testID: "gate-save" }]}
+      title={`Before it moves to ${stageTitle}`}
+      onClose={onClose}
+      width={460}
+      testID="gate-sheet"
+      actions={[
+        { label: "Cancel", onPress: onClose, testID: "gate-cancel" },
+        { label: busy ? "Saving" : "Save and move", primary: true, disabled: busy, onPress: save, testID: "gate-save" },
+      ]}
     >
-      <Text style={s.lead}>{missing.length === 1 ? "One field needs an answer." : `${missing.length} fields need an answer.`}</Text>
+      <Text style={s.lead}>
+        {missing.length === 1 ? "One field needs an answer." : `${missing.length} fields need an answer.`}
+      </Text>
       <View style={s.list}>{rows}</View>
-      {error ? <Text style={s.error} accessibilityRole="alert" testID="gate-error">{error}</Text> : null}
+      {error ? (
+        <Text style={s.error} accessibilityRole="alert" testID="gate-error">
+          {error}
+        </Text>
+      ) : null}
     </Dialog>
   );
 }

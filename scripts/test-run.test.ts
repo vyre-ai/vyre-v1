@@ -8,12 +8,22 @@ import { runFile, capFor, breakdown, mergeTimings, skippedOf, allSkipped, DEFAUL
 // Scaled stand-in for the 20 s rule: the cap is 1 s here and the fixture runs 1.6 s, so the check is the same without a 21 s wait.
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "trun-"));
 /** The process exists (signal 0 tests for it without sending anything). */
-const alive = (pid: number): boolean => { try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === "EPERM"; } };
+const alive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "EPERM";
+  }
+};
 const fixture = path.join(dir, "slowish.test.mjs");
-fs.writeFileSync(fixture, `import test from "node:test";
+fs.writeFileSync(
+  fixture,
+  `import test from "node:test";
 test("fast one", () => {});
 test("takes a while", async () => { await new Promise((r) => setTimeout(r, 1600)); });
-`);
+`,
+);
 
 test("a file over the default cap fails with the slowest-test breakdown", async () => {
   const r = await runFile(fixture, { cwd: dir, capMs: 1000 });
@@ -34,7 +44,10 @@ test("a listed slow file passes up to its capSec", async () => {
 });
 test("skippedOf counts a file's skipped tests and keeps their reasons (--no-skip fails on them)", async () => {
   const f = path.join(dir, "skips.test.mjs");
-  fs.writeFileSync(f, `import test from "node:test";\ntest("runs", () => {});\ntest("needs a build", (t) => { t.skip("VYRE_APP_DIST required"); });\n`);
+  fs.writeFileSync(
+    f,
+    `import test from "node:test";\ntest("runs", () => {});\ntest("needs a build", (t) => { t.skip("VYRE_APP_DIST required"); });\n`,
+  );
   const r = await runFile(f, { cwd: dir, capMs: 10_000 });
   assert.equal(r.ok, true, r.out);
   const sk = skippedOf(r.out);
@@ -45,12 +58,22 @@ test("skippedOf counts a file's skipped tests and keeps their reasons (--no-skip
 test("unlisted files get the 30 s default", () => assert.equal(capFor("a.test.ts", []), DEFAULT_CAP_MS));
 test("breakdown sorts the slowest leaf tests first", () => {
   const out = "✔ a (5.2ms)\n✔ b (120.9ms)\n✖ c (50ms)\nnoise\n";
-  assert.deepEqual(breakdown(out, 2), [{ name: "b", ms: 121 }, { name: "c", ms: 50 }]);
+  assert.deepEqual(breakdown(out, 2), [
+    { name: "b", ms: 121 },
+    { name: "c", ms: 50 },
+  ]);
 });
 test("timings merge keeps passing files only", () => {
   const at = "2026-10-24T00:00:00.000Z";
   const base = { file: "b.test.ts", ok: true, ms: 7, capMs: 20000, overCap: false, breakdown: [], out: "" };
-  const t = mergeTimings({ "old.test.ts": { ms: 1, at } }, [{ ...base, file: "a.test.ts" }, { ...base, ok: false }], at);
+  const t = mergeTimings(
+    { "old.test.ts": { ms: 1, at } },
+    [
+      { ...base, file: "a.test.ts" },
+      { ...base, ok: false },
+    ],
+    at,
+  );
   assert.deepEqual(Object.keys(t).sort(), ["a.test.ts", "old.test.ts"]);
 });
 
@@ -65,20 +88,32 @@ test("a file whose every test was skipped is a skip with its reason, not a pass;
 
 test("the runners print skip <file> (<reason>) and count skips apart from passes", async () => {
   const { spawnSync } = await import("node:child_process");
-  const fs2 = await import("node:fs"), os2 = await import("node:os"), path2 = await import("node:path");
+  const fs2 = await import("node:fs"),
+    os2 = await import("node:os"),
+    path2 = await import("node:path");
   const dir = fs2.mkdtempSync(path2.join(os2.tmpdir(), "runner-skip-"));
   try {
-    fs2.writeFileSync(path2.join(dir, "only-skips.test.ts"), 'import test from "node:test";\ntest("needs a key", { skip: "no key here" }, () => {});\n');
-    const r = spawnSync(process.execPath, ["--test", "--test-reporter=spec", path2.join(dir, "only-skips.test.ts")], { encoding: "utf8", env: Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "NODE_TEST_CONTEXT")) });
+    fs2.writeFileSync(
+      path2.join(dir, "only-skips.test.ts"),
+      'import test from "node:test";\ntest("needs a key", { skip: "no key here" }, () => {});\n',
+    );
+    const r = spawnSync(process.execPath, ["--test", "--test-reporter=spec", path2.join(dir, "only-skips.test.ts")], {
+      encoding: "utf8",
+      env: Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "NODE_TEST_CONTEXT")),
+    });
     assert.equal(allSkipped(r.stdout + r.stderr), "no key here");
-  } finally { fs2.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs2.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("a file that fails a test and then never exits still shows why it failed when the watchdog kills it", async () => {
   // what an unclosed daemon or browser does: the test fails at once, the process stays alive, and node's own summary (which carries the error) is never printed
   const hang = path.join(dir, "fails-then-hangs.test.mjs");
   const pidFile = path.join(dir, "fails-then-hangs.pid");
-  fs.writeFileSync(hang, `import test from "node:test";
+  fs.writeFileSync(
+    hang,
+    `import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 fs.writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));
@@ -86,17 +121,27 @@ test("a test that fails and leaves something open", () => {
   setInterval(() => undefined, 1000);
   assert.equal("the port the daemon was told to use", "a port someone else took", "FIXTURE-FAILURE-MESSAGE: address already in use");
 });
-`);
+`,
+  );
   let r: Awaited<ReturnType<typeof runFile>>;
   try {
     r = await runFile(hang, { cwd: dir, capMs: 3000 });
     // the watchdog ends the file's whole process group: node --test runs the file in a child of its own, and that child (the process that hangs) is gone too
     const pid = Number(fs.readFileSync(pidFile, "utf8"));
     assert.ok(pid > 0, "the fixture wrote its pid");
-    assert.equal(alive(pid), false, `the fixture's own process (${pid}) is not left running after the watchdog ended the file`);
+    assert.equal(
+      alive(pid),
+      false,
+      `the fixture's own process (${pid}) is not left running after the watchdog ended the file`,
+    );
   } finally {
     // never leave it behind, whatever the assertions said
-    try { const pid = Number(fs.readFileSync(pidFile, "utf8")); if (pid > 0 && alive(pid)) process.kill(pid, "SIGKILL"); } catch { /* not written */ }
+    try {
+      const pid = Number(fs.readFileSync(pidFile, "utf8"));
+      if (pid > 0 && alive(pid)) process.kill(pid, "SIGKILL");
+    } catch {
+      /* not written */
+    }
   }
   assert.equal(r.ok, false);
   assert.equal(r.overCap, true, "it hung, so the watchdog ended it");

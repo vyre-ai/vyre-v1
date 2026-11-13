@@ -8,7 +8,10 @@ import path from "node:path";
 import os from "node:os";
 import { ROOT_FILES, RUNTIME_DIRS, REPO, SKIP, STAGE_FILES, plan, stageAppWeb } from "../src-tauri/stage-runtime.ts";
 
-const staged = (rel: string): boolean => (RUNTIME_DIRS as readonly string[]).some((d) => rel === d || rel.startsWith(`${d}/`)) || (STAGE_FILES as readonly string[]).includes(rel) || (ROOT_FILES as readonly string[]).includes(rel);   // the root files (package.json and the rest) are copied as well
+const staged = (rel: string): boolean =>
+  (RUNTIME_DIRS as readonly string[]).some((d) => rel === d || rel.startsWith(`${d}/`)) ||
+  (STAGE_FILES as readonly string[]).includes(rel) ||
+  (ROOT_FILES as readonly string[]).includes(rel); // the root files (package.json and the rest) are copied as well
 
 test("the plan copies docs/frozen, where agent-tools.md is read at start", () => {
   const p = plan(["lib", "host"], () => true);
@@ -24,10 +27,13 @@ test("every file a staged module declares with @reads is inside a staged directo
       const r = `${rel}/${e.name}`;
       if (SKIP.test(r)) continue;
       if (e.isDirectory()) walk(path.join(dir, e.name), r);
-      else if (/\.(ts|mjs|js)$/.test(e.name)) for (const m of fs.readFileSync(path.join(dir, e.name), "utf8").matchAll(/^\/\/ @reads (\/\S+)/gm)) if (!staged(m[1]!.slice(1))) stray.set(m[1]!, r);
+      else if (/\.(ts|mjs|js)$/.test(e.name))
+        for (const m of fs.readFileSync(path.join(dir, e.name), "utf8").matchAll(/^\/\/ @reads (\/\S+)/gm))
+          if (!staged(m[1]!.slice(1))) stray.set(m[1]!, r);
     }
   };
-  for (const d of RUNTIME_DIRS) if (fs.existsSync(path.join(REPO, d)) && !d.startsWith("docs/")) walk(path.join(REPO, d), d);
+  for (const d of RUNTIME_DIRS)
+    if (fs.existsSync(path.join(REPO, d)) && !d.startsWith("docs/")) walk(path.join(REPO, d), d);
   assert.deepEqual([...stray], [], "a file read at start that the bundle does not carry");
 });
 
@@ -36,7 +42,7 @@ test("the bundle check looks for the file, so a bundle without it fails before t
   assert.ok(src.includes('"docs/frozen/agent-tools.md"'));
 });
 
-test("every file a staged module reads by a path relative to itself (new URL(\"../../x\", import.meta.url)) is staged", () => {
+test('every file a staged module reads by a path relative to itself (new URL("../../x", import.meta.url)) is staged', () => {
   const stray = new Map<string, string>();
   // test helpers that only a test file imports read from a fixtures folder the bundle never carries
   const helper = (rel: string): boolean => /(^|\/)testing\.ts$/.test(rel);
@@ -44,20 +50,32 @@ test("every file a staged module reads by a path relative to itself (new URL(\".
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const r = `${rel}/${e.name}`;
       if (SKIP.test(r)) continue;
-      if (e.isDirectory()) { walk(path.join(dir, e.name), r); continue; }
+      if (e.isDirectory()) {
+        walk(path.join(dir, e.name), r);
+        continue;
+      }
       if (!/\.(ts|mjs|js)$/.test(e.name) || helper(r)) continue;
-      for (const m of fs.readFileSync(path.join(dir, e.name), "utf8").matchAll(/new URL\(\s*[`"']([^`"']*)[`"']\s*,\s*import\.meta\.url/g)) {
+      for (const m of fs
+        .readFileSync(path.join(dir, e.name), "utf8")
+        .matchAll(/new URL\(\s*[`"']([^`"']*)[`"']\s*,\s*import\.meta\.url/g)) {
         let lit = m[1]!;
         const cut = lit.indexOf("${");
         if (cut >= 0) lit = lit.slice(0, cut);
         if (!lit.startsWith(".")) continue;
-        const target = path.relative(REPO, path.resolve(path.dirname(path.join(REPO, r)), lit.endsWith("/") ? lit : cut >= 0 ? path.dirname(lit + "x") : lit));
-        if (target === "" || target.startsWith("..") || !fs.existsSync(path.join(REPO, target))) continue;   // "" is the repo root itself (a base for other paths)
+        const target = path.relative(
+          REPO,
+          path.resolve(
+            path.dirname(path.join(REPO, r)),
+            lit.endsWith("/") ? lit : cut >= 0 ? path.dirname(lit + "x") : lit,
+          ),
+        );
+        if (target === "" || target.startsWith("..") || !fs.existsSync(path.join(REPO, target))) continue; // "" is the repo root itself (a base for other paths)
         if (!staged(target)) stray.set(`${r} -> ${m[1]}`, target);
       }
     }
   };
-  for (const d of RUNTIME_DIRS) if (fs.existsSync(path.join(REPO, d)) && !d.startsWith("docs/")) walk(path.join(REPO, d), d);
+  for (const d of RUNTIME_DIRS)
+    if (fs.existsSync(path.join(REPO, d)) && !d.startsWith("docs/")) walk(path.join(REPO, d), d);
   assert.deepEqual([...stray], [], "a path a module reads relative to itself that the bundle does not carry");
 });
 

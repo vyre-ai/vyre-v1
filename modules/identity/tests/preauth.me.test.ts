@@ -10,7 +10,18 @@ test("me() refuses the pre-auth principal, anonymous or pending, with auth.unaut
   for (const caller of ["anonymous", "pending"] as const) {
     const principal = preAuthSession("spc_x", caller, { "x-vyre-remote": "203.0.113.9" }).principal;
     assert.equal(principal.kind, "actor");
-    const ctx = { space: "spc_x", principal, trace: { traceId: "0".repeat(32) }, db: { all: () => [], run: () => ({ changes: 0 }) }, now: () => 0, emit: () => undefined } as unknown as IdentityCtx;
-    assert.throws(() => me(ctx), (e: unknown) => (e as { error?: { code?: string } }).error?.code === "auth.unauthenticated", caller);
+    const ctx = {
+      space: "spc_x",
+      principal,
+      trace: { traceId: "0".repeat(32) },
+      db: { all: () => [], run: () => ({ changes: 0 }) },
+      now: () => 0,
+      emit: () => undefined,
+    } as unknown as IdentityCtx;
+    assert.throws(
+      () => me(ctx),
+      (e: unknown) => (e as { error?: { code?: string } }).error?.code === "auth.unauthenticated",
+      caller,
+    );
   }
 });

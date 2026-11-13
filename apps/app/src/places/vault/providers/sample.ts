@@ -10,7 +10,13 @@ import type { Catalog } from "./model.ts";
 import type { Parsed } from "../import/model.ts";
 
 export const CATALOG: readonly Catalog[] = [
-  { key: "claude-code", name: "Claude", connections: ["subscription", "api_key"], modelsSource: "anthropic", engine: "claude-code" },
+  {
+    key: "claude-code",
+    name: "Claude",
+    connections: ["subscription", "api_key"],
+    modelsSource: "anthropic",
+    engine: "claude-code",
+  },
   { key: "openai", name: "OpenAI", connections: ["api_key"], modelsSource: "openai", engine: "codex" },
   { key: "anthropic", name: "Anthropic", connections: ["api_key"], modelsSource: "anthropic", engine: "claude-code" },
   { key: "opencode-go", name: "OpenCode Go", connections: ["api_key"], modelsSource: "opencode", engine: "opencode" },
@@ -33,7 +39,10 @@ export interface ProviderSample extends SampleVault {
 }
 
 /** Wraps a Vault sample so the provider, health and import capabilities answer; every other call goes to the sample itself. */
-export function withProviders(base: SampleVault, o: { importItems?: readonly Parsed[]; pick?: string | null } = {}): ProviderSample {
+export function withProviders(
+  base: SampleVault,
+  o: { importItems?: readonly Parsed[]; pick?: string | null } = {},
+): ProviderSample {
   const { replica } = base;
   const picked: string[] = [];
   const flows = new Map<string, { providerKey: string }>();
@@ -41,41 +50,111 @@ export function withProviders(base: SampleVault, o: { importItems?: readonly Par
   const providers = (): (Provider & Row)[] => replica.rows("providers") as unknown as (Provider & Row)[];
   const meOwner = base.data.me.id;
 
-  const addProvider = (c: Catalog, connection: Provider["connection"], scope: Provider["scope"], address?: string): Provider => {
+  const addProvider = (
+    c: Catalog,
+    connection: Provider["connection"],
+    scope: Provider["scope"],
+    address?: string,
+  ): Provider => {
     const n = ++seq;
     const itemId = `vit_prov${n}`;
-    const folder = (replica.rows("folders") as unknown as { id: string; scope: string }[]).find((f) => f.scope === (scope === "mine" ? "mine" : "shared"))?.id ?? "fld_mine";
-    replica.put("items", [{
-      id: itemId, name: connection === "subscription" ? c.name : `${c.name} key`, kind: connection === "subscription" ? "ai_subscription" : "api_key", folderId: folder, owner: meOwner, scope,
-      fieldKeys: [connection === "api_key" ? `${c.key.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_API_KEY` : connection === "local_model" ? "OLLAMA_HOST" : "SETUP_TOKEN"], handle: `#Sample_${c.name}`, spaceOnly: false,
-      injectIntoDeployments: false, yourLevel: "manage", label: 0, createdAt: SAMPLE_NOW, updatedAt: SAMPLE_NOW, lastUsedAt: SAMPLE_NOW,
-    } as unknown as Row]);
+    const folder =
+      (replica.rows("folders") as unknown as { id: string; scope: string }[]).find(
+        (f) => f.scope === (scope === "mine" ? "mine" : "shared"),
+      )?.id ?? "fld_mine";
+    replica.put("items", [
+      {
+        id: itemId,
+        name: connection === "subscription" ? c.name : `${c.name} key`,
+        kind: connection === "subscription" ? "ai_subscription" : "api_key",
+        folderId: folder,
+        owner: meOwner,
+        scope,
+        fieldKeys: [
+          connection === "api_key"
+            ? `${c.key.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_API_KEY`
+            : connection === "local_model"
+              ? "OLLAMA_HOST"
+              : "SETUP_TOKEN",
+        ],
+        handle: `#Sample_${c.name}`,
+        spaceOnly: false,
+        injectIntoDeployments: false,
+        yourLevel: "manage",
+        label: 0,
+        createdAt: SAMPLE_NOW,
+        updatedAt: SAMPLE_NOW,
+        lastUsedAt: SAMPLE_NOW,
+      } as unknown as Row,
+    ]);
     const p: Provider = {
-      id: `prv_new${n}`, providerKey: c.key, name: c.name, connection, scope, itemId, agentsUsing: [], usage: { tokens: 0, costCents: 0, periodStart: Date.UTC(2025, 9, 1) }, engine: c.engine, spaceMayUse: false, state: "ok",
-      via: connection === "subscription" ? `Sign in with ${c.name}` : connection === "local_model" ? `Local model at ${address ?? "this computer"}` : `API key #Sample_${c.name.replace(/\s+/g, "_")}_Key`,
+      id: `prv_new${n}`,
+      providerKey: c.key,
+      name: c.name,
+      connection,
+      scope,
+      itemId,
+      agentsUsing: [],
+      usage: { tokens: 0, costCents: 0, periodStart: Date.UTC(2025, 9, 1) },
+      engine: c.engine,
+      spaceMayUse: false,
+      state: "ok",
+      via:
+        connection === "subscription"
+          ? `Sign in with ${c.name}`
+          : connection === "local_model"
+            ? `Local model at ${address ?? "this computer"}`
+            : `API key #Sample_${c.name.replace(/\s+/g, "_")}_Key`,
     };
     replica.put("providers", [p as unknown as Row]);
     return p;
   };
-  const catalogOf = (key: string): Catalog => { const c = CATALOG.find((x) => x.key === key); if (!c) throw new Error(`No provider called ${key}`); return c; };
+  const catalogOf = (key: string): Catalog => {
+    const c = CATALOG.find((x) => x.key === key);
+    if (!c) throw new Error(`No provider called ${key}`);
+    return c;
+  };
 
   const writes: Record<string, (input: never) => unknown> = {
     "providers.catalog": () => ({ providers: [...CATALOG] }) satisfies CapMap["providers.catalog"]["out"],
     "providers.test": (i: { providerId: string }) => {
       const p = providers().find((x) => x.id === i.providerId);
       if (!p) throw new Error("No such provider");
-      return p.state === "failing" ? { ok: false, models: [], latencyMs: 0, detail: "The key was refused." } : { ok: true, models: p.connection === "local_model" ? ["llama3.1", "qwen2.5"] : p.providerKey === "claude-code" ? ["Opus", "Sonnet", "Haiku"] : ["model-large", "model-small", "model-fast"], latencyMs: 240 };
+      return p.state === "failing"
+        ? { ok: false, models: [], latencyMs: 0, detail: "The key was refused." }
+        : {
+            ok: true,
+            models:
+              p.connection === "local_model"
+                ? ["llama3.1", "qwen2.5"]
+                : p.providerKey === "claude-code"
+                  ? ["Opus", "Sonnet", "Haiku"]
+                  : ["model-large", "model-small", "model-fast"],
+            latencyMs: 240,
+          };
     },
     "providers.add": (i: CapMap["providers.add"]["in"]) => {
       if (i.connection === "api_key" && !i.apiKey?.trim()) throw new Error("Paste the key first.");
       if (i.connection === "local_model" && !i.address) throw new Error("Give the address first.");
-      return { provider: addProvider(catalogOf(i.providerKey), i.connection, i.connection === "local_model" ? "mine" : i.scope, i.address) };
+      return {
+        provider: addProvider(
+          catalogOf(i.providerKey),
+          i.connection,
+          i.connection === "local_model" ? "mine" : i.scope,
+          i.address,
+        ),
+      };
     },
     "providers.subscription_start": (i: { providerKey: string }) => {
       const c = catalogOf(i.providerKey);
       const flowId = `flow${++seq}`;
       flows.set(flowId, { providerKey: c.key });
-      return { flowId, instruction: `Open the address below, sign in to ${c.name}, and enter this code when it asks.`, url: `https://auth.example/${c.key}/device`, userCode: "KQ7M-2XPD" };
+      return {
+        flowId,
+        instruction: `Open the address below, sign in to ${c.name}, and enter this code when it asks.`,
+        url: `https://auth.example/${c.key}/device`,
+        userCode: "KQ7M-2XPD",
+      };
     },
     "providers.subscription_complete": (i: { flowId: string }) => {
       const f = flows.get(i.flowId);
@@ -92,11 +171,17 @@ export function withProviders(base: SampleVault, o: { importItems?: readonly Par
     "providers.remove": (i: { providerId: string }) => {
       const p = providers().find((x) => x.id === i.providerId);
       if (!p) throw new Error("No such provider");
-      replica.put("items", [{ ...(replica.rows("items") as unknown as Row[]).find((r) => r.id === p.itemId)!, trashed: true } as unknown as Row]);
+      replica.put("items", [
+        {
+          ...(replica.rows("items") as unknown as Row[]).find((r) => r.id === p.itemId)!,
+          trashed: true,
+        } as unknown as Row,
+      ]);
       replica.remove("providers", [p.id]);
       return { ok: true };
     },
-    "vault.import_parse": () => ({ items: [...(o.importItems ?? IMPORT_ITEMS)] }) satisfies CapMap["vault.import_parse"]["out"],
+    "vault.import_parse": () =>
+      ({ items: [...(o.importItems ?? IMPORT_ITEMS)] }) satisfies CapMap["vault.import_parse"]["out"],
     "vault.import": (i: CapMap["vault.import"]["in"]) => {
       const items = o.importItems ?? IMPORT_ITEMS;
       const dup = items.filter((p) => p.duplicateOf).length;

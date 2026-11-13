@@ -1,5 +1,21 @@
 // Capability handlers for settings (15). One file holds them all: registry.ts.
-import { copyProfile, copySource, floorSet, get, kitGet, kitSetMine, kitSetSpace, list, pages, publicOf, reset, resetSpace, searchRows, set, setSpace } from "./registry.ts";
+import {
+  copyProfile,
+  copySource,
+  floorSet,
+  get,
+  kitGet,
+  kitSetMine,
+  kitSetSpace,
+  list,
+  pages,
+  publicOf,
+  reset,
+  resetSpace,
+  searchRows,
+  set,
+  setSpace,
+} from "./registry.ts";
 
 import { contactStatus, contactVerifyConfirm, contactVerifyStart } from "./contact.ts";
 

@@ -1,12 +1,33 @@
 // What the host binds into the Hooks module (lane l-hooks; kept in lib so the engine binds it without importing another module): the things only the engine side can do. Unbound (a unit test, a host without them) each answers "nothing happened" and no hook fails the work.
 import type { CheckAnswer } from "./hooks.ts";
 
-export interface Who { agentId: string; asker: string; threadId?: string }
-export interface CommandResult { code: number | null; stdout: string; stderr: string; timedOut: boolean }
-export interface PluginHook { pluginId: string; plugin: string; event: string; matcher: string; command: string; args: string[]; timeoutSec?: number }
+export interface Who {
+  agentId: string;
+  asker: string;
+  threadId?: string;
+}
+export interface CommandResult {
+  code: number | null;
+  stdout: string;
+  stderr: string;
+  timedOut: boolean;
+}
+export interface PluginHook {
+  pluginId: string;
+  plugin: string;
+  event: string;
+  matcher: string;
+  command: string;
+  args: string[];
+  timeoutSec?: number;
+}
 export interface HostSeams {
   /** Run a command in the agent's own sandbox with the event as JSON on its standard input. */
-  command(who: Who, h: { command: string; args?: string[]; timeoutSec: number }, event: unknown): Promise<CommandResult>;
+  command(
+    who: Who,
+    h: { command: string; args?: string[]; timeoutSec: number },
+    event: unknown,
+  ): Promise<CommandResult>;
   /** Run one hook a plugin brought (the existing sandboxed path). */
   plugin(who: Who, h: PluginHook, event: unknown): Promise<CommandResult>;
   /** The hooks the agent's plugins brought, for this asker. */
@@ -18,7 +39,13 @@ export interface HostSeams {
 }
 
 const none = (): Promise<never> => Promise.reject(new Error("this host runs no hooks"));
-export const hostSeams: HostSeams = { command: none, plugin: none, pluginHooks: () => Promise.resolve([]), check: () => Promise.resolve(null), action: none };
+export const hostSeams: HostSeams = {
+  command: none,
+  plugin: none,
+  pluginHooks: () => Promise.resolve([]),
+  check: () => Promise.resolve(null),
+  action: none,
+};
 
 /** Bind (or, with null, unbind) what the host can do. */
 export function bindHooks(h: Partial<HostSeams> | null): void {

@@ -10,19 +10,27 @@ const OUT = "shots-evidence/chat-queued";
 // Known gap (see BACKLOG): see chat.btw.journeys; the process ends 1.5 s after the journey with the exit code of its result.
 let passes = 0;
 let ran = false;
-after(() => { if (ran) setTimeout(() => process.exit(passes === 1 ? 0 : 1), 1_500); });
+after(() => {
+  if (ran) setTimeout(() => process.exit(passes === 1 ? 0 : 1), 1_500);
+});
 
 test("a message queued behind a running agent shows as queued; Edit takes it back, Send now sends it first", async (t) => {
   const env = await browserOrSkip();
-  if (typeof env === "string") { t.skip(env); return; }
+  if (typeof env === "string") {
+    t.skip(env);
+    return;
+  }
   ran = true;
   const s = await bootScreens({ kind: "personal", engineCli: cli }, env);
   const dir = `${OUT}/queued`;
   try {
     const w = s.world;
     await connectSubscription(w);
-    const agent = (await w.owner.ok("agents.create", { name: "Haiku", role: "You answer briefly.", idempotencyKey: "qd-agent" })).agent.agentId as string;
-    const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agent], idempotencyKey: "qd-chat" })).thread.threadId as string;
+    const agent = (
+      await w.owner.ok("agents.create", { name: "Haiku", role: "You answer briefly.", idempotencyKey: "qd-agent" })
+    ).agent.agentId as string;
+    const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agent], idempotencyKey: "qd-chat" }))
+      .thread.threadId as string;
     await w.owner.ok("threads.set_mode", { threadId, mode: "auto", idempotencyKey: "qd-auto" });
     const me = await seat(s, w.owner, "Owner");
     await open(me, s, `/chat#screen=chats.conversation&threadId=${threadId}`);
@@ -39,14 +47,25 @@ test("a message queued behind a running agent shows as queued; Edit takes it bac
     await me.page.getByTestId("queue-note").waitFor({ timeout: 10_000 });
     await me.page.getByTestId("queue-edit").waitFor({ state: "visible", timeout: 10_000 });
     await me.page.getByTestId("queue-send-now").waitFor({ state: "visible", timeout: 10_000 });
-    assert.equal(await me.page.getByTestId("queue-note").innerText(), "Goes in at the next step", "a steering engine takes the message at its next step");
+    assert.equal(
+      await me.page.getByTestId("queue-note").innerText(),
+      "Goes in at the next step",
+      "a steering engine takes the message at its next step",
+    );
     await shoot(me.page, dir, "queued", { phone: false });
 
     // Edit: it leaves the queue and the chat, and its words are back in the composer
     await me.page.getByTestId("queue-edit").click();
     // the field is the chat field (a contenteditable, not a textarea): read what a person sees in it
-    await me.page.waitForFunction(() => { const f = document.querySelector('[data-testid="composer-field"]') as (HTMLElement & { value?: string }) | null; return (f?.value ?? f?.innerText ?? "").trim() === "tell me the plan after this"; }, undefined, { timeout: 10_000 });
-    await me.page.getByTestId("queue-note").waitFor({ state: "detached", timeout: 10_000 });   // nothing is queued now
+    await me.page.waitForFunction(
+      () => {
+        const f = document.querySelector('[data-testid="composer-field"]') as (HTMLElement & { value?: string }) | null;
+        return (f?.value ?? f?.innerText ?? "").trim() === "tell me the plan after this";
+      },
+      undefined,
+      { timeout: 10_000 },
+    );
+    await me.page.getByTestId("queue-note").waitFor({ state: "detached", timeout: 10_000 }); // nothing is queued now
     const msgs = (await w.owner.ok("chat.messages.list", { threadId })).messages as Array<{ body: string }>;
     assert.ok(!msgs.some((m) => /tell me the plan/.test(m.body)), "and the message is gone from the chat");
     await shoot(me.page, dir, "edit-back-in-composer", { phone: false });
@@ -62,5 +81,7 @@ test("a message queued behind a running agent shows as queued; Edit takes it bac
     await shoot(me.page, dir, "sent-now", { phone: false });
     assert.deepEqual(me.errors, [], "no page errors");
     passes++;
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });

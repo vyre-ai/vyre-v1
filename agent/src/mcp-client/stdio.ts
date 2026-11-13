@@ -27,10 +27,16 @@ export function stdioTransport(proc: ProcLike): McpTransport {
           const line = buf.slice(0, i).trim();
           buf = buf.slice(i + 1);
           if (line === "") continue;
-          try { onMessage(JSON.parse(line) as unknown); } catch { /* a line that is not JSON (a log line on stdout) is skipped */ }
+          try {
+            onMessage(JSON.parse(line) as unknown);
+          } catch {
+            /* a line that is not JSON (a log line on stdout) is skipped */
+          }
         }
       }
-    } catch { /* the stream ended badly: the exit below reports it */ }
+    } catch {
+      /* the stream ended badly: the exit below reports it */
+    }
     await proc.exited.catch(() => undefined);
     if (!closing) {
       const tail = proc.stderrTail().trim();
@@ -39,8 +45,20 @@ export function stdioTransport(proc: ProcLike): McpTransport {
   })();
   return {
     send: (m) => proc.write(`${JSON.stringify(m)}\n`),
-    onMessage: (cb) => { onMessage = cb; },
-    onClose: (cb) => { onClose = cb; },
-    close: async () => { closing = true; try { proc.endInput(); } catch { /* closed */ } proc.kill("SIGTERM"); },
+    onMessage: (cb) => {
+      onMessage = cb;
+    },
+    onClose: (cb) => {
+      onClose = cb;
+    },
+    close: async () => {
+      closing = true;
+      try {
+        proc.endInput();
+      } catch {
+        /* closed */
+      }
+      proc.kill("SIGTERM");
+    },
   };
 }

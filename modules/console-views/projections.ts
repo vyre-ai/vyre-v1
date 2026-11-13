@@ -12,9 +12,30 @@ import type { CapName, ErrorCode, VyreError } from "../../packages/contracts/src
 export type ViewCtx = Pick<Ctx, "space" | "principal" | "trace" | "now" | "call" | "authorize">;
 
 export type State = "healthy" | "degraded" | "down";
-export type AttentionKind = "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel" | "no_ai_account" | "space_deletion_scheduled";
-export interface Attention { kind: AttentionKind; title: string; ref?: string; since: number; next: string }
-export interface ActivityRow { at: number; actor: string; action: string; resource?: string }
+export type AttentionKind =
+  | "failing_check"
+  | "expiring_certificate"
+  | "failed_run"
+  | "stuck_update"
+  | "limit_hit"
+  | "access_review_due"
+  | "join_stuck"
+  | "home_channel"
+  | "no_ai_account"
+  | "space_deletion_scheduled";
+export interface Attention {
+  kind: AttentionKind;
+  title: string;
+  ref?: string;
+  since: number;
+  next: string;
+}
+export interface ActivityRow {
+  at: number;
+  actor: string;
+  action: string;
+  resource?: string;
+}
 
 export const DAY_MS = 86_400_000;
 /** A certificate this close to expiry (or past it) needs attention. */
@@ -35,7 +56,13 @@ export const DESIGN_BETA = "Vyre is in design beta. Contact Clearfield Labs for 
 export function failWith(traceId: string, code: ErrorCode, message?: string): never {
   const def = ERROR_CODES.find((e) => e.code === code) ?? ERROR_CODES.find((e) => e.code === "internal.unexpected");
   if (!def) throw new Error("error catalogue is empty");
-  const error: VyreError = { code: def.code, message: message ?? def.what, retryable: def.retryable, traceId, next: def.next.map((kind) => ({ kind, label: kind })) };
+  const error: VyreError = {
+    code: def.code,
+    message: message ?? def.what,
+    retryable: def.retryable,
+    traceId,
+    next: def.next.map((kind) => ({ kind, label: kind })),
+  };
   throw new VyreErr(error);
 }
 
@@ -53,7 +80,11 @@ export const isState = (v: unknown): v is State => v === "healthy" || v === "deg
 const RANK: Record<State, number> = { healthy: 0, degraded: 1, down: 2 };
 
 /** Call a capability; a refusal or a failure is null, so one unreadable source never takes the page down. */
-export async function ask(ctx: ViewCtx, cap: string, input: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+export async function ask(
+  ctx: ViewCtx,
+  cap: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown> | null> {
   try {
     return asRow(await ctx.call(cap as CapName, input));
   } catch {
@@ -63,7 +94,18 @@ export async function ask(ctx: ViewCtx, cap: string, input: Record<string, unkno
 
 // ---- attention
 
-const KIND_ORDER: Record<AttentionKind, number> = { space_deletion_scheduled: -1, no_ai_account: 0, failing_check: 1, expiring_certificate: 2, stuck_update: 3, failed_run: 4, join_stuck: 5, limit_hit: 6, access_review_due: 7, home_channel: 8 };
+const KIND_ORDER: Record<AttentionKind, number> = {
+  space_deletion_scheduled: -1,
+  no_ai_account: 0,
+  failing_check: 1,
+  expiring_certificate: 2,
+  stuck_update: 3,
+  failed_run: 4,
+  join_stuck: 5,
+  limit_hit: 6,
+  access_review_due: 7,
+  home_channel: 8,
+};
 
 function checkItems(health: Record<string, unknown> | null, now: number): Attention[] {
   const found: { item: Attention; state: State }[] = [];
@@ -72,9 +114,13 @@ function checkItems(health: Record<string, unknown> | null, now: number): Attent
     if (!isState(state) || state === "healthy") continue;
     const key = str(c["key"]);
     found.push({
-      state, item: {
-        kind: "failing_check", title: `${str(c["title"]) ?? key ?? "A health check"} is ${state}`,
-        ...(key ? { ref: key } : {}), since: num(c["checkedAt"]) ?? now, next: str(c["next"]) ?? "Open Diagnostics and run the check again.",
+      state,
+      item: {
+        kind: "failing_check",
+        title: `${str(c["title"]) ?? key ?? "A health check"} is ${state}`,
+        ...(key ? { ref: key } : {}),
+        since: num(c["checkedAt"]) ?? now,
+        next: str(c["next"]) ?? "Open Diagnostics and run the check again.",
       },
     });
   }
@@ -91,20 +137,30 @@ function certItems(net: Record<string, unknown> | null, now: number): Attention[
   const soon = expiresAt !== undefined && expiresAt - now < CERT_WARN_DAYS * DAY_MS;
   if (!soon && (state === undefined || state === "healthy")) return [];
   const gone = expiresAt !== undefined && expiresAt <= now;
-  return [{
-    kind: "expiring_certificate", title: gone ? `The certificate for ${host} has expired` : `The certificate for ${host} expires soon`,
-    ref: host, since: expiresAt ?? now, next: "Open Network and renew the certificate.",
-  }];
+  return [
+    {
+      kind: "expiring_certificate",
+      title: gone ? `The certificate for ${host} has expired` : `The certificate for ${host} expires soon`,
+      ref: host,
+      since: expiresAt ?? now,
+      next: "Open Network and renew the certificate.",
+    },
+  ];
 }
 
 function updateItems(up: Record<string, unknown> | null, now: number): Attention[] {
   const last = up?.["lastResult"];
   if (last !== "failed" && last !== "rolled_back") return [];
   const current = str(up?.["current"]);
-  return [{
-    kind: "stuck_update", title: last === "failed" ? "The last update failed" : "The last update was rolled back",
-    ...(current ? { ref: current } : {}), since: now, next: "Open Updates, read the result and try again after a backup.",
-  }];
+  return [
+    {
+      kind: "stuck_update",
+      title: last === "failed" ? "The last update failed" : "The last update was rolled back",
+      ...(current ? { ref: current } : {}),
+      since: now,
+      next: "Open Updates, read the result and try again after a backup.",
+    },
+  ];
 }
 
 function runItems(runs: Record<string, unknown> | null): Attention[] {
@@ -112,7 +168,15 @@ function runItems(runs: Record<string, unknown> | null): Attention[] {
     const id = str(r["id"]);
     const at = num(r["endedAt"]) ?? num(r["startedAt"]);
     if (!id || at === undefined) return [];
-    return [{ kind: "failed_run", title: `${str(r["name"]) ?? str(r["kind"]) ?? "A run"} failed`, ref: id, since: at, next: str(r["summary"]) ?? "Open the run and read the first failed step." }];
+    return [
+      {
+        kind: "failed_run",
+        title: `${str(r["name"]) ?? str(r["kind"]) ?? "A run"} failed`,
+        ref: id,
+        since: at,
+        next: str(r["summary"]) ?? "Open the run and read the first failed step.",
+      },
+    ];
   });
 }
 
@@ -122,19 +186,36 @@ function reviewItems(reviews: Record<string, unknown> | null): Attention[] {
     const at = num(r["openedAt"]);
     if (!id || at === undefined) return [];
     const left = Math.max(0, (num(r["items"]) ?? 0) - (num(r["decided"]) ?? 0));
-    return [{ kind: "access_review_due", title: "An access review is open", ref: id, since: at, next: left > 0 ? `Decide the ${left} grant${left === 1 ? "" : "s"} still waiting.` : "Close the review." }];
+    return [
+      {
+        kind: "access_review_due",
+        title: "An access review is open",
+        ref: id,
+        since: at,
+        next: left > 0 ? `Decide the ${left} grant${left === 1 ? "" : "s"} still waiting.` : "Close the review.",
+      },
+    ];
   });
 }
 
 /** A new member whose join keeps failing (three tries or more): who, and the first step that did not work, in words. The retry keeps running every two minutes. */
 function joinItems(joins: Record<string, unknown> | null): Attention[] {
   return asList(joins?.["joins"]).flatMap((j): Attention[] => {
-    const person = str(j["personId"]), at = num(j["joinedAt"]);
+    const person = str(j["personId"]),
+      at = num(j["joinedAt"]);
     if (!person || at === undefined || j["stuck"] !== true) return [];
     const steps = asList(j["steps"]);
     const first = str(steps[0]?.["title"]) ?? "A step";
     const more = steps.length > 1 ? ` and ${steps.length - 1} more` : "";
-    return [{ kind: "join_stuck", title: `${str(j["name"]) ?? "A new member"} is missing ${first}${more}`, ref: person, since: at, next: `${str(steps[0]?.["error"]) ?? "It did not work."} Retry, or fix it by hand.` }];
+    return [
+      {
+        kind: "join_stuck",
+        title: `${str(j["name"]) ?? "A new member"} is missing ${first}${more}`,
+        ref: person,
+        since: at,
+        next: `${str(steps[0]?.["error"]) ?? "It did not work."} Retry, or fix it by hand.`,
+      },
+    ];
   });
 }
 
@@ -142,17 +223,49 @@ function joinItems(joins: Record<string, unknown> | null): Attention[] {
 function homeItems(home: Record<string, unknown> | null, now: number): Attention[] {
   const c = asRow(home?.["channel"]);
   if (!c || c["legacy"] !== true) return [];
-  return [{ kind: "home_channel", title: "Your first channel is #general", ref: str(c["channelId"]) ?? "general", since: now, next: "New Spaces call it #vyre. Rename it, or keep #general." }];
+  return [
+    {
+      kind: "home_channel",
+      title: "Your first channel is #general",
+      ref: str(c["channelId"]) ?? "general",
+      since: now,
+      next: "New Spaces call it #vyre. Rename it, or keep #general.",
+    },
+  ];
 }
 
 /** A Team Space with no AI account the team can use (no Space AI key, no key shared with the Space): members' chats get no reply until someone adds one. */
-function aiItems(space: Record<string, unknown> | null, providers: Record<string, unknown> | null, now: number): Attention[] {
+function aiItems(
+  space: Record<string, unknown> | null,
+  providers: Record<string, unknown> | null,
+  now: number,
+): Attention[] {
   if (!providers || asRow(space?.["space"])?.["kind"] === "personal") return [];
   if (asList(providers["providers"]).some((p) => p["scope"] === "shared")) return [];
-  return [{ kind: "no_ai_account", title: "Your team has no AI account", since: now, next: "Set a Space AI key, or share a key with the Space, so every member's chats get replies." }];
+  return [
+    {
+      kind: "no_ai_account",
+      title: "Your team has no AI account",
+      since: now,
+      next: "Set a Space AI key, or share a key with the Space, so every member's chats get replies.",
+    },
+  ];
 }
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 /** A deletion waits this long after it is scheduled; the Overview line says since when. */
 const DELETION_DELAY_MS = 14 * DAY_MS;
 
@@ -161,10 +274,20 @@ function deletionItems(space: Record<string, unknown> | null, now: number): Atte
   const at = num(asRow(space?.["space"])?.["deletionAt"]);
   if (at === undefined) return [];
   const d = new Date(at);
-  return [{ kind: "space_deletion_scheduled", title: `Scheduled for deletion on ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`, since: Math.min(now, at - DELETION_DELAY_MS), next: "Cancel deletion" }];
+  return [
+    {
+      kind: "space_deletion_scheduled",
+      title: `Scheduled for deletion on ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`,
+      since: Math.min(now, at - DELETION_DELAY_MS),
+      next: "Cancel deletion",
+    },
+  ];
 }
 
-export interface Gathered { health: State; attention: Attention[] }
+export interface Gathered {
+  health: State;
+  attention: Attention[];
+}
 
 /** Health and attention in one pass, so the Overview and console.attention agree. */
 export async function gather(ctx: ViewCtx): Promise<Gathered> {
@@ -185,10 +308,30 @@ export async function gather(ctx: ViewCtx): Promise<Gathered> {
   // health.status unreadable is itself a reason to look: degraded, never silently healthy
   const state: State = isState(overall) ? overall : "degraded";
   const kept = asRow(keep?.["row"])?.["value"] === true;
-  const items = [...checkItems(health, now), ...certItems(net, now), ...updateItems(up, now), ...runItems(runs), ...joinItems(joins), ...reviewItems(reviews), ...(kept ? [] : homeItems(home, now)), ...aiItems(space, providers, now), ...deletionItems(space, now)];
+  const items = [
+    ...checkItems(health, now),
+    ...certItems(net, now),
+    ...updateItems(up, now),
+    ...runItems(runs),
+    ...joinItems(joins),
+    ...reviewItems(reviews),
+    ...(kept ? [] : homeItems(home, now)),
+    ...aiItems(space, providers, now),
+    ...deletionItems(space, now),
+  ];
   const rank = (a: Attention): number => KIND_ORDER[a.kind];
-  const attention = items.map((a, i) => ({ a, i })).sort((x, y) => rank(x.a) - rank(y.a) || x.i - y.i).map((x) => x.a).slice(0, ATTENTION_MAX);
-  if (!health) attention.unshift({ kind: "failing_check", title: "Health could not be read", since: now, next: "Open Diagnostics and run the checks." });
+  const attention = items
+    .map((a, i) => ({ a, i }))
+    .sort((x, y) => rank(x.a) - rank(y.a) || x.i - y.i)
+    .map((x) => x.a)
+    .slice(0, ATTENTION_MAX);
+  if (!health)
+    attention.unshift({
+      kind: "failing_check",
+      title: "Health could not be read",
+      since: now,
+      next: "Open Diagnostics and run the checks.",
+    });
   return { health: state, attention };
 }
 
@@ -210,7 +353,11 @@ const personTarget = (r: Record<string, unknown>): string | undefined => {
   return t ? str(t["id"]) : undefined;
 };
 /** Steps the Space takes by itself while someone joins (their account, their role, their first team): one line says they joined, these say nothing more. */
-const JOIN_STEPS: ReadonlySet<string> = new Set(["invites.accept_create_account", "access.roles.assign", "access.groups.add_member"]);
+const JOIN_STEPS: ReadonlySet<string> = new Set([
+  "invites.accept_create_account",
+  "access.roles.assign",
+  "access.groups.add_member",
+]);
 
 export async function recentActivity(ctx: ViewCtx, limit: number): Promise<ActivityRow[]> {
   // asked for a little more than shown, since a join's own steps are folded into its one line
@@ -224,8 +371,16 @@ export async function recentActivity(ctx: ViewCtx, limit: number): Promise<Activ
     // reading the log is itself a row, and this very read is one: the glance lists what people changed, not that someone looked
     if (action === "audit.viewed") return [];
     // a join reads as one plain line, "Maya Lin joined the Space from an invite", said of the person who joined (the row's actor is the join link, not a person)
-    if (action === "members.accept") { const who = personTarget(r); return [{ at, actor: who ?? actorOf(r["actor"]), action }]; }
-    if (str(asRow(r["actor"])?.["kind"]) === "service" && JOIN_STEPS.has(action) && (joins.has(str(r["traceId"]) ?? "") || action === "invites.accept_create_account")) return [];
+    if (action === "members.accept") {
+      const who = personTarget(r);
+      return [{ at, actor: who ?? actorOf(r["actor"]), action }];
+    }
+    if (
+      str(asRow(r["actor"])?.["kind"]) === "service" &&
+      JOIN_STEPS.has(action) &&
+      (joins.has(str(r["traceId"]) ?? "") || action === "invites.accept_create_account")
+    )
+      return [];
     const resource = resourceOf(r["resource"]);
     return [{ at, actor: actorOf(r["actor"]), action, ...(resource ? { resource } : {}) }];
   });
@@ -233,10 +388,20 @@ export async function recentActivity(ctx: ViewCtx, limit: number): Promise<Activ
 }
 
 const dayStart = (t: number): number => Math.floor(t / DAY_MS) * DAY_MS;
-const monthStart = (t: number): number => { const d = new Date(t); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1); };
-const totalsOf = (out: Record<string, unknown> | null): { turns: number; tokensIn: number; tokensOut: number; costMicros: number } => {
+const monthStart = (t: number): number => {
+  const d = new Date(t);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
+};
+const totalsOf = (
+  out: Record<string, unknown> | null,
+): { turns: number; tokensIn: number; tokensOut: number; costMicros: number } => {
   const t = asRow(out?.["totals"]);
-  return { turns: num(t?.["turns"]) ?? 0, tokensIn: num(t?.["tokensIn"]) ?? 0, tokensOut: num(t?.["tokensOut"]) ?? 0, costMicros: num(t?.["costMicros"]) ?? 0 };
+  return {
+    turns: num(t?.["turns"]) ?? 0,
+    tokensIn: num(t?.["tokensIn"]) ?? 0,
+    tokensOut: num(t?.["tokensOut"]) ?? 0,
+    costMicros: num(t?.["costMicros"]) ?? 0,
+  };
 };
 
 export async function usageGlance(ctx: ViewCtx) {
@@ -248,7 +413,12 @@ export async function usageGlance(ctx: ViewCtx) {
     ask(ctx, "access.principals.list", { kind: "agent", status: "active", limit: 1 }),
   ]);
   const count = (o: Record<string, unknown> | null): number => num(o?.["total"]) ?? asList(o?.["principals"]).length;
-  return { turnsToday: totalsOf(today).turns, costMicrosMonth: totalsOf(month).costMicros, members: count(people), agents: count(agents) };
+  return {
+    turnsToday: totalsOf(today).turns,
+    costMicrosMonth: totalsOf(month).costMicros,
+    members: count(people),
+    agents: count(agents),
+  };
 }
 
 const PERIOD_MS = { day: DAY_MS, week: 7 * DAY_MS, month: 30 * DAY_MS } as const;
@@ -266,45 +436,115 @@ export async function usageRows(ctx: ViewCtx, period: keyof typeof PERIOD_MS, by
 
 // ---- navigation, pruned by permission
 
-interface NavPage { key: string; title: string; perm: string }
-interface NavGroup { key: string; title: string; pages: NavPage[] }
+interface NavPage {
+  key: string;
+  title: string;
+  perm: string;
+}
+interface NavGroup {
+  key: string;
+  title: string;
+  pages: NavPage[];
+}
 const C = "console.access";
 export const NAV: readonly NavGroup[] = [
-  { key: "overview", title: "Overview", pages: [{ key: "console.overview", title: "Overview", perm: C }, { key: "console.usage", title: "Usage", perm: C }] },
-  { key: "access", title: "Access", pages: [
-    { key: "access.people", title: "People", perm: "access.manage" }, { key: "access.groups", title: "Groups", perm: "access.manage" }, { key: "access.roles", title: "Roles", perm: "access.manage" }, { key: "access.permissions", title: "Permissions", perm: "access.manage" },
-    { key: "access.grants", title: "Grants", perm: "access.manage" }, { key: "access.policies", title: "Policies", perm: "policy.manage" }, { key: "access.checker", title: "Access checker", perm: "access.manage" },
-    { key: "access.reviews", title: "Access reviews", perm: "access.manage" }, { key: "devices.sessions", title: "Sessions and devices", perm: "access.manage" },
-  ] },
-  { key: "agents", title: "Agents and actors", pages: [
-    { key: "console.agents-register", title: "Agents", perm: C }, { key: "console.outside-actors", title: "Outside actors", perm: "access.manage" },
-    { key: "console.agent-computers", title: "Agent computers", perm: C }, { key: "console.agent-template", title: "Agent template", perm: "agents.manage" },
-    { key: "console.skills", title: "Skills", perm: "agents.manage" }, { key: "console.plugins", title: "Plugins and tools", perm: "agents.manage" }, { key: "console.hooks", title: "Hooks", perm: "agents.manage" },
-  ] },
-  { key: "data", title: "Data", pages: [
-    { key: "console.schema", title: "Schema", perm: "schema.manage" }, { key: "console.labels", title: "Sensitivity labels", perm: "policy.manage" },
-    { key: "governance.retention", title: "Retention", perm: "policy.manage" }, { key: "governance.holds", title: "Holds", perm: "records.hold" },
-    { key: "governance.erase", title: "Erase a person", perm: "policy.manage" }, { key: "console.backups", title: "Backups", perm: "server.backups" },
-  ] },
-  { key: "ai", title: "AI", pages: [
-    { key: "console.ai-models", title: "Models and providers", perm: "ai.models" }, { key: "gate.rules", title: "Gate rules", perm: "policy.manage" },
-    { key: "console.ai-voice", title: "Voice", perm: "policy.manage" }, { key: "console.ai-spend", title: "Spend and limits", perm: "ai.spend" },
-    { key: "console.ai-review", title: "Review sampling", perm: "ai.incidents" }, { key: "console.ai-incidents", title: "Incidents", perm: "ai.incidents" },
-  ] },
-  { key: "comms", title: "Comms", pages: [
-    { key: "mail.domains", title: "Sending domains", perm: "comms.domains" }, { key: "telephony.numbers", title: "Numbers", perm: "comms.numbers" },
-    { key: "mail.shared-inboxes", title: "Shared inboxes", perm: "comms.shared_send" }, { key: "telephony.registration", title: "Texting registration", perm: "comms.numbers" },
-  ] },
-  { key: "integrations", title: "Integrations", pages: [
-    { key: "company.setup", title: "Connect your company", perm: "connectors.manage" }, { key: "google.setup", title: "Google Workspace", perm: "connectors.manage" }, { key: "microsoft.setup", title: "Microsoft 365", perm: "connectors.manage" },
-    { key: "console.integrations", title: "Connectors and connections", perm: "connectors.manage" }, { key: "events.webhooks", title: "Webhooks", perm: "connectors.manage" },
-    { key: "console.github-app", title: "GitHub", perm: "connectors.manage" }, { key: "console.mcp-sessions", title: "API keys", perm: "access.manage" },
-  ] },
-  { key: "infrastructure", title: "Machines", pages: [
-    { key: "console.machines", title: "Machines", perm: C }, { key: "console.network", title: "Network", perm: "server.network" }, { key: "console.server-updates", title: "Updates", perm: "server.update" },
-    { key: "console.server-logs", title: "Logs", perm: "server.logs" }, { key: "console.diagnostics", title: "Diagnostics", perm: C },
-    { key: "console.ci", title: "CI runners", perm: "connectors.manage" }, { key: "console.support-bundle", title: "Support bundle", perm: "server.logs" }, { key: "console.speed", title: "Speed", perm: C },
-  ] },
+  {
+    key: "overview",
+    title: "Overview",
+    pages: [
+      { key: "console.overview", title: "Overview", perm: C },
+      { key: "console.usage", title: "Usage", perm: C },
+    ],
+  },
+  {
+    key: "access",
+    title: "Access",
+    pages: [
+      { key: "access.people", title: "People", perm: "access.manage" },
+      { key: "access.groups", title: "Groups", perm: "access.manage" },
+      { key: "access.roles", title: "Roles", perm: "access.manage" },
+      { key: "access.permissions", title: "Permissions", perm: "access.manage" },
+      { key: "access.grants", title: "Grants", perm: "access.manage" },
+      { key: "access.policies", title: "Policies", perm: "policy.manage" },
+      { key: "access.checker", title: "Access checker", perm: "access.manage" },
+      { key: "access.reviews", title: "Access reviews", perm: "access.manage" },
+      { key: "devices.sessions", title: "Sessions and devices", perm: "access.manage" },
+    ],
+  },
+  {
+    key: "agents",
+    title: "Agents and actors",
+    pages: [
+      { key: "console.agents-register", title: "Agents", perm: C },
+      { key: "console.outside-actors", title: "Outside actors", perm: "access.manage" },
+      { key: "console.agent-computers", title: "Agent computers", perm: C },
+      { key: "console.agent-template", title: "Agent template", perm: "agents.manage" },
+      { key: "console.skills", title: "Skills", perm: "agents.manage" },
+      { key: "console.plugins", title: "Plugins and tools", perm: "agents.manage" },
+      { key: "console.hooks", title: "Hooks", perm: "agents.manage" },
+    ],
+  },
+  {
+    key: "data",
+    title: "Data",
+    pages: [
+      { key: "console.schema", title: "Schema", perm: "schema.manage" },
+      { key: "console.labels", title: "Sensitivity labels", perm: "policy.manage" },
+      { key: "governance.retention", title: "Retention", perm: "policy.manage" },
+      { key: "governance.holds", title: "Holds", perm: "records.hold" },
+      { key: "governance.erase", title: "Erase a person", perm: "policy.manage" },
+      { key: "console.backups", title: "Backups", perm: "server.backups" },
+    ],
+  },
+  {
+    key: "ai",
+    title: "AI",
+    pages: [
+      { key: "console.ai-models", title: "Models and providers", perm: "ai.models" },
+      { key: "gate.rules", title: "Gate rules", perm: "policy.manage" },
+      { key: "console.ai-voice", title: "Voice", perm: "policy.manage" },
+      { key: "console.ai-spend", title: "Spend and limits", perm: "ai.spend" },
+      { key: "console.ai-review", title: "Review sampling", perm: "ai.incidents" },
+      { key: "console.ai-incidents", title: "Incidents", perm: "ai.incidents" },
+    ],
+  },
+  {
+    key: "comms",
+    title: "Comms",
+    pages: [
+      { key: "mail.domains", title: "Sending domains", perm: "comms.domains" },
+      { key: "telephony.numbers", title: "Numbers", perm: "comms.numbers" },
+      { key: "mail.shared-inboxes", title: "Shared inboxes", perm: "comms.shared_send" },
+      { key: "telephony.registration", title: "Texting registration", perm: "comms.numbers" },
+    ],
+  },
+  {
+    key: "integrations",
+    title: "Integrations",
+    pages: [
+      { key: "company.setup", title: "Connect your company", perm: "connectors.manage" },
+      { key: "google.setup", title: "Google Workspace", perm: "connectors.manage" },
+      { key: "microsoft.setup", title: "Microsoft 365", perm: "connectors.manage" },
+      { key: "console.integrations", title: "Connectors and connections", perm: "connectors.manage" },
+      { key: "events.webhooks", title: "Webhooks", perm: "connectors.manage" },
+      { key: "console.github-app", title: "GitHub", perm: "connectors.manage" },
+      { key: "console.mcp-sessions", title: "API keys", perm: "access.manage" },
+    ],
+  },
+  {
+    key: "infrastructure",
+    title: "Machines",
+    pages: [
+      { key: "console.machines", title: "Machines", perm: C },
+      { key: "console.network", title: "Network", perm: "server.network" },
+      { key: "console.server-updates", title: "Updates", perm: "server.update" },
+      { key: "console.server-logs", title: "Logs", perm: "server.logs" },
+      { key: "console.diagnostics", title: "Diagnostics", perm: C },
+      { key: "console.ci", title: "CI runners", perm: "connectors.manage" },
+      { key: "console.support-bundle", title: "Support bundle", perm: "server.logs" },
+      { key: "console.speed", title: "Speed", perm: C },
+    ],
+  },
   { key: "audit", title: "Audit log", pages: [{ key: "audit.log", title: "Audit log", perm: "audit.read" }] },
   { key: "space", title: "Space", pages: [{ key: "spaces.console", title: "Space settings", perm: "policy.manage" }] },
 ];
@@ -319,21 +559,35 @@ export function navFor(ctx: ViewCtx): { key: string; title: string; pages: { key
     }
     return ok;
   };
-  return NAV.map((g) => ({ key: g.key, title: g.title, pages: g.pages.filter((p) => may(p.perm)).map((p) => ({ key: p.key, title: p.title })) })).filter((g) => g.pages.length > 0);
+  return NAV.map((g) => ({
+    key: g.key,
+    title: g.title,
+    pages: g.pages.filter((p) => may(p.perm)).map((p) => ({ key: p.key, title: p.title })),
+  })).filter((g) => g.pages.length > 0);
 }
 
 // ---- speed
 
-export interface Budget { id: string; p50: number; p95: number; sense: "max" | "min" | "exact"; unit: string }
+export interface Budget {
+  id: string;
+  p50: number;
+  p95: number;
+  sense: "max" | "min" | "exact";
+  unit: string;
+}
 let provider: (() => Budget[]) | null = null;
 /** Tests replace where the budgets come from; null restores perf/budgets.json. */
-export function setBudgetsProvider(p: (() => Budget[]) | null): void { provider = p; }
+export function setBudgetsProvider(p: (() => Budget[]) | null): void {
+  provider = p;
+}
 
 let cached: Budget[] | null = null;
 export function loadBudgets(): Budget[] {
   if (provider) return provider();
   if (cached) return cached;
-  const raw = JSON.parse(readFileSync(fileURLToPath(new URL("../../perf/budgets.json", import.meta.url).href), "utf8")) as { budgets?: unknown };
+  const raw = JSON.parse(
+    readFileSync(fileURLToPath(new URL("../../perf/budgets.json", import.meta.url).href), "utf8"),
+  ) as { budgets?: unknown };
   cached = asList(raw.budgets).flatMap((b): Budget[] => {
     const id = str(b["id"]);
     const p95 = num(b["p95"]);
@@ -352,8 +606,20 @@ export function percentile(sorted: readonly number[], p: number): number {
 }
 const round = (n: number): number => Math.round(n * 100) / 100;
 
-export interface SpeedRow { unit: string; sense: Budget["sense"]; budgetId: string; p50: number; p95: number; budgetP95: number; worstTraceId?: string; over: boolean }
-interface Sample { value: number; traceId?: string }
+export interface SpeedRow {
+  unit: string;
+  sense: Budget["sense"];
+  budgetId: string;
+  p50: number;
+  p95: number;
+  budgetP95: number;
+  worstTraceId?: string;
+  over: boolean;
+}
+interface Sample {
+  value: number;
+  traceId?: string;
+}
 
 async function samplesOf(ctx: ViewCtx, b: Budget, since: number): Promise<Sample[]> {
   const out: Sample[] = [];
@@ -364,7 +630,10 @@ async function samplesOf(ctx: ViewCtx, b: Budget, since: number): Promise<Sample
       const at = num(s["at"]);
       if (at === undefined || at < since) continue;
       const attrs = asRow(s["attrs"]);
-      const value = b.unit === "ms" ? (num(s["durUs"]) ?? 0) / 1000 : num(attrs?.["measured"]) ?? num(attrs?.["value"]) ?? num(attrs?.["count"]);
+      const value =
+        b.unit === "ms"
+          ? (num(s["durUs"]) ?? 0) / 1000
+          : (num(attrs?.["measured"]) ?? num(attrs?.["value"]) ?? num(attrs?.["count"]));
       if (value === undefined) continue;
       const traceId = str(s["traceId"]);
       out.push({ value, ...(traceId ? { traceId } : {}) });
@@ -384,9 +653,18 @@ export function rollUp(b: Budget, samples: readonly Sample[]): SpeedRow | null {
   const values = samples.map((s) => s.value).sort((x, y) => x - y);
   const low = b.sense === "min";
   const tail = low ? percentile(values, 5) : percentile(values, 95);
-  const worst = samples.reduce((w, s) => (low ? s.value < w.value : s.value > w.value) ? s : w);
+  const worst = samples.reduce((w, s) => ((low ? s.value < w.value : s.value > w.value) ? s : w));
   const over = b.sense === "exact" ? values.some((v) => v !== b.p95) : low ? tail < b.p95 : tail > b.p95;
-  return { unit: b.unit, sense: b.sense, budgetId: b.id, p50: round(percentile(values, 50)), p95: round(tail), budgetP95: b.p95, ...(worst.traceId ? { worstTraceId: worst.traceId } : {}), over };
+  return {
+    unit: b.unit,
+    sense: b.sense,
+    budgetId: b.id,
+    p50: round(percentile(values, 50)),
+    p95: round(tail),
+    budgetP95: b.p95,
+    ...(worst.traceId ? { worstTraceId: worst.traceId } : {}),
+    over,
+  };
 }
 
 export async function speedRows(ctx: ViewCtx, windowMinutes: number | undefined): Promise<SpeedRow[]> {

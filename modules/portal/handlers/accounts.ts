@@ -41,7 +41,12 @@ export interface PortalConfig {
   linkTtlMs?: number;
 }
 
-const DEFAULTS = { iterations: 600_000, sessionTtlMs: 14 * 24 * 3600_000, inviteTtlMs: 7 * 24 * 3600_000, linkTtlMs: 15 * 60_000 };
+const DEFAULTS = {
+  iterations: 600_000,
+  sessionTtlMs: 14 * 24 * 3600_000,
+  inviteTtlMs: 7 * 24 * 3600_000,
+  linkTtlMs: 15 * 60_000,
+};
 const WINDOW_MS = 15 * 60_000;
 const MAX_FAILS = 5;
 const MAX_LINKS = 5;
@@ -124,16 +129,27 @@ function normEmail(ctx: Ctx, raw: string): string {
 }
 
 function config(ctx: Ctx): Required<PortalConfig> {
-  if (!configured) fail(ctx, "validation.precondition_failed", "Site accounts cannot send email on this server yet. Connect a sending inbox first.");
+  if (!configured)
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "Site accounts cannot send email on this server yet. Connect a sending inbox first.",
+    );
   return { ...DEFAULTS, ...configured };
 }
 
 function pageOf(ctx: Ctx, o: Record<string, unknown>): { offset: number; limit: number } {
   const cursor = optStr(ctx, o, "cursor");
   const offset = cursor === undefined ? 0 : Number(cursor);
-  if (!Number.isInteger(offset) || offset < 0) fail(ctx, "validation.bad_input", "That page cursor is not valid.", { field: "cursor" });
+  if (!Number.isInteger(offset) || offset < 0)
+    fail(ctx, "validation.bad_input", "That page cursor is not valid.", { field: "cursor" });
   const lim = o.limit;
-  if (lim !== undefined && lim !== null && (typeof lim !== "number" || !Number.isInteger(lim) || lim < 1 || lim > PAGE_MAX)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "limit" });
+  if (
+    lim !== undefined &&
+    lim !== null &&
+    (typeof lim !== "number" || !Number.isInteger(lim) || lim < 1 || lim > PAGE_MAX)
+  )
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "limit" });
   return { offset, limit: typeof lim === "number" ? lim : PAGE_DEFAULT };
 }
 
@@ -165,7 +181,9 @@ export async function sha256hex(text: string): Promise<string> {
 
 async function pbkdf2(password: string, salt: Uint8Array<ArrayBuffer>, iterations: number): Promise<Uint8Array> {
   const key = await globalThis.crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
-  return new Uint8Array(await globalThis.crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, key, 256));
+  return new Uint8Array(
+    await globalThis.crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, key, 256),
+  );
 }
 
 export async function hashPassword(password: string, iterations: number): Promise<string> {
@@ -212,7 +230,8 @@ function bump(ctx: Ctx, bucket: string): void {
 }
 
 function guard(ctx: Ctx, bucket: string, max: number): void {
-  if (attempts(ctx, bucket) >= max) fail(ctx, "rate_limit.exceeded", "Too many tries. Wait a few minutes and try again.");
+  if (attempts(ctx, bucket) >= max)
+    fail(ctx, "rate_limit.exceeded", "Too many tries. Wait a few minutes and try again.");
 }
 
 // ---- output shapes ------------------------------------------------------------------------------------------
@@ -226,7 +245,12 @@ export interface AccountOut {
 }
 
 function accountOut(r: Row): AccountOut {
-  const out: AccountOut = { accountId: str(r.id), siteId: str(r.site_id), email: str(r.email), state: str(r.state) as AccountState };
+  const out: AccountOut = {
+    accountId: str(r.id),
+    siteId: str(r.site_id),
+    email: str(r.email),
+    state: str(r.state) as AccountState,
+  };
   if (!isNull(r.record_id)) out.recordId = str(r.record_id);
   return out;
 }
@@ -244,13 +268,35 @@ async function issueLink(ctx: Ctx, acct: Row, purpose: LinkPurpose, ttlMs: numbe
   const token = newToken();
   const expiresAt = ctx.now() + ttlMs;
   const hash = await sha256hex(token);
-  ctx.db.run("INSERT INTO portal_magic (token_hash, account_id, purpose, expires_at, used_at, created_at) VALUES (?, ?, ?, ?, ?, ?)", hash, str(acct.id), purpose, expiresAt, null, ctx.now());
+  ctx.db.run(
+    "INSERT INTO portal_magic (token_hash, account_id, purpose, expires_at, used_at, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    hash,
+    str(acct.id),
+    purpose,
+    expiresAt,
+    null,
+    ctx.now(),
+  );
   try {
-    await cfg.mailer.sendLink({ siteId: str(acct.site_id), accountId: str(acct.id), email: str(acct.email), purpose, token, expiresAt });
+    await cfg.mailer.sendLink({
+      siteId: str(acct.site_id),
+      accountId: str(acct.id),
+      email: str(acct.email),
+      purpose,
+      token,
+      expiresAt,
+    });
   } catch (e) {
     ctx.db.run("DELETE FROM portal_magic WHERE token_hash = ?", hash);
-    ctx.log.warn("portal: link email failed", { accountId: str(acct.id), error: e instanceof Error ? e.message : String(e) });
-    fail(ctx, "validation.precondition_failed", "The email could not be sent. Check the site's sending inbox and try again.");
+    ctx.log.warn("portal: link email failed", {
+      accountId: str(acct.id),
+      error: e instanceof Error ? e.message : String(e),
+    });
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "The email could not be sent. Check the site's sending inbox and try again.",
+    );
   }
 }
 
@@ -258,7 +304,15 @@ async function openSession(ctx: Ctx, acct: Row): Promise<string> {
   const cfg = config(ctx);
   const token = newToken();
   const now = ctx.now();
-  ctx.db.run("INSERT INTO portal_session (token_hash, account_id, site_id, created_at, expires_at, revoked_at) VALUES (?, ?, ?, ?, ?, ?)", await sha256hex(token), str(acct.id), str(acct.site_id), now, now + cfg.sessionTtlMs, null);
+  ctx.db.run(
+    "INSERT INTO portal_session (token_hash, account_id, site_id, created_at, expires_at, revoked_at) VALUES (?, ?, ?, ?, ?, ?)",
+    await sha256hex(token),
+    str(acct.id),
+    str(acct.site_id),
+    now,
+    now + cfg.sessionTtlMs,
+    null,
+  );
   ctx.emit("portal.signed_in", `site/${str(acct.site_id)}`, { accountId: str(acct.id), siteId: str(acct.site_id) });
   return token;
 }
@@ -280,24 +334,36 @@ const TYPE_RE = /^[a-z][a-z0-9_]*$/;
 const FIELD_RE = /^[A-Za-z_][A-Za-z0-9_ .-]{0,99}$/;
 
 function parseRule(ctx: Ctx, raw: unknown): RowRule {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail(ctx, "validation.bad_input", "The row rule must be an object with a recordType.", { field: "rowRule" });
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+    fail(ctx, "validation.bad_input", "The row rule must be an object with a recordType.", { field: "rowRule" });
   const o = raw as Record<string, unknown>;
   for (const k of Object.keys(o)) {
-    if (!["recordType", "via", "linkedType", "fields"].includes(k)) fail(ctx, "validation.bad_input", `The row rule has an unknown key: ${k}.`, { field: "rowRule" });
+    if (!["recordType", "via", "linkedType", "fields"].includes(k))
+      fail(ctx, "validation.bad_input", `The row rule has an unknown key: ${k}.`, { field: "rowRule" });
   }
   const typeOf = (key: string, v: unknown): string => {
-    if (typeof v !== "string" || !TYPE_RE.test(v)) fail(ctx, "validation.bad_input", `${key} must be a record type name such as contact.`, { field: "rowRule" });
+    if (typeof v !== "string" || !TYPE_RE.test(v))
+      fail(ctx, "validation.bad_input", `${key} must be a record type name such as contact.`, { field: "rowRule" });
     return v;
   };
   const rule: RowRule = { recordType: typeOf("recordType", o.recordType) };
   if (o.via !== undefined) {
-    if (typeof o.via !== "string" || !FIELD_RE.test(o.via)) fail(ctx, "validation.bad_input", "via must be a field name.", { field: "rowRule" });
+    if (typeof o.via !== "string" || !FIELD_RE.test(o.via))
+      fail(ctx, "validation.bad_input", "via must be a field name.", { field: "rowRule" });
     rule.via = o.via;
-    if (o.linkedType === undefined) fail(ctx, "validation.bad_input", "A rule with via needs linkedType, the type of the linked record.", { field: "rowRule" });
+    if (o.linkedType === undefined)
+      fail(ctx, "validation.bad_input", "A rule with via needs linkedType, the type of the linked record.", {
+        field: "rowRule",
+      });
   }
   if (o.linkedType !== undefined) rule.linkedType = typeOf("linkedType", o.linkedType);
   if (o.fields !== undefined) {
-    if (!Array.isArray(o.fields) || o.fields.length === 0 || o.fields.length > 200 || !o.fields.every((f) => typeof f === "string" && FIELD_RE.test(f))) {
+    if (
+      !Array.isArray(o.fields) ||
+      o.fields.length === 0 ||
+      o.fields.length > 200 ||
+      !o.fields.every((f) => typeof f === "string" && FIELD_RE.test(f))
+    ) {
       fail(ctx, "validation.bad_input", "fields must be a list of field names.", { field: "rowRule" });
     }
     rule.fields = [...new Set(o.fields as string[])];
@@ -308,7 +374,9 @@ function parseRule(ctx: Ctx, raw: unknown): RowRule {
 function ruleFromRow(r: Row): RowRule {
   try {
     const v: unknown = JSON.parse(str(r.rule));
-    return typeof v === "object" && v !== null && !Array.isArray(v) ? (v as RowRule) : { recordType: str(r.record_type) };
+    return typeof v === "object" && v !== null && !Array.isArray(v)
+      ? (v as RowRule)
+      : { recordType: str(r.record_type) };
   } catch {
     return { recordType: str(r.record_type) };
   }
@@ -359,7 +427,12 @@ export async function resolveSession(ctx: Ctx, token: string): Promise<PortalSco
   const a = one(ctx, "SELECT * FROM portal_account WHERE id = ?", s.account_id);
   if (!a || a.state !== "active") fail(ctx, "auth.unauthenticated", "Sign in to continue.");
   const rules = many(ctx, "SELECT * FROM portal_link WHERE account_id = ?", str(a.id)).map(ruleFromRow);
-  return { accountId: str(a.id), siteId: str(a.site_id), recordId: isNull(a.record_id) ? null : str(a.record_id), rules };
+  return {
+    accountId: str(a.id),
+    siteId: str(a.site_id),
+    recordId: isNull(a.record_id) ? null : str(a.record_id),
+    rules,
+  };
 }
 
 // ---- handlers -----------------------------------------------------------------------------------------------
@@ -369,16 +442,28 @@ async function accountCreate(ctx: Ctx, input: unknown): Promise<{ account: Accou
   const siteId = reqStr(ctx, o, "siteId");
   const email = normEmail(ctx, reqStr(ctx, o, "email"));
   const method = reqStr(ctx, o, "method");
-  if (method !== "magic_link" && method !== "password") fail(ctx, "validation.bad_input", "Choose magic_link or password.", { field: "method" });
+  if (method !== "magic_link" && method !== "password")
+    fail(ctx, "validation.bad_input", "Choose magic_link or password.", { field: "method" });
   const cfg = config(ctx);
   // Ruling 73: the Space's default portal needs no Sites; any other site must exist.
   if (siteId !== DEFAULT_PORTAL_SITE) await ctx.call("sites.get", { siteId });
-  if (one(ctx, "SELECT * FROM portal_account WHERE site_id = ? AND email = ?", siteId, email)) fail(ctx, "validation.duplicate", "That email already has an account on this site.");
+  if (one(ctx, "SELECT * FROM portal_account WHERE site_id = ? AND email = ?", siteId, email))
+    fail(ctx, "validation.duplicate", "That email already has an account on this site.");
   const now = ctx.now();
   const id = nid(ctx, "pac");
   ctx.db.run(
     "INSERT INTO portal_account (id, site_id, email, method, state, password_hash, record_id, created_by, created_at, updated_at, disabled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, siteId, email, method, "invited", null, null, ctx.principal.id, now, now, null,
+    id,
+    siteId,
+    email,
+    method,
+    "invited",
+    null,
+    null,
+    ctx.principal.id,
+    now,
+    now,
+    null,
   );
   const row = mustAccount(ctx, id);
   try {
@@ -391,36 +476,69 @@ async function accountCreate(ctx: Ctx, input: unknown): Promise<{ account: Accou
   return { account: accountOut(row) };
 }
 
-async function redeem(ctx: Ctx, acct: Row | undefined, email: string, token: string, password: string | undefined): Promise<string> {
+async function redeem(
+  ctx: Ctx,
+  acct: Row | undefined,
+  email: string,
+  token: string,
+  password: string | undefined,
+): Promise<string> {
   const cfg = config(ctx);
   const bucket = `in|${email}`;
   const magic = one(ctx, "SELECT * FROM portal_magic WHERE token_hash = ?", await sha256hex(token));
-  const ok = !!acct && !!magic && magic.account_id === acct.id && isNull(magic.used_at) && num(magic.expires_at) > ctx.now() && acct.state !== "disabled";
+  const ok =
+    !!acct &&
+    !!magic &&
+    magic.account_id === acct.id &&
+    isNull(magic.used_at) &&
+    num(magic.expires_at) > ctx.now() &&
+    acct.state !== "disabled";
   if (!ok || !acct || !magic) {
     bump(ctx, bucket);
     fail(ctx, "auth.invalid_code", "That link is wrong, used or expired. Ask for a new one.");
   }
   if (acct.method === "password") {
-    if (password === undefined) fail(ctx, "validation.bad_input", "Choose a password to finish signing in.", { field: "password" });
-    if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) fail(ctx, "validation.bad_input", `Use a password of ${PASSWORD_MIN} to ${PASSWORD_MAX} characters.`, { field: "password" });
+    if (password === undefined)
+      fail(ctx, "validation.bad_input", "Choose a password to finish signing in.", { field: "password" });
+    if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX)
+      fail(ctx, "validation.bad_input", `Use a password of ${PASSWORD_MIN} to ${PASSWORD_MAX} characters.`, {
+        field: "password",
+      });
   } else if (password !== undefined) {
-    fail(ctx, "validation.bad_input", "This account signs in with an emailed link, not a password.", { field: "password" });
+    fail(ctx, "validation.bad_input", "This account signs in with an emailed link, not a password.", {
+      field: "password",
+    });
   }
-  const used = ctx.db.run("UPDATE portal_magic SET used_at = ? WHERE token_hash = ? AND used_at IS NULL", ctx.now(), str(magic.token_hash));
+  const used = ctx.db.run(
+    "UPDATE portal_magic SET used_at = ? WHERE token_hash = ? AND used_at IS NULL",
+    ctx.now(),
+    str(magic.token_hash),
+  );
   if (used.changes !== 1) {
     bump(ctx, bucket);
     fail(ctx, "auth.invalid_code", "That link is wrong, used or expired. Ask for a new one.");
   }
   const hash = password !== undefined ? await hashPassword(password, cfg.iterations) : null;
-  if (hash !== null) ctx.db.run("UPDATE portal_account SET password_hash = ?, state = ?, updated_at = ? WHERE id = ?", hash, "active", ctx.now(), str(acct.id));
-  else ctx.db.run("UPDATE portal_account SET state = ?, updated_at = ? WHERE id = ?", "active", ctx.now(), str(acct.id));
+  if (hash !== null)
+    ctx.db.run(
+      "UPDATE portal_account SET password_hash = ?, state = ?, updated_at = ? WHERE id = ?",
+      hash,
+      "active",
+      ctx.now(),
+      str(acct.id),
+    );
+  else
+    ctx.db.run("UPDATE portal_account SET state = ?, updated_at = ? WHERE id = ?", "active", ctx.now(), str(acct.id));
   ctx.db.run("DELETE FROM portal_attempt WHERE bucket = ?", bucket);
   return openSession(ctx, mustAccount(ctx, str(acct.id)));
 }
 
 async function withPassword(ctx: Ctx, acct: Row | undefined, email: string, password: string): Promise<string> {
   const bucket = `in|${email}`;
-  const stored = acct && acct.method === "password" && acct.state === "active" && !isNull(acct.password_hash) ? str(acct.password_hash) : null;
+  const stored =
+    acct && acct.method === "password" && acct.state === "active" && !isNull(acct.password_hash)
+      ? str(acct.password_hash)
+      : null;
   let good = false;
   if (stored === null) await pbkdf2(password, DUMMY_SALT, config(ctx).iterations);
   else good = await verifyPassword(password, stored);
@@ -466,7 +584,8 @@ async function linkRecord(ctx: Ctx, input: unknown): Promise<{ ok: true }> {
   const recordId = reqStr(ctx, o, "recordId");
   const rule = parseRule(ctx, o.rowRule);
   const acct = mustAccount(ctx, accountId);
-  if (acct.state === "disabled") fail(ctx, "validation.precondition_failed", "That account is disabled. Nothing can be linked to it.");
+  if (acct.state === "disabled")
+    fail(ctx, "validation.precondition_failed", "That account is disabled. Nothing can be linked to it.");
   const linkedType = rule.linkedType ?? rule.recordType;
   await ctx.call("records.get", { type: linkedType, recordId });
   const previous = isNull(acct.record_id) ? null : str(acct.record_id);
@@ -475,21 +594,43 @@ async function linkRecord(ctx: Ctx, input: unknown): Promise<{ ok: true }> {
   ctx.db.run("UPDATE portal_account SET record_id = ?, updated_at = ? WHERE id = ?", recordId, now, accountId);
   const stored = JSON.stringify(rule);
   if (one(ctx, "SELECT * FROM portal_link WHERE account_id = ? AND record_type = ?", accountId, rule.recordType)) {
-    ctx.db.run("UPDATE portal_link SET rule = ?, created_by = ?, at = ? WHERE account_id = ? AND record_type = ?", stored, ctx.principal.id, now, accountId, rule.recordType);
+    ctx.db.run(
+      "UPDATE portal_link SET rule = ?, created_by = ?, at = ? WHERE account_id = ? AND record_type = ?",
+      stored,
+      ctx.principal.id,
+      now,
+      accountId,
+      rule.recordType,
+    );
   } else {
-    ctx.db.run("INSERT INTO portal_link (account_id, record_type, rule, created_by, at) VALUES (?, ?, ?, ?, ?)", accountId, rule.recordType, stored, ctx.principal.id, now);
+    ctx.db.run(
+      "INSERT INTO portal_link (account_id, record_type, rule, created_by, at) VALUES (?, ?, ?, ?, ?)",
+      accountId,
+      rule.recordType,
+      stored,
+      ctx.principal.id,
+      now,
+    );
   }
   ctx.emit("portal.record_linked", `record/${recordId}`, { accountId, recordId });
   return { ok: true };
 }
 
-async function accountsList(ctx: Ctx, input: unknown): Promise<{ accounts: AccountOut[]; next?: string; total: number }> {
+async function accountsList(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ accounts: AccountOut[]; next?: string; total: number }> {
   const o = rec(ctx, input);
   const siteId = reqStr(ctx, o, "siteId");
   const { offset, limit } = pageOf(ctx, o);
-  if (siteId !== DEFAULT_PORTAL_SITE) await ctx.call("sites.get", { siteId });   // ruling 73: the default portal needs no Sites
-  const rows = many(ctx, "SELECT * FROM portal_account WHERE site_id = ?", siteId).sort((a, b) => num(a.created_at) - num(b.created_at) || str(a.id).localeCompare(str(b.id)));
-  const out: { accounts: AccountOut[]; next?: string; total: number } = { accounts: rows.slice(offset, offset + limit).map(accountOut), total: rows.length };
+  if (siteId !== DEFAULT_PORTAL_SITE) await ctx.call("sites.get", { siteId }); // ruling 73: the default portal needs no Sites
+  const rows = many(ctx, "SELECT * FROM portal_account WHERE site_id = ?", siteId).sort(
+    (a, b) => num(a.created_at) - num(b.created_at) || str(a.id).localeCompare(str(b.id)),
+  );
+  const out: { accounts: AccountOut[]; next?: string; total: number } = {
+    accounts: rows.slice(offset, offset + limit).map(accountOut),
+    total: rows.length,
+  };
   if (offset + limit < rows.length) out.next = String(offset + limit);
   return out;
 }
@@ -499,20 +640,33 @@ async function accountDisable(ctx: Ctx, input: unknown): Promise<{ ok: true }> {
   const acct = mustAccount(ctx, reqStr(ctx, o, "accountId"));
   if (acct.state === "disabled") return { ok: true };
   const now = ctx.now();
-  ctx.db.run("UPDATE portal_account SET state = ?, disabled_at = ?, updated_at = ? WHERE id = ?", "disabled", now, now, str(acct.id));
+  ctx.db.run(
+    "UPDATE portal_account SET state = ?, disabled_at = ?, updated_at = ? WHERE id = ?",
+    "disabled",
+    now,
+    now,
+    str(acct.id),
+  );
   ctx.db.run("UPDATE portal_session SET revoked_at = ? WHERE account_id = ? AND revoked_at IS NULL", now, str(acct.id));
   ctx.db.run("DELETE FROM portal_magic WHERE account_id = ? AND used_at IS NULL", str(acct.id));
   return { ok: true };
 }
 
-async function rulesList(ctx: Ctx, input: unknown): Promise<{ rules: { accountId: string; recordType: string; rule: RowRule }[] }> {
+async function rulesList(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ rules: { accountId: string; recordType: string; rule: RowRule }[] }> {
   const o = rec(ctx, input);
   const siteId = reqStr(ctx, o, "siteId");
-  if (siteId !== DEFAULT_PORTAL_SITE) await ctx.call("sites.get", { siteId });   // ruling 73: the default portal needs no Sites
+  if (siteId !== DEFAULT_PORTAL_SITE) await ctx.call("sites.get", { siteId }); // ruling 73: the default portal needs no Sites
   const rules: { accountId: string; recordType: string; rule: RowRule }[] = [];
-  const accounts = many(ctx, "SELECT * FROM portal_account WHERE site_id = ?", siteId).sort((a, b) => num(a.created_at) - num(b.created_at) || str(a.id).localeCompare(str(b.id)));
+  const accounts = many(ctx, "SELECT * FROM portal_account WHERE site_id = ?", siteId).sort(
+    (a, b) => num(a.created_at) - num(b.created_at) || str(a.id).localeCompare(str(b.id)),
+  );
   for (const a of accounts) {
-    for (const l of many(ctx, "SELECT * FROM portal_link WHERE account_id = ?", str(a.id)).sort((x, y) => str(x.record_type).localeCompare(str(y.record_type)))) {
+    for (const l of many(ctx, "SELECT * FROM portal_link WHERE account_id = ?", str(a.id)).sort((x, y) =>
+      str(x.record_type).localeCompare(str(y.record_type)),
+    )) {
       rules.push({ accountId: str(a.id), recordType: str(l.record_type), rule: ruleFromRow(l) });
     }
   }

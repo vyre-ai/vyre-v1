@@ -7,10 +7,17 @@ import { createElement, useEffect, useRef } from "react";
 import type { CSSProperties, ReactElement } from "react";
 
 export type Invoke = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
-export interface Rect { x: number; y: number; width: number; height: number }
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 /** The shell's invoke when this page runs inside the desktop app; undefined in a browser. */
-export const shellInvoke = (g: { __TAURI__?: { core?: { invoke?: Invoke } } } = globalThis as never): Invoke | undefined => g.__TAURI__?.core?.invoke;
+export const shellInvoke = (
+  g: { __TAURI__?: { core?: { invoke?: Invoke } } } = globalThis as never,
+): Invoke | undefined => g.__TAURI__?.core?.invoke;
 
 /** True when the desktop app can open the artifact as a page of its own (the shell has the command). */
 export const available = (g?: Parameters<typeof shellInvoke>[0]): boolean => shellInvoke(g) !== undefined;
@@ -18,10 +25,16 @@ export const available = (g?: Parameters<typeof shellInvoke>[0]): boolean => she
 /** A rectangle the shell can place a webview at: whole logical pixels, never empty. Null for an element that is not drawn. */
 export function rectOf(r: { left: number; top: number; width: number; height: number }): Rect | null {
   if (![r.left, r.top, r.width, r.height].every(Number.isFinite) || r.width < 1 || r.height < 1) return null;
-  return { x: Math.max(0, Math.round(r.left)), y: Math.max(0, Math.round(r.top)), width: Math.round(r.width), height: Math.round(r.height) };
+  return {
+    x: Math.max(0, Math.round(r.left)),
+    y: Math.max(0, Math.round(r.top)),
+    width: Math.round(r.width),
+    height: Math.round(r.height),
+  };
 }
 
-export const sameRect = (a: Rect | null, b: Rect | null): boolean => a === b || (a !== null && b !== null && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height);
+export const sameRect = (a: Rect | null, b: Rect | null): boolean =>
+  a === b || (a !== null && b !== null && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height);
 
 export interface FrameProps {
   /** The artifact host's one-time address (https://<host>/x/<code>), without ?embed. */
@@ -38,17 +51,34 @@ export interface FrameProps {
 }
 
 /** What the frame says to the shell: the page once, then only moves; a hide takes it away and the next place shows it again. */
-export function createPlacer(call: Invoke, url: string, onError?: (message: string) => void, onShown?: () => void): { place(rect: Rect | null): void; hide(): void } {
+export function createPlacer(
+  call: Invoke,
+  url: string,
+  onError?: (message: string) => void,
+  onShown?: () => void,
+): { place(rect: Rect | null): void; hide(): void } {
   let shown = false;
   let said: Rect | null = null;
-  const fail = (e: unknown): void => onError?.(typeof e === "string" ? e : e instanceof Error ? e.message : "This page couldn't load here.");
+  const fail = (e: unknown): void =>
+    onError?.(typeof e === "string" ? e : e instanceof Error ? e.message : "This page couldn't load here.");
   return {
     place(rect) {
       if (!rect || sameRect(rect, said)) return;
       said = rect;
       const first = !shown;
       shown = true;
-      void call(first ? "artifact_view_show" : "artifact_view_bounds", first ? { url, ...rect } : { ...rect }).then(() => { if (first) onShown?.(); }, (e) => { if (first) { shown = false; said = null; } fail(e); });
+      void call(first ? "artifact_view_show" : "artifact_view_bounds", first ? { url, ...rect } : { ...rect }).then(
+        () => {
+          if (first) onShown?.();
+        },
+        (e) => {
+          if (first) {
+            shown = false;
+            said = null;
+          }
+          fail(e);
+        },
+      );
     },
     hide() {
       shown = false;
@@ -59,7 +89,15 @@ export function createPlacer(call: Invoke, url: string, onError?: (message: stri
 }
 
 /** The placeholder the shell's child webview sits over. */
-export function DesktopArtifactFrame({ url, title, covered = false, onError, onPlaced, invoke, style }: FrameProps): ReactElement {
+export function DesktopArtifactFrame({
+  url,
+  title,
+  covered = false,
+  onError,
+  onPlaced,
+  invoke,
+  style,
+}: FrameProps): ReactElement {
   const box = useRef<HTMLDivElement | null>(null);
   const call = invoke ?? shellInvoke();
 
@@ -67,22 +105,34 @@ export function DesktopArtifactFrame({ url, title, covered = false, onError, onP
     const el = box.current;
     if (!call) return undefined;
     const placer = createPlacer(call, url, onError, onPlaced);
-    if (covered) { placer.hide(); return undefined; }
+    if (covered) {
+      placer.hide();
+      return undefined;
+    }
     if (!el || typeof el.getBoundingClientRect !== "function") return undefined;
     const place = (): void => placer.place(rectOf(el.getBoundingClientRect()));
     place();
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(place) : null;
     ro?.observe(el);
-    const g = globalThis as { addEventListener?: (t: string, f: () => void, o?: boolean) => void; removeEventListener?: (t: string, f: () => void, o?: boolean) => void };
+    const g = globalThis as {
+      addEventListener?: (t: string, f: () => void, o?: boolean) => void;
+      removeEventListener?: (t: string, f: () => void, o?: boolean) => void;
+    };
     g.addEventListener?.("resize", place);
     g.addEventListener?.("scroll", place, true);
     return () => {
       ro?.disconnect();
       g.removeEventListener?.("resize", place);
       g.removeEventListener?.("scroll", place, true);
-      placer.hide();   // a new address, a cover, or leaving the viewer: the page goes
+      placer.hide(); // a new address, a cover, or leaving the viewer: the page goes
     };
-  }, [url, covered, call]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [url, covered, call]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return createElement("div", { ref: box, role: "region", "aria-label": title, "data-testid": "artifact-desktop-frame", style: { width: "100%", height: "100%", minHeight: 240, background: "transparent", ...style } });
+  return createElement("div", {
+    ref: box,
+    role: "region",
+    "aria-label": title,
+    "data-testid": "artifact-desktop-frame",
+    style: { width: "100%", height: "100%", minHeight: 240, background: "transparent", ...style },
+  });
 }

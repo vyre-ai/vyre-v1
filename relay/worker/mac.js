@@ -5,6 +5,10 @@ import { canonical, b64u } from "./chain.js";
 const enc = new TextEncoder();
 /** @param {string} secret @param {string} purpose @param {any} body */
 export async function mac(secret, purpose, body) {
-  const k = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  return b64u(new Uint8Array(await crypto.subtle.sign("HMAC", k, enc.encode(`vyre-escrow-v1\n${purpose}\n${canonical(body)}`))));
+  const k = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
+  return b64u(
+    new Uint8Array(await crypto.subtle.sign("HMAC", k, enc.encode(`vyre-escrow-v1\n${purpose}\n${canonical(body)}`))),
+  );
 }

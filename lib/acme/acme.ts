@@ -25,12 +25,12 @@ const b64u = (/** @type {Buffer|string} */ b) => Buffer.from(b).toString("base64
 /** A fresh EC P-256 private key as PKCS#8 PEM. */
 export function newKey() {
   const { privateKey } = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
-  return /** @type {string} */ (privateKey.export({ type: "pkcs8", format: "pem" }));
+  return /** @type {string} */ privateKey.export({ type: "pkcs8", format: "pem" });
 }
 
 /** The public JWK of an EC key, members in RFC 7638 order. */
 function jwkOf(key) {
-  const j = /** @type {any} */ (crypto.createPublicKey(key).export({ format: "jwk" }));
+  const j = /** @type {any} */ crypto.createPublicKey(key).export({ format: "jwk" });
   if (j.kty !== "EC" || j.crv !== "P-256") throw new Error("the ACME account key must be EC P-256");
   return { crv: j.crv, kty: j.kty, x: j.x, y: j.y };
 }
@@ -45,8 +45,9 @@ export function thumbprint(jwk) {
 function problemError(problem, fallback) {
   const p = problem && typeof problem === "object" ? problem : { type: "about:blank", detail: fallback };
   let msg = `${p.type || "about:blank"}: ${p.detail || fallback || "no detail"}`;
-  for (const sp of p.subproblems || []) msg += `; ${sp.identifier ? sp.identifier.value + " " : ""}${sp.type}: ${sp.detail || ""}`;
-  const err = /** @type {Error & { problem?: any }} */ (new Error(msg));
+  for (const sp of p.subproblems || [])
+    msg += `; ${sp.identifier ? sp.identifier.value + " " : ""}${sp.type}: ${sp.detail || ""}`;
+  const err = /** @type {Error & { problem?: any }} */ new Error(msg);
   err.problem = p;
   return err;
 }
@@ -63,19 +64,29 @@ export function covers(pem, names) {
   try {
     const first = String(pem).match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/);
     if (!first) return false;
-    const have = String(new crypto.X509Certificate(first[0]).subjectAltName || "").split(",").map(x => x.trim()).filter(x => x.startsWith("DNS:")).map(x => x.slice(4).toLowerCase());
-    return names.every(n => have.includes(String(n).toLowerCase()));
-  } catch { return false; }
+    const have = String(new crypto.X509Certificate(first[0]).subjectAltName || "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter((x) => x.startsWith("DNS:"))
+      .map((x) => x.slice(4).toLowerCase());
+    return names.every((n) => have.includes(String(n).toLowerCase()));
+  } catch {
+    return false;
+  }
 }
 
 /** True when the certificate is gone or within `days` of expiring. */
 export function needsRenewal(pem, now = Date.now(), days = 30) {
   let t;
-  try { t = expiry(pem); } catch { return true; }
+  try {
+    t = expiry(pem);
+  } catch {
+    return true;
+  }
   return t - now <= days * 86400000;
 }
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Get a certificate for `names` by DNS-01.
@@ -86,7 +97,20 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
  *   `onAccount` runs once the ACME account exists and BEFORE the order, with its URI: a CAA record that pins issuance to this account is set there (PT-1).
  * @returns {Promise<{ cert: string, key: string, expires: number, accountUri: string }>}
  */
-export async function issue({ names, directory, accountKey, certKey, email, dns, fetch = httpFetch, log = () => {}, waitDns, onAccount, pollMs = 2000, timeoutMs = 180000 }) {
+export async function issue({
+  names,
+  directory,
+  accountKey,
+  certKey,
+  email,
+  dns,
+  fetch = httpFetch,
+  log = () => {},
+  waitDns,
+  onAccount,
+  pollMs = 2000,
+  timeoutMs = 180000,
+}) {
   if (!Array.isArray(names) || names.length === 0) throw new Error("issue needs at least one name");
   const deadline = Date.now() + timeoutMs;
   const account = crypto.createPrivateKey(accountKey);
@@ -95,11 +119,14 @@ export async function issue({ names, directory, accountKey, certKey, email, dns,
 
   const dirRes = await fetch(directory, { headers: { accept: "application/json" } });
   if (!dirRes.ok) throw new Error(`ACME directory ${directory} answered ${dirRes.status}`);
-  const dir = /** @type {any} */ (await dirRes.json());
+  const dir = /** @type {any} */ await dirRes.json();
 
   /** @type {string|null} */ let nonce = null;
   /** @type {string|null} */ let kid = null;
-  const keep = res => { const n = res.headers.get("replay-nonce"); if (n) nonce = n; };
+  const keep = (res) => {
+    const n = res.headers.get("replay-nonce");
+    if (n) nonce = n;
+  };
 
   async function freshNonce() {
     const res = await fetch(dir.newNonce, { method: "HEAD" });
@@ -123,7 +150,11 @@ export async function issue({ names, directory, accountKey, certKey, email, dns,
     keep(res);
     if (res.status >= 400) {
       let problem = null;
-      try { problem = await res.json(); } catch { /* not JSON */ }
+      try {
+        problem = await res.json();
+      } catch {
+        /* not JSON */
+      }
       if (problem && problem.type === "urn:ietf:params:acme:error:badNonce" && !retried) {
         log("acme: bad nonce, retrying once");
         return post(url, payload, { accept, retried: true });
@@ -133,14 +164,14 @@ export async function issue({ names, directory, accountKey, certKey, email, dns,
     return res;
   }
 
-  const getJson = async url => /** @type {any} */ (await (await post(url, null)).json());
+  const getJson = async (url) => /** @type {any} */ await (await post(url, null)).json();
 
   async function poll(url, done, what) {
     for (;;) {
       const obj = await getJson(url);
       if (done(obj)) return obj;
       if (obj.status === "invalid") {
-        const err = obj.error || (obj.challenges || []).map(c => c.error).find(Boolean);
+        const err = obj.error || (obj.challenges || []).map((c) => c.error).find(Boolean);
         throw problemError(err, `${what} became invalid`);
       }
       if (Date.now() > deadline) throw new Error(`timed out waiting for ${what} (status ${obj.status})`);
@@ -149,16 +180,19 @@ export async function issue({ names, directory, accountKey, certKey, email, dns,
   }
 
   // Account. newAccount returns the existing account for this key if there is one.
-  const accRes = await post(dir.newAccount, { termsOfServiceAgreed: true, ...(email ? { contact: [`mailto:${email}`] } : {}) });
+  const accRes = await post(dir.newAccount, {
+    termsOfServiceAgreed: true,
+    ...(email ? { contact: [`mailto:${email}`] } : {}),
+  });
   kid = accRes.headers.get("location");
   if (!kid) throw new Error("ACME newAccount gave no account URL");
   log(`acme: account ${accRes.status === 201 ? "created" : "found"}`);
   if (onAccount) await onAccount(kid);
 
   // Order.
-  const orderRes = await post(dir.newOrder, { identifiers: names.map(value => ({ type: "dns", value })) });
+  const orderRes = await post(dir.newOrder, { identifiers: names.map((value) => ({ type: "dns", value })) });
   const orderUrl = orderRes.headers.get("location");
-  let order = /** @type {any} */ (await orderRes.json());
+  let order = /** @type {any} */ await orderRes.json();
   if (!orderUrl) throw new Error("ACME newOrder gave no order URL");
   log(`acme: order for ${names.join(", ")}`);
 
@@ -169,7 +203,7 @@ export async function issue({ names, directory, accountKey, certKey, email, dns,
     for (const authzUrl of order.authorizations) {
       const authz = await getJson(authzUrl);
       if (authz.status === "valid") continue;
-      const ch = (authz.challenges || []).find(c => c.type === "dns-01");
+      const ch = (authz.challenges || []).find((c) => c.type === "dns-01");
       if (!ch) throw new Error(`no dns-01 challenge offered for ${authz.identifier && authz.identifier.value}`);
       const fqdn = "_acme-challenge." + authz.identifier.value;
       const value = b64u(crypto.createHash("sha256").update(`${ch.token}.${thumb}`).digest());
@@ -180,16 +214,23 @@ export async function issue({ names, directory, accountKey, certKey, email, dns,
     // stops here instead, with the records cleared below, and the caller tries again later. Any other answer (true, or nothing from a wait that does not say) goes on.
     for (const p of pending) {
       if (!waitDns) continue;
-      if ((await waitDns(p.fqdn, p.value)) === false) throw new Error(`the challenge record ${p.fqdn} did not show in public DNS in time, so the certificate authority was not asked to check it; it is tried again later`);
+      if ((await waitDns(p.fqdn, p.value)) === false)
+        throw new Error(
+          `the challenge record ${p.fqdn} did not show in public DNS in time, so the certificate authority was not asked to check it; it is tried again later`,
+        );
     }
     for (const p of pending) {
       await post(p.ch.url, {});
-      await poll(p.authzUrl, a => a.status === "valid", `authorization for ${p.fqdn}`);
+      await poll(p.authzUrl, (a) => a.status === "valid", `authorization for ${p.fqdn}`);
       log(`acme: ${p.fqdn} valid`);
     }
   } finally {
     for (const h of handles) {
-      try { await dns.clear(h); } catch (err) { log(`acme: could not clear a challenge record: ${/** @type {Error} */ (err).message}`); }
+      try {
+        await dns.clear(h);
+      } catch (err) {
+        log(`acme: could not clear a challenge record: ${/** @type {Error} */ err.message}`);
+      }
     }
   }
 
@@ -197,9 +238,9 @@ export async function issue({ names, directory, accountKey, certKey, email, dns,
   const certPem = certKey || newKey();
   const der = csr(names, crypto.createPrivateKey(certPem));
   await post(order.finalize, { csr: b64u(der) });
-  order = await poll(orderUrl, o => o.status === "valid" && o.certificate, "order");
+  order = await poll(orderUrl, (o) => o.status === "valid" && o.certificate, "order");
   const certRes = await post(order.certificate, null, { accept: "application/pem-certificate-chain" });
   const cert = await certRes.text();
   log("acme: certificate issued");
-  return { cert, key: certPem, expires: expiry(cert), accountUri: /** @type {string} */ (kid) };
+  return { cert, key: certPem, expires: expiry(cert), accountUri: /** @type {string} */ kid };
 }

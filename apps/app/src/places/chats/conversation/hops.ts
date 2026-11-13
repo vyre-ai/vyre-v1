@@ -4,7 +4,10 @@ import { DEFAULT_AGENT_HOPS } from "../../../../../../lib/route.ts";
 
 export { DEFAULT_AGENT_HOPS };
 
-export interface HopMessage { author: { kind: string }; depth?: number }
+export interface HopMessage {
+  author: { kind: string };
+  depth?: number;
+}
 
 /** Is the chat waiting on a person because the agents used their turns? */
 export function parkedAtLimit(last: HopMessage | undefined, limit: number, working: boolean): boolean {

@@ -31,7 +31,11 @@ export interface ChatFact {
 
 export type LessonHow = "edit" | "refuse" | "reverse" | "rewrite";
 /** Only on a lesson: how it was caught, how many answers used it, who may read it. */
-export interface LessonInfo { how?: LessonHow; used: number; scope: "you" | "proposed" | "space" }
+export interface LessonInfo {
+  how?: LessonHow;
+  used: number;
+  scope: "you" | "proposed" | "space";
+}
 export const isLesson = (f: { kind?: string | undefined }): boolean => f.kind === "lesson";
 
 export interface ChatQuote {
@@ -45,13 +49,19 @@ export interface ChatQuote {
 }
 
 /** memory.used {threadId, messageId}: what one reply recalled. */
-export interface UsedOut { facts: ChatFact[]; quotes: ChatQuote[] }
+export interface UsedOut {
+  facts: ChatFact[];
+  quotes: ChatQuote[];
+}
 /** memory.knows {threadId, agentId?, asOf?}: the facts in scope for this chat and this asker. */
-export interface KnowsOut { facts: ChatFact[] }
+export interface KnowsOut {
+  facts: ChatFact[];
+}
 
 export const usedCount = (u: UsedOut | undefined): number => (u ? u.facts.length + u.quotes.length : 0);
 export const usedLabel = (n: number): string => `Used ${n} ${n === 1 ? "memory" : "memories"}`;
-export const USED_FOOT = "Only what you could open yourself is ever recalled. A quote card means the words were recalled exactly.";
+export const USED_FOOT =
+  "Only what you could open yourself is ever recalled. A quote card means the words were recalled exactly.";
 
 /** "Oct 12" for a quote's date, "Today" for the same day. */
 export const quoteDate = dateText;
@@ -65,8 +75,16 @@ export const quoteSub = (q: ChatQuote, now: number): string => `${quoteDate(q.at
 // ---------------------------------------------------------------- the underline of known subjects
 
 /** A page as the underline needs it: its title and the other names it answers to. */
-export interface SubjectPage { pageId: string; title: string; kind: string; alias?: string[] }
-export interface SubjectIndex { names: ReadonlyArray<readonly [string, string]>; re: RegExp | null }
+export interface SubjectPage {
+  pageId: string;
+  title: string;
+  kind: string;
+  alias?: string[];
+}
+export interface SubjectIndex {
+  names: ReadonlyArray<readonly [string, string]>;
+  re: RegExp | null;
+}
 export const NO_SUBJECTS: SubjectIndex = { names: [], re: null };
 export const SUBJECT_KINDS: ReadonlySet<string> = new Set(["person", "client", "project", "topic"]);
 export const SUBJECT_HREF = "vyre-subject:";
@@ -102,7 +120,8 @@ export function splitSubjects(text: string, idx: SubjectIndex): Seg[] {
   const re = new RegExp(idx.re.source, idx.re.flags);
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
-    const lead = m[1] ?? "", name = m[2] ?? "";
+    const lead = m[1] ?? "",
+      name = m[2] ?? "";
     const start = m.index + lead.length;
     const pageId = byName.get(name);
     if (!pageId) continue;
@@ -121,7 +140,12 @@ const subjectsIn = (items: readonly Inline[], idx: SubjectIndex): Inline[] => {
   const out: Inline[] = [];
   for (const n of items) {
     if (n.t === "text") {
-      for (const s of splitSubjects(n.v, idx)) out.push(s.t === "subject" ? { t: "link", href: SUBJECT_HREF + s.pageId, c: [{ t: "text", v: s.v }] } : { t: "text", v: s.v });
+      for (const s of splitSubjects(n.v, idx))
+        out.push(
+          s.t === "subject"
+            ? { t: "link", href: SUBJECT_HREF + s.pageId, c: [{ t: "text", v: s.v }] }
+            : { t: "text", v: s.v },
+        );
     } else if (n.t === "strong" || n.t === "em") out.push({ ...n, c: subjectsIn(n.c, idx) });
     else out.push(n); // code and links stay as they are
   }
@@ -154,7 +178,8 @@ export function knowRowKey(key: string): "edit" | null {
   return key === "Enter" || key === "e" ? "edit" : null;
 }
 
-export const subjectOfHref = (href: string): string | null => (href.startsWith(SUBJECT_HREF) ? href.slice(SUBJECT_HREF.length) : null);
+export const subjectOfHref = (href: string): string | null =>
+  href.startsWith(SUBJECT_HREF) ? href.slice(SUBJECT_HREF.length) : null;
 
 // ---------------------------------------------------------------- the learned line
 
@@ -173,20 +198,42 @@ export function learnedExact(at: number): string {
   return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()} ${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
 }
 
-export interface LearnedRow { factId: string; text: string; subjectTitle?: string; pageId?: string; sourceRef: string; at: number; lesson?: LessonInfo; layer?: Layer }
+export interface LearnedRow {
+  factId: string;
+  text: string;
+  subjectTitle?: string;
+  pageId?: string;
+  sourceRef: string;
+  at: number;
+  lesson?: LessonInfo;
+  layer?: Layer;
+}
 
 /** The message a learned fact came from: the line its link names (`/chats/<thread>#<message>`), else its source ref (a fact remembered from one message carries that message). */
-export const messageOf = (f: { sourceRef: string; sourceLink?: string | undefined }): string => { const at = f.sourceLink?.indexOf("#") ?? -1; return f.sourceLink && at >= 0 ? f.sourceLink.slice(at + 1) : f.sourceRef; };
+export const messageOf = (f: { sourceRef: string; sourceLink?: string | undefined }): string => {
+  const at = f.sourceLink?.indexOf("#") ?? -1;
+  return f.sourceLink && at >= 0 ? f.sourceLink.slice(at + 1) : f.sourceRef;
+};
 
 // ---------------------------------------------------------------- lessons (learn from every correction)
 
-export const HOW_TEXT: Record<LessonHow, string> = { edit: "Edited a draft", refuse: "Said no", reverse: "Undid an action", rewrite: "Rewrote an answer" };
-export const SCOPE_TEXT: Record<LessonInfo["scope"], string> = { you: "Only you", proposed: "Proposed", space: "Space" };
+export const HOW_TEXT: Record<LessonHow, string> = {
+  edit: "Edited a draft",
+  refuse: "Said no",
+  reverse: "Undid an action",
+  rewrite: "Rewrote an answer",
+};
+export const SCOPE_TEXT: Record<LessonInfo["scope"], string> = {
+  you: "Only you",
+  proposed: "Proposed",
+  space: "Space",
+};
 export const usedTimes = (n: number): string => `used ${n} ${n === 1 ? "time" : "times"}`;
 export const LESSONS_HEAD = (agent: string): string => `Lessons ${agent} kept from your corrections`;
 export const LESSONS_SWITCH = "Learn from my corrections";
 export const LESSONS_OFF = "Off. Nothing is kept from what you change.";
-export const LESSONS_FOOT = "Lessons from a private chat stay private to you. Sharing one puts it in Proposed first, so a person accepts it.";
+export const LESSONS_FOOT =
+  "Lessons from a private chat stay private to you. Sharing one puts it in Proposed first, so a person accepts it.";
 export const lessonUsedLine = (text: string): string => `Used a lesson: ${text}`;
 
 /** The text of a message for "Remember this": its words, markup left in, trimmed and cut at 400 letters. */
@@ -201,7 +248,8 @@ export const FLASH = {
   rememberedFor: (project: string): string => `Remembered for ${project}.`,
   proposedTo: (project: string): string => `Proposed to ${project}. It waits for a yes.`,
   noneToForget: "Nothing was learned from this message, so there is nothing to forget.",
-  forgot: (n: number): string => `Forgot ${n} ${n === 1 ? "fact" : "facts"} learned from this message. It is in Trash for 60 days.`,
+  forgot: (n: number): string =>
+    `Forgot ${n} ${n === 1 ? "fact" : "facts"} learned from this message. It is in Trash for 60 days.`,
   added: (title: string): string => `Added to ${title}.`,
 } as const;
 
@@ -215,10 +263,19 @@ export function appendLine(notes: string, line: string): string {
 
 export const LAYER_ORDER: readonly Layer[] = ["space", "project", "agent", "person"];
 /** Who can read a fact under its message in the chat: every Learned line says it. */
-export const LAYER_SCOPE: Record<Layer, string> = { person: "Only you", agent: "Whoever uses this agent", project: "This project", space: "The Space" };
+export const LAYER_SCOPE: Record<Layer, string> = {
+  person: "Only you",
+  agent: "Whoever uses this agent",
+  project: "This project",
+  space: "The Space",
+};
 export const LAYER_HEAD: Record<Layer, string> = { space: "Space", project: "Project", agent: "Agent", person: "You" };
 
-export interface KnowsGroup { layer: Layer; head: string; facts: ChatFact[] }
+export interface KnowsGroup {
+  layer: Layer;
+  head: string;
+  facts: ChatFact[];
+}
 
 /** The facts cut into Space, Project, Agent and You, newest first inside a group; an empty group is left out. */
 export function groupKnows(facts: readonly ChatFact[]): KnowsGroup[] {
@@ -231,13 +288,49 @@ export function groupKnows(facts: readonly ChatFact[]): KnowsGroup[] {
 }
 
 /** What Knows shows when it is pinned to one reply: the facts that were true by then (a fact learned later is hidden). */
-export const asOfFilter = (facts: readonly ChatFact[], asOf: number | null): ChatFact[] => (asOf === null ? [...facts] : facts.filter((f) => f.at <= asOf));
+export const asOfFilter = (facts: readonly ChatFact[], asOf: number | null): ChatFact[] =>
+  asOf === null ? [...facts] : facts.filter((f) => f.at <= asOf);
 
 export const KNOWS_SCOPE = "In this chat and what it links to. Never more than you could open yourself.";
 export const KNOWS_FOOT = "Edit any line and the old wording is kept in history.";
 
-const STOP = new Set(["that", "this", "with", "from", "have", "your", "will", "what", "when", "they", "them", "there", "their", "about", "which", "would", "could", "should", "into", "than", "then", "also", "been", "were", "does", "just", "like", "some", "more", "most", "very", "here", "only"]);
-const wordsOf = (s: string): string[] => (s.toLowerCase().match(/[a-z\u00c0-\u024f0-9]{4,}/g) ?? []).filter((w) => !STOP.has(w));
+const STOP = new Set([
+  "that",
+  "this",
+  "with",
+  "from",
+  "have",
+  "your",
+  "will",
+  "what",
+  "when",
+  "they",
+  "them",
+  "there",
+  "their",
+  "about",
+  "which",
+  "would",
+  "could",
+  "should",
+  "into",
+  "than",
+  "then",
+  "also",
+  "been",
+  "were",
+  "does",
+  "just",
+  "like",
+  "some",
+  "more",
+  "most",
+  "very",
+  "here",
+  "only",
+]);
+const wordsOf = (s: string): string[] =>
+  (s.toLowerCase().match(/[a-z\u00c0-\u024f0-9]{4,}/g) ?? []).filter((w) => !STOP.has(w));
 
 /**
  * Did this memory shape the reply? Recall hands the model whatever matches the message a little, so most replies "used" something that had nothing to do with what was said. A fact counts only when the

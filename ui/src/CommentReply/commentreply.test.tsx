@@ -2,7 +2,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { CommentReply, COMMENT_REPLY_SEND, COMMENT_REPLY_WIDTH, canSendReply, fieldHeights, frozenCommentReplyProps } from "./index.tsx";
+import {
+  CommentReply,
+  COMMENT_REPLY_SEND,
+  COMMENT_REPLY_WIDTH,
+  canSendReply,
+  fieldHeights,
+  frozenCommentReplyProps,
+} from "./index.tsx";
 
 test("the field is full width and the send control is the up arrow, never the word Send", () => {
   const html = renderToStaticMarkup(<CommentReply {...frozenCommentReplyProps} />);

@@ -8,7 +8,32 @@ import { layoutForWidth, COMPACT_WIDTH, DESKTOP_WIDTH } from "./canvas/frame.ts"
 import { groupOfKey, layout, stepStatusChip, subtitleOf } from "./canvas/model.ts";
 import type { Definition } from "./canvas/model.ts";
 import {
-  ABSENCE, ALL_RUNS_SEARCH, ANALYTICS_LINE, BUILDER_MODES, DATA_SHELF_NAME, DEPS_LINE, DRAFT_HAS_EDITS, EMPTY_COMPLETED, EMPTY_DEPENDENCIES, EMPTY_EVENTS, EMPTY_PACKAGES, INSPECTOR_TABS, LISTENING, LOOP_CHILD, NEEDS_LINE, PACKAGES_LINE, PARALLEL_JOIN, SPACE_ANALYTICS_LINE, SPACE_ANALYTICS_TITLE, STUDIO_NAV, VAL_LABEL, accountFixedLine, definitionCrumb, enrollmentsPinned, needsBadge, parallelLaneMark,
+  ABSENCE,
+  ALL_RUNS_SEARCH,
+  ANALYTICS_LINE,
+  BUILDER_MODES,
+  DATA_SHELF_NAME,
+  DEPS_LINE,
+  DRAFT_HAS_EDITS,
+  EMPTY_COMPLETED,
+  EMPTY_DEPENDENCIES,
+  EMPTY_EVENTS,
+  EMPTY_PACKAGES,
+  INSPECTOR_TABS,
+  LISTENING,
+  LOOP_CHILD,
+  NEEDS_LINE,
+  PACKAGES_LINE,
+  PARALLEL_JOIN,
+  SPACE_ANALYTICS_LINE,
+  SPACE_ANALYTICS_TITLE,
+  STUDIO_NAV,
+  VAL_LABEL,
+  accountFixedLine,
+  definitionCrumb,
+  enrollmentsPinned,
+  needsBadge,
+  parallelLaneMark,
 } from "./chrome.ts";
 import { attemptLine, childRunLine, containerForChildren, lineageLines } from "./runs/lineage.ts";
 import { definitionLabel } from "./versions/cohorts.ts";
@@ -16,9 +41,20 @@ import { definitionLabel } from "./versions/cohorts.ts";
 const source = (path: string): string => readFileSync(new URL(path, import.meta.url), "utf8");
 
 test("place nav follows the prototype order", () => {
-  assert.deepEqual(STUDIO_NAV.map((item) => item.label), [
-    "Automations", "Templates", "Needs you", "Watching", "All runs", "Live Event Explorer", "Analytics", "Dependencies", "Packages",
-  ]);
+  assert.deepEqual(
+    STUDIO_NAV.map((item) => item.label),
+    [
+      "Automations",
+      "Templates",
+      "Needs you",
+      "Watching",
+      "All runs",
+      "Live Event Explorer",
+      "Analytics",
+      "Dependencies",
+      "Packages",
+    ],
+  );
   const slot = source("./sidebar/AutomationsSidebarSlot.tsx");
   assert.match(slot, /STUDIO_NAV/);
   assert.match(slot, /Search automations/);
@@ -60,7 +96,15 @@ test("a parallel card marks each lane as a child Run and joins them", () => {
     triggers: [{ key: "manual" }],
     start: ["p"],
     nodes: [
-      { id: "p", key: "parallel", input: {}, branches: [{ label: "Lane A", to: "a" }, { label: "Lane B", to: "b" }] },
+      {
+        id: "p",
+        key: "parallel",
+        input: {},
+        branches: [
+          { label: "Lane A", to: "a" },
+          { label: "Lane B", to: "b" },
+        ],
+      },
       { id: "a", key: "send_email", input: { to: "a@b.c" }, next: ["z"] },
       { id: "b", key: "send_sms", input: { to: "+1" }, next: ["z"] },
       { id: "z", key: "stop", input: {} },
@@ -83,7 +127,10 @@ test("a loop says each iteration is a child Run", () => {
 test("the header omits a live version and an edit count it does not have", () => {
   assert.equal(definitionLabel({ version: 5, status: "paused" }), "v5");
   assert.equal(definitionLabel({ version: 12, status: "on" }), "Live v12");
-  assert.equal(definitionLabel({ version: 12, status: "on", liveVersion: 12, draftVersion: 13 }), `Live v12 · ${DRAFT_HAS_EDITS}`);
+  assert.equal(
+    definitionLabel({ version: 12, status: "on", liveVersion: 12, draftVersion: 13 }),
+    `Live v12 · ${DRAFT_HAS_EDITS}`,
+  );
   assert.equal(definitionLabel({ version: 5, status: "paused" }, true), `v5 · ${DRAFT_HAS_EDITS}`);
   assert.equal(definitionLabel({ version: 4 }), "v4");
   assert.doesNotMatch(definitionLabel({ version: 12, status: "on" }, true), /3 edits/);
@@ -111,14 +158,29 @@ test("the data shelf keeps real rows and names the three absence states", () => 
 });
 
 test("a run timeline shows an attempt and a child Run only from real fields", () => {
-  assert.equal(attemptLine({ step: "send", state: "failed", attempt: 2, branch: "Lane A" }), "send · failed · attempt 2 · Lane A");
+  assert.equal(
+    attemptLine({ step: "send", state: "failed", attempt: 2, branch: "Lane A" }),
+    "send · failed · attempt 2 · Lane A",
+  );
   assert.equal(childRunLine({ runId: "run_child", attempt: 2 }), "Side run, attempt 2");
   assert.equal(childRunLine({ runId: "run_8", lane: "A" }), "Lane A");
   assert.equal(childRunLine({ runId: "run_9", item: "3" }), "Item 3");
   const lines = lineageLines("run_parent", [{ attempt: 2 }], [{ runId: "run_child", attempt: 2 }]);
   assert.equal(lines?.children[0]?.text, "Side run, attempt 2");
-  assert.equal(containerForChildren([{ id: "p", key: "parallel" }, { id: "s", key: "send_email" }]), "p");
-  assert.equal(containerForChildren([{ id: "p", key: "parallel" }, { id: "l", key: "loop" }]), null);
+  assert.equal(
+    containerForChildren([
+      { id: "p", key: "parallel" },
+      { id: "s", key: "send_email" },
+    ]),
+    "p",
+  );
+  assert.equal(
+    containerForChildren([
+      { id: "p", key: "parallel" },
+      { id: "l", key: "loop" },
+    ]),
+    null,
+  );
   assert.equal(stepStatusChip("a", [], undefined, new Set()), null);
   assert.equal(stepStatusChip("a", [], "waiting", new Set()), "waiting");
   assert.equal(stepStatusChip("a", [{ severity: "error" }], "waiting", new Set(["a"])), "error");

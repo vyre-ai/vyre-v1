@@ -7,8 +7,16 @@ export function usePageTitle(projectId: string): string {
   const [t, setT] = useState("this project");
   useEffect(() => {
     let live = true;
-    void Promise.resolve(d.call("projects.get", { projectId })).then((o) => { const v = (o as { project?: { title?: string } }).project?.title; if (live && typeof v === "string" && v !== "") setT(v); }, () => undefined);
-    return () => { live = false; };
+    void Promise.resolve(d.call("projects.get", { projectId })).then(
+      (o) => {
+        const v = (o as { project?: { title?: string } }).project?.title;
+        if (live && typeof v === "string" && v !== "") setT(v);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
   }, [d, projectId]);
   return t;
 }

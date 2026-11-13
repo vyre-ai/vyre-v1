@@ -8,11 +8,17 @@ export type Place = "terminal" | "http" | "browser" | "file" | "chat";
 
 /** Tools whose executor may receive a value, and where that is. Anything not listed never sees one. */
 export const FILL_TOOLS: Readonly<Record<string, Place>> = {
-  terminal_run: "terminal", terminal_open: "terminal",
-  chrome_fill: "browser", chrome_type: "browser", chrome_act: "browser", screen_type: "browser",
-  sites_deploy: "http", sites_env_set: "http",
+  terminal_run: "terminal",
+  terminal_open: "terminal",
+  chrome_fill: "browser",
+  chrome_type: "browser",
+  chrome_act: "browser",
+  screen_type: "browser",
+  sites_deploy: "http",
+  sites_env_set: "http",
   // The engine session opener (drivers/open): an account's key goes into a CLI engine's process environment, or into the auth header of an API driver's request. Never into a transcript.
-  engine_launch: "terminal", engine_authorize: "http",
+  engine_launch: "terminal",
+  engine_authorize: "http",
 };
 /** Deployments only receive items that allow it. */
 export const DEPLOY_TOOLS: ReadonlySet<string> = new Set(["sites_deploy", "sites_env_set"]);
@@ -27,7 +33,11 @@ export function handlesInArgs(args: unknown): string[] {
   const walk = (v: unknown): void => {
     if (typeof v === "string") for (const h of handlesIn(v)) found.add(h);
     else if (Array.isArray(v)) v.forEach(walk);
-    else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) { walk(k); walk(x); }
+    else if (v && typeof v === "object")
+      for (const [k, x] of Object.entries(v)) {
+        walk(k);
+        walk(x);
+      }
   };
   walk(args);
   return [...found];

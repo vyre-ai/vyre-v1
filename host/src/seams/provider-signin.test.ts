@@ -8,21 +8,32 @@ import path from "node:path";
 import { CLAUDE, CODEX, createProviderSignin, collectGrokFiles } from "./provider-signin.ts";
 import type { SeamFetch } from "./ports.ts";
 
-interface Call { url: string; method: string; body: string }
+interface Call {
+  url: string;
+  method: string;
+  body: string;
+}
 function stub(handler: (c: Call) => { status: number; body?: unknown }): { fetch: SeamFetch; calls: Call[] } {
   const calls: Call[] = [];
   const fetch: SeamFetch = async (url, init) => {
     const c = { url, method: init?.method ?? "GET", body: String(init?.body ?? "") };
     calls.push(c);
     const r = handler(c);
-    return { status: r.status, text: async () => (typeof r.body === "string" ? r.body : JSON.stringify(r.body ?? {})), arrayBuffer: async () => new ArrayBuffer(0) };
+    return {
+      status: r.status,
+      text: async () => (typeof r.body === "string" ? r.body : JSON.stringify(r.body ?? {})),
+      arrayBuffer: async () => new ArrayBuffer(0),
+    };
   };
   return { fetch, calls };
 }
 const TOKEN = "sk-ant-oat01-stubTOKENvalue0123456789abcdefXYZ"; // secret-scan: fake
 
 test("claude: the link carries the PKCE challenge of a verifier only the server knows, and the pasted code is exchanged for the token", async () => {
-  const s = stub(() => ({ status: 200, body: { access_token: TOKEN, token_type: "Bearer", expires_in: CLAUDE.lifetimeSec } }));
+  const s = stub(() => ({
+    status: 200,
+    body: { access_token: TOKEN, token_type: "Bearer", expires_in: CLAUDE.lifetimeSec },
+  }));
   const port = createProviderSignin({ fetch: s.fetch });
   const started = await port.start({ id: "sub_1", provider: "claude-code", person: "usr_a" });
   assert.equal(started.needsCode, true);
@@ -37,7 +48,11 @@ test("claude: the link carries the PKCE challenge of a verifier only the server 
   const state = u.searchParams.get("state")!;
   assert.ok(state.length >= 24);
   assert.equal(port.active("sub_1"), true);
-  assert.deepEqual(await port.step({ id: "sub_1", person: "usr_a" }), { state: "waiting" }, "no code yet, nothing is sent");
+  assert.deepEqual(
+    await port.step({ id: "sub_1", person: "usr_a" }),
+    { state: "waiting" },
+    "no code yet, nothing is sent",
+  );
   assert.equal(s.calls.length, 0);
 
   const done = await port.step({ id: "sub_1", person: "usr_a", code: `AUTHCODE123456#${state}` });
@@ -50,24 +65,46 @@ test("claude: the link carries the PKCE challenge of a verifier only the server 
   assert.equal(sent["redirect_uri"], CLAUDE.redirect);
   assert.equal(sent["expires_in"], CLAUDE.lifetimeSec);
   // the verifier sent is the one whose hash is in the link
-  assert.equal(crypto.createHash("sha256").update(String(sent["code_verifier"])).digest("base64url"), u.searchParams.get("code_challenge"));
+  assert.equal(
+    crypto.createHash("sha256").update(String(sent["code_verifier"])).digest("base64url"),
+    u.searchParams.get("code_challenge"),
+  );
   assert.equal(port.active("sub_1"), true, "a finished flow is held until the module has saved it");
-  assert.deepEqual(await port.step({ id: "sub_1", person: "usr_a", code: `AUTHCODE123456#${state}` }), done, "a retry is answered from the finished flow");
+  assert.deepEqual(
+    await port.step({ id: "sub_1", person: "usr_a", code: `AUTHCODE123456#${state}` }),
+    done,
+    "a retry is answered from the finished flow",
+  );
   assert.equal(s.calls.length, 1, "the code was exchanged once");
-  assert.deepEqual(await port.step({ id: "sub_1", person: "usr_b" }), { state: "failed", message: "That sign-in is over. Start again." }, "and only to the person who started it");
+  assert.deepEqual(
+    await port.step({ id: "sub_1", person: "usr_b" }),
+    { state: "failed", message: "That sign-in is over. Start again." },
+    "and only to the person who started it",
+  );
   port.cancel("sub_1");
   assert.equal(port.active("sub_1"), false, "once saved, the finished flow is gone");
 });
 
 test("claude: a code from another sign-in, a malformed paste and a refusal each say what to do, and the credential is never in the words", async () => {
   let status = 200;
-  const s = stub(() => ({ status, body: status === 200 ? { access_token: "not-a-token" } : { error: `bad ${TOKEN}` } }));
+  const s = stub(() => ({
+    status,
+    body: status === 200 ? { access_token: "not-a-token" } : { error: `bad ${TOKEN}` },
+  }));
   const port = createProviderSignin({ fetch: s.fetch });
-  const begin = async (id: string): Promise<string> => new URL((await port.start({ id, provider: "claude-code", person: "usr_a" })).url).searchParams.get("state")!;
+  const begin = async (id: string): Promise<string> =>
+    new URL((await port.start({ id, provider: "claude-code", person: "usr_a" })).url).searchParams.get("state")!;
   const a = await begin("sub_a");
-  assert.match(((await port.step({ id: "sub_a", person: "usr_a", code: "CODE123456#someOtherState12345" })) as { message: string }).message, /different sign-in/);
+  assert.match(
+    ((await port.step({ id: "sub_a", person: "usr_a", code: "CODE123456#someOtherState12345" })) as { message: string })
+      .message,
+    /different sign-in/,
+  );
   const b = await begin("sub_b");
-  assert.match(((await port.step({ id: "sub_b", person: "usr_a", code: "no spaces allowed" })) as { message: string }).message, /does not look like the code/);
+  assert.match(
+    ((await port.step({ id: "sub_b", person: "usr_a", code: "no spaces allowed" })) as { message: string }).message,
+    /does not look like the code/,
+  );
   const c = await begin("sub_c");
   status = 400;
   const refused = (await port.step({ id: "sub_c", person: "usr_a", code: `CODE123456#${c}` })) as { message: string };
@@ -75,15 +112,27 @@ test("claude: a code from another sign-in, a malformed paste and a refusal each 
   assert.equal(refused.message.includes(TOKEN), false);
   const d = await begin("sub_d");
   status = 200;
-  assert.match(((await port.step({ id: "sub_d", person: "usr_a", code: `CODE123456#${d}` })) as { message: string }).message, /not a sign-in token/);
-  void a; void b;
+  assert.match(
+    ((await port.step({ id: "sub_d", person: "usr_a", code: `CODE123456#${d}` })) as { message: string }).message,
+    /not a sign-in token/,
+  );
+  void a;
+  void b;
 });
 
 test("claude: a flow answers only to the person who started it, and ends after fifteen minutes", async () => {
   let t = 1_000;
-  const port = createProviderSignin({ fetch: stub(() => ({ status: 200, body: { access_token: TOKEN } })).fetch, now: () => t });
-  const state = new URL((await port.start({ id: "sub_p", provider: "claude-code", person: "usr_a" })).url).searchParams.get("state")!;
-  assert.deepEqual(await port.step({ id: "sub_p", person: "usr_b", code: `CODE123456#${state}` }), { state: "failed", message: "That sign-in is over. Start again." });
+  const port = createProviderSignin({
+    fetch: stub(() => ({ status: 200, body: { access_token: TOKEN } })).fetch,
+    now: () => t,
+  });
+  const state = new URL(
+    (await port.start({ id: "sub_p", provider: "claude-code", person: "usr_a" })).url,
+  ).searchParams.get("state")!;
+  assert.deepEqual(await port.step({ id: "sub_p", person: "usr_b", code: `CODE123456#${state}` }), {
+    state: "failed",
+    message: "That sign-in is over. Start again.",
+  });
   t += 16 * 60_000;
   assert.equal((await port.step({ id: "sub_p", person: "usr_a", code: `CODE123456#${state}` })).state, "failed");
   assert.equal(port.active("sub_p"), false);
@@ -92,8 +141,12 @@ test("claude: a flow answers only to the person who started it, and ends after f
 function codexHandler(approveAfter: number) {
   let polls = 0;
   return (c: Call): { status: number; body?: unknown } => {
-    if (c.url.endsWith("/api/accounts/deviceauth/usercode")) return { status: 200, body: { device_auth_id: "dev_1", user_code: "ABCD-1234", interval: "5" } };
-    if (c.url.endsWith("/api/accounts/deviceauth/token")) return ++polls <= approveAfter ? { status: 403, body: { error: "authorization_pending" } } : { status: 200, body: { authorization_code: "AC-1", code_challenge: "x", code_verifier: "VER-1" } };
+    if (c.url.endsWith("/api/accounts/deviceauth/usercode"))
+      return { status: 200, body: { device_auth_id: "dev_1", user_code: "ABCD-1234", interval: "5" } };
+    if (c.url.endsWith("/api/accounts/deviceauth/token"))
+      return ++polls <= approveAfter
+        ? { status: 403, body: { error: "authorization_pending" } }
+        : { status: 200, body: { authorization_code: "AC-1", code_challenge: "x", code_verifier: "VER-1" } };
     if (c.url.endsWith("/oauth/token")) {
       const idToken = `h.${Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_9" } })).toString("base64url")}.s`;
       return { status: 200, body: { id_token: idToken, access_token: "at-codex-1", refresh_token: "rt-codex-1" } };
@@ -109,7 +162,11 @@ test("codex: the person gets the device page and a code, polling waits while it 
   const started = await port.start({ id: "sub_x", provider: "codex", person: "usr_a" });
   assert.deepEqual(started, { url: CODEX.verifyPage, userCode: "ABCD-1234", needsCode: false, expiresInSec: 900 });
   assert.equal(JSON.parse(s.calls[0]!.body).client_id, CODEX.clientId);
-  assert.deepEqual(await port.step({ id: "sub_x", person: "usr_a" }), { state: "waiting" }, "polling is not faster than the interval");
+  assert.deepEqual(
+    await port.step({ id: "sub_x", person: "usr_a" }),
+    { state: "waiting" },
+    "polling is not faster than the interval",
+  );
   assert.equal(s.calls.length, 1);
   t += 6_000;
   assert.deepEqual(await port.step({ id: "sub_x", person: "usr_a" }), { state: "waiting" }, "still pending: 403");
@@ -120,11 +177,23 @@ test("codex: the person gets the device page and a code, polling waits while it 
   assert.equal(done.fields[0]!.key, "credentials");
   const files = JSON.parse(done.fields[0]!.value) as Record<string, string>;
   const auth = JSON.parse(files[".codex/auth.json"]!) as { tokens: Record<string, string>; OPENAI_API_KEY: null };
-  assert.deepEqual([auth.tokens["access_token"], auth.tokens["refresh_token"], auth.tokens["account_id"]], ["at-codex-1", "rt-codex-1", "acct_9"]);
+  assert.deepEqual(
+    [auth.tokens["access_token"], auth.tokens["refresh_token"], auth.tokens["account_id"]],
+    ["at-codex-1", "rt-codex-1", "acct_9"],
+  );
   const exchange = s.calls.at(-1)!;
   assert.equal(exchange.url, `${CODEX.issuer}/oauth/token`);
   const form = new URLSearchParams(exchange.body);
-  assert.deepEqual([form.get("grant_type"), form.get("code"), form.get("code_verifier"), form.get("redirect_uri"), form.get("client_id")], ["authorization_code", "AC-1", "VER-1", `${CODEX.issuer}/deviceauth/callback`, CODEX.clientId]);
+  assert.deepEqual(
+    [
+      form.get("grant_type"),
+      form.get("code"),
+      form.get("code_verifier"),
+      form.get("redirect_uri"),
+      form.get("client_id"),
+    ],
+    ["authorization_code", "AC-1", "VER-1", `${CODEX.issuer}/deviceauth/callback`, CODEX.clientId],
+  );
 });
 
 test("codex: a provider that cannot start the sign-in, and a refusal at the end, say so in words", async () => {
@@ -132,10 +201,20 @@ test("codex: a provider that cannot start the sign-in, and a refusal at the end,
   await assert.rejects(() => none.start({ id: "sub_n", provider: "codex", person: "usr_a" }), /device sign-in/);
   assert.equal(none.active("sub_n"), false);
   let t = 0;
-  const bad = createProviderSignin({ fetch: stub((c) => (c.url.endsWith("usercode") ? { status: 200, body: { device_auth_id: "d", user_code: "AAAA-1111", interval: 1 } } : { status: 500 })).fetch, now: () => t });
+  const bad = createProviderSignin({
+    fetch: stub((c) =>
+      c.url.endsWith("usercode")
+        ? { status: 200, body: { device_auth_id: "d", user_code: "AAAA-1111", interval: 1 } }
+        : { status: 500 },
+    ).fetch,
+    now: () => t,
+  });
   await bad.start({ id: "sub_m", provider: "codex", person: "usr_a" });
   t += 5_000;
-  assert.match(((await bad.step({ id: "sub_m", person: "usr_a" })) as { message: string }).message, /did not finish the sign-in \(500\)/);
+  assert.match(
+    ((await bad.step({ id: "sub_m", person: "usr_a" })) as { message: string }).message,
+    /did not finish the sign-in \(500\)/,
+  );
 });
 
 test("grok: the address and code the command prints are shown, and the files it leaves are the credential, then the home is deleted", async () => {
@@ -144,12 +223,26 @@ test("grok: the address and code the command prints are shown, and the files it 
   fs.writeFileSync(path.join(home, ".grok", "auth.json"), '{"token":"grok-secret-xyz"}');
   fs.mkdirSync(path.join(home, ".cache"));
   fs.writeFileSync(path.join(home, ".cache", "junk"), "x");
-  const proc = { text: "", url: "https://accounts.x.ai/device?x=1", code: "WXYZ-5678", ended: false, exitCode: null as number | null, home, kill: () => undefined };
+  const proc = {
+    text: "",
+    url: "https://accounts.x.ai/device?x=1",
+    code: "WXYZ-5678",
+    ended: false,
+    exitCode: null as number | null,
+    home,
+    kill: () => undefined,
+  };
   const port = createProviderSignin({ fetch: stub(() => ({ status: 500 })).fetch, spawnGrok: () => proc });
   const started = await port.start({ id: "sub_g", provider: "grok", person: "usr_a" });
-  assert.deepEqual(started, { url: "https://accounts.x.ai/device?x=1", userCode: "WXYZ-5678", needsCode: false, expiresInSec: 900 });
+  assert.deepEqual(started, {
+    url: "https://accounts.x.ai/device?x=1",
+    userCode: "WXYZ-5678",
+    needsCode: false,
+    expiresInSec: 900,
+  });
   assert.deepEqual(await port.step({ id: "sub_g", person: "usr_a" }), { state: "waiting" });
-  proc.ended = true; proc.exitCode = 0;
+  proc.ended = true;
+  proc.exitCode = 0;
   const done = await port.step({ id: "sub_g", person: "usr_a" });
   assert.equal(done.state, "done");
   if (done.state !== "done") return;
@@ -159,8 +252,22 @@ test("grok: the address and code the command prints are shown, and the files it 
 
 test("grok: a command that is not installed, or fails, says so and leaves nothing behind", async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-test-grok-"));
-  const missing = createProviderSignin({ fetch: stub(() => ({ status: 500 })).fetch, spawnGrok: () => ({ text: "spawn grok ENOENT", url: null, code: null, ended: true, exitCode: 127, home, kill: () => undefined }) });
-  await assert.rejects(() => missing.start({ id: "sub_h", provider: "grok", person: "usr_a" }), /needs the Grok command line/);
+  const missing = createProviderSignin({
+    fetch: stub(() => ({ status: 500 })).fetch,
+    spawnGrok: () => ({
+      text: "spawn grok ENOENT",
+      url: null,
+      code: null,
+      ended: true,
+      exitCode: 127,
+      home,
+      kill: () => undefined,
+    }),
+  });
+  await assert.rejects(
+    () => missing.start({ id: "sub_h", provider: "grok", person: "usr_a" }),
+    /needs the Grok command line/,
+  );
   assert.equal(fs.existsSync(home), false);
   assert.deepEqual(collectGrokFiles(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-test-grok-"))), {});
 });

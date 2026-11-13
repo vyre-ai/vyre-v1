@@ -14,19 +14,41 @@ type Call = (cap: string, input: unknown, as?: string) => Promise<unknown>;
 const ready = new WeakSet<object>();
 function ensure(db: Db): void {
   if (ready.has(db)) return;
-  db.run("CREATE TABLE IF NOT EXISTS engine_audience_marks (thread_id TEXT NOT NULL, agent_id TEXT NOT NULL, person TEXT NOT NULL, mark TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (thread_id, agent_id, person))");
+  db.run(
+    "CREATE TABLE IF NOT EXISTS engine_audience_marks (thread_id TEXT NOT NULL, agent_id TEXT NOT NULL, person TEXT NOT NULL, mark TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (thread_id, agent_id, person))",
+  );
   ready.add(db);
 }
 
 /** An audience as one comparable string: the Space, or its people sorted. */
-export const audienceMark = (a: Audience): string => (a.space ? "space" : JSON.stringify([...new Set(a.people)].sort()));
+export const audienceMark = (a: Audience): string =>
+  a.space ? "space" : JSON.stringify([...new Set(a.people)].sort());
 
 /** Record the audience a session of this chat, agent and person opens under. True when it differs from the last one recorded (a first sight is not a change). */
-export function audienceChanged(db: Db, k: { threadId: string; agentId: string; person: string }, mark: string, now: number): boolean {
+export function audienceChanged(
+  db: Db,
+  k: { threadId: string; agentId: string; person: string },
+  mark: string,
+  now: number,
+): boolean {
   ensure(db);
-  const r = (db.all("SELECT mark FROM engine_audience_marks WHERE thread_id = ? AND agent_id = ? AND person = ?", k.threadId, k.agentId, k.person) as Array<{ mark: string }>)[0];
+  const r = (
+    db.all(
+      "SELECT mark FROM engine_audience_marks WHERE thread_id = ? AND agent_id = ? AND person = ?",
+      k.threadId,
+      k.agentId,
+      k.person,
+    ) as Array<{ mark: string }>
+  )[0];
   if (r && r.mark === mark) return false;
-  db.run("INSERT OR REPLACE INTO engine_audience_marks (thread_id, agent_id, person, mark, at) VALUES (?, ?, ?, ?, ?)", k.threadId, k.agentId, k.person, mark, now);
+  db.run(
+    "INSERT OR REPLACE INTO engine_audience_marks (thread_id, agent_id, person, mark, at) VALUES (?, ?, ?, ?, ?)",
+    k.threadId,
+    k.agentId,
+    k.person,
+    mark,
+    now,
+  );
   return r !== undefined;
 }
 
@@ -44,12 +66,24 @@ export function withAudienceReset(open: OpenSession, d: AudienceResetDeps): Open
     if (spec.tools !== "none" && keepsSession(spec)) {
       try {
         const a = await chatAudience((cap, input) => d.call(cap, input, spec.asker), spec.threadId);
-        if (audienceChanged(d.db, { threadId: spec.threadId, agentId: spec.agent.id, person: spec.asker }, audienceMark(a), d.now())) {
+        if (
+          audienceChanged(
+            d.db,
+            { threadId: spec.threadId, agentId: spec.agent.id, person: spec.asker },
+            audienceMark(a),
+            d.now(),
+          )
+        ) {
           forgetSessions(d.db, spec.threadId, spec.agent.id);
           await d.drop?.(spec.threadId).catch(() => 0);
-          d.log?.("the people in this chat changed: the engine starts a new session", { threadId: spec.threadId, agentId: spec.agent.id });
+          d.log?.("the people in this chat changed: the engine starts a new session", {
+            threadId: spec.threadId,
+            agentId: spec.agent.id,
+          });
         }
-      } catch { /* the audience could not be read: the turn opens as it would have */ }
+      } catch {
+        /* the audience could not be read: the turn opens as it would have */
+      }
     }
     return open(spec) as Promise<EngineSession>;
   };

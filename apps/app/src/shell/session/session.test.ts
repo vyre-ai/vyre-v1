@@ -9,9 +9,27 @@ import { elapse, fakeServer, settle } from "../../../../../client/src/connection
 import { createLiveLink, socketBase, socketPath } from "./live.ts";
 import { createRemoteScreenHooks, stableJson } from "./remote-hooks.ts";
 import { openRealSession, targetHash } from "./session.ts";
-import { clearStored, openVerifiedSession, phaseForStoredAddress, readStored, readStoredPersonal, readStoredSpace, signInAndVerify, spaceAddress, verifyStoredSession, writeStored } from "./stored.ts";
+import {
+  clearStored,
+  openVerifiedSession,
+  phaseForStoredAddress,
+  readStored,
+  readStoredPersonal,
+  readStoredSpace,
+  signInAndVerify,
+  spaceAddress,
+  verifyStoredSession,
+  writeStored,
+} from "./stored.ts";
 import { hydrationBaseUrl } from "./hydration.ts";
-import { acceptDesktopJoin, consumeDesktopBootstrap, consumeDesktopRoute, previewDesktopJoin, redeemDesktopPair, routeDesktopLink } from "./desktop.ts";
+import {
+  acceptDesktopJoin,
+  consumeDesktopBootstrap,
+  consumeDesktopRoute,
+  previewDesktopJoin,
+  redeemDesktopPair,
+  routeDesktopLink,
+} from "./desktop.ts";
 import type { DesktopDeepLink } from "./desktop.ts";
 import type { KeyValueStore } from "./stored.ts";
 
@@ -27,22 +45,54 @@ const ROUTES: RouteRow[] = [
   { method: "POST", path: "/v2/old", cap: "old.cap", v: 2 },
 ];
 
-const screen = (queries: ScreenIndexEntry["queries"]): ScreenIndexEntry => ({ id: "files.list", module: "files", place: "files", slot: "main", builtin: null, caller: "principal", queries, actions: {}, needs: [], perf: null });
+const screen = (queries: ScreenIndexEntry["queries"]): ScreenIndexEntry => ({
+  id: "files.list",
+  module: "files",
+  place: "files",
+  slot: "main",
+  builtin: null,
+  caller: "principal",
+  queries,
+  actions: {},
+  needs: [],
+  perf: null,
+});
 const SCREENS = new Map<string, ScreenIndexEntry>([
-  ["files.list", screen({ items: { cap: "files.list", input: { folder: "/state/folder" }, live: true }, once: { cap: "files.list", input: {}, live: false } })],
+  [
+    "files.list",
+    screen({
+      items: { cap: "files.list", input: { folder: "/state/folder" }, live: true },
+      once: { cap: "files.list", input: {}, live: false },
+    }),
+  ],
 ]);
 
-interface Seen { method: string; url: string; headers: Record<string, string>; body: unknown }
+interface Seen {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body: unknown;
+}
 
 /** A gateway: answers by "METHOD path", records what it was sent. */
-function gateway(answers: Record<string, (seen: Seen) => { status?: number; body: unknown }>): { fetch: typeof fetch; seen: Seen[] } {
+function gateway(answers: Record<string, (seen: Seen) => { status?: number; body: unknown }>): {
+  fetch: typeof fetch;
+  seen: Seen[];
+} {
   const seen: Seen[] = [];
   const f = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const u = new URL(String(input));
-    const s: Seen = { method: init?.method ?? "GET", url: u.pathname + u.search, headers: (init?.headers ?? {}) as Record<string, string>, body: init?.body ? JSON.parse(String(init.body)) : undefined };
+    const s: Seen = {
+      method: init?.method ?? "GET",
+      url: u.pathname + u.search,
+      headers: (init?.headers ?? {}) as Record<string, string>,
+      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+    };
     seen.push(s);
     const a = answers[`${s.method} ${u.pathname}`];
-    const r = a ? a(s) : { status: 404, body: { error: { code: "validation.unknown_capability", message: "nope", traceId: "t0" } } };
+    const r = a
+      ? a(s)
+      : { status: 404, body: { error: { code: "validation.unknown_capability", message: "nope", traceId: "t0" } } };
     return new Response(JSON.stringify(r.body), { status: r.status ?? 200, headers: { "x-vyre-trace": "trace-1" } });
   }) as typeof fetch;
   return { fetch: f, seen };
@@ -54,7 +104,12 @@ test("caps: a GET sends the query string and the bearer token, a POST sends the 
     "GET /v1/files/list": () => ({ body: { data: { items: [] } } }),
     "POST /v1/files/rename": () => ({ body: { data: { ok: true } } }),
   });
-  const call = createCapCaller({ baseUrl: "http://s.test/", token: () => "vst_abc", fetch: gw.fetch, routes: async () => ROUTES });
+  const call = createCapCaller({
+    baseUrl: "http://s.test/",
+    token: () => "vst_abc",
+    fetch: gw.fetch,
+    routes: async () => ROUTES,
+  });
   assert.deepEqual(await call("files.list", { folder: "root", limit: 5, flags: { a: 1 } }), { items: [] });
   assert.deepEqual(await call("files.rename", { id: "f1", name: "x" }, { idempotencyKey: "k1" }), { ok: true });
   assert.equal(gw.seen[0]!.url, "/v1/files/list?folder=root&limit=5&flags=%7B%22a%22%3A1%7D");
@@ -66,20 +121,54 @@ test("caps: a GET sends the query string and the bearer token, a POST sends the 
 
 test("caps: an anonymous call sends no Authorization header", async () => {
   const gw = gateway({ "POST /v1/identity/whoami": () => ({ body: { data: {} } }) });
-  await createCapCaller({ baseUrl: "http://s.test", token: () => null, fetch: gw.fetch, routes: async () => ROUTES })("identity.whoami", {});
+  await createCapCaller({ baseUrl: "http://s.test", token: () => null, fetch: gw.fetch, routes: async () => ROUTES })(
+    "identity.whoami",
+    {},
+  );
   assert.equal(gw.seen[0]!.headers["authorization"], undefined);
 });
 
 test("caps: an error answer becomes a CapError with the code, the message and the trace id", async () => {
-  const gw = gateway({ "GET /v1/files/list": () => ({ status: 403, body: { error: { code: "auth.forbidden", message: "You cannot open this.", traceId: "abc123" } } }) });
-  const call = createCapCaller({ baseUrl: "http://s.test", token: () => "t", fetch: gw.fetch, routes: async () => ROUTES });
-  await assert.rejects(call("files.list", {}), (e: unknown) => e instanceof CapError && e.code === "auth.forbidden" && e.message === "You cannot open this." && e.traceId === "abc123" && e.status === 403);
+  const gw = gateway({
+    "GET /v1/files/list": () => ({
+      status: 403,
+      body: { error: { code: "auth.forbidden", message: "You cannot open this.", traceId: "abc123" } },
+    }),
+  });
+  const call = createCapCaller({
+    baseUrl: "http://s.test",
+    token: () => "t",
+    fetch: gw.fetch,
+    routes: async () => ROUTES,
+  });
+  await assert.rejects(
+    call("files.list", {}),
+    (e: unknown) =>
+      e instanceof CapError &&
+      e.code === "auth.forbidden" &&
+      e.message === "You cannot open this." &&
+      e.traceId === "abc123" &&
+      e.status === 403,
+  );
 });
 
 test("caps: a 401 with a token tells the session it is over; an unknown capability is a 404 CapError", async () => {
   let out = 0;
-  const gw = gateway({ "GET /v1/files/list": () => ({ status: 401, body: { error: { code: "auth.unauthenticated", message: "Sign in.", traceId: "t" } } }) });
-  const call = createCapCaller({ baseUrl: "http://s.test", token: () => "t", fetch: gw.fetch, routes: async () => ROUTES, onUnauthenticated: () => { out++; } });
+  const gw = gateway({
+    "GET /v1/files/list": () => ({
+      status: 401,
+      body: { error: { code: "auth.unauthenticated", message: "Sign in.", traceId: "t" } },
+    }),
+  });
+  const call = createCapCaller({
+    baseUrl: "http://s.test",
+    token: () => "t",
+    fetch: gw.fetch,
+    routes: async () => ROUTES,
+    onUnauthenticated: () => {
+      out++;
+    },
+  });
   await assert.rejects(call("files.list", {}), CapError);
   assert.equal(out, 1);
   await assert.rejects(call("nope.nothing", {}), (e: unknown) => e instanceof CapError && e.status === 404);
@@ -87,10 +176,32 @@ test("caps: a 401 with a token tells the session it is over; an unknown capabili
 
 test("caps: a 401 that says the vault key is locked is the vault's answer: the person stays signed in", async () => {
   let out = 0;
-  const locked = { status: 401, body: { error: { code: "auth.unauthenticated", message: "Your vault key is locked. Sign in again to open your Mine items.", traceId: "t" } } };
-  const tagged = { status: 401, body: { error: { code: "auth.unauthenticated", message: "Locked.", traceId: "t", details: { reason: "vault_locked" } } } };
+  const locked = {
+    status: 401,
+    body: {
+      error: {
+        code: "auth.unauthenticated",
+        message: "Your vault key is locked. Sign in again to open your Mine items.",
+        traceId: "t",
+      },
+    },
+  };
+  const tagged = {
+    status: 401,
+    body: {
+      error: { code: "auth.unauthenticated", message: "Locked.", traceId: "t", details: { reason: "vault_locked" } },
+    },
+  };
   const gw = gateway({ "GET /v1/files/list": () => locked, "POST /v1/files/rename": () => tagged });
-  const call = createCapCaller({ baseUrl: "http://s.test", token: () => "t", fetch: gw.fetch, routes: async () => ROUTES, onUnauthenticated: () => { out++; } });
+  const call = createCapCaller({
+    baseUrl: "http://s.test",
+    token: () => "t",
+    fetch: gw.fetch,
+    routes: async () => ROUTES,
+    onUnauthenticated: () => {
+      out++;
+    },
+  });
   await assert.rejects(call("files.list", {}), (e: unknown) => e instanceof CapError && e.status === 401);
   await assert.rejects(call("files.rename", {}), (e: unknown) => e instanceof CapError && e.status === 401);
   assert.equal(out, 0, "no sign-out for a locked vault key, by message or by the tagged reason");
@@ -99,7 +210,12 @@ test("caps: a 401 that says the vault key is locked is the vault's answer: the p
 test("caps: a capability whose contract asks for an idempotencyKey gets one when the caller sent none, and keeps one it sent", async () => {
   const gw = gateway({ "POST /v1/files/rename": () => ({ status: 200, body: { data: { ok: true } } }) });
   const keyed: RouteRow[] = ROUTES.map((r) => (r.cap === "files.rename" ? { ...r, idempotency: "key" as const } : r));
-  const call = createCapCaller({ baseUrl: "http://s.test", token: () => "t", fetch: gw.fetch, routes: async () => keyed });
+  const call = createCapCaller({
+    baseUrl: "http://s.test",
+    token: () => "t",
+    fetch: gw.fetch,
+    routes: async () => keyed,
+  });
   await call("files.rename", { id: "f1" });
   await call("files.rename", { id: "f2", idempotencyKey: "mine" });
   const bodies = gw.seen.map((s) => s.body as Record<string, unknown>);
@@ -110,7 +226,12 @@ test("caps: a capability whose contract asks for an idempotencyKey gets one when
 test("caps: one logical call keeps one idempotencyKey when it is sent again (opts carry it), and a different call gets its own", async () => {
   const gw = gateway({ "POST /v1/files/rename": () => ({ status: 200, body: { data: { ok: true } } }) });
   const keyed: RouteRow[] = ROUTES.map((r) => (r.cap === "files.rename" ? { ...r, idempotency: "key" as const } : r));
-  const call = createCapCaller({ baseUrl: "http://s.test", token: () => "t", fetch: gw.fetch, routes: async () => keyed });
+  const call = createCapCaller({
+    baseUrl: "http://s.test",
+    token: () => "t",
+    fetch: gw.fetch,
+    routes: async () => keyed,
+  });
   await call("files.rename", { id: "f1" }, { idempotencyKey: "logical-1" });
   await call("files.rename", { id: "f1" }, { idempotencyKey: "logical-1" });
   await call("files.rename", { id: "f1" }, { idempotencyKey: "logical-2" });
@@ -130,7 +251,9 @@ test("hooks: a query is loading, then ready with the data; a second read of the 
   const q = hooks.query("files.list", "items", { folder: "root" });
   assert.equal(q.getSnapshot().status, "loading");
   let told = 0;
-  const off = q.subscribe(() => { told++; });
+  const off = q.subscribe(() => {
+    told++;
+  });
   await wait();
   const first = q.getSnapshot();
   assert.equal(first.status, "ready");
@@ -147,7 +270,13 @@ test("hooks: a query is loading, then ready with the data; a second read of the 
 test("hooks: changed data replaces the snapshot and tells the listener; an unwatched query is re-read when watched again", async () => {
   let v = 1;
   let reads = 0;
-  const hooks = createRemoteScreenHooks({ screens: SCREENS, read: async () => { reads++; return { v }; } });
+  const hooks = createRemoteScreenHooks({
+    screens: SCREENS,
+    read: async () => {
+      reads++;
+      return { v };
+    },
+  });
   const q = hooks.query("files.list", "items");
   const off = q.subscribe(() => undefined);
   await wait();
@@ -173,7 +302,14 @@ test("hooks: changed data replaces the snapshot and tells the listener; an unwat
 test("hooks: a failed read keeps the last answer and reports the error; unknown screens and non-live queries throw", async () => {
   let fail = false;
   const errors: string[] = [];
-  const hooks = createRemoteScreenHooks({ screens: SCREENS, read: async () => { if (fail) throw new Error("down"); return { ok: 1 }; }, onError: (cap) => errors.push(cap) });
+  const hooks = createRemoteScreenHooks({
+    screens: SCREENS,
+    read: async () => {
+      if (fail) throw new Error("down");
+      return { ok: 1 };
+    },
+    onError: (cap) => errors.push(cap),
+  });
   const q = hooks.query("files.list", "items");
   q.subscribe(() => undefined);
   await wait();
@@ -193,13 +329,28 @@ test("hooks: key order does not change a query's identity", () => {
   assert.equal(stableJson({ b: 1, a: [2, { d: 1, c: 2 }] }), stableJson({ a: [2, { c: 2, d: 1 }], b: 1 }));
 });
 
-const change = (seq: number) => ({ seq, entity: "contact", id: `r${seq}`, op: "upsert" as const, fields: { name: { v: `n${seq}`, hlc: "000000000001-0000-srv", actor: "usr_a" } } });
+const change = (seq: number) => ({
+  seq,
+  entity: "contact",
+  id: `r${seq}`,
+  op: "upsert" as const,
+  fields: { name: { v: `n${seq}`, hlc: "000000000001-0000-srv", actor: "usr_a" } },
+});
 
 test("live: the manager says hello with this device and the cursor, reaches live, reports each batch and acks it", async () => {
   const srv = fakeServer();
   const changes: number[] = [];
   const states: string[] = [];
-  const link = createLiveLink({ baseUrl: "https://s.test", token: () => "vst_1", deviceId: "dev_web", epoch: 3, registryHash: "h1", onChange: (n) => changes.push(n), onStatus: (x) => states.push(x), dial: srv.dial });
+  const link = createLiveLink({
+    baseUrl: "https://s.test",
+    token: () => "vst_1",
+    deviceId: "dev_web",
+    epoch: 3,
+    registryHash: "h1",
+    onChange: (n) => changes.push(n),
+    onStatus: (x) => states.push(x),
+    dial: srv.dial,
+  });
   link.start();
   await settle();
   assert.equal(link.status(), "live");
@@ -217,7 +368,15 @@ test("live: the manager says hello with this device and the cursor, reaches live
 test("live: a server that is not live (update required) leaves the link offline, so the session polls", async () => {
   const srv = fakeServer();
   srv.mode = "update_required";
-  const link = createLiveLink({ baseUrl: "https://s.test", token: () => "t", deviceId: "d", epoch: 0, registryHash: "old", onChange: () => undefined, dial: srv.dial });
+  const link = createLiveLink({
+    baseUrl: "https://s.test",
+    token: () => "t",
+    deviceId: "d",
+    epoch: 0,
+    registryHash: "old",
+    onChange: () => undefined,
+    dial: srv.dial,
+  });
   link.start();
   await settle();
   assert.equal(link.status(), "offline");
@@ -227,7 +386,18 @@ test("live: a server that is not live (update required) leaves the link offline,
 test("live: a revoked device (purge) tells the session", async () => {
   const srv = fakeServer();
   let purged = 0;
-  const link = createLiveLink({ baseUrl: "https://s.test", token: () => "t", deviceId: "d", epoch: 0, registryHash: "h", onChange: () => undefined, onPurge: () => { purged++; }, dial: srv.dial });
+  const link = createLiveLink({
+    baseUrl: "https://s.test",
+    token: () => "t",
+    deviceId: "d",
+    epoch: 0,
+    registryHash: "h",
+    onChange: () => undefined,
+    onPurge: () => {
+      purged++;
+    },
+    dial: srv.dial,
+  });
   link.start();
   await settle();
   srv.broadcast({ t: "purge", epoch: 4 });
@@ -242,21 +412,50 @@ test("live: the socket address swaps http for ws, drops the path and carries the
   assert.equal(socketPath("ws://127.0.0.1:7777", "a b"), "ws://127.0.0.1:7777/sync/v1/ws?ticket=a%20b");
 });
 
-const WHOAMI = { principal: { kind: "person", id: "usr_irfad" }, name: "Irfad Imtiaz", roles: ["owner"], groups: [], epoch: 1, spaceId: "spc_nw" };
-const SPACE = { space: { id: "spc_nw", name: "Northwind", kind: "team", owner: "usr_irfad", fingerprint: "ab", address: { mode: "relay" }, defaults: {} } };
+const WHOAMI = {
+  principal: { kind: "person", id: "usr_irfad" },
+  name: "Irfad Imtiaz",
+  roles: ["owner"],
+  groups: [],
+  epoch: 1,
+  spaceId: "spc_nw",
+};
+const SPACE = {
+  space: {
+    id: "spc_nw",
+    name: "Northwind",
+    kind: "team",
+    owner: "usr_irfad",
+    fingerprint: "ab",
+    address: { mode: "relay" },
+    defaults: {},
+  },
+};
 
-function sessionGateway(extra: Record<string, (s: Seen) => { status?: number; body: unknown }> = {}): ReturnType<typeof gateway> {
+function sessionGateway(
+  extra: Record<string, (s: Seen) => { status?: number; body: unknown }> = {},
+): ReturnType<typeof gateway> {
   return gateway({
     "POST /v1/identity/whoami": () => ({ body: { data: WHOAMI } }),
     "GET /v1/spaces/get": () => ({ body: { data: SPACE } }),
-    "GET /v1/spaces/switcher": () => ({ body: { data: { name: "Northwind", kind: "team", role: "Owner", needsYou: 2, unread: 3 } } }),
+    "GET /v1/spaces/switcher": () => ({
+      body: { data: { name: "Northwind", kind: "team", role: "Owner", needsYou: 2, unread: 3 } },
+    }),
     ...extra,
   });
 }
 
 test("session: opens the Space as the signed-in person and builds the card the shell draws", async () => {
   const gw = sessionGateway();
-  const s = await openRealSession({ baseUrl: "http://s.test", token: "vst_1", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => SCREENS, dial: fakeServer().dial, pollMs: 1_000_000 });
+  const s = await openRealSession({
+    baseUrl: "http://s.test",
+    token: "vst_1",
+    fetch: gw.fetch,
+    routes: async () => ROUTES,
+    screens: async () => SCREENS,
+    dial: fakeServer().dial,
+    pollMs: 1_000_000,
+  });
   assert.equal(s.me.id, "usr_irfad");
   assert.equal(s.runtime.me.name, "Irfad Imtiaz");
   assert.equal(s.def.spaceId, "spc_nw");
@@ -274,9 +473,20 @@ test("session: a place's screen query reads the Space, and a successful call re-
   let names = ["a.docx"];
   const gw = sessionGateway({
     "GET /v1/files/list": () => ({ body: { data: { items: names.map((name) => ({ name })) } } }),
-    "POST /v1/files/rename": () => { names = ["b.docx"]; return { body: { data: { ok: true } } }; },
+    "POST /v1/files/rename": () => {
+      names = ["b.docx"];
+      return { body: { data: { ok: true } } };
+    },
   });
-  const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => SCREENS, dial: fakeServer().dial, pollMs: 1_000_000 });
+  const s = await openRealSession({
+    baseUrl: "http://s.test",
+    token: "t",
+    fetch: gw.fetch,
+    routes: async () => ROUTES,
+    screens: async () => SCREENS,
+    dial: fakeServer().dial,
+    pollMs: 1_000_000,
+  });
   const q = s.runtime.screens.query("files.list", "items", { folder: "root" });
   q.subscribe(() => undefined);
   await wait(20);
@@ -290,10 +500,21 @@ test("session: a place's screen query reads the Space, and a successful call re-
 test("session: a read changes nothing, so a successful read call does not re-read the screen; a write does", async () => {
   let reads = 0;
   const gw = sessionGateway({
-    "GET /v1/files/list": () => { reads++; return { body: { data: { items: [] } } }; },
+    "GET /v1/files/list": () => {
+      reads++;
+      return { body: { data: { items: [] } } };
+    },
     "POST /v1/files/rename": () => ({ body: { data: { ok: true } } }),
   });
-  const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => SCREENS, dial: fakeServer().dial, pollMs: 1_000_000 });
+  const s = await openRealSession({
+    baseUrl: "http://s.test",
+    token: "t",
+    fetch: gw.fetch,
+    routes: async () => ROUTES,
+    screens: async () => SCREENS,
+    dial: fakeServer().dial,
+    pollMs: 1_000_000,
+  });
   const q = s.runtime.screens.query("files.list", "items", { folder: "root" });
   q.subscribe(() => undefined);
   await wait(20);
@@ -311,16 +532,35 @@ test("session: a read changes nothing, so a successful read call does not re-rea
 test("session: while the window is hidden a change waits, and showing the window re-reads at once", async () => {
   let reads = 0;
   const listeners = new Map<string, () => void>();
-  const doc = { visibilityState: "hidden", addEventListener: (t: string, l: () => void) => { listeners.set(t, l); }, removeEventListener: (t: string) => { listeners.delete(t); } };
+  const doc = {
+    visibilityState: "hidden",
+    addEventListener: (t: string, l: () => void) => {
+      listeners.set(t, l);
+    },
+    removeEventListener: (t: string) => {
+      listeners.delete(t);
+    },
+  };
   const g = globalThis as { document?: unknown };
   const was = g.document;
   g.document = doc;
   try {
     const gw = sessionGateway({
-      "GET /v1/files/list": () => { reads++; return { body: { data: { items: [] } } }; },
+      "GET /v1/files/list": () => {
+        reads++;
+        return { body: { data: { items: [] } } };
+      },
       "POST /v1/files/rename": () => ({ body: { data: { ok: true } } }),
     });
-    const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => SCREENS, dial: fakeServer().dial, pollMs: 1_000_000 });
+    const s = await openRealSession({
+      baseUrl: "http://s.test",
+      token: "t",
+      fetch: gw.fetch,
+      routes: async () => ROUTES,
+      screens: async () => SCREENS,
+      dial: fakeServer().dial,
+      pollMs: 1_000_000,
+    });
     const q = s.runtime.screens.query("files.list", "items", { folder: "root" });
     q.subscribe(() => undefined);
     await wait(20);
@@ -334,41 +574,98 @@ test("session: while the window is hidden a change waits, and showing the window
     assert.equal(reads, before + 1, "shown: it happens now");
     s.close();
     assert.equal(listeners.has("visibilitychange"), false, "closing the session stops listening");
-  } finally { g.document = was; }
+  } finally {
+    g.document = was;
+  }
 });
 
 test("session: last seen follows activity: opening, a press, a key and the window showing again touch the device, at most once a minute, never on a timer", async () => {
   const touches: number[] = [];
   let t = 1_000_000;
   const listeners = new Map<string, Array<() => void>>();
-  const doc = { visibilityState: "visible", addEventListener: (k: string, l: () => void) => { listeners.set(k, [...(listeners.get(k) ?? []), l]); }, removeEventListener: (k: string, l: () => void) => { listeners.set(k, (listeners.get(k) ?? []).filter((x) => x !== l)); } };
-  const fire = (k: string): void => { for (const l of listeners.get(k) ?? []) l(); };
+  const doc = {
+    visibilityState: "visible",
+    addEventListener: (k: string, l: () => void) => {
+      listeners.set(k, [...(listeners.get(k) ?? []), l]);
+    },
+    removeEventListener: (k: string, l: () => void) => {
+      listeners.set(
+        k,
+        (listeners.get(k) ?? []).filter((x) => x !== l),
+      );
+    },
+  };
+  const fire = (k: string): void => {
+    for (const l of listeners.get(k) ?? []) l();
+  };
   const g = globalThis as { document?: unknown };
   const was = g.document;
   g.document = doc;
   try {
-    const gw = sessionGateway({ "POST /v1/devices/touch": () => { touches.push(t); return { body: { data: { ok: true, lastSeenAt: t } } }; } });
-    const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => [...ROUTES, { method: "POST", path: "/v1/devices/touch", cap: "devices.touch", v: 1 }], screens: async () => SCREENS, dial: fakeServer().dial, pollMs: 1_000_000, now: () => t });
+    const gw = sessionGateway({
+      "POST /v1/devices/touch": () => {
+        touches.push(t);
+        return { body: { data: { ok: true, lastSeenAt: t } } };
+      },
+    });
+    const s = await openRealSession({
+      baseUrl: "http://s.test",
+      token: "t",
+      fetch: gw.fetch,
+      routes: async () => [...ROUTES, { method: "POST", path: "/v1/devices/touch", cap: "devices.touch", v: 1 }],
+      screens: async () => SCREENS,
+      dial: fakeServer().dial,
+      pollMs: 1_000_000,
+      now: () => t,
+    });
     await wait(20);
     assert.equal(touches.length, 1, "opening the Space is activity");
-    t += 10_000; fire("pointerdown"); fire("keydown"); await wait(10);
+    t += 10_000;
+    fire("pointerdown");
+    fire("keydown");
+    await wait(10);
     assert.equal(touches.length, 1, "inside a minute nothing more is sent");
-    t += 61_000; fire("keydown"); await wait(10);
+    t += 61_000;
+    fire("keydown");
+    await wait(10);
     assert.equal(touches.length, 2, "a key a minute later moves last seen");
-    t += 61_000; fire("visibilitychange"); await wait(10);
+    t += 61_000;
+    fire("visibilitychange");
+    await wait(10);
     assert.equal(touches.length, 3, "the window showing again moves it");
-    t += 600_000; await wait(30);
+    t += 600_000;
+    await wait(30);
     assert.equal(touches.length, 3, "an idle window sends nothing");
     s.close();
-    t += 61_000; fire("pointerdown"); await wait(10);
+    t += 61_000;
+    fire("pointerdown");
+    await wait(10);
     assert.equal(touches.length, 3, "a closed session stops listening");
-  } finally { g.document = was; }
+  } finally {
+    g.document = was;
+  }
 });
 
 test("session: a 401 on any call ends the session and tells the shell once", async () => {
   let out = 0;
-  const gw = sessionGateway({ "POST /v1/files/rename": () => ({ status: 401, body: { error: { code: "auth.unauthenticated", message: "Sign in.", traceId: "t" } } }) });
-  const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => SCREENS, dial: fakeServer().dial, onSignedOut: () => { out++; }, pollMs: 1_000_000 });
+  const gw = sessionGateway({
+    "POST /v1/files/rename": () => ({
+      status: 401,
+      body: { error: { code: "auth.unauthenticated", message: "Sign in.", traceId: "t" } },
+    }),
+  });
+  const s = await openRealSession({
+    baseUrl: "http://s.test",
+    token: "t",
+    fetch: gw.fetch,
+    routes: async () => ROUTES,
+    screens: async () => SCREENS,
+    dial: fakeServer().dial,
+    onSignedOut: () => {
+      out++;
+    },
+    pollMs: 1_000_000,
+  });
   await assert.rejects(s.runtime.call("files.rename", {}), CapError);
   await assert.rejects(s.runtime.call("files.rename", {}), CapError);
   assert.equal(out, 1);
@@ -378,11 +675,24 @@ test("session: a 401 on any call ends the session and tells the shell once", asy
 test("session: a network failure marks the Space offline for the title bar, and the next answer brings it back", async () => {
   let down = false;
   const gw = sessionGateway({ "GET /v1/files/list": () => ({ body: { data: { items: [] } } }) });
-  const flaky = (async (...a: Parameters<typeof fetch>) => { if (down) throw new TypeError("fetch failed"); return gw.fetch(...a); }) as typeof fetch;
-  const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: flaky, routes: async () => ROUTES, screens: async () => SCREENS, dial: fakeServer().dial, pollMs: 1_000_000 });
+  const flaky = (async (...a: Parameters<typeof fetch>) => {
+    if (down) throw new TypeError("fetch failed");
+    return gw.fetch(...a);
+  }) as typeof fetch;
+  const s = await openRealSession({
+    baseUrl: "http://s.test",
+    token: "t",
+    fetch: flaky,
+    routes: async () => ROUTES,
+    screens: async () => SCREENS,
+    dial: fakeServer().dial,
+    pollMs: 1_000_000,
+  });
   assert.equal(s.runtime.connection.get(), "online");
   let told = 0;
-  s.runtime.connection.subscribe(() => { told++; });
+  s.runtime.connection.subscribe(() => {
+    told++;
+  });
   down = true;
   await assert.rejects(s.runtime.call("files.list", {}));
   assert.equal(s.runtime.connection.get(), "offline");
@@ -396,14 +706,35 @@ test("session: a network failure marks the Space offline for the title bar, and 
 test("session: opening a target maps the screen to its rail place and passes the item in the hash", async () => {
   const gw = sessionGateway();
   const opened: [string, string][] = [];
-  const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => SCREENS, dial: fakeServer().dial, navigate: (p, h) => opened.push([p, h]), pollMs: 1_000_000 });
+  const s = await openRealSession({
+    baseUrl: "http://s.test",
+    token: "t",
+    fetch: gw.fetch,
+    routes: async () => ROUTES,
+    screens: async () => SCREENS,
+    dial: fakeServer().dial,
+    navigate: (p, h) => opened.push([p, h]),
+    pollMs: 1_000_000,
+  });
   s.runtime.open({ screen: "files.list", args: { upload: true } });
   s.runtime.open({ screen: "nowhere.screen" });
   s.runtime.open({ subject: { type: "record", id: "rec_1" } });
   s.runtime.open({ subject: { type: "spaceship", id: "x" } });
-  assert.deepEqual(opened, [["files", "screen=files.list&upload=true"], ["records", "subject=record%3Arec_1"]]);
+  assert.deepEqual(opened, [
+    ["files", "screen=files.list&upload=true"],
+    ["records", "subject=record%3Arec_1"],
+  ]);
   const shellOpened: string[] = [];
-  const s2 = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => new Map([["shell.cmdk", { ...SCREENS.get("files.list")!, id: "shell.cmdk", place: "shell" }]]), dial: fakeServer().dial, shell: (sc) => shellOpened.push(sc), pollMs: 1_000_000 });
+  const s2 = await openRealSession({
+    baseUrl: "http://s.test",
+    token: "t",
+    fetch: gw.fetch,
+    routes: async () => ROUTES,
+    screens: async () => new Map([["shell.cmdk", { ...SCREENS.get("files.list")!, id: "shell.cmdk", place: "shell" }]]),
+    dial: fakeServer().dial,
+    shell: (sc) => shellOpened.push(sc),
+    pollMs: 1_000_000,
+  });
   s2.runtime.open({ screen: "shell.cmdk" });
   assert.deepEqual(shellOpened, ["shell.cmdk"]);
   s2.close();
@@ -438,8 +769,14 @@ test("stored: clearing one Space preserves every other saved Space", () => {
   const store = memoryStore();
   const def = { spaceId: "spc_nw", name: "Northwind" } as never;
   const harbor = { ...def, spaceId: "spc_hb", name: "Harbor" };
-  writeStored({ baseUrl: "https://northwind.test", token: "nw", def, personId: "usr_1", marker: "northwind-marker" }, store);
-  writeStored({ baseUrl: "https://harbor.test", token: "hb", def: harbor, personId: "usr_1", marker: "harbor-marker" }, store);
+  writeStored(
+    { baseUrl: "https://northwind.test", token: "nw", def, personId: "usr_1", marker: "northwind-marker" },
+    store,
+  );
+  writeStored(
+    { baseUrl: "https://harbor.test", token: "hb", def: harbor, personId: "usr_1", marker: "harbor-marker" },
+    store,
+  );
   clearStored(store, "https://northwind.test");
   assert.equal(readStored(store, "https://northwind.test"), null);
   assert.equal(readStored(store, "https://harbor.test")?.token, "hb");
@@ -449,7 +786,10 @@ test("an address transition loads only that address's session", () => {
   const store = memoryStore();
   const alpha = { spaceId: "spc_alpha", name: "Alpha" } as never;
   const beta = { spaceId: "spc_beta", name: "Beta" } as never;
-  writeStored({ baseUrl: "https://alpha.test", token: "alpha", def: alpha, personId: "usr_alpha", marker: "alpha" }, store);
+  writeStored(
+    { baseUrl: "https://alpha.test", token: "alpha", def: alpha, personId: "usr_alpha", marker: "alpha" },
+    store,
+  );
 
   const noBeta = phaseForStoredAddress(readStored(store, "https://beta.test"));
   assert.deepEqual(noBeta, { kind: "signin" }, "B without a stored session cannot retain A's shell");
@@ -457,14 +797,26 @@ test("an address transition loads only that address's session", () => {
   writeStored({ baseUrl: "https://beta.test", token: "beta", def: beta, personId: "usr_beta", marker: "beta" }, store);
   const savedBeta = phaseForStoredAddress(readStored(store, "https://beta.test"));
   assert.equal(savedBeta.kind, "shell");
-  if (savedBeta.kind === "shell") assert.equal(savedBeta.stored.def.spaceId, "spc_beta", "the next address loads only its own session");
+  if (savedBeta.kind === "shell")
+    assert.equal(savedBeta.stored.def.spaceId, "spc_beta", "the next address loads only its own session");
 });
 
 test("the anonymous sign-in route discovers options before normal password sign-in, never spaces.get", async () => {
   const gw = gateway({
     "POST /v1/identity/sign_in_options": (seen) => {
       assert.equal(seen.headers["authorization"], undefined, "options are safe before authentication");
-      return { body: { data: { name: "Northwind", fingerprint: "display-only", password: true, github: true, sso: [{ key: "google", title: "Google" }], secondFactorRequired: false } } };
+      return {
+        body: {
+          data: {
+            name: "Northwind",
+            fingerprint: "display-only",
+            password: true,
+            github: true,
+            sso: [{ key: "google", title: "Google" }],
+            secondFactorRequired: false,
+          },
+        },
+      };
     },
     "POST /v1/identity/sign_in": (seen) => {
       assert.equal(seen.headers["authorization"], undefined);
@@ -475,13 +827,33 @@ test("the anonymous sign-in route discovers options before normal password sign-
       return { body: { data: SPACE } };
     },
   });
-  const anonymous = createCapCaller({ baseUrl: "https://northwind.test", token: () => null, fetch: gw.fetch, routes: async () => ROUTES });
-  const authenticated = createCapCaller({ baseUrl: "https://northwind.test", token: () => "vst_1", fetch: gw.fetch, routes: async () => ROUTES });
-  const opened = { def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_1" }, close: () => undefined } as never;
+  const anonymous = createCapCaller({
+    baseUrl: "https://northwind.test",
+    token: () => null,
+    fetch: gw.fetch,
+    routes: async () => ROUTES,
+  });
+  const authenticated = createCapCaller({
+    baseUrl: "https://northwind.test",
+    token: () => "vst_1",
+    fetch: gw.fetch,
+    routes: async () => ROUTES,
+  });
+  const opened = {
+    def: { spaceId: "spc_nw", name: "Northwind" },
+    me: { id: "usr_1" },
+    close: () => undefined,
+  } as never;
   const result = await signInAndVerify({
     baseUrl: "https://northwind.test",
     discover: async () => anonymous("identity.sign_in_options", {}) as never,
-    signIn: async () => anonymous("identity.sign_in", { username: "dana", password: "harbor-lamp", deviceName: "Web browser", deviceClass: "web" }) as never,
+    signIn: async () =>
+      anonymous("identity.sign_in", {
+        username: "dana",
+        password: "harbor-lamp",
+        deviceName: "Web browser",
+        deviceClass: "web",
+      }) as never,
     open: async () => opened,
     getSpace: async () => {
       const space = ((await authenticated("spaces.get", {})) as typeof SPACE).space;
@@ -490,33 +862,68 @@ test("the anonymous sign-in route discovers options before normal password sign-
     persist: () => undefined,
   });
   assert.equal(result.status, "ok");
-  assert.deepEqual(gw.seen.map((s) => s.url), ["/v1/identity/sign_in_options", "/v1/identity/sign_in", "/v1/spaces/get"]);
+  assert.deepEqual(
+    gw.seen.map((s) => s.url),
+    ["/v1/identity/sign_in_options", "/v1/identity/sign_in", "/v1/spaces/get"],
+  );
   assert.equal(result.options.name, "Northwind");
-  assert.equal(result.stored?.marker, "ab", "a first sign-in stores the authenticated continuity marker, not the anonymous display value");
+  assert.equal(
+    result.stored?.marker,
+    "ab",
+    "a first sign-in stores the authenticated continuity marker, not the anonymous display value",
+  );
 });
 
 test("personal-key work runs only after a password session is verified and persisted", async () => {
   let unlocks = 0;
   let writes = 0;
-  await assert.rejects(signInAndVerify({
-    baseUrl: "https://northwind.test",
-    discover: async () => ({ name: "Northwind", fingerprint: "display", password: true, github: false, sso: [], secondFactorRequired: false }),
-    signIn: async () => ({ status: "ok", session: { token: "vst_1" } }),
-    open: async () => { throw new Error("whoami failed"); },
-    getSpace: async () => ({ id: "spc_nw", marker: "marker" }),
-    persist: () => { writes++; },
-    afterVerified: async () => { unlocks++; },
-  }), /whoami failed/);
+  await assert.rejects(
+    signInAndVerify({
+      baseUrl: "https://northwind.test",
+      discover: async () => ({
+        name: "Northwind",
+        fingerprint: "display",
+        password: true,
+        github: false,
+        sso: [],
+        secondFactorRequired: false,
+      }),
+      signIn: async () => ({ status: "ok", session: { token: "vst_1" } }),
+      open: async () => {
+        throw new Error("whoami failed");
+      },
+      getSpace: async () => ({ id: "spc_nw", marker: "marker" }),
+      persist: () => {
+        writes++;
+      },
+      afterVerified: async () => {
+        unlocks++;
+      },
+    }),
+    /whoami failed/,
+  );
   assert.deepEqual([writes, unlocks], [0, 0], "a token alone never unlocks the local person key");
 
   const result = await signInAndVerify({
     baseUrl: "https://northwind.test",
-    discover: async () => ({ name: "Northwind", fingerprint: "display", password: true, github: false, sso: [], secondFactorRequired: false }),
+    discover: async () => ({
+      name: "Northwind",
+      fingerprint: "display",
+      password: true,
+      github: false,
+      sso: [],
+      secondFactorRequired: false,
+    }),
     signIn: async () => ({ status: "ok", session: { token: "vst_2" } }),
-    open: async () => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_1" }, close: () => undefined } as never),
+    open: async () =>
+      ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_1" }, close: () => undefined }) as never,
     getSpace: async () => ({ id: "spc_nw", marker: "marker" }),
-    persist: () => { writes++; },
-    afterVerified: async () => { unlocks++; },
+    persist: () => {
+      writes++;
+    },
+    afterVerified: async () => {
+      unlocks++;
+    },
   });
   assert.equal(result.status, "ok");
   assert.deepEqual([writes, unlocks], [1, 1]);
@@ -525,11 +932,25 @@ test("personal-key work runs only after a password session is verified and persi
 test("verification persists only after the opened session and authenticated Space IDs agree", async () => {
   const calls: string[] = [];
   const writes: unknown[] = [];
-  const real = { def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => { calls.push("close"); } } as never;
+  const real = {
+    def: { spaceId: "spc_nw" },
+    me: { id: "usr_1" },
+    close: () => {
+      calls.push("close");
+    },
+  } as never;
   const stored = await openVerifiedSession({
-    baseUrl: "https://northwind.test", token: "vst_1", continuity: { id: "spc_nw", marker: "marker_1" },
-    open: async () => { calls.push("open:whoami+spaces.get"); return real; },
-    getSpace: async () => { calls.push("get:spaces.get"); return { id: "spc_nw", marker: "marker_1" }; },
+    baseUrl: "https://northwind.test",
+    token: "vst_1",
+    continuity: { id: "spc_nw", marker: "marker_1" },
+    open: async () => {
+      calls.push("open:whoami+spaces.get");
+      return real;
+    },
+    getSpace: async () => {
+      calls.push("get:spaces.get");
+      return { id: "spc_nw", marker: "marker_1" };
+    },
     persist: (candidate) => writes.push(candidate),
   });
   assert.deepEqual(calls, ["open:whoami+spaces.get", "get:spaces.get", "close"]);
@@ -540,62 +961,126 @@ test("verification persists only after the opened session and authenticated Spac
 test("the username typed at sign-in is kept with the stored session, so Settings can start the handle from it", async () => {
   const real = { def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => {} } as never;
   const writes: Array<{ username?: string }> = [];
-  const make = (username?: string) => openVerifiedSession({ baseUrl: "https://northwind.test", token: "vst_1", ...(username ? { username } : {}), open: async () => real, getSpace: async () => ({ id: "spc_nw", marker: "m" }), persist: (c) => writes.push(c) });
+  const make = (username?: string) =>
+    openVerifiedSession({
+      baseUrl: "https://northwind.test",
+      token: "vst_1",
+      ...(username ? { username } : {}),
+      open: async () => real,
+      getSpace: async () => ({ id: "spc_nw", marker: "m" }),
+      persist: (c) => writes.push(c),
+    });
   assert.equal((await make("olivia")).username, "olivia");
   assert.equal("username" in (await make()), false, "a way in that types no username stores none");
 });
 
 test("verification never persists when identity.whoami cannot open the real session", async () => {
   let writes = 0;
-  await assert.rejects(openVerifiedSession({
-    baseUrl: "https://northwind.test", token: "vst_1", continuity: { id: "spc_nw" },
-    open: async () => { throw new Error("identity.whoami rejected the session"); },
-    getSpace: async () => ({ id: "spc_nw", marker: "marker_1" }),
-    persist: () => { writes++; },
-  }), /whoami rejected/i);
+  await assert.rejects(
+    openVerifiedSession({
+      baseUrl: "https://northwind.test",
+      token: "vst_1",
+      continuity: { id: "spc_nw" },
+      open: async () => {
+        throw new Error("identity.whoami rejected the session");
+      },
+      getSpace: async () => ({ id: "spc_nw", marker: "marker_1" }),
+      persist: () => {
+        writes++;
+      },
+    }),
+    /whoami rejected/i,
+  );
   assert.equal(writes, 0);
 });
 
 test("verification rejects a continuity-marker mismatch without persisting the session", async () => {
   let writes = 0;
   let closed = 0;
-  const real = { def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => { closed++; } } as never;
-  await assert.rejects(openVerifiedSession({
-    baseUrl: "https://northwind.test", token: "vst_1", continuity: { id: "spc_nw", marker: "marker_expected" },
-    open: async () => real,
-    getSpace: async () => ({ id: "spc_nw", marker: "marker_other" }),
-    persist: () => { writes++; },
-  }), /no longer matches/i);
+  const real = {
+    def: { spaceId: "spc_nw" },
+    me: { id: "usr_1" },
+    close: () => {
+      closed++;
+    },
+  } as never;
+  await assert.rejects(
+    openVerifiedSession({
+      baseUrl: "https://northwind.test",
+      token: "vst_1",
+      continuity: { id: "spc_nw", marker: "marker_expected" },
+      open: async () => real,
+      getSpace: async () => ({ id: "spc_nw", marker: "marker_other" }),
+      persist: () => {
+        writes++;
+      },
+    }),
+    /no longer matches/i,
+  );
   assert.deepEqual([writes, closed], [0, 1]);
 });
 
 test("a returning session rejects a changed continuity marker and closes before shell use", async () => {
   let closed = 0;
-  const stored = { baseUrl: "https://northwind.test", token: "vst_1", def: { spaceId: "spc_nw", name: "Northwind" } as never, personId: "usr_1", marker: "marker_saved" };
-  await assert.rejects(verifyStoredSession({
-    stored,
-    open: async () => ({ def: stored.def, me: { id: "usr_1" }, close: () => { closed++; } }),
-    getSpace: async () => ({ id: "spc_nw", marker: "marker_changed" }),
-  }), /no longer matches/i);
+  const stored = {
+    baseUrl: "https://northwind.test",
+    token: "vst_1",
+    def: { spaceId: "spc_nw", name: "Northwind" } as never,
+    personId: "usr_1",
+    marker: "marker_saved",
+  };
+  await assert.rejects(
+    verifyStoredSession({
+      stored,
+      open: async () => ({
+        def: stored.def,
+        me: { id: "usr_1" },
+        close: () => {
+          closed++;
+        },
+      }),
+      getSpace: async () => ({ id: "spc_nw", marker: "marker_changed" }),
+    }),
+    /no longer matches/i,
+  );
   assert.equal(closed, 1);
 });
 
 test("verification blocks persistence when authenticated Space IDs differ", async () => {
   let writes = 0;
-  await assert.rejects(openVerifiedSession({
-    baseUrl: "https://northwind.test", token: "vst_1",
-    open: async () => ({ def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => undefined } as never),
-    getSpace: async () => ({ id: "spc_other", marker: "marker_1" }),
-    persist: () => { writes++; },
-  }), /no longer matches/i);
+  await assert.rejects(
+    openVerifiedSession({
+      baseUrl: "https://northwind.test",
+      token: "vst_1",
+      open: async () => ({ def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => undefined }) as never,
+      getSpace: async () => ({ id: "spc_other", marker: "marker_1" }),
+      persist: () => {
+        writes++;
+      },
+    }),
+    /no longer matches/i,
+  );
   assert.equal(writes, 0);
 });
 
 test("stored: the Space address is HTTP(S), never the packaged shell origin", () => {
-  assert.equal(spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2F10.0.0.2%3A7777%2F" }), null, "LAN HTTP never carries credentials");
-  assert.equal(spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2Flocalhost%3A7777%2F" }), "http://localhost:7777");
-  assert.equal(spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2F127.0.0.1%3A7777%2F" }), "http://127.0.0.1:7777");
-  assert.equal(spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2F%5B%3A%3A1%5D%3A7777%2F" }), "http://[::1]:7777");
+  assert.equal(
+    spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2F10.0.0.2%3A7777%2F" }),
+    null,
+    "LAN HTTP never carries credentials",
+  );
+  assert.equal(
+    spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2Flocalhost%3A7777%2F" }),
+    "http://localhost:7777",
+  );
+  assert.equal(
+    spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2F127.0.0.1%3A7777%2F" }),
+    "http://127.0.0.1:7777",
+  );
+  assert.equal(
+    spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2F%5B%3A%3A1%5D%3A7777%2F" }),
+    "http://[::1]:7777",
+  );
   assert.equal(spaceAddress({ origin: "https://northwind.vyre.run", search: "" }), "https://northwind.vyre.run");
   assert.equal(spaceAddress({ origin: "https://x.test", search: "?space=javascript:alert(1)" }), null);
   assert.equal(spaceAddress({ origin: "tauri://localhost", search: "" }), null);
@@ -605,10 +1090,24 @@ test("desktop bootstrap routes its pending link before live links and unsubscrib
   let live: ((link: DesktopDeepLink) => void) | undefined;
   let unlistened = 0;
   const seen: unknown[] = [];
-  const stop = await consumeDesktopBootstrap({
-    bootstrap: async () => ({ info: {} as never, pendingLink: { action: "join", params: { address: "https://northwind.vyre.run", code: "one-time-code", fp: "ab12" } } }),
-    listenLinks: async (listener) => { live = listener; return () => { unlistened++; }; },
-  }, (route) => seen.push(route));
+  const stop = await consumeDesktopBootstrap(
+    {
+      bootstrap: async () => ({
+        info: {} as never,
+        pendingLink: {
+          action: "join",
+          params: { address: "https://northwind.vyre.run", code: "one-time-code", fp: "ab12" },
+        },
+      }),
+      listenLinks: async (listener) => {
+        live = listener;
+        return () => {
+          unlistened++;
+        };
+      },
+    },
+    (route) => seen.push(route),
+  );
   live?.({ action: "signin", params: { address: "https://northwind.vyre.run" } });
   assert.deepEqual(seen, [
     { kind: "join", address: "https://northwind.vyre.run", code: "one-time-code", fingerprint: "ab12" },
@@ -620,31 +1119,79 @@ test("desktop bootstrap routes its pending link before live links and unsubscrib
 });
 
 test("desktop links only route verified Space addresses into the existing flows", () => {
-  assert.deepEqual(routeDesktopLink({ action: "open", params: { address: "http://127.0.0.1:7777" } }), { kind: "signin", address: "http://127.0.0.1:7777" });
-  assert.deepEqual(routeDesktopLink({ action: "signin", params: { address: "http://localhost:7777" } }), { kind: "signin", address: "http://localhost:7777" });
-  assert.deepEqual(routeDesktopLink({ action: "pair", params: { address: "https://northwind.vyre.run", code: "pairing-code" } }), { kind: "pair", address: "https://northwind.vyre.run", code: "pairing-code" });
-  for (const action of ["open", "signin", "pair"] as const) assert.equal(routeDesktopLink({ action, params: { address: "http://10.0.0.2:7777", ...(action === "pair" ? { code: "never-send" } : {}) } }), null, `${action} never sends a credential or code over LAN HTTP`);
-  assert.equal(routeDesktopLink({ action: "join", params: { address: "http://127.0.0.1:7777", code: "one-time-code", fp: "ab12" } }), null, "join links require HTTPS");
-  assert.equal(routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "", fp: "ab12" } }), null);
+  assert.deepEqual(routeDesktopLink({ action: "open", params: { address: "http://127.0.0.1:7777" } }), {
+    kind: "signin",
+    address: "http://127.0.0.1:7777",
+  });
+  assert.deepEqual(routeDesktopLink({ action: "signin", params: { address: "http://localhost:7777" } }), {
+    kind: "signin",
+    address: "http://localhost:7777",
+  });
+  assert.deepEqual(
+    routeDesktopLink({ action: "pair", params: { address: "https://northwind.vyre.run", code: "pairing-code" } }),
+    { kind: "pair", address: "https://northwind.vyre.run", code: "pairing-code" },
+  );
+  for (const action of ["open", "signin", "pair"] as const)
+    assert.equal(
+      routeDesktopLink({
+        action,
+        params: { address: "http://10.0.0.2:7777", ...(action === "pair" ? { code: "never-send" } : {}) },
+      }),
+      null,
+      `${action} never sends a credential or code over LAN HTTP`,
+    );
+  assert.equal(
+    routeDesktopLink({
+      action: "join",
+      params: { address: "http://127.0.0.1:7777", code: "one-time-code", fp: "ab12" },
+    }),
+    null,
+    "join links require HTTPS",
+  );
+  assert.equal(
+    routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "", fp: "ab12" } }),
+    null,
+  );
   assert.equal(routeDesktopLink({ action: "signin", params: { address: "tauri://localhost" } }), null);
 });
 
 test("desktop pairing redeems anonymously, verifies the Space, then persists without key ciphertext", async () => {
-  const route = routeDesktopLink({ action: "pair", params: { address: "https://northwind.vyre.run", code: "pair-code" } });
+  const route = routeDesktopLink({
+    action: "pair",
+    params: { address: "https://northwind.vyre.run", code: "pair-code" },
+  });
   assert.ok(route && route.kind === "pair");
   const calls: { cap: string; input: unknown }[] = [];
   let persisted: unknown;
   const stored = await redeemDesktopPair(route, {
-    anonymous: async (cap, input) => { calls.push({ cap, input }); return { status: "ok", session: { token: "vst_pair", epoch: 4 }, keys: { privateKeyWrapped: "ciphertext" } }; },
-    open: async (token) => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_1" }, close: () => undefined, token } as never),
+    anonymous: async (cap, input) => {
+      calls.push({ cap, input });
+      return { status: "ok", session: { token: "vst_pair", epoch: 4 }, keys: { privateKeyWrapped: "ciphertext" } };
+    },
+    open: async (token) =>
+      ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_1" }, close: () => undefined, token }) as never,
     getSpace: async () => ({ id: "spc_nw", marker: "current-display-marker" }),
-    persist: (s) => { persisted = s; },
+    persist: (s) => {
+      persisted = s;
+    },
   });
-  assert.deepEqual(calls, [{ cap: "identity.pair_redeem", input: { code: "pair-code", deviceName: "Vyre desktop", deviceClass: "desktop" } }]);
-  assert.deepEqual(stored, { baseUrl: "https://northwind.vyre.run", token: "vst_pair", def: { spaceId: "spc_nw", name: "Northwind" }, personId: "usr_1", marker: "current-display-marker" });
+  assert.deepEqual(calls, [
+    { cap: "identity.pair_redeem", input: { code: "pair-code", deviceName: "Vyre desktop", deviceClass: "desktop" } },
+  ]);
+  assert.deepEqual(stored, {
+    baseUrl: "https://northwind.vyre.run",
+    token: "vst_pair",
+    def: { spaceId: "spc_nw", name: "Northwind" },
+    personId: "usr_1",
+    marker: "current-display-marker",
+  });
   assert.deepEqual(persisted, stored);
   assert.equal("keys" in stored, false, "pairing ciphertext never reaches ordinary session storage");
-  assert.deepEqual(consumeDesktopRoute(route), { kind: "signin", address: "https://northwind.vyre.run" }, "after the successful pair, a sign-out has only the ordinary sign-in route, never the consumed code");
+  assert.deepEqual(
+    consumeDesktopRoute(route),
+    { kind: "signin", address: "https://northwind.vyre.run" },
+    "after the successful pair, a sign-out has only the ordinary sign-in route, never the consumed code",
+  );
 });
 
 test("desktop pair persists verified sessions by default and leaves the sync epoch to the hello handshake", async () => {
@@ -652,11 +1199,15 @@ test("desktop pair persists verified sessions by default and leaves the sync epo
   const previous = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
   Object.defineProperty(globalThis, "localStorage", { value: store, configurable: true });
   try {
-    const route = routeDesktopLink({ action: "pair", params: { address: "https://northwind.vyre.run", code: "pair-code" } });
+    const route = routeDesktopLink({
+      action: "pair",
+      params: { address: "https://northwind.vyre.run", code: "pair-code" },
+    });
     assert.ok(route && route.kind === "pair");
     const stored = await redeemDesktopPair(route, {
       anonymous: async () => ({ status: "ok", session: { token: "vst_pair", epoch: 9 } }),
-      open: async () => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_1" }, close: () => undefined } as never),
+      open: async () =>
+        ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_1" }, close: () => undefined }) as never,
       getSpace: async () => ({ id: "spc_nw", marker: "current-display-marker" }),
     });
     assert.equal(stored.syncEpoch, undefined);
@@ -668,41 +1219,97 @@ test("desktop pair persists verified sessions by default and leaves the sync epo
 });
 
 test("desktop joining previews first and accepts with a real Space-key bundle", async () => {
-  const route = routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "invite-code", fp: "untrusted-link-display" } });
+  const route = routeDesktopLink({
+    action: "join",
+    params: { address: "https://northwind.vyre.run", code: "invite-code", fp: "untrusted-link-display" },
+  });
   assert.ok(route && route.kind === "join");
   const calls: { cap: string; input: Record<string, unknown> }[] = [];
   const anonymous = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input: input as Record<string, unknown> });
-    if (cap === "members.invites.preview") return { spaceId: "spc_nw", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" };
+    if (cap === "members.invites.preview")
+      return {
+        spaceId: "spc_nw",
+        spaceName: "Northwind",
+        invitedBy: "Maya",
+        role: "Member",
+        expiresAt: 1,
+        fingerprint: "server-display-marker",
+      };
     return { personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 2 };
   };
   const invite = await previewDesktopJoin(route, anonymous);
-  const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", ai: { choice: "none" } }, {
-    anonymous,
-    open: async () => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_dana" }, close: () => undefined } as never),
-    getSpace: async () => ({ id: "spc_nw", marker: "authenticated-marker" }),
-    persist: () => undefined,
-  });
+  const stored = await acceptDesktopJoin(
+    invite,
+    {
+      username: "dana",
+      displayName: "Dana",
+      password: "a good password",
+      deviceName: "Dana's Mac",
+      ai: { choice: "none" },
+    },
+    {
+      anonymous,
+      open: async () =>
+        ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_dana" }, close: () => undefined }) as never,
+      getSpace: async () => ({ id: "spc_nw", marker: "authenticated-marker" }),
+      persist: () => undefined,
+    },
+  );
   assert.equal(invite.preview.fingerprint, "server-display-marker", "the link fingerprint is never a trust pin");
   const accept = calls.find((c) => c.cap === "members.accept")!;
   assert.equal(accept.input["code"], "invite-code");
   assert.equal((accept.input["keys"] as { spaceKeys: unknown[] }).spaceKeys.length, 1);
   assert.equal("personKey" in (accept.input["keys"] as object), false, "only wrapped key material leaves the client");
   assert.equal(stored.marker, "authenticated-marker");
-  assert.deepEqual(consumeDesktopRoute(route), { kind: "signin", address: "https://northwind.vyre.run" }, "after the successful join, a sign-out has only the ordinary sign-in route, never the consumed code");
+  assert.deepEqual(
+    consumeDesktopRoute(route),
+    { kind: "signin", address: "https://northwind.vyre.run" },
+    "after the successful join, a sign-out has only the ordinary sign-in route, never the consumed code",
+  );
 });
 
 test("desktop joining never persists when the post-accept authenticated Space differs from the preview", async () => {
-  const route = routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "invite-code", fp: "display-only" } });
+  const route = routeDesktopLink({
+    action: "join",
+    params: { address: "https://northwind.vyre.run", code: "invite-code", fp: "display-only" },
+  });
   assert.ok(route && route.kind === "join");
-  const invite = await previewDesktopJoin(route, async () => ({ spaceId: "spc_preview", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" }));
+  const invite = await previewDesktopJoin(route, async () => ({
+    spaceId: "spc_preview",
+    spaceName: "Northwind",
+    invitedBy: "Maya",
+    role: "Member",
+    expiresAt: 1,
+    fingerprint: "server-display-marker",
+  }));
   let writes = 0;
-  await assert.rejects(acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", ai: { choice: "none" } }, {
-    anonymous: async () => ({ personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 2 }),
-    open: async () => ({ def: { spaceId: "spc_authenticated", name: "Elsewhere" }, me: { id: "usr_dana" }, close: () => undefined } as never),
-    getSpace: async () => ({ id: "spc_authenticated", marker: "authenticated-marker" }),
-    persist: () => { writes++; },
-  }), /Space no longer matches/);
+  await assert.rejects(
+    acceptDesktopJoin(
+      invite,
+      {
+        username: "dana",
+        displayName: "Dana",
+        password: "a good password",
+        deviceName: "Dana's Mac",
+        ai: { choice: "none" },
+      },
+      {
+        anonymous: async () => ({ personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 2 }),
+        open: async () =>
+          ({
+            def: { spaceId: "spc_authenticated", name: "Elsewhere" },
+            me: { id: "usr_dana" },
+            close: () => undefined,
+          }) as never,
+        getSpace: async () => ({ id: "spc_authenticated", marker: "authenticated-marker" }),
+        persist: () => {
+          writes++;
+        },
+      },
+    ),
+    /Space no longer matches/,
+  );
   assert.equal(writes, 0);
 });
 
@@ -711,17 +1318,39 @@ test("desktop join persists the verified session by default, never the identity 
   const previous = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
   Object.defineProperty(globalThis, "localStorage", { value: store, configurable: true });
   try {
-    const route = routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "invite-code", fp: "display-only" } });
-    assert.ok(route && route.kind === "join");
-    const anonymous = async (cap: string): Promise<unknown> => cap === "members.invites.preview"
-      ? { spaceId: "spc_nw", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" }
-      : { personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 11 };
-    const invite = await previewDesktopJoin(route, anonymous);
-    const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", ai: { choice: "none" } }, {
-      anonymous,
-      open: async () => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_dana" }, close: () => undefined } as never),
-      getSpace: async () => ({ id: "spc_nw", marker: "authenticated-marker" }),
+    const route = routeDesktopLink({
+      action: "join",
+      params: { address: "https://northwind.vyre.run", code: "invite-code", fp: "display-only" },
     });
+    assert.ok(route && route.kind === "join");
+    const anonymous = async (cap: string): Promise<unknown> =>
+      cap === "members.invites.preview"
+        ? {
+            spaceId: "spc_nw",
+            spaceName: "Northwind",
+            invitedBy: "Maya",
+            role: "Member",
+            expiresAt: 1,
+            fingerprint: "server-display-marker",
+          }
+        : { personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 11 };
+    const invite = await previewDesktopJoin(route, anonymous);
+    const stored = await acceptDesktopJoin(
+      invite,
+      {
+        username: "dana",
+        displayName: "Dana",
+        password: "a good password",
+        deviceName: "Dana's Mac",
+        ai: { choice: "none" },
+      },
+      {
+        anonymous,
+        open: async () =>
+          ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_dana" }, close: () => undefined }) as never,
+        getSpace: async () => ({ id: "spc_nw", marker: "authenticated-marker" }),
+      },
+    );
     assert.equal(stored.syncEpoch, undefined);
     assert.deepEqual(readStored(store, "https://northwind.vyre.run"), stored);
   } finally {
@@ -731,22 +1360,48 @@ test("desktop join persists the verified session by default, never the identity 
 });
 
 test("desktop pair and invite failures redact one-time codes", async () => {
-  const pair = routeDesktopLink({ action: "pair", params: { address: "https://northwind.vyre.run", code: "pair-secret" } });
-  const join = routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "invite-secret", fp: "display-only" } });
+  const pair = routeDesktopLink({
+    action: "pair",
+    params: { address: "https://northwind.vyre.run", code: "pair-secret" },
+  });
+  const join = routeDesktopLink({
+    action: "join",
+    params: { address: "https://northwind.vyre.run", code: "invite-secret", fp: "display-only" },
+  });
   assert.ok(pair && pair.kind === "pair");
   assert.ok(join && join.kind === "join");
-  await assert.rejects(redeemDesktopPair(pair, {
-    anonymous: async () => { throw new Error("pair-secret was refused"); },
-    open: async () => { throw new Error("not reached"); }, getSpace: async () => ({ id: "", marker: "" }),
-  }), (error: unknown) => error instanceof Error && !error.message.includes("pair-secret"));
-  await assert.rejects(previewDesktopJoin(join, async () => { throw new Error("invite-secret was refused"); }), (error: unknown) => error instanceof Error && !error.message.includes("invite-secret"));
+  await assert.rejects(
+    redeemDesktopPair(pair, {
+      anonymous: async () => {
+        throw new Error("pair-secret was refused");
+      },
+      open: async () => {
+        throw new Error("not reached");
+      },
+      getSpace: async () => ({ id: "", marker: "" }),
+    }),
+    (error: unknown) => error instanceof Error && !error.message.includes("pair-secret"),
+  );
+  await assert.rejects(
+    previewDesktopJoin(join, async () => {
+      throw new Error("invite-secret was refused");
+    }),
+    (error: unknown) => error instanceof Error && !error.message.includes("invite-secret"),
+  );
 });
 
 test("hooks: a read that fails leaves the query loading, with the error available to the place that asked", async () => {
-  const hooks = createRemoteScreenHooks({ screens: SCREENS, read: async () => { throw new CapError({ code: "validation.not_found", message: "no", traceId: "t", status: 404 }); } });
+  const hooks = createRemoteScreenHooks({
+    screens: SCREENS,
+    read: async () => {
+      throw new CapError({ code: "validation.not_found", message: "no", traceId: "t", status: 404 });
+    },
+  });
   const q = hooks.query("files.list", "items");
   let told = 0;
-  q.subscribe(() => { told++; });
+  q.subscribe(() => {
+    told++;
+  });
   assert.equal((q.getSnapshot() as { error?: unknown }).error, undefined);
   await wait();
   const snap = q.getSnapshot() as { status: string; error?: { code?: string; message?: string; traceId?: string } };
@@ -758,8 +1413,28 @@ test("hooks: a read that fails leaves the query loading, with the error availabl
 
 test("hooks: pointers outside /state read from the state's own section, so a place hands over its route", async () => {
   const seen: Record<string, unknown>[] = [];
-  const screens = new Map<string, ScreenIndexEntry>([["a.canvas", { ...screen({ automation: { cap: "automations.get", input: { automationId: "/route/automationId", q: "/state/q", gone: "/draft/none" }, live: true } }), id: "a.canvas" }]]);
-  const hooks = createRemoteScreenHooks({ screens, read: async (_c, input) => { seen.push(input); return {}; } });
+  const screens = new Map<string, ScreenIndexEntry>([
+    [
+      "a.canvas",
+      {
+        ...screen({
+          automation: {
+            cap: "automations.get",
+            input: { automationId: "/route/automationId", q: "/state/q", gone: "/draft/none" },
+            live: true,
+          },
+        }),
+        id: "a.canvas",
+      },
+    ],
+  ]);
+  const hooks = createRemoteScreenHooks({
+    screens,
+    read: async (_c, input) => {
+      seen.push(input);
+      return {};
+    },
+  });
   hooks.query("a.canvas", "automation", { q: "x", route: { automationId: "aut_1" } }).subscribe(() => undefined);
   await wait();
   assert.deepEqual(seen, [{ automationId: "aut_1", q: "x" }]);
@@ -768,7 +1443,13 @@ test("hooks: pointers outside /state read from the state's own section, so a pla
 
 test("hooks: prefetch reads a live query once with nobody watching, and the first watcher finds the answer", async () => {
   let reads = 0;
-  const hooks = createRemoteScreenHooks({ screens: SCREENS, read: async () => { reads++; return { items: [] }; } });
+  const hooks = createRemoteScreenHooks({
+    screens: SCREENS,
+    read: async () => {
+      reads++;
+      return { items: [] };
+    },
+  });
   hooks.prefetch("files.list", "items", { folder: "root" });
   hooks.prefetch("files.list", "items", { folder: "root" });
   hooks.prefetch("files.list", "once");
@@ -789,10 +1470,20 @@ function epochServer(serverEpoch: number): { dial: Parameters<typeof createLiveL
   const dial: NonNullable<Parameters<typeof createLiveLink>[0]["dial"]> = async () => {
     const link = memoryLink();
     link.server.onFrame((f) => {
-      const h = (f as { t?: string; hello?: { epoch: number } });
+      const h = f as { t?: string; hello?: { epoch: number } };
       if (h.t === "hello" && h.hello) {
         hellos.push(h.hello.epoch);
-        link.server.send({ t: "hello_ok", ok: { serverVersion: "t", epoch: serverEpoch, serverHlc: "000000000001-0000-srv", mode: h.hello.epoch < serverEpoch ? "purge" : "live", head: 0, entityVersions: {} } });
+        link.server.send({
+          t: "hello_ok",
+          ok: {
+            serverVersion: "t",
+            epoch: serverEpoch,
+            serverHlc: "000000000001-0000-srv",
+            mode: h.hello.epoch < serverEpoch ? "purge" : "live",
+            head: 0,
+            entityVersions: {},
+          },
+        });
       }
     });
     return link.client;
@@ -804,7 +1495,18 @@ test("live: a fresh sign-in is never purged for a stale epoch: it adopts the ser
   const srv = epochServer(7);
   let purged = 0;
   const adopted: number[] = [];
-  const link = createLiveLink({ baseUrl: "https://s.test", token: () => "t", deviceId: "dev_new", registryHash: "h", onChange: () => undefined, onPurge: () => { purged++; }, onEpoch: (e) => adopted.push(e), dial: srv.dial });
+  const link = createLiveLink({
+    baseUrl: "https://s.test",
+    token: () => "t",
+    deviceId: "dev_new",
+    registryHash: "h",
+    onChange: () => undefined,
+    onPurge: () => {
+      purged++;
+    },
+    onEpoch: (e) => adopted.push(e),
+    dial: srv.dial,
+  });
   link.start();
   await settle(30);
   assert.equal(purged, 0, "no wipe, no sign-out for a device that has nothing local");
@@ -817,7 +1519,21 @@ test("live: a fresh sign-in is never purged for a stale epoch: it adopts the ser
 test("live: a device that agreed an epoch before and is now behind it (revoked, bumped) is still purged", async () => {
   const srv = epochServer(9);
   let purged: number[] = [];
-  const link = createLiveLink({ baseUrl: "https://s.test", token: () => "t", deviceId: "dev_old", epoch: 4, registryHash: "h", onChange: () => undefined, onPurge: (e) => { purged = [...purged, e]; }, onEpoch: () => { throw new Error("a known device never adopts"); }, dial: srv.dial });
+  const link = createLiveLink({
+    baseUrl: "https://s.test",
+    token: () => "t",
+    deviceId: "dev_old",
+    epoch: 4,
+    registryHash: "h",
+    onChange: () => undefined,
+    onPurge: (e) => {
+      purged = [...purged, e];
+    },
+    onEpoch: () => {
+      throw new Error("a known device never adopts");
+    },
+    dial: srv.dial,
+  });
   link.start();
   await settle(30);
   assert.deepEqual(purged, [9]);
@@ -828,7 +1544,18 @@ test("live: a device that agreed an epoch before and is now behind it (revoked, 
 test("live: a device that agreed the current epoch reaches live with no purge", async () => {
   const srv = epochServer(5);
   let purged = 0;
-  const link = createLiveLink({ baseUrl: "https://s.test", token: () => "t", deviceId: "d", epoch: 5, registryHash: "h", onChange: () => undefined, onPurge: () => { purged++; }, dial: srv.dial });
+  const link = createLiveLink({
+    baseUrl: "https://s.test",
+    token: () => "t",
+    deviceId: "d",
+    epoch: 5,
+    registryHash: "h",
+    onChange: () => undefined,
+    onPurge: () => {
+      purged++;
+    },
+    dial: srv.dial,
+  });
   link.start();
   await settle(30);
   assert.equal(purged, 0);
@@ -839,7 +1566,21 @@ test("live: a device that agreed the current epoch reaches live with no purge", 
 test("live: a device with no agreed epoch but something stored locally is purged for real: no adopting, no second hello", async () => {
   const srv = epochServer(7);
   let purged: number[] = [];
-  const link = createLiveLink({ baseUrl: "https://s.test", token: () => "t", deviceId: "dev_data", registryHash: "h", hasLocalData: () => true, onChange: () => undefined, onPurge: (e) => { purged = [...purged, e]; }, onEpoch: () => { throw new Error("a device with local data never adopts"); }, dial: srv.dial });
+  const link = createLiveLink({
+    baseUrl: "https://s.test",
+    token: () => "t",
+    deviceId: "dev_data",
+    registryHash: "h",
+    hasLocalData: () => true,
+    onChange: () => undefined,
+    onPurge: (e) => {
+      purged = [...purged, e];
+    },
+    onEpoch: () => {
+      throw new Error("a device with local data never adopts");
+    },
+    dial: srv.dial,
+  });
   link.start();
   await settle(30);
   assert.deepEqual(purged, [7]);
@@ -853,13 +1594,37 @@ test("live: adoption happens once per session: a second purge answer after adopt
   const dial: NonNullable<Parameters<typeof createLiveLink>[0]["dial"]> = async () => {
     const link = memoryLink();
     link.server.onFrame((f) => {
-      const h = (f as { t?: string; hello?: { epoch: number } });
-      if (h.t === "hello" && h.hello) { hellos.push(h.hello.epoch); n++; link.server.send({ t: "hello_ok", ok: { serverVersion: "t", epoch: 10 + n, serverHlc: "000000000001-0000-srv", mode: "purge", head: 0, entityVersions: {} } }); }
+      const h = f as { t?: string; hello?: { epoch: number } };
+      if (h.t === "hello" && h.hello) {
+        hellos.push(h.hello.epoch);
+        n++;
+        link.server.send({
+          t: "hello_ok",
+          ok: {
+            serverVersion: "t",
+            epoch: 10 + n,
+            serverHlc: "000000000001-0000-srv",
+            mode: "purge",
+            head: 0,
+            entityVersions: {},
+          },
+        });
+      }
     });
     return link.client;
   };
   let purged: number[] = [];
-  const link = createLiveLink({ baseUrl: "https://s.test", token: () => "t", deviceId: "d", registryHash: "h", onChange: () => undefined, onPurge: (e) => { purged = [...purged, e]; }, dial });
+  const link = createLiveLink({
+    baseUrl: "https://s.test",
+    token: () => "t",
+    deviceId: "d",
+    registryHash: "h",
+    onChange: () => undefined,
+    onPurge: (e) => {
+      purged = [...purged, e];
+    },
+    dial,
+  });
   link.start();
   await settle(40);
   assert.deepEqual(hellos, [0, 11], "adopted once");
@@ -868,10 +1633,17 @@ test("live: adoption happens once per session: a second purge answer after adopt
 });
 
 test("hooks: a read that fails the same way again keeps the same snapshot and does not tell the listener again", async () => {
-  const hooks = createRemoteScreenHooks({ screens: SCREENS, read: async () => { throw new CapError({ code: "validation.bad_input", message: "bad", traceId: `t${Math.random()}`, status: 422 }); } });
+  const hooks = createRemoteScreenHooks({
+    screens: SCREENS,
+    read: async () => {
+      throw new CapError({ code: "validation.bad_input", message: "bad", traceId: `t${Math.random()}`, status: 422 });
+    },
+  });
   const q = hooks.query("files.list", "items");
   let told = 0;
-  q.subscribe(() => { told++; });
+  q.subscribe(() => {
+    told++;
+  });
   await wait();
   const first = q.getSnapshot();
   hooks.invalidate();
@@ -887,13 +1659,32 @@ test("session: after a 401 the session makes no further calls to the Space, and 
   let out = 0;
   let renameCalls = 0;
   const gw = sessionGateway({
-    "GET /v1/files/list": () => ({ status: 401, body: { error: { code: "auth.unauthenticated", message: "Sign in.", traceId: "t" } } }),
-    "POST /v1/files/rename": () => { renameCalls++; return { body: { data: { ok: true } } }; },
+    "GET /v1/files/list": () => ({
+      status: 401,
+      body: { error: { code: "auth.unauthenticated", message: "Sign in.", traceId: "t" } },
+    }),
+    "POST /v1/files/rename": () => {
+      renameCalls++;
+      return { body: { data: { ok: true } } };
+    },
   });
-  const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => SCREENS, dial: fakeServer().dial, onSignedOut: () => { out++; }, pollMs: 1_000_000 });
+  const s = await openRealSession({
+    baseUrl: "http://s.test",
+    token: "t",
+    fetch: gw.fetch,
+    routes: async () => ROUTES,
+    screens: async () => SCREENS,
+    dial: fakeServer().dial,
+    onSignedOut: () => {
+      out++;
+    },
+    pollMs: 1_000_000,
+  });
   const q = s.runtime.screens.query("files.list", "items", { folder: "root" });
   let told = 0;
-  q.subscribe(() => { told++; });
+  q.subscribe(() => {
+    told++;
+  });
   await wait(30);
   assert.equal(out, 1, "signed out once");
   assert.equal(told, 0, "the listener was not told of a failure");
@@ -904,31 +1695,135 @@ test("session: after a 401 the session makes no further calls to the Space, and 
   s.close();
 });
 
-test('browser invite acceptance registers a web device instead of a native desktop',async()=>{
- const route=routeDesktopLink({action:'join',params:{address:'https://northwind.vyre.run',code:'invite-code',fp:'display-only'}});assert.ok(route&&route.kind==='join');
- let accepted:Record<string,unknown>|undefined;
- const anonymous=async(cap:string,input:unknown)=>{if(cap==='members.invites.preview')return{spaceId:'spc_nw',spaceName:'Northwind',invitedBy:'Maya',role:'Member',expiresAt:1,fingerprint:'server-display'};accepted=input as Record<string,unknown>;return{token:'vst_webjoin'};};
- const join=await previewDesktopJoin(route,anonymous);
- await acceptDesktopJoin(join,{username:'webmember',displayName:'Web member',password:'fixture browser password',deviceName:'',ai:{choice:'none'}},{deviceClass:'web',anonymous,open:async()=>({def:{spaceId:'spc_nw',name:'Northwind'},me:{id:'usr_web'},close:()=>undefined} as never),getSpace:async()=>({id:'spc_nw',marker:'display'}),persist:()=>undefined});
- assert.equal(accepted?.['deviceClass'],'web');assert.equal(accepted?.['deviceName'],'Web browser');
+test("browser invite acceptance registers a web device instead of a native desktop", async () => {
+  const route = routeDesktopLink({
+    action: "join",
+    params: { address: "https://northwind.vyre.run", code: "invite-code", fp: "display-only" },
+  });
+  assert.ok(route && route.kind === "join");
+  let accepted: Record<string, unknown> | undefined;
+  const anonymous = async (cap: string, input: unknown) => {
+    if (cap === "members.invites.preview")
+      return {
+        spaceId: "spc_nw",
+        spaceName: "Northwind",
+        invitedBy: "Maya",
+        role: "Member",
+        expiresAt: 1,
+        fingerprint: "server-display",
+      };
+    accepted = input as Record<string, unknown>;
+    return { token: "vst_webjoin" };
+  };
+  const join = await previewDesktopJoin(route, anonymous);
+  await acceptDesktopJoin(
+    join,
+    {
+      username: "webmember",
+      displayName: "Web member",
+      password: "fixture browser password",
+      deviceName: "",
+      ai: { choice: "none" },
+    },
+    {
+      deviceClass: "web",
+      anonymous,
+      open: async () =>
+        ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_web" }, close: () => undefined }) as never,
+      getSpace: async () => ({ id: "spc_nw", marker: "display" }),
+      persist: () => undefined,
+    },
+  );
+  assert.equal(accepted?.["deviceClass"], "web");
+  assert.equal(accepted?.["deviceName"], "Web browser");
 });
 
-test('after an update moves the Personal Space to a new port its saved sign-in is still found (by kind, at loopback), and a team Space is never taken for it',()=>{const store=memoryStore();writeStored({baseUrl:'https://team.example.com',token:'fixture-team',def:{spaceId:'spc_team',name:'Team',kind:'team'} as never,personId:'usr_t',marker:'m1'},store);assert.equal(readStoredPersonal(store),null,'a team Space alone is no Personal Space');writeStored({baseUrl:'http://127.0.0.1:58933',token:'fixture-personal',def:{spaceId:'spc_personal',name:'Personal',kind:'personal'} as never,personId:'usr_p',marker:'m2'},store);assert.equal(readStored(store,'http://127.0.0.1:50283'),null,'the exact address no longer matches');assert.equal(readStoredPersonal(store)?.token,'fixture-personal');assert.equal(readStored(store,'https://team.example.com')?.token,'fixture-team','the team sign-in is kept beside it');});
-test('Stored Personal Space identity survives loopback endpoint changes without selecting another Space',()=>{const store=memoryStore();const def={spaceId:'spc_personal',name:'Personal',kind:'personal'} as never;writeStored({baseUrl:'http://127.0.0.1:41000',token:'fixture-bearer',def,personId:'usr_fixture',marker:'fixture-marker'},store);assert.equal(readStoredSpace('spc_personal',store)?.baseUrl,'http://127.0.0.1:41000');assert.equal(readStoredSpace('spc_other',store),null);});
-
+test("after an update moves the Personal Space to a new port its saved sign-in is still found (by kind, at loopback), and a team Space is never taken for it", () => {
+  const store = memoryStore();
+  writeStored(
+    {
+      baseUrl: "https://team.example.com",
+      token: "fixture-team",
+      def: { spaceId: "spc_team", name: "Team", kind: "team" } as never,
+      personId: "usr_t",
+      marker: "m1",
+    },
+    store,
+  );
+  assert.equal(readStoredPersonal(store), null, "a team Space alone is no Personal Space");
+  writeStored(
+    {
+      baseUrl: "http://127.0.0.1:58933",
+      token: "fixture-personal",
+      def: { spaceId: "spc_personal", name: "Personal", kind: "personal" } as never,
+      personId: "usr_p",
+      marker: "m2",
+    },
+    store,
+  );
+  assert.equal(readStored(store, "http://127.0.0.1:50283"), null, "the exact address no longer matches");
+  assert.equal(readStoredPersonal(store)?.token, "fixture-personal");
+  assert.equal(
+    readStored(store, "https://team.example.com")?.token,
+    "fixture-team",
+    "the team sign-in is kept beside it",
+  );
+});
+test("Stored Personal Space identity survives loopback endpoint changes without selecting another Space", () => {
+  const store = memoryStore();
+  const def = { spaceId: "spc_personal", name: "Personal", kind: "personal" } as never;
+  writeStored(
+    {
+      baseUrl: "http://127.0.0.1:41000",
+      token: "fixture-bearer",
+      def,
+      personId: "usr_fixture",
+      marker: "fixture-marker",
+    },
+    store,
+  );
+  assert.equal(readStoredSpace("spc_personal", store)?.baseUrl, "http://127.0.0.1:41000");
+  assert.equal(readStoredSpace("spc_other", store), null);
+});
 
 test("session: the one door asks reach: a member's click on a Console page or on a chat they cannot read goes nowhere and says so; an admin's goes through", async () => {
-  const routes: RouteRow[] = [...ROUTES, { method: "POST", path: "/v1/threads/get", cap: "threads.get", v: 1 }, { method: "POST", path: "/v1/console/nav", cap: "console.nav", v: 1 }, { method: "POST", path: "/v1/tasks/get", cap: "tasks.get", v: 1 }];
-  const screens = async (): Promise<Map<string, ScreenIndexEntry>> => new Map([["console.backups", { ...SCREENS.get("files.list")!, id: "console.backups", place: "console" }], ["chats.conversation", { ...SCREENS.get("files.list")!, id: "chats.conversation", place: "chats" }]]);
-  const run = async (roles: string[], nav: unknown, threadRefused: boolean): Promise<{ went: string[]; said: string[] }> => {
+  const routes: RouteRow[] = [
+    ...ROUTES,
+    { method: "POST", path: "/v1/threads/get", cap: "threads.get", v: 1 },
+    { method: "POST", path: "/v1/console/nav", cap: "console.nav", v: 1 },
+    { method: "POST", path: "/v1/tasks/get", cap: "tasks.get", v: 1 },
+  ];
+  const screens = async (): Promise<Map<string, ScreenIndexEntry>> =>
+    new Map([
+      ["console.backups", { ...SCREENS.get("files.list")!, id: "console.backups", place: "console" }],
+      ["chats.conversation", { ...SCREENS.get("files.list")!, id: "chats.conversation", place: "chats" }],
+    ]);
+  const run = async (
+    roles: string[],
+    nav: unknown,
+    threadRefused: boolean,
+  ): Promise<{ went: string[]; said: string[] }> => {
     const gw = sessionGateway({
       "POST /v1/identity/whoami": () => ({ body: { data: { ...WHOAMI, roles } } }),
       "POST /v1/console/nav": () => ({ body: { data: nav } }),
-      "POST /v1/threads/get": () => (threadRefused ? { status: 403, body: { error: { code: "auth.forbidden", message: "no", traceId: "t" } } } : { body: { data: { thread: { threadId: "thr_1" } } } }),
+      "POST /v1/threads/get": () =>
+        threadRefused
+          ? { status: 403, body: { error: { code: "auth.forbidden", message: "no", traceId: "t" } } }
+          : { body: { data: { thread: { threadId: "thr_1" } } } },
     });
     const went: string[] = [];
     const said: string[] = [];
-    const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => routes, screens, dial: fakeServer().dial, navigate: (p, h) => went.push(`${p} ${h}`), notice: (t) => said.push(t), pollMs: 1_000_000 });
+    const s = await openRealSession({
+      baseUrl: "http://s.test",
+      token: "t",
+      fetch: gw.fetch,
+      routes: async () => routes,
+      screens,
+      dial: fakeServer().dial,
+      navigate: (p, h) => went.push(`${p} ${h}`),
+      notice: (t) => said.push(t),
+      pollMs: 1_000_000,
+    });
     s.runtime.open({ screen: "console.backups" });
     s.runtime.open({ subject: { type: "thread", id: "thr_1" } });
     s.runtime.open({ screen: "chats.conversation", args: { threadId: "thr_1" } });
@@ -938,25 +1833,48 @@ test("session: the one door asks reach: a member's click on a Console page or on
   };
   const member = await run(["member"], { groups: [] }, true);
   assert.deepEqual(member.went, [], "nothing opened for a member");
-  assert.deepEqual(member.said, ["You do not have access to that", "You do not have access to that", "You do not have access to that"], "the Console page and both ways to the chat each say so");
+  assert.deepEqual(
+    member.said,
+    ["You do not have access to that", "You do not have access to that", "You do not have access to that"],
+    "the Console page and both ways to the chat each say so",
+  );
   const admin = await run(["owner"], { groups: [{ pages: [{ key: "console.backups" }] }] }, false);
   assert.equal(admin.went.length, 3, "an admin goes everywhere");
   assert.deepEqual(admin.said, []);
 });
 
-
 test("session: a tab change inside the page already open is not a new door: it navigates even when the item would be refused", async () => {
   const routes: RouteRow[] = [...ROUTES, { method: "POST", path: "/v1/projects/get", cap: "projects.get", v: 1 }];
-  const screens = async (): Promise<Map<string, ScreenIndexEntry>> => new Map([["files.list", SCREENS.get("files.list")!]]);
-  const gw = sessionGateway({ "POST /v1/projects/get": () => ({ status: 403, body: { error: { code: "auth.forbidden", message: "no", traceId: "t" } } }) });
+  const screens = async (): Promise<Map<string, ScreenIndexEntry>> =>
+    new Map([["files.list", SCREENS.get("files.list")!]]);
+  const gw = sessionGateway({
+    "POST /v1/projects/get": () => ({
+      status: 403,
+      body: { error: { code: "auth.forbidden", message: "no", traceId: "t" } },
+    }),
+  });
   const went: string[] = [];
   const said: string[] = [];
-  const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => routes, screens, dial: fakeServer().dial, navigate: (p, h) => went.push(`${p} ${h}`), notice: (t) => said.push(t), pollMs: 1_000_000 });
+  const s = await openRealSession({
+    baseUrl: "http://s.test",
+    token: "t",
+    fetch: gw.fetch,
+    routes: async () => routes,
+    screens,
+    dial: fakeServer().dial,
+    navigate: (p, h) => went.push(`${p} ${h}`),
+    notice: (t) => said.push(t),
+    pollMs: 1_000_000,
+  });
   s.runtime.open({ subject: { type: "project", id: "prj_1" }, args: { tab: "plan" }, local: true });
   s.runtime.open({ subject: { type: "project", id: "prj_1" }, args: { tab: "plan" } });
   await new Promise((r) => setTimeout(r, 40));
   s.close();
-  assert.deepEqual(went, ["chats subject=project%3Aprj_1&tab=plan"], "the local move goes; the same open as a new door is refused");
+  assert.deepEqual(
+    went,
+    ["chats subject=project%3Aprj_1&tab=plan"],
+    "the local move goes; the same open as a new door is refused",
+  );
   assert.equal(said.length, 1);
 });
 
@@ -966,7 +1884,16 @@ test("session: a screen a place draws from its own hash (chats.ask, chats.notes,
   const { screensById } = await import("../../../../../generated/screens.ts");
   const gw = sessionGateway();
   const went: string[] = [];
-  const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => screensById, dial: fakeServer().dial, navigate: (p, h) => went.push(`${p} ${h}`), pollMs: 1_000_000 });
+  const s = await openRealSession({
+    baseUrl: "http://s.test",
+    token: "t",
+    fetch: gw.fetch,
+    routes: async () => ROUTES,
+    screens: async () => screensById,
+    dial: fakeServer().dial,
+    navigate: (p, h) => went.push(`${p} ${h}`),
+    pollMs: 1_000_000,
+  });
   s.runtime.open({ screen: "chats.ask", args: { with: "assistant", first: "Draft the agenda" } });
   s.runtime.open({ screen: "chats.notes", args: { noteId: "nte_1" } });
   s.runtime.open({ screen: "chats.artifacts" });
@@ -974,22 +1901,42 @@ test("session: a screen a place draws from its own hash (chats.ask, chats.notes,
   s.runtime.open({ screen: "nowhere.at_all" });
   await new Promise((r) => setTimeout(r, 40));
   s.close();
-  assert.deepEqual(went.map((w) => w.split(" ")[0]), ["chats", "chats", "chats", "files"], "each opens its place; an id of no place goes nowhere");
+  assert.deepEqual(
+    went.map((w) => w.split(" ")[0]),
+    ["chats", "chats", "chats", "files"],
+    "each opens its place; an id of no place goes nowhere",
+  );
   assert.match(went[0]!, /screen=chats\.ask/);
   assert.match(went[0]!, /first=Draft/);
 });
 
 test("session: a person's profile that reach refuses opens nothing and says so in plain words; an allowed one opens", async () => {
-  const routes: RouteRow[] = [...ROUTES, { method: "POST", path: "/v1/memory/profile/get", cap: "memory.profile.get", v: 1 }];
+  const routes: RouteRow[] = [
+    ...ROUTES,
+    { method: "POST", path: "/v1/memory/profile/get", cap: "memory.profile.get", v: 1 },
+  ];
   const screens = async (): Promise<Map<string, ScreenIndexEntry>> => new Map();
   const run = async (refused: boolean): Promise<{ went: string[]; said: string[] }> => {
     const gw = sessionGateway({
       "POST /v1/identity/whoami": () => ({ body: { data: WHOAMI } }),
-      "POST /v1/memory/profile/get": () => (refused ? { status: 403, body: { error: { code: "auth.forbidden", message: "no", traceId: "t" } } } : { body: { data: { audience: "shared", basics: [], public: [], private: [] } } }),
+      "POST /v1/memory/profile/get": () =>
+        refused
+          ? { status: 403, body: { error: { code: "auth.forbidden", message: "no", traceId: "t" } } }
+          : { body: { data: { audience: "shared", basics: [], public: [], private: [] } } },
     });
     const went: string[] = [];
     const said: string[] = [];
-    const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => routes, screens, dial: fakeServer().dial, navigate: (p, h) => went.push(`${p} ${h}`), notice: (t) => said.push(t), pollMs: 1_000_000 });
+    const s = await openRealSession({
+      baseUrl: "http://s.test",
+      token: "t",
+      fetch: gw.fetch,
+      routes: async () => routes,
+      screens,
+      dial: fakeServer().dial,
+      navigate: (p, h) => went.push(`${p} ${h}`),
+      notice: (t) => said.push(t),
+      pollMs: 1_000_000,
+    });
     s.runtime.open({ subject: { type: "person", id: "usr_omar" } });
     await new Promise((r) => setTimeout(r, 40));
     s.close();
@@ -1008,7 +1955,16 @@ test("session: a live link that drops says reconnecting after 1.5 s, not before,
   const sched = manualScheduler();
   const srv = fakeServer();
   const gw = sessionGateway({ "GET /v1/files/list": () => ({ body: { data: { items: [] } } }) });
-  const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => SCREENS, dial: srv.dial, scheduler: sched, pollMs: 1_000_000 });
+  const s = await openRealSession({
+    baseUrl: "http://s.test",
+    token: "t",
+    fetch: gw.fetch,
+    routes: async () => ROUTES,
+    screens: async () => SCREENS,
+    dial: srv.dial,
+    scheduler: sched,
+    pollMs: 1_000_000,
+  });
   assert.equal(s.runtime.connection.get(), "online", "no line while it first connects");
   await settle();
   assert.equal(srv.open(), 1, "live");
@@ -1020,7 +1976,9 @@ test("session: a live link that drops says reconnecting after 1.5 s, not before,
   sched.advance(1_000);
   assert.equal(s.runtime.connection.get(), "online", "a blip shorter than 1.5 s shows nothing");
   let told = 0;
-  s.runtime.connection.subscribe(() => { told++; });
+  s.runtime.connection.subscribe(() => {
+    told++;
+  });
   sched.advance(600);
   assert.equal(s.runtime.connection.get(), "offline", "after 1.5 s the app says it has lost the server");
   assert.ok(told >= 1);

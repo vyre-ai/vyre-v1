@@ -11,7 +11,13 @@ type TypeRow = CapMap["schema.types.list"]["out"]["types"][number];
 export type Call = (cap: string, input: unknown) => Promise<unknown>;
 
 /** A record type a Journey can follow, as the picker draws it: its name and icon, and a hue taken from its key so the colour stays the same between visits. */
-export interface TypeChoice { key: string; title: string; plural: string; icon: string; hue: number }
+export interface TypeChoice {
+  key: string;
+  title: string;
+  plural: string;
+  icon: string;
+  hue: number;
+}
 
 export const JOURNEYS_GROUP = "Journeys";
 
@@ -19,7 +25,13 @@ export const JOURNEYS_GROUP = "Journeys";
 export function typeChoices(rows: readonly TypeRow[]): TypeChoice[] {
   const out: TypeChoice[] = [];
   for (const t of rows) {
-    if (t.system || t.key === "agent" || t.group === JOURNEYS_GROUP || (t.scope !== undefined && t.scope.startsWith("site"))) continue;
+    if (
+      t.system ||
+      t.key === "agent" ||
+      t.group === JOURNEYS_GROUP ||
+      (t.scope !== undefined && t.scope.startsWith("site"))
+    )
+      continue;
     out.push({ key: t.key, title: t.title, plural: t.plural, icon: t.icon, hue: hueOfKey(t.key) });
   }
   return out;
@@ -41,9 +53,14 @@ export function stagesFrom(titles: readonly string[]): Stage[] {
 export { addStage, moveStage, removeStage, renameStage };
 
 /** The stages as they are made: unnamed ones left out. */
-export const namedStages = (stages: readonly Stage[]): Stage[] => stages.filter((s) => s.title.trim() !== "").map((s, order) => ({ ...s, title: s.title.trim(), order }));
+export const namedStages = (stages: readonly Stage[]): Stage[] =>
+  stages.filter((s) => s.title.trim() !== "").map((s, order) => ({ ...s, title: s.title.trim(), order }));
 
-export interface Issues { name?: string; subject?: string; stages?: string }
+export interface Issues {
+  name?: string;
+  subject?: string;
+  stages?: string;
+}
 
 /** What is missing, in plain words, one line per field. */
 export function issuesOf(name: string, subject: string | null, stages: readonly Stage[]): Issues {
@@ -54,27 +71,47 @@ export function issuesOf(name: string, subject: string | null, stages: readonly 
   if (named.length === 0) out.stages = "Add at least one stage";
   else {
     const seen = new Set<string>();
-    for (const s of named) { const k = s.title.toLowerCase(); if (seen.has(k)) { out.stages = `Two stages are named ${s.title}`; break; } seen.add(k); }
+    for (const s of named) {
+      const k = s.title.toLowerCase();
+      if (seen.has(k)) {
+        out.stages = `Two stages are named ${s.title}`;
+        break;
+      }
+      seen.add(k);
+    }
   }
   return out;
 }
-export const hasIssues = (i: Issues): boolean => i.name !== undefined || i.subject !== undefined || i.stages !== undefined;
+export const hasIssues = (i: Issues): boolean =>
+  i.name !== undefined || i.subject !== undefined || i.stages !== undefined;
 
 /** The words for a refusal. Anything not recognised becomes a plain retry line; the backend text never reaches the screen. */
 export function plainError(e: unknown): string {
-  const code = typeof e === "object" && e !== null && typeof (e as { code?: unknown }).code === "string" ? (e as { code: string }).code : "";
+  const code =
+    typeof e === "object" && e !== null && typeof (e as { code?: unknown }).code === "string"
+      ? (e as { code: string }).code
+      : "";
   const msg = e instanceof Error ? e.message : typeof e === "string" ? e : "";
   const text = `${code} ${msg}`.toLowerCase();
-  if (/not a record type|relation target|unknown type|no such type/.test(text)) return "Pick who goes through it again. That type is not available.";
-  if (/journey with that name|journey_name|already exists|duplicate/.test(text)) return "That name is taken. Try another.";
+  if (/not a record type|relation target|unknown type|no such type/.test(text))
+    return "Pick who goes through it again. That type is not available.";
+  if (/journey with that name|journey_name|already exists|duplicate/.test(text))
+    return "That name is taken. Try another.";
   if (/needs a name|name_required/.test(text)) return "Give it a name";
   if (/at least one stage|no_stages/.test(text)) return "Add at least one stage";
-  if (/permission|denied|forbidden|not allowed|unauthori/.test(text)) return "You do not have permission to make Journeys here.";
-  if (/offline|network|unavailable|timeout|fetch/.test(text)) return "Could not reach your Space. Check the connection and try again.";
+  if (/permission|denied|forbidden|not allowed|unauthori/.test(text))
+    return "You do not have permission to make Journeys here.";
+  if (/offline|network|unavailable|timeout|fetch/.test(text))
+    return "Could not reach your Space. Check the connection and try again.";
   return "That did not work. Try again.";
 }
 
-const slug = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "type";
+const slug = (s: string): string =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40) || "type";
 export function typeKeyFor(name: string, taken: readonly string[]): string {
   const base = slug(name);
   if (!taken.includes(base)) return base;
@@ -89,7 +126,21 @@ export async function createPlainType(call: Call, name: string, taken: readonly 
   const key = typeKeyFor(title, taken);
   const plural = /s$/i.test(title) ? title : `${title}s`;
   await call("schema.apply", {
-    ops: [{ op: "type.create", type: key, def: { key, title, plural, icon: "records", label: "internal", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }] } }],
+    ops: [
+      {
+        op: "type.create",
+        type: key,
+        def: {
+          key,
+          title,
+          plural,
+          icon: "records",
+          label: "internal",
+          titleField: "name",
+          fields: [{ key: "name", type: "text", title: "Name", required: true }],
+        },
+      },
+    ],
     reason: `New type ${title}`,
     idempotencyKey: `type-${key}`,
   });
@@ -97,12 +148,22 @@ export async function createPlainType(call: Call, name: string, taken: readonly 
 }
 
 /** Makes the Journey. Resolves with its id; rejects with plain words. */
-export async function makeJourney(call: Call, input: { name: string; subject: string; stages: readonly Stage[] }): Promise<string> {
+export async function makeJourney(
+  call: Call,
+  input: { name: string; subject: string; stages: readonly Stage[] },
+): Promise<string> {
   const stages = namedStages(input.stages);
   try {
-    const out = (await call("journeys.create", { name: input.name.trim(), subjectType: input.subject, stages, idempotencyKey: `journey-${input.name.trim().toLowerCase()}-${input.subject}-${stages.length}` })) as { journey: { id: string } };
+    const out = (await call("journeys.create", {
+      name: input.name.trim(),
+      subjectType: input.subject,
+      stages,
+      idempotencyKey: `journey-${input.name.trim().toLowerCase()}-${input.subject}-${stages.length}`,
+    })) as { journey: { id: string } };
     return out.journey.id;
-  } catch (e) { throw new Error(plainError(e)); }
+  } catch (e) {
+    throw new Error(plainError(e));
+  }
 }
 
 /** The line under the stage list: what the board will have. */

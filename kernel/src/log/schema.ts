@@ -2,12 +2,30 @@
 // changing a column means changing `event`, which the chain then catches. Hashes are stored as hex text (the envelope is JSON).
 
 const GEN: [string, string, string][] = [
-  ["id", "TEXT", "$.id"], ["type", "TEXT", "$.type"], ["sv", "INTEGER", "$.sv"], ["hlc", "TEXT", "$.hlc"], ["at", "INTEGER", "$.at"],
-  ["trace_id", "TEXT", "$.trace_id"], ["span_id", "TEXT", "$.span_id"], ["actor", "TEXT", "$.actor"], ["on_behalf", "TEXT", "$.on_behalf"],
-  ["device", "TEXT", "$.device"], ["run_id", "TEXT", "$.run_id"], ["cause", "TEXT", "$.cause"], ["origin", "TEXT", "$.origin"],
-  ["depth", "INTEGER", "$.depth"], ["entity", "TEXT", "$.entity"], ["entity_id", "TEXT", "$.entity_id"], ["fields", "TEXT", "$.fields"],
-  ["label", "INTEGER", "$.label"], ["vis", "TEXT", "$.vis"], ["enc", "INTEGER", "$.enc"], ["key_id", "TEXT", "$.key_id"],
-  ["commit_", "TEXT", "$.commit"], ["prev", "TEXT", "$.prev"], ["hash", "TEXT", "$.hash"],
+  ["id", "TEXT", "$.id"],
+  ["type", "TEXT", "$.type"],
+  ["sv", "INTEGER", "$.sv"],
+  ["hlc", "TEXT", "$.hlc"],
+  ["at", "INTEGER", "$.at"],
+  ["trace_id", "TEXT", "$.trace_id"],
+  ["span_id", "TEXT", "$.span_id"],
+  ["actor", "TEXT", "$.actor"],
+  ["on_behalf", "TEXT", "$.on_behalf"],
+  ["device", "TEXT", "$.device"],
+  ["run_id", "TEXT", "$.run_id"],
+  ["cause", "TEXT", "$.cause"],
+  ["origin", "TEXT", "$.origin"],
+  ["depth", "INTEGER", "$.depth"],
+  ["entity", "TEXT", "$.entity"],
+  ["entity_id", "TEXT", "$.entity_id"],
+  ["fields", "TEXT", "$.fields"],
+  ["label", "INTEGER", "$.label"],
+  ["vis", "TEXT", "$.vis"],
+  ["enc", "INTEGER", "$.enc"],
+  ["key_id", "TEXT", "$.key_id"],
+  ["commit_", "TEXT", "$.commit"],
+  ["prev", "TEXT", "$.prev"],
+  ["hash", "TEXT", "$.hash"],
 ];
 
 export const GENERATED_COLUMNS: readonly string[] = GEN.map(([c]) => c);

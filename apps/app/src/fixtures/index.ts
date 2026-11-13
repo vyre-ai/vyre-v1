@@ -6,7 +6,16 @@ import { northwind } from "./northwind.ts";
 import { personal } from "./personal.ts";
 import type { SpaceFixture, SpaceKey } from "./types.ts";
 
-export type { FixtureAgent, FixtureChannel, FixtureChat, FixtureNeed, FixturePerson, FixtureSpace, SpaceFixture, SpaceKey } from "./types.ts";
+export type {
+  FixtureAgent,
+  FixtureChannel,
+  FixtureChat,
+  FixtureNeed,
+  FixturePerson,
+  FixtureSpace,
+  SpaceFixture,
+  SpaceKey,
+} from "./types.ts";
 export { harbor, northwind, personal };
 
 export const SPACE_KEYS: readonly SpaceKey[] = ["northwind", "harbor", "personal"];

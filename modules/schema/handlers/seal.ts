@@ -19,7 +19,9 @@ export interface SealVault {
 }
 let vault: SealVault | null = null;
 /** The host hands the Vault (a seam like the others). */
-export function setSchemaVault(v: SealVault | null): void { vault = v; }
+export function setSchemaVault(v: SealVault | null): void {
+  vault = v;
+}
 /** The Vault now wired (a test wraps it to make a put fail halfway). */
 export const schemaVault = (): SealVault | null => vault;
 
@@ -28,16 +30,29 @@ export const SEALABLE_FROM: ReadonlySet<string> = new Set(["text", "longtext", "
 
 const JOBS = `CREATE TABLE IF NOT EXISTS sc_seal_jobs (type TEXT NOT NULL, field TEXT NOT NULL, moved INTEGER NOT NULL, started_at INTEGER NOT NULL, change_id TEXT, PRIMARY KEY (type, field))`;
 const ready = new WeakSet<Tx>();
-export function ensureSealTables(tx: Tx): void { if (ready.has(tx)) return; tx.exec(JOBS); ready.add(tx); }
+export function ensureSealTables(tx: Tx): void {
+  if (ready.has(tx)) return;
+  tx.exec(JOBS);
+  ready.add(tx);
+}
 
-const asText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(v));
+const asText = (v: unknown): string =>
+  typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(v);
 const plain = (v: unknown): boolean => v !== undefined && v !== null && !isSealedRef(v);
 
 /** Every row of the type with a plaintext in the field, Trash included, one page at a time. */
-async function eachPlain(deps: SchemaDeps, type: string, field: string, fn: (r: StoredRecord) => Promise<void>): Promise<void> {
+async function eachPlain(
+  deps: SchemaDeps,
+  type: string,
+  field: string,
+  fn: (r: StoredRecord) => Promise<void>,
+): Promise<void> {
   let cursor: string | undefined;
   do {
-    const page = await deps.store.query(type, { include_deleted: true, page: { limit: 200, ...(cursor ? { cursor } : {}) } });
+    const page = await deps.store.query(type, {
+      include_deleted: true,
+      page: { limit: 200, ...(cursor ? { cursor } : {}) },
+    });
     for (const r of page.rows) if (plain(r.data[field])) await fn(r);
     cursor = page.next_cursor;
   } while (cursor);
@@ -45,12 +60,17 @@ async function eachPlain(deps: SchemaDeps, type: string, field: string, fn: (r: 
 
 export async function countPlain(deps: SchemaDeps, type: string, field: string): Promise<number> {
   let n = 0;
-  await eachPlain(deps, type, field, async () => { n++; });
+  await eachPlain(deps, type, field, async () => {
+    n++;
+  });
   return n;
 }
 
 /** What the move has ready: each row with a plaintext, and the Vault item its value is now in. */
-export interface Move { row: StoredRecord; ref: string }
+export interface Move {
+  row: StoredRecord;
+  ref: string;
+}
 
 /**
  * Step one of the move: every plaintext goes into the Vault and nothing else changes, so a Vault that fails halfway leaves the Space exactly as it was (the items already made are found again
@@ -58,16 +78,24 @@ export interface Move { row: StoredRecord; ref: string }
  */
 export async function putInVault(deps: SchemaDeps, ctx: SchemaCtx, type: string, field: string): Promise<Move[]> {
   const rows: StoredRecord[] = [];
-  await eachPlain(deps, type, field, async (r) => { rows.push(r); });
+  await eachPlain(deps, type, field, async (r) => {
+    rows.push(r);
+  });
   if (rows.length === 0) return [];
   if (!vault) refuse(ctx, "internal.unavailable", "The Vault is not available on this server, so nothing was sealed.");
   const moves: Move[] = [];
-  for (const row of rows) moves.push({ row, ref: await vault!.put({ type, recordId: row.id, field, value: asText(row.data[field]) }) });
+  for (const row of rows)
+    moves.push({ row, ref: await vault!.put({ type, recordId: row.id, field, value: asText(row.data[field]) }) });
   return moves;
 }
 
 /** Step two, once the field is sealed in the store: each row keeps the reference in place of its value. A row that was already moved by an earlier try is not in `moves`. */
-export async function writeRefs(deps: SchemaDeps, type: string, field: string, moves: readonly Move[]): Promise<number> {
+export async function writeRefs(
+  deps: SchemaDeps,
+  type: string,
+  field: string,
+  moves: readonly Move[],
+): Promise<number> {
   for (const { row: r, ref } of moves) {
     const patch = { [field]: { sealed: field, ref, present: true, set_at: Date.now() } };
     if (r.deleted_at === null || r.deleted_at === undefined) await deps.store.update(type, r.id, patch, r.version);
@@ -81,9 +109,23 @@ export async function writeRefs(deps: SchemaDeps, type: string, field: string, m
   return moves.length;
 }
 
-export function openJob(deps: SchemaDeps, type: string, field: string, moved: number, changeId: string, now: number): void {
+export function openJob(
+  deps: SchemaDeps,
+  type: string,
+  field: string,
+  moved: number,
+  changeId: string,
+  now: number,
+): void {
   ensureSealTables(deps.tx);
-  deps.tx.run("INSERT INTO sc_seal_jobs (type, field, moved, started_at, change_id) VALUES (?, ?, ?, ?, ?) ON CONFLICT(type, field) DO UPDATE SET moved = moved + excluded.moved", type, field, moved, now, changeId);
+  deps.tx.run(
+    "INSERT INTO sc_seal_jobs (type, field, moved, started_at, change_id) VALUES (?, ?, ?, ?, ?) ON CONFLICT(type, field) DO UPDATE SET moved = moved + excluded.moved",
+    type,
+    field,
+    moved,
+    now,
+    changeId,
+  );
 }
 
 /** Does this old event hold a plaintext of the field? Created and updated events carry the whole row (`data`) and what it was (`before`). */
@@ -106,13 +148,17 @@ export async function cleanField(deps: SchemaDeps, type: string, field: string):
   host?.store.db.exec("PRAGMA secure_delete = ON");
   if (host) {
     const dec = new TextDecoder();
-    for (let after = 0; ;) {
+    for (let after = 0; ; ) {
       const page = host.store.read({ after, limit: 2000, entity: type });
       if (page.length === 0) break;
       for (const e of page) {
         if ((e.type !== "record.created" && e.type !== "record.updated") || isErased(e)) continue;
         let p: Record<string, unknown>;
-        try { p = JSON.parse(dec.decode(e.payload)) as Record<string, unknown>; } catch { continue; }
+        try {
+          p = JSON.parse(dec.decode(e.payload)) as Record<string, unknown>;
+        } catch {
+          continue;
+        }
         if (!holds(p, type, field)) continue;
         host.store.erase(e.seq);
         erasedSeqs.push(e.seq);
@@ -123,19 +169,58 @@ export async function cleanField(deps: SchemaDeps, type: string, field: string):
     }
     // a rebuild skips an erased event, so the row's whole state is written again, references only, and a rebuild finds it
     for (const id of touched) {
-      const row = tx.get<{ version: number; created_at: number; updated_at: number; deleted_at: number | null; data: string }>(`SELECT version, created_at, updated_at, deleted_at, data FROM rt_${type} WHERE id = ?`, id);
+      const row = tx.get<{
+        version: number;
+        created_at: number;
+        updated_at: number;
+        deleted_at: number | null;
+        data: string;
+      }>(`SELECT version, created_at, updated_at, deleted_at, data FROM rt_${type} WHERE id = ?`, id);
       if (!row) continue;
-      host.append({ type: "record.rebased", sv: 1, trace_id: "5ea1".repeat(8), actor: "svc_records", vis: "space", entity: type, entity_id: id, payload: { type, id, data: JSON.parse(row.data), version: row.version, created_at: row.created_at, updated_at: row.updated_at, deleted_at: row.deleted_at } });
+      host.append({
+        type: "record.rebased",
+        sv: 1,
+        trace_id: "5ea1".repeat(8),
+        actor: "svc_records",
+        vis: "space",
+        entity: type,
+        entity_id: id,
+        payload: {
+          type,
+          id,
+          data: JSON.parse(row.data),
+          version: row.version,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          deleted_at: row.deleted_at,
+        },
+      });
     }
   }
   // the sync change feed copied the fields of those events (its rows stay, so a device's cursor still lands; the same blanking as erase)
   if (erasedSeqs.length) {
-    try { for (let i = 0; i < erasedSeqs.length; i += 400) { const part = erasedSeqs.slice(i, i + 400); tx.run(`UPDATE sync_changes SET fields = '{}' WHERE seq IN (${part.map(() => "?").join(",")})`, ...part); } } catch { /* sync is not on this store */ }
+    try {
+      for (let i = 0; i < erasedSeqs.length; i += 400) {
+        const part = erasedSeqs.slice(i, i + 400);
+        tx.run(`UPDATE sync_changes SET fields = '{}' WHERE seq IN (${part.map(() => "?").join(",")})`, ...part);
+      }
+    } catch {
+      /* sync is not on this store */
+    }
   }
   // the change feed keeps what a row was before and after each change
-  tx.run(`UPDATE rs_changes SET before = CASE WHEN before IS NULL THEN NULL ELSE json_remove(before, ?) END, after = CASE WHEN after IS NULL THEN NULL ELSE json_remove(after, ?) END WHERE type = ?`, `$.${field}`, `$.${field}`, type);
+  tx.run(
+    `UPDATE rs_changes SET before = CASE WHEN before IS NULL THEN NULL ELSE json_remove(before, ?) END, after = CASE WHEN after IS NULL THEN NULL ELSE json_remove(after, ?) END WHERE type = ?`,
+    `$.${field}`,
+    `$.${field}`,
+    type,
+  );
   // the per-field history of a lost edit
-  try { tx.run("DELETE FROM records_field_history WHERE type = ? AND field = ?", type, field); } catch { /* the records tables are not on this store */ }
+  try {
+    tx.run("DELETE FROM records_field_history WHERE type = ? AND field = ?", type, field);
+  } catch {
+    /* the records tables are not on this store */
+  }
   // what a retype or a drop of this field once kept in Trash
   tx.run("DELETE FROM sc_trash WHERE type = ? AND field = ?", type, field);
   // the copies only the host reaches

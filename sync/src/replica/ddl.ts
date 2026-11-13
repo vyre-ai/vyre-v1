@@ -130,7 +130,12 @@ export function parseTables(sql: string): TableInfo[] {
       const rest = col[2] ?? "";
       if (!colName) continue;
       const d = parseDefault(rest);
-      columns.push({ name: colName, notNull: /NOT NULL/i.test(rest), hasDefault: d.hasDefault, defaultValue: d.defaultValue });
+      columns.push({
+        name: colName,
+        notNull: /NOT NULL/i.test(rest),
+        hasDefault: d.hasDefault,
+        defaultValue: d.defaultValue,
+      });
     }
     if (!columns.length) throw new ReplicaError("bad_ddl", `table ${name} has no columns`);
     tables.push({ name, columns, fm: name.endsWith("__fm") });
@@ -149,7 +154,9 @@ export function withPendingColumns(sql: string): string {
     if (!name.endsWith("__fm") || /^\s*"pending"\s/m.test(body)) return all;
     const lines = body.split("\n");
     let last = -1;
-    lines.forEach((l, i) => { if (COL_RE.test(l)) last = i; });
+    lines.forEach((l, i) => {
+      if (COL_RE.test(l)) last = i;
+    });
     if (last < 0) return all;
     const line = lines[last]!;
     const indent = /^\s*/.exec(line)?.[0] ?? "  ";

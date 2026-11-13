@@ -17,7 +17,9 @@ export interface QueueOptions {
 export async function oneAtATime<T>(key: string, work: () => Promise<T>, o: QueueOptions = {}): Promise<T> {
   const before = queues.get(key) ?? Promise.resolve();
   let done!: () => void;
-  const mine = new Promise<void>((r) => { done = r; });
+  const mine = new Promise<void>((r) => {
+    done = r;
+  });
   const tail = before.then(() => mine);
   queues.set(key, tail);
   await before;
@@ -25,12 +27,18 @@ export async function oneAtATime<T>(key: string, work: () => Promise<T>, o: Queu
   let timer: ReturnType<typeof setTimeout> | undefined;
   const limit = new Promise<never>((_, fail) => {
     timer = setTimeout(() => {
-      try { o.onLimit?.(key, limitMs); } catch { /* a log line never stops the queue */ }
+      try {
+        o.onLimit?.(key, limitMs);
+      } catch {
+        /* a log line never stops the queue */
+      }
       fail(new Error(`work queued for ${key} did not finish within ${limitMs} ms; the queue moved on`));
     }, limitMs);
     timer.unref?.();
   });
-  try { return await Promise.race([work(), limit]); } finally {
+  try {
+    return await Promise.race([work(), limit]);
+  } finally {
     clearTimeout(timer);
     done();
     if (queues.get(key) === tail) queues.delete(key);

@@ -7,14 +7,26 @@ import { mark } from "../../startup/marks.ts";
 
 export const CHAT_ABOUT_IT = "Chat about it";
 
-export function DesktopOnly({ line, onChat, testID = "desktop-only" }: { line: string; onChat?: () => void; testID?: string }): ReactElement {
+export function DesktopOnly({
+  line,
+  onChat,
+  testID = "desktop-only",
+}: {
+  line: string;
+  onChat?: () => void;
+  testID?: string;
+}): ReactElement {
   const [down, setDown] = useState(false);
   // this screen is the first place a phone draws for a link to the Console: it is usable, so the launch frame leaves now and not after its eight-second limit (polish audit X2)
-  useEffect(() => { mark("app.usable"); }, []);
+  useEffect(() => {
+    mark("app.usable");
+  }, []);
   return (
     <View testID={testID} style={st.fill}>
       <View style={st.box}>
-        <Text accessibilityRole="text" style={st.line}>{line}</Text>
+        <Text accessibilityRole="text" style={st.line}>
+          {line}
+        </Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={CHAT_ABOUT_IT}
@@ -34,9 +46,23 @@ export function DesktopOnly({ line, onChat, testID = "desktop-only" }: { line: s
 
 const st = StyleSheet.create({
   fill: { flex: 1, padding: 16, justifyContent: "flex-start" },
-  box: { gap: 12, paddingVertical: 14, paddingHorizontal: 14, borderRadius: 10, backgroundColor: "var(--sunk)" as string },
+  box: {
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: "var(--sunk)" as string,
+  },
   line: { color: "var(--ink-2)" as string, fontSize: 15, lineHeight: 21 },
-  button: { alignSelf: "flex-start", height: 44, paddingHorizontal: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string },
+  button: {
+    alignSelf: "flex-start",
+    height: 44,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--accent)" as string,
+  },
   buttonDown: { opacity: 0.85 },
   buttonOff: { opacity: 0.5 },
   buttonText: { color: "var(--accent-ink)" as string, fontSize: 15, fontWeight: "600" },

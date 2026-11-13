@@ -5,15 +5,29 @@
 const MINUTE = 60_000;
 const DAY = 86_400_000;
 
-interface Field { set: ReadonlySet<number>; star: boolean }
-export interface CronSpec { min: Field; hour: Field; dom: Field; mon: Field; dow: Field }
+interface Field {
+  set: ReadonlySet<number>;
+  star: boolean;
+}
+export interface CronSpec {
+  min: Field;
+  hour: Field;
+  dom: Field;
+  mon: Field;
+  dow: Field;
+}
 
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 const DOWS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MACROS: Record<string, string> = {
-  "@hourly": "0 * * * *", "@daily": "0 0 * * *", "@midnight": "0 0 * * *", "@weekly": "0 0 * * 0",
-  "@monthly": "0 0 1 * *", "@yearly": "0 0 1 1 *", "@annually": "0 0 1 1 *",
+  "@hourly": "0 * * * *",
+  "@daily": "0 0 * * *",
+  "@midnight": "0 0 * * *",
+  "@weekly": "0 0 * * 0",
+  "@monthly": "0 0 1 * *",
+  "@yearly": "0 0 1 1 *",
+  "@annually": "0 0 1 1 *",
 };
 
 function parseField(text: string, lo: number, hi: number, names?: readonly string[], nameBase = 0): Field | undefined {
@@ -79,12 +93,26 @@ export function validTimeZone(tz: string): boolean {
 }
 
 const fmts = new Map<string, Intl.DateTimeFormat>();
-interface Local { y: number; mo: number; d: number; h: number; mi: number }
+interface Local {
+  y: number;
+  mo: number;
+  d: number;
+  h: number;
+  mi: number;
+}
 
 function localOf(ms: number, tz: string): Local {
   let f = fmts.get(tz);
   if (!f) {
-    f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric" });
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+    });
     fmts.set(tz, f);
   }
   const o: Record<string, number> = {};
@@ -123,10 +151,11 @@ export function nextCron(spec: CronSpec, tz: string, after: number): number | un
     // Both day fields restricted: either matches. A star in one leaves the other in charge.
     const dayOk = spec.dom.star || spec.dow.star ? domOk && dowOk : domOk || dowOk;
     if (!dayOk) continue;
-    for (const h of hours) for (const mi of mins) {
-      const at = localToUtc({ y, mo, d, h, mi }, tz);
-      if (at !== undefined && at > after) return at;
-    }
+    for (const h of hours)
+      for (const mi of mins) {
+        const at = localToUtc({ y, mo, d, h, mi }, tz);
+        if (at !== undefined && at > after) return at;
+      }
   }
   return undefined;
 }
@@ -178,13 +207,16 @@ export function summarizeCron(cron: string): string | undefined {
   if (!monAll) return fallback;
   if (minuteAll && hourAll && domAll && dowAll) return "Every minute";
   const minuteStep = fullStep(mins, 0, 59);
-  if (minuteStep !== undefined && hourAll && domAll && dowAll) return minuteStep === 1 ? "Every minute" : `Every ${minuteStep} minutes`;
+  if (minuteStep !== undefined && hourAll && domAll && dowAll)
+    return minuteStep === 1 ? "Every minute" : `Every ${minuteStep} minutes`;
   const hourStep = fullStep(hours, 0, 23);
   const onlyMinute = mins.length === 1 ? mins[0] : undefined;
   if (onlyMinute !== undefined && hourStep !== undefined && domAll && dowAll) {
     if (hourStep === 1 && onlyMinute === 0) return "Every hour";
     if (onlyMinute === 0) return `Every ${hourStep} hours`;
-    return hourStep === 1 ? `Every hour at minute ${String(onlyMinute).padStart(2, "0")}` : `Every ${hourStep} hours at minute ${String(onlyMinute).padStart(2, "0")}`;
+    return hourStep === 1
+      ? `Every hour at minute ${String(onlyMinute).padStart(2, "0")}`
+      : `Every ${hourStep} hours at minute ${String(onlyMinute).padStart(2, "0")}`;
   }
   const onlyHour = hours.length === 1 ? hours[0] : undefined;
   if (onlyMinute === undefined || onlyHour === undefined) return fallback;
@@ -202,7 +234,13 @@ export interface NextOccurrences {
 }
 
 /** The next `count` fires strictly after `after`, in the named zone. Honors an optional start and end. */
-export function nextOccurrences(cron: string, timezone: string, after: number, count = 5, bounds?: { startAt?: number; endAt?: number }): NextOccurrences | { error: "bad_cron" | "bad_timezone" } {
+export function nextOccurrences(
+  cron: string,
+  timezone: string,
+  after: number,
+  count = 5,
+  bounds?: { startAt?: number; endAt?: number },
+): NextOccurrences | { error: "bad_cron" | "bad_timezone" } {
   if (!validTimeZone(timezone)) return { error: "bad_timezone" };
   const spec = parseCron(cron);
   if (!spec) return { error: "bad_cron" };

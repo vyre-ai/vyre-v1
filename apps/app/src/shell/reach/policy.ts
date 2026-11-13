@@ -6,8 +6,24 @@ import type { Level } from "./reach.ts";
 
 /** The access resource type of each kind of thing a link names. A kind not listed is not judged by the Space's access (a place's own listing), so its link is live. */
 export const RESOURCE_OF: Readonly<Record<string, string>> = {
-  thread: "thread", chat: "thread", channel: "channel", file: "file", doc: "file", document: "file", folder: "folder", record: "record", contact: "record", task: "task",
-  run: "run", automation: "automation", project: "project", agent: "agent", computer: "computer", vault: "vault_item", item: "vault_item", vault_item: "vault_item",
+  thread: "thread",
+  chat: "thread",
+  channel: "channel",
+  file: "file",
+  doc: "file",
+  document: "file",
+  folder: "folder",
+  record: "record",
+  contact: "record",
+  task: "task",
+  run: "run",
+  automation: "automation",
+  project: "project",
+  agent: "agent",
+  computer: "computer",
+  vault: "vault_item",
+  item: "vault_item",
+  vault_item: "vault_item",
 };
 
 export const keyOf = (s: LinkSubject): string => `${RESOURCE_OF[s.type] ?? s.type}:${s.id}`;
@@ -36,7 +52,10 @@ export function createLinkPolicy(deps: PolicyDeps): Policy {
   let inflight: Promise<void> = Promise.resolve();
   let v = 0;
   const listeners = new Set<() => void>();
-  const bump = (): void => { v += 1; for (const l of [...listeners]) l(); };
+  const bump = (): void => {
+    v += 1;
+    for (const l of [...listeners]) l();
+  };
 
   const flush = (): void => {
     timer = null;
@@ -45,15 +64,22 @@ export function createLinkPolicy(deps: PolicyDeps): Policy {
     if (batch.length === 0) return;
     const chunks: { type: string; id: string }[][] = [];
     for (let i = 0; i < batch.length; i += 200) chunks.push(batch.slice(i, i + 200));
-    inflight = Promise.all(chunks.map(async (items) => {
-      try {
-        const out = (await deps.call("access.reach", { items })) as { items?: Array<{ type: string; id: string; level: Level; title?: string }> };
-        for (const r of out.items ?? []) { known.set(`${r.type}:${r.id}`, r.level); if (r.title) titles.set(`${r.type}:${r.id}`, r.title); }
-      } catch {
-        // the Space did not answer: those links stay live, and the destination checks again; ask again next time they are seen
-        for (const it of items) asked.delete(`${it.type}:${it.id}`);
-      }
-    })).then(bump);
+    inflight = Promise.all(
+      chunks.map(async (items) => {
+        try {
+          const out = (await deps.call("access.reach", { items })) as {
+            items?: Array<{ type: string; id: string; level: Level; title?: string }>;
+          };
+          for (const r of out.items ?? []) {
+            known.set(`${r.type}:${r.id}`, r.level);
+            if (r.title) titles.set(`${r.type}:${r.id}`, r.title);
+          }
+        } catch {
+          // the Space did not answer: those links stay live, and the destination checks again; ask again next time they are seen
+          for (const it of items) asked.delete(`${it.type}:${it.id}`);
+        }
+      }),
+    ).then(bump);
   };
 
   const prefetch = (subjects: readonly LinkSubject[]): void => {
@@ -76,10 +102,23 @@ export function createLinkPolicy(deps: PolicyDeps): Policy {
       return level === "none" ? { state: "plain" } : { state: "live" };
     },
     levelOf: (s) => known.get(keyOf(s)),
-    subscribe(l) { listeners.add(l); return () => { listeners.delete(l); }; },
+    subscribe(l) {
+      listeners.add(l);
+      return () => {
+        listeners.delete(l);
+      };
+    },
     version: () => v,
     prefetch,
-    peek(s) { deps.flash?.(titles.get(keyOf(s)) ?? "No summary to show"); },
-    async settled() { if (timer !== null) { clearTimeout(timer); flush(); } await inflight; },
+    peek(s) {
+      deps.flash?.(titles.get(keyOf(s)) ?? "No summary to show");
+    },
+    async settled() {
+      if (timer !== null) {
+        clearTimeout(timer);
+        flush();
+      }
+      await inflight;
+    },
   };
 }

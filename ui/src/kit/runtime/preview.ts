@@ -8,9 +8,11 @@ export function previewDef(entry: ScreenIndexEntry): KitScreenDef {
   if (!isScreenPlace(entry.place)) throw new Error(`screen ${entry.id}: unknown place ${entry.place}`);
   if (!isKitSlot(entry.slot)) throw new Error(`screen ${entry.id}: unknown slot ${entry.slot}`);
   const queries: Record<string, KitQuery> = {};
-  for (const [name, q] of Object.entries(entry.queries)) queries[name] = { cap: q.cap as CapName, input: q.input, live: q.live };
+  for (const [name, q] of Object.entries(entry.queries))
+    queries[name] = { cap: q.cap as CapName, input: q.input, live: q.live };
   const actions: Record<string, KitAction> = {};
-  for (const [name, a] of Object.entries(entry.actions)) actions[name] = { cap: a.cap as CapName, input: a.input, ...(a.confirm ? { confirm: a.confirm } : {}) };
+  for (const [name, a] of Object.entries(entry.actions))
+    actions[name] = { cap: a.cap as CapName, input: a.input, ...(a.confirm ? { confirm: a.confirm } : {}) };
   const first = Object.keys(queries)[0];
   return {
     id: entry.id,
@@ -28,7 +30,18 @@ export function previewDef(entry: ScreenIndexEntry): KitScreenDef {
           t: "stack",
           children: [
             { t: "text", value: entry.id, style: "heading" },
-            { t: "list", bind: `/queries/${first}`, empty: "Nothing here yet", row: { t: "row", children: [{ t: "text", value: "{/row/title}" }, { t: "text", value: "{/row/note}", style: "muted" }] } },
+            {
+              t: "list",
+              bind: `/queries/${first}`,
+              empty: "Nothing here yet",
+              row: {
+                t: "row",
+                children: [
+                  { t: "text", value: "{/row/title}" },
+                  { t: "text", value: "{/row/note}", style: "muted" },
+                ],
+              },
+            },
           ],
         }
       : { t: "text", value: entry.id, style: "heading" },

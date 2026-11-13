@@ -15,7 +15,11 @@ const PAGE = 200;
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isAsync = (p: unknown): p is AsyncConsumer =>
-  isRecord(p) && p["mode"] === "async" && typeof p["name"] === "string" && typeof p["version"] === "number" && isRecord(p["on"]);
+  isRecord(p) &&
+  p["mode"] === "async" &&
+  typeof p["name"] === "string" &&
+  typeof p["version"] === "number" &&
+  isRecord(p["on"]);
 
 /** The async projections a module exports (`export const projections = [...]`). Anything else in the array (inline projections, odd shapes) is left to the kernel. */
 export function collectProjections(ns: Record<string, unknown>): AsyncConsumer[] {
@@ -28,9 +32,11 @@ export function collectProjections(ns: Record<string, unknown>): AsyncConsumer[]
 export function hostTx(db: HostDb): Tx {
   return {
     run: (sql, ...a) => ({ changes: db.run(sql, ...a).changes, lastInsertRowid: 0 }),
-    get: <T,>(sql: string, ...a: any[]) => db.all(sql, ...a)[0] as T | undefined,
-    all: <T,>(sql: string, ...a: any[]) => db.all(sql, ...a) as T[],
-    exec: (sql) => { db.exec(sql); },
+    get: <T>(sql: string, ...a: any[]) => db.all(sql, ...a)[0] as T | undefined,
+    all: <T>(sql: string, ...a: any[]) => db.all(sql, ...a) as T[],
+    exec: (sql) => {
+      db.exec(sql);
+    },
   };
 }
 
@@ -62,14 +68,25 @@ export interface ProjectionRunner {
 }
 
 export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunner {
-  d.db.exec("CREATE TABLE IF NOT EXISTS host_projection_cursor (name TEXT PRIMARY KEY, version INTEGER NOT NULL, seq INTEGER NOT NULL, at INTEGER NOT NULL)");
+  d.db.exec(
+    "CREATE TABLE IF NOT EXISTS host_projection_cursor (name TEXT PRIMARY KEY, version INTEGER NOT NULL, seq INTEGER NOT NULL, at INTEGER NOT NULL)",
+  );
   const list = d.projections.filter(isAsync);
   const tx = hostTx(d.db);
   const tries = new Map<string, number>();
 
-  const row = (name: string): { version: number; seq: number } | undefined => d.db.all("SELECT version, seq FROM host_projection_cursor WHERE name = ?", name)[0] as { version: number; seq: number } | undefined;
+  const row = (name: string): { version: number; seq: number } | undefined =>
+    d.db.all("SELECT version, seq FROM host_projection_cursor WHERE name = ?", name)[0] as
+      | { version: number; seq: number }
+      | undefined;
   const setCursor = (p: AsyncConsumer, seq: number): void => {
-    d.db.run("INSERT INTO host_projection_cursor (name, version, seq, at) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET version = excluded.version, seq = excluded.seq, at = excluded.at", p.name, p.version, seq, d.now());
+    d.db.run(
+      "INSERT INTO host_projection_cursor (name, version, seq, at) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET version = excluded.version, seq = excluded.seq, at = excluded.at",
+      p.name,
+      p.version,
+      seq,
+      d.now(),
+    );
   };
 
   async function handle(p: AsyncConsumer, e: StoredEvent): Promise<boolean> {
@@ -83,7 +100,13 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
     } catch (err) {
       const n = (tries.get(key) ?? 0) + 1;
       tries.set(key, n);
-      d.warn("a projection failed on an event", { projection: p.name, event: e.type, seq: e.seq, try: n, error: err instanceof Error ? err.message : String(err) });
+      d.warn("a projection failed on an event", {
+        projection: p.name,
+        event: e.type,
+        seq: e.seq,
+        try: n,
+        error: err instanceof Error ? err.message : String(err),
+      });
       if (n < MAX_PROJECTION_TRIES) return false;
       tries.delete(key);
       d.warn("a projection gave up on an event and skipped it", { projection: p.name, event: e.type, seq: e.seq });
@@ -93,14 +116,17 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
 
   async function passFor(p: AsyncConsumer): Promise<void> {
     const c = row(p.name);
-    if (!c) return;   // start() has not run for it yet
+    if (!c) return; // start() has not run for it yet
     let at = c.seq;
     const size = p.batch ?? PAGE;
     for (;;) {
       const page = await d.log.read({ after: at, limit: size });
       if (!page.length) return;
       for (const e of page) {
-        if (!(await handle(p, e))) { setCursor(p, at); return; }   // this event is tried again on the next pass, before any later one
+        if (!(await handle(p, e))) {
+          setCursor(p, at);
+          return;
+        } // this event is tried again on the next pass, before any later one
         at = e.seq;
         setCursor(p, at);
       }
@@ -121,23 +147,30 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
         started += n;
         if (n) d.warn("a projection started work a crash had left behind", { projection: r.name, items: n });
       } catch (err) {
-        d.warn("crash recovery of a projection failed", { projection: r.name, error: err instanceof Error ? err.message : String(err) });
+        d.warn("crash recovery of a projection failed", {
+          projection: r.name,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
     return started;
   }
 
-  let running: Promise<void> | null = null, again = false;
-  const run = (): Promise<void> => (async () => {
-    try {
-      await null;   // let `running` be assigned before the first check
-      do {
-        again = false;
-        for (const p of list) await passFor(p);
-        await recoverNow(false);
-      } while (again);
-    } finally { running = null; }
-  })();
+  let running: Promise<void> | null = null,
+    again = false;
+  const run = (): Promise<void> =>
+    (async () => {
+      try {
+        await null; // let `running` be assigned before the first check
+        do {
+          again = false;
+          for (const p of list) await passFor(p);
+          await recoverNow(false);
+        } while (again);
+      } finally {
+        running = null;
+      }
+    })();
 
   return {
     projections: list,
@@ -147,12 +180,18 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
         p.init?.(tx);
         const c = row(p.name);
         if (!c) setCursor(p, head);
-        else if (c.version !== p.version) { p.reset?.(tx); setCursor(p, head); }   // DECISION: a new version does not replay history; webhooks_out would resend every old event to today's webhooks
+        else if (c.version !== p.version) {
+          p.reset?.(tx);
+          setCursor(p, head);
+        } // DECISION: a new version does not replay history; webhooks_out would resend every old event to today's webhooks
       }
       await recoverNow(true);
     },
     pump() {
-      if (running) { again = true; return running; }
+      if (running) {
+        again = true;
+        return running;
+      }
       running = run();
       return running;
     },

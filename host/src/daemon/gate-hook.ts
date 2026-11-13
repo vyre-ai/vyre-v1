@@ -27,7 +27,13 @@ export interface GateHookDeps {
    * Conditions a module answers itself, by the function name in a capability's `when` (for example `git.is_protected(input.branch)`, which needs the folder's git settings). The
    * expression language has no such functions, so the Gate asks the module; an evaluator that throws counts as holding, like an unreadable expression.
    */
-  evaluators?: Record<string, (input: unknown, seed: Pick<CtxSeed, "principal" | "thread"> & { actingFor?: string | undefined }) => boolean | Promise<boolean>>;
+  evaluators?: Record<
+    string,
+    (
+      input: unknown,
+      seed: Pick<CtxSeed, "principal" | "thread"> & { actingFor?: string | undefined },
+    ) => boolean | Promise<boolean>
+  >;
   /** The uncleared mark from an Automation's outside-started Run ("automation:...") on any of these threads, as opposed to a page an agent read on a person's ask; null when none. */
   automationMarked?(threads: readonly string[]): string | null | Promise<string | null>;
   /** Was this thread made at or after this time (the call that names it made it)? */
@@ -41,12 +47,32 @@ export interface GateHookDeps {
   mode?(id: string): "auto" | "ask" | "plan" | undefined;
   /** A thread and the threads above it, nearest first: a Job works under the chat that asked for it. */
   threads?(id: string): string[];
-  hold(id: string): { state: string; principalKind: string; principalId: string; actingFor?: string | undefined; run?: string | undefined; thread?: string | undefined; payloadHash: string } | null;
+  hold(id: string): {
+    state: string;
+    principalKind: string;
+    principalId: string;
+    actingFor?: string | undefined;
+    run?: string | undefined;
+    thread?: string | undefined;
+    payloadHash: string;
+  } | null;
 }
 
 /** What an approval is bound to: this capability and version, this input and the caller and whom it acts for: a resumed call runs as exactly that ask-time pair, so an approval can never widen what the caller may do. gate.park stores it; the token carries it; verify recomputes it. */
-export function payloadHash(cap: Pick<CapabilityDef, "name" | "v">, input: unknown, seed: Pick<CtxSeed, "principal" | "actingFor">): string {
-  return sha256b64(canonical({ cap: cap.name, v: cap.v, input, principal: { kind: seed.principal.kind, id: seed.principal.id }, actingFor: seed.actingFor ?? null }));
+export function payloadHash(
+  cap: Pick<CapabilityDef, "name" | "v">,
+  input: unknown,
+  seed: Pick<CtxSeed, "principal" | "actingFor">,
+): string {
+  return sha256b64(
+    canonical({
+      cap: cap.name,
+      v: cap.v,
+      input,
+      principal: { kind: seed.principal.kind, id: seed.principal.id },
+      actingFor: seed.actingFor ?? null,
+    }),
+  );
 }
 
 const unb64url = (s: string): string => Buffer.from(s, "base64url").toString("utf8");
@@ -58,27 +84,51 @@ const unb64url = (s: string): string => Buffer.from(s, "base64url").toString("ut
 export function whenHolds(when: string | undefined, input: unknown, seed: Pick<CtxSeed, "principal">): boolean {
   if (when === undefined) return true;
   try {
-    const v: unknown = evalExpr(parseExpr(when), { values: { actor: { kind: seed.principal.kind, id: seed.principal.id }, input: input ?? {} } });
+    const v: unknown = evalExpr(parseExpr(when), {
+      values: { actor: { kind: seed.principal.kind, id: seed.principal.id }, input: input ?? {} },
+    });
     return v === null || v === undefined ? true : Boolean(v);
-  } catch { return true; }
+  } catch {
+    return true;
+  }
 }
 
 /** `fn.name(input.field)`: a condition the module behind `fn.name` evaluates. */
 const MODULE_WHEN = /^\s*([a-z_]+\.[a-z_]+)\(\s*input(?:\.[A-Za-z_]+)*\s*\)\s*$/;
 
-async function appliesWhen(d: Pick<GateHookDeps, "evaluators">, when: string | undefined, input: unknown, seed: Pick<CtxSeed, "principal" | "thread"> & { actingFor?: string | undefined }): Promise<boolean> {
+async function appliesWhen(
+  d: Pick<GateHookDeps, "evaluators">,
+  when: string | undefined,
+  input: unknown,
+  seed: Pick<CtxSeed, "principal" | "thread"> & { actingFor?: string | undefined },
+): Promise<boolean> {
   const fn = when === undefined ? undefined : MODULE_WHEN.exec(when)?.[1];
   const evaluate = fn === undefined ? undefined : d.evaluators?.[fn];
   if (!evaluate) return whenHolds(when, input, seed);
-  try { return await evaluate(input, seed); } catch { return true; }
+  try {
+    return await evaluate(input, seed);
+  } catch {
+    return true;
+  }
 }
 
-interface Claims { v?: unknown; hash?: unknown; exp?: unknown; hold?: unknown }
+interface Claims {
+  v?: unknown;
+  hash?: unknown;
+  exp?: unknown;
+  hold?: unknown;
+}
 function claimsOf(d: Pick<GateHookDeps, "unseal">, token: string): Claims | null {
   if (!token.startsWith("apv_")) return null;
   try {
-    return JSON.parse(new TextDecoder().decode(d.unseal(JSON.parse(unb64url(token.slice(4))) as { keyId: string; nonce: string; bytes: string }))) as Claims;
-  } catch { return null; }
+    return JSON.parse(
+      new TextDecoder().decode(
+        d.unseal(JSON.parse(unb64url(token.slice(4))) as { keyId: string; nonce: string; bytes: string }),
+      ),
+    ) as Claims;
+  } catch {
+    return null;
+  }
 }
 
 /** Thread ids a call's output names (a new task's thread, a helper's, a crew job's, a chat it started), a level or two deep. */
@@ -86,7 +136,10 @@ function threadsIn(output: unknown): string[] {
   const out = new Set<string>();
   const look = (v: unknown, depth: number): void => {
     if (v === null || typeof v !== "object" || depth > 3) return;
-    if (Array.isArray(v)) { for (const x of v.slice(0, 50)) look(x, depth + 1); return; }
+    if (Array.isArray(v)) {
+      for (const x of v.slice(0, 50)) look(x, depth + 1);
+      return;
+    }
     for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
       if ((k === "threadId" || k === "workerThread") && typeof x === "string" && x.startsWith("thr_")) out.add(x);
       else if (typeof x === "object") look(x, depth + 1);
@@ -106,9 +159,22 @@ export function createGateHook(d: GateHookDeps): GateHook {
     const r = (await d.call("gate.links.known", { url, threads: threads(seed.thread) })) as { known?: unknown } | null;
     return r?.known !== true;
   };
-  const conditions = { evaluators: { ...d.evaluators, "links.is_composed": composed } } as Pick<GateHookDeps, "evaluators">;
-  const always = (cap: CapabilityDef, seed: CtxSeed): { person: string; agentId: string; threads: string[]; cap: string } | undefined =>
-    (seed.actingFor?.startsWith("usr_") && seed.principal.kind === "agent" ? { person: seed.actingFor, agentId: seed.principal.id, threads: seed.thread ? threads(seed.thread) : [], cap: cap.name } : undefined);
+  const conditions = { evaluators: { ...d.evaluators, "links.is_composed": composed } } as Pick<
+    GateHookDeps,
+    "evaluators"
+  >;
+  const always = (
+    cap: CapabilityDef,
+    seed: CtxSeed,
+  ): { person: string; agentId: string; threads: string[]; cap: string } | undefined =>
+    seed.actingFor?.startsWith("usr_") && seed.principal.kind === "agent"
+      ? {
+          person: seed.actingFor,
+          agentId: seed.principal.id,
+          threads: seed.thread ? threads(seed.thread) : [],
+          cap: cap.name,
+        }
+      : undefined;
   /** The turn grants a call let through spent, by its input, until the call ends: a call refused before it goes out hands them back. */
   const spentBy = new WeakMap<object, string[]>();
   return {
@@ -123,34 +189,56 @@ export function createGateHook(d: GateHookDeps): GateHook {
     // words must not open the Space to anyone or become a standing Automation, agent, Routine, hook or skill. An ordinary chat, a page read on a person's ask, and every person's own press are
     // as in rc.25 (lead 12 Nov).
     async fromAutomationContent(cap, seed) {
-      if (!HELD_FROM_AUTOMATION_SET.has(cap.name) || seed.principal.kind !== "agent" || seed.thread === undefined) return false;
+      if (!HELD_FROM_AUTOMATION_SET.has(cap.name) || seed.principal.kind !== "agent" || seed.thread === undefined)
+        return false;
       return ((await d.automationMarked?.(threads(seed.thread))) ?? null) !== null;
     },
     async allowed(cap, input, seed) {
       const a = always(cap, seed);
       if (!a) return false;
-      const g = (await d.call("gate.grants.take", { act: cap.gate?.act && cap.gate.act !== "none" ? cap.gate.act : "approve", targets: targetsOf(input), always: a })) as { granted?: unknown } | null;
+      const g = (await d.call("gate.grants.take", {
+        act: cap.gate?.act && cap.gate.act !== "none" ? cap.gate.act : "approve",
+        targets: targetsOf(input),
+        always: a,
+      })) as { granted?: unknown } | null;
       return g?.granted === true;
     },
     async seen(cap, input, output, seed, startedAt) {
       // a person bound a Vault key to a connector and it succeeded: the connector's hosts are approved for that key, by them (the condition checks they may use it)
-      if ((cap.name === "connections.create" || cap.name === "connections.set_secret") && seed.principal.kind === "person" && !seed.step) await d.evaluators?.["automations.after_person_bind"]?.(input, seed);
+      if (
+        (cap.name === "connections.create" || cap.name === "connections.set_secret") &&
+        seed.principal.kind === "person" &&
+        !seed.step
+      )
+        await d.evaluators?.["automations.after_person_bind"]?.(input, seed);
       // a person finished an OAuth sign-in: the tokens the app's own token address gave are bound to that connector, so its hosts are approved for them, by that person
       const done = (output as { connectionId?: unknown } | null)?.connectionId;
-      if (cap.name === "connections.complete_auth" && seed.principal.kind === "person" && !seed.step && typeof done === "string") await d.evaluators?.["automations.after_person_bind"]?.({ connectionId: done, bound: true }, seed);
+      if (
+        cap.name === "connections.complete_auth" &&
+        seed.principal.kind === "person" &&
+        !seed.step &&
+        typeof done === "string"
+      )
+        await d.evaluators?.["automations.after_person_bind"]?.({ connectionId: done, bound: true }, seed);
       if (!seed.thread || seed.principal.kind !== "agent") return;
       // the mark follows the work: a task, a helper, a crew job or a chat the agent starts from a thread an Automation's outside-started Run marked carries the same mark, so the work it
       // does there is held as the Run's own is (lead 12 Nov)
       // only a call that makes a thread, and only the threads it made in this call (a read that names threads never marks them: pass 4b)
-      const made = CARRIES_MARK.has(cap.name) ? threadsIn(output).filter((t) => t !== seed.thread && d.madeSince?.(t, startedAt ?? 0) === true) : [];
+      const made = CARRIES_MARK.has(cap.name)
+        ? threadsIn(output).filter((t) => t !== seed.thread && d.madeSince?.(t, startedAt ?? 0) === true)
+        : [];
       if (made.length > 0) {
         const mark = (await d.automationMarked?.(threads(seed.thread))) ?? null;
         if (mark !== null) await d.call("gate.taint.mark", { threads: made, source: mark });
       }
       if (!bringsOutside(cap.name, cap.effects) && d.fetches?.(cap.name, input) !== true) return;
-      const text = typeof (output as { text?: unknown } | null)?.text === "string" ? (output as { text: string }).text : "";
+      const text =
+        typeof (output as { text?: unknown } | null)?.text === "string" ? (output as { text: string }).text : "";
       const listed = (output as { links?: { url?: unknown }[] } | null)?.links;
-      const links = [...(Array.isArray(listed) ? listed.flatMap((l) => (typeof l?.url === "string" ? [l.url] : [])) : []), ...linksIn(text)].slice(0, 200);
+      const links = [
+        ...(Array.isArray(listed) ? listed.flatMap((l) => (typeof l?.url === "string" ? [l.url] : [])) : []),
+        ...linksIn(text),
+      ].slice(0, 200);
       await d.call("gate.taint.mark", { threads: threads(seed.thread), source: cap.name, links });
     },
     async applies(cap, input, seed) {
@@ -161,7 +249,7 @@ export function createGateHook(d: GateHookDeps): GateHook {
       const asked = seed.step ? { principal: { kind: "service" as const, id: seed.step.automationId } } : seed;
       const held = await appliesWhen(conditions, cap.gate?.when, input, { ...asked, thread: seed.thread });
       // A capability that can go out without saying so (a terminal command) names what this call does. A person's own command is their own act.
-      const said = held ? null : d.outward?.(cap.name, input) ?? null;
+      const said = held ? null : (d.outward?.(cap.name, input) ?? null);
       if (!held && (said === null || (seed.principal.kind === "person" && !seed.step))) return null;
       const act = said?.act ?? declared;
       const targets = said?.targets ?? targetsOf(input);
@@ -170,15 +258,35 @@ export function createGateHook(d: GateHookDeps): GateHook {
         const g = (await d.call("gate.grants.take", { act, targets, step: seed.step })) as { granted?: unknown } | null;
         if (g?.granted !== true) return { act };
       }
-      const r = (await d.call("gate.effective_rule", { principal: { kind: seed.principal.kind, id: seed.principal.id }, act, ...(seed.gateMode === "admin_only" ? { adminOnly: true } : {}) })) as { hold?: unknown; adminRule?: unknown } | null;
+      const r = (await d.call("gate.effective_rule", {
+        principal: { kind: seed.principal.kind, id: seed.principal.id },
+        act,
+        ...(seed.gateMode === "admin_only" ? { adminOnly: true } : {}),
+      })) as { hold?: unknown; adminRule?: unknown } | null;
       if (r?.hold !== true) return null;
       // Auto, and the person's own message this turn asked for this act and target: the default hold lifts, once. A rule somebody wrote still holds. Money stays a Need in every mode (chat design, hole 3).
       if (r.adminRule !== true) {
-        const turn = seed.chatMode === "auto" && act !== "pay" && OUTWARD_ACTS.has(act) && seed.actingFor?.startsWith("usr_") && seed.thread ? { person: seed.actingFor, threads: threads(seed.thread) } : undefined;
+        const turn =
+          seed.chatMode === "auto" &&
+          act !== "pay" &&
+          OUTWARD_ACTS.has(act) &&
+          seed.actingFor?.startsWith("usr_") &&
+          seed.thread
+            ? { person: seed.actingFor, threads: threads(seed.thread) }
+            : undefined;
         const rule = always(cap, seed);
         if (turn || rule) {
-          const g = (await d.call("gate.grants.take", { act, targets, ...(turn ? { turn } : {}), ...(rule ? { always: rule } : {}) })) as { granted?: unknown; spent?: unknown } | null;
-          if (g?.granted === true) { if (Array.isArray(g.spent) && g.spent.length > 0 && input !== null && typeof input === "object") spentBy.set(input, g.spent as string[]); return null; }
+          const g = (await d.call("gate.grants.take", {
+            act,
+            targets,
+            ...(turn ? { turn } : {}),
+            ...(rule ? { always: rule } : {}),
+          })) as { granted?: unknown; spent?: unknown } | null;
+          if (g?.granted === true) {
+            if (Array.isArray(g.spent) && g.spent.length > 0 && input !== null && typeof input === "object")
+              spentBy.set(input, g.spent as string[]);
+            return null;
+          }
         }
       }
       return { act };
@@ -186,28 +294,57 @@ export function createGateHook(d: GateHookDeps): GateHook {
     async park(a) {
       // Ask the person (docs/ask-the-person.md): the hold is the person's own call, bound to them and this input, and names the agent that asked. gate.release then runs it as the person, never as the agent.
       const person = a.runAs === "person" && a.seed.actingFor?.startsWith("usr_") ? a.seed.actingFor : undefined;
-      if (a.runAs === "person" && !person) throw fail("internal.unexpected", a.traceId, { message: "Something went wrong on our side.", details: { cap: a.cap.name, why: "ask without a person" } });
-      const runner: Pick<CtxSeed, "principal" | "actingFor"> = person ? { principal: { kind: "person", id: person } } : a.seed;
+      if (a.runAs === "person" && !person)
+        throw fail("internal.unexpected", a.traceId, {
+          message: "Something went wrong on our side.",
+          details: { cap: a.cap.name, why: "ask without a person" },
+        });
+      const runner: Pick<CtxSeed, "principal" | "actingFor"> = person
+        ? { principal: { kind: "person", id: person } }
+        : a.seed;
       const input: Record<string, unknown> = {
-        capName: a.cap.name, capVersion: a.cap.v, input: a.input, payloadHash: payloadHash(a.cap, a.input, runner), act: a.act,
-        principal: { kind: runner.principal.kind, id: runner.principal.id }, decisionId: a.decisionId, idempotencyKey: a.decisionId,
+        capName: a.cap.name,
+        capVersion: a.cap.v,
+        input: a.input,
+        payloadHash: payloadHash(a.cap, a.input, runner),
+        act: a.act,
+        principal: { kind: runner.principal.kind, id: runner.principal.id },
+        decisionId: a.decisionId,
+        idempotencyKey: a.decisionId,
       };
       // what happens, in the capability's own words: its summary up to the first ";" (the rest is for developers)
-      if (person) input["ask"] = { by: { kind: a.seed.principal.kind, id: a.seed.principal.id }, what: a.cap.summary.split(";")[0]!.trim() || a.cap.name };
+      if (person)
+        input["ask"] = {
+          by: { kind: a.seed.principal.kind, id: a.seed.principal.id },
+          what: a.cap.summary.split(";")[0]!.trim() || a.cap.name,
+        };
       else if (a.seed.actingFor) input["actingFor"] = a.seed.actingFor;
       if (a.seed.run) input["runId"] = a.seed.run;
       if (a.seed.thread) input["threadId"] = a.seed.thread;
       if (a.seed.step) input["step"] = a.seed.step;
       // the park runs in the held call's trace, so gate.requested sits in the asker's event chain
-      const r = (await d.call("gate.park", input, { traceId: a.traceId, spanId: "0".repeat(16) })) as { taskId?: unknown; runId?: unknown } | null;
-      if (typeof r?.taskId !== "string") throw fail("internal.unavailable", a.traceId, { message: "Approvals are not available right now.", details: { cap: a.cap.name } });
+      const r = (await d.call("gate.park", input, { traceId: a.traceId, spanId: "0".repeat(16) })) as {
+        taskId?: unknown;
+        runId?: unknown;
+      } | null;
+      if (typeof r?.taskId !== "string")
+        throw fail("internal.unavailable", a.traceId, {
+          message: "Approvals are not available right now.",
+          details: { cap: a.cap.name },
+        });
       return typeof r.runId === "string" ? { taskId: r.taskId, runId: r.runId } : { taskId: r.taskId };
     },
     async resume(a) {
       const claims = claimsOf(d, a.token);
       if (!claims || typeof claims.hold !== "string") return null;
       const row = d.hold(claims.hold);
-      if (!row || row.state !== "held" || row.principalId !== a.onBehalfOf || !["person", "agent", "actor", "service"].includes(row.principalKind)) return null;
+      if (
+        !row ||
+        row.state !== "held" ||
+        row.principalId !== a.onBehalfOf ||
+        !["person", "agent", "actor", "service"].includes(row.principalKind)
+      )
+        return null;
       const principal = { kind: row.principalKind as "person" | "agent" | "actor" | "service", id: row.principalId };
       // the stored call must still be the one that was approved: caller, actingFor and input all feed the hash the Gate stored at park
       if (payloadHash(a.cap, a.input, { principal, actingFor: row.actingFor }) !== row.payloadHash) return null;
@@ -215,38 +352,62 @@ export function createGateHook(d: GateHookDeps): GateHook {
     },
     verify(token, a) {
       const claims = claimsOf(d, token);
-      return claims !== null && claims.v === 1 && typeof claims.exp === "number" && claims.exp >= d.now() && claims.hash === payloadHash(a.cap, a.input, a.seed);
+      return (
+        claims !== null &&
+        claims.v === 1 &&
+        typeof claims.exp === "number" &&
+        claims.exp >= d.now() &&
+        claims.hash === payloadHash(a.cap, a.input, a.seed)
+      );
     },
   };
 }
 
 /** The Gate's module conditions for the live modules that export one: `git.is_protected` over the git module's `isProtectedCall`, `terminal.is_danger` over the terminal module's `isDangerCall`. Called as the Space itself. */
 /** What a terminal command sends out, from the terminal module's reading of its words. */
-export function moduleOutward(exports: ReadonlyMap<string, Record<string, unknown>>): NonNullable<GateHookDeps["outward"]> {
+export function moduleOutward(
+  exports: ReadonlyMap<string, Record<string, unknown>>,
+): NonNullable<GateHookDeps["outward"]> {
   const read = exports.get("terminal")?.["outwardOf"];
   return (cap, input) => {
     if (cap !== "terminal.run" || typeof read !== "function") return null;
     const command = (input as { command?: unknown } | null)?.command;
-    return typeof command === "string" ? (read as (c: string) => { act: string; targets: string[] } | null)(command) : null;
+    return typeof command === "string"
+      ? (read as (c: string) => { act: string; targets: string[] } | null)(command)
+      : null;
   };
 }
 
 /** Does a terminal command download something, by the terminal module's reading of its words. */
-export function moduleFetches(exports: ReadonlyMap<string, Record<string, unknown>>): NonNullable<GateHookDeps["fetches"]> {
+export function moduleFetches(
+  exports: ReadonlyMap<string, Record<string, unknown>>,
+): NonNullable<GateHookDeps["fetches"]> {
   const read = exports.get("terminal")?.["fetchesOutside"];
-  return (cap, input) => cap === "terminal.run" && typeof read === "function" && (read as (c: string) => boolean)(String((input as { command?: unknown } | null)?.command ?? ""));
+  return (cap, input) =>
+    cap === "terminal.run" &&
+    typeof read === "function" &&
+    (read as (c: string) => boolean)(String((input as { command?: unknown } | null)?.command ?? ""));
 }
 
 /**
  * Is `host` exactly the host of the item's own saved address (url, website, site, uri)? The Vault's matcher also answers for subdomains of the saved host, and a saved address on a shared host
  * (a hosting platform's domain) would then approve every other tenant's subdomain, so a match counts only when the parent of `host` does not match too. Other hosts a person allows by name.
  */
-export async function ownAddress(callAs: (cap: string, input: unknown, person: string) => Promise<unknown>, person: string, itemId: string, host: string): Promise<boolean> {
+export async function ownAddress(
+  callAs: (cap: string, input: unknown, person: string) => Promise<unknown>,
+  person: string,
+  itemId: string,
+  host: string,
+): Promise<boolean> {
   const hits = async (h: string): Promise<boolean> => {
     try {
-      const m = (await callAs("vault.items.match", { url: `https://${h}/` }, person)) as { items?: { item?: { id?: unknown } }[] } | null;
+      const m = (await callAs("vault.items.match", { url: `https://${h}/` }, person)) as {
+        items?: { item?: { id?: unknown } }[];
+      } | null;
       return (m?.items ?? []).some((x) => x.item?.id === itemId);
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   };
   if (!(await hits(host))) return false;
   const dot = host.indexOf(".");
@@ -255,7 +416,9 @@ export async function ownAddress(callAs: (cap: string, input: unknown, person: s
 }
 
 export function moduleWhens(
-  exports: ReadonlyMap<string, Record<string, unknown>>, db: () => ScopedDb | null, call: (cap: string, input: unknown) => Promise<unknown>,
+  exports: ReadonlyMap<string, Record<string, unknown>>,
+  db: () => ScopedDb | null,
+  call: (cap: string, input: unknown) => Promise<unknown>,
   /** A read as one person (what they may see), for a condition that depends on it. */
   callAs?: (cap: string, input: unknown, person: string) => Promise<unknown>,
   /** A connection's bound Vault handles (the connectors table): an OAuth sign-in a person finished binds the token items it stored. */
@@ -263,11 +426,16 @@ export function moduleWhens(
 ): NonNullable<GateHookDeps["evaluators"]> {
   const out: NonNullable<GateHookDeps["evaluators"]> = {};
   // an agent's delete inside work/ on its own computer is its own change; anywhere else asks
-  out["computers.deletes_outside_work"] = (input, seed) => seed.principal.kind !== "person" && !/^work\/(?!.*\.\.)/.test(String((input as { path?: unknown } | null)?.path ?? ""));
+  out["computers.deletes_outside_work"] = (input, seed) =>
+    seed.principal.kind !== "person" &&
+    !/^work\/(?!.*\.\.)/.test(String((input as { path?: unknown } | null)?.path ?? ""));
   const fn = exports.get("git")?.["isProtectedCall"];
   if (typeof fn === "function") {
     const isProtected = fn as (ctx: { db: ScopedDb; call: typeof call }, input: unknown) => Promise<boolean>;
-    out["git.is_protected"] = (input) => { const h = db(); return h ? isProtected({ db: h, call }, input) : true; };
+    out["git.is_protected"] = (input) => {
+      const h = db();
+      return h ? isProtected({ db: h, call }, input) : true;
+    };
   }
   // A test read sends a Vault key: it goes, without a person, only to a host approved for that item (one a person allowed, or the exact host of the item's own saved address). Anything else waits
   // for a person who may use the item, and so does anything this cannot name: a host it cannot read or an item it cannot resolve holds, it never lets the read through. The host and the item are read
@@ -284,7 +452,8 @@ export function moduleWhens(
     if ((approved as (d: unknown, id: string, host: string) => boolean)(h, ref.id, host)) return false;
     const hold = !asker || !callAs ? true : !(await ownAddress(callAs, asker, ref.id, host));
     // the held row keeps the item this hold resolved, not the handle: the send after a yes uses that item, or refuses if the handle now leads elsewhere (a newer Mine item)
-    if (hold && input && typeof input === "object") (input as { vaultItemId?: unknown }).vaultItemId = `${ref.id}${ref.field ? `.${ref.field}` : ""}`;
+    if (hold && input && typeof input === "object")
+      (input as { vaultItemId?: unknown }).vaultItemId = `${ref.id}${ref.field ? `.${ref.field}` : ""}`;
     return hold;
   };
   // Binding a Vault key to a connector (connections.create, connections.set_secret) sends that key to the connector's domains from then on. An agent's binding waits for a person unless every one of
@@ -292,31 +461,71 @@ export function moduleWhens(
   // a person binding a key themselves approves the connector's domains for it, through the same capability their press on the key's page uses (it checks they may use the key)
   const personBinds = async (input: unknown, person: string): Promise<void> => {
     if (!callAs) return;
-    const i = (input ?? {}) as { connector?: unknown; secrets?: unknown; connectionId?: unknown; handle?: unknown; bound?: unknown };
-    const bound = i.bound === true && typeof i.connectionId === "string" ? handlesOf?.(i.connectionId) ?? null : null;
-    const refs: string[] = i.bound === true ? (bound?.handles ?? [])
-      : i.secrets && typeof i.secrets === "object" ? Object.values(i.secrets as Record<string, unknown>).filter((v): v is string => typeof v === "string") : typeof i.handle === "string" ? [i.handle] : [];
+    const i = (input ?? {}) as {
+      connector?: unknown;
+      secrets?: unknown;
+      connectionId?: unknown;
+      handle?: unknown;
+      bound?: unknown;
+    };
+    const bound = i.bound === true && typeof i.connectionId === "string" ? (handlesOf?.(i.connectionId) ?? null) : null;
+    const refs: string[] =
+      i.bound === true
+        ? (bound?.handles ?? [])
+        : i.secrets && typeof i.secrets === "object"
+          ? Object.values(i.secrets as Record<string, unknown>).filter((v): v is string => typeof v === "string")
+          : typeof i.handle === "string"
+            ? [i.handle]
+            : [];
     if (refs.length === 0) return;
     try {
-      let connector = typeof i.connector === "string" ? i.connector : bound?.connector ?? "";
-      if (connector === "" && typeof i.connectionId === "string") connector = String(((await call("connections.get", { connectionId: i.connectionId })) as { connection?: { connector?: unknown } } | null)?.connection?.connector ?? "");
+      let connector = typeof i.connector === "string" ? i.connector : (bound?.connector ?? "");
+      if (connector === "" && typeof i.connectionId === "string")
+        connector = String(
+          (
+            (await call("connections.get", { connectionId: i.connectionId })) as {
+              connection?: { connector?: unknown };
+            } | null
+          )?.connection?.connector ?? "",
+        );
       const got = (await call("connectors.get", { key: connector })) as { connector?: { domains?: unknown } } | null;
-      const domains = Array.isArray(got?.connector?.domains) ? (got!.connector!.domains as unknown[]).filter((x): x is string => typeof x === "string") : [];
-      for (const ref of refs) for (const host of domains) await callAs("automations.key_hosts.allow", { vaultItemId: ref, host }, person).catch(() => undefined);
-    } catch { /* nothing recorded: the binding's requests then wait for a person at run time */ }
+      const domains = Array.isArray(got?.connector?.domains)
+        ? (got!.connector!.domains as unknown[]).filter((x): x is string => typeof x === "string")
+        : [];
+      for (const ref of refs)
+        for (const host of domains)
+          await callAs("automations.key_hosts.allow", { vaultItemId: ref, host }, person).catch(() => undefined);
+    } catch {
+      /* nothing recorded: the binding's requests then wait for a person at run time */
+    }
   };
   // called by the Gate after a person's binding succeeded, never before: only a binding that exists approves its hosts
-  out["automations.after_person_bind"] = async (input, seed) => { if (seed.principal.kind === "person") await personBinds(input, seed.principal.id); return false; };
+  out["automations.after_person_bind"] = async (input, seed) => {
+    if (seed.principal.kind === "person") await personBinds(input, seed.principal.id);
+    return false;
+  };
   out["automations.bind_hosts_unapproved"] = async (input, seed) => {
-    if (seed.principal.kind === "person") return false;   // a person's own binding: its hosts are recorded after it succeeds (seen, below)
+    if (seed.principal.kind === "person") return false; // a person's own binding: its hosts are recorded after it succeeds (seen, below)
     const h = db();
     if (!h || typeof approved !== "function") return true;
     const i = (input ?? {}) as { connector?: unknown; secrets?: unknown; connectionId?: unknown; handle?: unknown };
     let connector = typeof i.connector === "string" ? i.connector : "";
-    const refs: string[] = i.secrets && typeof i.secrets === "object" ? Object.values(i.secrets as Record<string, unknown>).filter((v): v is string => typeof v === "string") : typeof i.handle === "string" ? [i.handle] : [];
+    const refs: string[] =
+      i.secrets && typeof i.secrets === "object"
+        ? Object.values(i.secrets as Record<string, unknown>).filter((v): v is string => typeof v === "string")
+        : typeof i.handle === "string"
+          ? [i.handle]
+          : [];
     if (refs.length === 0) return false;
     try {
-      if (connector === "" && typeof i.connectionId === "string") connector = String(((await call("connections.get", { connectionId: i.connectionId })) as { connection?: { connector?: unknown } } | null)?.connection?.connector ?? "");
+      if (connector === "" && typeof i.connectionId === "string")
+        connector = String(
+          (
+            (await call("connections.get", { connectionId: i.connectionId })) as {
+              connection?: { connector?: unknown };
+            } | null
+          )?.connection?.connector ?? "",
+        );
       const got = (await call("connectors.get", { key: connector })) as { connector?: { domains?: unknown } } | null;
       const domains = Array.isArray(got?.connector?.domains) ? (got!.connector!.domains as unknown[]) : null;
       if (!domains || domains.length === 0 || !domains.every((x) => typeof x === "string")) return true;
@@ -332,10 +541,13 @@ export function moduleWhens(
         }
       }
       return false;
-    } catch { return true; }
+    } catch {
+      return true;
+    }
   };
   const danger = exports.get("terminal")?.["isDangerCall"];
   // a destructive or elevated command is held for a yes whatever the mode; an unreadable call counts as destructive
-  if (typeof danger === "function") out["terminal.is_danger"] = (input) => (danger as (ctx: unknown, input: unknown) => Promise<boolean>)(null, input);
+  if (typeof danger === "function")
+    out["terminal.is_danger"] = (input) => (danger as (ctx: unknown, input: unknown) => Promise<boolean>)(null, input);
   return out;
 }

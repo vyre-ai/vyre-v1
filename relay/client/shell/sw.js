@@ -24,14 +24,18 @@ async function readInfo() {
 
 /** The connection to the box, made once per (route, key). Null until the phone has a pin from the person's own link, or an invite link's key while they join. */
 async function box() {
-  const i = (info = info || await readInfo().catch(() => null));
+  const i = (info = info || (await readInfo().catch(() => null)));
   if (!i) return null;
   const pin = await pins.get(i.name);
-  const use = pin || await pins.getInvite(i.name);
+  const use = pin || (await pins.getInvite(i.name));
   if (!use) return null;
   const key = `${i.relay}|${i.route}|${use}`;
-  if (live && live.key !== key) { live.conn.close(); live = null; }
-  if (!live) live = { key, invite: !pin, conn: connect({ relay: i.relay, route: i.route, box: use, about: { kind: "web" } }) };
+  if (live && live.key !== key) {
+    live.conn.close();
+    live = null;
+  }
+  if (!live)
+    live = { key, invite: !pin, conn: connect({ relay: i.relay, route: i.route, box: use, about: { kind: "web" } }) };
   return live.conn;
 }
 
@@ -54,13 +58,25 @@ const pages = createLive({ conn: () => (live ? live.conn : null) });
 /** The computer this phone dialled is asleep. Forget it, so the next request reads /__vyre/info.json again and dials whichever computer of the Space is awake; a page goes to the gateway now. */
 async function asleep(/** @type {Request} */ request, /** @type {boolean} */ navigation) {
   info = null;
-  if (live) { live.conn.close(); live = null; }
+  if (live) {
+    live.conn.close();
+    live = null;
+  }
   return navigation && request.method === "GET" ? fetch(request.url, { cache: "no-store", redirect: "manual" }) : null;
 }
-const bridge = createBridge({ box, label: () => info ? info.label : "This computer", invite: () => Boolean(live && live.invite), asleep });
+const bridge = createBridge({
+  box,
+  label: () => (info ? info.label : "This computer"),
+  invite: () => Boolean(live && live.invite),
+  asleep,
+});
 
-sw.addEventListener("install", () => { sw.skipWaiting(); });
-sw.addEventListener("activate", (/** @type {any} */ e) => { e.waitUntil(sw.clients.claim()); });
+sw.addEventListener("install", () => {
+  sw.skipWaiting();
+});
+sw.addEventListener("activate", (/** @type {any} */ e) => {
+  e.waitUntil(sw.clients.claim());
+});
 sw.addEventListener("fetch", (/** @type {any} */ e) => {
   const url = new URL(e.request.url);
   if (url.origin !== sw.location.origin || url.pathname.startsWith("/__vyre/")) return;
@@ -69,15 +85,37 @@ sw.addEventListener("fetch", (/** @type {any} */ e) => {
   // an invite link (/join#c=...&k=...): the shell page reads its fragment, which this worker never sees, and keeps the invite's key; it then opens /join/<code> through here
   if (url.pathname === "/join" || url.pathname === "/join/") return;
   // the live-socket shim the pages this worker serves load first (bridge.js withShim)
-  if (url.pathname === "/__vyre-ws.js") { e.respondWith(new Response(SHIM_SOURCE, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" } })); return; }
-  e.respondWith((async () => {
-    const res = await bridge.handle(e.request);
-    if (!res) return fetch(e.request);
-    await adopt(res).catch(() => {});
-    return res;
-  })());
+  if (url.pathname === "/__vyre-ws.js") {
+    e.respondWith(
+      new Response(SHIM_SOURCE, {
+        headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" },
+      }),
+    );
+    return;
+  }
+  e.respondWith(
+    (async () => {
+      const res = await bridge.handle(e.request);
+      if (!res) return fetch(e.request);
+      await adopt(res).catch(() => {});
+      return res;
+    })(),
+  );
 });
 // A page's live sockets (relay/client/shell/wsshim.js) ride this worker's channel; a page that goes away closes them.
-sw.addEventListener("message", (/** @type {any} */ e) => { if (e.data && e.data.vyreWs && e.source) { pages.message(e.source, e.data); void sw.clients.matchAll().then((/** @type {any[]} */ all) => pages.keep(all.map(c => c.id))); } });
+sw.addEventListener("message", (/** @type {any} */ e) => {
+  if (e.data && e.data.vyreWs && e.source) {
+    pages.message(e.source, e.data);
+    void sw.clients.matchAll().then((/** @type {any[]} */ all) => pages.keep(all.map((c) => c.id)));
+  }
+});
 // A changed name or a new link: forget what was read, so the next request asks again.
-sw.addEventListener("message", (/** @type {any} */ e) => { if (e.data && e.data.t === "reset") { info = null; if (live) { live.conn.close(); live = null; } } });
+sw.addEventListener("message", (/** @type {any} */ e) => {
+  if (e.data && e.data.t === "reset") {
+    info = null;
+    if (live) {
+      live.conn.close();
+      live = null;
+    }
+  }
+});

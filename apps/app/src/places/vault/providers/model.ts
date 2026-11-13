@@ -5,14 +5,24 @@ import type { Provider } from "../layout/model.ts";
 export type Catalog = CapMap["providers.catalog"]["out"]["providers"][number];
 export type ConnectionKind = Provider["connection"];
 
-export const CONNECTION_NAME: Readonly<Record<ConnectionKind, string>> = { subscription: "Subscription", api_key: "API key", local_model: "Local model" };
+export const CONNECTION_NAME: Readonly<Record<ConnectionKind, string>> = {
+  subscription: "Subscription",
+  api_key: "API key",
+  local_model: "Local model",
+};
 /** What a way of connecting is called for this provider: Codex has two, the ChatGPT plan and an OpenAI key, and each says so. */
 export function kindTitle(provider: string, k: ConnectionKind): string {
-  if (provider === "codex") return k === "api_key" ? "Codex, with an API key" : k === "subscription" ? "Codex, with your ChatGPT sign-in" : CONNECTION_NAME[k];
+  if (provider === "codex")
+    return k === "api_key"
+      ? "Codex, with an API key"
+      : k === "subscription"
+        ? "Codex, with your ChatGPT sign-in"
+        : CONNECTION_NAME[k];
   return CONNECTION_NAME[k];
 }
 export function kindNote(provider: string, k: ConnectionKind): string {
-  if (provider === "codex" && k === "api_key") return "Paste an OpenAI API key. Codex runs on it, and you pay OpenAI by use.";
+  if (provider === "codex" && k === "api_key")
+    return "Paste an OpenAI API key. Codex runs on it, and you pay OpenAI by use.";
   if (provider === "codex" && k === "subscription") return "Sign in with your ChatGPT plan. It stays yours.";
   return CONNECTION_NOTE[k];
 }
@@ -41,11 +51,20 @@ export const scopeWords = (p: Pick<Provider, "scope">): string => (p.scope === "
 export const canShare = (p: Pick<Provider, "connection">): boolean => p.connection !== "subscription";
 
 /** The engine a CLI sign-in runs on (the provider row's engine), as engine.providers.list names it. An API key is not a CLI engine. */
-const CLI_DRIVER: Readonly<Record<string, string>> = { "claude-code": "claude_code", claude_code: "claude_code", codex: "codex", grok: "grok" };
-export const cliDriverOf = (p: Pick<Provider, "engine" | "connection">): string | null => (p.connection === "subscription" ? CLI_DRIVER[p.engine] ?? null : null);
+const CLI_DRIVER: Readonly<Record<string, string>> = {
+  "claude-code": "claude_code",
+  claude_code: "claude_code",
+  codex: "codex",
+  grok: "grok",
+};
+export const cliDriverOf = (p: Pick<Provider, "engine" | "connection">): string | null =>
+  p.connection === "subscription" ? (CLI_DRIVER[p.engine] ?? null) : null;
 
 /** What a CLI sign-in needs before it can run here ("Needs a sandbox ..."), from engine.providers.list, or null when it can run. */
-export function needsWords(p: Pick<Provider, "engine" | "connection">, engines: ReadonlyArray<{ driver: string; kind: string; allowed: boolean; reason?: string }>): string | null {
+export function needsWords(
+  p: Pick<Provider, "engine" | "connection">,
+  engines: ReadonlyArray<{ driver: string; kind: string; allowed: boolean; reason?: string }>,
+): string | null {
   const driver = cliDriverOf(p);
   const row = driver === null ? undefined : engines.find((e) => e.driver === driver && e.kind === "cli");
   return row !== undefined && !row.allowed && row.reason?.startsWith("Needs ") ? row.reason : null;
@@ -53,14 +72,23 @@ export function needsWords(p: Pick<Provider, "engine" | "connection">, engines: 
 
 export function stateWords(state: Provider["state"], unopenable?: boolean): string {
   if (unopenable === true && state === "needs_sign_in") return "Can't be opened, sign in again";
-  return state === "ok" ? "Working" : state === "needs_sign_in" ? "Needs you to sign in again" : "Failing, check the key";
+  return state === "ok"
+    ? "Working"
+    : state === "needs_sign_in"
+      ? "Needs you to sign in again"
+      : "Failing, check the key";
 }
 
 /**
  * The "Right now" line of an AI account: what the key does, and when it works but a chat still cannot use it, why. A key that is failing does not "work", so it never says "Works, but ..." (client walk,
  * 11 Nov 2026: a failed Anthropic key read "Works, but not in chats: This account is not working").
  */
-export function rightNow(state: Provider["state"], unopenable: boolean | undefined, needs: string | null, chatWhy: string | null): { text: string; tone: Provider["state"] } {
+export function rightNow(
+  state: Provider["state"],
+  unopenable: boolean | undefined,
+  needs: string | null,
+  chatWhy: string | null,
+): { text: string; tone: Provider["state"] } {
   if (needs !== null) return { text: needs, tone: "needs_sign_in" };
   if (state === "ok" && chatWhy !== null) return { text: `Works, but not in chats: ${chatWhy}`, tone: "needs_sign_in" };
   return { text: stateWords(state, unopenable), tone: state };

@@ -11,12 +11,31 @@ import { createSampleSidebar, northwind } from "../../../apps/app/src/places/cha
 
 export const title = "One name per chat";
 
-const TITLES: Record<string, string> = { untitled: "", titled: "GHL onboarding goal", dm: "Heyy", group: "Lab 8 launch" };
-const GROUP = [{ kind: "person", id: "usr_irfad" }, { kind: "person", id: "usr_maya" }, { kind: "person", id: "usr_omar" }, { kind: "person", id: "usr_priya" }, { kind: "agent", id: "agt_intake" }, { kind: "agent", id: "agt_docs" }] as never;
+const TITLES: Record<string, string> = {
+  untitled: "",
+  titled: "GHL onboarding goal",
+  dm: "Heyy",
+  group: "Lab 8 launch",
+};
+const GROUP = [
+  { kind: "person", id: "usr_irfad" },
+  { kind: "person", id: "usr_maya" },
+  { kind: "person", id: "usr_omar" },
+  { kind: "person", id: "usr_priya" },
+  { kind: "agent", id: "agt_intake" },
+  { kind: "agent", id: "agt_docs" },
+] as never;
 
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
-  useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "untitled"), []);
+  useEffect(
+    () =>
+      setPart(
+        new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ??
+          "untitled",
+      ),
+    [],
+  );
   const { width } = useWindowDimensions();
   const stored = TITLES[part ?? "untitled"] ?? "";
   const side = useMemo(() => {
@@ -26,13 +45,20 @@ export default function Mount(): ReactNode {
     if (row) sb.replica.put("threads", [{ ...row, title: stored, agents: ["agt_intake", "agt_docs"] }]);
     return sb.data;
   }, [stored]);
-  const conv = useMemo(() => createConversationSample("idle", { title: stored, ...(part === "group" ? { members: GROUP } : {}) }).data, [stored, part]);
+  const conv = useMemo(
+    () => createConversationSample("idle", { title: stored, ...(part === "group" ? { members: GROUP } : {}) }).data,
+    [stored, part],
+  );
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   const narrow = width < 700;
   return (
     <View style={{ flex: 1, flexDirection: narrow ? "column" : "row", backgroundColor: "var(--win)" as string }}>
-      <View style={narrow ? { height: 300 } : { width: 272, flexShrink: 0 }}><ChatsSidebar data={side} window={{ start: 0, end: 500 }} open="c1" /></View>
-      <View style={{ flex: 1, minHeight: 0 }}><Conversation data={conv} /></View>
+      <View style={narrow ? { height: 300 } : { width: 272, flexShrink: 0 }}>
+        <ChatsSidebar data={side} window={{ start: 0, end: 500 }} open="c1" />
+      </View>
+      <View style={{ flex: 1, minHeight: 0 }}>
+        <Conversation data={conv} />
+      </View>
     </View>
   );
 }

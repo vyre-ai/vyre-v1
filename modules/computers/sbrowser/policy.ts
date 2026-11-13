@@ -34,6 +34,7 @@ export function profileAccess(agent: ProfileAgent, person: string, isAdmin: bool
   return "none";
 }
 
-export const mayWatchProfile = (agent: ProfileAgent, person: string, isAdmin: boolean): boolean => profileAccess(agent, person, isAdmin) !== "none";
+export const mayWatchProfile = (agent: ProfileAgent, person: string, isAdmin: boolean): boolean =>
+  profileAccess(agent, person, isAdmin) !== "none";
 /** Taking over and giving back: the owner and admins, not a person the agent was only shared with. */
 export const mayTakeOver = (access: ProfileAccess): boolean => access === "owner" || access === "admin";

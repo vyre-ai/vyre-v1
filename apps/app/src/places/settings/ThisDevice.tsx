@@ -13,7 +13,7 @@ import { SessionImport } from "./SessionImport.tsx";
 import { Section } from "./ui.tsx";
 
 export function ThisDevicePage(): ReactElement {
-  const winWidth = useWindowDimensions().width;   // the page column is at most 684 wide: the machine table lays out for that, not for the window
+  const winWidth = useWindowDimensions().width; // the page column is at most 684 wide: the machine table lays out for that, not for the window
   const data = useSettingsData();
   const personal = useIsPersonal();
   // asked for from the Space menu or an agent's page: the sheet is open as the page draws, once
@@ -21,13 +21,27 @@ export function ThisDevicePage(): ReactElement {
   // agent computers appear elsewhere the moment a host can run one, and go when none can
   useEffect(() => {
     let live = true;
-    void (data.call("computers.hosts", {}) as Promise<{ available?: boolean }>).then((h) => { if (live) setComputersAvailable(data.space.id, h.available === true); }, () => undefined);
-    return () => { live = false; };
+    void (data.call("computers.hosts", {}) as Promise<{ available?: boolean }>).then(
+      (h) => {
+        if (live) setComputersAvailable(data.space.id, h.available === true);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
   }, [data]);
   return (
     <>
       {personal ? <PeersSection /> : null}
-      <MachinesView width={Math.min(winWidth, 684)} call={data.call as never} scope="mine" who={(id) => data.name(id)} personal={personal} {...(startAdd ? { startAdd } : {})} />
+      <MachinesView
+        width={Math.min(winWidth, 684)}
+        call={data.call as never}
+        scope="mine"
+        who={(id) => data.name(id)}
+        personal={personal}
+        {...(startAdd ? { startAdd } : {})}
+      />
       <WindowsSandboxRow />
       <PhoneAccessSection />
       <SessionImport />

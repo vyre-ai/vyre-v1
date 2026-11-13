@@ -10,9 +10,22 @@ export const title = "Plain activity wording";
 
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
-  useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "audit"), []);
+  useEffect(
+    () =>
+      setPart(
+        new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ??
+          "audit",
+      ),
+    [],
+  );
   const { width } = useWindowDimensions();
   const sample = useMemo(() => createSampleConsole(), []);
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  return <ConsoleDataProvider value={sample.data}><View style={{ flex: 1, backgroundColor: "var(--win)" as string }}><ConsoleShell width={width} initialPage={part === "audit" ? "audit" : "overview"} /></View></ConsoleDataProvider>;
+  return (
+    <ConsoleDataProvider value={sample.data}>
+      <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}>
+        <ConsoleShell width={width} initialPage={part === "audit" ? "audit" : "overview"} />
+      </View>
+    </ConsoleDataProvider>
+  );
 }

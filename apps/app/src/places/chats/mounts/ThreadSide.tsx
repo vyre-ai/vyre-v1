@@ -23,7 +23,9 @@ export const THREAD_SIDE_W = 400;
 const SIDEBAR_BESIDE = 264;
 /** The Thread pane's width when the person has not dragged it: about 40% of the room beside the sidebar, never under 360 nor over 560 px, so the channel stays the main pane and keeps room for its name. */
 export function threadSideWidth(windowWidth: number): number {
-  return windowWidth > 0 ? Math.max(360, Math.min(560, Math.round((windowWidth - SIDEBAR_BESIDE) * 0.4))) : THREAD_SIDE_W;
+  return windowWidth > 0
+    ? Math.max(360, Math.min(560, Math.round((windowWidth - SIDEBAR_BESIDE) * 0.4)))
+    : THREAD_SIDE_W;
 }
 
 export interface ThreadSideProps {
@@ -48,27 +50,42 @@ export function ThreadSide({ rt, threadId, data, narrow, onClose, say }: ThreadS
   const windowWidth = useWindowDimensions().width;
 
   useEffect(() => {
-    const g = globalThis as unknown as { addEventListener?: (t: string, f: (e: KeyboardEvent) => void) => void; removeEventListener?: (t: string, f: (e: KeyboardEvent) => void) => void };
-    if (narrow) return undefined;   // the sheet closes on Escape itself
-    const onKey = (e: KeyboardEvent): void => { if (closesSide(e)) onClose(); };
+    const g = globalThis as unknown as {
+      addEventListener?: (t: string, f: (e: KeyboardEvent) => void) => void;
+      removeEventListener?: (t: string, f: (e: KeyboardEvent) => void) => void;
+    };
+    if (narrow) return undefined; // the sheet closes on Escape itself
+    const onKey = (e: KeyboardEvent): void => {
+      if (closesSide(e)) onClose();
+    };
     g.addEventListener?.("keydown", onKey);
     return () => g.removeEventListener?.("keydown", onKey);
   }, [narrow, onClose]);
 
   const set = (next: "follow" | "mute" | "leave"): void => {
-    void Promise.resolve(rt.call("threads.follow", { threadId, mode: next })).then(() => say(followSaid(next)), () => say("Could not change that. Try again."));
+    void Promise.resolve(rt.call("threads.follow", { threadId, mode: next })).then(
+      () => say(followSaid(next)),
+      () => say("Could not change that. Try again."),
+    );
   };
   const control = (
     <View style={st.bar}>
       <Pressable
-        testID="thread-follow" accessibilityRole="button" accessibilityLabel={`${followLabel(mode)}. Follow, mute or leave this thread`}
-        onPress={(e) => { const n = (e as unknown as { nativeEvent?: { pageX?: number; pageY?: number } }).nativeEvent; menu.show(followMenu(mode, set), n?.pageX ?? 8, (n?.pageY ?? 40) + 8, "context", { label: "Thread" }); }}
+        testID="thread-follow"
+        accessibilityRole="button"
+        accessibilityLabel={`${followLabel(mode)}. Follow, mute or leave this thread`}
+        onPress={(e) => {
+          const n = (e as unknown as { nativeEvent?: { pageX?: number; pageY?: number } }).nativeEvent;
+          menu.show(followMenu(mode, set), n?.pageX ?? 8, (n?.pageY ?? 40) + 8, "context", { label: "Thread" });
+        }}
         style={({ hovered }: { hovered?: boolean }) => [st.follow, hovered === true && st.over]}
       >
         <Text style={[st.followText, mode === "mute" && st.mutedText]}>{followLabel(mode)}</Text>
         <Glyph name="chevd" size={12} />
       </Pressable>
-      {row?.replyCount ? <Text style={st.count}>{`${row.replyCount} ${row.replyCount === 1 ? "reply" : "replies"}`}</Text> : null}
+      {row?.replyCount ? (
+        <Text style={st.count}>{`${row.replyCount} ${row.replyCount === 1 ? "reply" : "replies"}`}</Text>
+      ) : null}
     </View>
   );
   // agents reply in threads: the empty line and "Also sent to the chat" (the chat's switch is in its More menu)
@@ -76,13 +93,28 @@ export function ThreadSide({ rt, threadId, data, narrow, onClose, say }: ThreadS
   const body = (
     <View testID="thread-side" style={st.body}>
       {control}
-      <View style={st.conv}><Conversation key={threadId} data={extras.data} compact /></View>
+      <View style={st.conv}>
+        <Conversation key={threadId} data={extras.data} compact />
+      </View>
       {menu.element}
     </View>
   );
-  if (narrow) return <ThreadSheet title={extras.title} onClose={onClose}>{body}</ThreadSheet>;
+  if (narrow)
+    return (
+      <ThreadSheet title={extras.title} onClose={onClose}>
+        {body}
+      </ThreadSheet>
+    );
   return (
-    <SidePane paneKey="chats-thread-side" toggle={{ open: true, onPress: onClose }} title="Thread" tabs={[{ key: "thread", title: "Thread" }]} activeTab="thread" onCloseTab={onClose} defaultWidth={threadSideWidth(windowWidth)}>
+    <SidePane
+      paneKey="chats-thread-side"
+      toggle={{ open: true, onPress: onClose }}
+      title="Thread"
+      tabs={[{ key: "thread", title: "Thread" }]}
+      activeTab="thread"
+      onCloseTab={onClose}
+      defaultWidth={threadSideWidth(windowWidth)}
+    >
       {body}
     </SidePane>
   );
@@ -92,7 +124,16 @@ const st = StyleSheet.create({
   body: { flex: 1, minHeight: 0 },
   conv: { flex: 1, minHeight: 0 },
   bar: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingTop: 8 },
-  follow: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, height: 26, borderRadius: 6, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  follow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    height: 26,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+  },
   over: { backgroundColor: "var(--hover)" as string },
   followText: { fontSize: 12.5, color: "var(--ink)" as string, fontWeight: "500" },
   mutedText: { color: "var(--ink-3)" as string },

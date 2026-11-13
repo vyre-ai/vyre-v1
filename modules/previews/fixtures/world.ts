@@ -16,15 +16,38 @@ export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
 type Row = Record<string, unknown>;
-export interface Emitted { name: string; subject: string; payload: unknown }
-export interface ExecCall { argv: string[]; env?: Record<string, string> | undefined }
-
-export function vyreErr(code: string, message: string): VyreErr {
-  return new VyreErr({ code: code as never, message, retryable: false, traceId: TRACE, next: [{ kind: "report", label: "Report a problem" }] });
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: unknown;
+}
+export interface ExecCall {
+  argv: string[];
+  env?: Record<string, string> | undefined;
 }
 
-export interface FakeVersion { versionId: string; n: number; bytes: Uint8Array }
-export interface FakeFile { fileId: string; name: string; mime: string; versions: FakeVersion[]; /** report this size instead of the bytes' length */ size?: number }
+export function vyreErr(code: string, message: string): VyreErr {
+  return new VyreErr({
+    code: code as never,
+    message,
+    retryable: false,
+    traceId: TRACE,
+    next: [{ kind: "report", label: "Report a problem" }],
+  });
+}
+
+export interface FakeVersion {
+  versionId: string;
+  n: number;
+  bytes: Uint8Array;
+}
+export interface FakeFile {
+  fileId: string;
+  name: string;
+  mime: string;
+  versions: FakeVersion[];
+  /** report this size instead of the bytes' length */ size?: number;
+}
 
 export class FakeFiles {
   readonly files = new Map<string, FakeFile>();
@@ -60,21 +83,39 @@ export class FakeFiles {
       const f = this.mustHave(String(i["fileId"]));
       this.getCalls.push(f.fileId);
       const cur = f.versions[f.versions.length - 1] as FakeVersion;
-      return { file: { fileId: f.fileId, name: f.name, mime: f.mime, size: f.size ?? cur.bytes.length, version: cur.n } };
+      return {
+        file: { fileId: f.fileId, name: f.name, mime: f.mime, size: f.size ?? cur.bytes.length, version: cur.n },
+      };
     }
     if (cap === "files.versions") {
       const f = this.mustHave(String(i["fileId"]));
-      return { versions: [...f.versions].reverse().map((v) => ({ versionId: v.versionId, n: v.n, by: "usr_owner", at: NOW })) };
+      return {
+        versions: [...f.versions].reverse().map((v) => ({ versionId: v.versionId, n: v.n, by: "usr_owner", at: NOW })),
+      };
     }
     if (cap === "files.read") {
       const f = this.mustHave(String(i["fileId"]));
-      const v = typeof i["versionId"] === "string" ? f.versions.find((x) => x.versionId === i["versionId"]) : f.versions[f.versions.length - 1];
+      const v =
+        typeof i["versionId"] === "string"
+          ? f.versions.find((x) => x.versionId === i["versionId"])
+          : f.versions[f.versions.length - 1];
       if (!v) throw vyreErr("validation.not_found", "That version is not on this file.");
       const offset = typeof i["offset"] === "number" ? i["offset"] : 0;
       const length = typeof i["length"] === "number" ? i["length"] : v.bytes.length;
-      this.reads.push({ fileId: f.fileId, ...(typeof i["versionId"] === "string" ? { versionId: i["versionId"] } : {}), offset, length });
+      this.reads.push({
+        fileId: f.fileId,
+        ...(typeof i["versionId"] === "string" ? { versionId: i["versionId"] } : {}),
+        offset,
+        length,
+      });
       const slice = v.bytes.subarray(offset, Math.min(v.bytes.length, offset + length));
-      return { base64: Buffer.from(slice).toString("base64"), mime: f.mime, size: f.size ?? v.bytes.length, version: v.n, truncated: offset > 0 || offset + length < v.bytes.length };
+      return {
+        base64: Buffer.from(slice).toString("base64"),
+        mime: f.mime,
+        size: f.size ?? v.bytes.length,
+        version: v.n,
+        truncated: offset > 0 || offset + length < v.bytes.length,
+      };
     }
     return undefined;
   }
@@ -92,8 +133,16 @@ export class FakeBlobs implements Blobs {
   failPut: string | undefined;
   private seq = 0;
 
-  async put(bytes: Uint8Array, contentType: string, opts?: { resource?: { type: string; id: string } }): Promise<BlobMeta> {
-    if (this.failPut) { const code = this.failPut; this.failPut = undefined; throw vyreErr(code, "The blob store refused this blob."); }
+  async put(
+    bytes: Uint8Array,
+    contentType: string,
+    opts?: { resource?: { type: string; id: string } },
+  ): Promise<BlobMeta> {
+    if (this.failPut) {
+      const code = this.failPut;
+      this.failPut = undefined;
+      throw vyreErr(code, "The blob store refused this blob.");
+    }
     this.puts += 1;
     this.seq += 1;
     const id = `blb_${this.seq.toString(16).padStart(32, "0")}`;
@@ -105,12 +154,27 @@ export class FakeBlobs implements Blobs {
   private own(id: string): void {
     if (this.foreign.has(id)) throw vyreErr("permission.no_grant", "A module may only use its own blobs.");
   }
-  async get(id: string) { this.own(id); return this.items.get(id) ?? null; }
-  async stat(id: string) { this.own(id); return this.items.get(id)?.meta ?? null; }
-  async delete(id: string): Promise<boolean> { this.own(id); this.deletes.push(id); return this.items.delete(id); }
+  async get(id: string) {
+    this.own(id);
+    return this.items.get(id) ?? null;
+  }
+  async stat(id: string) {
+    this.own(id);
+    return this.items.get(id)?.meta ?? null;
+  }
+  async delete(id: string): Promise<boolean> {
+    this.own(id);
+    this.deletes.push(id);
+    return this.items.delete(id);
+  }
 }
 
-export interface Tools { pdftoppm: boolean; pdftotext: boolean; soffice: boolean; vips: boolean }
+export interface Tools {
+  pdftoppm: boolean;
+  pdftotext: boolean;
+  soffice: boolean;
+  vips: boolean;
+}
 
 export function harness() {
   const db = new MemoryDb();
@@ -143,7 +207,10 @@ export function harness() {
       if (head !== "%PDF") return { code: 1, stdout: "", stderr: "Syntax Error: not a PDF" };
       const width = Number(at("-scale-to-x"));
       const page = Number(at("-f"));
-      fs.writeFileSync(`${prefix}.png`, encodePng(solid(width, Math.round(width * 1.414), [page * 40 % 256, 90, 160, 255])));
+      fs.writeFileSync(
+        `${prefix}.png`,
+        encodePng(solid(width, Math.round(width * 1.414), [(page * 40) % 256, 90, 160, 255])),
+      );
       return { code: 0, stdout: "", stderr: "" };
     }
     if (prog === "pdftotext") {
@@ -208,12 +275,32 @@ export function harness() {
   };
 
   return {
-    ctx, db, files, blobs, events, calls, execCalls, tools, text, converted, failures,
-    advance(ms: number) { clock += ms; },
-    named(name: string): unknown[] { return events.filter((e) => e.name === name).map((e) => e.payload); },
-    ran(prog: string): ExecCall[] { return execCalls.filter((c) => path.basename(c.argv[0] ?? "") === prog); },
-    rows(table: string): Row[] { return db.rows(table) as Row[]; },
-    cleanup() { configurePreviews(null); },
+    ctx,
+    db,
+    files,
+    blobs,
+    events,
+    calls,
+    execCalls,
+    tools,
+    text,
+    converted,
+    failures,
+    advance(ms: number) {
+      clock += ms;
+    },
+    named(name: string): unknown[] {
+      return events.filter((e) => e.name === name).map((e) => e.payload);
+    },
+    ran(prog: string): ExecCall[] {
+      return execCalls.filter((c) => path.basename(c.argv[0] ?? "") === prog);
+    },
+    rows(table: string): Row[] {
+      return db.rows(table) as Row[];
+    },
+    cleanup() {
+      configurePreviews(null);
+    },
   };
 }
 

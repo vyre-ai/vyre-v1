@@ -19,21 +19,59 @@ export function ChatsTab({ summary, window }: { summary: Summary; window?: Virtu
   const entries: Entry[] = [];
   if (summary.workingOn.length > 0) {
     entries.push({ key: "l-working", type: "label", text: "Working on" });
-    for (const w of summary.workingOn) entries.push({ key: `w-${w.id}`, type: "row", title: w.title, note: w.kind, leading: <LeadIcon name="clock" color="var(--accent)" />, onPress: () => data.nav.openSource(w.kind, w.id), testID: `working-${w.id}` });
+    for (const w of summary.workingOn)
+      entries.push({
+        key: `w-${w.id}`,
+        type: "row",
+        title: w.title,
+        note: w.kind,
+        leading: <LeadIcon name="clock" color="var(--accent)" />,
+        onPress: () => data.nav.openSource(w.kind, w.id),
+        testID: `working-${w.id}`,
+      });
   }
   entries.push({ key: "l-chats", type: "label", text: "Chats", right: list.length > 0 ? String(list.length) : "" });
-  if (chats.status === "loading") entries.push({ key: "chats-loading", type: "empty", text: "Loading…", testID: "chats-loading" });
-  else if (list.length === 0) entries.push({ key: "no-chats", type: "empty", text: `No chats with ${data.agent.name} yet. Press Chat to start one.`, testID: "chats-empty" });
+  if (chats.status === "loading")
+    entries.push({ key: "chats-loading", type: "empty", text: "Loading…", testID: "chats-loading" });
+  else if (list.length === 0)
+    entries.push({
+      key: "no-chats",
+      type: "empty",
+      text: `No chats with ${data.agent.name} yet. Press Chat to start one.`,
+      testID: "chats-empty",
+    });
   for (const t of list) {
     entries.push({
-      key: `c-${t.threadId}`, type: "row", title: t.title ?? "New chat", note: chatNote(t, clock), leading: <View style={{ marginRight: 8 }}><Face name={data.agent.name} seedId={data.agent.agentId} size={16} /></View>,
-      onPress: () => data.nav.openChat(t.threadId), testID: `chat-${t.threadId}`,
-      menu: [{ label: "Open", onSelect: () => data.nav.openChat(t.threadId) }, { label: "Open to the Side", onSelect: () => data.nav.openThread(t.threadId, "side") }],
+      key: `c-${t.threadId}`,
+      type: "row",
+      title: t.title ?? "New chat",
+      note: chatNote(t, clock),
+      leading: (
+        <View style={{ marginRight: 8 }}>
+          <Face name={data.agent.name} seedId={data.agent.agentId} size={16} />
+        </View>
+      ),
+      onPress: () => data.nav.openChat(t.threadId),
+      testID: `chat-${t.threadId}`,
+      menu: [
+        { label: "Open", onSelect: () => data.nav.openChat(t.threadId) },
+        { label: "Open to the Side", onSelect: () => data.nav.openThread(t.threadId, "side") },
+      ],
     });
   }
   if (summary.linked.length > 0) {
     entries.push({ key: "l-linked", type: "label", text: "Linked" });
-    for (const l of summary.linked) entries.push({ key: `l-${l.id}`, type: "row", title: l.title, note: l.kind, leading: <LeadIcon name="folder" />, onPress: () => data.nav.openSource(l.kind, l.id), trailing: <Icon name="chev" size={12} />, testID: `linked-${l.id}` });
+    for (const l of summary.linked)
+      entries.push({
+        key: `l-${l.id}`,
+        type: "row",
+        title: l.title,
+        note: l.kind,
+        leading: <LeadIcon name="folder" />,
+        onPress: () => data.nav.openSource(l.kind, l.id),
+        trailing: <Icon name="chev" size={12} />,
+        testID: `linked-${l.id}`,
+      });
   }
   return <PaneList entries={entries} {...(window ? { window } : {})} testID="chats-list" />;
 }

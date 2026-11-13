@@ -11,22 +11,61 @@ import { fileURLToPath } from "node:url";
 
 const MAIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "daemon", "main.ts");
 
-test("a daemon whose gateway cannot listen exits 1 with the reason, and does not stay alive", { timeout: 25_000 }, async () => {
-  const held = net.createServer();
-  await new Promise<void>((r) => held.listen(0, "127.0.0.1", () => r()));
-  const port = (held.address() as net.AddressInfo).port;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-startfail-"));
-  try {
-    const child = spawn(process.execPath, ["--experimental-strip-types", MAIN, "--role", "space,device", "--data-dir", dir, "--host", "127.0.0.1", "--port", String(port), "--space-kind", "personal", "--space-name", "Personal", "--space", "spc_startfail01"], { stdio: ["ignore", "pipe", "pipe"] });
-    let err = "", out = "";
-    child.stderr.on("data", (c: Buffer) => { err += c.toString("utf8"); });
-    child.stdout.on("data", (c: Buffer) => { out += c.toString("utf8"); });
-    const code = await new Promise<number | null>((resolve, reject) => {
-      const t = setTimeout(() => { child.kill("SIGKILL"); reject(new Error(`still running after 20 s\nstderr: ${err}`)); }, 20_000);
-      child.once("exit", (c) => { clearTimeout(t); resolve(c); });
-    });
-    assert.equal(code, 1);
-    assert.match(err, /vyred: the gateway did not start on 127\.0\.0\.1:\d+: listen EADDRINUSE/, err);
-    assert.ok(!out.includes("listening on"), "it never said it was listening");
-  } finally { held.close(); fs.rmSync(dir, { recursive: true, force: true }); }
-});
+test(
+  "a daemon whose gateway cannot listen exits 1 with the reason, and does not stay alive",
+  { timeout: 25_000 },
+  async () => {
+    const held = net.createServer();
+    await new Promise<void>((r) => held.listen(0, "127.0.0.1", () => r()));
+    const port = (held.address() as net.AddressInfo).port;
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-startfail-"));
+    try {
+      const child = spawn(
+        process.execPath,
+        [
+          "--experimental-strip-types",
+          MAIN,
+          "--role",
+          "space,device",
+          "--data-dir",
+          dir,
+          "--host",
+          "127.0.0.1",
+          "--port",
+          String(port),
+          "--space-kind",
+          "personal",
+          "--space-name",
+          "Personal",
+          "--space",
+          "spc_startfail01",
+        ],
+        { stdio: ["ignore", "pipe", "pipe"] },
+      );
+      let err = "",
+        out = "";
+      child.stderr.on("data", (c: Buffer) => {
+        err += c.toString("utf8");
+      });
+      child.stdout.on("data", (c: Buffer) => {
+        out += c.toString("utf8");
+      });
+      const code = await new Promise<number | null>((resolve, reject) => {
+        const t = setTimeout(() => {
+          child.kill("SIGKILL");
+          reject(new Error(`still running after 20 s\nstderr: ${err}`));
+        }, 20_000);
+        child.once("exit", (c) => {
+          clearTimeout(t);
+          resolve(c);
+        });
+      });
+      assert.equal(code, 1);
+      assert.match(err, /vyred: the gateway did not start on 127\.0\.0\.1:\d+: listen EADDRINUSE/, err);
+      assert.ok(!out.includes("listening on"), "it never said it was listening");
+    } finally {
+      held.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);

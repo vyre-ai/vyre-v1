@@ -19,12 +19,40 @@ export const RECORDED = {
   sent: { id: "<20251009085320.1.ABCDEF0123456789@mail.vyre.test>", message: "Queued. Thank you." },
   events: {
     items: [
-      { id: "ev-accepted", event: "accepted", timestamp: 1760000000.123, recipient: "pat@acme.test", message: { headers: { "message-id": "20251009085320.1.ABCDEF0123456789@mail.vyre.test" } } },
-      { id: "ev-delivered", event: "delivered", timestamp: 1760000001.5, recipient: "Pat@Acme.test", message: { headers: { "message-id": "20251009085320.1.ABCDEF0123456789@mail.vyre.test" } } },
-      { id: "ev-stored", event: "stored", timestamp: 1760000002, recipient: "pat@acme.test", message: { headers: { "message-id": "x" } } },
-      { id: "ev-failed", event: "failed", timestamp: 1760000003, recipient: "gone@acme.test", severity: "permanent", message: { headers: { "message-id": "y" } } },
+      {
+        id: "ev-accepted",
+        event: "accepted",
+        timestamp: 1760000000.123,
+        recipient: "pat@acme.test",
+        message: { headers: { "message-id": "20251009085320.1.ABCDEF0123456789@mail.vyre.test" } },
+      },
+      {
+        id: "ev-delivered",
+        event: "delivered",
+        timestamp: 1760000001.5,
+        recipient: "Pat@Acme.test",
+        message: { headers: { "message-id": "20251009085320.1.ABCDEF0123456789@mail.vyre.test" } },
+      },
+      {
+        id: "ev-stored",
+        event: "stored",
+        timestamp: 1760000002,
+        recipient: "pat@acme.test",
+        message: { headers: { "message-id": "x" } },
+      },
+      {
+        id: "ev-failed",
+        event: "failed",
+        timestamp: 1760000003,
+        recipient: "gone@acme.test",
+        severity: "permanent",
+        message: { headers: { "message-id": "y" } },
+      },
     ],
-    paging: { next: "https://api.mailgun.net/v3/mail.vyre.test/events/W3siYiI6IjIwMjUifV0=?limit=100", previous: "https://api.mailgun.net/v3/mail.vyre.test/events/prev" },
+    paging: {
+      next: "https://api.mailgun.net/v3/mail.vyre.test/events/W3siYiI6IjIwMjUifV0=?limit=100",
+      previous: "https://api.mailgun.net/v3/mail.vyre.test/events/prev",
+    },
   },
   eventsLast: { items: [], paging: { next: "https://api.mailgun.net/v3/mail.vyre.test/events/end" } },
   domains: {
@@ -38,10 +66,18 @@ export const RECORDED = {
   domain: {
     message: "Domain DNS records have been updated",
     domain: { name: "mail.vyre.test", state: "unverified", created_at: "Tue, 02 Sep 2025 10:00:00 GMT" },
-    receiving_dns_records: [{ record_type: "MX", valid: "unknown", priority: "10", value: "mxa.mailgun.org" }, { record_type: "MX", valid: "unknown", priority: "10", value: "mxb.mailgun.org" }],
+    receiving_dns_records: [
+      { record_type: "MX", valid: "unknown", priority: "10", value: "mxa.mailgun.org" },
+      { record_type: "MX", valid: "unknown", priority: "10", value: "mxb.mailgun.org" },
+    ],
     sending_dns_records: [
       { record_type: "TXT", valid: "valid", name: "mail.vyre.test", value: "v=spf1 include:mailgun.org ~all" },
-      { record_type: "TXT", valid: "unknown", name: "smtp._domainkey.mail.vyre.test", value: "k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCtest" },
+      {
+        record_type: "TXT",
+        valid: "unknown",
+        name: "smtp._domainkey.mail.vyre.test",
+        value: "k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCtest",
+      },
       { record_type: "CNAME", valid: "valid", name: "email.mail.vyre.test", value: "mailgun.org" },
     ],
   },
@@ -50,36 +86,107 @@ export const RECORDED = {
     receiving_dns_records: [{ record_type: "MX", valid: "valid", priority: "10", value: "mxa.mailgun.org" }],
     sending_dns_records: [
       { record_type: "TXT", valid: "valid", name: "mail.vyre.test", value: "v=spf1 include:mailgun.org ~all" },
-      { record_type: "TXT", valid: "valid", name: "smtp._domainkey.mail.vyre.test", value: "k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCtest" },
+      {
+        record_type: "TXT",
+        valid: "valid",
+        name: "smtp._domainkey.mail.vyre.test",
+        value: "k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCtest",
+      },
       { record_type: "TXT", valid: "invalid", name: "_dmarc.mail.vyre.test", value: "v=DMARC1; p=none" },
     ],
   },
   routes: {
     total_count: 2,
     items: [
-      { id: "5f6e8c1a0b2d3e4f5a6b7c8d", expression: 'match_recipient("hello@mail.vyre.test")', actions: ['forward("https://space.example.test/hooks/mail/mailgun")', "store()", "stop()"], priority: 0, description: "hello@" },
-      { id: "5f6e8c1a0b2d3e4f5a6b7c8e", expression: 'match_recipient(".*@old.vyre.test")', actions: ['forward("ops@vyre.test")'], priority: 10 },
+      {
+        id: "5f6e8c1a0b2d3e4f5a6b7c8d",
+        expression: 'match_recipient("hello@mail.vyre.test")',
+        actions: ['forward("https://space.example.test/hooks/mail/mailgun")', "store()", "stop()"],
+        priority: 0,
+        description: "hello@",
+      },
+      {
+        id: "5f6e8c1a0b2d3e4f5a6b7c8e",
+        expression: 'match_recipient(".*@old.vyre.test")',
+        actions: ['forward("ops@vyre.test")'],
+        priority: 10,
+      },
     ],
   },
   routeCreated: {
     message: "Route has been created",
-    route: { id: "6a7b8c9d0e1f2a3b4c5d6e7f", expression: 'match_recipient("support@mail.vyre.test")', actions: ['forward("https://space.example.test/hooks/mail/mailgun")', "store()", "stop()"], priority: 0, description: "Support" },
+    route: {
+      id: "6a7b8c9d0e1f2a3b4c5d6e7f",
+      expression: 'match_recipient("support@mail.vyre.test")',
+      actions: ['forward("https://space.example.test/hooks/mail/mailgun")', "store()", "stop()"],
+      priority: 0,
+      description: "Support",
+    },
   },
   storedEvent: {
-    items: [{ id: "ev-stored", event: "stored", timestamp: 1759999800, recipient: "hello@mail.vyre.test", storage: { url: "https://storage-us-west1.api.mailgun.net/v3/domains/mail.vyre.test/messages/KEY123", key: "KEY123" } }],
+    items: [
+      {
+        id: "ev-stored",
+        event: "stored",
+        timestamp: 1759999800,
+        recipient: "hello@mail.vyre.test",
+        storage: {
+          url: "https://storage-us-west1.api.mailgun.net/v3/domains/mail.vyre.test/messages/KEY123",
+          key: "KEY123",
+        },
+      },
+    ],
   },
   stored: {
-    From: "Pat Lee <pat@acme.test>", To: "Hello <hello@mail.vyre.test>, lee@mail.vyre.test", Subject: "Question about my case", "body-plain": "Can we talk Friday?", "body-html": "<p>Can we talk Friday?</p>",
-    "Message-Id": "<CAFx123@mail.acme.test>", "message-headers": [["Received", "from a"], ["Received", "from b"], ["In-Reply-To", "<prev@mail.vyre.test>"]],
-    attachments: [{ url: "https://storage-us-west1.api.mailgun.net/v3/domains/mail.vyre.test/messages/KEY123/attachments/0", name: "intake.pdf", "content-type": "application/pdf", size: 2048 }, { name: "lost.bin", size: 1 }],
+    From: "Pat Lee <pat@acme.test>",
+    To: "Hello <hello@mail.vyre.test>, lee@mail.vyre.test",
+    Subject: "Question about my case",
+    "body-plain": "Can we talk Friday?",
+    "body-html": "<p>Can we talk Friday?</p>",
+    "Message-Id": "<CAFx123@mail.acme.test>",
+    "message-headers": [
+      ["Received", "from a"],
+      ["Received", "from b"],
+      ["In-Reply-To", "<prev@mail.vyre.test>"],
+    ],
+    attachments: [
+      {
+        url: "https://storage-us-west1.api.mailgun.net/v3/domains/mail.vyre.test/messages/KEY123/attachments/0",
+        name: "intake.pdf",
+        "content-type": "application/pdf",
+        size: 2048,
+      },
+      { name: "lost.bin", size: 1 },
+    ],
   },
 } as const;
 
-export interface Reply { status: number; body?: unknown; throws?: boolean }
-export interface Seen { method: string; base: string; path: string; headers: Record<string, string>; form: [string, string][] | null }
-export interface Called { cap: string; input: Record<string, unknown> }
-export interface Emitted { name: string; subject: string; payload: Record<string, unknown> }
-export interface Upload { url: string; fields: [string, string][]; files: { field: string; name: string; fileId: string }[] }
+export interface Reply {
+  status: number;
+  body?: unknown;
+  throws?: boolean;
+}
+export interface Seen {
+  method: string;
+  base: string;
+  path: string;
+  headers: Record<string, string>;
+  form: [string, string][] | null;
+}
+export interface Called {
+  cap: string;
+  input: Record<string, unknown>;
+}
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+}
+export interface Upload {
+  url: string;
+  fields: [string, string][];
+  files: { field: string; name: string; fileId: string }[];
+}
 
 export function harness(o: { region?: "us" | "eu" } = {}) {
   const emitted: Emitted[] = [];
@@ -99,16 +206,24 @@ export function harness(o: { region?: "us" | "eu" } = {}) {
       if (handle !== "#Mailgun_Key") throw new Error(`unexpected secret ${handle}`);
       return KEY;
     },
-    async fileBytes() { throw fail("validation.not_found", "0".repeat(32)); },
+    async fileBytes() {
+      throw fail("validation.not_found", "0".repeat(32));
+    },
     async download(_ctx, a) {
       downloads.push(a);
-      return { blobId: `blb_${downloads.length}`, size: 1000 + downloads.length, mime: a.mime ?? "application/octet-stream" };
+      return {
+        blobId: `blb_${downloads.length}`,
+        size: 1000 + downloads.length,
+        mime: a.mime ?? "application/octet-stream",
+      };
     },
     async upload(_ctx, a) {
       uploads.push(a);
       return uploadReply;
     },
-    async publicUrl() { return `${PUBLIC_URL}/`; },
+    async publicUrl() {
+      return `${PUBLIC_URL}/`;
+    },
   };
   setMailgunHost(host);
 
@@ -147,23 +262,46 @@ export function harness(o: { region?: "us" | "eu" } = {}) {
       if (!queue || queue.length === 0) throw new Error(`unscripted request ${method} ${path}`);
       const reply = queue.length > 1 ? (queue.shift() as Reply) : (queue[0] as Reply);
       if (reply.throws) throw new Error("socket hang up");
-      const text = reply.body === undefined ? "" : typeof reply.body === "string" ? reply.body : JSON.stringify(reply.body);
+      const text =
+        reply.body === undefined ? "" : typeof reply.body === "string" ? reply.body : JSON.stringify(reply.body);
       return { status: reply.status, text: async () => text };
     },
     log: { info() {}, warn() {} },
   };
 
   return {
-    ctx, emitted, called, requests, uploads, downloads, host,
+    ctx,
+    emitted,
+    called,
+    requests,
+    uploads,
+    downloads,
+    host,
     /** Script what Mailgun answers to `METHOD /path?query`; several replies for the same request are answered in order, the last one repeatedly. */
-    on(request: string, ...replies: Reply[]): void { scripted.set(request, replies); },
-    advance(ms: number) { clock += ms; },
-    failStatusUpdates(on: boolean) { statusFails = on; },
-    uploadAnswers(r: { status: number; text: string }) { uploadReply = r; },
-    ingestAnswers(id: string | undefined) { ingestId = id; },
-    rows(sql: string, ...args: unknown[]) { return ctx.db.all(sql, ...args) as Record<string, string | number | null>[]; },
-    named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
-    calls(cap: string): Called[] { return called.filter((c) => c.cap === cap); },
+    on(request: string, ...replies: Reply[]): void {
+      scripted.set(request, replies);
+    },
+    advance(ms: number) {
+      clock += ms;
+    },
+    failStatusUpdates(on: boolean) {
+      statusFails = on;
+    },
+    uploadAnswers(r: { status: number; text: string }) {
+      uploadReply = r;
+    },
+    ingestAnswers(id: string | undefined) {
+      ingestId = id;
+    },
+    rows(sql: string, ...args: unknown[]) {
+      return ctx.db.all(sql, ...args) as Record<string, string | number | null>[];
+    },
+    named(name: string): Emitted[] {
+      return emitted.filter((e) => e.name === name);
+    },
+    calls(cap: string): Called[] {
+      return called.filter((c) => c.cap === cap);
+    },
   };
 }
 

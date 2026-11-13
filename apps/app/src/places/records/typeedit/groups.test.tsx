@@ -13,7 +13,10 @@ import { OVERVIEW, addGroup, deleteGroup, groupOf, groupsIn, moveField, normaliz
 const FIELDS = ["name", "company", "email", "phone", "value", "due"] as const;
 const keys: readonly string[] = FIELDS;
 const type: PanelType = {
-  key: "clients", title: "Client", system: false, titleField: "name",
+  key: "clients",
+  title: "Client",
+  system: false,
+  titleField: "name",
   fields: FIELDS.map((k) => ({ key: k, title: k[0]!.toUpperCase() + k.slice(1), type: "text" })) as never,
 };
 const titles = (s: { key: string; title: string }[]): string[] => s.map((x) => `${x.key}:${x.title}`);
@@ -27,7 +30,10 @@ test("the first group turns the lone Details section into the Overview; the Over
   assert.deepEqual(normalize([], keys)[0]!.fields, [...FIELDS], "no layout at all: everything is ungrouped");
   const again = addGroup(first.sections, keys, "Billing");
   assert.equal(again.key, "billing_2", "a taken key gets the next free one");
-  assert.deepEqual(groupsIn(again.sections, keys).map((g) => g.key), ["billing", "billing_2"]);
+  assert.deepEqual(
+    groupsIn(again.sections, keys).map((g) => g.key),
+    ["billing", "billing_2"],
+  );
 });
 
 test("a field moves into a group and back; it is in one place at a time", () => {
@@ -39,9 +45,15 @@ test("a field moves into a group and back; it is in one place at a time", () => 
   assert.equal(groupOf(moved, keys, "email"), null);
   const other = addGroup(moved, keys, "Documents").sections;
   const again = moveField(other, keys, "value", "documents");
-  assert.deepEqual([again.find((s) => s.key === "billing")!.fields, again.find((s) => s.key === "documents")!.fields], [[], ["value"]]);
+  assert.deepEqual(
+    [again.find((s) => s.key === "billing")!.fields, again.find((s) => s.key === "documents")!.fields],
+    [[], ["value"]],
+  );
   const back = moveField(again, keys, "value", null);
-  assert.ok(back.find((s) => s.key === OVERVIEW)!.fields.includes("value") && back.every((s) => s.key === OVERVIEW || !s.fields.includes("value")));
+  assert.ok(
+    back.find((s) => s.key === OVERVIEW)!.fields.includes("value") &&
+      back.every((s) => s.key === OVERVIEW || !s.fields.includes("value")),
+  );
   assert.deepEqual(moveField(base, keys, "value", "nope"), base, "an unknown group changes nothing");
 });
 
@@ -59,27 +71,59 @@ test("rename keeps the key and the fields; delete sends the fields back to the O
 
 test("a dropped field no longer sits in a group", () => {
   const made = moveField(addGroup([], keys, "Billing").sections, keys, "value", "billing");
-  const left = normalize(made, keys.filter((k) => k !== "value"));
+  const left = normalize(
+    made,
+    keys.filter((k) => k !== "value"),
+  );
   assert.ok(left.every((s) => !s.fields.includes("value")));
 });
 
-function rig(layout: { key: string; title: string; fields: string[] }[], fail?: string): { calls: { cap: string; input: Record<string, unknown> }[]; el: ReturnType<typeof FieldsPanel> } {
+function rig(
+  layout: { key: string; title: string; fields: string[] }[],
+  fail?: string,
+): { calls: { cap: string; input: Record<string, unknown> }[]; el: ReturnType<typeof FieldsPanel> } {
   const calls: { cap: string; input: Record<string, unknown> }[] = [];
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input: input as Record<string, unknown> });
     if (fail && cap === "schema.layout.set") throw new Error(fail);
     return {};
   };
-  return { calls, el: <FieldsPanel call={call} type={type} hidden={[]} onToggleHidden={() => undefined} onClose={() => undefined} fieldTypes={[]} trash={[]} layout={layout} viewToggles={false} /> };
+  return {
+    calls,
+    el: (
+      <FieldsPanel
+        call={call}
+        type={type}
+        hidden={[]}
+        onToggleHidden={() => undefined}
+        onClose={() => undefined}
+        fieldTypes={[]}
+        trash={[]}
+        layout={layout}
+        viewToggles={false}
+      />
+    ),
+  };
 }
 async function open(el: React.ReactElement): Promise<{ root: Node; stop(): Promise<void> }> {
   const r = createRoot();
-  await act(async () => { r.render(el); });
+  await act(async () => {
+    r.render(el);
+  });
   await flush();
-  return { root: r.container as unknown as Node, stop: async () => { await act(async () => { r.unmount(); }); } };
+  return {
+    root: r.container as unknown as Node,
+    stop: async () => {
+      await act(async () => {
+        r.unmount();
+      });
+    },
+  };
 }
-const last = (calls: { cap: string; input: Record<string, unknown> }[]): { key: string; title: string; fields: string[] }[] =>
-  (calls.filter((c) => c.cap === "schema.layout.set").at(-1)!.input["sections"]) as never;
+const last = (
+  calls: { cap: string; input: Record<string, unknown> }[],
+): { key: string; title: string; fields: string[] }[] =>
+  calls.filter((c) => c.cap === "schema.layout.set").at(-1)!.input["sections"] as never;
 
 test("New group in the panel saves the layout with an Overview and the new group", async () => {
   const restore = installDom();
@@ -93,12 +137,18 @@ test("New group in the panel saves the layout with an Overview and the new group
     assert.deepEqual(titles(last(calls)), ["overview:Overview", "billing:Billing"]);
     assert.equal(calls.find((c) => c.cap === "schema.layout.set")!.input["type"], "clients");
     assert.match(textOf(find(o.root, "panel-groups")), /Billing\s*0 fields/);
-  } finally { await o.stop(); restore(); }
+  } finally {
+    await o.stop();
+    restore();
+  }
 });
 
 test("a field's Move to group puts it in the group, its row says so, and Ungrouped puts it back", async () => {
   const restore = installDom();
-  const { calls, el } = rig([{ key: "overview", title: "Overview", fields: ["name", "company", "email", "phone", "due"] }, { key: "billing", title: "Billing", fields: ["value"] }]);
+  const { calls, el } = rig([
+    { key: "overview", title: "Overview", fields: ["name", "company", "email", "phone", "due"] },
+    { key: "billing", title: "Billing", fields: ["value"] },
+  ]);
   const o = await open(el);
   try {
     assert.match(textOf(find(o.root, "panel-field-value")), /Billing/, "the row names its group");
@@ -113,12 +163,18 @@ test("a field's Move to group puts it in the group, its row says so, and Ungroup
     await flush();
     assert.deepEqual(last(calls).find((s) => s.key === "billing")!.fields, ["value"]);
     assert.ok(last(calls)[0]!.fields.includes("email"));
-  } finally { await o.stop(); restore(); }
+  } finally {
+    await o.stop();
+    restore();
+  }
 });
 
 test("rename and delete a group in the panel; deleting keeps its fields", async () => {
   const restore = installDom();
-  const { calls, el } = rig([{ key: "overview", title: "Overview", fields: ["name", "company"] }, { key: "billing", title: "Billing", fields: ["value", "due"] }]);
+  const { calls, el } = rig([
+    { key: "overview", title: "Overview", fields: ["name", "company"] },
+    { key: "billing", title: "Billing", fields: ["value", "due"] },
+  ]);
   const o = await open(el);
   try {
     await press(find(o.root, "panel-group-rename-billing"));
@@ -131,7 +187,10 @@ test("rename and delete a group in the panel; deleting keeps its fields", async 
     assert.deepEqual(titles(last(calls)), ["overview:Overview"]);
     assert.equal(last(calls)[0]!.fields.length, FIELDS.length, "the fields came back");
     assert.equal(find(o.root, "row-panel-group-billing"), null);
-  } finally { await o.stop(); restore(); }
+  } finally {
+    await o.stop();
+    restore();
+  }
 });
 
 test("a refused layout save says why and changes nothing on screen", async () => {
@@ -145,7 +204,10 @@ test("a refused layout save says why and changes nothing on screen", async () =>
     await flush();
     assert.match(textOf(find(o.root, "panel-group-error")), /denied/);
     assert.equal(find(o.root, "row-panel-group-billing"), null);
-  } finally { await o.stop(); restore(); }
+  } finally {
+    await o.stop();
+    restore();
+  }
 });
 
 test("with no group yet, Move to group says to make one first", async () => {
@@ -156,5 +218,8 @@ test("with no group yet, Move to group says to make one first", async () => {
     await press(find(o.root, "row-panel-field-email"));
     await press(find(o.root, "panel-group-move-email"));
     assert.ok(find(o.root, "panel-group-none"));
-  } finally { await o.stop(); restore(); }
+  } finally {
+    await o.stop();
+    restore();
+  }
 });

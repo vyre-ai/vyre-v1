@@ -40,7 +40,11 @@ export interface LiveLinkOptions {
   scheduler?: Scheduler;
 }
 
-export interface LiveLink { start(): void; stop(): void; status(): LiveStatus }
+export interface LiveLink {
+  start(): void;
+  stop(): void;
+  status(): LiveStatus;
+}
 
 /** ws(s)://host, the base the manager dials. */
 export function socketBase(baseUrl: string): string {
@@ -51,7 +55,8 @@ export function socketBase(baseUrl: string): string {
   return u.toString().replace(/\/$/, "");
 }
 
-export const socketPath = (base: string, ticket: string): string => `${base}/sync/v1/ws?ticket=${encodeURIComponent(ticket)}`;
+export const socketPath = (base: string, ticket: string): string =>
+  `${base}/sync/v1/ws?ticket=${encodeURIComponent(ticket)}`;
 
 /** The http(s) address behind a socket base, where the ticket is asked for. */
 const httpBase = (wsBase: string): string => wsBase.replace(/^ws/, "http");
@@ -66,7 +71,10 @@ interface SocketLike {
 }
 
 /** A WebSocket as the manager's Transport. Rejects when the socket cannot open. */
-export function webSocketDial(token: () => string | null, ticketFor: (baseUrl: string, token: string) => Promise<string> = liveTicket): Dial {
+export function webSocketDial(
+  token: () => string | null,
+  ticketFor: (baseUrl: string, token: string) => Promise<string> = liveTicket,
+): Dial {
   return async (ep, signal) => {
     const t = token();
     const WS = (globalThis as { WebSocket?: new (u: string) => SocketLike }).WebSocket;
@@ -82,30 +90,56 @@ function openSocket(ws: SocketLike, signal: AbortSignal): Promise<Transport> {
     const frames: ((f: unknown) => void)[] = [];
     const closes: ((reason: string) => void)[] = [];
     let opened = false;
-    const aborted = (): void => { try { ws.close(1000, "superseded"); } catch { /* closed */ } };
+    const aborted = (): void => {
+      try {
+        ws.close(1000, "superseded");
+      } catch {
+        /* closed */
+      }
+    };
     ws.onopen = () => {
       opened = true;
       signal.removeEventListener("abort", aborted);
       resolve({
         send: (f) => ws.send(JSON.stringify(f)),
-        close: (reason) => { try { ws.close(1000, reason); } catch { /* already closed */ } },
-        onFrame: (cb) => { frames.push(cb); },
-        onClose: (cb) => { closes.push(cb); },
+        close: (reason) => {
+          try {
+            ws.close(1000, reason);
+          } catch {
+            /* already closed */
+          }
+        },
+        onFrame: (cb) => {
+          frames.push(cb);
+        },
+        onClose: (cb) => {
+          closes.push(cb);
+        },
       });
     };
     ws.onmessage = (e) => {
       if (typeof e.data !== "string") return;
       let f: unknown;
-      try { f = JSON.parse(e.data); } catch { return; }
+      try {
+        f = JSON.parse(e.data);
+      } catch {
+        return;
+      }
       for (const cb of frames) cb(f);
     };
-    ws.onclose = () => { if (!opened) reject(new Error("closed before it opened")); for (const cb of closes) cb("closed"); };
-    ws.onerror = () => { /* onclose follows */ };
+    ws.onclose = () => {
+      if (!opened) reject(new Error("closed before it opened"));
+      for (const cb of closes) cb("closed");
+    };
+    ws.onerror = () => {
+      /* onclose follows */
+    };
     signal.addEventListener("abort", aborted, { once: true });
   });
 }
 
-const toLive = (s: Status): LiveStatus => (s === "live" ? "live" : s === "connecting" || s === "reconnecting" ? "connecting" : "offline");
+const toLive = (s: Status): LiveStatus =>
+  s === "live" ? "live" : s === "connecting" || s === "reconnecting" ? "connecting" : "offline";
 
 export function createLiveLink(o: LiveLinkOptions): LiveLink {
   let status: LiveStatus = "offline";
@@ -114,7 +148,12 @@ export function createLiveLink(o: LiveLinkOptions): LiveLink {
   let epoch = o.epoch ?? 0;
   let trusted = o.epoch !== undefined;
   let adopted = false;
-  const set = (s: LiveStatus): void => { if (s !== status) { status = s; o.onStatus?.(s); } };
+  const set = (s: LiveStatus): void => {
+    if (s !== status) {
+      status = s;
+      o.onStatus?.(s);
+    }
+  };
 
   const link: LiveLink = {
     start() {
@@ -123,14 +162,32 @@ export function createLiveLink(o: LiveLinkOptions): LiveLink {
         space: o.baseUrl,
         endpoints: [endpoint("direct", socketBase(o.baseUrl))],
         dial: o.dial ?? webSocketDial(o.token),
-        hello: () => ({ deviceId: o.deviceId, deviceClass: "web", appVersion: o.appVersion ?? "0.0.0", registryHash: o.registryHash, epoch, replica: { entities: {} } }),
-        cursor: { get: () => cursor, set: (n) => { cursor = n; } },
-        apply: (batch) => { o.onChange(batch.seq); },
+        hello: () => ({
+          deviceId: o.deviceId,
+          deviceClass: "web",
+          appVersion: o.appVersion ?? "0.0.0",
+          registryHash: o.registryHash,
+          epoch,
+          replica: { entities: {} },
+        }),
+        cursor: {
+          get: () => cursor,
+          set: (n) => {
+            cursor = n;
+          },
+        },
+        apply: (batch) => {
+          o.onChange(batch.seq);
+        },
         ...(o.scheduler ? { scheduler: o.scheduler } : {}),
         on: {
           status: (s) => set(toLive(s)),
           // the server's bare "something changed" tick for what the sync feed does not carry (chat, notifications, tasks, counts): re-read what is on screen
-          frame: (f) => { const t = f as { t?: unknown; seq?: unknown }; if (t.t === "changed" && typeof t.seq === "number") o.onChange(t.seq); else if (t.t === "turn") o.onTurn?.(f); },
+          frame: (f) => {
+            const t = f as { t?: unknown; seq?: unknown };
+            if (t.t === "changed" && typeof t.seq === "number") o.onChange(t.seq);
+            else if (t.t === "turn") o.onTurn?.(f);
+          },
           purge: (e) => {
             // Adopt only when all three hold: no agreed epoch yet, an empty local replica (cursor 0, nothing held) and this is the first hello of this session. Anything else is a real purge.
             if (!trusted && !adopted && cursor === 0 && !(o.hasLocalData?.() ?? false)) {
@@ -141,7 +198,10 @@ export function createLiveLink(o: LiveLinkOptions): LiveLink {
               o.onEpoch?.(e);
               const old = conn;
               conn = null;
-              queueMicrotask(() => { old?.stop(); restart(); });
+              queueMicrotask(() => {
+                old?.stop();
+                restart();
+              });
               return;
             }
             o.onPurge?.(e);

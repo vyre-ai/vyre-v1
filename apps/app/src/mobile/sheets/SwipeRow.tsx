@@ -8,27 +8,56 @@ import { menuTrigger, useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 import { swipeOffset, swipeRest } from "../shell/model.ts";
 
-export interface SwipeAction { key: string; label: string; tone?: "accent" | "warn" | "plain"; onPress: () => void }
+export interface SwipeAction {
+  key: string;
+  label: string;
+  tone?: "accent" | "warn" | "plain";
+  onPress: () => void;
+}
 
 const ACTION_W = 76;
 
-export function SwipeRow({ actions, children, testID }: { actions: readonly SwipeAction[]; children: ReactNode; testID?: string }): ReactElement {
+export function SwipeRow({
+  actions,
+  children,
+  testID,
+}: {
+  actions: readonly SwipeAction[];
+  children: ReactNode;
+  testID?: string;
+}): ReactElement {
   const width = actions.length * ACTION_W;
   const menu = useMenu();
   const [offset, setOffset] = useState(0);
   const openRef = useRef(false);
-  const settle = (rest: "open" | "closed"): void => { openRef.current = rest === "open"; setOffset(rest === "open" ? -width : 0); };
-  const pan = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
-    onPanResponderMove: (_e, g) => setOffset(swipeOffset(g.dx, width, openRef.current)),
-    onPanResponderRelease: (_e, g) => settle(swipeRest(g.dx, width, openRef.current)),
-    onPanResponderTerminate: () => settle(openRef.current ? "open" : "closed"),
-  }), [width]);
+  const settle = (rest: "open" | "closed"): void => {
+    openRef.current = rest === "open";
+    setOffset(rest === "open" ? -width : 0);
+  };
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+        onPanResponderMove: (_e, g) => setOffset(swipeOffset(g.dx, width, openRef.current)),
+        onPanResponderRelease: (_e, g) => settle(swipeRest(g.dx, width, openRef.current)),
+        onPanResponderTerminate: () => settle(openRef.current ? "open" : "closed"),
+      }),
+    [width],
+  );
   const buttons: ReactElement[] = [];
   for (const a of actions) {
     buttons.push(
-      <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.label} testID={`swipe-action-${a.key}`} onPress={() => { a.onPress(); settle("closed"); }}
-        style={[st.action, a.tone === "accent" && st.accent, a.tone === "warn" && st.warn]}>
+      <Pressable
+        key={a.key}
+        accessibilityRole="button"
+        accessibilityLabel={a.label}
+        testID={`swipe-action-${a.key}`}
+        onPress={() => {
+          a.onPress();
+          settle("closed");
+        }}
+        style={[st.action, a.tone === "accent" && st.accent, a.tone === "warn" && st.warn]}
+      >
         <Text style={[st.actionText, a.tone && a.tone !== "plain" && st.actionTextOn]}>{a.label}</Text>
       </Pressable>,
     );
@@ -37,10 +66,18 @@ export function SwipeRow({ actions, children, testID }: { actions: readonly Swip
   const entries: MenuEntry[] = [];
   for (const a of actions) entries.push({ label: a.label, onSelect: a.onPress });
   return (
-    <View testID={testID} style={st.wrap} {...menuTrigger((x, y) => menu.show(entries, x, y, "context", { label: "Row actions" }))}>
-      <View testID="swipe-actions" style={[st.actions, { width }]}>{buttons}</View>
+    <View
+      testID={testID}
+      style={st.wrap}
+      {...menuTrigger((x, y) => menu.show(entries, x, y, "context", { label: "Row actions" }))}
+    >
+      <View testID="swipe-actions" style={[st.actions, { width }]}>
+        {buttons}
+      </View>
       {menu.element}
-      <View testID="swipe-front" style={[st.front, { transform: [{ translateX: offset }] }]} {...pan.panHandlers}>{children}</View>
+      <View testID="swipe-front" style={[st.front, { transform: [{ translateX: offset }] }]} {...pan.panHandlers}>
+        {children}
+      </View>
     </View>
   );
 }

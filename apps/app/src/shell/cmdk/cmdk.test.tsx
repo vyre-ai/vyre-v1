@@ -5,21 +5,34 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CmdKBody } from "./CmdK.tsx";
 import { CmdKController } from "./controller.ts";
-import {
-  FILTERS, effectiveTypes, filterCounts, groupRows, mergeHits, parseQuery, stepActive,
-} from "./model.ts";
+import { FILTERS, effectiveTypes, filterCounts, groupRows, mergeHits, parseQuery, stepActive } from "./model.ts";
 import type { Hit } from "./model.ts";
 import { ACTIONS, LOCAL_HITS, SERVER_HITS, createSampleData } from "./sample.ts";
 import { KEYBOARD_MAP, formatCombo, keyboardRows, matchShortcut } from "../keyboard/map.ts";
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 /** Waits for what the test needs to be true, not for a guessed time: a timer can fire late on a busy machine, so a fixed sleep is flaky. */
-const until = async (cond: () => boolean, ms = 5000): Promise<void> => { const t = Date.now(); while (!cond()) { if (Date.now() - t > ms) throw new Error("timed out waiting for the search to settle"); await wait(5); } };
-const titles = (c: CmdKController): string[] => c.getState().rows.flatMap((r) => (r.type === "hit" ? [r.hit.title] : r.type === "action" ? [r.action.title] : r.type === "skin" ? [r.name] : []));
+const until = async (cond: () => boolean, ms = 5000): Promise<void> => {
+  const t = Date.now();
+  while (!cond()) {
+    if (Date.now() - t > ms) throw new Error("timed out waiting for the search to settle");
+    await wait(5);
+  }
+};
+const titles = (c: CmdKController): string[] =>
+  c
+    .getState()
+    .rows.flatMap((r) =>
+      r.type === "hit" ? [r.hit.title] : r.type === "action" ? [r.action.title] : r.type === "skin" ? [r.name] : [],
+    );
 
 test("prefixes route to kinds: @ people and agents, # chats and records, / files, > actions", () => {
   assert.deepEqual(parseQuery("@ma"), { prefix: "@", text: "ma", types: ["person", "agent"] });
-  assert.deepEqual(parseQuery("  # renewal"), { prefix: "#", text: "renewal", types: ["chat", "channel", "record", "task"] });
+  assert.deepEqual(parseQuery("  # renewal"), {
+    prefix: "#",
+    text: "renewal",
+    types: ["chat", "channel", "record", "task"],
+  });
   assert.deepEqual(parseQuery("/ref"), { prefix: "/", text: "ref", types: ["file"] });
   assert.deepEqual(parseQuery(">skin"), { prefix: ">", text: "skin", types: null });
   assert.deepEqual(parseQuery("referral @ home"), { prefix: null, text: "referral @ home", types: null });
@@ -35,13 +48,32 @@ test("a prefix and a type filter together keep only the kinds both allow", () =>
 });
 
 test("merge: local rows keep their order and place; server hits follow, best score first; no duplicates", () => {
-  const merged = mergeHits(LOCAL_HITS.filter((h) => /referral/i.test(h.title + (h.snippet ?? ""))), SERVER_HITS);
+  const merged = mergeHits(
+    LOCAL_HITS.filter((h) => /referral/i.test(h.title + (h.snippet ?? ""))),
+    SERVER_HITS,
+  );
   const local = LOCAL_HITS.filter((h) => /referral/i.test(h.title + (h.snippet ?? ""))).map((h) => h.id);
-  assert.deepEqual(merged.slice(0, local.length).map((h) => h.id), local, "every local row is still first and in order");
+  assert.deepEqual(
+    merged.slice(0, local.length).map((h) => h.id),
+    local,
+    "every local row is still first and in order",
+  );
   const extra = merged.slice(local.length);
-  assert.deepEqual(extra.map((h) => h.id), ["fi_refpolicy", "rec_refpartner", "cn_refer"], "server-only hits by score");
-  assert.equal(new Set(merged.map((h) => `${h.kind}:${h.id}`)).size, merged.length, "the record the device and the server both hold shows once");
-  assert.match(merged.find((h) => h.id === "rec_reflog")?.snippet ?? "", /Record, 41 rows/, "the device's own row text is kept");
+  assert.deepEqual(
+    extra.map((h) => h.id),
+    ["fi_refpolicy", "rec_refpartner", "cn_refer"],
+    "server-only hits by score",
+  );
+  assert.equal(
+    new Set(merged.map((h) => `${h.kind}:${h.id}`)).size,
+    merged.length,
+    "the record the device and the server both hold shows once",
+  );
+  assert.match(
+    merged.find((h) => h.id === "rec_reflog")?.snippet ?? "",
+    /Record, 41 rows/,
+    "the device's own row text is kept",
+  );
 });
 
 test("merge: a server hit only fills a snippet the device row lacks", () => {
@@ -51,9 +83,18 @@ test("merge: a server hit only fills a snippet the device row lacks", () => {
 });
 
 test("groups follow a fixed order and each is capped", () => {
-  const many: Hit[] = Array.from({ length: 9 }, (_, i) => ({ kind: "file", id: `f${i}`, title: `File ${i}`, link: "x", score: 1 }));
+  const many: Hit[] = Array.from({ length: 9 }, (_, i) => ({
+    kind: "file",
+    id: `f${i}`,
+    title: `File ${i}`,
+    link: "x",
+    score: 1,
+  }));
   const rows = groupRows([...many, LOCAL_HITS[0] as Hit], 6);
-  assert.deepEqual(rows.filter((r) => r.type === "head").map((r) => r.type === "head" && r.title), ["Agents", "Files"]);
+  assert.deepEqual(
+    rows.filter((r) => r.type === "head").map((r) => r.type === "head" && r.title),
+    ["Agents", "Files"],
+  );
   assert.equal(rows.filter((r) => r.type === "hit").length, 7);
 });
 
@@ -62,7 +103,10 @@ test("local results never wait on the server; the server hits merge in when they
   const c = new CmdKController(data);
   c.setRaw("referral");
   const first = titles(c);
-  assert.ok(first.includes("Referral fee log") && first.includes("Referral agreement.pdf"), "local rows are drawn in the same task as the keystroke");
+  assert.ok(
+    first.includes("Referral fee log") && first.includes("Referral agreement.pdf"),
+    "local rows are drawn in the same task as the keystroke",
+  );
   assert.ok(!first.includes("Referral policy 2026.docx"));
   assert.equal(c.getState().serverStatus, "loading");
   await until(() => c.getState().serverStatus === "done");
@@ -70,7 +114,11 @@ test("local results never wait on the server; the server hits merge in when they
   assert.equal(c.getState().serverStatus, "done");
   assert.ok(after.includes("Referral policy 2026.docx") && after.includes("#referrals"));
   const filesBefore = first.filter((t) => /\.(pdf|docx)$/.test(t));
-  assert.deepEqual(after.filter((t) => filesBefore.includes(t)), filesBefore, "local file rows keep their order");
+  assert.deepEqual(
+    after.filter((t) => filesBefore.includes(t)),
+    filesBefore,
+    "local file rows keep their order",
+  );
   c.dispose();
 });
 
@@ -96,16 +144,23 @@ test("offline or device scope searches the replica only and says so", () => {
   const phone = new CmdKController(createSampleData({ scope: "device" }).data);
   phone.setRaw("referral");
   assert.match(renderToStaticMarkup(<CmdKBody controller={phone} autoFocus={false} />), /this device only/i);
-  c.dispose(); phone.dispose();
+  c.dispose();
+  phone.dispose();
 });
 
 test("nothing typed and nothing recent draws the field alone; No results is only for a search that found nothing", () => {
   const { data } = createSampleData();
   const c = new CmdKController({ ...data, recent: () => [], local: () => [], server: async () => [] });
   assert.deepEqual(c.getState().rows, [], "not a search yet: nothing to say");
-  assert.doesNotMatch(renderToStaticMarkup(<CmdKBody controller={c} autoFocus={false} />), /data-testid="cmdk-list"|No results/);
+  assert.doesNotMatch(
+    renderToStaticMarkup(<CmdKBody controller={c} autoFocus={false} />),
+    /data-testid="cmdk-list"|No results/,
+  );
   c.setRaw("zzzz");
-  assert.deepEqual(c.getState().rows.map((r) => r.type), ["empty"]);
+  assert.deepEqual(
+    c.getState().rows.map((r) => r.type),
+    ["empty"],
+  );
   assert.match(renderToStaticMarkup(<CmdKBody controller={c} autoFocus={false} />), /No results/);
   c.dispose();
 });
@@ -120,7 +175,10 @@ test("before typing the sheet shows Recent; @ browses people and agents; > lists
   assert.ok(!titles(c).includes("Referral fee log"));
   c.setRaw(">");
   assert.deepEqual(heads(), ["Actions"]);
-  assert.deepEqual(titles(c), ACTIONS.map((a) => a.title));
+  assert.deepEqual(
+    titles(c),
+    ACTIONS.map((a) => a.title),
+  );
   c.setRaw(">call");
   assert.deepEqual(titles(c), ["Call Elena"]);
   c.setRaw("zzzz");
@@ -161,7 +219,11 @@ test("arrows skip headings and wrap; Home and End land on the first and last row
 test("Enter opens in place, Cmd-Enter in a new tab, both note the open under Recent; Esc closes", () => {
   const { data, calls } = createSampleData();
   let closed = 0;
-  const c = new CmdKController(data, { onClose: () => { closed += 1; } });
+  const c = new CmdKController(data, {
+    onClose: () => {
+      closed += 1;
+    },
+  });
   c.setRaw("referral fee");
   c.choose();
   assert.deepEqual(calls.opened, [{ id: "rec_reflog", newTab: false }]);
@@ -171,10 +233,16 @@ test("Enter opens in place, Cmd-Enter in a new tab, both note the open under Rec
   d.setRaw("referral agreement");
   d.choose(d.getState().active, true);
   assert.deepEqual(calls.opened[1], { id: "fi_refagr", newTab: true });
-  const e = new CmdKController(data, { onClose: () => { closed += 1; } });
+  const e = new CmdKController(data, {
+    onClose: () => {
+      closed += 1;
+    },
+  });
   e.close();
   assert.equal(closed, 2);
-  c.dispose(); d.dispose(); e.dispose();
+  c.dispose();
+  d.dispose();
+  e.dispose();
 });
 
 test("right-click actions: Copy Link copies the item's source link", () => {
@@ -211,14 +279,19 @@ test("Switch skin previews each skin as you arrow through; Esc restores yours; E
   e.choose();
   assert.equal(k.calls.setSkins.length, 1);
   assert.equal(k.calls.previews.at(-1), null, "the preview ends before the skin is kept");
-  c.dispose(); e.dispose();
+  c.dispose();
+  e.dispose();
 });
 
 test("keyboard map: Cmd-K, Cmd-T, Cmd-1..9, Shift-Cmd-1..3, Cmd-D, Cmd-Shift-K, Cmd-F, Alt-Down", () => {
   const mac = (e: Parameters<typeof matchShortcut>[0]) => matchShortcut(e, "mac");
   assert.deepEqual(mac({ key: "k", metaKey: true }), { id: "cmdk.open" });
   assert.deepEqual(mac({ key: "K", metaKey: true }), { id: "cmdk.open" });
-  assert.equal(matchShortcut({ key: "k", metaKey: true }, "mac", { inTerminal: true }), null, "Cmd-K clears a terminal");
+  assert.equal(
+    matchShortcut({ key: "k", metaKey: true }, "mac", { inTerminal: true }),
+    null,
+    "Cmd-K clears a terminal",
+  );
   assert.deepEqual(mac({ key: "t", metaKey: true }), { id: "tab.new" });
   assert.deepEqual(mac({ key: "4", metaKey: true }), { id: "agent.jump", arg: 4 });
   assert.deepEqual(mac({ key: "!", code: "Digit1", metaKey: true, shiftKey: true }), { id: "space.switch", arg: 1 });
@@ -257,8 +330,16 @@ test("the sheet renders the search field, a filter menu button, quiet group head
   for (const h of ["Chats", "Records", "Files", "Automations"]) assert.ok(html.includes(`>${h}<`), `group ${h}`);
   assert.match(html, /data-testid="row-hit-file:fi_refpolicy"/, "a server-only hit is a shared Row");
   assert.match(html, /data-testid="row-hit-record:rec_reflog"/);
-  assert.equal((html.match(/background-color:var\(--accent\)/g) ?? []).length, 1, "exactly one row carries the accent fill (ruling 82: the palette keeps the prototype's accent-filled selected row)");
-  assert.equal((html.match(/aria-selected="true"/g) ?? []).length, 1, "and it is the one the option role marks selected");
+  assert.equal(
+    (html.match(/background-color:var\(--accent\)/g) ?? []).length,
+    1,
+    "exactly one row carries the accent fill (ruling 82: the palette keeps the prototype's accent-filled selected row)",
+  );
+  assert.equal(
+    (html.match(/aria-selected="true"/g) ?? []).length,
+    1,
+    "and it is the one the option role marks selected",
+  );
   assert.match(html, /to move/);
   assert.match(html, /new tab/);
   assert.ok(!/border-radius:999px|pill/i.test(html), "no pill chips");
@@ -268,13 +349,32 @@ test("the sheet renders the search field, a filter menu button, quiet group head
 test("one row per thing, no raw [ ] marks, no group name repeated on the row (polish audit L15)", async () => {
   const { groupRows, plainMarks } = await import("./model.ts");
   assert.equal(plainMarks("Review the [launch] post"), "Review the launch post");
-  const hit = (kind: string, id: string, title: string, snippet?: string) => ({ kind, id, title, ...(snippet ? { snippet } : {}), score: 1, link: `vyre://${kind}/${id}` }) as never;
-  const rows = groupRows([hit("chat", "thr_1", "Launch page live by Friday"), hit("chat", "msg_9", "Launch page live by Friday", "Review the [launch] post"), hit("channel", "chn_1", "launch")], 8);
+  const hit = (kind: string, id: string, title: string, snippet?: string) =>
+    ({ kind, id, title, ...(snippet ? { snippet } : {}), score: 1, link: `vyre://${kind}/${id}` }) as never;
+  const rows = groupRows(
+    [
+      hit("chat", "thr_1", "Launch page live by Friday"),
+      hit("chat", "msg_9", "Launch page live by Friday", "Review the [launch] post"),
+      hit("channel", "chn_1", "launch"),
+    ],
+    8,
+  );
   const hits = rows.filter((r) => r.type === "hit") as { type: "hit"; hit: { title: string; snippet?: string } }[];
   assert.equal(hits.length, 2, "the chat once, the channel once");
-  assert.equal(hits[0]!.hit.snippet, "Review the launch post", "the later hit's snippet fills the row, without the marks");
-  const both = groupRows([hit("chat", "thr_9", "launch", "Review the [launch] post"), hit("channel", "chn_9", "launch")], 8).filter((r) => r.type === "hit") as { hit: { kind: string; snippet?: string } }[];
-  assert.deepEqual(both.map((r) => r.hit.kind), ["channel"], "a channel's own thread is not a second row beside the channel");
+  assert.equal(
+    hits[0]!.hit.snippet,
+    "Review the launch post",
+    "the later hit's snippet fills the row, without the marks",
+  );
+  const both = groupRows(
+    [hit("chat", "thr_9", "launch", "Review the [launch] post"), hit("channel", "chn_9", "launch")],
+    8,
+  ).filter((r) => r.type === "hit") as { hit: { kind: string; snippet?: string } }[];
+  assert.deepEqual(
+    both.map((r) => r.hit.kind),
+    ["channel"],
+    "a channel's own thread is not a second row beside the channel",
+  );
   assert.equal(both[0]!.hit.snippet, "Review the launch post");
 });
 

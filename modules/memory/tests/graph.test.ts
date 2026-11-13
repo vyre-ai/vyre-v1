@@ -4,12 +4,32 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { classify, graph, graphEverything, graphExport, indexGraph, layoutGet, layoutSave } from "../handlers/graph.ts";
 import { pointer, readNote } from "../handlers/facts.ts";
-import { asPerson, assertEventsConform, codeOf, contractErrors, DAY, harness, NOW, seedFact } from "../fixtures/harness.ts";
+import {
+  asPerson,
+  assertEventsConform,
+  codeOf,
+  contractErrors,
+  DAY,
+  harness,
+  NOW,
+  seedFact,
+} from "../fixtures/harness.ts";
 import type { Harness, Responder } from "../fixtures/harness.ts";
 
-interface F { folder: string; name: string; text: string; owner?: string; created?: number; deleted?: boolean }
+interface F {
+  folder: string;
+  name: string;
+  text: string;
+  owner?: string;
+  created?: number;
+  deleted?: boolean;
+}
 const FOLDERS: Record<string, string> = {
-  fld_notes: "Agents/Intake/memory/notes", fld_harlow: "Projects/Harlow/memory", fld_space: "Knowledge/Memory", fld_priv: "People/Dana/memory/Intake", fld_docs: "Documents",
+  fld_notes: "Agents/Intake/memory/notes",
+  fld_harlow: "Projects/Harlow/memory",
+  fld_space: "Knowledge/Memory",
+  fld_priv: "People/Dana/memory/Intake",
+  fld_docs: "Documents",
 };
 
 function setup(files: Record<string, F>, extra: Record<string, Responder> = {}) {
@@ -17,7 +37,18 @@ function setup(files: Record<string, F>, extra: Record<string, Responder> = {}) 
     "files.get": (i) => {
       const f = files[String(i["fileId"])];
       if (!f) throw new Error("no such file");
-      return { file: { fileId: i["fileId"], folderId: f.folder, name: f.name, ownerId: f.owner ?? "usr_dana", createdAt: f.created ?? NOW - DAY, updatedAt: NOW, kind: "markdown", ...(f.deleted ? { deletedAt: NOW } : {}) } };
+      return {
+        file: {
+          fileId: i["fileId"],
+          folderId: f.folder,
+          name: f.name,
+          ownerId: f.owner ?? "usr_dana",
+          createdAt: f.created ?? NOW - DAY,
+          updatedAt: NOW,
+          kind: "markdown",
+          ...(f.deleted ? { deletedAt: NOW } : {}),
+        },
+      };
     },
     "files.folder.get": (i) => ({ folder: { path: FOLDERS[String(i["folderId"])] ?? "Elsewhere" } }),
     "files.read": (i) => ({ text: files[String(i["fileId"])]?.text ?? "" }),
@@ -27,8 +58,12 @@ function setup(files: Record<string, F>, extra: Record<string, Responder> = {}) 
     "projects.get": () => ({ project: { folderId: "fld_harlow_proj", lead: "usr_lead" } }),
     "records.get": (i) => {
       const id = String(i["recordId"]);
-      if (id === "rec_acme") return { record: { id, type: "client", fields: { name: "Acme", owner: "rec_dana" }, createdAt: NOW - 2 * DAY } };
-      if (id === "rec_dana") return { record: { id, type: "person", fields: { name: "Dana" }, createdAt: NOW - 2 * DAY } };
+      if (id === "rec_acme")
+        return {
+          record: { id, type: "client", fields: { name: "Acme", owner: "rec_dana" }, createdAt: NOW - 2 * DAY },
+        };
+      if (id === "rec_dana")
+        return { record: { id, type: "person", fields: { name: "Dana" }, createdAt: NOW - 2 * DAY } };
       throw new Error("no such record");
     },
     "threads.get": () => ({ thread: { title: "Kickoff", createdAt: NOW - 3 * DAY } }),
@@ -49,17 +84,32 @@ const FILES: Record<string, F> = {
 
 async function indexAll(h: Harness): Promise<void> {
   let seq = 1;
-  for (const id of ["fil_clients", "fil_esc", "fil_harlow", "fil_space", "fil_lonely", "fil_priv", "fil_other"]) await indexGraph(h.ctx, { entity: "file", id, seq: seq++ });
+  for (const id of ["fil_clients", "fil_esc", "fil_harlow", "fil_space", "fil_lonely", "fil_priv", "fil_other"])
+    await indexGraph(h.ctx, { entity: "file", id, seq: seq++ });
   await indexGraph(h.ctx, { entity: "record:client", id: "rec_acme", seq: 1 });
   await indexGraph(h.ctx, { entity: "record:person", id: "rec_dana", seq: 1 });
   await indexGraph(h.ctx, { entity: "chat", id: "thr_one", seq: 1 });
-  seedFact(h, { id: "fct_cf", layer: "agent", agentId: "agt_intake", noteId: "not_clients", text: "Acme is our oldest client", sourceKind: "record", sourceRef: "rec_acme" });
+  seedFact(h, {
+    id: "fct_cf",
+    layer: "agent",
+    agentId: "agt_intake",
+    noteId: "not_clients",
+    text: "Acme is our oldest client",
+    sourceKind: "record",
+    sourceRef: "rec_acme",
+  });
 }
 
 const ids = (g: { nodes: Array<{ nodeId: string }> }): string[] => g.nodes.map((n) => n.nodeId).sort();
 
 test("a file's folder tells which layer its note is in, and personal and non-memory files are not memory graph material", () => {
-  assert.deepEqual(classify("Agents/Intake/memory/notes/Clients.md"), { layer: "agent", area: "notes", agentName: "Intake", projectName: null, personFolder: null });
+  assert.deepEqual(classify("Agents/Intake/memory/notes/Clients.md"), {
+    layer: "agent",
+    area: "notes",
+    agentName: "Intake",
+    projectName: null,
+    personFolder: null,
+  });
   assert.equal(classify("Agents/Intake/memory/proposed/x.md")?.area, "proposed");
   assert.equal(classify("Agents/Intake/memory/MAP.md")?.area, "notes");
   assert.equal(classify("Projects/Harlow/memory/Plan.md")?.layer, "project");
@@ -76,13 +126,26 @@ test("indexing builds nodes and resolves [[links]] in either order", async () =>
   assert.deepEqual(await indexGraph(h.ctx, { entity: "file", id: "fil_harlow", seq: 1 }), { nodes: 1, edges: 1 });
   assert.deepEqual(await indexGraph(h.ctx, { entity: "file", id: "fil_space", seq: 1 }), { nodes: 1, edges: 1 });
   assert.deepEqual(await indexGraph(h.ctx, { entity: "file", id: "fil_lonely", seq: 1 }), { nodes: 1, edges: 0 });
-  const edges = h.rows("SELECT from_id, to_id, kind FROM memory_graph_edges ORDER BY from_id, to_id").map((r) => `${r["from_id"]}>${r["to_id"]}:${r["kind"]}`);
+  const edges = h
+    .rows("SELECT from_id, to_id, kind FROM memory_graph_edges ORDER BY from_id, to_id")
+    .map((r) => `${r["from_id"]}>${r["to_id"]}:${r["kind"]}`);
   assert.deepEqual(edges, [
-    "note:fil_clients>note:fil_esc:link", "note:fil_clients>note:fil_harlow:link", "note:fil_esc>note:fil_clients:link", "note:fil_space>note:fil_clients:link",
+    "note:fil_clients>note:fil_esc:link",
+    "note:fil_clients>note:fil_harlow:link",
+    "note:fil_esc>note:fil_clients:link",
+    "note:fil_space>note:fil_clients:link",
   ]);
-  const note = h.rows("SELECT layer, owner_ref, agent_id, project_id, title, area FROM memory_notes WHERE file_id = 'fil_harlow'")[0]!;
-  assert.deepEqual([note["layer"], note["owner_ref"], note["project_id"], note["title"], note["area"]], ["project", "prj_harlow", "prj_harlow", "Harlow", "notes"]);
-  assert.equal(h.rows("SELECT agent_id FROM memory_notes WHERE file_id = 'fil_clients'")[0]?.["agent_id"], "agt_intake");
+  const note = h.rows(
+    "SELECT layer, owner_ref, agent_id, project_id, title, area FROM memory_notes WHERE file_id = 'fil_harlow'",
+  )[0]!;
+  assert.deepEqual(
+    [note["layer"], note["owner_ref"], note["project_id"], note["title"], note["area"]],
+    ["project", "prj_harlow", "prj_harlow", "Harlow", "notes"],
+  );
+  assert.equal(
+    h.rows("SELECT agent_id FROM memory_notes WHERE file_id = 'fil_clients'")[0]?.["agent_id"],
+    "agt_intake",
+  );
 });
 
 test("the same or an older sequence number does nothing and asks nothing", async () => {
@@ -119,25 +182,55 @@ test("a deleted file, a missing file and a file outside memory leave no node", a
   assert.deepEqual(await indexGraph(h.ctx, { entity: "file", id: "fil_missing", seq: 1 }), { nodes: 0, edges: 0 });
   assert.deepEqual(await indexGraph(h.ctx, { entity: "file", id: "fil_other", seq: 1 }), { nodes: 0, edges: 0 });
   assert.equal(h.rows("SELECT node_id FROM memory_graph_nodes").length, 0);
-  await assert.rejects(() => indexGraph(h.ctx, { entity: "email", id: "x", seq: 1 }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(() => indexGraph(h.ctx, { entity: "record", id: "rec_acme", seq: 1 }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    () => indexGraph(h.ctx, { entity: "email", id: "x", seq: 1 }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  await assert.rejects(
+    () => indexGraph(h.ctx, { entity: "record", id: "rec_acme", seq: 1 }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
 });
 
 test("records and chats become nodes, record relations become edges, and the kind follows the record type", async () => {
   const h = setup(FILES);
-  assert.deepEqual(await indexGraph(h.ctx, { entity: "record:client", id: "rec_acme", seq: 1 }), { nodes: 1, edges: 1 });
-  assert.deepEqual(await indexGraph(h.ctx, { entity: "record:person", id: "rec_dana", seq: 1 }), { nodes: 1, edges: 0 });
+  assert.deepEqual(await indexGraph(h.ctx, { entity: "record:client", id: "rec_acme", seq: 1 }), {
+    nodes: 1,
+    edges: 1,
+  });
+  assert.deepEqual(await indexGraph(h.ctx, { entity: "record:person", id: "rec_dana", seq: 1 }), {
+    nodes: 1,
+    edges: 0,
+  });
   assert.deepEqual(await indexGraph(h.ctx, { entity: "thread", id: "thr_one", seq: 1 }), { nodes: 1, edges: 0 });
-  const kinds = Object.fromEntries(h.rows("SELECT node_id, kind, title, res_type FROM memory_graph_nodes").map((r) => [r["node_id"], `${r["kind"]}:${r["title"]}:${r["res_type"]}`]));
-  assert.deepEqual(kinds, { "record:rec_acme": "client:Acme:record", "record:rec_dana": "person:Dana:record", "chat:thr_one": "chat:Kickoff:thread" });
-  assert.deepEqual(await indexGraph(h.ctx, { entity: "record:client", id: "rec_gone", seq: 1 }), { nodes: 0, edges: 0 });
+  const kinds = Object.fromEntries(
+    h
+      .rows("SELECT node_id, kind, title, res_type FROM memory_graph_nodes")
+      .map((r) => [r["node_id"], `${r["kind"]}:${r["title"]}:${r["res_type"]}`]),
+  );
+  assert.deepEqual(kinds, {
+    "record:rec_acme": "client:Acme:record",
+    "record:rec_dana": "person:Dana:record",
+    "chat:thr_one": "chat:Kickoff:thread",
+  });
+  assert.deepEqual(await indexGraph(h.ctx, { entity: "record:client", id: "rec_gone", seq: 1 }), {
+    nodes: 0,
+    edges: 0,
+  });
 });
 
 test("an agent's graph holds its notes, the project and Space notes, and what they touch; clusters are named after their hub", async () => {
   const h = setup(FILES);
   await indexAll(h);
   const g = await graph(h.ctx, { scope: "agent", agentId: "agt_intake" });
-  assert.deepEqual(ids(g), ["note:fil_clients", "note:fil_esc", "note:fil_harlow", "note:fil_lonely", "note:fil_space", "record:rec_acme"]);
+  assert.deepEqual(ids(g), [
+    "note:fil_clients",
+    "note:fil_esc",
+    "note:fil_harlow",
+    "note:fil_lonely",
+    "note:fil_space",
+    "record:rec_acme",
+  ]);
   assert.deepEqual(contractErrors("memory.graph", "out", g), []);
   assert.deepEqual(g.clusters, [{ name: "Clients", hub: "note:fil_clients", size: 5 }]);
   const byId = Object.fromEntries(g.nodes.map((n) => [n.nodeId, n]));
@@ -155,14 +248,26 @@ test("an agent's graph holds its notes, the project and Space notes, and what th
   assert.ok(!JSON.stringify(g).includes("Travel"));
   // The same input gives the same picture.
   assert.deepEqual(await graph(h.ctx, { scope: "agent", agentId: "agt_intake" }), g);
-  await assert.rejects(() => graph(h.ctx, { scope: "agent" }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    () => graph(h.ctx, { scope: "agent" }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
 });
 
 test("the Space graph adds everything, records and chats included", async () => {
   const h = setup(FILES);
   await indexAll(h);
   const g = await graph(h.ctx, { scope: "space" });
-  assert.deepEqual(ids(g), ["chat:thr_one", "note:fil_clients", "note:fil_esc", "note:fil_harlow", "note:fil_lonely", "note:fil_space", "record:rec_acme", "record:rec_dana"]);
+  assert.deepEqual(ids(g), [
+    "chat:thr_one",
+    "note:fil_clients",
+    "note:fil_esc",
+    "note:fil_harlow",
+    "note:fil_lonely",
+    "note:fil_space",
+    "record:rec_acme",
+    "record:rec_dana",
+  ]);
   assert.deepEqual(g.clusters, [{ name: "Clients", hub: "note:fil_clients", size: 6 }]);
   assert.equal(g.nodes.find((n) => n.nodeId === "chat:thr_one")?.cluster, undefined);
 });
@@ -197,8 +302,18 @@ test("saved positions replace the computed ones, per person", async () => {
   const h = setup(FILES);
   await indexAll(h);
   assert.deepEqual(await layoutGet(h.ctx, { scope: "agent", agentId: "agt_intake" }), { positions: {} });
-  assert.deepEqual(await layoutSave(h.ctx, { scope: "agent", agentId: "agt_intake", positions: { "note:fil_clients": { x: 11.5, y: -3 }, "note:fil_esc": { x: 0, y: 40 } } }), { ok: true });
-  assert.deepEqual((await layoutGet(h.ctx, { scope: "agent", agentId: "agt_intake" })).positions["note:fil_clients"], { x: 11.5, y: -3 });
+  assert.deepEqual(
+    await layoutSave(h.ctx, {
+      scope: "agent",
+      agentId: "agt_intake",
+      positions: { "note:fil_clients": { x: 11.5, y: -3 }, "note:fil_esc": { x: 0, y: 40 } },
+    }),
+    { ok: true },
+  );
+  assert.deepEqual((await layoutGet(h.ctx, { scope: "agent", agentId: "agt_intake" })).positions["note:fil_clients"], {
+    x: 11.5,
+    y: -3,
+  });
   const g = await graph(h.ctx, { scope: "agent", agentId: "agt_intake" });
   const c = g.nodes.find((n) => n.nodeId === "note:fil_clients")!;
   assert.deepEqual([c.x, c.y], [11.5, -3]);
@@ -208,9 +323,14 @@ test("saved positions replace the computed ones, per person", async () => {
   assert.notDeepEqual([og.nodes.find((n) => n.nodeId === "note:fil_clients")?.x], [11.5]);
   // Saving again replaces the set; another scope is separate.
   await layoutSave(h.ctx, { scope: "agent", agentId: "agt_intake", positions: { "note:fil_esc": { x: 1, y: 2 } } });
-  assert.deepEqual(Object.keys((await layoutGet(h.ctx, { scope: "agent", agentId: "agt_intake" })).positions), ["note:fil_esc"]);
+  assert.deepEqual(Object.keys((await layoutGet(h.ctx, { scope: "agent", agentId: "agt_intake" })).positions), [
+    "note:fil_esc",
+  ]);
   assert.deepEqual(await layoutGet(h.ctx, { scope: "space" }), { positions: {} });
-  await assert.rejects(() => layoutSave(h.ctx, { scope: "space", positions: { "note:fil_esc": { x: Number.NaN, y: 2 } } }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    () => layoutSave(h.ctx, { scope: "space", positions: { "note:fil_esc": { x: Number.NaN, y: 2 } } }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
   assert.deepEqual(contractErrors("memory.layout.get", "out", await layoutGet(h.ctx, { scope: "space" })), []);
 });
 
@@ -223,15 +343,26 @@ test("the everything view logs every open, ignores viewer access, and still leav
   assert.ok(!JSON.stringify(g).includes("Travel"));
   assert.deepEqual(contractErrors("memory.graph_everything", "out", g), []);
   await graphEverything(h.ctx, { asOf: NOW });
-  assert.deepEqual(h.named("memory.everything_viewed").map((e) => e.payload), [{ by: "usr_dana" }, { by: "usr_dana" }]);
+  assert.deepEqual(
+    h.named("memory.everything_viewed").map((e) => e.payload),
+    [{ by: "usr_dana" }, { by: "usr_dana" }],
+  );
   assert.deepEqual(assertEventsConform(h), []);
 });
 
 test("export writes the viewer's graph as a file in the agent's folder or the Space root, personal layers left out", async () => {
   const seen: { created?: Record<string, unknown> } = {};
   const h = setup(FILES, {
-    "files.create": (i) => { seen.created = i; return { file: { fileId: "fil_export" } }; },
-    "files.tree": () => ({ roots: [{ key: "recent", kind: "virtual", title: "Recent" }, { key: "space", kind: "folder", title: "Space", folderId: "fld_root" }] }),
+    "files.create": (i) => {
+      seen.created = i;
+      return { file: { fileId: "fil_export" } };
+    },
+    "files.tree": () => ({
+      roots: [
+        { key: "recent", kind: "virtual", title: "Recent" },
+        { key: "space", kind: "folder", title: "Space", folderId: "fld_root" },
+      ],
+    }),
   });
   await indexAll(h);
   const a = await graphExport(h.ctx, { scope: "agent", agentId: "agt_intake" });
@@ -239,7 +370,9 @@ test("export writes the viewer's graph as a file in the agent's folder or the Sp
   assert.deepEqual(contractErrors("memory.graph_export", "out", a), []);
   assert.equal(seen.created?.["folderId"], "fld_intake");
   assert.match(String(seen.created?.["name"]), /^memory-graph-agent-2025-\d\d-\d\d\.json$/);
-  const body = JSON.parse(String((seen.created?.["content"] as { text: string }).text)) as { nodes: Array<{ nodeId: string }> };
+  const body = JSON.parse(String((seen.created?.["content"] as { text: string }).text)) as {
+    nodes: Array<{ nodeId: string }>;
+  };
   assert.ok(body.nodes.length > 0);
   assert.ok(!JSON.stringify(body).includes("Travel"));
   await graphExport(h.ctx, { scope: "space" });

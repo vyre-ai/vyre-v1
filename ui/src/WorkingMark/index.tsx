@@ -36,7 +36,11 @@ export const WORKING_MARK_CSS = [
 ].join("\n");
 
 /** The nod: the dot dips along the right arm toward the V's point and rises back. */
-export const NOD_FRAMES = [{ transform: "translate(0px,0px)" }, { transform: "translate(-4.1px,6.9px)", offset: 0.45 }, { transform: "translate(0px,0px)" }];
+export const NOD_FRAMES = [
+  { transform: "translate(0px,0px)" },
+  { transform: "translate(-4.1px,6.9px)", offset: 0.45 },
+  { transform: "translate(0px,0px)" },
+];
 export const NOD_MS = 700;
 
 export function WorkingMark({ state, step, size = 16, testID }: WorkingMarkProps): ReactElement {
@@ -46,16 +50,68 @@ export function WorkingMark({ state, step, size = 16, testID }: WorkingMarkProps
     if (seen.current === step) return;
     seen.current = step;
     if (!step || Platform.OS !== "web") return;
-    const reduced = (globalThis as { matchMedia?: (q: string) => { matches: boolean } }).matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+    const reduced =
+      (globalThis as { matchMedia?: (q: string) => { matches: boolean } }).matchMedia?.(
+        "(prefers-reduced-motion: reduce)",
+      ).matches === true;
     if (!reduced) dot.current?.animate?.(NOD_FRAMES, { duration: NOD_MS, easing: "ease-in-out" });
   }, [step]);
-  if (Platform.OS !== "web") return <View testID={testID} style={{ width: size / 2.2, height: size / 2.2, borderRadius: size, backgroundColor: DOT, margin: size / 4.4 }} />;
-  injectCss((globalThis as { document?: Parameters<typeof injectCss>[0] }).document, "vyre-ui-working-mark", WORKING_MARK_CSS);
+  if (Platform.OS !== "web")
+    return (
+      <View
+        testID={testID}
+        style={{ width: size / 2.2, height: size / 2.2, borderRadius: size, backgroundColor: DOT, margin: size / 4.4 }}
+      />
+    );
+  injectCss(
+    (globalThis as { document?: Parameters<typeof injectCss>[0] }).document,
+    "vyre-ui-working-mark",
+    WORKING_MARK_CSS,
+  );
   const kids = [
-    createElement("path", { key: "v", d: V, fill: "none", stroke: "currentColor", strokeWidth: 3.1, strokeLinecap: "round", strokeLinejoin: "round" }),
-    ...(state === "writing" ? [createElement("path", { key: "light", className: "vyre-wm-light", d: V, pathLength: 100, fill: "none", stroke: "var(--accent)", strokeWidth: 3.1, strokeLinecap: "round", strokeLinejoin: "round" })] : []),
+    createElement("path", {
+      key: "v",
+      d: V,
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: 3.1,
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    }),
+    ...(state === "writing"
+      ? [
+          createElement("path", {
+            key: "light",
+            className: "vyre-wm-light",
+            d: V,
+            pathLength: 100,
+            fill: "none",
+            stroke: "var(--accent)",
+            strokeWidth: 3.1,
+            strokeLinecap: "round",
+            strokeLinejoin: "round",
+          }),
+        ]
+      : []),
     // one group for the life of the mark: the nod is animated on it, the breathing on the circle inside, so neither restarts the other
-    createElement("g", { key: "dot", ref: dot, className: "vyre-wm-nod" }, createElement("circle", { className: "vyre-wm-dot", cx: 18.6, cy: 5.6, r: 2.7, fill: DOT })),
+    createElement(
+      "g",
+      { key: "dot", ref: dot, className: "vyre-wm-nod" },
+      createElement("circle", { className: "vyre-wm-dot", cx: 18.6, cy: 5.6, r: 2.7, fill: DOT }),
+    ),
   ];
-  return createElement("svg", { className: `vyre-wm vyre-wm-${state}`, viewBox: "0 0 24 24", width: size, height: size, "aria-hidden": true, "data-testid": testID, "data-state": state, style: { flexShrink: 0, overflow: "visible" } }, ...kids);
+  return createElement(
+    "svg",
+    {
+      className: `vyre-wm vyre-wm-${state}`,
+      viewBox: "0 0 24 24",
+      width: size,
+      height: size,
+      "aria-hidden": true,
+      "data-testid": testID,
+      "data-state": state,
+      style: { flexShrink: 0, overflow: "visible" },
+    },
+    ...kids,
+  );
 }

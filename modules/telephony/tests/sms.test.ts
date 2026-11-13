@@ -7,7 +7,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as h from "../handlers/index.ts";
-import { AGENT, CALLER, MAYA, NOW, NUM_E164, SMS_SID, contractErrors, eventErrors, harness, refusedWith } from "../fixtures/harness.ts";
+import {
+  AGENT,
+  CALLER,
+  MAYA,
+  NOW,
+  NUM_E164,
+  SMS_SID,
+  contractErrors,
+  eventErrors,
+  harness,
+  refusedWith,
+} from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
 const PAT = "rec_pat00001";
@@ -20,12 +31,28 @@ const sid = (k: number): string => `SM${String(k).padStart(32, "0")}`;
 async function setup(t: Harness, o: { consent?: string } = {}): Promise<string> {
   t.contacts.set(CALLER, PAT);
   t.prefs.set(PAT, { smsConsent: o.consent ?? "granted" });
-  const made = out(out(await h.numberBuy(t.ctx, { e164: NUM_E164, title: "Main line", assigneeKind: "person", assigneeId: MAYA, idempotencyKey: "k-buy" })).number);
+  const made = out(
+    out(
+      await h.numberBuy(t.ctx, {
+        e164: NUM_E164,
+        title: "Main line",
+        assigneeKind: "person",
+        assigneeId: MAYA,
+        idempotencyKey: "k-buy",
+      }),
+    ).number,
+  );
   return String(made.id);
 }
 
 const send = (t: Harness, numberId: string, o: Json = {}) =>
-  h.sendSms(t.ctx, { numberId, to: CALLER, body: "Your appointment is Friday at 3.", idempotencyKey: `k-sms-${++seq}`, ...o } as Parameters<typeof h.sendSms>[1]);
+  h.sendSms(t.ctx, {
+    numberId,
+    to: CALLER,
+    body: "Your appointment is Friday at 3.",
+    idempotencyKey: `k-sms-${++seq}`,
+    ...o,
+  } as Parameters<typeof h.sendSms>[1]);
 const sms = (t: Harness) => t.rows(`SELECT * FROM telephony_sms`);
 
 test("send_sms sends through Twilio, keeps the text, writes it to the contact's conversation and a delivered callback moves it on", async () => {
@@ -34,20 +61,49 @@ test("send_sms sends through Twilio, keeps the text, writes it to the contact's 
   const sent = out(await send(t, numberId, { idempotencyKey: "k-first" }));
   assert.deepEqual(contractErrors("telephony.send_sms", "out", sent), []);
   assert.equal(sent.status, "queued");
-  assert.deepEqual(t.calls("twilio.sms.send")[0]?.input, { numberId, from: NUM_E164, to: CALLER, body: "Your appointment is Friday at 3.", idempotencyKey: "k-first:send" });
+  assert.deepEqual(t.calls("twilio.sms.send")[0]?.input, {
+    numberId,
+    from: NUM_E164,
+    to: CALLER,
+    body: "Your appointment is Friday at 3.",
+    idempotencyKey: "k-first:send",
+  });
   const row = sms(t)[0] ?? {};
-  assert.deepEqual([row.id, row.direction, row.from, row.to, row.status, row.contactId, row.twilioSid, row.at], [sent.smsId, "out", NUM_E164, CALLER, "queued", PAT, SMS_SID, NOW]);
+  assert.deepEqual(
+    [row.id, row.direction, row.from, row.to, row.status, row.contactId, row.twilioSid, row.at],
+    [sent.smsId, "out", NUM_E164, CALLER, "queued", PAT, SMS_SID, NOW],
+  );
   assert.deepEqual(t.named("message.sent")[0]?.payload, { messageId: sent.smsId, channel: "sms", contactId: PAT });
-  assert.deepEqual(t.calls("inbox.link_message")[0]?.input, { channel: "sms", ref: { kind: "sms", id: sent.smsId }, address: CALLER, direction: "out", at: NOW, numberId, preview: "Your appointment is Friday at 3." });
+  assert.deepEqual(t.calls("inbox.link_message")[0]?.input, {
+    channel: "sms",
+    ref: { kind: "sms", id: sent.smsId },
+    address: CALLER,
+    direction: "out",
+    at: NOW,
+    numberId,
+    preview: "Your appointment is Friday at 3.",
+  });
   assert.equal(t.rows(`SELECT * FROM telephony_send_log`).length, 0, "a person's text is not counted against the caps");
 
-  assert.deepEqual(await h.ingestStatus(t.ctx, { sid: SMS_SID, kind: "sms", status: "delivered", at: NOW + 5000 }), { applied: true });
+  assert.deepEqual(await h.ingestStatus(t.ctx, { sid: SMS_SID, kind: "sms", status: "delivered", at: NOW + 5000 }), {
+    applied: true,
+  });
   assert.equal(sms(t)[0]?.status, "delivered");
   assert.deepEqual(t.named("message.delivered")[0]?.payload, { messageId: sent.smsId, channel: "sms" });
-  assert.deepEqual(await h.ingestStatus(t.ctx, { sid: SMS_SID, kind: "sms", status: "sent", at: NOW + 6000 }), { applied: true });
+  assert.deepEqual(await h.ingestStatus(t.ctx, { sid: SMS_SID, kind: "sms", status: "sent", at: NOW + 6000 }), {
+    applied: true,
+  });
   assert.equal(sms(t)[0]?.status, "delivered", "a late sent does not undo delivered");
   assert.equal(t.named("message.delivered").length, 1);
-  assert.deepEqual(await h.ingestStatus(t.ctx, { sid: "SM00000000000000000000000000000099", kind: "sms", status: "delivered", at: NOW }), { applied: false });
+  assert.deepEqual(
+    await h.ingestStatus(t.ctx, {
+      sid: "SM00000000000000000000000000000099",
+      kind: "sms",
+      status: "delivered",
+      at: NOW,
+    }),
+    { applied: false },
+  );
 });
 
 test("send_sms honors suppression, Do not contact, consent and opt-outs: the text is not sent and the refusal is recorded", async () => {
@@ -85,13 +141,25 @@ test("send_sms honors suppression, Do not contact, consent and opt-outs: the tex
   assert.equal(out(await send(t, numberId)).status, "queued");
   t.suppressed.set("sms", [{ address: CALLER, reason: "manual" }]);
   assert.equal(out(await send(t, numberId)).status, "suppressed", "the suppression list still applies");
-  assert.deepEqual(t.named("message.suppressed").at(-1)?.payload, { channel: "sms", address: CALLER, reason: "manual" });
+  assert.deepEqual(t.named("message.suppressed").at(-1)?.payload, {
+    channel: "sms",
+    address: CALLER,
+    reason: "manual",
+  });
 });
 
 test("a reply to a text they sent counts as consent for that conversation, a reply to someone else's does not", async () => {
   const t = harness();
   const numberId = await setup(t, { consent: "unknown" });
-  const inbound = out(await h.ingestSms(t.ctx, { messageSid: "SM00000000000000000000000000000020", from: CALLER, to: NUM_E164, body: "Can you call me?", at: NOW }));
+  const inbound = out(
+    await h.ingestSms(t.ctx, {
+      messageSid: "SM00000000000000000000000000000020",
+      from: CALLER,
+      to: NUM_E164,
+      body: "Can you call me?",
+      at: NOW,
+    }),
+  );
   const reply = out(await send(t, numberId, { body: "Calling you now.", replyToId: inbound.smsId }));
   assert.equal(reply.status, "queued");
   assert.equal(await refusedWith(send(t, numberId, { replyToId: "sms_nope" })), "validation.not_found");
@@ -111,7 +179,7 @@ test("the default window is every day, 8 to 21, in the recipient's zone from the
   assert.equal(out(await send(t, numberId, { body: "Saturday noon there." })).status, "queued");
   assert.equal(t.calls("twilio.sms.send").length, 1, "a Saturday is an ordinary day");
   assert.equal(t.scheduled.length, 0);
-  const lateLA = Date.UTC(2025, 9, 12, 5, 0, 0);   // 22:00 Saturday in Los Angeles, already Sunday in UTC
+  const lateLA = Date.UTC(2025, 9, 12, 5, 0, 0); // 22:00 Saturday in Los Angeles, already Sunday in UTC
   t.setNow(lateLA);
   assert.equal(out(await send(t, numberId, { body: "Too late there." })).status, "queued");
   assert.equal(t.calls("twilio.sms.send").length, 1, "nothing leaves at 22:00 their time");
@@ -123,7 +191,7 @@ test("a one-to-one transactional text from an Automation goes at once, past the 
   const numberId = await setup(t);
   t.settings.set("telephony.sender_caps", { perHour: 1, perDay: 1 });
   t.actAs("service", "svc_automations", "automation:aut_1");
-  t.setNow(Date.UTC(2025, 9, 12, 10, 0, 0));   // 03:00 Sunday in Los Angeles
+  t.setNow(Date.UTC(2025, 9, 12, 10, 0, 0)); // 03:00 Sunday in Los Angeles
   for (const body of ["Your appointment is confirmed.", "And a second one."]) {
     await send(t, numberId, { body, transactional: true });
   }
@@ -142,7 +210,7 @@ test("send windows and caps apply to agents and automations, not to a person typ
   const t = harness();
   const numberId = await setup(t);
   t.actAs("agent", AGENT);
-  t.settings.set("send.window", "any");   // this test is about the number's own window; the Space window has its own tests below
+  t.settings.set("send.window", "any"); // this test is about the number's own window; the Space window has its own tests below
   t.settings.set("telephony.send_window", { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 18, zone: "space" });
   // Thursday 08:53 UTC is inside this Space's window (Monday to Friday, 08:00 to 18:00, its own zone)
   assert.equal(out(await send(t, numberId, { body: "Inside the window." })).status, "queued");
@@ -179,7 +247,11 @@ test("send windows and caps apply to agents and automations, not to a person typ
   assert.equal(t.calls("twilio.sms.send").length, 3);
   assert.equal(sms(t).filter((r) => r.body === "Hold until Monday.").length, 1, "one row for the text");
   assert.equal(sms(t).find((r) => r.id === waiting.smsId)?.twilioSid, SMS_SID);
-  assert.equal(t.rows(`SELECT * FROM telephony_send_log`).length, 1, "the Thursday count aged out; Monday's text is counted");
+  assert.equal(
+    t.rows(`SELECT * FROM telephony_send_log`).length,
+    1,
+    "the Thursday count aged out; Monday's text is counted",
+  );
 });
 
 test("a scheduled text whose contact asked to stop meanwhile is not sent", async () => {
@@ -211,7 +283,11 @@ test("caps per number: over the hourly limit is refused with when it resets, and
   t.advance(61 * 60_000);
   assert.equal(out(await send(t, numberId)).status, "queued", "the hour passed");
   t.advance(61 * 60_000);
-  assert.equal(await refusedWith(send(t, numberId)), "rate_limit.exceeded", "three a day, and they are all within the day");
+  assert.equal(
+    await refusedWith(send(t, numberId)),
+    "rate_limit.exceeded",
+    "three a day, and they are all within the day",
+  );
 });
 
 test("send_sms refuses what it must: bad input, pictures, numbers that cannot text, released numbers", async () => {
@@ -224,13 +300,35 @@ test("send_sms refuses what it must: bad input, pictures, numbers that cannot te
   assert.equal(await refusedWith(send(t, numberId, { mediaFileIds: ["pic"] })), "validation.bad_input");
   assert.equal(await refusedWith(send(t, numberId, { sendAt: 1.5 })), "validation.bad_input");
   assert.equal(await refusedWith(send(t, numberId, { idempotencyKey: "" })), "validation.bad_input");
-  assert.equal(await refusedWith(send(t, numberId, { mediaFileIds: ["fil_pic00001"] })), "validation.precondition_failed", "pictures are not sent yet");
+  assert.equal(
+    await refusedWith(send(t, numberId, { mediaFileIds: ["fil_pic00001"] })),
+    "validation.precondition_failed",
+    "pictures are not sent yet",
+  );
   assert.equal(await refusedWith(send(t, "num_nope")), "validation.not_found");
   assert.equal(t.calls("twilio.sms.send").length, 0);
 
-  t.script("twilio.number.buy", (i) => ({ number: { sid: "PN00000000000000000000000000000044", e164: i["e164"], capabilities: ["voice"] } }));
-  const voiceOnly = String(out(out(await h.numberBuy(t.ctx, { e164: "+14155550188", title: "Voice", assigneeKind: "person", assigneeId: MAYA, idempotencyKey: "k-v" })).number).id);
-  assert.equal(await refusedWith(send(t, voiceOnly)), "validation.precondition_failed", "a voice-only number cannot text");
+  t.script("twilio.number.buy", (i) => ({
+    number: { sid: "PN00000000000000000000000000000044", e164: i["e164"], capabilities: ["voice"] },
+  }));
+  const voiceOnly = String(
+    out(
+      out(
+        await h.numberBuy(t.ctx, {
+          e164: "+14155550188",
+          title: "Voice",
+          assigneeKind: "person",
+          assigneeId: MAYA,
+          idempotencyKey: "k-v",
+        }),
+      ).number,
+    ).id,
+  );
+  assert.equal(
+    await refusedWith(send(t, voiceOnly)),
+    "validation.precondition_failed",
+    "a voice-only number cannot text",
+  );
 
   await h.numberRelease(t.ctx, { numberId, idempotencyKey: "k-rel" });
   assert.equal(await refusedWith(send(t, numberId)), "validation.precondition_failed", "a released number cannot text");
@@ -239,11 +337,17 @@ test("send_sms refuses what it must: bad input, pictures, numbers that cannot te
 test("a text Twilio refuses is kept as failed, announced as failed and the error reaches the caller", async () => {
   const t = harness();
   const numberId = await setup(t);
-  t.script("twilio.sms.send", () => { throw t.err("provider.rate_limited", "slow down"); });
+  t.script("twilio.sms.send", () => {
+    throw t.err("provider.rate_limited", "slow down");
+  });
   assert.equal(await refusedWith(send(t, numberId)), "provider.rate_limited");
   const row = sms(t)[0] ?? {};
   assert.equal(row.status, "failed");
-  assert.deepEqual(t.named("message.failed")[0]?.payload, { messageId: row.id, channel: "sms", reason: "provider.rate_limited" });
+  assert.deepEqual(t.named("message.failed")[0]?.payload, {
+    messageId: row.id,
+    channel: "sms",
+    reason: "provider.rate_limited",
+  });
   assert.equal(t.named("message.sent").length, 0);
   assert.equal(t.calls("inbox.link_message").length, 0, "a text that never left is not in the conversation");
 });
@@ -257,14 +361,35 @@ test("undelivered and failed callbacks: a hard bounce suppresses the number, a s
   const b = out(await send(t, numberId));
   const c = out(await send(t, numberId));
   await h.ingestStatus(t.ctx, { sid: sid(101), kind: "sms", status: "undelivered", errorCode: "30003", at: NOW });
-  assert.deepEqual(t.named("message.bounced")[0]?.payload, { messageId: a.smsId, channel: "sms", address: CALLER, kind: "hard", reason: "30003" });
-  assert.deepEqual(t.calls("contacts.suppression.add")[0]?.input, { channel: "sms", addresses: [CALLER], reason: "bounce_hard", source: "telephony.status", note: "Twilio error 30003" });
+  assert.deepEqual(t.named("message.bounced")[0]?.payload, {
+    messageId: a.smsId,
+    channel: "sms",
+    address: CALLER,
+    kind: "hard",
+    reason: "30003",
+  });
+  assert.deepEqual(t.calls("contacts.suppression.add")[0]?.input, {
+    channel: "sms",
+    addresses: [CALLER],
+    reason: "bounce_hard",
+    source: "telephony.status",
+    note: "Twilio error 30003",
+  });
   await h.ingestStatus(t.ctx, { sid: sid(102), kind: "sms", status: "undelivered", errorCode: "30008", at: NOW });
-  assert.deepEqual(t.named("message.bounced")[1]?.payload, { messageId: b.smsId, channel: "sms", address: CALLER, kind: "soft", reason: "30008" });
+  assert.deepEqual(t.named("message.bounced")[1]?.payload, {
+    messageId: b.smsId,
+    channel: "sms",
+    address: CALLER,
+    kind: "soft",
+    reason: "30008",
+  });
   assert.equal(t.calls("contacts.suppression.add").length, 1, "a soft bounce is not suppressed");
   await h.ingestStatus(t.ctx, { sid: sid(103), kind: "sms", status: "failed", errorCode: "30007", at: NOW });
   assert.deepEqual(t.named("message.failed")[0]?.payload, { messageId: c.smsId, channel: "sms", reason: "30007" });
-  assert.deepEqual(sms(t).map((r) => r.status), ["undelivered", "undelivered", "failed"]);
+  assert.deepEqual(
+    sms(t).map((r) => r.status),
+    ["undelivered", "undelivered", "failed"],
+  );
   // the first number is now suppressed, so the next text to it is refused
   assert.equal(out(await send(t, numberId)).status, "suppressed");
 });
@@ -272,24 +397,77 @@ test("undelivered and failed callbacks: a hard bounce suppresses the number, a s
 test("an incoming text is kept, linked to the contact and announced; STOP suppresses the sender and a replay lands nothing twice", async () => {
   const t = harness();
   const numberId = await setup(t);
-  const text = out(await h.ingestSms(t.ctx, { messageSid: "SM00000000000000000000000000000020", from: CALLER, to: NUM_E164, body: "Can you call me?", at: NOW + 1000 }));
+  const text = out(
+    await h.ingestSms(t.ctx, {
+      messageSid: "SM00000000000000000000000000000020",
+      from: CALLER,
+      to: NUM_E164,
+      body: "Can you call me?",
+      at: NOW + 1000,
+    }),
+  );
   assert.deepEqual(contractErrors("telephony.ingest_sms", "out", text), []);
   assert.deepEqual([text.optOut, text.contactId, text.conversationId], [false, PAT, "cnv_1"]);
   const row = sms(t)[0] ?? {};
-  assert.deepEqual([row.direction, row.from, row.to, row.body, row.status, row.contactId, row.numberId, row.at], ["in", CALLER, NUM_E164, "Can you call me?", "received", PAT, numberId, NOW + 1000]);
-  assert.deepEqual(t.named("sms.received")[0]?.payload, { smsId: text.smsId, numberId, from: CALLER, contactId: PAT, optOut: false });
-  assert.deepEqual(t.calls("inbox.link_message")[0]?.input, { channel: "sms", ref: { kind: "sms", id: text.smsId }, address: CALLER, direction: "in", at: NOW + 1000, numberId, preview: "Can you call me?" });
+  assert.deepEqual(
+    [row.direction, row.from, row.to, row.body, row.status, row.contactId, row.numberId, row.at],
+    ["in", CALLER, NUM_E164, "Can you call me?", "received", PAT, numberId, NOW + 1000],
+  );
+  assert.deepEqual(t.named("sms.received")[0]?.payload, {
+    smsId: text.smsId,
+    numberId,
+    from: CALLER,
+    contactId: PAT,
+    optOut: false,
+  });
+  assert.deepEqual(t.calls("inbox.link_message")[0]?.input, {
+    channel: "sms",
+    ref: { kind: "sms", id: text.smsId },
+    address: CALLER,
+    direction: "in",
+    at: NOW + 1000,
+    numberId,
+    preview: "Can you call me?",
+  });
   assert.equal(t.calls("contacts.apply_optout").length, 0);
 
-  const stop = out(await h.ingestSms(t.ctx, { messageSid: "SM00000000000000000000000000000021", from: CALLER, to: NUM_E164, body: " Stop ", at: NOW + 2000 }));
+  const stop = out(
+    await h.ingestSms(t.ctx, {
+      messageSid: "SM00000000000000000000000000000021",
+      from: CALLER,
+      to: NUM_E164,
+      body: " Stop ",
+      at: NOW + 2000,
+    }),
+  );
   assert.deepEqual([stop.optOut, stop.contactId], [true, PAT]);
-  assert.deepEqual(t.calls("contacts.apply_optout")[0]?.input, { channel: "sms", address: CALLER, keyword: "STOP", source: "sms_stop", at: NOW + 2000 });
-  assert.deepEqual(t.named("sms.received")[1]?.payload, { smsId: stop.smsId, numberId, from: CALLER, contactId: PAT, optOut: true });
+  assert.deepEqual(t.calls("contacts.apply_optout")[0]?.input, {
+    channel: "sms",
+    address: CALLER,
+    keyword: "STOP",
+    source: "sms_stop",
+    at: NOW + 2000,
+  });
+  assert.deepEqual(t.named("sms.received")[1]?.payload, {
+    smsId: stop.smsId,
+    numberId,
+    from: CALLER,
+    contactId: PAT,
+    optOut: true,
+  });
   assert.equal(out(await send(t, numberId)).status, "suppressed", "after STOP the sender is on the suppression list");
   assert.deepEqual(t.named("message.suppressed").at(-1)?.payload, { channel: "sms", address: CALLER, reason: "stop" });
 
   // Twilio sent the hook twice
-  const again = out(await h.ingestSms(t.ctx, { messageSid: "SM00000000000000000000000000000021", from: CALLER, to: NUM_E164, body: " Stop ", at: NOW + 2000 }));
+  const again = out(
+    await h.ingestSms(t.ctx, {
+      messageSid: "SM00000000000000000000000000000021",
+      from: CALLER,
+      to: NUM_E164,
+      body: " Stop ",
+      at: NOW + 2000,
+    }),
+  );
   assert.deepEqual([again.smsId, again.optOut, again.contactId], [stop.smsId, true, PAT]);
   assert.equal(sms(t).filter((r) => r.direction === "in").length, 2);
   assert.equal(t.calls("contacts.apply_optout").length, 1);
@@ -297,12 +475,59 @@ test("an incoming text is kept, linked to the contact and announced; STOP suppre
 
   // the Space decides which words opt out
   t.settings.set("contacts.optout_keywords", ["PAUSE"]);
-  assert.equal(out(await h.ingestSms(t.ctx, { messageSid: "SM00000000000000000000000000000022", from: "+14155550166", to: NUM_E164, body: "stop", at: NOW })).optOut, false);
-  assert.equal(out(await h.ingestSms(t.ctx, { messageSid: "SM00000000000000000000000000000023", from: "+14155550166", to: NUM_E164, body: "pause", at: NOW })).optOut, true);
+  assert.equal(
+    out(
+      await h.ingestSms(t.ctx, {
+        messageSid: "SM00000000000000000000000000000022",
+        from: "+14155550166",
+        to: NUM_E164,
+        body: "stop",
+        at: NOW,
+      }),
+    ).optOut,
+    false,
+  );
+  assert.equal(
+    out(
+      await h.ingestSms(t.ctx, {
+        messageSid: "SM00000000000000000000000000000023",
+        from: "+14155550166",
+        to: NUM_E164,
+        body: "pause",
+        at: NOW,
+      }),
+    ).optOut,
+    true,
+  );
 
-  assert.equal(await refusedWith(h.ingestSms(t.ctx, { messageSid: "SM00000000000000000000000000000024", from: CALLER, to: "+14155550999", body: "hi", at: NOW })), "validation.not_found");
-  assert.equal(await refusedWith(h.ingestSms(t.ctx, { messageSid: "SM00000000000000000000000000000025", from: "caller", to: NUM_E164, body: "hi", at: NOW })), "validation.bad_input");
-  assert.equal(await refusedWith(h.ingestSms(t.ctx, { messageSid: "", from: CALLER, to: NUM_E164, body: "hi", at: NOW })), "validation.bad_input");
+  assert.equal(
+    await refusedWith(
+      h.ingestSms(t.ctx, {
+        messageSid: "SM00000000000000000000000000000024",
+        from: CALLER,
+        to: "+14155550999",
+        body: "hi",
+        at: NOW,
+      }),
+    ),
+    "validation.not_found",
+  );
+  assert.equal(
+    await refusedWith(
+      h.ingestSms(t.ctx, {
+        messageSid: "SM00000000000000000000000000000025",
+        from: "caller",
+        to: NUM_E164,
+        body: "hi",
+        at: NOW,
+      }),
+    ),
+    "validation.bad_input",
+  );
+  assert.equal(
+    await refusedWith(h.ingestSms(t.ctx, { messageSid: "", from: CALLER, to: NUM_E164, body: "hi", at: NOW })),
+    "validation.bad_input",
+  );
 });
 
 test("the text list: by number, contact and direction, newest first, in pages", async () => {
@@ -311,19 +536,37 @@ test("the text list: by number, contact and direction, newest first, in pages", 
   t.settings.set("contacts.sms_requires_consent", false);
   await send(t, numberId, { body: "first" });
   t.advance(1000);
-  await h.ingestSms(t.ctx, { messageSid: "SM00000000000000000000000000000030", from: CALLER, to: NUM_E164, body: "second", at: t.ctx.now() });
+  await h.ingestSms(t.ctx, {
+    messageSid: "SM00000000000000000000000000000030",
+    from: CALLER,
+    to: NUM_E164,
+    body: "second",
+    at: t.ctx.now(),
+  });
   t.advance(1000);
   await send(t, numberId, { body: "third", to: "+14155550166" });
   const all = out(await h.smsList(t.ctx, {}));
   assert.deepEqual(contractErrors("telephony.sms.list", "out", all), []);
-  assert.deepEqual((all.messages as Json[]).map((m) => m.body), ["third", "second", "first"]);
-  assert.deepEqual((out(await h.smsList(t.ctx, { contactId: PAT })).messages as Json[]).map((m) => m.body), ["second", "first"]);
-  assert.deepEqual((out(await h.smsList(t.ctx, { direction: "in" })).messages as Json[]).map((m) => m.body), ["second"]);
+  assert.deepEqual(
+    (all.messages as Json[]).map((m) => m.body),
+    ["third", "second", "first"],
+  );
+  assert.deepEqual(
+    (out(await h.smsList(t.ctx, { contactId: PAT })).messages as Json[]).map((m) => m.body),
+    ["second", "first"],
+  );
+  assert.deepEqual(
+    (out(await h.smsList(t.ctx, { direction: "in" })).messages as Json[]).map((m) => m.body),
+    ["second"],
+  );
   assert.equal((out(await h.smsList(t.ctx, { numberId })).messages as Json[]).length, 3);
   assert.equal((out(await h.smsList(t.ctx, { numberId: "num_other" })).messages as Json[]).length, 0);
   const page = out(await h.smsList(t.ctx, { limit: 2 }));
   assert.deepEqual([(page.messages as Json[]).length, page.next, page.total], [2, "2", 3]);
-  assert.deepEqual((out(await h.smsList(t.ctx, { limit: 2, cursor: "2" })).messages as Json[]).map((m) => m.body), ["first"]);
+  assert.deepEqual(
+    (out(await h.smsList(t.ctx, { limit: 2, cursor: "2" })).messages as Json[]).map((m) => m.body),
+    ["first"],
+  );
   assert.equal(await refusedWith(h.smsList(t.ctx, { direction: "up" })), "validation.bad_input");
   assert.equal(await refusedWith(h.smsList(t.ctx, { limit: 501 })), "validation.bad_input");
 });
@@ -337,4 +580,3 @@ test("texts on a line you cannot see are not listed", async () => {
   t.actAs("person", "usr_rob00002");
   assert.equal(out(await h.smsList(t.ctx, {})).total, 0);
 });
-

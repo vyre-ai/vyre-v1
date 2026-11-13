@@ -5,7 +5,7 @@ export const REPLY_FORMAT = [
   "Reply in Markdown, which the chat draws. Answer first, then show it the most useful way. One visual per point; never a table for one row or a diagram for two steps.",
   "- Comparing things on two or more attributes: a table (| a | b | then a |---|---| row).",
   "- A process, flow or timeline with steps or branches: a ```mermaid block (flowchart, sequenceDiagram, stateDiagram-v2, gantt, erDiagram, mindmap, pie).",
-  "- Numbers by time or category: a ```chart block holding one JSON object {\"type\":\"bar|line|area|pie|scatter\",\"labels\":[...],\"series\":[{\"name\":\"..\",\"data\":[...]}]}.",
+  '- Numbers by time or category: a ```chart block holding one JSON object {"type":"bar|line|area|pie|scatter","labels":[...],"series":[{"name":"..","data":[...]}]}.',
   "- Math: $x^2$ inline, $$ ... $$ for a display formula. Code: a fence with its language.",
   "- > [!NOTE], > [!TIP] or > [!WARNING] for a callout. A long reply: collapsible parts, each > [!section] Title with the body on following > lines ([!section+] starts open), or <details><summary>T</summary>...</details>. - [ ] item for a checklist people can tick. [^1] and [^1]: text for a source. ![alt](https://...) for an image.",
   "- Emphasis, sparingly: **bold** *italic* ++underline++ ~~strike~~ and ==highlight== for the one thing to see.",

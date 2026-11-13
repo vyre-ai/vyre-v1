@@ -8,10 +8,21 @@ export type ImageType = NonNullable<CapMap["notes.create"]["in"]["image"]>["cont
 export const IMAGE_TYPES: readonly ImageType[] = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
 /** An image held before it is saved: the bytes as base64, their type, and the data address the page draws it from. */
-export interface TakeImage { data: string; contentType: ImageType; uri: string }
+export interface TakeImage {
+  data: string;
+  contentType: ImageType;
+  uri: string;
+}
 /** A pasted link once it is read: what the card shows. */
 /** A link card. `image` is only ever a data address the server fetched (read_link with preview, or notes.image part link): a browser never loads another site's picture. */
-export interface LinkPreview { url: string; title?: string; siteName?: string; image?: string; description?: string; preview?: "image" | "icon" }
+export interface LinkPreview {
+  url: string;
+  title?: string;
+  siteName?: string;
+  image?: string;
+  description?: string;
+  preview?: "image" | "icon";
+}
 /** Who sees a new note: only you, a person (the share sheet opens once it is saved), or the Space. */
 export type TakeShare = "private" | "person" | "space";
 
@@ -29,7 +40,18 @@ export interface Take {
   share: TakeShare;
 }
 
-export const CLOSED: Take = { open: false, title: "", body: "", image: null, link: null, reading: null, color: "", pinned: false, labels: [], share: "private" };
+export const CLOSED: Take = {
+  open: false,
+  title: "",
+  body: "",
+  image: null,
+  link: null,
+  reading: null,
+  color: "",
+  pinned: false,
+  labels: [],
+  share: "private",
+};
 
 export type TakeAct =
   | { t: "open" }
@@ -52,24 +74,42 @@ export type TakeAct =
 
 export function takeStep(s: Take, a: TakeAct): Take {
   switch (a.t) {
-    case "open": return s.open ? s : { ...s, open: true };
-    case "title": return { ...s, title: a.v };
-    case "body": return { ...s, body: a.v };
-    case "image": return { ...s, open: true, image: a.image };
-    case "rm-image": return { ...s, image: null };
-    case "reading": return { ...s, open: true, reading: a.url, link: null };
-    case "read": return s.reading !== null && sameLink(s.reading, a.link.url) ? { ...s, reading: null, link: a.link } : s;
-    case "rm-link": return { ...s, link: null, reading: null };
-    case "paste-text": return { ...s, open: true, body: s.body ? `${s.body}\n${a.text}` : a.text };
-    case "color": return { ...s, color: a.c };
-    case "pin": return { ...s, pinned: !s.pinned };
-    case "label": return { ...s, labels: s.labels.includes(a.name) ? s.labels.filter((l) => l !== a.name) : [...s.labels, a.name] };
-    case "share": return { ...s, share: a.v };
-    case "reset": return CLOSED;
+    case "open":
+      return s.open ? s : { ...s, open: true };
+    case "title":
+      return { ...s, title: a.v };
+    case "body":
+      return { ...s, body: a.v };
+    case "image":
+      return { ...s, open: true, image: a.image };
+    case "rm-image":
+      return { ...s, image: null };
+    case "reading":
+      return { ...s, open: true, reading: a.url, link: null };
+    case "read":
+      return s.reading !== null && sameLink(s.reading, a.link.url) ? { ...s, reading: null, link: a.link } : s;
+    case "rm-link":
+      return { ...s, link: null, reading: null };
+    case "paste-text":
+      return { ...s, open: true, body: s.body ? `${s.body}\n${a.text}` : a.text };
+    case "color":
+      return { ...s, color: a.c };
+    case "pin":
+      return { ...s, pinned: !s.pinned };
+    case "label":
+      return { ...s, labels: s.labels.includes(a.name) ? s.labels.filter((l) => l !== a.name) : [...s.labels, a.name] };
+    case "share":
+      return { ...s, share: a.v };
+    case "reset":
+      return CLOSED;
   }
 }
 
-const bare = (u: string): string => u.trim().replace(/^https?:\/\//i, "").replace(/\/$/, "");
+const bare = (u: string): string =>
+  u
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/$/, "");
 const sameLink = (a: string, b: string): boolean => bare(a) === bare(b);
 
 /** Nothing typed, no image and no link: closing drops it. */
@@ -99,8 +139,15 @@ export function loneLink(text: string): string | null {
   return /^https?:\/\/[^\s]+$/i.test(t) ? t : null;
 }
 
-export interface PasteLike { files: readonly { type: string }[]; text: string }
-export type PasteKind = { kind: "image"; index: number } | { kind: "link"; url: string } | { kind: "text"; text: string } | null;
+export interface PasteLike {
+  files: readonly { type: string }[];
+  text: string;
+}
+export type PasteKind =
+  | { kind: "image"; index: number }
+  | { kind: "link"; url: string }
+  | { kind: "text"; text: string }
+  | null;
 
 /**
  * What a paste becomes. An image (of a kind a note keeps) becomes the note's picture; a lone link becomes a card; other text stays text. `inField` is true when the paste lands in a field
@@ -127,16 +174,30 @@ export function toDataUri(contentType: string, data: string): string {
 
 /* ---------- the bar at the foot of the page ---------- */
 
-export interface Bar { text: string; /** the note a delete took away: Undo restores it */ undo?: string; /** the note Open goes to */ open?: string }
-export type BarAct = { t: "say"; text: string } | { t: "deleted"; noteId: string; mine: boolean } | { t: "saved"; noteId: string; text: string } | { t: "dismiss" } | { t: "undone" };
+export interface Bar {
+  text: string;
+  /** the note a delete took away: Undo restores it */ undo?: string;
+  /** the note Open goes to */ open?: string;
+}
+export type BarAct =
+  | { t: "say"; text: string }
+  | { t: "deleted"; noteId: string; mine: boolean }
+  | { t: "saved"; noteId: string; text: string }
+  | { t: "dismiss" }
+  | { t: "undone" };
 
 /** One line at a time. Undo stays until the next action replaces or dismisses the line. */
 export function barStep(s: Bar | null, a: BarAct): Bar | null {
   switch (a.t) {
-    case "say": return { text: a.text };
-    case "deleted": return { text: a.mine ? "Note deleted" : "Removed from your notes", undo: a.noteId };
-    case "saved": return { text: a.text, open: a.noteId };
-    case "dismiss": return null;
-    case "undone": return s?.undo ? null : s;
+    case "say":
+      return { text: a.text };
+    case "deleted":
+      return { text: a.mine ? "Note deleted" : "Removed from your notes", undo: a.noteId };
+    case "saved":
+      return { text: a.text, open: a.noteId };
+    case "dismiss":
+      return null;
+    case "undone":
+      return s?.undo ? null : s;
   }
 }

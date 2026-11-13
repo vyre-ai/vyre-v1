@@ -55,7 +55,10 @@ test("Ask Vyre drops secrets and keeps the connection id and error code", () => 
   assert.equal(bundle.errorCode, "provider.auth_failed");
   assert.equal(bundle.message?.includes("ya29"), false);
   assert.equal("authorization" in bundle, false);
-  const walked = scrubDiagnostics({ headers: { authorization: "Bearer abc" }, note: "sk-live-abcdefghij" }) as { headers: Record<string, unknown>; note: string };
+  const walked = scrubDiagnostics({ headers: { authorization: "Bearer abc" }, note: "sk-live-abcdefghij" }) as {
+    headers: Record<string, unknown>;
+    note: string;
+  };
   assert.equal(walked.headers.authorization, undefined);
   assert.equal(walked.note.includes("sk-live"), false);
 });
@@ -72,7 +75,11 @@ test("cohort preview keeps a safe run pinned to the same step and refuses an amb
     { id: "wait", key: "wait", effects: "read" },
   ];
   const waiting: MigrationRun = {
-    id: "run_wait", definitionVersion: 12, status: "waiting", currentStepId: "wait", succeededStepIds: ["tag", "mail"],
+    id: "run_wait",
+    definitionVersion: 12,
+    status: "waiting",
+    currentStepId: "wait",
+    succeededStepIds: ["tag", "mail"],
   };
   const safe = previewCohorts([waiting], source, target);
   assert.equal(safe[0]?.disposition, "safe");
@@ -93,7 +100,13 @@ test("cohort preview keeps a safe run pinned to the same step and refuses an amb
 test("a changed step key is ambiguous even when the id survives", () => {
   const source: MigrationNode[] = [{ id: "mail", key: "send_email", effects: "outward" }];
   const target: MigrationNode[] = [{ id: "mail", key: "send_sms", effects: "outward" }];
-  const run: MigrationRun = { id: "run_m", definitionVersion: 2, status: "running", currentStepId: "mail", succeededStepIds: [] };
+  const run: MigrationRun = {
+    id: "run_m",
+    definitionVersion: 2,
+    status: "running",
+    currentStepId: "mail",
+    succeededStepIds: [],
+  };
   assert.equal(previewCohorts([run], source, target)[0]?.disposition, "ambiguous");
 });
 
@@ -107,18 +120,31 @@ test("skip and substitute do not become a live retry, and a live rerun names out
 });
 
 test("a failed step skips, substitutes, retries, or routes only for a listed code", () => {
-  const timeout = Object.assign(new Error("nope"), { error: { code: "provider.timeout", message: "the provider timed out" } });
+  const timeout = Object.assign(new Error("nope"), {
+    error: { code: "provider.timeout", message: "the provider timed out" },
+  });
   const bad = Object.assign(new Error("bad"), { error: { code: "validation.bad_input", message: "bad input" } });
 
-  assert.deepEqual(failureResult({ mode: "skip" }, timeout), { output: { skipped: true, error: "the provider timed out" } });
+  assert.deepEqual(failureResult({ mode: "skip" }, timeout), {
+    output: { skipped: true, error: "the provider timed out" },
+  });
   assert.notEqual(failureResult({ mode: "skip" }, timeout), "retry");
   assert.deepEqual(failureResult({ mode: "substitute", output: { ok: false } }, timeout), { output: { ok: false } });
   assert.deepEqual(failureResult({ mode: "substitute" }, timeout), { output: { substituted: true } });
   assert.equal(failureResult({ mode: "retry", max: 99 }, timeout), "retry");
   assert.deepEqual(failureResult({ mode: "continue" }, timeout), { output: { error: "the provider timed out" } });
-  assert.deepEqual(failureResult({ mode: "route", route: "handler" }, bad), { output: { error: "bad input" }, next: "handler" });
-  assert.deepEqual(failureResult({ mode: "route", route: "handler", codes: [] }, bad), { output: { error: "bad input" }, next: "handler" });
-  assert.deepEqual(failureResult({ mode: "route", route: "handler", codes: ["provider.timeout"] }, timeout), { output: { error: "the provider timed out" }, next: "handler" });
+  assert.deepEqual(failureResult({ mode: "route", route: "handler" }, bad), {
+    output: { error: "bad input" },
+    next: "handler",
+  });
+  assert.deepEqual(failureResult({ mode: "route", route: "handler", codes: [] }, bad), {
+    output: { error: "bad input" },
+    next: "handler",
+  });
+  assert.deepEqual(failureResult({ mode: "route", route: "handler", codes: ["provider.timeout"] }, timeout), {
+    output: { error: "the provider timed out" },
+    next: "handler",
+  });
   assert.equal(failureResult({ mode: "route", route: "handler", codes: ["provider.timeout"] }, bad), "throw");
   assert.equal(failureResult({ mode: "route", codes: ["provider.timeout"] }, timeout), "throw");
   assert.equal(failureResult({ mode: "fail" }, timeout), "throw");

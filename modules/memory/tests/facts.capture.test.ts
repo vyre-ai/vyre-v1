@@ -3,15 +3,27 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { capture, factsList, heuristicExtract, maintain, setCaptureExtractor } from "../handlers/facts.ts";
-import { assertEventsConform, asPerson, contractErrors, DAY, harness, NOW, seedFact, seedNote } from "../fixtures/harness.ts";
+import {
+  assertEventsConform,
+  asPerson,
+  contractErrors,
+  DAY,
+  harness,
+  NOW,
+  seedFact,
+  seedNote,
+} from "../fixtures/harness.ts";
 import type { Responder } from "../fixtures/harness.ts";
 
-const SPEECH = "I prefer short answers. What time is it? My timezone is Pacific. Remember that invoices go out on Monday.";
+const SPEECH =
+  "I prefer short answers. What time is it? My timezone is Pacific. Remember that invoices go out on Monday.";
 const person = (id: string) => ({ kind: "person", id });
 
 function chat(kind: string, extra: Record<string, unknown> = {}, messages?: unknown[]): Record<string, Responder> {
   return {
-    "threads.get": () => ({ thread: { kind, starter: "usr_dana", agents: [{ agentId: "agt_intake", mode: "lead" }], ...extra } }),
+    "threads.get": () => ({
+      thread: { kind, starter: "usr_dana", agents: [{ agentId: "agt_intake", mode: "lead" }], ...extra },
+    }),
     "chat.messages.list": () => ({
       messages: messages ?? [
         { messageId: "msg_1", author: person("usr_dana"), body: SPEECH },
@@ -26,7 +38,9 @@ test("a private chat's facts go to the person's own layer; the low-risk kind mer
   const out = await capture(h.ctx, { threadId: "thr_one", reason: "closed" });
   assert.deepEqual(out, { proposed: 3, merged: 1 });
   assert.deepEqual(contractErrors("memory.capture", "out", out), []);
-  const rows = h.rows("SELECT layer, owner_ref, status, kind, text, enc, source_kind, source_ref, source_person FROM memory_facts ORDER BY kind");
+  const rows = h.rows(
+    "SELECT layer, owner_ref, status, kind, text, enc, source_kind, source_ref, source_person FROM memory_facts ORDER BY kind",
+  );
   assert.equal(rows.length, 3);
   for (const r of rows) {
     assert.equal(r["layer"], "person");
@@ -37,7 +51,10 @@ test("a private chat's facts go to the person's own layer; the low-risk kind mer
     assert.equal(r["source_ref"], "thr_one");
     assert.equal(r["source_person"], "usr_dana");
   }
-  assert.deepEqual(rows.map((r) => `${r["kind"]}:${r["status"]}`), ["note:proposed", "preference:current", "profile:proposed"]);
+  assert.deepEqual(
+    rows.map((r) => `${r["kind"]}:${r["status"]}`),
+    ["note:proposed", "preference:current", "profile:proposed"],
+  );
   assert.deepEqual(h.named("memory.captured")[0]?.payload, { threadId: "thr_one", proposed: 3, merged: 1 });
   assert.equal(h.named("memory.fact_proposed").length, 3);
   assert.equal(h.named("memory.fact_accepted").length, 1);
@@ -61,20 +78,34 @@ test("what the person sees after capture is their own, with the source link", as
 
 test("a channel in a project writes to the project layer directly; without a project it waits for the agent owner", async () => {
   const msgs = [{ messageId: "msg_9", author: person("usr_lead"), body: "We decided to ship the teal version first." }];
-  const inProject = harness({ principal: { kind: "service", id: "svc_engine" }, respond: chat("channel", { scopeType: "project", scopeId: "prj_harlow" }, msgs) });
+  const inProject = harness({
+    principal: { kind: "service", id: "svc_engine" },
+    respond: chat("channel", { scopeType: "project", scopeId: "prj_harlow" }, msgs),
+  });
   assert.deepEqual(await capture(inProject.ctx, { threadId: "thr_chan", reason: "idle" }), { proposed: 1, merged: 1 });
   const row = inProject.rows("SELECT layer, owner_ref, project_id, status, text, source_kind FROM memory_facts")[0]!;
-  assert.deepEqual([row["layer"], row["owner_ref"], row["project_id"], row["status"], row["source_kind"]], ["project", "prj_harlow", "prj_harlow", "current", "channel"]);
+  assert.deepEqual(
+    [row["layer"], row["owner_ref"], row["project_id"], row["status"], row["source_kind"]],
+    ["project", "prj_harlow", "prj_harlow", "current", "channel"],
+  );
   assert.equal(row["text"], "We decided to ship the teal version first.");
 
   const loose = harness({ principal: { kind: "service", id: "svc_engine" }, respond: chat("channel", {}, msgs) });
   assert.deepEqual(await capture(loose.ctx, { threadId: "thr_chan", reason: "idle" }), { proposed: 1, merged: 0 });
   const r2 = loose.rows("SELECT layer, owner_ref, agent_id, status FROM memory_facts")[0]!;
-  assert.deepEqual([r2["layer"], r2["owner_ref"], r2["agent_id"], r2["status"]], ["agent", "agt_intake", "agt_intake", "proposed"]);
+  assert.deepEqual(
+    [r2["layer"], r2["owner_ref"], r2["agent_id"], r2["status"]],
+    ["agent", "agt_intake", "agt_intake", "proposed"],
+  );
 });
 
 test("a run's facts wait in proposed for the agent owner, whoever spoke", async () => {
-  const h = harness({ principal: { kind: "service", id: "svc_engine" }, respond: chat("run", {}, [{ messageId: "msg_r", author: person("usr_dana"), body: "Remember that the export runs at night." }]) });
+  const h = harness({
+    principal: { kind: "service", id: "svc_engine" },
+    respond: chat("run", {}, [
+      { messageId: "msg_r", author: person("usr_dana"), body: "Remember that the export runs at night." },
+    ]),
+  });
   assert.deepEqual(await capture(h.ctx, { threadId: "thr_run", reason: "closed" }), { proposed: 1, merged: 0 });
   const row = h.rows("SELECT layer, status, source_kind FROM memory_facts")[0]!;
   assert.deepEqual([row["layer"], row["status"], row["source_kind"]], ["agent", "proposed", "run"]);
@@ -84,7 +115,12 @@ test("a private chat's ciphertext is skipped, and questions are not facts", asyn
   const h = harness({
     principal: { kind: "service", id: "svc_engine" },
     respond: chat("chat", {}, [
-      { messageId: "msg_e", author: person("usr_dana"), body: "enc2.1.AAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBB.Y2lwaGVydGV4dCBJIHByZWZlciB0ZWE.CCCCCCCCCCCCCCCCCCCCCC", enc: 2 },
+      {
+        messageId: "msg_e",
+        author: person("usr_dana"),
+        body: "enc2.1.AAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBB.Y2lwaGVydGV4dCBJIHByZWZlciB0ZWE.CCCCCCCCCCCCCCCCCCCCCC",
+        enc: 2,
+      },
       { messageId: "msg_q", author: person("usr_dana"), body: "Do I prefer tea or coffee?" },
     ]),
   });
@@ -95,37 +131,83 @@ test("a private chat's ciphertext is skipped, and questions are not facts", asyn
 test("a private chat's text is captured when its body reached the Space as text, whatever the thread's flag says", async () => {
   const h = harness({
     principal: { kind: "service", id: "svc_engine" },
-    respond: chat("chat", {}, [{ messageId: "msg_t", author: person("usr_dana"), body: "I prefer tea in the afternoon.", enc: 2 }]),
+    respond: chat("chat", {}, [
+      { messageId: "msg_t", author: person("usr_dana"), body: "I prefer tea in the afternoon.", enc: 2 },
+    ]),
   });
   assert.deepEqual(await capture(h.ctx, { threadId: "thr_enc", reason: "closed" }), { proposed: 1, merged: 1 });
 });
 
 test("the extractor can be replaced with a model pass, and put back", async () => {
   const h = harness({ principal: { kind: "service", id: "svc_engine" }, respond: chat("chat") });
-  setCaptureExtractor(() => [{ person: "usr_dana", text: "Dana runs on oat milk", kind: "preference", messageId: "msg_1", index: 0 }]);
+  setCaptureExtractor(() => [
+    { person: "usr_dana", text: "Dana runs on oat milk", kind: "preference", messageId: "msg_1", index: 0 },
+  ]);
   try {
     assert.deepEqual(await capture(h.ctx, { threadId: "thr_x", reason: "closed" }), { proposed: 1, merged: 1 });
   } finally {
     setCaptureExtractor(null);
   }
-  assert.equal(heuristicExtract([{ messageId: "m", author: person("usr_dana"), body: "I never work on Sundays." }]).length, 1);
+  assert.equal(
+    heuristicExtract([{ messageId: "m", author: person("usr_dana"), body: "I never work on Sundays." }]).length,
+    1,
+  );
 });
 
 test("nightly: expired facts close, copies merge, and MAP.md is rewritten under 200 lines without personal memory", async () => {
   const h = harness({ respond: { "files.write": () => ({}) } });
-  seedNote(h, { fileId: "fil_map", title: "MAP", body: "", layer: "agent", agentId: "agt_intake", path: "Agents/Intake/memory/MAP.md" });
+  seedNote(h, {
+    fileId: "fil_map",
+    title: "MAP",
+    body: "",
+    layer: "agent",
+    agentId: "agt_intake",
+    path: "Agents/Intake/memory/MAP.md",
+  });
   seedNote(h, { fileId: "fil_c", title: "Clients", body: "Acme, Beta", layer: "agent", agentId: "agt_intake" });
-  seedFact(h, { id: "fct_d1", layer: "agent", agentId: "agt_intake", text: "Intake never calls before nine", learnedAt: NOW - 3 * DAY });
-  seedFact(h, { id: "fct_d2", layer: "agent", agentId: "agt_intake", text: "intake never calls before  nine", learnedAt: NOW - 2 * DAY });
-  seedFact(h, { id: "fct_old", layer: "agent", agentId: "agt_intake", text: "The trial ends on the first", validTo: NOW - DAY });
-  seedFact(h, { id: "fct_priv", layer: "person", owner: "usr_dana", agentId: "agt_intake", text: "Dana's private tea preference" });
+  seedFact(h, {
+    id: "fct_d1",
+    layer: "agent",
+    agentId: "agt_intake",
+    text: "Intake never calls before nine",
+    learnedAt: NOW - 3 * DAY,
+  });
+  seedFact(h, {
+    id: "fct_d2",
+    layer: "agent",
+    agentId: "agt_intake",
+    text: "intake never calls before  nine",
+    learnedAt: NOW - 2 * DAY,
+  });
+  seedFact(h, {
+    id: "fct_old",
+    layer: "agent",
+    agentId: "agt_intake",
+    text: "The trial ends on the first",
+    validTo: NOW - DAY,
+  });
+  seedFact(h, {
+    id: "fct_priv",
+    layer: "person",
+    owner: "usr_dana",
+    agentId: "agt_intake",
+    text: "Dana's private tea preference",
+  });
   const out = await maintain(h.ctx, {});
-  assert.deepEqual({ merged: out.merged, closed: out.closed, maps: out.maps }, { merged: 1, closed: 1, maps: 1 }, "the expired fact closes; the copy goes to Trash, which is not closing");
+  assert.deepEqual(
+    { merged: out.merged, closed: out.closed, maps: out.maps },
+    { merged: 1, closed: 1, maps: 1 },
+    "the expired fact closes; the copy goes to Trash, which is not closing",
+  );
   assert.deepEqual(contractErrors("memory.maintain", "out", out), []);
   const status = Object.fromEntries(h.rows("SELECT id, status FROM memory_facts").map((r) => [r["id"], r["status"]]));
   assert.deepEqual(status, { fct_d1: "current", fct_d2: "removed", fct_old: "closed", fct_priv: "current" });
   const copy = h.rows("SELECT trashed_at, trash_reason, merged_into, text FROM memory_facts WHERE id = 'fct_d2'")[0]!;
-  assert.deepEqual([copy["trash_reason"], copy["merged_into"], copy["text"]], ["duplicate", "fct_d1", "intake never calls before  nine"], "the merged-away row is kept in Trash, words and all");
+  assert.deepEqual(
+    [copy["trash_reason"], copy["merged_into"], copy["text"]],
+    ["duplicate", "fct_d1", "intake never calls before  nine"],
+    "the merged-away row is kept in Trash, words and all",
+  );
   const map = h.rows("SELECT body, lines, file_id FROM memory_maps")[0]!;
   assert.ok(Number(map["lines"]) < 200);
   assert.equal(map["file_id"], "fil_map");
@@ -145,8 +227,15 @@ test("nightly: expired facts close, copies merge, and MAP.md is rewritten under 
 
 test("a map of a big agent stays under 200 lines", async () => {
   const h = harness();
-  for (let i = 0; i < 400; i++) seedFact(h, { id: `fct_big${i}`, layer: "agent", agentId: "agt_intake", text: `Fact number ${i} about topic ${i * 7}` });
-  for (let i = 0; i < 150; i++) seedNote(h, { fileId: `fil_note${i}`, title: `Note ${i}`, body: "x", layer: "agent", agentId: "agt_intake" });
+  for (let i = 0; i < 400; i++)
+    seedFact(h, {
+      id: `fct_big${i}`,
+      layer: "agent",
+      agentId: "agt_intake",
+      text: `Fact number ${i} about topic ${i * 7}`,
+    });
+  for (let i = 0; i < 150; i++)
+    seedNote(h, { fileId: `fil_note${i}`, title: `Note ${i}`, body: "x", layer: "agent", agentId: "agt_intake" });
   await maintain(h.ctx, { agentId: "agt_intake" });
   const map = h.rows("SELECT lines, body FROM memory_maps")[0]!;
   assert.ok(Number(map["lines"]) <= 200, `map had ${map["lines"]} lines`);

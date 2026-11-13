@@ -10,358 +10,1036 @@
 // DECISION: files tool names are computer_files_* so they never collide with the Files module tools (files_*).
 // DECISION: tab limit and idle sleep defaults are unspecified in the spec; 8 tabs and 10 minutes are the plainest choices.
 // NOT EXPRESSIBLE: the executor (host agentd or device bridge) is not a capability field; see module agents for AgentToolDef.local.
-import { block, create, defineManifest, ev, health, outward, read, screen, t, write } from '../packages/contracts/src/index.ts';
-import type { CapOpts } from '../packages/contracts/src/index.ts';
-import { id, pageIn, pageOut } from './_common.ts';
+import {
+  block,
+  create,
+  defineManifest,
+  ev,
+  health,
+  outward,
+  read,
+  screen,
+  t,
+  write,
+} from "../packages/contracts/src/index.ts";
+import type { CapOpts } from "../packages/contracts/src/index.ts";
+import { id, pageIn, pageOut } from "./_common.ts";
 
-const cmpState = t.enm('provisioning', 'asleep', 'waking', 'working', 'takeover', 'error');
+const cmpState = t.enm("provisioning", "asleep", "waking", "working", "takeover", "error");
 const computerRow = t.obj({
-  computerId: id.computer, agentId: id.agent, state: cmpState, caption: t.opt(t.str({ description: 'What it is doing, shown under the live view' })), tabs: t.int(), tabLimit: t.int(),
-  host: t.enm('server', 'vm'), nodeId: t.opt(t.str({ description: 'The computer that joined the Space and runs this one; absent when it runs on the Space server' })), diskBytes: t.opt(t.int()), lastFrameAt: t.opt(t.ts()), lastActiveAt: t.opt(t.ts()), takeoverBy: t.opt(id.user), recording: t.bool(), error: t.opt(t.str({ description: 'Why it is in error, in words' })),
-  moved: t.opt(t.obj({ state: t.enm('done', 'partial', 'failed'), at: t.ts(), error: t.opt(t.str()) })),
+  computerId: id.computer,
+  agentId: id.agent,
+  state: cmpState,
+  caption: t.opt(t.str({ description: "What it is doing, shown under the live view" })),
+  tabs: t.int(),
+  tabLimit: t.int(),
+  host: t.enm("server", "vm"),
+  nodeId: t.opt(
+    t.str({
+      description: "The computer that joined the Space and runs this one; absent when it runs on the Space server",
+    }),
+  ),
+  diskBytes: t.opt(t.int()),
+  lastFrameAt: t.opt(t.ts()),
+  lastActiveAt: t.opt(t.ts()),
+  takeoverBy: t.opt(id.user),
+  recording: t.bool(),
+  error: t.opt(t.str({ description: "Why it is in error, in words" })),
+  moved: t.opt(t.obj({ state: t.enm("done", "partial", "failed"), at: t.ts(), error: t.opt(t.str()) })),
 });
-const stepRow = t.obj({ stepId: t.id('stp'), idx: t.int(), at: t.ts(), caption: t.str(), tool: t.str(), frameFileId: t.opt(id.file), by: t.enm('agent', 'person'), runId: t.opt(id.run) });
+const stepRow = t.obj({
+  stepId: t.id("stp"),
+  idx: t.int(),
+  at: t.ts(),
+  caption: t.str(),
+  tool: t.str(),
+  frameFileId: t.opt(id.file),
+  by: t.enm("agent", "person"),
+  runId: t.opt(id.run),
+});
 const recordingRow = t.obj({
-  recordingId: t.id('rcd'), computerId: id.computer, agentId: id.agent, startedAt: t.ts(), endedAt: t.opt(t.ts()), durationMs: t.opt(t.int()), folderPath: t.str({ examples: ['work/recordings/rcd_a1b2c3'] }),
-  state: t.enm('recording', 'saved', 'processed'), intents: t.arr(t.str()),
+  recordingId: t.id("rcd"),
+  computerId: id.computer,
+  agentId: id.agent,
+  startedAt: t.ts(),
+  endedAt: t.opt(t.ts()),
+  durationMs: t.opt(t.int()),
+  folderPath: t.str({ examples: ["work/recordings/rcd_a1b2c3"] }),
+  state: t.enm("recording", "saved", "processed"),
+  intents: t.arr(t.str()),
 });
-const sessionRow = t.obj({ site: t.str({ examples: ['app.example.com'] }), signedInAs: t.opt(t.str()), since: t.ts(), lastSeen: t.ts() });
+const sessionRow = t.obj({
+  site: t.str({ examples: ["app.example.com"] }),
+  signedInAs: t.opt(t.str()),
+  since: t.ts(),
+  lastSeen: t.ts(),
+});
 // The agent browsers of the Space browser (modules/computers/sbrowser): one profile per agent, named by the agent. Only people use these (to watch and take over), never an agent, so none is a tool.
 const browserRow = t.obj({
-  agentId: id.agent, running: t.bool(), tabs: t.int(), busy: t.bool({ description: 'The agent is using it now' }), viewers: t.int({ description: 'People watching its live view' }), lastActiveAt: t.opt(t.ts()),
-  state: t.enm('running', 'asleep', 'waiting', 'error'), line: t.opt(t.str({ description: 'Why it waits (no room on the host) or what went wrong, in a plain line' })),
-  takeoverBy: t.opt(id.user), paired: t.bool({ description: 'Vyre for Chrome in the profile is connected to the Space as this agent, so Vault logins fill' }), access: t.enm('owner', 'admin', 'viewer'),
+  agentId: id.agent,
+  running: t.bool(),
+  tabs: t.int(),
+  busy: t.bool({ description: "The agent is using it now" }),
+  viewers: t.int({ description: "People watching its live view" }),
+  lastActiveAt: t.opt(t.ts()),
+  state: t.enm("running", "asleep", "waiting", "error"),
+  line: t.opt(t.str({ description: "Why it waits (no room on the host) or what went wrong, in a plain line" })),
+  takeoverBy: t.opt(id.user),
+  paired: t.bool({
+    description: "Vyre for Chrome in the profile is connected to the Space as this agent, so Vault logins fill",
+  }),
+  access: t.enm("owner", "admin", "viewer"),
 });
 /** On the first answer after the browser was reopened (closed to make room, or stopped when idle, and its pages reloaded): the agent takes a new snapshot before it acts on refs. */
-const reopenOut = { reopened: t.opt(t.bool({ description: 'The browser was reopened since the last step and its pages reloaded: refs from before are gone' })), note: t.opt(t.str({ description: 'What to do about it, in one line' })) };
-const downloadsOut = t.opt(t.arr(t.obj({ name: t.str(), path: t.str({ description: "Where it is in the agent's Files, under Downloads", examples: ['Downloads/report.pdf'] }), fileId: t.opt(id.file), note: t.opt(t.str({ description: 'Why a download is not in Files (it is too large to move), in plain words: tell the person' })) }), { description: 'Files the browser finished downloading since the last step: they are in Files now, and this is where. One too large to move has no fileId and a note' }));
+const reopenOut = {
+  reopened: t.opt(
+    t.bool({
+      description: "The browser was reopened since the last step and its pages reloaded: refs from before are gone",
+    }),
+  ),
+  note: t.opt(t.str({ description: "What to do about it, in one line" })),
+};
+const downloadsOut = t.opt(
+  t.arr(
+    t.obj({
+      name: t.str(),
+      path: t.str({
+        description: "Where it is in the agent's Files, under Downloads",
+        examples: ["Downloads/report.pdf"],
+      }),
+      fileId: t.opt(id.file),
+      note: t.opt(
+        t.str({
+          description: "Why a download is not in Files (it is too large to move), in plain words: tell the person",
+        }),
+      ),
+    }),
+    {
+      description:
+        "Files the browser finished downloading since the last step: they are in Files now, and this is where. One too large to move has no fileId and a note",
+    },
+  ),
+);
 const comp = { computerId: id.computer };
 const optComp = { computerId: t.opt(id.computer) };
 /** Chrome tools run on the agent's own computer. `inMyChrome` is the one way to ask for the asking person's own Chrome, and only when they asked for it in this turn. */
 const chromeWhere = {
   ...optComp,
-  inMyChrome: t.opt(t.bool({ description: "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing" })),
+  inMyChrome: t.opt(
+    t.bool({
+      description:
+        'Work in the asking person\'s own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn ("in my Chrome", "on my computer", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing',
+    }),
+  ),
 };
-const tabId = t.opt(t.str({ description: 'Chrome tab id; omit for the active tab' }));
-const ref = t.str({ description: 'Element reference from chrome_snapshot', examples: ['e12'] });
-const intent = t.enm('make_skill', 'learn_routine', 'work_out_backend_calls', 'learn_workflow');
+const tabId = t.opt(t.str({ description: "Chrome tab id; omit for the active tab" }));
+const ref = t.str({ description: "Element reference from chrome_snapshot", examples: ["e12"] });
+const intent = t.enm("make_skill", "learn_routine", "work_out_backend_calls", "learn_workflow");
 
 /** Local tool capability on the agent computer: bound to the computer resource, Team Space only, never queued offline. */
 const local = (extra: Partial<CapOpts> = {}): CapOpts => ({
   // an agent may leave computerId out: its own computer, or its own profile in the Space browser for the chrome tools; a person must name the computer (f-wire, 12 Nov: the binding refused every
   // call that left it out, so no agent without an old desktop could browse)
-  on: ['computer', '/computerId'], orSelf: true, perm: 'computers.use', tool: 'computer', offline: 'online', errors: ['provider.unavailable', 'timeout.deadline'], ...extra,
+  on: ["computer", "/computerId"],
+  orSelf: true,
+  perm: "computers.use",
+  tool: "computer",
+  offline: "online",
+  errors: ["provider.unavailable", "timeout.deadline"],
+  ...extra,
 });
 
 export default defineManifest({
-  id: 'computers',
-  title: 'Agent computers',
-  owner: 'L2',
+  id: "computers",
+  title: "Agent computers",
+  owner: "L2",
   capabilities: [
     // ---- lifecycle and control
-    read('computers.list', 'List agent computers with state, tabs, disk and last activity', {
-      in: { state: t.opt(t.arr(cmpState)), ...pageIn }, out: { computers: t.arr(computerRow), ...pageOut }, perm: 'computers.watch', tool: 'computer', label: 'filter',
+    read("computers.list", "List agent computers with state, tabs, disk and last activity", {
+      in: { state: t.opt(t.arr(cmpState)), ...pageIn },
+      out: { computers: t.arr(computerRow), ...pageOut },
+      perm: "computers.watch",
+      tool: "computer",
+      label: "filter",
     }),
-    read('computers.hosts', 'The machines an agent computer can run on for you: this computer or the Space server when its container runtime answers, and each server you added that has Docker. Nothing about agent computers is offered until one can run them', {
-      in: {}, out: { available: t.bool(), hosts: t.arr(t.obj({ hostId: t.str(), kind: t.enm('this', 'space', 'server'), name: t.str(), online: t.bool(), canRun: t.bool(), runs: t.int({ minimum: 0 }), reason: t.opt(t.str()), detail: t.opt(t.str({ description: 'What the machine is, in a line: "Linux, 16 GB, 6.2 GB free"' })), room: t.opt(t.obj({ fits: t.int({ minimum: 0 }), freeMb: t.int({ minimum: 0 }), totalMb: t.int({ minimum: 0 }) }, { description: 'How many more agent computers fit in the memory that is free' })) })) },
-      perm: null, level: 'view', tool: 'computer', label: 'check',
+    read(
+      "computers.hosts",
+      "The machines an agent computer can run on for you: this computer or the Space server when its container runtime answers, and each server you added that has Docker. Nothing about agent computers is offered until one can run them",
+      {
+        in: {},
+        out: {
+          available: t.bool(),
+          hosts: t.arr(
+            t.obj({
+              hostId: t.str(),
+              kind: t.enm("this", "space", "server"),
+              name: t.str(),
+              online: t.bool(),
+              canRun: t.bool(),
+              runs: t.int({ minimum: 0 }),
+              reason: t.opt(t.str()),
+              detail: t.opt(t.str({ description: 'What the machine is, in a line: "Linux, 16 GB, 6.2 GB free"' })),
+              room: t.opt(
+                t.obj(
+                  { fits: t.int({ minimum: 0 }), freeMb: t.int({ minimum: 0 }), totalMb: t.int({ minimum: 0 }) },
+                  { description: "How many more agent computers fit in the memory that is free" },
+                ),
+              ),
+            }),
+          ),
+        },
+        perm: null,
+        level: "view",
+        tool: "computer",
+        label: "check",
+      },
+    ),
+    read("computers.get", "Read one agent computer: state, caption, tabs, disk and who took over", {
+      in: comp,
+      out: { computer: computerRow },
+      on: ["computer", "/computerId"],
+      perm: "computers.watch",
+      tool: "computer",
+      errors: ["validation.not_found"],
     }),
-    read('computers.get', 'Read one agent computer: state, caption, tabs, disk and who took over', {
-      in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.watch', tool: 'computer', errors: ['validation.not_found'],
+    create(
+      "computers.provision",
+      "Make an older-style desktop computer for an agent: a person only, an agent is refused (an agent has a terminal in its workspace and a browser in the Space browser already)",
+      {
+        in: {
+          agentId: id.agent,
+          tabLimit: t.opt(t.int({ minimum: 1, maximum: 50 })),
+          nodeId: t.opt(
+            t.str({ description: "Run it on a computer that joined the Space instead of the Space server" }),
+          ),
+        },
+        out: { computer: computerRow },
+        perm: "computers.use",
+        level: "manage",
+        emits: ["computer.provisioned"],
+        tool: "computer",
+        audit: "sensitive",
+        errors: ["provider.unavailable", "validation.duplicate"],
+      },
+    ),
+    write("computers.configure", "Change the tab limit or idle sleep of a computer", {
+      in: {
+        ...comp,
+        tabLimit: t.opt(t.int({ minimum: 1, maximum: 50 })),
+        idleSleepMinutes: t.opt(
+          t.int({ minimum: 0, maximum: 1440, description: "0 keeps it awake (it serves a site)" }),
+        ),
+      },
+      out: { computer: computerRow },
+      on: ["computer", "/computerId"],
+      perm: "computers.use",
+      level: "manage",
+      emits: ["computer.configured"],
+      tool: "computer",
     }),
-    create('computers.provision', 'Make an older-style desktop computer for an agent: a person only, an agent is refused (an agent has a terminal in its workspace and a browser in the Space browser already)', {
-      in: { agentId: id.agent, tabLimit: t.opt(t.int({ minimum: 1, maximum: 50 })), nodeId: t.opt(t.str({ description: 'Run it on a computer that joined the Space instead of the Space server' })) }, out: { computer: computerRow }, perm: 'computers.use', level: 'manage',
-      emits: ['computer.provisioned'], tool: 'computer', audit: 'sensitive', errors: ['provider.unavailable', 'validation.duplicate'],
+    write("computers.remove", "Remove an agent computer and its profile disk", {
+      in: comp,
+      out: { removed: t.bool() },
+      on: ["computer", "/computerId"],
+      perm: "computers.use",
+      level: "manage",
+      emits: ["computer.removed"],
+      gate: { act: "delete", when: "actor.kind != 'person'" },
+      tool: "computer",
+      audit: "always",
+      risk: "high",
     }),
-    write('computers.configure', 'Change the tab limit or idle sleep of a computer', {
-      in: { ...comp, tabLimit: t.opt(t.int({ minimum: 1, maximum: 50 })), idleSleepMinutes: t.opt(t.int({ minimum: 0, maximum: 1440, description: '0 keeps it awake (it serves a site)' })) }, out: { computer: computerRow },
-      on: ['computer', '/computerId'], perm: 'computers.use', level: 'manage', emits: ['computer.configured'], tool: 'computer',
+    write("computers.wake", "Wake an asleep computer (it sleeps when idle and never mid-task)", {
+      in: comp,
+      out: { computer: computerRow },
+      on: ["computer", "/computerId"],
+      perm: "computers.use",
+      emits: ["computer.started"],
+      tool: "computer",
+      idem: "natural",
+      offline: "online",
     }),
-    write('computers.remove', 'Remove an agent computer and its profile disk', {
-      in: comp, out: { removed: t.bool() }, on: ['computer', '/computerId'], perm: 'computers.use', level: 'manage', emits: ['computer.removed'],
-      gate: { act: 'delete', when: "actor.kind != 'person'" }, tool: 'computer', audit: 'always', risk: 'high',
+    write("computers.sleep", "Put a computer to sleep; refused while a task is running", {
+      in: comp,
+      out: { computer: computerRow },
+      on: ["computer", "/computerId"],
+      perm: "computers.use",
+      emits: ["computer.slept"],
+      tool: "computer",
+      idem: "natural",
+      offline: "online",
+      errors: ["validation.precondition_failed"],
     }),
-    write('computers.wake', 'Wake an asleep computer (it sleeps when idle and never mid-task)', {
-      in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.use', emits: ['computer.started'], tool: 'computer', idem: 'natural', offline: 'online',
+    write(
+      "computers.take_over",
+      'Take over the computer ("You\'re in control"); your actions become one "You took over" step',
+      {
+        in: comp,
+        out: { computer: computerRow, ticket: t.str() },
+        on: ["computer", "/computerId"],
+        perm: "computers.take_over",
+        level: "use",
+        emits: ["computer.takeover", "computer.started"],
+        tool: "computer",
+        audit: "sensitive",
+        idem: "natural",
+        offline: "online",
+        errors: ["validation.precondition_failed"],
+      },
+    ),
+    write("computers.give_back", "Give the computer back to the agent", {
+      in: comp,
+      out: { computer: computerRow },
+      on: ["computer", "/computerId"],
+      perm: "computers.take_over",
+      level: "use",
+      emits: ["computer.given_back", "computer.recording_saved"],
+      tool: "computer",
+      idem: "natural",
+      offline: "online",
     }),
-    write('computers.sleep', 'Put a computer to sleep; refused while a task is running', {
-      in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.use', emits: ['computer.slept'], tool: 'computer', idem: 'natural', offline: 'online',
-      errors: ['validation.precondition_failed'],
+    write(
+      "computers.record_start",
+      "Record while you take over: every click and key with the element, each page, network traffic with secrets masked, and video",
+      {
+        in: comp,
+        out: { recordingId: t.id("rcd") },
+        on: ["computer", "/computerId"],
+        perm: "computers.take_over",
+        level: "use",
+        emits: ["computer.recording_started"],
+        tool: "computer",
+        audit: "sensitive",
+        offline: "online",
+        errors: ["validation.precondition_failed"],
+      },
+    ),
+    write(
+      "computers.record_stop",
+      "Stop recording; the recording is saved in work/recordings/ and one sheet asks what the agent should do with it",
+      {
+        in: comp,
+        out: { recording: recordingRow },
+        on: ["computer", "/computerId"],
+        perm: "computers.take_over",
+        level: "use",
+        emits: ["computer.recording_saved"],
+        tool: "computer",
+        offline: "online",
+        idem: "natural",
+      },
+    ),
+    read("computers.screenshot", "One screenshot of the computer, stored in the agent folder", {
+      in: comp,
+      out: { fileId: id.file, width: t.int(), height: t.int(), at: t.ts() },
+      on: ["computer", "/computerId"],
+      perm: "computers.watch",
+      tool: "computer",
+      label: "check",
     }),
-    write('computers.take_over', 'Take over the computer ("You\'re in control"); your actions become one "You took over" step', {
-      in: comp, out: { computer: computerRow, ticket: t.str() }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', emits: ['computer.takeover', 'computer.started'],
-      tool: 'computer', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['validation.precondition_failed'],
+    read(
+      "computers.stream",
+      "Live view source: WebRTC through the host, or MJPEG over the WebSocket as fallback; frames are live-only, never stored",
+      {
+        in: comp,
+        out: { transport: t.enm("webrtc", "mjpeg"), url: t.str(), ticket: t.str(), expiresAt: t.ts() },
+        on: ["computer", "/computerId"],
+        perm: "computers.watch",
+        tool: "computer",
+      },
+    ),
+    read(
+      "computers.timeline",
+      "Session timeline: a frame per step with caption (Show This Step, Copy Caption, Make a Skill from Here)",
+      {
+        in: { ...comp, runId: t.opt(id.run), threadId: t.opt(id.thread), ...pageIn },
+        out: { steps: t.arr(stepRow), ...pageOut },
+        on: ["computer", "/computerId"],
+        perm: "computers.watch",
+        tool: "computer",
+      },
+    ),
+    read("computers.timeline_step", "One timeline step with its frame", {
+      in: { ...comp, stepId: t.id("stp") },
+      out: { step: stepRow },
+      on: ["computer", "/computerId"],
+      perm: "computers.watch",
+      tool: "computer",
     }),
-    write('computers.give_back', 'Give the computer back to the agent', {
-      in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', emits: ['computer.given_back', 'computer.recording_saved'], tool: 'computer', idem: 'natural', offline: 'online',
+    write(
+      "computers.skill_from_step",
+      "Make a skill from this point in a session: starts a turn that writes the skill into the agent folder",
+      {
+        in: { ...comp, stepId: t.id("stp"), name: t.opt(t.str()) },
+        out: { taskId: id.task, runId: t.opt(id.run) },
+        on: ["computer", "/computerId"],
+        perm: "computers.use",
+        emits: ["computer.skill_requested"],
+        tool: "computer",
+        idem: "key",
+      },
+    ),
+    read("computers.recordings.list", "Recordings stored in the agent folder", {
+      in: { ...comp, ...pageIn },
+      out: { recordings: t.arr(recordingRow), ...pageOut },
+      on: ["computer", "/computerId"],
+      perm: "computers.watch",
+      tool: "computer",
+      label: "filter",
     }),
-    write('computers.record_start', 'Record while you take over: every click and key with the element, each page, network traffic with secrets masked, and video', {
-      in: comp, out: { recordingId: t.id('rcd') }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', emits: ['computer.recording_started'],
-      tool: 'computer', audit: 'sensitive', offline: 'online', errors: ['validation.precondition_failed'],
+    read(
+      "computers.recording.get",
+      "Read one recording: events, network log and video paths (follows the folder access)",
+      {
+        in: { recordingId: t.id("rcd") },
+        out: { recording: recordingRow, eventsPath: t.str(), harPath: t.str(), videoPath: t.str() },
+        perm: "computers.watch",
+        tool: "computer",
+        label: "check",
+      },
+    ),
+    write(
+      "computers.recording.process",
+      "Say what the agent should do with a recording: make a skill, learn a routine, work out the app backend calls (site recipe note), learn this workflow",
+      {
+        in: { recordingId: t.id("rcd"), intents: t.arr(intent, { minItems: 1 }) },
+        out: { taskId: id.task, runId: t.opt(id.run) },
+        perm: "computers.use",
+        emits: ["computer.recording_processed"],
+        tool: "computer",
+        idem: "key",
+      },
+    ),
+    write("computers.recording.delete", "Delete a recording", {
+      in: { recordingId: t.id("rcd") },
+      out: { deleted: t.bool() },
+      perm: "computers.use",
+      tool: "computer",
+      audit: "sensitive",
     }),
-    write('computers.record_stop', 'Stop recording; the recording is saved in work/recordings/ and one sheet asks what the agent should do with it', {
-      in: comp, out: { recording: recordingRow }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', emits: ['computer.recording_saved'],
-      tool: 'computer', offline: 'online', idem: 'natural',
+    read(
+      "computers.sessions.list",
+      "Signed-in browser sessions on the profile disk (listed under Sessions and devices)",
+      {
+        in: comp,
+        out: { sessions: t.arr(sessionRow) },
+        on: ["computer", "/computerId"],
+        perm: "computers.watch",
+        tool: "computer",
+      },
+    ),
+    write("computers.session.sign_out", "Sign out of a site on the profile disk", {
+      in: { ...comp, site: t.str() },
+      out: { ok: t.bool() },
+      on: ["computer", "/computerId"],
+      perm: "computers.take_over",
+      emits: ["computer.session_signed_out", "computer.started"],
+      tool: "computer",
+      audit: "sensitive",
     }),
-    read('computers.screenshot', 'One screenshot of the computer, stored in the agent folder', {
-      in: comp, out: { fileId: id.file, width: t.int(), height: t.int(), at: t.ts() }, on: ['computer', '/computerId'], perm: 'computers.watch', tool: 'computer', label: 'check',
-    }),
-    read('computers.stream', 'Live view source: WebRTC through the host, or MJPEG over the WebSocket as fallback; frames are live-only, never stored', {
-      in: comp, out: { transport: t.enm('webrtc', 'mjpeg'), url: t.str(), ticket: t.str(), expiresAt: t.ts() }, on: ['computer', '/computerId'], perm: 'computers.watch', tool: 'computer',
-    }),
-    read('computers.timeline', 'Session timeline: a frame per step with caption (Show This Step, Copy Caption, Make a Skill from Here)', {
-      in: { ...comp, runId: t.opt(id.run), threadId: t.opt(id.thread), ...pageIn }, out: { steps: t.arr(stepRow), ...pageOut }, on: ['computer', '/computerId'], perm: 'computers.watch', tool: 'computer',
-    }),
-    read('computers.timeline_step', 'One timeline step with its frame', {
-      in: { ...comp, stepId: t.id('stp') }, out: { step: stepRow }, on: ['computer', '/computerId'], perm: 'computers.watch', tool: 'computer',
-    }),
-    write('computers.skill_from_step', 'Make a skill from this point in a session: starts a turn that writes the skill into the agent folder', {
-      in: { ...comp, stepId: t.id('stp'), name: t.opt(t.str()) }, out: { taskId: id.task, runId: t.opt(id.run) }, on: ['computer', '/computerId'], perm: 'computers.use',
-      emits: ['computer.skill_requested'], tool: 'computer', idem: 'key',
-    }),
-    read('computers.recordings.list', 'Recordings stored in the agent folder', {
-      in: { ...comp, ...pageIn }, out: { recordings: t.arr(recordingRow), ...pageOut }, on: ['computer', '/computerId'], perm: 'computers.watch', tool: 'computer', label: 'filter',
-    }),
-    read('computers.recording.get', 'Read one recording: events, network log and video paths (follows the folder access)', {
-      in: { recordingId: t.id('rcd') }, out: { recording: recordingRow, eventsPath: t.str(), harPath: t.str(), videoPath: t.str() }, perm: 'computers.watch', tool: 'computer', label: 'check',
-    }),
-    write('computers.recording.process', 'Say what the agent should do with a recording: make a skill, learn a routine, work out the app backend calls (site recipe note), learn this workflow', {
-      in: { recordingId: t.id('rcd'), intents: t.arr(intent, { minItems: 1 }) }, out: { taskId: id.task, runId: t.opt(id.run) }, perm: 'computers.use',
-      emits: ['computer.recording_processed'], tool: 'computer', idem: 'key',
-    }),
-    write('computers.recording.delete', 'Delete a recording', {
-      in: { recordingId: t.id('rcd') }, out: { deleted: t.bool() }, perm: 'computers.use', tool: 'computer', audit: 'sensitive',
-    }),
-    read('computers.sessions.list', 'Signed-in browser sessions on the profile disk (listed under Sessions and devices)', {
-      in: comp, out: { sessions: t.arr(sessionRow) }, on: ['computer', '/computerId'], perm: 'computers.watch', tool: 'computer',
-    }),
-    write('computers.session.sign_out', 'Sign out of a site on the profile disk', {
-      in: { ...comp, site: t.str() }, out: { ok: t.bool() }, on: ['computer', '/computerId'], perm: 'computers.take_over', emits: ['computer.session_signed_out', 'computer.started'], tool: 'computer', audit: 'sensitive',
-    }),
-    read('computers.browser.profiles', "The agent browsers in this Space's browser that you may watch: running or asleep, tabs, whether the agent is using it, and who has the controls", {
-      in: {}, out: { profiles: t.arr(browserRow), maxRunning: t.int({ description: 'How many browsers the Space browser holds at once' }),
-        slots: t.opt(t.obj({ running: t.int({ description: 'Browsers running now on this server, every Space\'s' }), limit: t.int({ description: 'How many it runs at once' }), waiting: t.int({ description: 'Browser calls waiting for one to free up' }) })) }, perm: 'computers.watch', label: 'filter', offline: 'online', errors: ['provider.unavailable'],
-    }),
-    read('computers.browser.stream', "Live view of an agent's browser, relayed by the Space: MJPEG or a WebSocket with a ticket that opens once, for one minute; frames are live-only, never stored. Wakes the browser", {
-      in: { agentId: id.agent }, out: { transport: t.enm('mjpeg'), url: t.str({ description: 'The Space\'s own relay path, /browsers/<agent>/stream?ticket=...' }), ws: t.opt(t.str({ description: 'The same view over a WebSocket, which also carries your input once you have taken over' })), width: t.opt(t.int({ description: "The page's real width in pixels: scale pointer positions from this, never from a constant" })), height: t.opt(t.int({ description: "The page's real height in pixels" })), expiresAt: t.ts() }, perm: 'computers.watch', label: 'check', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.not_found'],
-    }),
+    read(
+      "computers.browser.profiles",
+      "The agent browsers in this Space's browser that you may watch: running or asleep, tabs, whether the agent is using it, and who has the controls",
+      {
+        in: {},
+        out: {
+          profiles: t.arr(browserRow),
+          maxRunning: t.int({ description: "How many browsers the Space browser holds at once" }),
+          slots: t.opt(
+            t.obj({
+              running: t.int({ description: "Browsers running now on this server, every Space's" }),
+              limit: t.int({ description: "How many it runs at once" }),
+              waiting: t.int({ description: "Browser calls waiting for one to free up" }),
+            }),
+          ),
+        },
+        perm: "computers.watch",
+        label: "filter",
+        offline: "online",
+        errors: ["provider.unavailable"],
+      },
+    ),
+    read(
+      "computers.browser.stream",
+      "Live view of an agent's browser, relayed by the Space: MJPEG or a WebSocket with a ticket that opens once, for one minute; frames are live-only, never stored. Wakes the browser",
+      {
+        in: { agentId: id.agent },
+        out: {
+          transport: t.enm("mjpeg"),
+          url: t.str({ description: "The Space's own relay path, /browsers/<agent>/stream?ticket=..." }),
+          ws: t.opt(
+            t.str({
+              description: "The same view over a WebSocket, which also carries your input once you have taken over",
+            }),
+          ),
+          width: t.opt(
+            t.int({
+              description: "The page's real width in pixels: scale pointer positions from this, never from a constant",
+            }),
+          ),
+          height: t.opt(t.int({ description: "The page's real height in pixels" })),
+          expiresAt: t.ts(),
+        },
+        perm: "computers.watch",
+        label: "check",
+        offline: "online",
+        errors: ["permission.no_grant", "provider.unavailable", "validation.not_found"],
+      },
+    ),
     // The Space browser's own rule decides who takes over, gives back and signs out (sbrowser/policy.ts): a personal agent's browser is its owner's, a team agent's its owner's and the admins'. The capability asks
     // only for the right every member holds to watch, so a plain member can take over their own Assistant's browser; computers.take_over (an agent computer) is not theirs and is not asked for here.
-    write('computers.browser.take_over', "Take over an agent's browser (\"You're in control\"): its tools wait, your clicks and keys reach the page. An Assistant's or personal agent's browser is its person's alone; a team agent's goes to its owner and admins; one shared with named people may be watched by them but not taken over", {
-      in: { agentId: id.agent }, out: { profile: browserRow, note: t.opt(t.str({ description: 'One line for the pane, when the browser was reopened since you last saw it and its page was reloaded' })) }, perm: 'computers.watch', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.precondition_failed'],
-    }),
-    write('computers.browser.give_back', "Give an agent's browser back to the agent; the person who has the controls or an admin may", {
-      in: { agentId: id.agent }, out: { profile: browserRow }, perm: 'computers.watch', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable'],
-    }),
-    read('computers.browser.sessions', "The sites an agent's browser is signed in to (cookies the profile holds), by site, never a value. Wakes the browser when it is asleep. Only for a browser you may watch", {
-      in: { agentId: id.agent }, out: { sessions: t.arr(sessionRow) }, perm: 'computers.watch', label: 'check', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.not_found'],
-    }),
-    write('computers.browser.sign_out', "Sign an agent's browser out of a site: its cookies and storage for that site are cleared. The owner and admins only", {
-      in: { agentId: id.agent, site: t.str() }, out: { ok: t.bool() }, perm: 'computers.watch', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.bad_input'],
-    }),
-    read('computers.browser.timeline', "What an agent did in its Space browser, step by step with a picture each: the same timeline as a computer's, for the agent's profile. Only for a browser you may watch", {
-      in: { agentId: id.agent, runId: t.opt(id.run), threadId: t.opt(id.thread), ...pageIn }, out: { steps: t.arr(stepRow), ...pageOut }, perm: 'computers.watch', label: 'filter', errors: ['permission.no_grant', 'validation.not_found'],
-    }),
-    read('computers.health', 'Health of the container runtime and agentd on the host', {
-      out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), runtime: t.opt(t.enm('ready', 'missing')), latencyMs: t.opt(t.int()), awake: t.int(), asleep: t.int() },
+    write(
+      "computers.browser.take_over",
+      "Take over an agent's browser (\"You're in control\"): its tools wait, your clicks and keys reach the page. An Assistant's or personal agent's browser is its person's alone; a team agent's goes to its owner and admins; one shared with named people may be watched by them but not taken over",
+      {
+        in: { agentId: id.agent },
+        out: {
+          profile: browserRow,
+          note: t.opt(
+            t.str({
+              description:
+                "One line for the pane, when the browser was reopened since you last saw it and its page was reloaded",
+            }),
+          ),
+        },
+        perm: "computers.watch",
+        level: "use",
+        audit: "sensitive",
+        idem: "natural",
+        offline: "online",
+        errors: ["permission.no_grant", "provider.unavailable", "validation.precondition_failed"],
+      },
+    ),
+    write(
+      "computers.browser.give_back",
+      "Give an agent's browser back to the agent; the person who has the controls or an admin may",
+      {
+        in: { agentId: id.agent },
+        out: { profile: browserRow },
+        perm: "computers.watch",
+        level: "use",
+        audit: "sensitive",
+        idem: "natural",
+        offline: "online",
+        errors: ["permission.no_grant", "provider.unavailable"],
+      },
+    ),
+    read(
+      "computers.browser.sessions",
+      "The sites an agent's browser is signed in to (cookies the profile holds), by site, never a value. Wakes the browser when it is asleep. Only for a browser you may watch",
+      {
+        in: { agentId: id.agent },
+        out: { sessions: t.arr(sessionRow) },
+        perm: "computers.watch",
+        label: "check",
+        offline: "online",
+        errors: ["permission.no_grant", "provider.unavailable", "validation.not_found"],
+      },
+    ),
+    write(
+      "computers.browser.sign_out",
+      "Sign an agent's browser out of a site: its cookies and storage for that site are cleared. The owner and admins only",
+      {
+        in: { agentId: id.agent, site: t.str() },
+        out: { ok: t.bool() },
+        perm: "computers.watch",
+        level: "use",
+        audit: "sensitive",
+        idem: "natural",
+        offline: "online",
+        errors: ["permission.no_grant", "provider.unavailable", "validation.bad_input"],
+      },
+    ),
+    read(
+      "computers.browser.timeline",
+      "What an agent did in its Space browser, step by step with a picture each: the same timeline as a computer's, for the agent's profile. Only for a browser you may watch",
+      {
+        in: { agentId: id.agent, runId: t.opt(id.run), threadId: t.opt(id.thread), ...pageIn },
+        out: { steps: t.arr(stepRow), ...pageOut },
+        perm: "computers.watch",
+        label: "filter",
+        errors: ["permission.no_grant", "validation.not_found"],
+      },
+    ),
+    read("computers.health", "Health of the container runtime and agentd on the host", {
+      out: {
+        state: t.enm("healthy", "degraded", "down"),
+        detail: t.opt(t.str()),
+        runtime: t.opt(t.enm("ready", "missing")),
+        latencyMs: t.opt(t.int()),
+        awake: t.int(),
+        asleep: t.int(),
+      },
     }),
 
     // ---- Chrome tools (Vyre for Chrome signed in as the agent)
-    read('computers.chrome.snapshot', 'Read the page as an accessibility tree with element refs; prefer this over screenshots', {
-      in: { ...chromeWhere, tabId, selector: t.opt(t.str()), format: t.opt(t.enm('tree', 'text')) }, out: { ...reopenOut, url: t.str(), title: t.str(), tree: t.str(), truncated: t.bool() },
-      ...local({ mcpName: 'chrome_snapshot', agent: { planMode: 'allowed' } }),
+    read(
+      "computers.chrome.snapshot",
+      "Read the page as an accessibility tree with element refs; prefer this over screenshots",
+      {
+        in: { ...chromeWhere, tabId, selector: t.opt(t.str()), format: t.opt(t.enm("tree", "text")) },
+        out: { ...reopenOut, url: t.str(), title: t.str(), tree: t.str(), truncated: t.bool() },
+        ...local({ mcpName: "chrome_snapshot", agent: { planMode: "allowed" } }),
+      },
+    ),
+    write(
+      "computers.chrome.act",
+      "Act on an element or key: click, hover, press, select, scroll, check; a send, post or payment is held and returns an id",
+      {
+        in: {
+          ...chromeWhere,
+          tabId,
+          ref: t.opt(ref),
+          action: t.enm("click", "double_click", "hover", "press", "select", "scroll", "check", "uncheck", "focus"),
+          value: t.opt(t.str()),
+        },
+        out: { ...reopenOut, ok: t.bool(), heldId: t.opt(t.str()), snapshot: t.opt(t.str()), downloads: downloadsOut },
+        ...local({ mcpName: "chrome_act", risk: "medium", idem: "none" }),
+      },
+    ),
+    write("computers.chrome.click", "Click an element by ref or by coordinates", {
+      in: {
+        ...chromeWhere,
+        tabId,
+        ref: t.opt(ref),
+        x: t.opt(t.int()),
+        y: t.opt(t.int()),
+        button: t.opt(t.enm("left", "right", "middle")),
+      },
+      out: { ...reopenOut, ok: t.bool(), heldId: t.opt(t.str()), downloads: downloadsOut },
+      ...local({ mcpName: "chrome_click", risk: "medium", idem: "none" }),
     }),
-    write('computers.chrome.act', 'Act on an element or key: click, hover, press, select, scroll, check; a send, post or payment is held and returns an id', {
-      in: { ...chromeWhere, tabId, ref: t.opt(ref), action: t.enm('click', 'double_click', 'hover', 'press', 'select', 'scroll', 'check', 'uncheck', 'focus'), value: t.opt(t.str()) },
-      out: { ...reopenOut, ok: t.bool(), heldId: t.opt(t.str()), snapshot: t.opt(t.str()), downloads: downloadsOut }, ...local({ mcpName: 'chrome_act', risk: 'medium', idem: 'none' }),
+    write(
+      "computers.chrome.type",
+      "Type text into the focused element or a ref; secrets only as #Handle.field references",
+      {
+        in: { ...chromeWhere, tabId, ref: t.opt(ref), text: t.str(), submit: t.opt(t.bool()) },
+        out: { ...reopenOut, ok: t.bool(), heldId: t.opt(t.str()), downloads: downloadsOut },
+        ...local({ mcpName: "chrome_type", risk: "medium", idem: "none" }),
+      },
+    ),
+    write(
+      "computers.chrome.fill",
+      "Fill form fields; values may be #Handle.field references that the computer vault filler substitutes at the last moment",
+      {
+        in: { ...chromeWhere, tabId, fields: t.arr(t.obj({ ref, value: t.str() }), { minItems: 1 }) },
+        out: { ...reopenOut, ok: t.bool(), filled: t.int() },
+        ...local({ mcpName: "chrome_fill", risk: "medium", idem: "none" }),
+      },
+    ),
+    write("computers.chrome.open", "Open a URL, reusing the open tab by default (never one tab per step)", {
+      in: {
+        ...chromeWhere,
+        url: t.str({ pattern: "^https?://", examples: ["https://example.com"] }),
+        newTab: t.opt(t.bool()),
+      },
+      out: { ...reopenOut, tabId: t.str(), url: t.str(), title: t.str(), downloads: downloadsOut },
+      ...local({ mcpName: "chrome_open", idem: "none" }),
     }),
-    write('computers.chrome.click', 'Click an element by ref or by coordinates', {
-      in: { ...chromeWhere, tabId, ref: t.opt(ref), x: t.opt(t.int()), y: t.opt(t.int()), button: t.opt(t.enm('left', 'right', 'middle')) },
-      out: { ...reopenOut, ok: t.bool(), heldId: t.opt(t.str()), downloads: downloadsOut }, ...local({ mcpName: 'chrome_click', risk: 'medium', idem: 'none' }),
+    write(
+      "computers.chrome.tabs",
+      "List, find, use, open or close tabs. find looks for tabs already open for a site (in the person's own Chrome: their open tabs); use works in one; a tab that was not yours to begin with is never closed",
+      {
+        in: {
+          ...chromeWhere,
+          action: t.enm("list", "use", "find", "new", "close"),
+          tabId,
+          url: t.opt(t.str()),
+          site: t.opt(
+            t.str({
+              description: "find only: the site, as an address or a host such as mail.google.com",
+              examples: ["mail.google.com"],
+            }),
+          ),
+        },
+        out: { ...reopenOut, tabs: t.arr(t.obj({ tabId: t.str(), url: t.str(), title: t.str(), active: t.bool() })) },
+        ...local({ mcpName: "chrome_tabs", idem: "none" }),
+      },
+    ),
+    write("computers.chrome.wait", "Wait for a load, text, selector, network idle or a time", {
+      in: {
+        ...chromeWhere,
+        tabId,
+        until: t.enm("load", "text", "selector", "network_idle", "time"),
+        value: t.opt(t.str()),
+        timeoutMs: t.opt(t.int({ minimum: 100, maximum: 120000 })),
+      },
+      out: { ...reopenOut, ok: t.bool(), waitedMs: t.int(), downloads: downloadsOut },
+      ...local({ mcpName: "chrome_wait", idem: "none", risk: "low" }),
     }),
-    write('computers.chrome.type', 'Type text into the focused element or a ref; secrets only as #Handle.field references', {
-      in: { ...chromeWhere, tabId, ref: t.opt(ref), text: t.str(), submit: t.opt(t.bool()) }, out: { ...reopenOut, ok: t.bool(), heldId: t.opt(t.str()), downloads: downloadsOut },
-      ...local({ mcpName: 'chrome_type', risk: 'medium', idem: 'none' }),
+    read(
+      "computers.chrome.screenshot",
+      "Screenshot of the tab or one element, stored in the agent folder and rendered as a screenshot block",
+      {
+        in: { ...chromeWhere, tabId, ref: t.opt(ref), fullPage: t.opt(t.bool()) },
+        out: { ...reopenOut, fileId: id.file, width: t.int(), height: t.int() },
+        ...local({ mcpName: "chrome_screenshot", agent: { planMode: "allowed", blocks: ["screenshot"] } }),
+      },
+    ),
+    write("computers.chrome.eval", "Run a JavaScript expression in the page and return the result", {
+      in: { ...chromeWhere, tabId, expression: t.str() },
+      out: { ...reopenOut, result: t.json() },
+      ...local({ mcpName: "chrome_eval", risk: "high", idem: "none", audit: "sensitive" }),
     }),
-    write('computers.chrome.fill', 'Fill form fields; values may be #Handle.field references that the computer vault filler substitutes at the last moment', {
-      in: { ...chromeWhere, tabId, fields: t.arr(t.obj({ ref, value: t.str() }), { minItems: 1 }) }, out: { ...reopenOut, ok: t.bool(), filled: t.int() },
-      ...local({ mcpName: 'chrome_fill', risk: 'medium', idem: 'none' }),
+    read("computers.chrome.console", "Read the page console messages", {
+      in: {
+        ...chromeWhere,
+        tabId,
+        level: t.opt(t.enm("log", "warn", "error")),
+        limit: t.opt(t.int({ minimum: 1, maximum: 500 })),
+      },
+      out: { ...reopenOut, messages: t.arr(t.obj({ level: t.str(), text: t.str(), at: t.ts() })) },
+      ...local({ mcpName: "chrome_console" }),
     }),
-    write('computers.chrome.open', 'Open a URL, reusing the open tab by default (never one tab per step)', {
-      in: { ...chromeWhere, url: t.str({ pattern: '^https?://', examples: ['https://example.com'] }), newTab: t.opt(t.bool()) }, out: { ...reopenOut, tabId: t.str(), url: t.str(), title: t.str(), downloads: downloadsOut },
-      ...local({ mcpName: 'chrome_open', idem: 'none' }),
+    read(
+      "computers.chrome.net",
+      "Read network requests of the tab with timing; bodies are masked by the vault scrubber",
+      {
+        in: {
+          ...chromeWhere,
+          tabId,
+          filter: t.opt(t.str()),
+          bodies: t.opt(t.bool()),
+          limit: t.opt(t.int({ minimum: 1, maximum: 500 })),
+        },
+        out: {
+          ...reopenOut,
+          requests: t.arr(
+            t.obj({ method: t.str(), url: t.str(), status: t.opt(t.int()), ms: t.opt(t.int()), body: t.opt(t.str()) }),
+          ),
+        },
+        ...local({ mcpName: "chrome_net" }),
+      },
+    ),
+    read("computers.chrome.inspect", "Inspect one element: attributes, computed text, box and role", {
+      in: { ...chromeWhere, tabId, ref },
+      out: { ...reopenOut, element: t.rec() },
+      ...local({ mcpName: "chrome_inspect" }),
     }),
-    write('computers.chrome.tabs', 'List, find, use, open or close tabs. find looks for tabs already open for a site (in the person\'s own Chrome: their open tabs); use works in one; a tab that was not yours to begin with is never closed', {
-      in: { ...chromeWhere, action: t.enm('list', 'use', 'find', 'new', 'close'), tabId, url: t.opt(t.str()), site: t.opt(t.str({ description: 'find only: the site, as an address or a host such as mail.google.com', examples: ['mail.google.com'] })) }, out: { ...reopenOut, tabs: t.arr(t.obj({ tabId: t.str(), url: t.str(), title: t.str(), active: t.bool() })) },
-      ...local({ mcpName: 'chrome_tabs', idem: 'none' }),
+    read("computers.chrome.state", "URL, title and load state of a tab", {
+      in: { ...chromeWhere, tabId },
+      out: { ...reopenOut, url: t.str(), title: t.str(), loading: t.bool(), downloads: downloadsOut },
+      ...local({ mcpName: "chrome_state" }),
     }),
-    write('computers.chrome.wait', 'Wait for a load, text, selector, network idle or a time', {
-      in: { ...chromeWhere, tabId, until: t.enm('load', 'text', 'selector', 'network_idle', 'time'), value: t.opt(t.str()), timeoutMs: t.opt(t.int({ minimum: 100, maximum: 120000 })) },
-      out: { ...reopenOut, ok: t.bool(), waitedMs: t.int(), downloads: downloadsOut }, ...local({ mcpName: 'chrome_wait', idem: 'none', risk: 'low' }),
+    read(
+      "computers.chrome.status",
+      "Status of Vyre for Chrome in this computer: connected, paused by Esc, held items",
+      {
+        in: { ...chromeWhere },
+        out: { ...reopenOut, connected: t.bool(), paused: t.bool(), held: t.arr(t.str()) },
+        ...local({ mcpName: "chrome_status" }),
+      },
+    ),
+    write("computers.chrome.stop", "Stop everything Chrome is doing until the person answers", {
+      in: { ...chromeWhere, reason: t.opt(t.str()) },
+      out: { ...reopenOut, stopped: t.bool() },
+      ...local({ mcpName: "chrome_stop", idem: "natural", risk: "low" }),
     }),
-    read('computers.chrome.screenshot', 'Screenshot of the tab or one element, stored in the agent folder and rendered as a screenshot block', {
-      in: { ...chromeWhere, tabId, ref: t.opt(ref), fullPage: t.opt(t.bool()) }, out: { ...reopenOut, fileId: id.file, width: t.int(), height: t.int() },
-      ...local({ mcpName: 'chrome_screenshot', agent: { planMode: 'allowed', blocks: ['screenshot'] } }),
+    write("computers.chrome.resume", "Resume after a stop or an Esc press once the person has answered", {
+      in: { ...chromeWhere },
+      out: { ...reopenOut, resumed: t.bool() },
+      ...local({ mcpName: "chrome_resume", idem: "natural", risk: "low" }),
     }),
-    write('computers.chrome.eval', 'Run a JavaScript expression in the page and return the result', {
-      in: { ...chromeWhere, tabId, expression: t.str() }, out: { ...reopenOut, result: t.json() }, ...local({ mcpName: 'chrome_eval', risk: 'high', idem: 'none', audit: 'sensitive' }),
+    outward("computers.chrome.send", "Send a held send, post or payment: the person approves it first (Gate)", {
+      in: { ...chromeWhere, heldId: t.str() },
+      out: { ...reopenOut, sent: t.bool(), taskId: t.opt(id.task), downloads: downloadsOut },
+      gate: "send",
+      ...local({ mcpName: "chrome_send", agent: { planMode: "blocked" } }),
     }),
-    read('computers.chrome.console', 'Read the page console messages', {
-      in: { ...chromeWhere, tabId, level: t.opt(t.enm('log', 'warn', 'error')), limit: t.opt(t.int({ minimum: 1, maximum: 500 })) }, out: { ...reopenOut, messages: t.arr(t.obj({ level: t.str(), text: t.str(), at: t.ts() })) },
-      ...local({ mcpName: 'chrome_console' }),
+    write("computers.chrome.batch", "Run several Chrome steps in one call; stops at the first held item", {
+      in: {
+        ...chromeWhere,
+        tabId,
+        steps: t.arr(t.obj({ tool: t.str(), args: t.rec() }), { minItems: 1, maxItems: 50 }),
+      },
+      out: { results: t.arr(t.obj({ tool: t.str(), ok: t.bool(), result: t.opt(t.json()), heldId: t.opt(t.str()) })) },
+      ...local({ mcpName: "chrome_batch", risk: "medium", idem: "none" }),
     }),
-    read('computers.chrome.net', 'Read network requests of the tab with timing; bodies are masked by the vault scrubber', {
-      in: { ...chromeWhere, tabId, filter: t.opt(t.str()), bodies: t.opt(t.bool()), limit: t.opt(t.int({ minimum: 1, maximum: 500 })) },
-      out: { ...reopenOut, requests: t.arr(t.obj({ method: t.str(), url: t.str(), status: t.opt(t.int()), ms: t.opt(t.int()), body: t.opt(t.str()) })) }, ...local({ mcpName: 'chrome_net' }),
+    write("computers.chrome.plan", "Tell the person the steps about to be taken in the browser before taking them", {
+      in: { ...chromeWhere, goal: t.str(), steps: t.opt(t.arr(t.str())) },
+      out: { ...reopenOut, ok: t.bool() },
+      ...local({ mcpName: "chrome_plan", idem: "none", risk: "low" }),
     }),
-    read('computers.chrome.inspect', 'Inspect one element: attributes, computed text, box and role', {
-      in: { ...chromeWhere, tabId, ref }, out: { ...reopenOut, element: t.rec() }, ...local({ mcpName: 'chrome_inspect' }),
-    }),
-    read('computers.chrome.state', 'URL, title and load state of a tab', {
-      in: { ...chromeWhere, tabId }, out: { ...reopenOut, url: t.str(), title: t.str(), loading: t.bool(), downloads: downloadsOut }, ...local({ mcpName: 'chrome_state' }),
-    }),
-    read('computers.chrome.status', 'Status of Vyre for Chrome in this computer: connected, paused by Esc, held items', {
-      in: { ...chromeWhere }, out: { ...reopenOut, connected: t.bool(), paused: t.bool(), held: t.arr(t.str()) }, ...local({ mcpName: 'chrome_status' }),
-    }),
-    write('computers.chrome.stop', 'Stop everything Chrome is doing until the person answers', {
-      in: { ...chromeWhere, reason: t.opt(t.str()) }, out: { ...reopenOut, stopped: t.bool() }, ...local({ mcpName: 'chrome_stop', idem: 'natural', risk: 'low' }),
-    }),
-    write('computers.chrome.resume', 'Resume after a stop or an Esc press once the person has answered', {
-      in: { ...chromeWhere }, out: { ...reopenOut, resumed: t.bool() }, ...local({ mcpName: 'chrome_resume', idem: 'natural', risk: 'low' }),
-    }),
-    outward('computers.chrome.send', 'Send a held send, post or payment: the person approves it first (Gate)', {
-      in: { ...chromeWhere, heldId: t.str() }, out: { ...reopenOut, sent: t.bool(), taskId: t.opt(id.task), downloads: downloadsOut }, gate: 'send',
-      ...local({ mcpName: 'chrome_send', agent: { planMode: 'blocked' } }),
-    }),
-    write('computers.chrome.batch', 'Run several Chrome steps in one call; stops at the first held item', {
-      in: { ...chromeWhere, tabId, steps: t.arr(t.obj({ tool: t.str(), args: t.rec() }), { minItems: 1, maxItems: 50 }) },
-      out: { results: t.arr(t.obj({ tool: t.str(), ok: t.bool(), result: t.opt(t.json()), heldId: t.opt(t.str()) })) }, ...local({ mcpName: 'chrome_batch', risk: 'medium', idem: 'none' }),
-    }),
-    write('computers.chrome.plan', 'Tell the person the steps about to be taken in the browser before taking them', {
-      in: { ...chromeWhere, goal: t.str(), steps: t.opt(t.arr(t.str())) }, out: { ...reopenOut, ok: t.bool() }, ...local({ mcpName: 'chrome_plan', idem: 'none', risk: 'low' }),
-    }),
-    outward('computers.chrome.api', 'Call a site backend with the session of this browser; non-GET calls pass the Gate', {
-      in: { ...chromeWhere, method: t.enm('GET', 'POST', 'PUT', 'PATCH', 'DELETE'), url: t.str({ pattern: '^https?://', examples: ['https://example.com/api/items'] }), headers: t.opt(t.rec(t.str())), body: t.opt(t.json()) },
-      out: { ...reopenOut, status: t.int(), headers: t.rec(t.str()), body: t.json() }, gate: { act: 'post', when: "input.method != 'GET'" },
-      ...local({ mcpName: 'chrome_api', agent: { planMode: 'blocked' } }),
-    }),
-    read('computers.chrome.sources', 'List scripts, requests and storage a page uses (to work out backend calls for a recipe)', {
-      in: { ...chromeWhere, tabId }, out: { ...reopenOut, scripts: t.arr(t.str()), endpoints: t.arr(t.obj({ method: t.str(), url: t.str() })) }, ...local({ mcpName: 'chrome_sources' }),
-    }),
+    outward(
+      "computers.chrome.api",
+      "Call a site backend with the session of this browser; non-GET calls pass the Gate",
+      {
+        in: {
+          ...chromeWhere,
+          method: t.enm("GET", "POST", "PUT", "PATCH", "DELETE"),
+          url: t.str({ pattern: "^https?://", examples: ["https://example.com/api/items"] }),
+          headers: t.opt(t.rec(t.str())),
+          body: t.opt(t.json()),
+        },
+        out: { ...reopenOut, status: t.int(), headers: t.rec(t.str()), body: t.json() },
+        gate: { act: "post", when: "input.method != 'GET'" },
+        ...local({ mcpName: "chrome_api", agent: { planMode: "blocked" } }),
+      },
+    ),
+    read(
+      "computers.chrome.sources",
+      "List scripts, requests and storage a page uses (to work out backend calls for a recipe)",
+      {
+        in: { ...chromeWhere, tabId },
+        out: { ...reopenOut, scripts: t.arr(t.str()), endpoints: t.arr(t.obj({ method: t.str(), url: t.str() })) },
+        ...local({ mcpName: "chrome_sources" }),
+      },
+    ),
 
     // ---- Screen tools (full desktop on demand)
-    read('computers.screen.screenshot', 'Screenshot of the whole desktop', {
-      in: { ...optComp }, out: { fileId: id.file, width: t.int(), height: t.int() }, ...local({ mcpName: 'screen_screenshot', agent: { planMode: 'allowed', blocks: ['screenshot'] } }),
+    read("computers.screen.screenshot", "Screenshot of the whole desktop", {
+      in: { ...optComp },
+      out: { fileId: id.file, width: t.int(), height: t.int() },
+      ...local({ mcpName: "screen_screenshot", agent: { planMode: "allowed", blocks: ["screenshot"] } }),
     }),
-    write('computers.screen.click', 'Click at screen coordinates', {
-      in: { ...optComp, x: t.int(), y: t.int(), button: t.opt(t.enm('left', 'right', 'middle')), double: t.opt(t.bool()) }, out: { ok: t.bool() },
-      ...local({ mcpName: 'screen_click', risk: 'medium', idem: 'none' }),
+    write("computers.screen.click", "Click at screen coordinates", {
+      in: {
+        ...optComp,
+        x: t.int(),
+        y: t.int(),
+        button: t.opt(t.enm("left", "right", "middle")),
+        double: t.opt(t.bool()),
+      },
+      out: { ok: t.bool() },
+      ...local({ mcpName: "screen_click", risk: "medium", idem: "none" }),
     }),
-    write('computers.screen.move', 'Move the pointer', {
-      in: { ...optComp, x: t.int(), y: t.int() }, out: { ok: t.bool() }, ...local({ mcpName: 'screen_move', idem: 'none', risk: 'low' }),
+    write("computers.screen.move", "Move the pointer", {
+      in: { ...optComp, x: t.int(), y: t.int() },
+      out: { ok: t.bool() },
+      ...local({ mcpName: "screen_move", idem: "none", risk: "low" }),
     }),
-    write('computers.screen.drag', 'Drag from one point to another', {
-      in: { ...optComp, fromX: t.int(), fromY: t.int(), toX: t.int(), toY: t.int() }, out: { ok: t.bool() }, ...local({ mcpName: 'screen_drag', idem: 'none', risk: 'medium' }),
+    write("computers.screen.drag", "Drag from one point to another", {
+      in: { ...optComp, fromX: t.int(), fromY: t.int(), toX: t.int(), toY: t.int() },
+      out: { ok: t.bool() },
+      ...local({ mcpName: "screen_drag", idem: "none", risk: "medium" }),
     }),
-    write('computers.screen.type', 'Type text on the desktop; secrets only as #Handle.field references', {
-      in: { ...optComp, text: t.str() }, out: { ok: t.bool() }, ...local({ mcpName: 'screen_type', idem: 'none', risk: 'medium' }),
+    write("computers.screen.type", "Type text on the desktop; secrets only as #Handle.field references", {
+      in: { ...optComp, text: t.str() },
+      out: { ok: t.bool() },
+      ...local({ mcpName: "screen_type", idem: "none", risk: "medium" }),
     }),
-    write('computers.screen.key', 'Press a key or combination', {
-      in: { ...optComp, combo: t.str({ examples: ['ctrl+l'] }) }, out: { ok: t.bool() }, ...local({ mcpName: 'screen_key', idem: 'none', risk: 'medium' }),
+    write("computers.screen.key", "Press a key or combination", {
+      in: { ...optComp, combo: t.str({ examples: ["ctrl+l"] }) },
+      out: { ok: t.bool() },
+      ...local({ mcpName: "screen_key", idem: "none", risk: "medium" }),
     }),
-    write('computers.screen.scroll', 'Scroll at a point', {
-      in: { ...optComp, x: t.int(), y: t.int(), dx: t.opt(t.int()), dy: t.int() }, out: { ok: t.bool() }, ...local({ mcpName: 'screen_scroll', idem: 'none', risk: 'low' }),
+    write("computers.screen.scroll", "Scroll at a point", {
+      in: { ...optComp, x: t.int(), y: t.int(), dx: t.opt(t.int()), dy: t.int() },
+      out: { ok: t.bool() },
+      ...local({ mcpName: "screen_scroll", idem: "none", risk: "low" }),
     }),
-    write('computers.screen.wait', 'Wait a number of milliseconds', {
-      in: { ...optComp, ms: t.int({ minimum: 50, maximum: 60000 }) }, out: { ok: t.bool() }, ...local({ mcpName: 'screen_wait', idem: 'none', risk: 'low' }),
+    write("computers.screen.wait", "Wait a number of milliseconds", {
+      in: { ...optComp, ms: t.int({ minimum: 50, maximum: 60000 }) },
+      out: { ok: t.bool() },
+      ...local({ mcpName: "screen_wait", idem: "none", risk: "low" }),
     }),
 
     // ---- Files tools (the agent Files folder is mounted as ~/Vyre; one copy, no sync)
-    read('computers.files.list', 'List a folder of the agent Files folder as seen on the computer', {
-      in: { ...optComp, path: t.opt(t.str()) }, out: { entries: t.arr(t.obj({ name: t.str(), kind: t.enm('file', 'folder'), size: t.opt(t.int()), modifiedAt: t.opt(t.ts()) })) },
-      ...local({ mcpName: 'computer_files_list' }),
+    read("computers.files.list", "List a folder of the agent Files folder as seen on the computer", {
+      in: { ...optComp, path: t.opt(t.str()) },
+      out: {
+        entries: t.arr(
+          t.obj({ name: t.str(), kind: t.enm("file", "folder"), size: t.opt(t.int()), modifiedAt: t.opt(t.ts()) }),
+        ),
+      },
+      ...local({ mcpName: "computer_files_list" }),
     }),
-    read('computers.files.read', 'Read a file from the agent Files folder on the computer', {
-      in: { ...optComp, path: t.str(), maxBytes: t.opt(t.int({ minimum: 1, maximum: 5000000 })) }, out: { content: t.str(), encoding: t.enm('utf8', 'base64'), truncated: t.bool() },
-      ...local({ mcpName: 'computer_files_read', label: 'check' }),
+    read("computers.files.read", "Read a file from the agent Files folder on the computer", {
+      in: { ...optComp, path: t.str(), maxBytes: t.opt(t.int({ minimum: 1, maximum: 5000000 })) },
+      out: { content: t.str(), encoding: t.enm("utf8", "base64"), truncated: t.bool() },
+      ...local({ mcpName: "computer_files_read", label: "check" }),
     }),
-    write('computers.files.write', 'Write a file in the agent Files folder (downloads, drafts, work/)', {
-      in: { ...optComp, path: t.str(), content: t.str(), encoding: t.opt(t.enm('utf8', 'base64')), mode: t.opt(t.enm('create', 'overwrite', 'append')) }, out: { ok: t.bool(), versionId: t.opt(id.version) },
-      ...local({ mcpName: 'computer_files_write', idem: 'none', risk: 'medium' }),
+    write("computers.files.write", "Write a file in the agent Files folder (downloads, drafts, work/)", {
+      in: {
+        ...optComp,
+        path: t.str(),
+        content: t.str(),
+        encoding: t.opt(t.enm("utf8", "base64")),
+        mode: t.opt(t.enm("create", "overwrite", "append")),
+      },
+      out: { ok: t.bool(), versionId: t.opt(id.version) },
+      ...local({ mcpName: "computer_files_write", idem: "none", risk: "medium" }),
     }),
-    write('computers.files.move', 'Move or rename a file in the agent Files folder', {
-      in: { ...optComp, from: t.str(), to: t.str() }, out: { ok: t.bool() }, ...local({ mcpName: 'computer_files_move', idem: 'none', risk: 'medium' }),
+    write("computers.files.move", "Move or rename a file in the agent Files folder", {
+      in: { ...optComp, from: t.str(), to: t.str() },
+      out: { ok: t.bool() },
+      ...local({ mcpName: "computer_files_move", idem: "none", risk: "medium" }),
     }),
-    write('computers.files.delete', 'Delete a file from the agent Files folder; always asks outside work/', {
-      in: { ...optComp, path: t.str() }, out: { ok: t.bool() }, ...local({ mcpName: 'computer_files_delete', idem: 'none', risk: 'high', gate: { act: 'delete', when: 'computers.deletes_outside_work(input.path)' } }),
+    write("computers.files.delete", "Delete a file from the agent Files folder; always asks outside work/", {
+      in: { ...optComp, path: t.str() },
+      out: { ok: t.bool() },
+      ...local({
+        mcpName: "computer_files_delete",
+        idem: "none",
+        risk: "high",
+        gate: { act: "delete", when: "computers.deletes_outside_work(input.path)" },
+      }),
     }),
   ],
   events: [
-    ev('computer.provisioned', 'An agent was given a computer', { p: { computerId: id.computer, agentId: id.agent }, subject: ['computer', '/computerId'] }),
-    ev('computer.configured', 'A computer tab limit or idle sleep changed', { p: { computerId: id.computer, fields: t.arr(t.str()) }, subject: ['computer', '/computerId'] }),
-    ev('computer.removed', 'An agent computer was removed', { p: { computerId: id.computer, agentId: id.agent }, subject: ['computer', '/computerId'] }),
-    ev('computer.started', 'A computer woke', { p: { computerId: id.computer, agentId: id.agent, by: t.str() }, subject: ['computer', '/computerId'] }),
-    ev('computer.slept', 'A computer went to sleep', { p: { computerId: id.computer, agentId: id.agent, reason: t.enm('idle', 'requested') }, subject: ['computer', '/computerId'] }),
-    ev('computer.takeover', 'A person took over a computer', { p: { computerId: id.computer, agentId: id.agent, personId: id.user }, subject: ['computer', '/computerId'], vis: 'participants' }),
-    ev('computer.given_back', 'A person gave a computer back to the agent', { p: { computerId: id.computer, agentId: id.agent, personId: id.user }, subject: ['computer', '/computerId'], vis: 'participants' }),
-    ev('computer.recording_started', 'A recording started while a person has the computer', { p: { computerId: id.computer, recordingId: t.id('rcd'), personId: id.user }, subject: ['computer', '/computerId'], vis: 'participants' }),
-    ev('computer.recording_saved', 'A recording was saved in the agent folder', { p: { computerId: id.computer, recordingId: t.id('rcd'), durationMs: t.int() }, subject: ['computer', '/computerId'], vis: 'participants' }),
-    ev('computer.recording_processed', 'A recording was turned into a skill, routine, recipe or workflow task', {
-      p: { recordingId: t.id('rcd'), intents: t.arr(t.str()), taskId: id.task }, subject: ['entity', '/recordingId'], vis: 'participants',
+    ev("computer.provisioned", "An agent was given a computer", {
+      p: { computerId: id.computer, agentId: id.agent },
+      subject: ["computer", "/computerId"],
     }),
-    ev('computer.skill_requested', 'A skill was requested from a point in a session', { p: { computerId: id.computer, stepId: t.id('stp'), taskId: id.task }, subject: ['computer', '/computerId'], vis: 'participants' }),
-    ev('computer.session_signed_out', 'A site session on the profile disk was signed out', { p: { computerId: id.computer, site: t.str(), by: t.str() }, subject: ['computer', '/computerId'], vis: 'participants' }),
+    ev("computer.configured", "A computer tab limit or idle sleep changed", {
+      p: { computerId: id.computer, fields: t.arr(t.str()) },
+      subject: ["computer", "/computerId"],
+    }),
+    ev("computer.removed", "An agent computer was removed", {
+      p: { computerId: id.computer, agentId: id.agent },
+      subject: ["computer", "/computerId"],
+    }),
+    ev("computer.started", "A computer woke", {
+      p: { computerId: id.computer, agentId: id.agent, by: t.str() },
+      subject: ["computer", "/computerId"],
+    }),
+    ev("computer.slept", "A computer went to sleep", {
+      p: { computerId: id.computer, agentId: id.agent, reason: t.enm("idle", "requested") },
+      subject: ["computer", "/computerId"],
+    }),
+    ev("computer.takeover", "A person took over a computer", {
+      p: { computerId: id.computer, agentId: id.agent, personId: id.user },
+      subject: ["computer", "/computerId"],
+      vis: "participants",
+    }),
+    ev("computer.given_back", "A person gave a computer back to the agent", {
+      p: { computerId: id.computer, agentId: id.agent, personId: id.user },
+      subject: ["computer", "/computerId"],
+      vis: "participants",
+    }),
+    ev("computer.recording_started", "A recording started while a person has the computer", {
+      p: { computerId: id.computer, recordingId: t.id("rcd"), personId: id.user },
+      subject: ["computer", "/computerId"],
+      vis: "participants",
+    }),
+    ev("computer.recording_saved", "A recording was saved in the agent folder", {
+      p: { computerId: id.computer, recordingId: t.id("rcd"), durationMs: t.int() },
+      subject: ["computer", "/computerId"],
+      vis: "participants",
+    }),
+    ev("computer.recording_processed", "A recording was turned into a skill, routine, recipe or workflow task", {
+      p: { recordingId: t.id("rcd"), intents: t.arr(t.str()), taskId: id.task },
+      subject: ["entity", "/recordingId"],
+      vis: "participants",
+    }),
+    ev("computer.skill_requested", "A skill was requested from a point in a session", {
+      p: { computerId: id.computer, stepId: t.id("stp"), taskId: id.task },
+      subject: ["computer", "/computerId"],
+      vis: "participants",
+    }),
+    ev("computer.session_signed_out", "A site session on the profile disk was signed out", {
+      p: { computerId: id.computer, site: t.str(), by: t.str() },
+      subject: ["computer", "/computerId"],
+      vis: "participants",
+    }),
   ],
   blocks: [
-    block('screenshot', {
-      computerId: id.computer, fileId: id.file, caption: t.str(), stepId: t.opt(t.id('stp')), stepIndex: t.opt(t.int()), at: t.ts(), live: t.opt(t.bool()),
-    }, 'Screenshot: {{caption}}', {
-      opens: { tab: 'computer', input: { computerId: '/computerId' } },
-      actions: [{ key: 'make_skill', label: 'Make a skill from here', cap: 'computers.skill_from_step', input: { computerId: '/computerId', stepId: '/stepId' } }],
-    }),
-    block('browser_screenshot', {
-      agentId: id.agent, fileId: id.file, caption: t.str(), stepId: t.opt(t.id('stp')), stepIndex: t.opt(t.int()), at: t.ts(), live: t.opt(t.bool()),
-    }, 'Browser: {{caption}}', {
-      opens: { tab: 'computer', input: { agentId: '/agentId' } },
-    }),
+    block(
+      "screenshot",
+      {
+        computerId: id.computer,
+        fileId: id.file,
+        caption: t.str(),
+        stepId: t.opt(t.id("stp")),
+        stepIndex: t.opt(t.int()),
+        at: t.ts(),
+        live: t.opt(t.bool()),
+      },
+      "Screenshot: {{caption}}",
+      {
+        opens: { tab: "computer", input: { computerId: "/computerId" } },
+        actions: [
+          {
+            key: "make_skill",
+            label: "Make a skill from here",
+            cap: "computers.skill_from_step",
+            input: { computerId: "/computerId", stepId: "/stepId" },
+          },
+        ],
+      },
+    ),
+    block(
+      "browser_screenshot",
+      {
+        agentId: id.agent,
+        fileId: id.file,
+        caption: t.str(),
+        stepId: t.opt(t.id("stp")),
+        stepIndex: t.opt(t.int()),
+        at: t.ts(),
+        live: t.opt(t.bool()),
+      },
+      "Browser: {{caption}}",
+      {
+        opens: { tab: "computer", input: { agentId: "/agentId" } },
+      },
+    ),
   ],
   health: [
-    health('computers', 'Agent computers', 'computers.health', 'Check that Docker (Colima on a Mac) is running on the host, then restart agentd'),
+    health(
+      "computers",
+      "Agent computers",
+      "computers.health",
+      "Check that Docker (Colima on a Mac) is running on the host, then restart agentd",
+    ),
   ],
   screens: [
-    screen('chats.computer-popup', 'chats', 'ui:ComputerPopup', {
-      slot: 'sheet',
+    screen("chats.computer-popup", "chats", "ui:ComputerPopup", {
+      slot: "sheet",
       q: {
-        computer: ['computers.get', { computerId: '/state/computerId' }, true], stream: ['computers.stream', { computerId: '/state/computerId' }, false],
-        timeline: ['computers.timeline', { computerId: '/state/computerId', runId: '/state/runId' }, true],
+        computer: ["computers.get", { computerId: "/state/computerId" }, true],
+        stream: ["computers.stream", { computerId: "/state/computerId" }, false],
+        timeline: ["computers.timeline", { computerId: "/state/computerId", runId: "/state/runId" }, true],
       },
       a: {
-        wake: ['computers.wake', { computerId: '/state/computerId' }], sleep: ['computers.sleep', { computerId: '/state/computerId' }],
-        takeOver: ['computers.take_over', { computerId: '/state/computerId' }], giveBack: ['computers.give_back', { computerId: '/state/computerId' }],
-        recordStart: ['computers.record_start', { computerId: '/state/computerId' }], recordStop: ['computers.record_stop', { computerId: '/state/computerId' }],
-        openChat: ['chat.start', {}], skillFromStep: ['computers.skill_from_step', { computerId: '/state/computerId', stepId: '/state/stepId' }],
+        wake: ["computers.wake", { computerId: "/state/computerId" }],
+        sleep: ["computers.sleep", { computerId: "/state/computerId" }],
+        takeOver: ["computers.take_over", { computerId: "/state/computerId" }],
+        giveBack: ["computers.give_back", { computerId: "/state/computerId" }],
+        recordStart: ["computers.record_start", { computerId: "/state/computerId" }],
+        recordStop: ["computers.record_stop", { computerId: "/state/computerId" }],
+        openChat: ["chat.start", {}],
+        skillFromStep: ["computers.skill_from_step", { computerId: "/state/computerId", stepId: "/state/stepId" }],
       },
-      empty: 'The computer is asleep', primary: 'Wake', needs: ['computers.watch'],
+      empty: "The computer is asleep",
+      primary: "Wake",
+      needs: ["computers.watch"],
     }),
-    screen('chats.agent-computer', 'chats', 'ui:AgentComputerTab', {
-      slot: 'side',
-      q: { computer: ['computers.get', { computerId: '/state/computerId' }, true], sessions: ['computers.sessions.list', { computerId: '/state/computerId' }, true] },
-      a: { wake: ['computers.wake', { computerId: '/state/computerId' }] },
-      empty: 'This agent has no desktop computer', primary: 'Close', needs: ['computers.watch'],
+    screen("chats.agent-computer", "chats", "ui:AgentComputerTab", {
+      slot: "side",
+      q: {
+        computer: ["computers.get", { computerId: "/state/computerId" }, true],
+        sessions: ["computers.sessions.list", { computerId: "/state/computerId" }, true],
+      },
+      a: { wake: ["computers.wake", { computerId: "/state/computerId" }] },
+      empty: "This agent has no desktop computer",
+      primary: "Close",
+      needs: ["computers.watch"],
     }),
-    screen('chats.recording-sheet', 'chats', 'ui:RecordingSheet', {
-      slot: 'sheet',
-      q: { recording: ['computers.recording.get', { recordingId: '/state/recordingId' }, true] },
-      a: { process: ['computers.recording.process', { recordingId: '/state/recordingId' }], remove: ['computers.recording.delete', { recordingId: '/state/recordingId' }, 'Delete this recording?'] },
-      empty: 'No recording', primary: 'Close',
-    }),
-    screen('console.agent-computers', 'console', 'ui:ConsoleComputers', {
-      q: { computers: ['computers.list', { state: '/filter/state' }, true], sessions: ['computers.sessions.list', { computerId: '/state/computerId' }, true] },
+    screen("chats.recording-sheet", "chats", "ui:RecordingSheet", {
+      slot: "sheet",
+      q: { recording: ["computers.recording.get", { recordingId: "/state/recordingId" }, true] },
       a: {
-        sleep: ['computers.sleep', { computerId: '/state/computerId' }], configure: ['computers.configure', { computerId: '/state/computerId' }],
-        remove: ['computers.remove', { computerId: '/state/computerId' }, 'Remove this computer and its profile disk?'], signOut: ['computers.session.sign_out', { computerId: '/state/computerId' }],
+        process: ["computers.recording.process", { recordingId: "/state/recordingId" }],
+        remove: ["computers.recording.delete", { recordingId: "/state/recordingId" }, "Delete this recording?"],
       },
-      empty: 'No agent computers', primary: 'Close', needs: ['console.access'],
+      empty: "No recording",
+      primary: "Close",
+    }),
+    screen("console.agent-computers", "console", "ui:ConsoleComputers", {
+      q: {
+        computers: ["computers.list", { state: "/filter/state" }, true],
+        sessions: ["computers.sessions.list", { computerId: "/state/computerId" }, true],
+      },
+      a: {
+        sleep: ["computers.sleep", { computerId: "/state/computerId" }],
+        configure: ["computers.configure", { computerId: "/state/computerId" }],
+        remove: ["computers.remove", { computerId: "/state/computerId" }, "Remove this computer and its profile disk?"],
+        signOut: ["computers.session.sign_out", { computerId: "/state/computerId" }],
+      },
+      empty: "No agent computers",
+      primary: "Close",
+      needs: ["console.access"],
     }),
   ],
 });

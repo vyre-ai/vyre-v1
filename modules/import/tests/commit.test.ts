@@ -7,16 +7,30 @@ import type { Harness } from "../fixtures/harness.ts";
 import { CSV, MAPPING, key, run, stage } from "../fixtures/seed.ts";
 
 async function refused(p: Promise<unknown>, code: string, reason?: string): Promise<void> {
-  await assert.rejects(p, (e) => { assert.equal(codeOf(e), code); if (reason) assert.equal(reasonOf(e), reason); return true; });
+  await assert.rejects(p, (e) => {
+    assert.equal(codeOf(e), code);
+    if (reason) assert.equal(reasonOf(e), reason);
+    return true;
+  });
 }
-const MAP2 = [{ column: "Name", field: "name" }, { column: "Email", field: "email" }];
-const people = (n: number): string => `Name,Email\n${Array.from({ length: n }, (_x, i) => `Person ${i},p${i}@example.com`).join("\n")}\n`;
-async function ready(h: Harness, text: string = CSV, over: Record<string, unknown> = {}, mapping: unknown = text === CSV ? MAPPING : MAP2): Promise<{ importId: string; previewToken: string }> {
+const MAP2 = [
+  { column: "Name", field: "name" },
+  { column: "Email", field: "email" },
+];
+const people = (n: number): string =>
+  `Name,Email\n${Array.from({ length: n }, (_x, i) => `Person ${i},p${i}@example.com`).join("\n")}\n`;
+async function ready(
+  h: Harness,
+  text: string = CSV,
+  over: Record<string, unknown> = {},
+  mapping: unknown = text === CSV ? MAPPING : MAP2,
+): Promise<{ importId: string; previewToken: string }> {
   const importId = await stage(h, text);
   const p = await run(h, "import.preview", { importId, type: "contact", mapping, ...over });
   return { importId, previewToken: p.previewToken };
 }
-const state = (h: Harness, id: string): Record<string, unknown> => h.rows("SELECT * FROM import_session WHERE importId = ?", id)[0] as Record<string, unknown>;
+const state = (h: Harness, id: string): Record<string, unknown> =>
+  h.rows("SELECT * FROM import_session WHERE importId = ?", id)[0] as Record<string, unknown>;
 
 test("commit writes the previewed rows as an import Run and says what it did", async () => {
   const h = harness();
@@ -26,7 +40,12 @@ test("commit writes the previewed rows as an import Run and says what it did", a
   assert.deepEqual(Object.keys(out).sort(), ["importId", "runId"]);
   assert.equal(out.importId, importId);
   const start = h.only("runs.start")[0]!;
-  assert.deepEqual(start.input, { kind: "other", name: "Import contact", owner: "usr_dana", idempotencyKey: `imp-run:${importId}` });
+  assert.deepEqual(start.input, {
+    kind: "other",
+    name: "Import contact",
+    owner: "usr_dana",
+    idempotencyKey: `imp-run:${importId}`,
+  });
   const bulk = h.only("records.bulk_upsert");
   assert.equal(bulk.length, 1);
   assert.equal(bulk[0]!.input.type, "contact");
@@ -35,12 +54,33 @@ test("commit writes the previewed rows as an import Run and says what it did", a
   assert.equal(bulk[0]!.input.runAutomations, false);
   assert.equal(h.world.rows("contact").length, 3);
   assert.equal(h.world.rows("contact")[0]!["name"], "Ada Lovelace");
-  assert.deepEqual(h.named("import.started").map((e) => e.payload), [{ importId, runId: out.runId, type: "contact", source: "csv", rows: 3 }]);
-  assert.deepEqual(h.named("import.completed").map((e) => e.payload), [{ importId, runId: out.runId, type: "contact", source: "csv", created: 3, updated: 0, skipped: 0, failed: 0, ranAutomations: false }]);
+  assert.deepEqual(
+    h.named("import.started").map((e) => e.payload),
+    [{ importId, runId: out.runId, type: "contact", source: "csv", rows: 3 }],
+  );
+  assert.deepEqual(
+    h.named("import.completed").map((e) => e.payload),
+    [
+      {
+        importId,
+        runId: out.runId,
+        type: "contact",
+        source: "csv",
+        created: 3,
+        updated: 0,
+        skipped: 0,
+        failed: 0,
+        ranAutomations: false,
+      },
+    ],
+  );
   assert.deepEqual(h.names(), ["import.started", "import.completed"]);
   assert.equal(h.world.runs.get(out.runId)?.status, "succeeded");
   const got = (await run(h, "import.get", { importId })).import;
-  assert.deepEqual([got.state, got.created, got.updated, got.skipped, got.failed, got.ranAutomations, got.type, got.runId], ["done", 3, 0, 0, 0, false, "contact", out.runId]);
+  assert.deepEqual(
+    [got.state, got.created, got.updated, got.skipped, got.failed, got.ranAutomations, got.type, got.runId],
+    ["done", 3, 0, 0, 0, false, "contact", out.runId],
+  );
 });
 
 test("commit is idempotent: the same key writes nothing twice, and an import is written once", async () => {
@@ -54,7 +94,11 @@ test("commit is idempotent: the same key writes nothing twice, and an import is 
   assert.equal(h.only("runs.start").length, 1);
   assert.equal(h.world.rows("contact").length, 3);
   assert.equal(h.named("import.completed").length, 1);
-  await refused(run(h, "import.commit", { importId, previewToken, idempotencyKey: key() }), "validation.precondition_failed", "already_written");
+  await refused(
+    run(h, "import.commit", { importId, previewToken, idempotencyKey: key() }),
+    "validation.precondition_failed",
+    "already_written",
+  );
   assert.equal(h.world.rows("contact").length, 3);
 });
 
@@ -74,7 +118,11 @@ test("no automation fires unless the importer ticked run automations", async () 
   const onAtPreview = harness();
   const c = await ready(onAtPreview, CSV, { runAutomations: true });
   await run(onAtPreview, "import.commit", c);
-  assert.equal(onAtPreview.only("records.bulk_upsert")[0]!.input.runAutomations, true, "the tick on the preview carries to the commit");
+  assert.equal(
+    onAtPreview.only("records.bulk_upsert")[0]!.input.runAutomations,
+    true,
+    "the tick on the preview carries to the commit",
+  );
 
   const overridden = harness();
   const d = await ready(overridden, CSV, { runAutomations: true });
@@ -86,12 +134,27 @@ test("no automation fires unless the importer ticked run automations", async () 
 test("commit takes only the token of the plan that was previewed", async () => {
   const h = harness();
   const importId = await stage(h);
-  await refused(run(h, "import.commit", { importId, previewToken: "pv_x" }), "validation.precondition_failed", "no_preview");
+  await refused(
+    run(h, "import.commit", { importId, previewToken: "pv_x" }),
+    "validation.precondition_failed",
+    "no_preview",
+  );
   const first = await run(h, "import.preview", { importId, type: "contact", mapping: MAPPING });
   await run(h, "import.preview", { importId, type: "contact", mapping: MAPPING.slice(0, 3) });
-  await refused(run(h, "import.commit", { importId, previewToken: first.previewToken }), "validation.precondition_failed", "stale_preview");
-  await refused(run(h, "import.commit", { importId, previewToken: "pv_made_up" }), "validation.precondition_failed", "stale_preview");
-  await refused(run(h, "import.commit", { importId: "imp_none", previewToken: "pv_x" }), "validation.precondition_failed");
+  await refused(
+    run(h, "import.commit", { importId, previewToken: first.previewToken }),
+    "validation.precondition_failed",
+    "stale_preview",
+  );
+  await refused(
+    run(h, "import.commit", { importId, previewToken: "pv_made_up" }),
+    "validation.precondition_failed",
+    "stale_preview",
+  );
+  await refused(
+    run(h, "import.commit", { importId: "imp_none", previewToken: "pv_x" }),
+    "validation.precondition_failed",
+  );
   assert.equal(h.only("records.bulk_upsert").length, 0);
   assert.equal(h.only("runs.start").length, 0);
   assert.deepEqual(h.emitted, []);
@@ -136,13 +199,22 @@ test("rows that match existing records are updates through the match key; skip l
 
 test("rows that could not be converted are not written and are counted as failed", async () => {
   const h = harness();
-  const { importId, previewToken } = await ready(h, "Name,Email\nAda,ada@example.com\nBad,nope\nGrace,grace@example.com\n");
+  const { importId, previewToken } = await ready(
+    h,
+    "Name,Email\nAda,ada@example.com\nBad,nope\nGrace,grace@example.com\n",
+  );
   await run(h, "import.commit", { importId, previewToken });
   assert.equal(h.only("records.bulk_upsert")[0]!.input.rows.length, 2);
-  assert.deepEqual(h.world.rows("contact").map((r) => r["name"]), ["Ada", "Grace"]);
+  assert.deepEqual(
+    h.world.rows("contact").map((r) => r["name"]),
+    ["Ada", "Grace"],
+  );
   const done = h.named("import.completed")[0]!.payload;
   assert.deepEqual([done["created"], done["failed"]], [2, 1]);
-  assert.deepEqual(state(h, importId)["errors"], JSON.stringify([{ row: 2, column: "Email", message: "nope is not an email address." }]));
+  assert.deepEqual(
+    state(h, importId)["errors"],
+    JSON.stringify([{ row: 2, column: "Email", message: "nope is not an email address." }]),
+  );
 });
 
 test("new fields are added through the schema before the rows are written", async () => {
@@ -152,9 +224,17 @@ test("new fields are added through the schema before the rows are written", asyn
   const { importId, previewToken } = await ready(h, text, { createFields: true }, mapping);
   h.clear();
   await run(h, "import.commit", { importId, previewToken });
-  assert.deepEqual(h.calls.map((c) => c.cap).filter((c) => c === "schema.apply" || c === "records.bulk_upsert"), ["schema.apply", "records.bulk_upsert"]);
+  assert.deepEqual(
+    h.calls.map((c) => c.cap).filter((c) => c === "schema.apply" || c === "records.bulk_upsert"),
+    ["schema.apply", "records.bulk_upsert"],
+  );
   const op = h.only("schema.apply")[0]!.input.ops[0];
-  assert.deepEqual(op, { op: "field.add", type: "contact", field: "favourite_colour", def: { key: "favourite_colour", type: "text", title: "Favourite colour" } });
+  assert.deepEqual(op, {
+    op: "field.add",
+    type: "contact",
+    field: "favourite_colour",
+    def: { key: "favourite_colour", type: "text", title: "Favourite colour" },
+  });
   assert.equal(h.world.rows("contact")[0]!["favourite_colour"], "blue");
 });
 
@@ -163,8 +243,14 @@ test("a large import is written in batches of 500, each with its own key", async
   const { importId, previewToken } = await ready(h, people(1200));
   await run(h, "import.commit", { importId, previewToken });
   const bulk = h.only("records.bulk_upsert");
-  assert.deepEqual(bulk.map((c) => c.input.rows.length), [500, 500, 200]);
-  assert.deepEqual(bulk.map((c) => c.key), [`imp:${importId}:0`, `imp:${importId}:1`, `imp:${importId}:2`]);
+  assert.deepEqual(
+    bulk.map((c) => c.input.rows.length),
+    [500, 500, 200],
+  );
+  assert.deepEqual(
+    bulk.map((c) => c.key),
+    [`imp:${importId}:0`, `imp:${importId}:1`, `imp:${importId}:2`],
+  );
   assert.equal(h.world.rows("contact").length, 1200);
   assert.equal(h.named("import.completed")[0]!.payload["created"], 1200);
 });
@@ -179,18 +265,31 @@ test("a batch that fails stops the import: rows already written stay, the Run is
   assert.equal(h.world.rows("contact").length, 500, "the first batch is in");
   assert.equal(h.only("records.bulk_upsert").length, 2, "nothing was tried after the failure");
   assert.deepEqual(h.names(), ["import.started", "import.failed"]);
-  assert.deepEqual(h.named("import.failed")[0]!.payload, { importId, runId: out.runId, type: "contact", error: "the store is full" });
+  assert.deepEqual(h.named("import.failed")[0]!.payload, {
+    importId,
+    runId: out.runId,
+    type: "contact",
+    error: "the store is full",
+  });
   assert.equal(h.world.runs.get(out.runId)?.status, "failed");
   const got = (await run(h, "import.get", { importId })).import;
   assert.deepEqual([got.state, got.created], ["failed", 500]);
-  await refused(run(h, "import.commit", { importId, previewToken }), "validation.precondition_failed", "already_written");
+  await refused(
+    run(h, "import.commit", { importId, previewToken }),
+    "validation.precondition_failed",
+    "already_written",
+  );
 });
 
 test("a Run that was stopped ends the import as canceled and writes nothing more", async () => {
   const h = harness();
   const { importId, previewToken } = await ready(h, people(1200));
   const start = h.world.handlers["runs.start"]!;
-  h.world.handlers["runs.start"] = (i, o) => { const r = start(i, o) as { runId: string }; h.world.runs.get(r.runId)!.status = "stopped"; return r; };
+  h.world.handlers["runs.start"] = (i, o) => {
+    const r = start(i, o) as { runId: string };
+    h.world.runs.get(r.runId)!.status = "stopped";
+    return r;
+  };
   const out = await run(h, "import.commit", { importId, previewToken });
   assert.equal(h.only("records.bulk_upsert").length, 0);
   assert.equal(h.world.runs.get(out.runId)?.status, "stopped");
@@ -214,14 +313,20 @@ test("the rows are not kept once an import is written", async () => {
   assert.ok(String(state(h, importId)["tables"]).length > 1000);
   await run(h, "import.commit", { importId, previewToken });
   const kept = JSON.parse(String(state(h, importId)["tables"])) as Array<{ rows: unknown[]; columns: unknown[] }>;
-  assert.deepEqual(kept.map((t) => t.rows.length), [0]);
+  assert.deepEqual(
+    kept.map((t) => t.rows.length),
+    [0],
+  );
   assert.equal(kept[0]!.columns.length, 2, "the columns stay");
 });
 
 test("rows the records module refused (the importer may not edit that contact, or a field is locked) are counted as failed and the rest of the import is written", async () => {
   const h = harness();
   const real = h.world.handlers["records.bulk_upsert"]!;
-  h.world.handlers["records.bulk_upsert"] = (i, o) => { const out = real(i, o) as { created: number; updated: number; skipped: number }; return { ...out, refused: [{ row: 0, reason: "not_allowed", message: "You may not edit this record." }] }; };
+  h.world.handlers["records.bulk_upsert"] = (i, o) => {
+    const out = real(i, o) as { created: number; updated: number; skipped: number };
+    return { ...out, refused: [{ row: 0, reason: "not_allowed", message: "You may not edit this record." }] };
+  };
   const { importId, previewToken } = await ready(h);
   await run(h, "import.commit", { importId, previewToken });
   const got = (await run(h, "import.get", { importId })).import;
@@ -236,7 +341,10 @@ test("rows the records module refused (the importer may not edit that contact, o
 test("a bulk upsert that stops part way keeps what it wrote: the import counts it, lists the rows not tried, and ends failed", async () => {
   const h = harness();
   const real = h.world.handlers["records.bulk_upsert"]!;
-  h.world.handlers["records.bulk_upsert"] = (i, o) => { const out = real(i, o) as { created: number; updated: number; skipped: number }; return { ...out, stopped: { reason: "unavailable", row: 1, message: "the store is read-only", notDone: [1] } }; };
+  h.world.handlers["records.bulk_upsert"] = (i, o) => {
+    const out = real(i, o) as { created: number; updated: number; skipped: number };
+    return { ...out, stopped: { reason: "unavailable", row: 1, message: "the store is read-only", notDone: [1] } };
+  };
   const { importId, previewToken } = await ready(h);
   await run(h, "import.commit", { importId, previewToken });
   const got = (await run(h, "import.get", { importId })).import;
@@ -249,7 +357,10 @@ test("an import set to skip matches tells bulk_upsert to leave existing records 
   const h = harness();
   const real = h.world.handlers["records.bulk_upsert"]!;
   const seen: Array<Record<string, unknown>> = [];
-  h.world.handlers["records.bulk_upsert"] = (i, o) => { seen.push(i as Record<string, unknown>); return real(i, o); };
+  h.world.handlers["records.bulk_upsert"] = (i, o) => {
+    seen.push(i as Record<string, unknown>);
+    return real(i, o);
+  };
   const { importId, previewToken } = await ready(h, CSV, { onMatch: "skip", match: ["email"] });
   await run(h, "import.commit", { importId, previewToken });
   assert.ok(seen.length > 0 && seen.every((x) => x["skipExisting"] === true));
@@ -271,7 +382,11 @@ test("an import a restart cut off ends failed at boot, and its Run's owner is to
   const fin = h.only("runs.finish");
   assert.equal(fin.length, 1);
   assert.equal(fin[0]!.input.runId, "run_cut");
-  assert.equal(fin[0]!.input.status, "failed", "a failed Run: its owner gets run.failed (modules/runs/handlers/engine.ts)");
+  assert.equal(
+    fin[0]!.input.status,
+    "failed",
+    "a failed Run: its owner gets run.failed (modules/runs/handlers/engine.ts)",
+  );
   assert.equal(fin[0]!.input.error.message, CUT_OFF);
   assert.deepEqual(await interrupted(h.ctx), [], "once");
 
@@ -280,9 +395,15 @@ test("an import a restart cut off ends failed at boot, and its Run's owner is to
   const live = await ready(w);
   const upsert = w.world.handlers["records.bulk_upsert"]!;
   let release!: () => void;
-  const gate = new Promise<void>((r) => { release = r; });
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
   let during: string[] | null = null;
-  w.world.handlers["records.bulk_upsert"] = async (i: unknown, o: unknown) => { during = await interrupted(w.ctx); await gate; return (upsert as (a: unknown, b: unknown) => unknown)(i, o); };
+  w.world.handlers["records.bulk_upsert"] = async (i: unknown, o: unknown) => {
+    during = await interrupted(w.ctx);
+    await gate;
+    return (upsert as (a: unknown, b: unknown) => unknown)(i, o);
+  };
   const done = run(w, "import.commit", live);
   for (let i = 0; i < 50 && during === null; i++) await new Promise((r) => setImmediate(r));
   assert.deepEqual(during, [], "the import being written is not touched");
@@ -299,7 +420,10 @@ test("a Run that did not take its end is ended by the next check, as the import 
   const finish = h.world.handlers["runs.finish"]!;
   h.world.down.add("runs.finish");
   await run(h, "import.commit", a);
-  assert.ok(h.warned.some((w) => /did not take its end/.test(w)), "logged");
+  assert.ok(
+    h.warned.some((w) => /did not take its end/.test(w)),
+    "logged",
+  );
   const kept = h.rows("SELECT runId, status FROM import_unfinished");
   assert.equal(kept.length, 1);
   assert.equal(kept[0]!["status"], "succeeded");

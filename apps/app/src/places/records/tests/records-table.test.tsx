@@ -6,42 +6,120 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { SidebarContent } from "../../../shell/sidebar/index.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
-import { RecordsDataProvider, RecordsSidebar, RecordsSidebarSlot, RecordsStateProvider, SidebarLoading, compact, effectiveType, reduce, sortedViews, typeGroups, INITIAL_STATE } from "../sidebar/index.ts";
+import {
+  RecordsDataProvider,
+  RecordsSidebar,
+  RecordsSidebarSlot,
+  RecordsStateProvider,
+  SidebarLoading,
+  compact,
+  effectiveType,
+  reduce,
+  sortedViews,
+  typeGroups,
+  INITIAL_STATE,
+} from "../sidebar/index.ts";
 import type { RecordsState } from "../sidebar/index.ts";
 import {
-  FLING_BEHIND, FLING_OVERSCAN, GUTTER, PLAIN, ROW_H, SCROLL_BLOCK, TableLoading, TableView, cellText, chosen, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, isEdited,
-  flingWindow, optionsOf, queryOffset, querySpec, rowWindow, scrollBlockTop, setSort, toSaved, toggleHidden, toggleOption, totalWidth,
+  FLING_BEHIND,
+  FLING_OVERSCAN,
+  GUTTER,
+  PLAIN,
+  ROW_H,
+  SCROLL_BLOCK,
+  TableLoading,
+  TableView,
+  cellText,
+  chosen,
+  clearClauses,
+  colourOf,
+  columnWindow,
+  columnsOf,
+  countSpec,
+  cycleSort,
+  filterOf,
+  fromSaved,
+  groupItems,
+  isEdited,
+  flingWindow,
+  optionsOf,
+  queryOffset,
+  querySpec,
+  rowWindow,
+  scrollBlockTop,
+  setSort,
+  toSaved,
+  toggleHidden,
+  toggleOption,
+  totalWidth,
 } from "../table/index.ts";
 import type { RecordRow, TableViewState } from "../table/index.ts";
 import { SAMPLE_NOW, client, createSampleRecords, harbor, northwind } from "../table/sample.ts";
 import type { SampleRecords, SampleSpace } from "../table/sample.ts";
 
 const wrap = (s: SampleRecords, child: ReactElement, initial: Partial<RecordsState> = {}): string =>
-  renderToStaticMarkup(<RecordsDataProvider value={s.data}><RecordsStateProvider initial={initial}>{child}</RecordsStateProvider></RecordsDataProvider>).replaceAll("<!-- -->", "");
-const table = (view?: Partial<TableViewState>, initial: Partial<RecordsState> = {}, space: SampleSpace = northwind, o: { online?: boolean; bulk?: number } = {}): string =>
-  wrap(createSampleRecords(space, o), <TableView {...(view ? { view } : {})} />, initial);
-const side = (initial: Partial<RecordsState> = {}, space: SampleSpace = northwind): string => wrap(createSampleRecords(space), <RecordsSidebar />, initial);
+  renderToStaticMarkup(
+    <RecordsDataProvider value={s.data}>
+      <RecordsStateProvider initial={initial}>{child}</RecordsStateProvider>
+    </RecordsDataProvider>,
+  ).replaceAll("<!-- -->", "");
+const table = (
+  view?: Partial<TableViewState>,
+  initial: Partial<RecordsState> = {},
+  space: SampleSpace = northwind,
+  o: { online?: boolean; bulk?: number } = {},
+): string => wrap(createSampleRecords(space, o), <TableView {...(view ? { view } : {})} />, initial);
+const side = (initial: Partial<RecordsState> = {}, space: SampleSpace = northwind): string =>
+  wrap(createSampleRecords(space), <RecordsSidebar />, initial);
 const has = (s: string, needle: string): boolean => s.includes(needle);
 const at = (s: string, needle: string): number => {
   const i = s.indexOf(needle);
   assert.ok(i >= 0, `expected ${needle}`);
   return i;
 };
-const recs = (out: string): string[] => [...out.matchAll(/data-testid="rec-([^"]+)"/g)].map((m) => m[1]!).filter((k) => !k.startsWith("pending"));
+const recs = (out: string): string[] =>
+  [...out.matchAll(/data-testid="rec-([^"]+)"/g)].map((m) => m[1]!).filter((k) => !k.startsWith("pending"));
 const name = (i: number): string => String(client(i).fields["name"]);
 
 test("screen: the sidebar groups record types with counts, then saved views and Manage", () => {
   const out = side();
   const order = ["Records", "Projects", "Sites", "Saved views", "Manage"].map((t) => at(out, `>${t}<`));
-  assert.deepEqual([...order].sort((a, b) => a - b), order, "Records first, a Sites group after the others, then views and Manage");
-  for (const label of ["Clients", "Companies", "Meetings", "Northwind site › Orders", "Active clients", "My clients", "Record types", "Schema map"]) assert.ok(has(out, `>${label}<`), label);
-  assert.ok(has(out, 'data-testid="count-clients"') && has(out, ">14<") && has(out, ">9<"), "row counts beside each type");
-  assert.ok(has(out, 'data-testid="row-nav:type:clients"') && has(out, 'data-testid="row-nav:type:clients-trailing"'), "every row is a ui/Row with slots");
-  assert.equal(out.split("background-color:var(--sel)").length - 1, 1, "one row is selected, with the quiet selection token");
+  assert.deepEqual(
+    [...order].sort((a, b) => a - b),
+    order,
+    "Records first, a Sites group after the others, then views and Manage",
+  );
+  for (const label of [
+    "Clients",
+    "Companies",
+    "Meetings",
+    "Northwind site › Orders",
+    "Active clients",
+    "My clients",
+    "Record types",
+    "Schema map",
+  ])
+    assert.ok(has(out, `>${label}<`), label);
+  assert.ok(
+    has(out, 'data-testid="count-clients"') && has(out, ">14<") && has(out, ">9<"),
+    "row counts beside each type",
+  );
+  assert.ok(
+    has(out, 'data-testid="row-nav:type:clients"') && has(out, 'data-testid="row-nav:type:clients-trailing"'),
+    "every row is a ui/Row with slots",
+  );
+  assert.equal(
+    out.split("background-color:var(--sel)").length - 1,
+    1,
+    "one row is selected, with the quiet selection token",
+  );
 });
 
 test("the sidebar opens on the first type and follows the open one and the saved view", () => {
-  assert.equal(effectiveType(INITIAL_STATE, typeGroups(northwind.types.map((t) => ({ ...t, rowCount: 1, fieldCount: 1 })))), "clients");
+  assert.equal(
+    effectiveType(INITIAL_STATE, typeGroups(northwind.types.map((t) => ({ ...t, rowCount: 1, fieldCount: 1 })))),
+    "clients",
+  );
   const projects = side({ type: "projects" });
   assert.ok(!has(projects, ">Active clients<"), "saved views belong to the open type");
   const view = side({ type: "clients", viewId: "vw_active" });
@@ -56,24 +134,44 @@ test("the sidebar opens on the first type and follows the open one and the saved
 
 test("type groups: Records first, other groups in order, Sites last; site tables read Site › Table", () => {
   const groups = typeGroups(northwind.types.map((t) => ({ ...t, rowCount: 1, fieldCount: t.fields.length })));
-  assert.deepEqual(groups.map((g) => [g.label, g.items.map((i) => i.label)]), [
-    ["Records", ["Clients", "Companies", "Meetings"]], ["Projects", ["Projects"]], ["Sites", ["Northwind site › Orders"]],
-  ]);
+  assert.deepEqual(
+    groups.map((g) => [g.label, g.items.map((i) => i.label)]),
+    [
+      ["Records", ["Clients", "Companies", "Meetings"]],
+      ["Projects", ["Projects"]],
+      ["Sites", ["Northwind site › Orders"]],
+    ],
+  );
   assert.equal(compact(14), "14");
   assert.equal(compact(1500), "1,500", "whole numbers up to 10,000, as the prototype draws them");
   assert.equal(compact(100014), "100k");
   assert.equal(compact(2_500_000), "2.5M");
-  assert.deepEqual(sortedViews(northwind.views, "usr_irfad").map((v) => v.title), ["My clients", "Active clients"]);
+  assert.deepEqual(
+    sortedViews(northwind.views, "usr_irfad").map((v) => v.title),
+    ["My clients", "Active clients"],
+  );
 });
 
 test("screen: the table draws a header, one row per record and the cached count in the foot", () => {
   const out = table();
-  assert.deepEqual(recs(out), Array.from({ length: 14 }, (_, i) => `cl_${i}`));
+  assert.deepEqual(
+    recs(out),
+    Array.from({ length: 14 }, (_, i) => `cl_${i}`),
+  );
   assert.ok(has(out, name(0)) && has(out, name(13)));
-  assert.ok(has(out, 'data-testid="th-name"') && has(out, ">Name<") && has(out, ">Status<") && has(out, ">Owner<") && has(out, ">Value<"));
+  assert.ok(
+    has(out, 'data-testid="th-name"') &&
+      has(out, ">Name<") &&
+      has(out, ">Status<") &&
+      has(out, ">Owner<") &&
+      has(out, ">Value<"),
+  );
   assert.ok(has(out, ">Lead<") && has(out, ">Active<"), "choice cells read their option's title");
   assert.ok(has(out, ">$1,000<") && has(out, "Oct 18, 2025"), "money and dates read plainly");
-  assert.ok(has(out, ">Irfad Imtiaz<") && has(out, 'data-testid="face-Irfad Imtiaz"'), "a person cell has a face and a name");
+  assert.ok(
+    has(out, ">Irfad Imtiaz<") && has(out, 'data-testid="face-Irfad Imtiaz"'),
+    "a person cell has a face and a name",
+  );
   assert.ok(has(out, 'data-testid="records-count"') && has(out, "14 clients"));
   assert.ok(has(out, "Clients") && has(out, "All clients") && !has(out, 'data-testid="records-edited"'));
   assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");
@@ -82,7 +180,10 @@ test("screen: the table draws a header, one row per record and the cached count 
 test("column windowing: only the columns that meet the screen are drawn, the title column always", () => {
   const out = table();
   assert.ok(has(out, 'data-testid="th-name"') && has(out, 'data-testid="th-email"'));
-  assert.ok(!has(out, 'data-testid="th-notes"') && !has(out, 'data-testid="th-active"') && !has(out, 'data-testid="th-rating"'), "columns past the right edge are not drawn");
+  assert.ok(
+    !has(out, 'data-testid="th-notes"') && !has(out, 'data-testid="th-active"') && !has(out, 'data-testid="th-rating"'),
+    "columns past the right edge are not drawn",
+  );
   const cols = columnsOf(northwind.types[0]!, []);
   assert.equal(cols[0]!.field.key, "name", "the title field leads");
   assert.equal(cols.length, 13);
@@ -90,15 +191,27 @@ test("column windowing: only the columns that meet the screen are drawn, the tit
   assert.deepEqual([w.from, w.pad], [1, 0]);
   assert.ok(w.to < cols.length && w.to > 4);
   const far = columnWindow(cols, 1400, 1000);
-  assert.ok(far.from > 4 && far.pad > 0, "scrolled right, the columns on the left drop out and a spacer keeps the rest in place");
+  assert.ok(
+    far.from > 4 && far.pad > 0,
+    "scrolled right, the columns on the left drop out and a spacer keeps the rest in place",
+  );
   assert.equal(columnWindow(cols, totalWidth(cols), 1000).to, cols.length);
-  assert.deepEqual(columnsOf(northwind.types[0]!, ["notes", "email"]).map((c) => c.field.key).includes("notes"), false);
+  assert.deepEqual(
+    columnsOf(northwind.types[0]!, ["notes", "email"])
+      .map((c) => c.field.key)
+      .includes("notes"),
+    false,
+  );
   assert.equal(columnsOf(northwind.types[0]!, ["name"])[0]!.field.key, "name", "the title field cannot be hidden");
 });
 
 test("the row window follows the scroll and the query asks for 200 rows on a 100 row grid", () => {
   assert.deepEqual(rowWindow(0, 600, 100_000), { first: 0, last: Math.ceil(600 / ROW_H) + 6 });
-  assert.deepEqual(rowWindow(34 * 5000, 600, 100_000, FLING_OVERSCAN), { first: 5000 - FLING_OVERSCAN, last: 5000 + Math.ceil(600 / ROW_H) + FLING_OVERSCAN }, "a fling never outruns the drawn rows");
+  assert.deepEqual(
+    rowWindow(34 * 5000, 600, 100_000, FLING_OVERSCAN),
+    { first: 5000 - FLING_OVERSCAN, last: 5000 + Math.ceil(600 / ROW_H) + FLING_OVERSCAN },
+    "a fling never outruns the drawn rows",
+  );
   assert.deepEqual(rowWindow(34 * 5000, 600, 100_000), { first: 5000 - 6, last: 5000 + Math.ceil(600 / ROW_H) + 6 });
   assert.equal(rowWindow(0, 600, 3).last, 3, "never past the last row");
   assert.equal(queryOffset(0, 100_000), 0);
@@ -119,7 +232,10 @@ test("scroll batching advances a 120 px fling by at most four rows while coverin
     const rendered = rowWindow(top, viewport, total, FLING_OVERSCAN);
     const visible = rowWindow(actualTop, viewport, total, 0);
     assert.ok(rendered.first <= visible.first && rendered.last >= visible.last, `${top} covers ${actualTop}`);
-    assert.ok(top <= actualTop && actualTop - top < ROW_H * SCROLL_BLOCK, `${top} stays within one block of ${actualTop}`);
+    assert.ok(
+      top <= actualTop && actualTop - top < ROW_H * SCROLL_BLOCK,
+      `${top} stays within one block of ${actualTop}`,
+    );
     return top;
   };
   const forward = Array.from({ length: 600 }, (_, frame) => frame * 120);
@@ -134,7 +250,10 @@ test("scroll batching advances a 120 px fling by at most four rows while coverin
   }
   for (const position of [0, ROW_H * 5_000 + 17, maxTop]) cover(position);
   // the directional window a scroll draws: it covers the screen in both directions, reaches FLING_OVERSCAN ahead and keeps only a few rows behind
-  for (const [positions, dir] of [[forward, 1], [reverse, -1]] as const) {
+  for (const [positions, dir] of [
+    [forward, 1],
+    [reverse, -1],
+  ] as const) {
     for (const actualTop of positions) {
       const drawn = flingWindow(scrollBlockTop(actualTop), viewport, total, dir);
       const visible = rowWindow(actualTop, viewport, total, 0);
@@ -144,21 +263,34 @@ test("scroll batching advances a 120 px fling by at most four rows while coverin
     }
   }
   const ahead = flingWindow(ROW_H * 5_000, viewport, total, 1);
-  assert.equal(ahead.last, 5_000 + Math.ceil(viewport / ROW_H) + FLING_OVERSCAN, "a fling never outruns the drawn rows");
+  assert.equal(
+    ahead.last,
+    5_000 + Math.ceil(viewport / ROW_H) + FLING_OVERSCAN,
+    "a fling never outruns the drawn rows",
+  );
   assert.equal(ahead.first, 5_000 - FLING_BEHIND);
 });
 
 test("a saved view applies its filter, sort and hidden fields, and the header names it", () => {
   const out = table(undefined, { type: "clients", viewId: "vw_active" });
   const active = Array.from({ length: 14 }, (_, i) => client(i)).filter((r) => r.fields["status"] === "active");
-  const byValue = active.slice().sort((a, b) => (b.fields["value"] as { amount: number }).amount - (a.fields["value"] as { amount: number }).amount).map((r) => r.id);
+  const byValue = active
+    .slice()
+    .sort((a, b) => (b.fields["value"] as { amount: number }).amount - (a.fields["value"] as { amount: number }).amount)
+    .map((r) => r.id);
   assert.deepEqual(recs(out), byValue);
   assert.ok(has(out, "Active clients") && has(out, `${active.length} clients`));
   const v = fromSaved(northwind.views[0]);
-  assert.deepEqual([v.clauses, v.sort, v.hidden], [[{ field: "status", op: "eq", value: "active" }], [{ field: "value", dir: "desc" }], ["notes"]]);
+  assert.deepEqual(
+    [v.clauses, v.sort, v.hidden],
+    [[{ field: "status", op: "eq", value: "active" }], [{ field: "value", dir: "desc" }], ["notes"]],
+  );
   assert.deepEqual(fromSaved(undefined), PLAIN);
   const saved = toSaved(v);
-  assert.deepEqual([saved.filter, saved.sort, saved.hidden], [{ field: "status", op: "eq", value: "active" }, [{ field: "value", dir: "desc" }], ["notes"]]);
+  assert.deepEqual(
+    [saved.filter, saved.sort, saved.hidden],
+    [{ field: "status", op: "eq", value: "active" }, [{ field: "value", dir: "desc" }], ["notes"]],
+  );
 });
 
 test("an edited view says so with Save and Reset", () => {
@@ -192,10 +324,31 @@ test("view editing: sort cycles, options toggle into eq and in clauses, hidden f
 test("the query the view compiles to: filter and find joined with and, sort, group, a 200 row window", () => {
   assert.equal(filterOf(PLAIN, "name"), undefined);
   assert.deepEqual(filterOf({ ...PLAIN, find: "ri" }, "name"), { field: "name", op: "contains", value: "ri" });
-  const v: TableViewState = { ...PLAIN, clauses: [{ field: "status", op: "eq", value: "active" }], find: "ri", sort: [{ field: "value", dir: "desc" }] };
-  assert.deepEqual(filterOf(v, "name"), { and: [{ field: "status", op: "eq", value: "active" }, { field: "name", op: "contains", value: "ri" }] });
-  assert.deepEqual(querySpec("clients", v, "name", 300), { type: "clients", filter: filterOf(v, "name"), sort: [{ field: "value", dir: "desc" }], offset: 300, limit: 200 });
-  assert.deepEqual(querySpec("clients", { ...PLAIN, group: "status" }, "name", 300), { type: "clients", group: "status", offset: 0, limit: 1000 });
+  const v: TableViewState = {
+    ...PLAIN,
+    clauses: [{ field: "status", op: "eq", value: "active" }],
+    find: "ri",
+    sort: [{ field: "value", dir: "desc" }],
+  };
+  assert.deepEqual(filterOf(v, "name"), {
+    and: [
+      { field: "status", op: "eq", value: "active" },
+      { field: "name", op: "contains", value: "ri" },
+    ],
+  });
+  assert.deepEqual(querySpec("clients", v, "name", 300), {
+    type: "clients",
+    filter: filterOf(v, "name"),
+    sort: [{ field: "value", dir: "desc" }],
+    offset: 300,
+    limit: 200,
+  });
+  assert.deepEqual(querySpec("clients", { ...PLAIN, group: "status" }, "name", 300), {
+    type: "clients",
+    group: "status",
+    offset: 0,
+    limit: 1000,
+  });
   assert.deepEqual(countSpec("clients", PLAIN, "name"), { type: "clients" });
 });
 
@@ -210,17 +363,24 @@ test("filters narrow the table, find narrows by the title, and counts come from 
   assert.equal(count({ ...PLAIN, clauses: [{ field: "status", op: "in", value: ["active", "lead"] }] }), 7 + 3);
   assert.equal(count({ ...PLAIN, find: name(3).slice(0, 6) }) >= 1, true);
   const out = table({ clauses: [{ field: "status", op: "eq", value: "paused" }] });
-  const paused = Array.from({ length: 14 }, (_, i) => client(i)).filter((r) => r.fields["status"] === "paused").map((r) => r.id);
+  const paused = Array.from({ length: 14 }, (_, i) => client(i))
+    .filter((r) => r.fields["status"] === "paused")
+    .map((r) => r.id);
   assert.deepEqual(recs(out), paused);
   assert.ok(has(out, `${paused.length} clients`));
 });
 
 test("Group puts rows under their group headers and a folded group keeps only its header", () => {
-  const rows = Array.from({ length: 14 }, (_, i) => client(i)).sort((a, b) => String(a.fields["status"]).localeCompare(String(b.fields["status"])));
+  const rows = Array.from({ length: 14 }, (_, i) => client(i)).sort((a, b) =>
+    String(a.fields["status"]).localeCompare(String(b.fields["status"])),
+  );
   const status = northwind.types[0]!.fields.find((x) => x.key === "status")!;
   const items = groupItems(rows as RecordRow[], status, [], (id) => id);
   const heads = items.filter((i) => i.g).map((i) => (i.g ? [i.label, i.n] : []));
-  assert.deepEqual(heads.map((h) => h[0]), ["Active", "Closed", "Lead", "Paused"]);
+  assert.deepEqual(
+    heads.map((h) => h[0]),
+    ["Active", "Closed", "Lead", "Paused"],
+  );
   assert.equal(items.filter((i) => !i.g).length, 14);
   const folded = groupItems(rows as RecordRow[], status, ["active"], (id) => id);
   assert.equal(folded.filter((i) => !i.g).length, 14 - 7);
@@ -231,7 +391,10 @@ test("Group puts rows under their group headers and a folded group keeps only it
 
 test("Colour tints rows by an option field and cells read plainly", () => {
   const status = northwind.types[0]!.fields.find((x) => x.key === "status")!;
-  assert.ok(/^hsla\(150, 65%, 52%, 0\.10\)$/.test(colourOf(status, client(1) as RecordRow) ?? ""), "an option's colour is its hue");
+  assert.ok(
+    /^hsla\(150, 65%, 52%, 0\.10\)$/.test(colourOf(status, client(1) as RecordRow) ?? ""),
+    "an option's colour is its hue",
+  );
   assert.equal(colourOf(undefined, client(0) as RecordRow), null);
   assert.notEqual(table({ colour: "status" }), table(), "a coloured table paints its rows differently");
   const names = (id: string): string => northwind.people[id] ?? id;
@@ -241,7 +404,10 @@ test("Colour tints rows by an option field and cells read plainly", () => {
   assert.equal(cellText(f("owner"), "usr_maya", names), "Maya Chen");
   assert.equal(cellText(f("status"), "paused", names), "Paused");
   assert.equal(cellText(f("notes"), "", names), "");
-  assert.deepEqual(optionsOf(f("active")).map((o) => o.title), ["Checked", "Unchecked"]);
+  assert.deepEqual(
+    optionsOf(f("active")).map((o) => o.title),
+    ["Checked", "Unchecked"],
+  );
 });
 
 test("the table opens offline from the kept copy and says so", () => {
@@ -251,7 +417,9 @@ test("the table opens offline from the kept copy and says so", () => {
 });
 
 test("an empty table offers no Go to row (there is no row to go to), a table with rows does", () => {
-  assert.ok(!has(table(undefined, {}, { ...harbor, counts: { clients: 0, projects: 0 } }), 'data-testid="records-goto"'));
+  assert.ok(
+    !has(table(undefined, {}, { ...harbor, counts: { clients: 0, projects: 0 } }), 'data-testid="records-goto"'),
+  );
   assert.ok(has(table(), 'data-testid="records-goto"'));
 });
 
@@ -264,18 +432,33 @@ test("an empty type and an empty filter say so with the shared empty state", () 
 test("before data arrives the sidebar and the table draw a frame of the right size, never a blank page", () => {
   assert.ok(has(renderToStaticMarkup(<TableView />), "records-table-loading"));
   assert.ok(has(renderToStaticMarkup(<RecordsSidebar />), "records-sidebar-loading"));
-  assert.ok(has(renderToStaticMarkup(<TableLoading />), "Records") && has(renderToStaticMarkup(<SidebarLoading />), "Loading"));
+  assert.ok(
+    has(renderToStaticMarkup(<TableLoading />), "Records") && has(renderToStaticMarkup(<SidebarLoading />), "Loading"),
+  );
 });
 
 test("writes change what the next render shows: a new record adds a row, a saved view joins the sidebar", async () => {
   const s = createSampleRecords();
   const html = (): string => wrap(s, <TableView />);
   assert.ok(html().includes("14 clients"));
-  const out = (await s.data.call("records.create", { type: "clients", fields: { name: "New person" }, idempotencyKey: "k1" })) as { record: { id: string } };
+  const out = (await s.data.call("records.create", {
+    type: "clients",
+    fields: { name: "New person" },
+    idempotencyKey: "k1",
+  })) as { record: { id: string } };
   assert.ok(html().includes("15 clients") && html().includes("New person"));
-  await s.data.call("views.save", { type: "clients", kind: "table", title: "Big deals", idempotencyKey: "k2", sort: [{ field: "value", dir: "desc" }] });
+  await s.data.call("views.save", {
+    type: "clients",
+    kind: "table",
+    title: "Big deals",
+    idempotencyKey: "k2",
+    sort: [{ field: "value", dir: "desc" }],
+  });
   assert.ok(wrap(s, <RecordsSidebar />).includes(">Big deals<"));
-  assert.deepEqual(s.calls.map((c) => c.cap), ["records.create", "views.save"]);
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["records.create", "views.save"],
+  );
   s.data.nav.openRecord(out.record.id);
   assert.deepEqual(s.opened, [`record:${out.record.id}`]);
 });
@@ -290,18 +473,36 @@ test("harbor studio draws its own types, people and a shorter table", () => {
 
 test("a face in a cell reaches the stylesheet only as a hash class and a checked bitmap, never as text of a name", async () => {
   const { faceClassOf, faceRule, safeBitmapUrl } = await import("../table/model.ts");
-  const nasty = ["Evil\" } body { display:none } /*", "Line\nbreak {x}", "a'b\"c", "}</style><script>x</script>", "名前   (x)"];
+  const nasty = [
+    'Evil" } body { display:none } /*',
+    "Line\nbreak {x}",
+    "a'b\"c",
+    "}</style><script>x</script>",
+    "名前   (x)",
+  ];
   for (const name of nasty) {
     assert.match(faceClassOf(name), /^vrt-f[a-z0-9]+$/, name);
     const css = faceRule(name);
     assert.ok(css.startsWith(`.${faceClassOf(name)}{`), "the selector is the hash class");
-    assert.ok(css.endsWith("}") && css.split("{").length === 2 && css.split("}").length === 2, `one rule, no stray braces: ${css}`);
-    for (const piece of ["display:none", "script", "style>", "\n", " ", "Evil"]) assert.ok(!css.includes(piece), `${piece} must not reach the rule`);
+    assert.ok(
+      css.endsWith("}") && css.split("{").length === 2 && css.split("}").length === 2,
+      `one rule, no stray braces: ${css}`,
+    );
+    for (const piece of ["display:none", "script", "style>", "\n", " ", "Evil"])
+      assert.ok(!css.includes(piece), `${piece} must not reach the rule`);
   }
   assert.notEqual(faceClassOf("Maya Chen"), faceClassOf("Omar Haddad"));
   const png = "data:image/png;base64,iVBORw0KGgo=";
   assert.equal(safeBitmapUrl(png), png);
-  for (const bad of ["data:image/png;base64,AAA\") ;} body{x:y", "javascript:alert(1)", "https://evil.example/x.png", "data:image/svg+xml;utf8,<svg/>", "", undefined]) assert.equal(safeBitmapUrl(bad), null, String(bad));
+  for (const bad of [
+    'data:image/png;base64,AAA") ;} body{x:y',
+    "javascript:alert(1)",
+    "https://evil.example/x.png",
+    "data:image/svg+xml;utf8,<svg/>",
+    "",
+    undefined,
+  ])
+    assert.equal(safeBitmapUrl(bad), null, String(bad));
   assert.ok(faceRule("Maya Chen", png).includes(`url("${png}")`));
   assert.ok(!faceRule("Maya Chen", "javascript:alert(1)").includes("javascript"));
 });
@@ -310,7 +511,11 @@ test("a cell face is seeded by the person's id: two people called Maya Chen have
   const { faceClassOf, faceRule } = await import("../table/model.ts");
   assert.notEqual(faceClassOf("usr_maya_1"), faceClassOf("usr_maya_2"), "two ids, two faces, whatever they are called");
   assert.notEqual(faceRule("usr_maya_1"), faceRule("usr_maya_2"));
-  assert.equal(faceRule("usr_maya_1"), faceRule("usr_maya_1"), "one id always gets the same face, so a rename changes nothing");
+  assert.equal(
+    faceRule("usr_maya_1"),
+    faceRule("usr_maya_1"),
+    "one id always gets the same face, so a rename changes nothing",
+  );
 });
 
 test("the face rules are an LRU: 450 new faces keep 400 at most, a touched face survives, the 40 oldest go together", async () => {
@@ -328,7 +533,9 @@ test("the face rules are an LRU: 450 new faces keep 400 at most, a touched face 
   assert.ok(!dropped.includes("f0"));
   assert.equal(dropped[0], "f1", "the oldest unused face goes first");
   const again = new FaceLru(3, 2);
-  again.use("a"); again.use("b"); again.use("c");
+  again.use("a");
+  again.use("b");
+  again.use("c");
   assert.deepEqual(again.use("d").evicted, ["a", "b"], "two oldest together when full");
   assert.deepEqual(again.use("d").evicted, [], "a known face evicts nothing");
   assert.equal(again.size, 2);
@@ -336,29 +543,70 @@ test("the face rules are an LRU: 450 new faces keep 400 at most, a touched face 
 
 // ---- the shared place sidebar slot (P-L9d_22)
 
-const slotApi: SidebarSlotApi = { query: "", collapsed: false, setCollapsed: () => undefined, hasSidebar: true, compact: true, openBody: () => undefined, back: () => undefined, view: "list", title: "Records" };
+const slotApi: SidebarSlotApi = {
+  query: "",
+  collapsed: false,
+  setCollapsed: () => undefined,
+  hasSidebar: true,
+  compact: true,
+  openBody: () => undefined,
+  back: () => undefined,
+  view: "list",
+  title: "Records",
+};
 /** What the place registers in the shell's slot, and the content its render prop draws for a search text (the slot's content is portalled, so it is read from the element). */
-const inSlot = (query: string, initial: Partial<RecordsState> = {}): { title: string; placeholder: string | undefined; out: string } => {
-  const el = RecordsSidebarSlot({}) as ReactElement<{ title: string; searchPlaceholder?: string; children: (q: string, slot: SidebarSlotApi) => ReactElement }>;
-  assert.equal(el.type, SidebarContent, "the Records sidebar goes into the shared SidebarContent, not a frame of its own");
-  return { title: el.props.title, placeholder: el.props.searchPlaceholder, out: wrap(createSampleRecords(northwind), el.props.children(query, slotApi), initial) };
+const inSlot = (
+  query: string,
+  initial: Partial<RecordsState> = {},
+): { title: string; placeholder: string | undefined; out: string } => {
+  const el = RecordsSidebarSlot({}) as ReactElement<{
+    title: string;
+    searchPlaceholder?: string;
+    children: (q: string, slot: SidebarSlotApi) => ReactElement;
+  }>;
+  assert.equal(
+    el.type,
+    SidebarContent,
+    "the Records sidebar goes into the shared SidebarContent, not a frame of its own",
+  );
+  return {
+    title: el.props.title,
+    placeholder: el.props.searchPlaceholder,
+    out: wrap(createSampleRecords(northwind), el.props.children(query, slotApi), initial),
+  };
 };
 
 test("slot: the sidebar registers as Records with the Search records field and keeps every row, count, section and Manage entry", () => {
   const { title, placeholder, out } = inSlot("");
   assert.equal(title, "Records");
   assert.equal(placeholder, "Search records");
-  for (const label of ["Clients", "Companies", "Active clients", "Record types", "Schema map"]) assert.ok(has(out, `>${label}<`), label);
-  assert.ok(has(out, 'data-testid="count-clients"') && has(out, 'data-testid="sec-manage"') && has(out, 'data-testid="records-sidebar"'));
+  for (const label of ["Clients", "Companies", "Active clients", "Record types", "Schema map"])
+    assert.ok(has(out, `>${label}<`), label);
+  assert.ok(
+    has(out, 'data-testid="count-clients"') &&
+      has(out, 'data-testid="sec-manage"') &&
+      has(out, 'data-testid="records-sidebar"'),
+  );
 });
 
 test("slot: the search field narrows types, saved views and Manage, and opens a folded section it matches in", () => {
   const some = inSlot("compan").out;
-  assert.ok(has(some, ">Companies<") && !has(some, ">Clients<") && !has(some, ">Schema map<") && !has(some, 'data-testid="sec-manage"'));
+  assert.ok(
+    has(some, ">Companies<") &&
+      !has(some, ">Clients<") &&
+      !has(some, ">Schema map<") &&
+      !has(some, 'data-testid="sec-manage"'),
+  );
   assert.ok(has(inSlot("schema").out, ">Schema map<") && !has(inSlot("schema").out, ">Companies<"));
   assert.ok(has(inSlot("active").out, ">Active clients<") && has(inSlot("active").out, ">Saved views<"));
-  assert.ok(!has(inSlot("zzzz").out, 'data-testid="row-nav:type:clients"') && !has(inSlot("zzzz").out, 'data-testid="sec-manage"'));
+  assert.ok(
+    !has(inSlot("zzzz").out, 'data-testid="row-nav:type:clients"') &&
+      !has(inSlot("zzzz").out, 'data-testid="sec-manage"'),
+  );
   const folded = inSlot("schema", { closed: ["manage"] }).out;
   assert.ok(has(folded, ">Schema map<"), "a folded Manage opens for a search that matches in it");
-  assert.ok(!has(inSlot("", { closed: ["manage"] }).out, ">Schema map<"), "with no search a folded section stays folded");
+  assert.ok(
+    !has(inSlot("", { closed: ["manage"] }).out, ">Schema map<"),
+    "with no search a folded section stays folded",
+  );
 });

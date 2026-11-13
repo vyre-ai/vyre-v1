@@ -2,23 +2,61 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  CARD_H, CARD_W, GAP_Y, addAfter, addInto, addTrigger, blankStep, check, clampZoom, describeTrigger, duplicateStep, fitScale, joinOf, kindOfKey, layout, moveStep, neighbour, removeStep,
-  removeTrigger, runStates, sortedIssues, subtitleOf, successors, titleOfKey, updateStep,
+  CARD_H,
+  CARD_W,
+  GAP_Y,
+  addAfter,
+  addInto,
+  addTrigger,
+  blankStep,
+  check,
+  clampZoom,
+  describeTrigger,
+  duplicateStep,
+  fitScale,
+  joinOf,
+  kindOfKey,
+  layout,
+  moveStep,
+  neighbour,
+  removeStep,
+  removeTrigger,
+  runStates,
+  sortedIssues,
+  subtitleOf,
+  successors,
+  titleOfKey,
+  updateStep,
 } from "./model.ts";
 import type { Definition, Issue } from "./model.ts";
 import { LEAD_FOLLOW_UP } from "../sidebar/sample.ts";
 
 const linear = (): Definition => ({
-  triggers: [{ key: "schedule", config: { cron: "0 9 * * *", timezone: "UTC", missed: "skip" } }], start: ["a"],
-  nodes: [{ id: "a", key: "records.find", input: { type: "person" }, next: ["b"] }, { id: "b", key: "send_email", input: { to: "x@y.z", mailboxId: "mbx_main" }, next: ["c"] }, { id: "c", key: "stop", input: {} }],
+  triggers: [{ key: "schedule", config: { cron: "0 9 * * *", timezone: "UTC", missed: "skip" } }],
+  start: ["a"],
+  nodes: [
+    { id: "a", key: "records.find", input: { type: "person" }, next: ["b"] },
+    { id: "b", key: "send_email", input: { to: "x@y.z", mailboxId: "mbx_main" }, next: ["c"] },
+    { id: "c", key: "stop", input: {} },
+  ],
 });
 
 /** Three paths that come back together: a, then paths p with three lanes, then z. */
 const threePaths = (): Definition => ({
-  triggers: [{ key: "record_change" }], start: ["a"],
+  triggers: [{ key: "record_change" }],
+  start: ["a"],
   nodes: [
     { id: "a", key: "records.find", input: { type: "lead" }, next: ["p"] },
-    { id: "p", key: "paths", input: {}, branches: [{ label: "Hot", to: "h", when: "lead.score > 80" }, { label: "Warm", to: "w", when: "lead.score > 40" }, { label: "Otherwise", to: "z" }] },
+    {
+      id: "p",
+      key: "paths",
+      input: {},
+      branches: [
+        { label: "Hot", to: "h", when: "lead.score > 80" },
+        { label: "Warm", to: "w", when: "lead.score > 40" },
+        { label: "Otherwise", to: "z" },
+      ],
+    },
     { id: "h", key: "create_task", input: { title: "Call now" }, next: ["z"] },
     { id: "w", key: "send_email", input: { to: "lead" }, next: ["z"] },
     { id: "z", key: "post_message", input: { channelId: "#sales" } },
@@ -32,16 +70,26 @@ const byId = <T extends { id: string }>(xs: readonly T[], id: string): T => {
 };
 
 test("step keys map to their kinds and the successors follow branches before next", () => {
-  assert.deepEqual(["paths", "if", "parallel", "loop", "wait", "wait_stage", "approval", "stop", "ai", "send_email"].map(kindOfKey), ["paths", "paths", "parallel", "loop", "wait", "wait", "approval", "stop", "ai", "plain"]);
+  assert.deepEqual(
+    ["paths", "if", "parallel", "loop", "wait", "wait_stage", "approval", "stop", "ai", "send_email"].map(kindOfKey),
+    ["paths", "paths", "parallel", "loop", "wait", "wait", "approval", "stop", "ai", "plain"],
+  );
   const d = threePaths();
   assert.deepEqual(successors(d.nodes[1]!), ["h", "w", "z"]);
   assert.deepEqual(successors(d.nodes[0]!), ["p"]);
-  assert.equal(joinOf(new Map(d.nodes.map((n) => [n.id, n])), d.nodes[1]!), "z", "the lanes come back together at the first step all of them reach");
+  assert.equal(
+    joinOf(new Map(d.nodes.map((n) => [n.id, n])), d.nodes[1]!),
+    "z",
+    "the lanes come back together at the first step all of them reach",
+  );
 });
 
 test("a straight Automation stacks its cards under the trigger with a connector between each", () => {
   const l = layout(linear());
-  assert.deepEqual(l.cards.map((c) => c.id), ["trigger", "a", "b", "c"]);
+  assert.deepEqual(
+    l.cards.map((c) => c.id),
+    ["trigger", "a", "b", "c"],
+  );
   const [t, a, b] = [byId(l.cards, "trigger"), byId(l.cards, "a"), byId(l.cards, "b")];
   assert.equal(a.y, t.y + t.h + GAP_Y);
   assert.equal(b.y, a.y + CARD_H + GAP_Y);
@@ -66,21 +114,31 @@ test("Paths with three lanes lay out side by side, label each lane and rejoin at
   assert.equal(h.y, w.y, "the first two lanes start on the same row");
   assert.ok(z.y > h.y + CARD_H, "the shared step sits under every lane");
   assert.ok(Math.abs(z.x + z.w / 2 - (p.x + p.w / 2)) < 1, "and under the Paths step");
-  assert.deepEqual(l.chips.map((c) => c.text), ["If lead.score > 80", "If lead.score > 40", "Otherwise"]);
-  assert.deepEqual(l.chips.map((c) => c.kind), ["if", "if", "otherwise"]);
+  assert.deepEqual(
+    l.chips.map((c) => c.text),
+    ["If lead.score > 80", "If lead.score > 40", "Otherwise"],
+  );
+  assert.deepEqual(
+    l.chips.map((c) => c.kind),
+    ["if", "if", "otherwise"],
+  );
   assert.ok(l.chips[0]!.mono && !l.chips[2]!.mono, "conditions are code, Otherwise is a word");
 });
 
 test("an empty lane that goes straight to the join still draws its label and a connector", () => {
   const l = layout(threePaths());
   const other = l.chips.find((c) => c.text === "Otherwise")!;
-  assert.ok(l.segs.some((s) => s.x1 === other.x && s.x2 === other.x && s.y1 >= other.y), "a line drops from the Otherwise label");
+  assert.ok(
+    l.segs.some((s) => s.x1 === other.x && s.x2 === other.x && s.y1 >= other.y),
+    "a line drops from the Otherwise label",
+  );
 });
 
 test("lanes that never meet end on their own and nothing is drawn after them", () => {
   const d = layout(LEAD_FOLLOW_UP);
   const ids = d.cards.map((c) => c.id);
-  for (const id of ["find", "draft", "mobile", "text", "wait", "replied", "task", "nudge", "email"]) assert.ok(ids.includes(id), id);
+  for (const id of ["find", "draft", "mobile", "text", "wait", "replied", "task", "nudge", "email"])
+    assert.ok(ids.includes(id), id);
   assert.equal(new Set(ids).size, ids.length, "every card once");
   const [text, email] = [byId(d.cards, "text"), byId(d.cards, "email")];
   assert.ok(text.x < email.x, "the Text lane is left of Otherwise");
@@ -89,8 +147,13 @@ test("lanes that never meet end on their own and nothing is drawn after them", (
 
 test("a Loop draws its label and a frame round its body, then carries on after it", () => {
   const d: Definition = {
-    triggers: [{ key: "schedule" }], start: ["f"],
-    nodes: [{ id: "f", key: "loop", input: { items: "x" }, branches: [{ label: "Each", to: "in" }], next: ["after"] }, { id: "in", key: "send_email", input: { to: "a" } }, { id: "after", key: "stop", input: {} }],
+    triggers: [{ key: "schedule" }],
+    start: ["f"],
+    nodes: [
+      { id: "f", key: "loop", input: { items: "x" }, branches: [{ label: "Each", to: "in" }], next: ["after"] },
+      { id: "in", key: "send_email", input: { to: "a" } },
+      { id: "after", key: "stop", input: {} },
+    ],
   };
   const l = layout(d);
   assert.equal(l.frames.length, 1);
@@ -110,12 +173,20 @@ test("steps nothing leads to stay visible beside the canvas", () => {
 });
 
 test("a run lights the lane it took and leaves the others dim", () => {
-  const states = runStates([{ nodeId: "find", status: "done" }, { nodeId: "mobile", status: "done" }, { nodeId: "email", status: "failed" }, { nodeId: "text", status: "skipped" }]);
+  const states = runStates([
+    { nodeId: "find", status: "done" },
+    { nodeId: "mobile", status: "done" },
+    { nodeId: "email", status: "failed" },
+    { nodeId: "text", status: "skipped" },
+  ]);
   const l = layout(LEAD_FOLLOW_UP, { run: states });
   assert.equal(byId(l.cards, "email").state, "failed");
   assert.equal(byId(l.cards, "text").state, "skipped");
   assert.equal(byId(l.cards, "draft").state, undefined, "a step the run never reached has no state");
-  assert.ok(l.segs.some((s) => s.lit), "some connector is lit");
+  assert.ok(
+    l.segs.some((s) => s.lit),
+    "some connector is lit",
+  );
 });
 
 test("the local check names what is missing, in words, against the step", () => {
@@ -123,20 +194,54 @@ test("the local check names what is missing, in words, against the step", () => 
   d.nodes[2]!.input = {};
   d.nodes[1]!.branches![0]!.when = "";
   const out = sortedIssues(check(d));
-  assert.ok(out.every((i, n) => n === 0 || out[n - 1]!.severity !== "warning" || i.severity === "warning"), "errors come first");
-  assert.ok(out.some((i) => i.nodeId === "h" && /needs a title/.test(i.message)), "Create a task needs a title");
-  assert.ok(check({ triggers: [{ key: "manual" }], nodes: [{ id: "m", key: "send_email", input: { to: "a@b.c" } }] }).some((i) => /needs a mailbox/.test(i.message)));
-  assert.ok(check({ triggers: [{ key: "manual" }], nodes: [{ id: "s", key: "send_sms", input: { to: "+1" } }] }).some((i) => /needs a number/.test(i.message)));
+  assert.ok(
+    out.every((i, n) => n === 0 || out[n - 1]!.severity !== "warning" || i.severity === "warning"),
+    "errors come first",
+  );
+  assert.ok(
+    out.some((i) => i.nodeId === "h" && /needs a title/.test(i.message)),
+    "Create a task needs a title",
+  );
+  assert.ok(
+    check({ triggers: [{ key: "manual" }], nodes: [{ id: "m", key: "send_email", input: { to: "a@b.c" } }] }).some(
+      (i) => /needs a mailbox/.test(i.message),
+    ),
+  );
+  assert.ok(
+    check({ triggers: [{ key: "manual" }], nodes: [{ id: "s", key: "send_sms", input: { to: "+1" } }] }).some((i) =>
+      /needs a number/.test(i.message),
+    ),
+  );
   assert.ok(out.some((i) => i.nodeId === "p" && /needs its condition/.test(i.message)));
   assert.ok(check({ triggers: [], nodes: [] }).some((i) => /Add a trigger/.test(i.message)));
-  assert.ok(check({ triggers: [{ key: "webhook" }], nodes: [] }, "personal").some((i) => /Team Space/.test(i.message)), "a webhook needs a Team Space");
+  assert.ok(
+    check({ triggers: [{ key: "webhook" }], nodes: [] }, "personal").some((i) => /Team Space/.test(i.message)),
+    "a webhook needs a Team Space",
+  );
 });
 
 test("a Space AI step needs a shared key and a backup, a Personal one needs neither, a route needs a step, and a loop in the lanes is an error", () => {
-  const d: Definition = { triggers: [{ key: "manual" }], start: ["x"], nodes: [{ id: "x", key: "ai", input: {}, next: ["y"] }, { id: "y", key: "send_email", input: { to: "a" }, next: ["x"], onError: { mode: "route" } }] };
+  const d: Definition = {
+    triggers: [{ key: "manual" }],
+    start: ["x"],
+    nodes: [
+      { id: "x", key: "ai", input: {}, next: ["y"] },
+      { id: "y", key: "send_email", input: { to: "a" }, next: ["x"], onError: { mode: "route" } },
+    ],
+  };
   const out = check(d);
-  assert.ok(out.some((i) => i.nodeId === "x" && i.severity === "error" && /Space automation needs a key shared with the Space/.test(i.message)));
-  assert.ok(!check(d, "personal").some((i) => i.nodeId === "x" && /key/.test(i.message)), "a Personal AI step runs on its owner's own account");
+  assert.ok(
+    out.some(
+      (i) =>
+        i.nodeId === "x" &&
+        i.severity === "error" &&
+        /Space automation needs a key shared with the Space/.test(i.message),
+    ),
+  );
+  assert.ok(
+    !check(d, "personal").some((i) => i.nodeId === "x" && /key/.test(i.message)),
+    "a Personal AI step runs on its owner's own account",
+  );
   assert.ok(out.some((i) => i.nodeId === "y" && /choose the step an error goes to/.test(i.message)));
   assert.ok(out.some((i) => /never end/.test(i.message)));
   d.nodes[0]!.ai = { keyId: "k1" };
@@ -145,40 +250,96 @@ test("a Space AI step needs a shared key and a backup, a Personal one needs neit
 
 test("a paths step needs at least one path and only the last may be Otherwise", () => {
   const d = threePaths();
-  d.nodes[1]!.branches = [{ label: "Otherwise", to: "z" }, { label: "Hot", to: "h", when: "x" }];
+  d.nodes[1]!.branches = [
+    { label: "Otherwise", to: "z" },
+    { label: "Hot", to: "h", when: "x" },
+  ];
   assert.ok(check(d).some((i) => i.nodeId === "p" && /only the last path can be Otherwise/.test(i.message)));
   d.nodes[1]!.branches = [];
   assert.ok(check(d).some((i) => i.nodeId === "p" && /has no paths/.test(i.message)));
 });
 
 test("card text: the title falls back to the step's name and the second line says what it does", () => {
-  const l = layout(LEAD_FOLLOW_UP, { keyName: (id) => ({ key_claude: "Your Claude sign-in", key_nw_openai: "Northwind OpenAI key" })[id] ?? id });
-  assert.equal(byId(l.cards, "draft").sub, "Write a short, warm first hello. Your Claude sign-in, then Northwind OpenAI key");
+  const l = layout(LEAD_FOLLOW_UP, {
+    keyName: (id) => ({ key_claude: "Your Claude sign-in", key_nw_openai: "Northwind OpenAI key" })[id] ?? id,
+  });
+  assert.equal(
+    byId(l.cards, "draft").sub,
+    "Write a short, warm first hello. Your Claude sign-in, then Northwind OpenAI key",
+  );
   assert.equal(byId(l.cards, "mobile").sub, "1 path and Otherwise, first match wins");
   assert.equal(byId(l.cards, "wait").sub, "They reply by text, up to 1 day");
   assert.equal(subtitleOf({ id: "s", key: "stop", input: {} }), "The run ends here");
   assert.equal(subtitleOf({ id: "s", key: "ai", input: {} }), "Write what the AI should do");
   assert.equal(subtitleOf({ id: "s", key: "ai", input: { prompt: "Summarise\nthe note" } }), "Summarise the note");
-  assert.equal(subtitleOf({ id: "h", key: "http_request", input: { method: "GET", url: "https://api.example.com/v1/items" } }), "GET api.example.com/v1/items");
-  assert.equal(subtitleOf({ id: "h", key: "http_request", input: { method: "POST", url: "https://api.example.com/orders" } }), "POST api.example.com/orders");
-  assert.equal(subtitleOf({ id: "h", key: "http_request", askBeforeSending: true, input: { method: "POST", url: "https://api.example.com/orders" } } as never), "POST api.example.com/orders, asks before sending");
+  assert.equal(
+    subtitleOf({ id: "h", key: "http_request", input: { method: "GET", url: "https://api.example.com/v1/items" } }),
+    "GET api.example.com/v1/items",
+  );
+  assert.equal(
+    subtitleOf({ id: "h", key: "http_request", input: { method: "POST", url: "https://api.example.com/orders" } }),
+    "POST api.example.com/orders",
+  );
+  assert.equal(
+    subtitleOf({
+      id: "h",
+      key: "http_request",
+      askBeforeSending: true,
+      input: { method: "POST", url: "https://api.example.com/orders" },
+    } as never),
+    "POST api.example.com/orders, asks before sending",
+  );
   assert.equal(subtitleOf({ id: "h", key: "http_request", input: {} }), "Name the address to call");
-  assert.equal(subtitleOf({ id: "c", key: "code", input: { source: "// note\nreturn input.n + 1;" } }), "Runs 1 line of code, no network");
-  assert.equal(subtitleOf({ id: "c", key: "code", input: { source: "return 1", hosts: ["a.example.com", "b.example.com"] } }), "Runs 1 line of code, reaches a.example.com, b.example.com");
-  assert.equal(subtitleOf({ id: "m", key: "send_email", input: { to: ["ada@example.com"], subject: "Hello", message: { version: 2 } } }), "Email ada@example.com: Hello, template v2");
+  assert.equal(
+    subtitleOf({ id: "c", key: "code", input: { source: "// note\nreturn input.n + 1;" } }),
+    "Runs 1 line of code, no network",
+  );
+  assert.equal(
+    subtitleOf({ id: "c", key: "code", input: { source: "return 1", hosts: ["a.example.com", "b.example.com"] } }),
+    "Runs 1 line of code, reaches a.example.com, b.example.com",
+  );
+  assert.equal(
+    subtitleOf({
+      id: "m",
+      key: "send_email",
+      input: { to: ["ada@example.com"], subject: "Hello", message: { version: 2 } },
+    }),
+    "Email ada@example.com: Hello, template v2",
+  );
   assert.equal(subtitleOf({ id: "t", key: "send_sms", input: { to: "+1555", body: "Hi" } }), "Text +1555, 1 segment");
-  assert.equal(subtitleOf({ id: "c", key: "connector_request", input: { connector: "acme", action: "ping" } }), "acme · ping");
+  assert.equal(
+    subtitleOf({ id: "c", key: "connector_request", input: { connector: "acme", action: "ping" } }),
+    "acme · ping",
+  );
   assert.equal(titleOfKey("google.gmail.list_messages"), "Google · List Gmail messages");
-  assert.ok(check({ triggers: [{ key: "manual" }], nodes: [{ id: "g", key: "google.gmail.list_messages", input: {} }] }).some((i) => /needs a connection/.test(i.message)));
-  assert.ok(check({ triggers: [{ key: "manual" }], nodes: [{ id: "c", key: "connector_request", input: {} }] }).some((i) => /needs a connector/.test(i.message)));
-  assert.equal(describeTrigger({ key: "record_change", filter: { type: "lead", where: "Source is Meta" } }), "A lead changes, only when Source is Meta");
-  assert.equal(describeTrigger({ key: "record_change", filter: { where: "Source is Meta" } }), "Not set up", "a record trigger with no type is not set up");
+  assert.ok(
+    check({ triggers: [{ key: "manual" }], nodes: [{ id: "g", key: "google.gmail.list_messages", input: {} }] }).some(
+      (i) => /needs a connection/.test(i.message),
+    ),
+  );
+  assert.ok(
+    check({ triggers: [{ key: "manual" }], nodes: [{ id: "c", key: "connector_request", input: {} }] }).some((i) =>
+      /needs a connector/.test(i.message),
+    ),
+  );
+  assert.equal(
+    describeTrigger({ key: "record_change", filter: { type: "lead", where: "Source is Meta" } }),
+    "A lead changes, only when Source is Meta",
+  );
+  assert.equal(
+    describeTrigger({ key: "record_change", filter: { where: "Source is Meta" } }),
+    "Not set up",
+    "a record trigger with no type is not set up",
+  );
   assert.equal(describeTrigger({ key: "form_submit" }), "Any form is submitted");
 });
 
 test("adding a step after another keeps the chain: what followed now follows the new step", () => {
   const { def, id } = addAfter(linear(), "a", "send_sms");
-  assert.deepEqual(def.nodes.map((n) => n.id), ["a", id, "b", "c"]);
+  assert.deepEqual(
+    def.nodes.map((n) => n.id),
+    ["a", id, "b", "c"],
+  );
   assert.deepEqual(def.nodes.find((n) => n.id === "a")!.next, [id]);
   assert.deepEqual(def.nodes.find((n) => n.id === id)!.next, ["b"]);
   const first = addAfter(linear(), null, "wait");
@@ -190,7 +351,10 @@ test("adding a step after another keeps the chain: what followed now follows the
 test("a new Paths step arrives with a path and an Otherwise, and takes what followed into its first lane", () => {
   const { def, id } = addAfter(linear(), "a", "paths");
   const p = def.nodes.find((n) => n.id === id)!;
-  assert.deepEqual(p.branches!.map((b) => b.label), ["Path 1", "Otherwise"]);
+  assert.deepEqual(
+    p.branches!.map((b) => b.label),
+    ["Path 1", "Otherwise"],
+  );
   assert.equal(p.branches![0]!.to, "b");
   assert.equal(check(def).filter((i) => i.nodeId !== id).length, 0, "nothing else is left unconnected");
   const par = blankStep(linear(), "parallel")[0]!;
@@ -208,7 +372,11 @@ test("adding into a lane starts it, and into a lane that has steps puts the new 
 
 test("removing a step reconnects what pointed at it, in a lane and at the start", () => {
   const d = removeStep(threePaths(), "h");
-  assert.equal(d.nodes.find((n) => n.id === "p")!.branches![0]!.to, "z", "the lane now goes to what the removed step led to");
+  assert.equal(
+    d.nodes.find((n) => n.id === "p")!.branches![0]!.to,
+    "z",
+    "the lane now goes to what the removed step led to",
+  );
   const first = removeStep(linear(), "a");
   assert.deepEqual(first.start, ["b"]);
   assert.throws(() => removeStep(linear(), "nope"), /no such step/);
@@ -244,8 +412,14 @@ test("duplicating copies the fields, names the copy and puts it right after the 
 
 test("triggers add and remove without touching the steps", () => {
   const d = addTrigger(linear(), "webhook");
-  assert.deepEqual(d.triggers.map((t) => t.key), ["schedule", "webhook"]);
-  assert.deepEqual(removeTrigger(d, 0).triggers.map((t) => t.key), ["webhook"]);
+  assert.deepEqual(
+    d.triggers.map((t) => t.key),
+    ["schedule", "webhook"],
+  );
+  assert.deepEqual(
+    removeTrigger(d, 0).triggers.map((t) => t.key),
+    ["webhook"],
+  );
   assert.equal(d.nodes.length, 3);
 });
 
@@ -271,11 +445,22 @@ test("zoom stays between 30 and 200 percent and Fit never magnifies", () => {
 
 test("the HTTP request, Run code and AI steps are checked while they are built", () => {
   const nodes = (n: Definition["nodes"][number]): Definition => ({ triggers: [{ key: "manual" }], nodes: [n] });
-  const msgs = (d: Definition, kind: "personal" | "space" = "personal"): string[] => check(d, kind).filter((i) => i.severity === "error").map((i) => i.message);
+  const msgs = (d: Definition, kind: "personal" | "space" = "personal"): string[] =>
+    check(d, kind)
+      .filter((i) => i.severity === "error")
+      .map((i) => i.message);
   assert.deepEqual(msgs(nodes({ id: "h", key: "http_request", input: {} })), ["HTTP request needs the address"]);
-  assert.deepEqual(msgs(nodes({ id: "h", key: "http_request", input: { method: "GET", url: "http://api.example.com" } })), ["HTTP request: the address must start with https://"]);
-  assert.deepEqual(msgs(nodes({ id: "h", key: "http_request", input: { method: "GET", url: "{{ trigger.url }}" } })), [], "a template is checked when it runs");
-  const auth = (a: object) => msgs(nodes({ id: "h", key: "http_request", input: { method: "GET", url: "https://a.example.com", auth: a } }));
+  assert.deepEqual(
+    msgs(nodes({ id: "h", key: "http_request", input: { method: "GET", url: "http://api.example.com" } })),
+    ["HTTP request: the address must start with https://"],
+  );
+  assert.deepEqual(
+    msgs(nodes({ id: "h", key: "http_request", input: { method: "GET", url: "{{ trigger.url }}" } })),
+    [],
+    "a template is checked when it runs",
+  );
+  const auth = (a: object) =>
+    msgs(nodes({ id: "h", key: "http_request", input: { method: "GET", url: "https://a.example.com", auth: a } }));
   assert.deepEqual(auth({ kind: "bearer", handle: "" }), ["HTTP request: pick the Vault key to sign the request with"]);
   assert.deepEqual(auth({ kind: "basic", handle: "#K" }), ["HTTP request: basic sign-in needs a user name"]);
   assert.deepEqual(auth({ kind: "header", handle: "#K" }), ["HTTP request: name the header the key goes in"]);
@@ -302,7 +487,10 @@ test("a schedule trigger reads in words, and a cron line it does not know is lef
   assert.equal(cronWords("0 * * * *"), "Every hour");
   assert.equal(cronWords("0 9 1 * *"), "On day 1 of each month at 9:00");
   assert.equal(cronWords("5 4 * 2 *"), null);
-  assert.equal(describeTrigger({ key: "schedule", config: { cron: "0 9 * * 1", timezone: "UTC", missed: "skip" } } as never), "Every Monday at 09:00, UTC");
+  assert.equal(
+    describeTrigger({ key: "schedule", config: { cron: "0 9 * * 1", timezone: "UTC", missed: "skip" } } as never),
+    "Every Monday at 09:00, UTC",
+  );
 });
 
 test("only an Automation with a Run by hand trigger offers Run now", async () => {
@@ -312,12 +500,25 @@ test("only an Automation with a Run by hand trigger offers Run now", async () =>
 });
 
 test("a Space AI step with no account of its own is fine when the automation has one or Automatic has an account kept for automations; otherwise it is still asked for one", () => {
-  const d: Definition = { triggers: [{ key: "manual" }], start: ["x"], nodes: [{ id: "x", key: "ai", input: { prompt: "Hi" } }] };
-  const asks = (issues: Issue[]): boolean => issues.some((i) => i.nodeId === "x" && /needs a key shared with the Space/.test(i.message));
+  const d: Definition = {
+    triggers: [{ key: "manual" }],
+    start: ["x"],
+    nodes: [{ id: "x", key: "ai", input: { prompt: "Hi" } }],
+  };
+  const asks = (issues: Issue[]): boolean =>
+    issues.some((i) => i.nodeId === "x" && /needs a key shared with the Space/.test(i.message));
   assert.equal(asks(check(d)), true, "nothing known: still asked");
   assert.equal(asks(check(d, "space", { automatic: false })), true);
-  assert.equal(asks(check(d, "space", { automatic: true })), false, "Automatic has an account that pays for automations");
-  assert.equal(asks(check({ ...d, ai: { keyId: "#Team_Credits" } })), false, "the automation's own AI account covers the step");
+  assert.equal(
+    asks(check(d, "space", { automatic: true })),
+    false,
+    "Automatic has an account that pays for automations",
+  );
+  assert.equal(
+    asks(check({ ...d, ai: { keyId: "#Team_Credits" } })),
+    false,
+    "the automation's own AI account covers the step",
+  );
   assert.equal(asks(check({ ...d, ai: { backupKeyId: "#Backup" } })), true, "a backup alone is not a main");
   assert.equal(asks(check(d, "personal")), false);
 });
@@ -328,7 +529,15 @@ test("a web request trigger on a Personal Automation offers Move to Space only i
   const first = check(def, "personal")[0];
   assert.match(String(first?.message), /web request/);
   assert.equal(offersMoveToSpace("personal", def, first, {}), true);
-  assert.equal(offersMoveToSpace("personal", def, first, { personalSpace: true }), false, "no Space Automations in a Personal Space");
-  assert.equal(offersMoveToSpace("personal", def, first, { canSpace: false }), false, "never a door the person cannot use");
+  assert.equal(
+    offersMoveToSpace("personal", def, first, { personalSpace: true }),
+    false,
+    "no Space Automations in a Personal Space",
+  );
+  assert.equal(
+    offersMoveToSpace("personal", def, first, { canSpace: false }),
+    false,
+    "never a door the person cannot use",
+  );
   assert.equal(offersMoveToSpace("space", def, first, {}), false);
 });

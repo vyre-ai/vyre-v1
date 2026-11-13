@@ -3,7 +3,17 @@
 import type { Handler } from "../../../../host/src/invoke.ts";
 import { attachmentSave, messageGet, messageList, messageSearch, messageSetPrivate, threadGet } from "./messages.ts";
 import {
-  autoConnectMembers, memberPause, mailboxCreate, mailboxDisconnect, mailboxGet, mailboxList, mailboxPause, mailboxResume, mailboxSetPrivacy, mailboxSetSyncState, mailboxUpdate,
+  autoConnectMembers,
+  memberPause,
+  mailboxCreate,
+  mailboxDisconnect,
+  mailboxGet,
+  mailboxList,
+  mailboxPause,
+  mailboxResume,
+  mailboxSetPrivacy,
+  mailboxSetSyncState,
+  mailboxUpdate,
 } from "./mailboxes.ts";
 import { domainAdd, domainCheck, domainGet, domainList, domainRemove, domainSetDefault } from "./domains.ts";
 import { routeList, routeRemove, routeSet } from "./routes.ts";

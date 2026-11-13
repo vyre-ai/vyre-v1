@@ -1,108 +1,282 @@
 // Shared schema fragments for manifests. Pure data, imported by module manifests.
-import { t } from '../packages/contracts/src/index.ts';
-import type { JsonSchema, ResourceType } from '../packages/contracts/src/index.ts';
+import { t } from "../packages/contracts/src/index.ts";
+import type { JsonSchema, ResourceType } from "../packages/contracts/src/index.ts";
 
 export const RESOURCE_TYPES: ResourceType[] = [
-  'space', 'record_type', 'record', 'project', 'folder', 'file', 'channel', 'thread', 'inbox', 'mailbox',
-  'vault_folder', 'vault_item', 'automation_group', 'automation', 'agent', 'connector', 'connection',
-  'site', 'form', 'kit', 'terminal', 'computer', 'task', 'run', 'number', 'domain', 'calendar', 'skill',
+  "space",
+  "record_type",
+  "record",
+  "project",
+  "folder",
+  "file",
+  "channel",
+  "thread",
+  "inbox",
+  "mailbox",
+  "vault_folder",
+  "vault_item",
+  "automation_group",
+  "automation",
+  "agent",
+  "connector",
+  "connection",
+  "site",
+  "form",
+  "kit",
+  "terminal",
+  "computer",
+  "task",
+  "run",
+  "number",
+  "domain",
+  "calendar",
+  "skill",
 ];
 
 /** Id schemas by prefix (ids are `<prefix>_<lowercase alphanumerics>`). */
 export const id = {
-  user: t.id('usr'), agent: t.id('agt'), actor: t.id('act'), service: t.id('svc'), group: t.id('grp'), role: t.id('rol'),
-  grant: t.id('gnt'), policy: t.id('pol'), device: t.id('dev'), session: t.id('ses'), invite: t.id('inv'),
-  record: t.id('rec'), recordType: t.str({ pattern: '^[a-z][a-z0-9_]*$', examples: ['contact'] }),
-  project: t.id('prj'), task: t.id('tsk'), run: t.id('run'), thread: t.id('thr'), message: t.id('msg'), channel: t.id('chn'),
-  turn: t.id('trn'), block: t.id('blk'), plan: t.id('pln'),
-  file: t.id('fil'), folder: t.id('fld'), blob: t.id('blb'), version: t.id('ver'), changeset: t.id('chg'), mount: t.id('mnt'),
-  vaultItem: t.id('vit'), vaultFolder: t.id('vfd'), handle: t.str({ pattern: '^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$', examples: ['#Dana_Lawmatics'] }),
-  automation: t.id('aut'), journey: t.id('jrn'), form: t.id('frm'), site: t.id('sit'), kit: t.id('kit'),
-  connector: t.str({ examples: ['hubspot'] }), connection: t.id('con'), mailbox: t.id('mbx'), number: t.id('num'), domain: t.id('dom'),
-  contact: t.id('rec'), event: t.id('evt'), meeting: t.id('mtg'), call: t.id('cal'), computer: t.id('cmt'), terminal: t.id('trm'),
-  notification: t.id('ntf'), conflict: t.id('cfl'), fact: t.id('fct'), note: t.id('not'), report: t.id('rpt'), decision: t.id('dec'),
-  space: t.id('spc'), goal: t.id('gol'), trace: t.str({ pattern: '^[0-9a-f]{32}$', examples: ['0123456789abcdef0123456789abcdef'] }),
+  user: t.id("usr"),
+  agent: t.id("agt"),
+  actor: t.id("act"),
+  service: t.id("svc"),
+  group: t.id("grp"),
+  role: t.id("rol"),
+  grant: t.id("gnt"),
+  policy: t.id("pol"),
+  device: t.id("dev"),
+  session: t.id("ses"),
+  invite: t.id("inv"),
+  record: t.id("rec"),
+  recordType: t.str({ pattern: "^[a-z][a-z0-9_]*$", examples: ["contact"] }),
+  project: t.id("prj"),
+  task: t.id("tsk"),
+  run: t.id("run"),
+  thread: t.id("thr"),
+  message: t.id("msg"),
+  channel: t.id("chn"),
+  turn: t.id("trn"),
+  block: t.id("blk"),
+  plan: t.id("pln"),
+  file: t.id("fil"),
+  folder: t.id("fld"),
+  blob: t.id("blb"),
+  version: t.id("ver"),
+  changeset: t.id("chg"),
+  mount: t.id("mnt"),
+  vaultItem: t.id("vit"),
+  vaultFolder: t.id("vfd"),
+  handle: t.str({ pattern: "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$", examples: ["#Dana_Lawmatics"] }),
+  automation: t.id("aut"),
+  journey: t.id("jrn"),
+  form: t.id("frm"),
+  site: t.id("sit"),
+  kit: t.id("kit"),
+  connector: t.str({ examples: ["hubspot"] }),
+  connection: t.id("con"),
+  mailbox: t.id("mbx"),
+  number: t.id("num"),
+  domain: t.id("dom"),
+  contact: t.id("rec"),
+  event: t.id("evt"),
+  meeting: t.id("mtg"),
+  call: t.id("cal"),
+  computer: t.id("cmt"),
+  terminal: t.id("trm"),
+  notification: t.id("ntf"),
+  conflict: t.id("cfl"),
+  fact: t.id("fct"),
+  note: t.id("not"),
+  report: t.id("rpt"),
+  decision: t.id("dec"),
+  space: t.id("spc"),
+  goal: t.id("gol"),
+  trace: t.str({ pattern: "^[0-9a-f]{32}$", examples: ["0123456789abcdef0123456789abcdef"] }),
 };
 
-export const label = t.enm('public', 'internal', 'confidential', 'restricted');
-export const level = t.enm('view', 'use', 'edit', 'manage');
-export const risk = t.enm('low', 'medium', 'high');
+export const label = t.enm("public", "internal", "confidential", "restricted");
+export const level = t.enm("view", "use", "edit", "manage");
+export const risk = t.enm("low", "medium", "high");
 export const ok = { ok: t.bool() };
 export const resourceType = t.enm(...RESOURCE_TYPES);
-export const resourceRef = t.obj({ type: resourceType, id: t.str({ examples: ['rec_a1b2c3'] }) });
-export const principalRef = t.obj({ kind: t.enm('person', 'agent', 'actor', 'service'), id: t.str({ examples: ['usr_a1b2c3'] }) });
-export const subjectRef = t.obj({ kind: t.enm('person', 'agent', 'actor', 'service', 'group', 'role', 'link'), id: t.str({ examples: ['usr_a1b2c3'] }) });
+export const resourceRef = t.obj({ type: resourceType, id: t.str({ examples: ["rec_a1b2c3"] }) });
+export const principalRef = t.obj({
+  kind: t.enm("person", "agent", "actor", "service"),
+  id: t.str({ examples: ["usr_a1b2c3"] }),
+});
+export const subjectRef = t.obj({
+  kind: t.enm("person", "agent", "actor", "service", "group", "role", "link"),
+  id: t.str({ examples: ["usr_a1b2c3"] }),
+});
 
 /** Cursor paging for lists. */
 export const pageIn = { cursor: t.opt(t.str()), limit: t.opt(t.int({ minimum: 1, maximum: 500 })) };
-export const pageOut = { next: t.opt(t.str({ description: 'Cursor for the next page; absent on the last page' })), total: t.opt(t.int()) };
+export const pageOut = {
+  next: t.opt(t.str({ description: "Cursor for the next page; absent on the last page" })),
+  total: t.opt(t.int()),
+};
 
 /** Persisted native block (6.8). */
 export const blockSchema: JsonSchema = t.obj({
-  type: t.str({ examples: ['record_card'] }), v: t.int({ minimum: 1 }), id: id.block, data: t.json(),
-  state: t.opt(t.enm('live', 'done', 'waiting', 'error')), traceId: id.trace,
+  type: t.str({ examples: ["record_card"] }),
+  v: t.int({ minimum: 1 }),
+  id: id.block,
+  data: t.json(),
+  state: t.opt(t.enm("live", "done", "waiting", "error")),
+  traceId: id.trace,
 });
 
 /** Filter and sort for lists and views (compiles to SQL, 4.5). */
 export const filterExpr: JsonSchema = t.json();
-export const sortSpec: JsonSchema = t.arr(t.obj({ field: t.str(), dir: t.enm('asc', 'desc') }));
+export const sortSpec: JsonSchema = t.arr(t.obj({ field: t.str(), dir: t.enm("asc", "desc") }));
 export const viewSpec = {
-  filter: t.opt(filterExpr), sort: t.opt(sortSpec), group: t.opt(t.str()),
-  fields: t.opt(t.arr(t.str())), offset: t.opt(t.int({ minimum: 0 })), limit: t.opt(t.int({ minimum: 1, maximum: 5000 })),
+  filter: t.opt(filterExpr),
+  sort: t.opt(sortSpec),
+  group: t.opt(t.str()),
+  fields: t.opt(t.arr(t.str())),
+  offset: t.opt(t.int({ minimum: 0 })),
+  limit: t.opt(t.int({ minimum: 1, maximum: 5000 })),
 };
 
 /** Held result of a gated call (4.6). */
-export const heldResult: JsonSchema = t.obj({ status: t.lit('held'), taskId: id.task, runId: t.opt(id.run) });
+export const heldResult: JsonSchema = t.obj({ status: t.lit("held"), taskId: id.task, runId: t.opt(id.run) });
 
 /** Result of starting a Run. */
 export const runStarted = { runId: id.run };
 
 /** Version list row (One History, 4.5). */
-export const versionRow: JsonSchema = t.obj({ versionId: id.version, n: t.int(), by: t.str(), at: t.ts(), reason: t.opt(t.str()), name: t.opt(t.str()) });
+export const versionRow: JsonSchema = t.obj({
+  versionId: id.version,
+  n: t.int(),
+  by: t.str(),
+  at: t.ts(),
+  reason: t.opt(t.str()),
+  name: t.opt(t.str()),
+});
 
-export const expr = t.str({ description: 'Expression over the call input or payload', examples: ["input.amount > 1000"] });
-export const cron = t.str({ description: 'Cron expression', examples: ['0 9 * * 1-5'] });
-export const email = t.str({ pattern: '^[^@\\s]+@[^@\\s]+$', examples: ['maya@example.com'] });
-export const url = t.str({ pattern: '^https?://', examples: ['https://example.com'] });
+export const expr = t.str({
+  description: "Expression over the call input or payload",
+  examples: ["input.amount > 1000"],
+});
+export const cron = t.str({ description: "Cron expression", examples: ["0 9 * * 1-5"] });
+export const email = t.str({ pattern: "^[^@\\s]+@[^@\\s]+$", examples: ["maya@example.com"] });
+export const url = t.str({ pattern: "^https?://", examples: ["https://example.com"] });
 
 /** What an age purge answers (P-CC_39): how many it removed in this batch, whether more are left, and how many a hold kept. */
 export const purgeOut = { removed: t.int({ minimum: 0 }), more: t.bool(), skippedOnHold: t.opt(t.int({ minimum: 0 })) };
 
 // A reply's Details (engine.turn.of_message, chat.reply_details). A count that is absent was not reported by the provider: never shown as 0.
 const turnCost = t.obj({
-  source: t.enm('subscription', 'reported', 'catalog', 'estimate', 'unknown', 'flat'), micros: t.opt(t.int()),
-  lines: t.opt(t.arr(t.obj({ kind: t.enm('input', 'output', 'cache_read', 'cache_write'), tokens: t.int(), perMillion: t.num(), micros: t.int() }))),
-  priceAsOf: t.opt(t.str({ examples: ['2026-10-06'] })), missing: t.opt(t.arr(t.str())),
+  source: t.enm("subscription", "reported", "catalog", "estimate", "unknown", "flat"),
+  micros: t.opt(t.int()),
+  lines: t.opt(
+    t.arr(
+      t.obj({
+        kind: t.enm("input", "output", "cache_read", "cache_write"),
+        tokens: t.int(),
+        perMillion: t.num(),
+        micros: t.int(),
+      }),
+    ),
+  ),
+  priceAsOf: t.opt(t.str({ examples: ["2026-10-06"] })),
+  missing: t.opt(t.arr(t.str())),
 });
 export const replyTurn = t.obj({
-  turnId: id.turn, traceId: id.trace, agentId: id.agent, asker: t.str(), model: t.str(), effort: t.opt(t.str()), engine: t.str(), provider: t.opt(t.str()),
-  accountKind: t.opt(t.enm('api_key', 'subscription')), shared: t.opt(t.bool()), accountRef: t.opt(t.str({ description: 'Vault handle or subscription account reference; never a secret value' })), state: t.enm('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled'),
-  paid: t.opt(t.str({ description: 'Who paid and why, in a plain line (the asker\'s and AI-spend managers\' only)' })),
+  turnId: id.turn,
+  traceId: id.trace,
+  agentId: id.agent,
+  asker: t.str(),
+  model: t.str(),
+  effort: t.opt(t.str()),
+  engine: t.str(),
+  provider: t.opt(t.str()),
+  accountKind: t.opt(t.enm("api_key", "subscription")),
+  shared: t.opt(t.bool()),
+  accountRef: t.opt(t.str({ description: "Vault handle or subscription account reference; never a secret value" })),
+  state: t.enm("queued", "running", "waiting", "completed", "failed", "cancelled"),
+  paid: t.opt(t.str({ description: "Who paid and why, in a plain line (the asker's and AI-spend managers' only)" })),
   ranOn: t.arr(t.obj({ kind: t.str(), name: t.str(), note: t.opt(t.str()) })),
   timing: t.obj({ queuedAt: t.opt(t.ts()), startedAt: t.ts(), firstTokenAt: t.opt(t.ts()), endedAt: t.opt(t.ts()) }),
-  tokens: t.obj({ in: t.int(), out: t.int(), context: t.opt(t.int({ description: 'What the model was shown in the last call of the turn: the real size of the context. `in` adds up every call' })), cacheRead: t.opt(t.int()), cacheWrite: t.opt(t.int()), reasoning: t.opt(t.int()) }),
+  tokens: t.obj({
+    in: t.int(),
+    out: t.int(),
+    context: t.opt(
+      t.int({
+        description:
+          "What the model was shown in the last call of the turn: the real size of the context. `in` adds up every call",
+      }),
+    ),
+    cacheRead: t.opt(t.int()),
+    cacheWrite: t.opt(t.int()),
+    reasoning: t.opt(t.int()),
+  }),
   cost: t.opt(turnCost),
-  tools: t.arr(t.obj({ name: t.str(), args: t.opt(t.str()), ok: t.opt(t.bool()), durationMs: t.opt(t.int()), heldTaskId: t.opt(id.task) })),
-  files: t.obj({ read: t.arr(t.str()), written: t.arr(t.str()) }), skills: t.arr(t.str()),
+  tools: t.arr(
+    t.obj({
+      name: t.str(),
+      args: t.opt(t.str()),
+      ok: t.opt(t.bool()),
+      durationMs: t.opt(t.int()),
+      heldTaskId: t.opt(id.task),
+    }),
+  ),
+  files: t.obj({ read: t.arr(t.str()), written: t.arr(t.str()) }),
+  skills: t.arr(t.str()),
   switches: t.arr(t.obj({ at: t.ts(), why: t.str(), sameAccount: t.bool(), from: t.opt(t.str()), to: t.opt(t.str()) })),
   error: t.opt(t.obj({ code: t.str(), message: t.str() })),
-  private: t.bool(), partial: t.bool(),
+  private: t.bool(),
+  partial: t.bool(),
 });
 // One email thread as a person reads it (owner, 3 Nov): the body is what the sender wrote this time, in full; quoted history, signature and sanitised HTML are apart.
 export const threadParty = t.obj({ address: email, name: t.opt(t.str()) });
 export const threadMessage = t.obj({
-  id: t.id('eml'), at: t.ts(), direction: t.enm('in', 'out'), mailboxId: id.mailbox, mailboxIds: t.arr(id.mailbox), from: threadParty, to: t.arr(threadParty), cc: t.arr(threadParty), subject: t.str(),
-  body: t.str({ description: 'What the sender wrote this time, never shortened' }), quoted: t.opt(t.str({ description: 'Quoted history: "On ... wrote:", Outlook From/Sent or Original Message' })),
-  signature: t.opt(t.str({ description: 'Signature, mobile footer or legal notice' })), html: t.opt(t.str({ description: 'Sanitised HTML: no scripts, styles or handlers; remote images held unless asked; links show their host' })),
-  imagesHeld: t.opt(t.int({ minimum: 0 })), reactions: t.arr(t.obj({ emoji: t.str({ examples: ['❤️'] }), from: threadParty, at: t.ts() })),
-  attachments: t.arr(t.obj({ attachmentId: t.str(), name: t.str(), mime: t.str(), size: t.int() })), isPrivate: t.bool(), rfcMessageId: t.opt(t.str()), inReplyTo: t.opt(t.str()),
+  id: t.id("eml"),
+  at: t.ts(),
+  direction: t.enm("in", "out"),
+  mailboxId: id.mailbox,
+  mailboxIds: t.arr(id.mailbox),
+  from: threadParty,
+  to: t.arr(threadParty),
+  cc: t.arr(threadParty),
+  subject: t.str(),
+  body: t.str({ description: "What the sender wrote this time, never shortened" }),
+  quoted: t.opt(t.str({ description: 'Quoted history: "On ... wrote:", Outlook From/Sent or Original Message' })),
+  signature: t.opt(t.str({ description: "Signature, mobile footer or legal notice" })),
+  html: t.opt(
+    t.str({
+      description:
+        "Sanitised HTML: no scripts, styles or handlers; remote images held unless asked; links show their host",
+    }),
+  ),
+  imagesHeld: t.opt(t.int({ minimum: 0 })),
+  reactions: t.arr(t.obj({ emoji: t.str({ examples: ["❤️"] }), from: threadParty, at: t.ts() })),
+  attachments: t.arr(t.obj({ attachmentId: t.str(), name: t.str(), mime: t.str(), size: t.int() })),
+  isPrivate: t.bool(),
+  rfcMessageId: t.opt(t.str()),
+  inReplyTo: t.opt(t.str()),
 });
-export const threadRole = t.enm('started', 'to', 'cc', 'added_later', 'none');
+export const threadRole = t.enm("started", "to", "cc", "added_later", "none");
 
 /** What a Space AI account may pay for (owner ruling 9). Each use is off unless named. */
-export const spaceUses = t.obj({
-  teamChats: t.opt(t.obj({ who: t.union(t.lit('everyone'), t.arr(id.group, { minItems: 1 })) }, { description: 'A member\'s own chat, only when they have no account of their own that can pay: everyone, or the people in these groups' })),
-  automations: t.opt({ ...t.lit(true), description: 'Automation steps' }),
-  goals: t.opt({ ...t.lit(true), description: 'Goal turns and wake-ups' }),
-  agentWork: t.opt(t.obj({ which: t.union(t.lit('all'), t.arr(id.agent, { minItems: 1 })) }, { description: 'Work an agent does with no asker (routines, watchers, helpers): every agent, or these' })),
-}, { description: 'What a Space AI account may pay for' });
+export const spaceUses = t.obj(
+  {
+    teamChats: t.opt(
+      t.obj(
+        { who: t.union(t.lit("everyone"), t.arr(id.group, { minItems: 1 })) },
+        {
+          description:
+            "A member's own chat, only when they have no account of their own that can pay: everyone, or the people in these groups",
+        },
+      ),
+    ),
+    automations: t.opt({ ...t.lit(true), description: "Automation steps" }),
+    goals: t.opt({ ...t.lit(true), description: "Goal turns and wake-ups" }),
+    agentWork: t.opt(
+      t.obj(
+        { which: t.union(t.lit("all"), t.arr(id.agent, { minItems: 1 })) },
+        { description: "Work an agent does with no asker (routines, watchers, helpers): every agent, or these" },
+      ),
+    ),
+  },
+  { description: "What a Space AI account may pay for" },
+);

@@ -147,7 +147,11 @@ function pointer(doc: Record<string, unknown>, ref: string): unknown {
   for (const raw of ref.slice(2).split("/")) {
     if (raw === "") continue;
     let key = raw;
-    try { key = decodeURIComponent(raw); } catch { /* keep the raw token */ }
+    try {
+      key = decodeURIComponent(raw);
+    } catch {
+      /* keep the raw token */
+    }
     key = key.replace(/~1/g, "/").replace(/~0/g, "~");
     if (Array.isArray(cur)) {
       if (!/^\d+$/.test(key)) return undefined;
@@ -188,7 +192,8 @@ function copySchema(doc: Record<string, unknown>, node: unknown, depth: number):
     if (types) out.type = types;
   }
   if (typeof schema.format === "string" && !containsSecret(schema.format)) out.format = schema.format;
-  if (typeof schema.description === "string" && schema.description && !containsSecret(schema.description)) out.description = schema.description;
+  if (typeof schema.description === "string" && schema.description && !containsSecret(schema.description))
+    out.description = schema.description;
   if (typeof schema.pattern === "string" && !containsSecret(schema.pattern)) out.pattern = schema.pattern;
   if (schema.nullable === true || schema.nullable === false) out.nullable = schema.nullable;
   const minimum = finite(schema.minimum);
@@ -275,7 +280,8 @@ function variableValues(spec: unknown): string[] | undefined {
       if (typeof item === "string" && item && !containsSecret(item) && !values.includes(item)) values.push(item);
     }
   }
-  if (values.length === 0 && typeof spec.default === "string" && spec.default && !containsSecret(spec.default)) values.push(spec.default);
+  if (values.length === 0 && typeof spec.default === "string" && spec.default && !containsSecret(spec.default))
+    values.push(spec.default);
   return values.length ? values : undefined;
 }
 
@@ -333,7 +339,11 @@ function expandServers(list: unknown): { servers: string[]; domains: string[] } 
   return { servers, domains };
 }
 
-function serversFor(operation: Record<string, unknown>, pathItem: Record<string, unknown>, doc: Record<string, unknown>): { servers: string[]; domains: string[] } {
+function serversFor(
+  operation: Record<string, unknown>,
+  pathItem: Record<string, unknown>,
+  doc: Record<string, unknown>,
+): { servers: string[]; domains: string[] } {
   if (Array.isArray(operation.servers)) return expandServers(operation.servers);
   if (Array.isArray(pathItem.servers)) return expandServers(pathItem.servers);
   return expandServers(doc.servers);
@@ -368,7 +378,11 @@ function fieldFromParameter(doc: Record<string, unknown>, param: Record<string, 
   };
 }
 
-function parametersOf(pathItem: Record<string, unknown>, operation: Record<string, unknown>, doc: Record<string, unknown>): InputField[] {
+function parametersOf(
+  pathItem: Record<string, unknown>,
+  operation: Record<string, unknown>,
+  doc: Record<string, unknown>,
+): InputField[] {
   const merged = new Map<string, InputField>();
   for (const list of [pathItem.parameters, operation.parameters]) {
     if (!Array.isArray(list)) continue;
@@ -383,7 +397,10 @@ function parametersOf(pathItem: Record<string, unknown>, operation: Record<strin
   return [...merged.values()];
 }
 
-function bodyOf(operation: Record<string, unknown>, doc: Record<string, unknown>): { schema?: JsonSchema; required: boolean } {
+function bodyOf(
+  operation: Record<string, unknown>,
+  doc: Record<string, unknown>,
+): { schema?: JsonSchema; required: boolean } {
   const body = deref(doc, operation.requestBody, new Set());
   if (!body || !isRecord(body.content)) return { required: body?.required === true };
   const media = jsonContent(body.content);
@@ -394,10 +411,19 @@ function bodyOf(operation: Record<string, unknown>, doc: Record<string, unknown>
 
 function fieldsFromBody(schema: JsonSchema | undefined, bodyRequired: boolean): InputField[] {
   if (!schema) return [];
-  const objectLike = schema.properties && (schema.type === undefined || schema.type === "object" || (Array.isArray(schema.type) && schema.type.includes("object")));
+  const objectLike =
+    schema.properties &&
+    (schema.type === undefined ||
+      schema.type === "object" ||
+      (Array.isArray(schema.type) && schema.type.includes("object")));
   if (objectLike && schema.properties) {
     const required = new Set(schema.required ?? []);
-    return Object.entries(schema.properties).map(([name, prop]) => ({ name, in: "body" as const, required: required.has(name), schema: prop }));
+    return Object.entries(schema.properties).map(([name, prop]) => ({
+      name,
+      in: "body" as const,
+      required: required.has(name),
+      schema: prop,
+    }));
   }
   return [{ name: "body", in: "body", required: bodyRequired, schema }];
 }
@@ -418,7 +444,8 @@ const SUCCESS = ["200", "201", "202", "203", "204", "205", "206"];
 function outputOf(operation: Record<string, unknown>, doc: Record<string, unknown>): JsonSchema | undefined {
   if (!isRecord(operation.responses)) return undefined;
   const codes = Object.keys(operation.responses);
-  const status = SUCCESS.find((code) => code in operation.responses!) ?? codes.filter((code) => /^2\d\d$/.test(code)).sort()[0];
+  const status =
+    SUCCESS.find((code) => code in operation.responses!) ?? codes.filter((code) => /^2\d\d$/.test(code)).sort()[0];
   if (!status) return undefined;
   const response = deref(doc, operation.responses[status], new Set());
   if (!response || !isRecord(response.content)) return undefined;
@@ -469,7 +496,8 @@ function scopesOf(operation: Record<string, unknown>, doc: Record<string, unknow
     for (const list of Object.values(requirement)) {
       if (!Array.isArray(list)) continue;
       for (const scope of list) {
-        if (typeof scope !== "string" || !scope || secretKey(scope) || containsSecret(scope) || scopes.includes(scope)) continue;
+        if (typeof scope !== "string" || !scope || secretKey(scope) || containsSecret(scope) || scopes.includes(scope))
+          continue;
         scopes.push(scope);
       }
     }
@@ -516,7 +544,9 @@ function effectOf(method: GeneratedAction["method"]): "read" | "outward" {
   return method === "GET" || method === "HEAD" || method === "OPTIONS" ? "read" : "outward";
 }
 
-function admissionGaps(action: Pick<GeneratedAction, "inputSchema" | "outputSchema" | "effect" | "connection" | "errors">): string[] {
+function admissionGaps(
+  action: Pick<GeneratedAction, "inputSchema" | "outputSchema" | "effect" | "connection" | "errors">,
+): string[] {
   const missing: string[] = [];
   if (action.inputSchema == null) missing.push("input");
   if (action.outputSchema == null) missing.push("output");
@@ -549,7 +579,14 @@ function noServersAndNoPaths(doc: Record<string, unknown>): boolean {
   return servers === 0 && paths === 0;
 }
 
-function buildAction(doc: Record<string, unknown>, pathItem: Record<string, unknown>, path: string, methodName: MethodName, operation: Record<string, unknown>, used: Set<string>): { ok: true; action: GeneratedAction } | { ok: false; reason: string } {
+function buildAction(
+  doc: Record<string, unknown>,
+  pathItem: Record<string, unknown>,
+  path: string,
+  methodName: MethodName,
+  operation: Record<string, unknown>,
+  used: Set<string>,
+): { ok: true; action: GeneratedAction } | { ok: false; reason: string } {
   const method = methodName.toUpperCase() as GeneratedAction["method"];
   const { servers, domains } = serversFor(operation, pathItem, doc);
   if (hasAbsoluteHost(path)) {
@@ -565,7 +602,14 @@ function buildAction(doc: Record<string, unknown>, pathItem: Record<string, unkn
   const auth = authOf(operation, doc);
   const connection = connectionOf(auth);
   const action: GeneratedAction = {
-    key: uniqueKey(slug(typeof operation.operationId === "string" && operation.operationId.trim() ? operation.operationId : `${method} ${path.replace(/[{}]/g, "")}`), used),
+    key: uniqueKey(
+      slug(
+        typeof operation.operationId === "string" && operation.operationId.trim()
+          ? operation.operationId
+          : `${method} ${path.replace(/[{}]/g, "")}`,
+      ),
+      used,
+    ),
     level: "draft",
     method,
     path,
@@ -635,14 +679,24 @@ function sharedAuth(actions: GeneratedAction[]): ConnectorDraft["auth"] {
 export function rejectForeignHost(target: string, allowedDomains: readonly string[]): HostCheck {
   const raw = target.trim();
   if (!raw) return { ok: false, reason: "The request has no path." };
-  const domains = allowedDomains.map((domain) => domain.toLowerCase().replace(/\.$/, "")).filter((domain) => domain.length > 0);
+  const domains = allowedDomains
+    .map((domain) => domain.toLowerCase().replace(/\.$/, ""))
+    .filter((domain) => domain.length > 0);
   if (domains.length === 0) return { ok: false, reason: "The document names no servers, so no host is allowed." };
 
   let url: URL | undefined;
   if (raw.startsWith("//")) {
-    try { url = new URL(`https:${raw}`); } catch { return { ok: false, reason: "The request path is not an address this document allows." }; }
+    try {
+      url = new URL(`https:${raw}`);
+    } catch {
+      return { ok: false, reason: "The request path is not an address this document allows." };
+    }
   } else if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) {
-    try { url = new URL(raw); } catch { return { ok: false, reason: "The request path is not an address this document allows." }; }
+    try {
+      url = new URL(raw);
+    } catch {
+      return { ok: false, reason: "The request path is not an address this document allows." };
+    }
   } else if (raw.startsWith("/")) {
     return { ok: true, host: null };
   } else {
@@ -685,8 +739,10 @@ export function generate(doc: OpenApiDocument, options?: GenerateOptions): Gener
     if (!sawMethod && looksLikeOperation(pathItem)) refused.push({ path, reason: NO_METHOD });
     for (const [key, value] of Object.entries(pathItem)) {
       if (key.startsWith("x-") || METHODS.includes(key as MethodName)) continue;
-      if (key === "$ref" || key === "summary" || key === "description" || key === "servers" || key === "parameters") continue;
-      if (isRecord(value) && ("responses" in value || "operationId" in value || "requestBody" in value)) refused.push({ path, reason: NO_METHOD });
+      if (key === "$ref" || key === "summary" || key === "description" || key === "servers" || key === "parameters")
+        continue;
+      if (isRecord(value) && ("responses" in value || "operationId" in value || "requestBody" in value))
+        refused.push({ path, reason: NO_METHOD });
     }
   }
 

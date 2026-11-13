@@ -14,7 +14,8 @@ async function closedWhy(ctx: GateCtx, h: Hold): Promise<string | null> {
   if (ctx.now() - h.createdAt >= STALE_MS) return NOTE_STALE;
   if (h.threadId && ctx.call) {
     try {
-      const t = ((await ctx.call("threads.get", { threadId: h.threadId })) as { thread?: { closedAt?: unknown } }).thread;
+      const t = ((await ctx.call("threads.get", { threadId: h.threadId })) as { thread?: { closedAt?: unknown } })
+        .thread;
       if (t && t.closedAt !== undefined && t.closedAt !== null) return NOTE_CHAT;
     } catch (e) {
       // a chat that is gone ends its asks; any other failure to read it leaves the hold as it was
@@ -25,7 +26,9 @@ async function closedWhy(ctx: GateCtx, h: Hold): Promise<string | null> {
     try {
       const t = ((await ctx.call("tasks.get", { taskId: h.taskId })) as { task?: { state?: string } }).task;
       if (t?.state === "done" || t?.state === "canceled") return NOTE_TASK;
-    } catch { /* the task cannot be read: the hold stays */ }
+    } catch {
+      /* the task cannot be read: the hold stays */
+    }
   }
   return null;
 }
@@ -33,7 +36,7 @@ async function closedWhy(ctx: GateCtx, h: Hold): Promise<string | null> {
 export async function expireStaleHolds(ctx: GateCtx): Promise<{ dropped: number }> {
   let dropped = 0;
   for (const h of holdsWhere(ctx.db, "state = 'held'")) {
-    if (h.sendingAt !== undefined) continue;   // being sent right now
+    if (h.sendingAt !== undefined) continue; // being sent right now
     const why = await closedWhy(ctx, h);
     if (why === null) continue;
     await dropHold(ctx, h, why);

@@ -10,7 +10,11 @@ import type { Snapshot } from "./ring.ts";
 export type Policy = "on" | "ask" | "off";
 export type Status = "idle" | "sending" | "queued" | "sent" | "error";
 
-export interface SubmitResult { reportId: string; taskId: string; sentToVyre: boolean }
+export interface SubmitResult {
+  reportId: string;
+  taskId: string;
+  sentToVyre: boolean;
+}
 
 export interface ReportDeps {
   snapshot(): Snapshot;
@@ -67,15 +71,36 @@ export class ReportController {
 
   constructor(private readonly deps: ReportDeps) {
     this.s = {
-      open: false, context: EMPTY_CONTEXT, note: "", expanded: false, status: "idle", bundle: null, redactions: 0, rows: [], policy: deps.policy(),
-      shareWithVyre: false, reportId: null, issueNumber: null, error: null, waiting: deps.outbox.list().length,
+      open: false,
+      context: EMPTY_CONTEXT,
+      note: "",
+      expanded: false,
+      status: "idle",
+      bundle: null,
+      redactions: 0,
+      rows: [],
+      policy: deps.policy(),
+      shareWithVyre: false,
+      reportId: null,
+      issueNumber: null,
+      error: null,
+      waiting: deps.outbox.list().length,
     };
   }
 
   getState = (): ReportState => this.s;
-  subscribe = (fn: () => void): (() => void) => { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; };
-  private emit(): void { for (const l of this.listeners) l(); }
-  private set(p: Partial<ReportState>): void { this.s = { ...this.s, ...p }; }
+  subscribe = (fn: () => void): (() => void) => {
+    this.listeners.add(fn);
+    return () => {
+      this.listeners.delete(fn);
+    };
+  };
+  private emit(): void {
+    for (const l of this.listeners) l();
+  }
+  private set(p: Partial<ReportState>): void {
+    this.s = { ...this.s, ...p };
+  }
 
   /** Cmd-Shift-/, the Help menu, a right-click menu's last item, or a "Report a problem" button on an error. */
   open(context: ReportContext = EMPTY_CONTEXT): void {
@@ -84,13 +109,43 @@ export class ReportController {
     // Freeze what is captured now: the screenshot of the window as it is under the sheet, the rings as they are at this moment.
     this.base = { snapshot: this.deps.snapshot(), versions: this.deps.versions() };
     this.pending = [];
-    this.set({ open: true, context, note: "", expanded: false, status: "idle", reportId: null, issueNumber: null, error: null, policy: this.deps.policy(), shareWithVyre: false, waiting: this.deps.outbox.list().length });
+    this.set({
+      open: true,
+      context,
+      note: "",
+      expanded: false,
+      status: "idle",
+      reportId: null,
+      issueNumber: null,
+      error: null,
+      policy: this.deps.policy(),
+      shareWithVyre: false,
+      waiting: this.deps.outbox.list().length,
+    });
     this.rebuild();
     if (this.deps.captureScreenshot) {
-      this.pending.push(this.deps.captureScreenshot().then((id) => { this.screenshotFileId = id; this.rebuild(); this.emit(); }, () => undefined));
+      this.pending.push(
+        this.deps.captureScreenshot().then(
+          (id) => {
+            this.screenshotFileId = id;
+            this.rebuild();
+            this.emit();
+          },
+          () => undefined,
+        ),
+      );
     }
     if (this.deps.uploadLog) {
-      this.pending.push(this.deps.uploadLog(this.base.snapshot.log).then((id) => { this.clientLogFileId = id; this.rebuild(); this.emit(); }, () => undefined));
+      this.pending.push(
+        this.deps.uploadLog(this.base.snapshot.log).then(
+          (id) => {
+            this.clientLogFileId = id;
+            this.rebuild();
+            this.emit();
+          },
+          () => undefined,
+        ),
+      );
     }
     this.emit();
   }
@@ -98,17 +153,34 @@ export class ReportController {
   private rebuild(): void {
     if (!this.base) return;
     const built = buildBundle({
-      context: this.s.context, snapshot: this.base.snapshot, versions: this.base.versions, note: this.s.note,
+      context: this.s.context,
+      snapshot: this.base.snapshot,
+      versions: this.base.versions,
+      note: this.s.note,
       ...(this.screenshotFileId ? { screenshotFileId: this.screenshotFileId } : {}),
       ...(this.clientLogFileId ? { clientLogFileId: this.clientLogFileId } : {}),
     });
     const win = this.deps.windowSize?.() ?? null;
-    this.set({ bundle: built.bundle, redactions: built.redactions, rows: previewRows(built.bundle, this.deps.placeName(this.s.context.place), win) });
+    this.set({
+      bundle: built.bundle,
+      redactions: built.redactions,
+      rows: previewRows(built.bundle, this.deps.placeName(this.s.context.place), win),
+    });
   }
 
-  setNote(note: string): void { this.set({ note: note.slice(0, 500) }); this.rebuild(); this.emit(); }
-  toggleExpanded(): void { this.set({ expanded: !this.s.expanded }); this.emit(); }
-  setShare(v: boolean): void { this.set({ shareWithVyre: v }); this.emit(); }
+  setNote(note: string): void {
+    this.set({ note: note.slice(0, 500) });
+    this.rebuild();
+    this.emit();
+  }
+  toggleExpanded(): void {
+    this.set({ expanded: !this.s.expanded });
+    this.emit();
+  }
+  setShare(v: boolean): void {
+    this.set({ shareWithVyre: v });
+    this.emit();
+  }
 
   async send(): Promise<void> {
     if (!this.s.open || !this.s.bundle || this.s.status === "sending") return;
@@ -120,7 +192,13 @@ export class ReportController {
     const idem = `rpt_${this.deps.newId?.() ?? `${now.toString(36)}${Math.random().toString(36).slice(2, 8)}`}`;
     const input: SubmitIn = { bundle, idempotencyKey: idem };
     if (!this.deps.online()) {
-      const op: PendingOp = { id: idem, cap: "reports.submit", input, traceId: bundle.traceIds[bundle.traceIds.length - 1] ?? null, at: now };
+      const op: PendingOp = {
+        id: idem,
+        cap: "reports.submit",
+        input,
+        traceId: bundle.traceIds[bundle.traceIds.length - 1] ?? null,
+        at: now,
+      };
       this.deps.outbox.enqueue(op);
       this.set({ status: "queued", waiting: this.deps.outbox.list().length, reportId: null });
       this.emit();
@@ -166,7 +244,9 @@ export class ReportController {
       }
       this.set({ waiting: this.deps.outbox.list().length });
       this.emit();
-    })().finally(() => { this.flushing = null; });
+    })().finally(() => {
+      this.flushing = null;
+    });
     return this.flushing;
   }
 
@@ -180,7 +260,8 @@ export class ReportController {
   /** The text under "Sent": who has it. */
   destination(): string {
     if (this.s.policy === "off") return "your admins have it";
-    if (this.s.policy === "ask") return this.s.shareWithVyre ? "the Vyre team and your admins have it" : "your admins have it";
+    if (this.s.policy === "ask")
+      return this.s.shareWithVyre ? "the Vyre team and your admins have it" : "your admins have it";
     return "the Vyre team and your admins have it";
   }
 }

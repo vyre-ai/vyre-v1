@@ -11,33 +11,82 @@ import type { Clock } from "../rightpane/model.ts";
 
 export const ACTIVITY_MS = 5000;
 
-export function ActivityTab({ agentId, call, clock, openChat }: { agentId: string; call(cap: string, input: unknown): Promise<unknown>; clock: Clock; openChat(threadId: string): void }): ReactElement {
+export function ActivityTab({
+  agentId,
+  call,
+  clock,
+  openChat,
+}: {
+  agentId: string;
+  call(cap: string, input: unknown): Promise<unknown>;
+  clock: Clock;
+  openChat(threadId: string): void;
+}): ReactElement {
   const [rows, setRows] = useState<readonly Activity[] | null>(null);
   useEffect(() => {
     let live = true;
-    const read = (): void => { void call("mcp.activity.list", { agentId, limit: 100 }).then((o) => { if (live) setRows((o as CapMap["mcp.activity.list"]["out"]).rows); }, () => { if (live) setRows((r) => r ?? []); }); };
+    const read = (): void => {
+      void call("mcp.activity.list", { agentId, limit: 100 }).then(
+        (o) => {
+          if (live) setRows((o as CapMap["mcp.activity.list"]["out"]).rows);
+        },
+        () => {
+          if (live) setRows((r) => r ?? []);
+        },
+      );
+    };
     read();
     const t = setInterval(read, ACTIVITY_MS);
     (t as { unref?: () => void }).unref?.();
-    return () => { live = false; clearInterval(t); };
+    return () => {
+      live = false;
+      clearInterval(t);
+    };
   }, [agentId, call]);
   if (rows === null) return <View testID="activity-loading" accessibilityLabel="Loading" style={st.loading} />;
-  if (rows.length === 0) return <Text testID="activity-empty" style={st.empty}>Nothing yet. What it does in this Space shows here.</Text>;
+  if (rows.length === 0)
+    return (
+      <Text testID="activity-empty" style={st.empty}>
+        Nothing yet. What it does in this Space shows here.
+      </Text>
+    );
   const list: ReactElement[] = [];
   for (const r of rows) {
     const body = (
       <>
-        <Text numberOfLines={1} style={st.what}>{toolWords(r.tool)}</Text>
-        <Text style={[st.state, r.outcome === "held" && st.held, r.outcome === "error" && st.failed]}>{OUTCOME_WORDS[r.outcome]}</Text>
+        <Text numberOfLines={1} style={st.what}>
+          {toolWords(r.tool)}
+        </Text>
+        <Text style={[st.state, r.outcome === "held" && st.held, r.outcome === "error" && st.failed]}>
+          {OUTCOME_WORDS[r.outcome]}
+        </Text>
         <Text style={st.when}>{agoLabel(r.at, clock)}</Text>
       </>
     );
     const threadId = r.threadId;
-    list.push(threadId
-      ? <Pressable key={r.id} testID={`activity-${r.id}`} accessibilityRole="link" onPress={() => openChat(threadId)} style={st.row}>{body}</Pressable>
-      : <View key={r.id} testID={`activity-${r.id}`} style={st.row}>{body}</View>);
+    list.push(
+      threadId ? (
+        <Pressable
+          key={r.id}
+          testID={`activity-${r.id}`}
+          accessibilityRole="link"
+          onPress={() => openChat(threadId)}
+          style={st.row}
+        >
+          {body}
+        </Pressable>
+      ) : (
+        <View key={r.id} testID={`activity-${r.id}`} style={st.row}>
+          {body}
+        </View>
+      ),
+    );
   }
-  return <ScrollView testID="activity-list" style={st.scroll}>{list}</ScrollView>;
+  return (
+    <ScrollView testID="activity-list" style={st.scroll}>
+      {list}
+    </ScrollView>
+  );
 }
 
 const st = StyleSheet.create({

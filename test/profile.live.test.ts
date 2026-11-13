@@ -14,7 +14,13 @@ import { loadConfig } from "../host/src/daemon/config.ts";
 import { CODE_ROOT, startDaemon } from "../host/src/daemon/daemon.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const KEY = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
 const PRIVATE = "Olivia is going through IVF and leaves early on Thursdays.";
 const LEARNED = "Olivia's daughter has swim practice on Mondays.";
@@ -28,7 +34,10 @@ const standIn = async () => ({
     yield { type: "text", text: `[person] ${person}` };
     yield { type: "done" };
   },
-  sendToolResult() {}, inject() {}, async cancel() {}, async close() {},
+  sendToolResult() {},
+  inject() {},
+  async cancel() {},
+  async close() {},
 });
 
 function seededDir(): string {
@@ -45,7 +54,9 @@ async function boot(dir: string): Promise<Daemon> {
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     codeRoot: CODE_ROOT,
     platform: fakePlatform({
-      os: "linux", hostname: "profile-live", free: 80e9,
+      os: "linux",
+      hostname: "profile-live",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -57,18 +68,31 @@ async function boot(dir: string): Promise<Daemon> {
     vault: { secret: async () => KEY, signRs256: async () => "" },
     session: (headers: Record<string, string | undefined>) => {
       const id = String(headers["authorization"] ?? "").replace(/^Bearer /, "");
-      return ["usr_olivia", "usr_noah"].includes(id) ? { space: CORE_SPACE, principal: { kind: "person" as const, id }, device: "profile-live" } : null;
+      return ["usr_olivia", "usr_noah"].includes(id)
+        ? { space: CORE_SPACE, principal: { kind: "person" as const, id }, device: "profile-live" }
+        : null;
     },
     engineOpenSession: standIn,
   });
 }
 
-async function call(d: Daemon, cap: string, input: unknown, who = "usr_olivia"): Promise<{ status: number; data: any }> {   // eslint-disable-line @typescript-eslint/no-explicit-any
-  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${who}` }, body: JSON.stringify(input) });
+async function call(
+  d: Daemon,
+  cap: string,
+  input: unknown,
+  who = "usr_olivia",
+): Promise<{ status: number; data: any }> {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
+  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${who}` },
+    body: JSON.stringify(input),
+  });
   const body = (await r.json()) as { data?: unknown; error?: unknown };
   return { status: r.status, data: body.data ?? body };
 }
-async function ok(d: Daemon, cap: string, input: unknown, who?: string): Promise<any> {   // eslint-disable-line @typescript-eslint/no-explicit-any
+async function ok(d: Daemon, cap: string, input: unknown, who?: string): Promise<any> {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
   const r = await call(d, cap, input, who);
   assert.equal(r.status, 200, `${cap}: ${JSON.stringify(r.data)}`);
   return r.data;
@@ -76,7 +100,9 @@ async function ok(d: Daemon, cap: string, input: unknown, who?: string): Promise
 
 function hostLog(d: Daemon): string {
   d.sink.flush();
-  const rows = new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT level, msg, attrs FROM logs WHERE level >= 40 ORDER BY id DESC LIMIT 12").all() as Array<{ level: number; msg: string; attrs?: string }>;
+  const rows = new DatabaseSync(d.paths.logs, { readOnly: true })
+    .prepare("SELECT level, msg, attrs FROM logs WHERE level >= 40 ORDER BY id DESC LIMIT 12")
+    .all() as Array<{ level: number; msg: string; attrs?: string }>;
   return JSON.stringify(rows.map((r) => `${r.level} ${r.msg} ${String(r.attrs ?? "").slice(0, 300)}`));
 }
 
@@ -85,22 +111,48 @@ function hostLog(d: Daemon): string {
  * Ask an agent and read its answer. In a channel the agent answers in the thread under the asking message (agents reply in threads), so the answer is read there; in any other chat it is in the chat. `where`
  * says which it was, so a test can prove a channel's answer did not land in the main chat.
  */
-async function ask(d: Daemon, threadId: string, agentId: string, body: string, key: string, who = "usr_olivia", where?: { in?: "thread" | "chat" }): Promise<string> {
-  const mine = async (id: string): Promise<string[]> => ((await ok(d, "chat.messages.list", { threadId: id }, who)).messages as Array<{ author?: { kind?: string }; body?: string }>).filter((m) => m.author?.kind === "agent" && (m.body ?? "") !== "").map((m) => m.body ?? "");
+async function ask(
+  d: Daemon,
+  threadId: string,
+  agentId: string,
+  body: string,
+  key: string,
+  who = "usr_olivia",
+  where?: { in?: "thread" | "chat" },
+): Promise<string> {
+  const mine = async (id: string): Promise<string[]> =>
+    (
+      (await ok(d, "chat.messages.list", { threadId: id }, who)).messages as Array<{
+        author?: { kind?: string };
+        body?: string;
+      }>
+    )
+      .filter((m) => m.author?.kind === "agent" && (m.body ?? "") !== "")
+      .map((m) => m.body ?? "");
   const before = (await mine(threadId)).length;
-  const posted = (await ok(d, "chat.post", { threadId, body, mentions: [{ kind: "agent", id: agentId }], idempotencyKey: key }, who)).message as { messageId: string };
+  const posted = (
+    await ok(d, "chat.post", { threadId, body, mentions: [{ kind: "agent", id: agentId }], idempotencyKey: key }, who)
+  ).message as { messageId: string };
   const end = Date.now() + 40_000;
   for (;;) {
     await d.hooks?.pump?.();
     const inChat = await mine(threadId);
-    const under = ((await ok(d, "threads.list", { parentThreadId: threadId }, who)).threads as Array<{ threadId: string; parentMessageId?: string }>).find((t) => t.parentMessageId === posted.messageId);
+    const under = (
+      (await ok(d, "threads.list", { parentThreadId: threadId }, who)).threads as Array<{
+        threadId: string;
+        parentMessageId?: string;
+      }>
+    ).find((t) => t.parentMessageId === posted.messageId);
     const inThread = under ? await mine(under.threadId) : [];
     if (inThread.length > 0) {
       assert.notEqual(where?.in, "chat", "the answer was in the thread, not in the chat");
       assert.equal(inChat.length, before, "the answer is under the ask: the main chat did not get it");
       return inThread[inThread.length - 1]!;
     }
-    if (inChat.length > before) { assert.notEqual(where?.in, "thread", "the answer was in the chat, not in the thread"); return inChat[inChat.length - 1]!; }
+    if (inChat.length > before) {
+      assert.notEqual(where?.in, "thread", "the answer was in the chat, not in the thread");
+      return inChat[inChat.length - 1]!;
+    }
     if (Date.now() > end) throw new Error(`no reply to ${key}; host log ${hostLog(d)}`);
     await new Promise<void>((r) => setTimeout(r, 200));
   }
@@ -110,19 +162,47 @@ test("profile live: private only in Olivia's own chats, public everywhere, share
   // memory learns after every turn (l-memlearn) and reads the account's model list once, which asks the vendor with the key (providers.test): answer that here, so the scripted key is not
   // refused by the real vendor and the shared account marked failing before Noah's turn
   const realFetch = globalThis.fetch;
-  globalThis.fetch = ((url: string | URL | Request, init?: RequestInit) => (String(url) === "https://api.anthropic.com/v1/models"
-    ? Promise.resolve(new Response(JSON.stringify({ data: [{ id: "claude-haiku-4-5" }] }), { status: 200, headers: { "content-type": "application/json" } }))
-    : realFetch(url, init))) as typeof fetch;
+  globalThis.fetch = ((url: string | URL | Request, init?: RequestInit) =>
+    String(url) === "https://api.anthropic.com/v1/models"
+      ? Promise.resolve(
+          new Response(JSON.stringify({ data: [{ id: "claude-haiku-4-5" }] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+      : realFetch(url, init)) as typeof fetch;
   const d = await boot(seededDir());
   try {
     // a key the whole Space may use, so Olivia's and Noah's turns are both paid for
-    const unlock = await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer usr_olivia" }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
+    const unlock = await fetch(`${d.url}/local/vault/key/unlock`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: "Bearer usr_olivia" },
+      body: JSON.stringify({
+        key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64"),
+      }),
+    });
     assert.equal(unlock.status, 204);
-    const folder = await ok(d, "vault.folders.create", { idempotencyKey: "pl-folder", name: "Team keys", scope: "shared" });
-    const shared = await ok(d, "providers.add", { idempotencyKey: "pl-shared", providerKey: "anthropic", connection: "api_key", apiKey: KEY, scope: "shared", folderId: folder.folder.id });
+    const folder = await ok(d, "vault.folders.create", {
+      idempotencyKey: "pl-folder",
+      name: "Team keys",
+      scope: "shared",
+    });
+    const shared = await ok(d, "providers.add", {
+      idempotencyKey: "pl-shared",
+      providerKey: "anthropic",
+      connection: "api_key",
+      apiKey: KEY,
+      scope: "shared",
+      folderId: folder.folder.id,
+    });
     const agent = async (name: string): Promise<string> => {
-      const id = (await ok(d, "agents.create", { name, role: "You help.", idempotencyKey: `pl-agent-${name}` })).agent.agentId as string;
-      await ok(d, "agents.update", { agentId: id, patch: { accountPolicy: "key", accountKey: shared.provider.handle }, idempotencyKey: `pl-pin-${name}` });
+      const id = (await ok(d, "agents.create", { name, role: "You help.", idempotencyKey: `pl-agent-${name}` })).agent
+        .agentId as string;
+      await ok(d, "agents.update", {
+        agentId: id,
+        patch: { accountPolicy: "key", accountKey: shared.provider.handle },
+        idempotencyKey: `pl-pin-${name}`,
+      });
       return id;
     };
     const intake = await agent("Intake");
@@ -131,12 +211,21 @@ test("profile live: private only in Olivia's own chats, public everywhere, share
     // Olivia's profile: a public fact and a private one by hand, and one Intake learned in her chat with it
     await ok(d, "memory.profile.add", { text: PUBLIC, to: "public" });
     const priv = (await ok(d, "memory.profile.add", { text: PRIVATE, to: "private" })).fact.factId as string;
-    const intakeChat = (await ok(d, "chat.start", { kind: "chat", agentIds: [intake], idempotencyKey: "pl-intake-chat" })).thread.threadId as string;
-    const learned = await ok(d, "memory.remember", { text: LEARNED, kind: "profile", threadId: intakeChat, agentId: intake });
+    const intakeChat = (
+      await ok(d, "chat.start", { kind: "chat", agentIds: [intake], idempotencyKey: "pl-intake-chat" })
+    ).thread.threadId as string;
+    const learned = await ok(d, "memory.remember", {
+      text: LEARNED,
+      kind: "profile",
+      threadId: intakeChat,
+      agentId: intake,
+    });
     assert.equal(learned.fact.layer, "person");
 
     // her own chat with Billing: both parts, and what Intake learned
-    const billingChat = (await ok(d, "chat.start", { kind: "chat", agentIds: [billing], idempotencyKey: "pl-billing-chat" })).thread.threadId as string;
+    const billingChat = (
+      await ok(d, "chat.start", { kind: "chat", agentIds: [billing], idempotencyKey: "pl-billing-chat" })
+    ).thread.threadId as string;
     const mine = await ask(d, billingChat, billing, "Draft my week, please.", "pl-mine");
     assert.ok(mine.includes(PRIVATE), mine);
     assert.ok(mine.includes(LEARNED), `learned by Intake, used by Billing: ${mine}`);
@@ -144,23 +233,54 @@ test("profile live: private only in Olivia's own chats, public everywhere, share
     assert.match(mine, /Only they and their own agents are in this chat/);
 
     // a public channel with Olivia and Noah: Olivia asks, then Noah asks
-    const ch = (await ok(d, "channels.create", { name: "intake-team", visibility: "public", memberIds: ["usr_noah"], agentIds: [billing], idempotencyKey: "pl-channel" })).channel as { mainThreadId: string };
-    const inChannel = await ask(d, ch.mainThreadId, billing, "Draft the client update for the team.", "pl-ch1", "usr_olivia", { in: "thread" });
+    const ch = (
+      await ok(d, "channels.create", {
+        name: "intake-team",
+        visibility: "public",
+        memberIds: ["usr_noah"],
+        agentIds: [billing],
+        idempotencyKey: "pl-channel",
+      })
+    ).channel as { mainThreadId: string };
+    const inChannel = await ask(
+      d,
+      ch.mainThreadId,
+      billing,
+      "Draft the client update for the team.",
+      "pl-ch1",
+      "usr_olivia",
+      { in: "thread" },
+    );
     assert.ok(inChannel.includes(PUBLIC), inChannel);
-    assert.ok(!inChannel.includes(PRIVATE) && !inChannel.includes(LEARNED), `a private fact in a channel turn: ${inChannel}`);
+    assert.ok(
+      !inChannel.includes(PRIVATE) && !inChannel.includes(LEARNED),
+      `a private fact in a channel turn: ${inChannel}`,
+    );
     assert.match(inChannel, /public profile only/);
-    const noahAsks = await ask(d, ch.mainThreadId, billing, "What should I know before I email Olivia's client?", "pl-ch2", "usr_noah");
+    const noahAsks = await ask(
+      d,
+      ch.mainThreadId,
+      billing,
+      "What should I know before I email Olivia's client?",
+      "pl-ch2",
+      "usr_noah",
+    );
     assert.ok(noahAsks.includes(PUBLIC), `Olivia's public profile, for Noah's turn: ${noahAsks}`);
     assert.ok(!noahAsks.includes(PRIVATE) && !noahAsks.includes(LEARNED), noahAsks);
 
     // a group chat with Noah (the agent answering there): public only
-    const group = (await ok(d, "chat.start", { kind: "chat", agentIds: [billing], personId: "usr_noah", idempotencyKey: "pl-group" })).thread.threadId as string;
+    const group = (
+      await ok(d, "chat.start", { kind: "chat", agentIds: [billing], personId: "usr_noah", idempotencyKey: "pl-group" })
+    ).thread.threadId as string;
     const inGroup = await ask(d, group, billing, "Plan the handover with Noah.", "pl-group-1");
     assert.ok(inGroup.includes(PUBLIC) && !inGroup.includes(PRIVATE) && !inGroup.includes(LEARNED), inGroup);
 
     // Noah (a member, not an admin) reading Olivia's profile gets her public part only; he cannot move her facts or erase them
     const seen = await ok(d, "memory.profile.get", { personId: "usr_olivia" }, "usr_noah");
-    assert.deepEqual((seen.public as Array<{ text: string }>).map((f) => f.text), [PUBLIC]);
+    assert.deepEqual(
+      (seen.public as Array<{ text: string }>).map((f) => f.text),
+      [PUBLIC],
+    );
     assert.deepEqual(seen.private, []);
     assert.notEqual((await call(d, "memory.profile.move", { factId: priv, to: "public" }, "usr_noah")).status, 200);
     assert.notEqual((await call(d, "memory.erase", { factIds: [priv] }, "usr_noah")).status, 200);

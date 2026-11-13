@@ -10,11 +10,19 @@ export interface LoopLag {
 }
 
 /** Start sampling. `running` names the jobs in flight when a block is seen; `warn` gets one line per block over WARN_MS. */
-export function startLoopLag(o: { running?: () => string[]; warn?: (msg: string, attrs: Record<string, unknown>) => void; now?: () => number } = {}): LoopLag {
+export function startLoopLag(
+  o: {
+    running?: () => string[];
+    warn?: (msg: string, attrs: Record<string, unknown>) => void;
+    now?: () => number;
+  } = {},
+): LoopLag {
   const now = o.now ?? (() => performance.now());
-  let last = now(), samples: number[] = [];
+  let last = now(),
+    samples: number[] = [];
   const t = setInterval(() => {
-    const at = now(), lag = Math.max(0, at - last - SAMPLE_MS);
+    const at = now(),
+      lag = Math.max(0, at - last - SAMPLE_MS);
     last = at;
     if (samples.length < 4096) samples.push(lag);
     if (lag > WARN_MS) o.warn?.("scheduler.loop_blocked", { lagMs: Math.round(lag), jobs: o.running?.() ?? [] });
@@ -27,9 +35,14 @@ export function startLoopLag(o: { running?: () => string[]; warn?: (msg: string,
       if (pending > 0) samples.push(pending);
       const s = samples.sort((a, b) => a - b);
       samples = [];
-      return { maxMs: Math.round(s[s.length - 1] ?? 0), p99Ms: Math.round(s[Math.min(s.length - 1, Math.floor(s.length * 0.99))] ?? 0) };
+      return {
+        maxMs: Math.round(s[s.length - 1] ?? 0),
+        p99Ms: Math.round(s[Math.min(s.length - 1, Math.floor(s.length * 0.99))] ?? 0),
+      };
     },
-    stop() { clearInterval(t); },
+    stop() {
+      clearInterval(t);
+    },
   };
 }
 

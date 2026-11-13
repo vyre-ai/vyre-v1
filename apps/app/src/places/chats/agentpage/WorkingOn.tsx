@@ -6,21 +6,36 @@ import { StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useAgentPageData } from "./data.tsx";
 
-export interface HeldTask { id: string; title: string; state: string; assigned?: { kind: string; id: string }; reviewer?: { kind: string; id: string }; approver?: { kind: string; id: string }; takenBy?: string }
+export interface HeldTask {
+  id: string;
+  title: string;
+  state: string;
+  assigned?: { kind: string; id: string };
+  reviewer?: { kind: string; id: string };
+  approver?: { kind: string; id: string };
+  takenBy?: string;
+}
 const OPEN = ["todo", "doing", "in_review", "awaiting_approval"];
 const SHOWN = 4;
 
 /** What the agent does with the task now: the baton of a work task is with the doer, the reviewer or the approver by state. */
 export function actionOf(t: HeldTask, agentId: string): "Doing" | "Reviewing" | "Approving" | null {
-  if ((t.state === "todo" || t.state === "doing") && (t.assigned?.id === agentId || t.takenBy === agentId)) return "Doing";
+  if ((t.state === "todo" || t.state === "doing") && (t.assigned?.id === agentId || t.takenBy === agentId))
+    return "Doing";
   if (t.state === "in_review" && t.reviewer?.id === agentId) return "Reviewing";
   if (t.state === "awaiting_approval" && t.approver?.id === agentId) return "Approving";
   return null;
 }
 
-export function heldBy(tasks: readonly HeldTask[], agentId: string): Array<{ task: HeldTask; doing: "Doing" | "Reviewing" | "Approving" }> {
+export function heldBy(
+  tasks: readonly HeldTask[],
+  agentId: string,
+): Array<{ task: HeldTask; doing: "Doing" | "Reviewing" | "Approving" }> {
   const out: Array<{ task: HeldTask; doing: "Doing" | "Reviewing" | "Approving" }> = [];
-  for (const t of tasks) { const doing = actionOf(t, agentId); if (doing) out.push({ task: t, doing }); }
+  for (const t of tasks) {
+    const doing = actionOf(t, agentId);
+    if (doing) out.push({ task: t, doing });
+  }
   return out;
 }
 
@@ -32,18 +47,32 @@ export function WorkingOn(): ReactElement | null {
     let live = true;
     void (async () => {
       try {
-        const out = (await data.call("tasks.list", { scope: "all", kinds: ["work"], states: OPEN, limit: 100 })) as { tasks?: HeldTask[] };
+        const out = (await data.call("tasks.list", { scope: "all", kinds: ["work"], states: OPEN, limit: 100 })) as {
+          tasks?: HeldTask[];
+        };
         if (live) setHeld(heldBy(out.tasks ?? [], agentId));
-      } catch { if (live) setHeld([]); }
+      } catch {
+        if (live) setHeld([]);
+      }
     })();
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, [data, agentId]);
   if (held.length === 0) return null;
   return (
     <View testID="working-on" accessibilityLabel="Tasks it holds" style={s.box}>
       <Text accessibilityRole="header" style={s.head}>{`Tasks it holds  ${held.length}`}</Text>
       {/* ui-rows-lint: not a list (the few tasks the agent holds, under its header) */}
-      {held.slice(0, SHOWN).map(({ task, doing }) => <Row key={task.id} id={`working-${task.id}`} title={task.title} note={doing} onPress={data.nav.openTask ? () => data.nav.openTask!(task.id) : undefined} />)}
+      {held.slice(0, SHOWN).map(({ task, doing }) => (
+        <Row
+          key={task.id}
+          id={`working-${task.id}`}
+          title={task.title}
+          note={doing}
+          onPress={data.nav.openTask ? () => data.nav.openTask!(task.id) : undefined}
+        />
+      ))}
       {held.length > SHOWN ? <Text style={s.more}>{`${held.length - SHOWN} more`}</Text> : null}
     </View>
   );

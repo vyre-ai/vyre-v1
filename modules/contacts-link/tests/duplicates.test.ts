@@ -31,10 +31,34 @@ test("records that share an email, a phone number, a website or a two-word name 
   const h = world();
   const out = await duplicatesList(h.ctx, {});
   assert.deepEqual(out.suggestions, [
-    { suggestionId: "rec_a01|rec_a02", type: "contact", ids: ["rec_a01", "rec_a02"], score: 0.95, reasons: ["same email address"] },
-    { suggestionId: "rec_a01|rec_b01", type: "contact", ids: ["rec_a01", "rec_b01"], score: 0.9, reasons: ["same phone number"] },
-    { suggestionId: "rec_co1|rec_co2", type: "company", ids: ["rec_co1", "rec_co2"], score: 0.9, reasons: ["same website"] },
-    { suggestionId: "rec_c01|rec_c02", type: "contact", ids: ["rec_c01", "rec_c02"], score: 0.6, reasons: ["same name"] },
+    {
+      suggestionId: "rec_a01|rec_a02",
+      type: "contact",
+      ids: ["rec_a01", "rec_a02"],
+      score: 0.95,
+      reasons: ["same email address"],
+    },
+    {
+      suggestionId: "rec_a01|rec_b01",
+      type: "contact",
+      ids: ["rec_a01", "rec_b01"],
+      score: 0.9,
+      reasons: ["same phone number"],
+    },
+    {
+      suggestionId: "rec_co1|rec_co2",
+      type: "company",
+      ids: ["rec_co1", "rec_co2"],
+      score: 0.9,
+      reasons: ["same website"],
+    },
+    {
+      suggestionId: "rec_c01|rec_c02",
+      type: "contact",
+      ids: ["rec_c01", "rec_c02"],
+      score: 0.6,
+      reasons: ["same name"],
+    },
   ]);
   assert.equal(out.total, 4);
   assert.deepEqual(contractErrors("contacts.duplicates.list", "out", out), []);
@@ -57,7 +81,10 @@ test("an address on the index counts like the record's own, and reasons add up o
 
 test("the type filter limits the suggestions to contacts or to companies", async () => {
   const h = world();
-  assert.deepEqual((await duplicatesList(h.ctx, { type: "company" })).suggestions.map((s) => s.suggestionId), ["rec_co1|rec_co2"]);
+  assert.deepEqual(
+    (await duplicatesList(h.ctx, { type: "company" })).suggestions.map((s) => s.suggestionId),
+    ["rec_co1|rec_co2"],
+  );
   assert.equal((await duplicatesList(h.ctx, { type: "contact" })).total, 3);
   await refused(duplicatesList(h.ctx, { type: "person" as unknown as "contact" }), "validation.bad_input");
 });
@@ -79,7 +106,10 @@ test("a dismissed pair is not suggested again, in either order, and dismissing t
   assert.equal(h.rows(`SELECT * FROM contacts_link_dismissed`).length, 1);
   assert.equal(h.rows(`SELECT * FROM contacts_link_dismissed`)[0]!.suggestionId, suggestionIdOf("rec_a01", "rec_a02"));
   const out = await duplicatesList(h.ctx, {});
-  assert.deepEqual(out.suggestions.map((s) => s.suggestionId), ["rec_a01|rec_b01", "rec_co1|rec_co2", "rec_c01|rec_c02"]);
+  assert.deepEqual(
+    out.suggestions.map((s) => s.suggestionId),
+    ["rec_a01|rec_b01", "rec_co1|rec_co2", "rec_c01|rec_c02"],
+  );
   assert.equal(h.records.size, 9, "dismissing keeps every record");
 });
 

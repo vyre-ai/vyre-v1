@@ -11,10 +11,46 @@ import { HoverBar, MessageView } from "./MessageView.tsx";
 import * as act from "./actions.ts";
 import { otherPeople } from "./model.ts";
 import {
-  WINDOW, beforeCursor, byOrder, dayLabel, faces, lastMessages, leadOf, mentionsIn, mergePages, pendingMessage, queueNote, queuedCount, respondersFor, sendKind, stillPending, stopLabel,
-  swapNeeded, timeline, whoLine, workOf, workingAgents, bodyBlocks, findMatches, reportLabel, matchLine, modelLabel, placeholderFor, summarizeOpen, openVerdict, CHAT_OPEN_BUDGET_MS,
+  WINDOW,
+  beforeCursor,
+  byOrder,
+  dayLabel,
+  faces,
+  lastMessages,
+  leadOf,
+  mentionsIn,
+  mergePages,
+  pendingMessage,
+  queueNote,
+  queuedCount,
+  respondersFor,
+  sendKind,
+  stillPending,
+  stopLabel,
+  swapNeeded,
+  timeline,
+  whoLine,
+  workOf,
+  workingAgents,
+  bodyBlocks,
+  findMatches,
+  reportLabel,
+  matchLine,
+  modelLabel,
+  placeholderFor,
+  summarizeOpen,
+  openVerdict,
+  CHAT_OPEN_BUDGET_MS,
 } from "./model.ts";
-import { changeCount, editedNote, isPlanFile, isProposal, planFileLine, proposalActs, proposalData } from "./proposal.tsx";
+import {
+  changeCount,
+  editedNote,
+  isPlanFile,
+  isProposal,
+  planFileLine,
+  proposalActs,
+  proposalData,
+} from "./proposal.tsx";
 import type { Message, Pending, Thread } from "./model.ts";
 import { DIRECTORY, SAMPLE_NOW, createSample } from "./sample.ts";
 import type { Sample, Variant } from "./sample.ts";
@@ -22,18 +58,51 @@ import { createStreamStore } from "../../../../../../ui/src/stream/index.ts";
 
 installComposerForTests(Composer);
 
-const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+const clean = (s: string): string =>
+  s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 const html = (s: Sample): string => clean(renderToStaticMarkup(<Conversation data={s.data} />));
 const has = (s: string, n: string): boolean => s.includes(n);
-const at = (s: string, n: string): number => { const i = s.indexOf(n); assert.ok(i >= 0, `expected ${n}`); return i; };
-const inOrder = (s: string, needles: string[]): void => { const idx = needles.map((n) => at(s, n)); assert.deepEqual([...idx].sort((a, b) => a - b), idx, needles.join(" > ")); };
-const thread = (s: Sample): Thread => (s.data.screens.query("chats.conversation", "thread", { threadId: s.data.threadId }).getSnapshot() as { data: { thread: Thread } }).data.thread;
-const msgs = (s: Sample): Message[] => (s.data.screens.query("chats.conversation", "messages", { threadId: s.data.threadId }).getSnapshot() as { data: { messages: Message[] } }).data.messages;
+const at = (s: string, n: string): number => {
+  const i = s.indexOf(n);
+  assert.ok(i >= 0, `expected ${n}`);
+  return i;
+};
+const inOrder = (s: string, needles: string[]): void => {
+  const idx = needles.map((n) => at(s, n));
+  assert.deepEqual(
+    [...idx].sort((a, b) => a - b),
+    idx,
+    needles.join(" > "),
+  );
+};
+const thread = (s: Sample): Thread =>
+  (
+    s.data.screens.query("chats.conversation", "thread", { threadId: s.data.threadId }).getSnapshot() as {
+      data: { thread: Thread };
+    }
+  ).data.thread;
+const msgs = (s: Sample): Message[] =>
+  (
+    s.data.screens.query("chats.conversation", "messages", { threadId: s.data.threadId }).getSnapshot() as {
+      data: { messages: Message[] };
+    }
+  ).data.messages;
 const ctx = (s: Sample) => ({ meId: "usr_irfad", nameOf: s.data.nameOf, kindOf: s.data.kindOf, clock: s.data.clock() });
 
 test("the page reads: header with title and faces, your bubbles, Intake's folded work, cards, the composer line", () => {
   const out = html(createSample("idle"));
-  inOrder(out, ['data-testid="conversation-head"', 'data-testid="conversation-title"', 'data-testid="participants-button"', "New client: Elena Rivera", "Intake is on it", "Worked 14s · 3 steps", "Tuesday has two openings", "Book 2pm.", "Worked 6s · 2 steps", 'data-testid="composer"']);
+  inOrder(out, [
+    'data-testid="conversation-head"',
+    'data-testid="conversation-title"',
+    'data-testid="participants-button"',
+    "New client: Elena Rivera",
+    "Intake is on it",
+    "Worked 14s · 3 steps",
+    "Tuesday has two openings",
+    "Book 2pm.",
+    "Worked 6s · 2 steps",
+    'data-testid="composer"',
+  ]);
   assert.ok(has(out, "client-intake.pdf") && has(out, 'data-testid="proposal-b2"'));
   assert.ok(has(out, "Intake will reply") && has(out, "Message Intake…"));
 });
@@ -41,8 +110,17 @@ test("the page reads: header with title and faces, your bubbles, Intake's folded
 test("the model still says Intake leads and Docs listens; the header has no face stack", () => {
   const s = createSample("idle");
   const out = html(s);
-  assert.ok(!has(out, 'data-testid="face-agt_intake"') && !has(out, 'data-testid="conversation-faces"'), "the faces live in the people popover now, not the header");
-  assert.deepEqual(faces(thread(s), s.data.nameOf, []).map((f) => [f.name, f.mode]), [["Intake", "lead"], ["Docs", "listen"]]);
+  assert.ok(
+    !has(out, 'data-testid="face-agt_intake"') && !has(out, 'data-testid="conversation-faces"'),
+    "the faces live in the people popover now, not the header",
+  );
+  assert.deepEqual(
+    faces(thread(s), s.data.nameOf, []).map((f) => [f.name, f.mode]),
+    [
+      ["Intake", "lead"],
+      ["Docs", "listen"],
+    ],
+  );
   assert.equal(swapNeeded(thread(s), "agt_docs")?.agentId, "agt_intake");
   assert.equal(swapNeeded(thread(s), "agt_intake"), null);
 });
@@ -67,13 +145,18 @@ test("the last 50 messages are on the page; older ones are one request away and 
   const out = html(s);
   assert.ok(has(out, 'data-testid="earlier-button"') && has(out, "Show earlier messages"));
   assert.ok(!has(out, "Question 1:"), "the oldest message is not drawn");
-  const page = s.data.screens.query("chats.conversation", "messages", { threadId: "c1", before: beforeCursor(live)! }).getSnapshot() as unknown as { data: { messages: Message[]; hasMore: boolean } };
+  const page = s.data.screens
+    .query("chats.conversation", "messages", { threadId: "c1", before: beforeCursor(live)! })
+    .getSnapshot() as unknown as { data: { messages: Message[]; hasMore: boolean } };
   assert.equal(page.data.messages.length, 50);
   const all = mergePages(live, page.data.messages);
   assert.equal(all.length, 100);
   assert.equal(mergePages(all, page.data.messages).length, 100, "no repeats");
   assert.equal(lastMessages(all, 50).hiddenLocal, 50);
-  assert.deepEqual(byOrder(all).map((m) => m.threadSeq), [...all].map((m) => m.threadSeq).sort((a, b) => a - b));
+  assert.deepEqual(
+    byOrder(all).map((m) => m.threadSeq),
+    [...all].map((m) => m.threadSeq).sort((a, b) => a - b),
+  );
 });
 
 test("while an agent works a plain send queues; Interrupt sends it now with the new message's id", async () => {
@@ -81,23 +164,53 @@ test("while an agent works a plain send queues; Interrupt sends it now with the 
   assert.deepEqual(workingAgents(msgs(s), new Set(["m7"])), ["agt_intake"]);
   assert.equal(sendKind("interrupt", false), "queue");
   assert.equal(sendKind("interrupt", true), "interrupt");
-  await act.sendMessage(s.data, { text: "Use Thursday instead", mentions: [], key: "k1", kind: "queue", working: true });
-  assert.deepEqual(s.calls.map((c) => c.cap), ["chat.post"]);
-  await act.sendMessage(s.data, { text: "Stop, use Thursday", mentions: [], key: "k2", kind: "interrupt", working: true });
-  assert.deepEqual(s.calls.map((c) => c.cap), ["chat.post", "chat.post", "engine.interrupt"]);
+  await act.sendMessage(s.data, {
+    text: "Use Thursday instead",
+    mentions: [],
+    key: "k1",
+    kind: "queue",
+    working: true,
+  });
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["chat.post"],
+  );
+  await act.sendMessage(s.data, {
+    text: "Stop, use Thursday",
+    mentions: [],
+    key: "k2",
+    kind: "interrupt",
+    working: true,
+  });
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["chat.post", "chat.post", "engine.interrupt"],
+  );
   const sentId = msgs(s).find((m) => m.body === "Stop, use Thursday")!.messageId;
   assert.deepEqual(s.calls[2]!.input, { threadId: "c1", messageId: sentId });
   assert.equal(queuedCount(msgs(s), "usr_irfad", true), 2);
   assert.equal(queueNote(2, "Intake"), "2 messages queued for Intake's next step");
-  assert.equal(queueNote(2, "Intake", true), "Goes in at the next step", "an engine that steers takes it at its next step");
-  assert.equal(queueNote(1, "Intake", false, false), "After this: it goes in when this turn ends", "someone else's turn is not steered");
+  assert.equal(
+    queueNote(2, "Intake", true),
+    "Goes in at the next step",
+    "an engine that steers takes it at its next step",
+  );
+  assert.equal(
+    queueNote(1, "Intake", false, false),
+    "After this: it goes in when this turn ends",
+    "someone else's turn is not steered",
+  );
 });
 
 test("one chat.post gives one message and one bubble on the page, never two", async () => {
   const s = createSample("streaming");
   const body = "Draft the welcome email for the new clients";
   await act.sendMessage(s.data, { text: body, mentions: [], key: "once-1", kind: "queue", working: false });
-  assert.deepEqual(s.calls.map((c) => c.cap), ["chat.post"], "one send is one call");
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["chat.post"],
+    "one send is one call",
+  );
   assert.equal(msgs(s).filter((m) => m.body === body).length, 1, "one message in the thread");
   assert.equal(html(s).split(body).length - 1, 1, "one bubble on the page");
 });
@@ -105,7 +218,12 @@ test("one chat.post gives one message and one bubble on the page, never two", as
 test("stop and stop all: the header says which, and each calls its capability; the steps are kept", async () => {
   const s = createSample("busy");
   const out = html(s);
-  assert.ok(has(out, 'data-testid="stop-button"') && has(out, "Working") && has(out, 'data-testid="helpers-button"') && has(out, "2 helpers running"));
+  assert.ok(
+    has(out, 'data-testid="stop-button"') &&
+      has(out, "Working") &&
+      has(out, 'data-testid="helpers-button"') &&
+      has(out, "2 helpers running"),
+  );
   const working = workingAgents(msgs(s));
   assert.deepEqual(working.sort(), ["agt_docs", "agt_intake"]);
   assert.equal(stopLabel(working, s.data.nameOf), "Stop all");
@@ -116,31 +234,56 @@ test("stop and stop all: the header says which, and each calls its capability; t
   await act.stopAll(s.data);
   assert.equal(s.calls[1]!.cap, "engine.stop_all");
   assert.deepEqual(workingAgents(msgs(s)), []);
-  assert.ok(msgs(s).every((m) => m.blocks.length === 0 || m.blocks.every((b) => b.state !== "live")) && msgs(s).some((m) => m.blocks.length > 0), "steps stay");
+  assert.ok(
+    msgs(s).every((m) => m.blocks.length === 0 || m.blocks.every((b) => b.state !== "live")) &&
+      msgs(s).some((m) => m.blocks.length > 0),
+    "steps stay",
+  );
 });
 
 test("mode: making Docs lead turns Intake into a listener; one lead per thread", async () => {
   const s = createSample("idle");
   await s.data.call("threads.agent_settings.set", { threadId: "c1", agentId: "agt_docs", mode: "lead" });
-  assert.deepEqual(thread(s).agents.map((a) => [a.agentId, a.mode]), [["agt_intake", "listen"], ["agt_docs", "lead"]]);
+  assert.deepEqual(
+    thread(s).agents.map((a) => [a.agentId, a.mode]),
+    [
+      ["agt_intake", "listen"],
+      ["agt_docs", "lead"],
+    ],
+  );
   assert.ok(has(html(s), "Docs will reply"));
   await s.data.call("threads.add_agent", { threadId: "c1", agentId: "agt_research", mode: "listen" });
   await act.removeAgent(s.data, "agt_docs");
-  assert.deepEqual(thread(s).agents.map((a) => a.agentId), ["agt_intake", "agt_research"]);
+  assert.deepEqual(
+    thread(s).agents.map((a) => a.agentId),
+    ["agt_intake", "agt_research"],
+  );
 });
 
 test("streaming: text is on the page up to the last delta, with the work folded and Working in the header", () => {
   const s = createSample("streaming");
   const out = html(s);
   assert.ok(has(out, 'data-testid="body-m7"') && has(out, "consult fee") && has(out, "retainer is"));
-  assert.ok(has(out, "Worked 8s · 2 steps") && has(out, 'data-testid="conversation-live"') && has(out, 'data-testid="stop-button"'));
+  assert.ok(
+    has(out, "Worked 8s · 2 steps") &&
+      has(out, 'data-testid="conversation-live"') &&
+      has(out, 'data-testid="stop-button"'),
+  );
   s.push(" Shall I send it to Maya?");
   assert.ok(has(html(s), "Shall I send it to Maya?"));
 });
 
 test("streamed deltas append once per frame", () => {
   let frame: (() => void) | null = null;
-  const store = createStreamStore({ request: (cb) => { frame = () => cb(0); return 1; }, cancel: () => { frame = null; } });
+  const store = createStreamStore({
+    request: (cb) => {
+      frame = () => cb(0);
+      return 1;
+    },
+    cancel: () => {
+      frame = null;
+    },
+  });
   for (let i = 0; i < 100; i++) store.push("word ");
   assert.equal(store.stats().appends, 0, "nothing is appended before the frame");
   (frame as (() => void) | null)?.();
@@ -151,11 +294,16 @@ test("streamed deltas append once per frame", () => {
 test("an error is one inline row: what, why, next, Details, Copy id; Retry carries the turn", async () => {
   const s = createSample("errors");
   const out = html(s);
-  assert.ok(has(out, "Docs did not read fee-schedule.csv") && has(out, "Restricted data only goes to a model on your computer."));
+  assert.ok(
+    has(out, "Docs did not read fee-schedule.csv") &&
+      has(out, "Restricted data only goes to a model on your computer."),
+  );
   // the status card pattern: one primary fix in view; the other next steps, Retry, Details, Copy id and Report sit under its "..." menu
   for (const t of ["Switch to Llama 3.3 on this computer"]) assert.ok(has(out, t), t);
   assert.ok(has(out, 'data-testid="err-more"'), "the More menu is on the card");
-  assert.ok(has(out, "Changed 1 file in Rivera matter") && has(out, "Review changes") && has(out, "Rivera engagement letter"));
+  assert.ok(
+    has(out, "Changed 1 file in Rivera matter") && has(out, "Review changes") && has(out, "Rivera engagement letter"),
+  );
   await act.retryTurn(s.data, "turn_9").catch(() => undefined);
   assert.equal(s.calls[0]!.cap, "engine.turn.retry");
 });
@@ -176,8 +324,18 @@ test("the buttons on a failed reply: Install runs the reply again so the turn se
   await act.errorAction(s.data, "unlock_vault", "turn_9", (t) => said.push(t));
   assert.equal(s.calls.filter((c) => c.cap === "engine.turn.retry").length, 0);
 
-  let asked = 0, open = false;
-  const withKey = { ...s.data, nav: { ...s.data.nav, unlockVault: async () => { asked++; return open; } } };
+  let asked = 0,
+    open = false;
+  const withKey = {
+    ...s.data,
+    nav: {
+      ...s.data.nav,
+      unlockVault: async () => {
+        asked++;
+        return open;
+      },
+    },
+  };
   await act.errorAction(withKey, "unlock_vault", "turn_9", (t) => said.push(t));
   assert.equal(asked, 1);
   assert.equal(s.calls.filter((c) => c.cap === "engine.turn.retry").length, 0, "Cancel leaves the reply as it was");
@@ -191,12 +349,19 @@ test("the buttons on a failed reply: Install runs the reply again so the turn se
 test("cards: a plan waits for approval and a question waits for an answer; both write", async () => {
   const s = createSample("plan");
   const out = html(s);
-  assert.ok(has(out, "Rivera onboarding plan") && has(out, 'data-testid="blk-plan-p1-approve"') && has(out, "Send the engagement letter"));
+  assert.ok(
+    has(out, "Rivera onboarding plan") &&
+      has(out, 'data-testid="blk-plan-p1-approve"') &&
+      has(out, "Send the engagement letter"),
+  );
   assert.ok(has(out, "Who signs the engagement letter?") && has(out, "Maya Chen") && has(out, "Omar Haddad"));
   await act.answerBlock(s.data, "q1", "maya");
   await act.approvePlan(s.data, "plan_1");
   await act.setPlanMode(s.data, false);
-  assert.deepEqual(s.calls.map((c) => c.cap), ["chat.answer_block", "chat.approve_plan", "threads.set_plan_mode"]);
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["chat.answer_block", "chat.approve_plan", "threads.set_plan_mode"],
+  );
   assert.ok(has(html(s), "You answered: maya"), "the shared question card shows the answer that was written");
 });
 
@@ -215,9 +380,18 @@ test("message writes: edit, pin, react, thread and delete go through their capab
 });
 
 test("states: offline, closed, empty frame before data, and no em dash", () => {
-  assert.ok(has(html(createSample("idle", { online: false })), 'data-testid="conversation-offline"') && has(html(createSample("idle", { online: false })), "Tuesday has two openings"));
-  assert.ok(has(html(createSample("closed")), 'data-testid="conversation-closed"') && !has(html(createSample("closed")), 'data-testid="composer-field"'));
-  assert.ok(has(clean(renderToStaticMarkup(<ConversationLoading />)), 'data-testid="conversation-loading"') && has(clean(renderToStaticMarkup(<Conversation />)), 'data-testid="conversation-loading"'));
+  assert.ok(
+    has(html(createSample("idle", { online: false })), 'data-testid="conversation-offline"') &&
+      has(html(createSample("idle", { online: false })), "Tuesday has two openings"),
+  );
+  assert.ok(
+    has(html(createSample("closed")), 'data-testid="conversation-closed"') &&
+      !has(html(createSample("closed")), 'data-testid="composer-field"'),
+  );
+  assert.ok(
+    has(clean(renderToStaticMarkup(<ConversationLoading />)), 'data-testid="conversation-loading"') &&
+      has(clean(renderToStaticMarkup(<Conversation />)), 'data-testid="conversation-loading"'),
+  );
   const variants: Variant[] = ["idle", "streaming", "busy", "errors", "plan", "long", "nolead", "closed"];
   for (const v of variants) assert.ok(!html(createSample(v)).includes(String.fromCharCode(0x2014)), v);
 });
@@ -233,8 +407,21 @@ test("work folds, day labels and timeline grouping", () => {
 });
 
 const noActions = {
-  copy: () => undefined, edit: () => undefined, setPinned: () => undefined, react: () => undefined, openThread: () => undefined, remove: () => undefined, openAgent: () => undefined, openBeside: () => undefined,
-  answer: () => undefined, approvePlan: () => undefined, retryTurn: () => undefined, errorNext: () => undefined, retrySend: () => undefined, discardSend: () => undefined, showMenu: () => undefined,
+  copy: () => undefined,
+  edit: () => undefined,
+  setPinned: () => undefined,
+  react: () => undefined,
+  openThread: () => undefined,
+  remove: () => undefined,
+  openAgent: () => undefined,
+  openBeside: () => undefined,
+  answer: () => undefined,
+  approvePlan: () => undefined,
+  retryTurn: () => undefined,
+  errorNext: () => undefined,
+  retrySend: () => undefined,
+  discardSend: () => undefined,
+  showMenu: () => undefined,
   host: { invoke: () => undefined, open: () => undefined },
 };
 
@@ -246,7 +433,19 @@ test("the AGENT.md proposal is inline: the diff with Allow, Edit and Deny, not a
   const block = msgs(s).find((m) => m.messageId === "m5")!.blocks[0]!;
   assert.ok(isProposal(block));
   assert.ok(has(out, " · proposed by Intake"));
-  inOrder(out, ['data-testid="proposal-b2"', "2 changes", 'data-testid="proposal-b2-why"', "## How you work", "4. Offer three consult times using the booking tool.", "Skip Thursday mornings.", "## You do not", "Offer Thursday morning times", 'data-testid="proposal-b2-accept"', 'data-testid="proposal-b2-edit-open"', 'data-testid="proposal-b2-reject"']);
+  inOrder(out, [
+    'data-testid="proposal-b2"',
+    "2 changes",
+    'data-testid="proposal-b2-why"',
+    "## How you work",
+    "4. Offer three consult times using the booking tool.",
+    "Skip Thursday mornings.",
+    "## You do not",
+    "Offer Thursday morning times",
+    'data-testid="proposal-b2-accept"',
+    'data-testid="proposal-b2-edit-open"',
+    'data-testid="proposal-b2-reject"',
+  ]);
   assert.ok(has(out, "Allow") && has(out, "Edit") && has(out, "Deny"));
   assert.ok(!has(out, "Intake wants to change its instructions"), "no collapsed card");
   assert.equal(changeCount(1), "1 change");
@@ -255,24 +454,35 @@ test("the AGENT.md proposal is inline: the diff with Allow, Edit and Deny, not a
 test("Accept and Reject are the changeset capabilities; an edit goes back as a request with the lines; a person who may not accept suggests", async () => {
   const s = createSample("idle");
   const d = proposalData(msgs(s).find((m) => m.messageId === "m5")!.blocks[0]!.data);
-  const host = { invoke: (cap: string, input: Record<string, unknown>) => s.data.call(cap, input), open: () => undefined };
+  const host = {
+    invoke: (cap: string, input: Record<string, unknown>) => s.data.call(cap, input),
+    open: () => undefined,
+  };
   const acts = proposalActs(host, d, "b2");
   await acts.accept();
   await acts.reject();
   await acts.sendEdited(["4. Offer three times. Never Thursday mornings.", "  "]);
   await acts.suggest();
-  assert.deepEqual(s.calls.map((c) => c.cap), ["changesets.approve", "changesets.discard", "changesets.request_changes", "changesets.request_changes"]);
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["changesets.approve", "changesets.discard", "changesets.request_changes", "changesets.request_changes"],
+  );
   const approve = s.calls[0]!.input as { changesetId: string; idempotencyKey: string };
   assert.equal(approve.changesetId, "chg_cs1");
   assert.ok(approve.idempotencyKey.startsWith("idem_b2_approve_"));
-  assert.equal((s.calls[2]!.input as { note: string }).note, editedNote("AGENT.md", ["4. Offer three times. Never Thursday mornings."]));
+  assert.equal(
+    (s.calls[2]!.input as { note: string }).note,
+    editedNote("AGENT.md", ["4. Offer three times. Never Thursday mornings."]),
+  );
   assert.ok((s.calls[3]!.input as { note: string }).note.startsWith("Suggested to Maya Chen: "));
 });
 
 test("the plan card is on the page: name, open comments", () => {
   const s = createSample("idle");
   const out = html(s);
-  const block = msgs(s).find((m) => m.messageId === "m4")!.blocks.find((b) => b.id === "pl1")!;
+  const block = msgs(s)
+    .find((m) => m.messageId === "m4")!
+    .blocks.find((b) => b.id === "pl1")!;
   assert.ok(isPlanFile(block));
   inOrder(out, ['data-testid="plancard-pl1"', "Plan · 1 open comment", "client-intake.pdf"]);
   assert.equal(planFileLine(2), "Plan · 2 open comments");
@@ -281,10 +491,21 @@ test("the plan card is on the page: name, open comments", () => {
 test("the calm header: title, a quiet people count, the pane and More", () => {
   const s = createSample("idle");
   const out = html(s);
-  inOrder(out, ['data-testid="conversation-title"', 'data-testid="participants-button"', 'data-testid="pane-button"', 'data-testid="more-button"']);
-  assert.ok(!has(out, 'data-testid="find-button"') && !has(out, 'data-testid="conversation-people"'), "the calm header: a quiet people count and two icons; Find is in the More menu (and on Cmd F)");
+  inOrder(out, [
+    'data-testid="conversation-title"',
+    'data-testid="participants-button"',
+    'data-testid="pane-button"',
+    'data-testid="more-button"',
+  ]);
+  assert.ok(
+    !has(out, 'data-testid="find-button"') && !has(out, 'data-testid="conversation-people"'),
+    "the calm header: a quiet people count and two icons; Find is in the More menu (and on Cmd F)",
+  );
   assert.ok(has(out, "3 in this chat"));
-  assert.ok(!has(out, 'data-testid="add-agent"'), "Add people and agents is the footer of the people popover (people-footer)");
+  assert.ok(
+    !has(out, 'data-testid="add-agent"'),
+    "Add people and agents is the footer of the people popover (people-footer)",
+  );
 });
 
 test("find in chat: matches are ignoring case and accents, counted, and stepped", () => {
@@ -302,21 +523,43 @@ test("find in chat: matches are ignoring case and accents, counted, and stepped"
 test("the composer's pill names who answers and on what model (Opus); the computer lives in the pane; its placeholder names who answers", () => {
   const s = createSample("idle");
   const out = html(s);
-  assert.ok(has(out, 'data-testid="composer-strip"') && has(out, "Intake will answer on Opus") && !has(out, 'data-testid="computer-button"'));
+  assert.ok(
+    has(out, 'data-testid="composer-strip"') &&
+      has(out, "Intake will answer on Opus") &&
+      !has(out, 'data-testid="computer-button"'),
+  );
   assert.ok(has(out, "Message Intake…"));
   assert.equal(modelLabel("opus"), "Opus");
   assert.equal(placeholderFor(thread(s), s.data.nameOf, true), "Queue a message for when Intake finishes…");
-  assert.equal(placeholderFor(thread(s), s.data.nameOf, true, true), "Steer Intake…", "a message sent while a steering engine works is steering");
-  assert.ok(has(html(createSample("nolead")), 'data-testid="composer-strip"'), "no lead, nobody @mentioned, but an agent is in the chat: the settings icon is still there");
+  assert.equal(
+    placeholderFor(thread(s), s.data.nameOf, true, true),
+    "Steer Intake…",
+    "a message sent while a steering engine works is steering",
+  );
+  assert.ok(
+    has(html(createSample("nolead")), 'data-testid="composer-strip"'),
+    "no lead, nobody @mentioned, but an agent is in the chat: the settings icon is still there",
+  );
 });
 
 test("switching the model lists the allowed models and sets the lead's model; the header and composer follow", async () => {
   const s = createSample("idle");
   const models = await act.listModels(s.data);
-  assert.deepEqual(models.map((m) => m.title), ["Opus", "Sonnet", "Haiku", "Llama 3.3 on this computer"]);
+  assert.deepEqual(
+    models.map((m) => m.title),
+    ["Opus", "Sonnet", "Haiku", "Llama 3.3 on this computer"],
+  );
   await act.setModel(s.data, "agt_intake", models[1]!);
-  assert.deepEqual(s.calls.map((c) => c.cap), ["engine.models.list", "engine.set_model"]);
-  assert.deepEqual(s.calls[1]!.input, { threadId: "c1", agentId: "agt_intake", provider: "anthropic", model: "sonnet" });
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["engine.models.list", "engine.set_model"],
+  );
+  assert.deepEqual(s.calls[1]!.input, {
+    threadId: "c1",
+    agentId: "agt_intake",
+    provider: "anthropic",
+    model: "sonnet",
+  });
   assert.ok(has(html(s), "Intake will answer on Sonnet"));
 });
 
@@ -351,8 +594,14 @@ test("the long sample's last 50 rows are 50 timeline rows (messages and events),
 
 test("the diff draws removed lines red and added lines green, and Accept is the dark button with its check while Edit and Reject carry their icons", () => {
   const out = html(createSample("idle"));
-  const del = out.slice(out.lastIndexOf("<", out.indexOf('data-testid="diff-del"')), out.indexOf(">", out.indexOf('data-testid="diff-del"')) + 1);
-  const add = out.slice(out.lastIndexOf("<", out.indexOf('data-testid="diff-add"')), out.indexOf(">", out.indexOf('data-testid="diff-add"')) + 1);
+  const del = out.slice(
+    out.lastIndexOf("<", out.indexOf('data-testid="diff-del"')),
+    out.indexOf(">", out.indexOf('data-testid="diff-del"')) + 1,
+  );
+  const add = out.slice(
+    out.lastIndexOf("<", out.indexOf('data-testid="diff-add"')),
+    out.indexOf(">", out.indexOf('data-testid="diff-add"')) + 1,
+  );
   assert.ok(has(del, "var(--danger)") && has(add, "var(--ok)"));
   assert.equal(out.split('data-testid="diff-del"').length - 1, 1, "one removed line");
   assert.equal(out.split('data-testid="diff-add"').length - 1, 2, "two added lines");
@@ -360,7 +609,10 @@ test("the diff draws removed lines red and added lines green, and Accept is the 
   assert.ok(has(accept, "<svg"), "Accept has its check icon");
   const edit = out.slice(at(out, 'data-testid="proposal-b2-edit-open"'), at(out, 'data-testid="proposal-b2-reject"'));
   assert.ok(has(edit, "<svg"), "Edit has its icon");
-  const reject = out.slice(at(out, 'data-testid="proposal-b2-reject"'), at(out, 'data-testid="proposal-b2-reject"') + 900);
+  const reject = out.slice(
+    at(out, 'data-testid="proposal-b2-reject"'),
+    at(out, 'data-testid="proposal-b2-reject"') + 900,
+  );
   assert.ok(has(reject, "<svg"), "Reject has its icon");
 });
 
@@ -380,11 +632,25 @@ test("the hover bar draws Copy, Edit (yours only), Reply and More while the row 
   const s = createSample("idle");
   const m3 = msgs(s).find((m) => m.messageId === "m3")!;
   const m4 = msgs(s).find((m) => m.messageId === "m4")!;
-  const bar = (m: Message, mine: boolean, visible: boolean): string => clean(renderToStaticMarkup(<HoverBar m={m} mine={mine} byAgent={!mine} a={noActions} onEdit={() => undefined} visible={visible} />));
+  const bar = (m: Message, mine: boolean, visible: boolean): string =>
+    clean(
+      renderToStaticMarkup(
+        <HoverBar m={m} mine={mine} byAgent={!mine} a={noActions} onEdit={() => undefined} visible={visible} />,
+      ),
+    );
   const mine = bar(m3, true, true);
-  assert.ok(has(mine, 'data-testid="act-copy-m3"') && has(mine, 'data-testid="act-edit-m3"') && has(mine, 'data-testid="act-reply-m3"') && has(mine, 'data-testid="act-more-m3"'));
+  assert.ok(
+    has(mine, 'data-testid="act-copy-m3"') &&
+      has(mine, 'data-testid="act-edit-m3"') &&
+      has(mine, 'data-testid="act-reply-m3"') &&
+      has(mine, 'data-testid="act-more-m3"'),
+  );
   const theirs = bar(m4, false, true);
-  assert.ok(has(theirs, 'data-testid="act-copy-m4"') && !has(theirs, 'data-testid="act-edit-m4"') && has(theirs, 'data-testid="act-more-m4"'));
+  assert.ok(
+    has(theirs, 'data-testid="act-copy-m4"') &&
+      !has(theirs, 'data-testid="act-edit-m4"') &&
+      has(theirs, 'data-testid="act-more-m4"'),
+  );
   const idle = bar(m3, true, false);
   assert.ok(has(idle, 'data-testid="hover-m3"') && !has(idle, "act-copy-m3") && !has(idle, "<svg"));
   assert.ok(!has(html(s), 'data-testid="act-copy-m3"'), "a resting page draws no bar buttons");
@@ -397,15 +663,30 @@ test("a conversation opened with a waiting ask (Ask about this) holds that text 
   const out = clean(renderToStaticMarkup(<Conversation data={{ ...s.data, fill }} />));
   assert.ok(out.includes("About rivera-engagement-letter.docx: "), "the text is in the composer");
   assert.equal(fill.take(), undefined, "taken: another conversation does not get it again");
-  assert.ok(!html(createSample("idle")).includes("About rivera-engagement-letter.docx: "), "a conversation with nothing waiting starts empty");
+  assert.ok(
+    !html(createSample("idle")).includes("About rivera-engagement-letter.docx: "),
+    "a conversation with nothing waiting starts empty",
+  );
 });
 
 test("a link from memory opens the chat at one message: the route carries it, the page marks it, and a message the page does not hold is no mark", async () => {
   const { fromHash, step, START } = await import("../mounts/route.ts");
-  assert.deepEqual(fromHash("screen=chats.conversation&threadId=thr_1&m=msg_9").route, { view: "chat", threadId: "thr_1", focus: "msg_9" });
+  assert.deepEqual(fromHash("screen=chats.conversation&threadId=thr_1&m=msg_9").route, {
+    view: "chat",
+    threadId: "thr_1",
+    focus: "msg_9",
+  });
   assert.deepEqual(fromHash("screen=chats.conversation&threadId=thr_1").route, { view: "chat", threadId: "thr_1" });
-  assert.deepEqual(step(START, { t: "chat", threadId: "thr_2", focus: "msg_3" }).route, { view: "chat", threadId: "thr_2", focus: "msg_3" });
-  assert.deepEqual(step(START, { t: "chat", threadId: "thr_2" }).route, { view: "chat", threadId: "thr_2" }, "a click on a chat carries no focus");
+  assert.deepEqual(step(START, { t: "chat", threadId: "thr_2", focus: "msg_3" }).route, {
+    view: "chat",
+    threadId: "thr_2",
+    focus: "msg_3",
+  });
+  assert.deepEqual(
+    step(START, { t: "chat", threadId: "thr_2" }).route,
+    { view: "chat", threadId: "thr_2" },
+    "a click on a chat carries no focus",
+  );
   const s = createSample("idle");
   const plain = html(s);
   const marked = clean(renderToStaticMarkup(<Conversation data={{ ...s.data, focus: "m2" }} />));
@@ -426,7 +707,13 @@ test("in a chat with more than one person each reply says whose account it ran o
   const s = createSample("idle");
   const reply = { ...msgs(s).find((m) => m.author.kind === "agent")!, kind: "agent" as const, body: "Done." };
   const line = (shared: boolean, paidBy = "usr_sara"): string | undefined => {
-    const items = timeline([{ ...reply, paidBy }], { meId: "usr_irfad", nameOf: () => "Sara Khan", kindOf: () => "agent", clock: s.data.clock(), shared });
+    const items = timeline([{ ...reply, paidBy }], {
+      meId: "usr_irfad",
+      nameOf: () => "Sara Khan",
+      kindOf: () => "agent",
+      clock: s.data.clock(),
+      shared,
+    });
     const other = items.find((i) => i.kind === "other");
     return other?.kind === "other" ? other.paidLine : undefined;
   };
@@ -436,7 +723,13 @@ test("in a chat with more than one person each reply says whose account it ran o
 });
 
 test("the header's faces: the other people of a chat, never the viewer, listed once", () => {
-  const members = [{ kind: "person", id: "usr_me" }, { kind: "person", id: "usr_maya" }, { kind: "person", id: "usr_maya" }, { kind: "agent", id: "agt_a" }, { kind: "person", id: "usr_omar" }] as never;
+  const members = [
+    { kind: "person", id: "usr_me" },
+    { kind: "person", id: "usr_maya" },
+    { kind: "person", id: "usr_maya" },
+    { kind: "agent", id: "agt_a" },
+    { kind: "person", id: "usr_omar" },
+  ] as never;
   assert.deepEqual(otherPeople({ members }, "usr_me"), ["usr_maya", "usr_omar"]);
   assert.deepEqual(otherPeople({ members: [{ kind: "person", id: "usr_me" }] as never }, "usr_me"), []);
 });
@@ -446,8 +739,16 @@ test("Continue on a reply stopped for an update runs that turn again, once, with
   const said: string[] = [];
   await act.errorAction(s.data, "continue_turn:trn_stopped", undefined, (t) => said.push(t));
   const retries = s.calls.filter((c) => c.cap === "engine.turn.retry");
-  assert.deepEqual(retries.map((c) => c.input), [{ turnId: "trn_stopped" }], "one press, one retry of that very turn");
-  assert.equal(s.calls.some((c) => c.cap === "chat.post"), false, "the message is not posted again");
+  assert.deepEqual(
+    retries.map((c) => c.input),
+    [{ turnId: "trn_stopped" }],
+    "one press, one retry of that very turn",
+  );
+  assert.equal(
+    s.calls.some((c) => c.cap === "chat.post"),
+    false,
+    "the message is not posted again",
+  );
   assert.deepEqual(said, []);
 });
 

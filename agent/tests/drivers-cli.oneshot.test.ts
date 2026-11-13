@@ -3,9 +3,26 @@
 // resume. Plus the launcher and the probe, which are the same for all three: the environment a process sees, a program that is not there, and "test this engine".
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CLI_ADAPTERS, createCliDriver, createCliDrivers, createLocalLauncher, lines } from "../src/drivers/cli/index.ts";
 import {
-  alive, collect, driverDeps, fakeLauncher, kinds, message, newSpy, specOf, texts, turnOf, until, FAKE_CLI,
+  CLI_ADAPTERS,
+  createCliDriver,
+  createCliDrivers,
+  createLocalLauncher,
+  lines,
+} from "../src/drivers/cli/index.ts";
+import {
+  alive,
+  collect,
+  driverDeps,
+  fakeLauncher,
+  kinds,
+  message,
+  newSpy,
+  specOf,
+  texts,
+  turnOf,
+  until,
+  FAKE_CLI,
 } from "../fixtures/golden-streams/rig.ts";
 
 test("codex: a turn is a process; the thread id from the first turn is passed as resume to the second, and each process is gone when its turn ends", async () => {
@@ -16,7 +33,10 @@ test("codex: a turn is a process; the thread id from the first turn is passed as
 
   const one = await collect(session.send(turnOf("text")));
   assert.deepEqual(kinds(one), ["thinking", "text", "usage", "done"]);
-  assert.deepEqual(one.find((e) => e.type === "usage"), { type: "usage", inputTokens: 1200, outputTokens: 18, cacheReadTokens: 1000 });
+  assert.deepEqual(
+    one.find((e) => e.type === "usage"),
+    { type: "usage", inputTokens: 1200, outputTokens: 18, cacheReadTokens: 1000 },
+  );
   assert.equal(session.warm, true, "the thread id is known: the next turn resumes it");
   const first = session.pid;
   assert.equal(first, undefined, "no process is left running");
@@ -84,9 +104,17 @@ test("codex: a rejected sign-in is provider.auth_failed; an MCP server that did 
   const spy = newSpy();
   const session = await createCliDriver(CLI_ADAPTERS.codex, driverDeps(spy)).open(specOf());
   const bad = await collect(session.send(turnOf("authfail")));
-  assert.deepEqual(bad, [{ type: "error", code: "provider.auth_failed", message: "Codex is signed out, or its sign-in has run out. Sign in again." }]);
+  assert.deepEqual(bad, [
+    {
+      type: "error",
+      code: "provider.auth_failed",
+      message: "Codex is signed out, or its sign-in has run out. Sign in again.",
+    },
+  ]);
   const nomcp = await collect(session.send(turnOf("mcpfail")));
-  assert.deepEqual(nomcp, [{ type: "error", code: "engine.mcp_failed", message: "Vyre's tools did not connect to the engine." }]);
+  assert.deepEqual(nomcp, [
+    { type: "error", code: "engine.mcp_failed", message: "Vyre's tools did not connect to the engine." },
+  ]);
   await session.close();
 });
 
@@ -101,7 +129,10 @@ test("the launcher passes the environment it was given and nothing of the host's
   process.env["VYRE_TEST_HOST_SECRET"] = "must-not-leak";
   try {
     const spy = newSpy();
-    const session = await createCliDriver(CLI_ADAPTERS.codex, driverDeps(spy, { env: () => ({ HTTPS_PROXY: "http://127.0.0.1:3128" }) })).open(specOf());
+    const session = await createCliDriver(
+      CLI_ADAPTERS.codex,
+      driverDeps(spy, { env: () => ({ HTTPS_PROXY: "http://127.0.0.1:3128" }) }),
+    ).open(specOf());
     const events = await collect(session.send(turnOf("env")));
     const names = (texts(events)[0] ?? "").split(",");
     assert.ok(names.includes("PATH"));
@@ -117,7 +148,10 @@ test("the launcher passes the environment it was given and nothing of the host's
 
 test("a program that is not installed is engine.cli_missing; probe reports it, and reports a working one with its model count", async () => {
   const missing = createLocalLauncher({ wrap: () => ["/nonexistent/vyre-no-such-cli"] });
-  const driver = createCliDriver(CLI_ADAPTERS.codex, { launcher: missing, mcp: async () => ({ url: "http://127.0.0.1:1/mcp", token: "tok-0123456789" }) });
+  const driver = createCliDriver(CLI_ADAPTERS.codex, {
+    launcher: missing,
+    mcp: async () => ({ url: "http://127.0.0.1:1/mcp", token: "tok-0123456789" }),
+  });
   const bad = await driver.probe({ ref: "#K" });
   assert.equal(bad.ok, false);
   assert.equal(bad.error?.code, "engine.cli_missing");
@@ -128,13 +162,25 @@ test("a program that is not installed is engine.cli_missing; probe reports it, a
     assert.deepEqual(r, { ok: true, models: CLI_ADAPTERS[d.id].models.length }, d.id);
     assert.ok((await d.models({ ref: "#K" })).length > 0);
   }
-  assert.deepEqual(spy.launches.map((a) => a.slice(0, 2)), [["claude", "--version"], ["codex", "--version"], ["grok", "--version"]]);
+  assert.deepEqual(
+    spy.launches.map((a) => a.slice(0, 2)),
+    [
+      ["claude", "--version"],
+      ["codex", "--version"],
+      ["grok", "--version"],
+    ],
+  );
   assert.equal(FAKE_CLI.endsWith("fake-cli.mjs"), true);
 });
 
 test("a launcher with its own wrap runs the program inside it: the wrapper sees the whole argv, the process still ends on stop", async () => {
   const seen: string[][] = [];
-  const launcher = createLocalLauncher({ wrap: (argv) => { seen.push([...argv]); return [process.execPath, FAKE_CLI, ...argv]; } });
+  const launcher = createLocalLauncher({
+    wrap: (argv) => {
+      seen.push([...argv]);
+      return [process.execPath, FAKE_CLI, ...argv];
+    },
+  });
   const proc = await launcher.spawn({ argv: ["claude", "-p"], env: {} });
   assert.deepEqual(seen, [["claude", "-p"]]);
   const pid = proc.pid;
@@ -146,7 +192,10 @@ test("a launcher with its own wrap runs the program inside it: the wrapper sees 
 
 test("the spy launcher used by these tests is the real launcher plus a recording of writes", async () => {
   const spy = newSpy();
-  const proc = await fakeLauncher(spy).spawn({ argv: ["codex", "exec", "--json", "-"], env: { VYRE_MCP_TOKEN: "t-0123456789" } });
+  const proc = await fakeLauncher(spy).spawn({
+    argv: ["codex", "exec", "--json", "-"],
+    env: { VYRE_MCP_TOKEN: "t-0123456789" },
+  });
   await proc.write("text");
   proc.endInput();
   const out: string[] = [];

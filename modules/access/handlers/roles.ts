@@ -1,10 +1,32 @@
-import {updateGrant} from "./share.ts";
+import { updateGrant } from "./share.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 // Roles, groups, grants and principals. Role permission changes stage as a diff, then Apply swaps the whole set.
 import { isOwnerRole } from "../../../kernel/src/authorize/snapshot.ts";
-import type { AccessCtx, Cond, GrantRec, GroupRec, PKind, PrincipalRec, Ref, RoleHolder, ResourceRef, RoleRec, SubjectRef } from "../projections.ts";
+import type {
+  AccessCtx,
+  Cond,
+  GrantRec,
+  GroupRec,
+  PKind,
+  PrincipalRec,
+  Ref,
+  RoleHolder,
+  ResourceRef,
+  RoleRec,
+  SubjectRef,
+} from "../projections.ts";
 import {
-  changed, EVERYONE, fnv, grantView, groupView, nid, page, principalView, raise, roleView, storeOf,
+  changed,
+  EVERYONE,
+  fnv,
+  grantView,
+  groupView,
+  nid,
+  page,
+  principalView,
+  raise,
+  roleView,
+  storeOf,
 } from "../projections.ts";
 
 type Level = "view" | "use" | "edit" | "manage";
@@ -24,10 +46,14 @@ function normPerms(store: ReturnType<typeof storeOf>, list: string[], trace: str
 }
 
 function fingerprint(store: ReturnType<typeof storeOf>, roleId: string): string {
-  return store.holdersOf(roleId).map((h) => {
-    const other = [...store.permsExcept(h.id, roleId)].sort().join("+");
-    return `${h.id}:${other}`;
-  }).sort().join("|");
+  return store
+    .holdersOf(roleId)
+    .map((h) => {
+      const other = [...store.permsExcept(h.id, roleId)].sort().join("+");
+      return `${h.id}:${other}`;
+    })
+    .sort()
+    .join("|");
 }
 
 function hashOf(store: ReturnType<typeof storeOf>, roleId: string, current: string[], next: string[]): string {
@@ -58,14 +84,18 @@ function diff(store: ReturnType<typeof storeOf>, role: RoleRec, next: string[]) 
   for (const h of store.holdersOf(role.id)) {
     const other = store.permsExcept(h.id, role.id);
     for (const k of next) if (!curSet.has(k) && !other.has(k)) gains.push({ principal: h, permission: k });
-    for (const k of role.permissions) if (!nextSet.has(k) && !other.has(k)) losses.push({ principal: h, permission: k });
+    for (const k of role.permissions)
+      if (!nextSet.has(k) && !other.has(k)) losses.push({ principal: h, permission: k });
   }
   return { gains, losses, previewHash: hashOf(store, role.id, role.permissions, next) };
 }
 
 export async function rolesList(ctx: AccessCtx, input: { q?: string; cursor?: string; limit?: number }) {
   const store = storeOf(ctx);
-  const all = [...store.roles.values()].filter((role) => !input.q?.trim() || role.name.toLowerCase().includes(input.q.trim().toLowerCase())).sort((a, b) => (a.id < b.id ? -1 : 1)).map((r) => roleView(store, r));
+  const all = [...store.roles.values()]
+    .filter((role) => !input.q?.trim() || role.name.toLowerCase().includes(input.q.trim().toLowerCase()))
+    .sort((a, b) => (a.id < b.id ? -1 : 1))
+    .map((r) => roleView(store, r));
   const p = page(all, input.cursor, input.limit);
   return { roles: p.rows, total: p.total, ...(p.next ? { next: p.next } : {}) };
 }
@@ -73,17 +103,26 @@ export async function rolesList(ctx: AccessCtx, input: { q?: string; cursor?: st
 export async function rolesGet(ctx: AccessCtx, input: { roleId: string }) {
   const store = storeOf(ctx);
   const role = mustRole(store, input.roleId, ctx.trace.traceId);
-  return { role: roleView(store, role), holders: store.holdersOf(role.id), directHolders: store.directHoldersOf(role.id), ...(store.roleChanges.has(role.id) ? {lastChange: store.roleChanges.get(role.id)!} : {}) };
+  return {
+    role: roleView(store, role),
+    holders: store.holdersOf(role.id),
+    directHolders: store.directHoldersOf(role.id),
+    ...(store.roleChanges.has(role.id) ? { lastChange: store.roleChanges.get(role.id)! } : {}),
+  };
 }
 
-export async function rolesCreate(ctx: AccessCtx, input: { name: string; cloneFrom?: string; clearance?: Label; assignableToAgents?: boolean; idempotencyKey: string }) {
+export async function rolesCreate(
+  ctx: AccessCtx,
+  input: { name: string; cloneFrom?: string; clearance?: Label; assignableToAgents?: boolean; idempotencyKey: string },
+) {
   const store = storeOf(ctx);
   const key = `roles.create:${input.idempotencyKey}`;
   const hit = store.idem.get(key);
   if (hit) return hit as { role: ReturnType<typeof roleView> };
   const name = input.name.trim();
   if (!name) raise(ctx.trace.traceId, "validation.bad_input", "name is required");
-  if ([...store.roles.values()].some((r) => r.name === name)) raise(ctx.trace.traceId, "validation.duplicate", "a role with that name exists");
+  if ([...store.roles.values()].some((r) => r.name === name))
+    raise(ctx.trace.traceId, "validation.duplicate", "a role with that name exists");
   let permissions: string[] = [];
   let clearance: Label = input.clearance ?? "internal";
   let assignable = input.assignableToAgents ?? true;
@@ -93,7 +132,14 @@ export async function rolesCreate(ctx: AccessCtx, input: { name: string; cloneFr
     if (!input.clearance) clearance = src.clearance;
     if (input.assignableToAgents === undefined) assignable = src.assignableToAgents;
   }
-  const role: RoleRec = { id: nid("rol"), name, builtIn: false, clearance, assignableToAgents: assignable, permissions };
+  const role: RoleRec = {
+    id: nid("rol"),
+    name,
+    builtIn: false,
+    clearance,
+    assignableToAgents: assignable,
+    permissions,
+  };
   store.roles.set(role.id, role);
   changed(ctx, store, "role");
   const out = { role: roleView(store, role) };
@@ -101,15 +147,24 @@ export async function rolesCreate(ctx: AccessCtx, input: { name: string; cloneFr
   return out;
 }
 
-export async function rolesUpdate(ctx: AccessCtx, input: { roleId: string; name?: string; clearance?: Label; assignableToAgents?: boolean }) {
+export async function rolesUpdate(
+  ctx: AccessCtx,
+  input: { roleId: string; name?: string; clearance?: Label; assignableToAgents?: boolean },
+) {
   const store = storeOf(ctx);
   const role = mustRole(store, input.roleId, ctx.trace.traceId);
   if (role.builtIn) raise(ctx.trace.traceId, "validation.field_locked", "built-in roles are locked except to clone");
-  if (input.assignableToAgents === false && store.holdersOf(role.id).some((holder) => holder.kind === "agent")) raise(ctx.trace.traceId, "validation.precondition_failed", "Remove agent holders before making this role human-only");
+  if (input.assignableToAgents === false && store.holdersOf(role.id).some((holder) => holder.kind === "agent"))
+    raise(
+      ctx.trace.traceId,
+      "validation.precondition_failed",
+      "Remove agent holders before making this role human-only",
+    );
   if (input.name !== undefined) {
     const name = input.name.trim();
     if (!name) raise(ctx.trace.traceId, "validation.bad_input", "name is required");
-    if ([...store.roles.values()].some((r) => r.id !== role.id && r.name === name)) raise(ctx.trace.traceId, "validation.duplicate", "a role with that name exists");
+    if ([...store.roles.values()].some((r) => r.id !== role.id && r.name === name))
+      raise(ctx.trace.traceId, "validation.duplicate", "a role with that name exists");
     role.name = name;
   }
   if (input.clearance) role.clearance = input.clearance;
@@ -126,18 +181,28 @@ export async function rolesPreview(ctx: AccessCtx, input: { roleId: string; perm
   return diff(store, role, next);
 }
 
-export async function rolesApply(ctx: AccessCtx, input: { roleId: string; permissions: string[]; previewHash: string }) {
+export async function rolesApply(
+  ctx: AccessCtx,
+  input: { roleId: string; permissions: string[]; previewHash: string },
+) {
   const store = storeOf(ctx);
   const role = mustRole(store, input.roleId, ctx.trace.traceId);
   if (role.builtIn) raise(ctx.trace.traceId, "validation.field_locked", "built-in columns are locked except to clone");
   const next = normPerms(store, input.permissions, ctx.trace.traceId);
   const hash = hashOf(store, role.id, role.permissions, next);
-  if (hash !== input.previewHash) raise(ctx.trace.traceId, "validation.precondition_failed", "the diff is stale; preview again");
-  if (!["person", "agent", "actor", "service"].includes(ctx.principal.kind)) raise(ctx.trace.traceId, "validation.precondition_failed", "permission changes require an authenticated principal");
+  if (hash !== input.previewHash)
+    raise(ctx.trace.traceId, "validation.precondition_failed", "the diff is stale; preview again");
+  if (!["person", "agent", "actor", "service"].includes(ctx.principal.kind))
+    raise(ctx.trace.traceId, "validation.precondition_failed", "permission changes require an authenticated principal");
   // One assignment. A stale hash returns before this, so a failed Apply changes nothing.
   const before = [...role.permissions];
   role.permissions = next;
-  store.roleChanges.set(role.id, { before, after: [...next], by: {kind:ctx.principal.kind as PKind,id:ctx.principal.id}, at:ctx.now() });
+  store.roleChanges.set(role.id, {
+    before,
+    after: [...next],
+    by: { kind: ctx.principal.kind as PKind, id: ctx.principal.id },
+    at: ctx.now(),
+  });
   changed(ctx, store, "role");
   return { role: roleView(store, role) };
 }
@@ -146,10 +211,15 @@ export async function rolesDelete(ctx: AccessCtx, input: { roleId: string }) {
   const store = storeOf(ctx);
   const role = mustRole(store, input.roleId, ctx.trace.traceId);
   if (role.builtIn) raise(ctx.trace.traceId, "validation.field_locked", "built-in roles are locked");
-  if (store.holdersOf(role.id).length || store.directHoldersOf(role.id).length) raise(ctx.trace.traceId, "validation.precondition_failed", "a role cannot be deleted while held");
+  if (store.holdersOf(role.id).length || store.directHoldersOf(role.id).length)
+    raise(ctx.trace.traceId, "validation.precondition_failed", "a role cannot be deleted while held");
   store.roles.delete(role.id);
   store.roleChanges.delete(role.id);
-  for (const [holder, roles] of store.assignments) store.assignments.set(holder, roles.filter((r) => r !== role.id));
+  for (const [holder, roles] of store.assignments)
+    store.assignments.set(
+      holder,
+      roles.filter((r) => r !== role.id),
+    );
   changed(ctx, store, "role");
   return { deleted: true };
 }
@@ -164,15 +234,29 @@ function roleHolder(store: ReturnType<typeof storeOf>, ref: RoleHolder, trace: s
   return { kind: principal.kind, id: principal.id };
 }
 function checkAgentRole(role: RoleRec, trace: string): void {
-  if (elevated(role) || !role.assignableToAgents) raise(trace, "validation.precondition_failed", "Agents cannot hold Owner, Admin or human-only roles, including through groups");
+  if (elevated(role) || !role.assignableToAgents)
+    raise(
+      trace,
+      "validation.precondition_failed",
+      "Agents cannot hold Owner, Admin or human-only roles, including through groups",
+    );
 }
 export async function rolesAssign(ctx: AccessCtx, input: { subject: RoleHolder; roleId: string }) {
   const store = storeOf(ctx);
   const role = mustRole(store, input.roleId, ctx.trace.traceId);
-  if (isOwnerRole(input.roleId, store.roles.get(input.roleId)?.name)) raise(ctx.trace.traceId, "validation.precondition_failed", "Space ownership changes only through Transfer ownership in Space settings");
+  if (isOwnerRole(input.roleId, store.roles.get(input.roleId)?.name))
+    raise(
+      ctx.trace.traceId,
+      "validation.precondition_failed",
+      "Space ownership changes only through Transfer ownership in Space settings",
+    );
   const holder = roleHolder(store, input.subject, ctx.trace.traceId);
   if (holder.kind === "agent") checkAgentRole(role, ctx.trace.traceId);
-  if (holder.kind === "group" && store.groups.get(holder.id)!.members.some((member) => store.principals.get(member.id)?.kind === "agent")) checkAgentRole(role, ctx.trace.traceId);
+  if (
+    holder.kind === "group" &&
+    store.groups.get(holder.id)!.members.some((member) => store.principals.get(member.id)?.kind === "agent")
+  )
+    checkAgentRole(role, ctx.trace.traceId);
   const current = store.rolesOf(holder.id);
   if (!current.includes(role.id)) store.setRoles(holder.id, [...current, role.id]);
   changed(ctx, store, "assignment");
@@ -181,9 +265,17 @@ export async function rolesAssign(ctx: AccessCtx, input: { subject: RoleHolder; 
 export async function rolesUnassign(ctx: AccessCtx, input: { subject: RoleHolder; roleId: string }) {
   const store = storeOf(ctx);
   mustRole(store, input.roleId, ctx.trace.traceId);
-  if (isOwnerRole(input.roleId, store.roles.get(input.roleId)?.name)) raise(ctx.trace.traceId, "validation.precondition_failed", "Space ownership changes only through Transfer ownership in Space settings");
+  if (isOwnerRole(input.roleId, store.roles.get(input.roleId)?.name))
+    raise(
+      ctx.trace.traceId,
+      "validation.precondition_failed",
+      "Space ownership changes only through Transfer ownership in Space settings",
+    );
   const holder = roleHolder(store, input.subject, ctx.trace.traceId);
-  store.setRoles(holder.id, store.rolesOf(holder.id).filter((role) => role !== input.roleId));
+  store.setRoles(
+    holder.id,
+    store.rolesOf(holder.id).filter((role) => role !== input.roleId),
+  );
   changed(ctx, store, "assignment");
   return { roles: store.rolesOf(holder.id) };
 }
@@ -191,7 +283,10 @@ export async function rolesUnassign(ctx: AccessCtx, input: { subject: RoleHolder
 export async function groupsList(ctx: AccessCtx, input: { q?: string; cursor?: string; limit?: number }) {
   const store = storeOf(ctx);
   const q = input.q?.toLowerCase();
-  const all = [...store.groups.values()].filter((g) => !q || g.name.toLowerCase().includes(q)).sort((a, b) => (a.id < b.id ? -1 : 1)).map(groupView);
+  const all = [...store.groups.values()]
+    .filter((g) => !q || g.name.toLowerCase().includes(q))
+    .sort((a, b) => (a.id < b.id ? -1 : 1))
+    .map(groupView);
   const p = page(all, input.cursor, input.limit);
   return { groups: p.rows, total: p.total, ...(p.next ? { next: p.next } : {}) };
 }
@@ -199,17 +294,25 @@ export async function groupsList(ctx: AccessCtx, input: { q?: string; cursor?: s
 export async function groupsGet(ctx: AccessCtx, input: { groupId: string }) {
   const store = storeOf(ctx);
   const g = mustGroup(store, input.groupId, ctx.trace.traceId);
-  return { group: groupView(g), roles: store.rolesOf(g.id), grants: store.grantsFor({ kind: "group", id: g.id }).map(grantView) };
+  return {
+    group: groupView(g),
+    roles: store.rolesOf(g.id),
+    grants: store.grantsFor({ kind: "group", id: g.id }).map(grantView),
+  };
 }
 
-export async function groupsCreate(ctx: AccessCtx, input: { name: string; members?: Ref[]; managers?: Ref[]; idempotencyKey: string }) {
+export async function groupsCreate(
+  ctx: AccessCtx,
+  input: { name: string; members?: Ref[]; managers?: Ref[]; idempotencyKey: string },
+) {
   const store = storeOf(ctx);
   const key = `groups.create:${input.idempotencyKey}`;
   const hit = store.idem.get(key);
   if (hit) return hit as { group: GroupRec };
   const name = input.name.trim();
   if (!name) raise(ctx.trace.traceId, "validation.bad_input", "name is required");
-  if ([...store.groups.values()].some((g) => g.name === name)) raise(ctx.trace.traceId, "validation.duplicate", "a group with that name exists");
+  if ([...store.groups.values()].some((g) => g.name === name))
+    raise(ctx.trace.traceId, "validation.duplicate", "a group with that name exists");
   const members = (input.members ?? []).map((m) => checkMember(store, m, ctx.trace.traceId));
   const managers = (input.managers ?? []).map((m) => checkManager(store, m, ctx.trace.traceId));
   const group: GroupRec = { id: nid("grp"), name, builtIn: false, members, managers };
@@ -231,7 +334,8 @@ function checkManager(store: ReturnType<typeof storeOf>, m: Ref, trace: string):
 }
 function checkMember(store: ReturnType<typeof storeOf>, m: Ref, trace: string): Ref {
   const p = checkPerson(store, m, trace);
-  if (p.kind !== "person" && p.kind !== "agent") raise(trace, "validation.precondition_failed", "groups hold people and agents only");
+  if (p.kind !== "person" && p.kind !== "agent")
+    raise(trace, "validation.precondition_failed", "groups hold people and agents only");
   return p;
 }
 
@@ -243,7 +347,8 @@ export async function groupsUpdate(ctx: AccessCtx, input: { groupId: string; nam
     if (g.builtIn) raise(ctx.trace.traceId, "validation.field_locked", "the built-in group name is locked");
     const name = input.name.trim();
     if (!name) raise(ctx.trace.traceId, "validation.bad_input", "name is required");
-    if ([...store.groups.values()].some((x) => x.id !== g.id && x.name === name)) raise(ctx.trace.traceId, "validation.duplicate", "a group with that name exists");
+    if ([...store.groups.values()].some((x) => x.id !== g.id && x.name === name))
+      raise(ctx.trace.traceId, "validation.duplicate", "a group with that name exists");
     g.name = name;
   }
   if (managers) g.managers = managers;
@@ -258,7 +363,12 @@ export async function groupsDelete(ctx: AccessCtx, input: { groupId: string }) {
   const doomed = store.grantsFor({ kind: "group", id: g.id });
   for (const grant of doomed) {
     store.grants.delete(grant.id);
-    ctx.emit("grant.revoked", grant.id, { grantId: grant.id, subject: grant.subject, resource: grant.resource, reason: "group_deleted" });
+    ctx.emit("grant.revoked", grant.id, {
+      grantId: grant.id,
+      subject: grant.subject,
+      resource: grant.resource,
+      reason: "group_deleted",
+    });
   }
   store.groups.delete(g.id);
   store.assignments.delete(g.id);
@@ -270,10 +380,11 @@ export async function groupsAddMember(ctx: AccessCtx, input: { groupId: string; 
   const store = storeOf(ctx);
   const g = mustGroup(store, input.groupId, ctx.trace.traceId);
   const member = checkMember(store, input.member, ctx.trace.traceId);
-  if (member.kind === "agent") for (const roleId of store.rolesOf(g.id)) {
-    const role = store.roles.get(roleId);
-    if (role) checkAgentRole(role, ctx.trace.traceId);
-  }
+  if (member.kind === "agent")
+    for (const roleId of store.rolesOf(g.id)) {
+      const role = store.roles.get(roleId);
+      if (role) checkAgentRole(role, ctx.trace.traceId);
+    }
   if (!g.members.some((m) => m.id === member.id)) g.members.push(member);
   changed(ctx, store, "membership");
   return { group: groupView(g) };
@@ -289,18 +400,28 @@ export async function groupsRemoveMember(ctx: AccessCtx, input: { groupId: strin
 
 export async function defaultsGet(ctx: AccessCtx, _input: Record<string, unknown>) {
   const store = storeOf(ctx);
-  const grants = store.grantsFor({ kind: "group", id: EVERYONE }).map((g) => ({ resource: g.resource, level: g.level }));
+  const grants = store
+    .grantsFor({ kind: "group", id: EVERYONE })
+    .map((g) => ({ resource: g.resource, level: g.level }));
   return { groupId: EVERYONE, grants };
 }
 
 export async function defaultsSet(ctx: AccessCtx, input: { grants: { resource: ResourceRef; level: Level }[] }) {
   const store = storeOf(ctx);
-  for (const g of [...store.grants.values()]) if (g.subject.kind === "group" && g.subject.id === EVERYONE && g.conditions.exception === undefined) store.grants.delete(g.id);
+  for (const g of [...store.grants.values()])
+    if (g.subject.kind === "group" && g.subject.id === EVERYONE && g.conditions.exception === undefined)
+      store.grants.delete(g.id);
   const grants: { resource: ResourceRef; level: Level }[] = [];
   for (const g of input.grants) {
     const rec: GrantRec = {
-      id: nid("gnt"), subject: { kind: "group", id: EVERYONE }, resource: { type: g.resource.type, id: g.resource.id },
-      level: g.level, conditions: {}, by: ctx.principal.id, createdAt: ctx.now(), source: "everyone",
+      id: nid("gnt"),
+      subject: { kind: "group", id: EVERYONE },
+      resource: { type: g.resource.type, id: g.resource.id },
+      level: g.level,
+      conditions: {},
+      by: ctx.principal.id,
+      createdAt: ctx.now(),
+      source: "everyone",
     };
     store.grants.set(rec.id, rec);
     grants.push({ resource: rec.resource, level: rec.level });
@@ -308,25 +429,37 @@ export async function defaultsSet(ctx: AccessCtx, input: { grants: { resource: R
   store.bump();
   ctx.emit("access.everyone_defaults_changed", EVERYONE, { grants: grants.length, by: ctx.principal.id });
   ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "group", by: ctx.principal.id });
-  try { store.persist(ctx.db); } catch (e) { store.bump(); throw e; }
+  try {
+    store.persist(ctx.db);
+  } catch (e) {
+    store.bump();
+    throw e;
+  }
   return { groupId: EVERYONE, grants };
 }
 
-export async function grantsList(ctx: AccessCtx, input: { resource?: ResourceRef; subject?: SubjectRef; source?: string; cursor?: string; limit?: number }) {
+export async function grantsList(
+  ctx: AccessCtx,
+  input: { resource?: ResourceRef; subject?: SubjectRef; source?: string; cursor?: string; limit?: number },
+) {
   const store = storeOf(ctx);
-  const all = [...store.grants.values()].filter((g) => {
-    if (g.conditions.exception !== undefined) return false;   // permission exceptions are on the Permissions page
-    if (input.resource && (g.resource.type !== input.resource.type || g.resource.id !== input.resource.id)) return false;
-    if (input.subject && (g.subject.kind !== input.subject.kind || g.subject.id !== input.subject.id)) return false;
-    if (input.source && g.source !== input.source) return false;
-    return true;
-  }).sort((a, b) => (a.id < b.id ? -1 : 1)).map(grantView);
+  const all = [...store.grants.values()]
+    .filter((g) => {
+      if (g.conditions.exception !== undefined) return false; // permission exceptions are on the Permissions page
+      if (input.resource && (g.resource.type !== input.resource.type || g.resource.id !== input.resource.id))
+        return false;
+      if (input.subject && (g.subject.kind !== input.subject.kind || g.subject.id !== input.subject.id)) return false;
+      if (input.source && g.source !== input.source) return false;
+      return true;
+    })
+    .sort((a, b) => (a.id < b.id ? -1 : 1))
+    .map(grantView);
   const p = page(all, input.cursor, input.limit);
   return { grants: p.rows, total: p.total, ...(p.next ? { next: p.next } : {}) };
 }
 
 export async function grantsUpdate(ctx: AccessCtx, input: { grantId: string; level?: Level; conditions?: Cond }) {
-  return updateGrant(ctx,input);
+  return updateGrant(ctx, input);
 }
 
 /** Who is looking: the person behind the call (an agent's person), and whether they may manage access. The server's own reads see every principal as it is. */
@@ -336,23 +469,37 @@ function viewerOf(ctx: AccessCtx, store: ReturnType<typeof storeOf>): { id: stri
   return { id, admin: store.snapshot().info(id)?.perms.has("access.manage") === true };
 }
 
-export async function principalsList(ctx: AccessCtx, input: { kind?: PKind; status?: "invited" | "active" | "suspended" | "removed"; q?: string; cursor?: string; limit?: number }) {
+export async function principalsList(
+  ctx: AccessCtx,
+  input: {
+    kind?: PKind;
+    status?: "invited" | "active" | "suspended" | "removed";
+    q?: string;
+    cursor?: string;
+    limit?: number;
+  },
+) {
   const store = storeOf(ctx);
   const q = input.q?.toLowerCase();
   const viewer = viewerOf(ctx, store);
-  const all = [...store.principals.values()].map((p) => principalView(store, p, viewer)).filter((p) => {
-    if (input.kind && p.kind !== input.kind) return false;
-    if (input.status && p.status !== input.status) return false;
-    if (q && !p.name.toLowerCase().includes(q) && !p.id.includes(q)) return false;
-    return true;
-  }).sort((a, b) => (a.id < b.id ? -1 : 1));
+  const all = [...store.principals.values()]
+    .map((p) => principalView(store, p, viewer))
+    .filter((p) => {
+      if (input.kind && p.kind !== input.kind) return false;
+      if (input.status && p.status !== input.status) return false;
+      if (q && !p.name.toLowerCase().includes(q) && !p.id.includes(q)) return false;
+      return true;
+    })
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
   const p = page(all, input.cursor, input.limit);
   return { principals: p.rows, total: p.total, ...(p.next ? { next: p.next } : {}) };
 }
 
 export async function principalsGet(ctx: AccessCtx, input: { principal: Ref }) {
   const store = storeOf(ctx);
-  return { principal: principalView(store, mustPrincipal(store, input.principal.id, ctx.trace.traceId), viewerOf(ctx, store)) };
+  return {
+    principal: principalView(store, mustPrincipal(store, input.principal.id, ctx.trace.traceId), viewerOf(ctx, store)),
+  };
 }
 
 export async function principalsEffective(ctx: AccessCtx, input: { principal: Ref }) {
@@ -360,21 +507,44 @@ export async function principalsEffective(ctx: AccessCtx, input: { principal: Re
   const p = mustPrincipal(store, input.principal.id, ctx.trace.traceId);
   const info = store.snapshot().info(p.id);
   const roleIds = new Set(store.rolesOf(p.id));
-  for (const g of store.groups.values()) if (g.members.some((m) => m.id === p.id)) for (const r of store.rolesOf(g.id)) roleIds.add(r);
-  const grants = [...store.grants.values()].filter((g) => {
-    if (g.conditions.exception !== undefined) return false;
-    if (g.subject.kind === p.kind && g.subject.id === p.id) return true;
-    if (g.subject.kind === "role" && roleIds.has(g.subject.id)) return true;
-    if (g.subject.kind === "group" && store.groups.get(g.subject.id)?.members.some((m) => m.id === p.id)) return true;
-    return false;
-  }).map(grantView);
+  for (const g of store.groups.values())
+    if (g.members.some((m) => m.id === p.id)) for (const r of store.rolesOf(g.id)) roleIds.add(r);
+  const grants = [...store.grants.values()]
+    .filter((g) => {
+      if (g.conditions.exception !== undefined) return false;
+      if (g.subject.kind === p.kind && g.subject.id === p.id) return true;
+      if (g.subject.kind === "role" && roleIds.has(g.subject.id)) return true;
+      if (g.subject.kind === "group" && store.groups.get(g.subject.id)?.members.some((m) => m.id === p.id)) return true;
+      return false;
+    })
+    .map(grantView);
   const owns = [...store.resources.values()].filter((r) => r.ownerId === p.id).map((r) => ({ type: r.type, id: r.id }));
-  return { permissions: info ? [...info.perms].sort() : [], roles: [...roleIds].filter((id) => info?.keys.has(`role:${id}`)).sort(), grants, owns };
+  return {
+    permissions: info ? [...info.perms].sort() : [],
+    roles: [...roleIds].filter((id) => info?.keys.has(`role:${id}`)).sort(),
+    grants,
+    owns,
+  };
 }
 
-export function putPrincipal(store: ReturnType<typeof storeOf>, p: { id: string; kind: PKind; name: string; status?: PrincipalRec["status"]; owner?: string; title?: string; createdAt?: number }): void {
+export function putPrincipal(
+  store: ReturnType<typeof storeOf>,
+  p: {
+    id: string;
+    kind: PKind;
+    name: string;
+    status?: PrincipalRec["status"];
+    owner?: string;
+    title?: string;
+    createdAt?: number;
+  },
+): void {
   const rec: PrincipalRec = {
-    id: p.id, kind: p.kind, name: p.name, status: p.status ?? "active", createdAt: p.createdAt ?? 1_700_000_000_000,
+    id: p.id,
+    kind: p.kind,
+    name: p.name,
+    status: p.status ?? "active",
+    createdAt: p.createdAt ?? 1_700_000_000_000,
   };
   if (p.owner) rec.owner = p.owner;
   if (p.title) rec.title = p.title;

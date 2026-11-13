@@ -8,10 +8,23 @@ import { ASK_SIDE, askPaneOf, subscribeAskPane } from "./pane.ts";
 
 const AskPane = lazy(() => import("./AskPane.tsx").then((m) => ({ default: m.AskPane })));
 
-export function AskPaneHost({ place, rt, children }: { place: string; rt: ShellRuntime | null; children?: ReactNode }): ReactElement {
+export function AskPaneHost({
+  place,
+  rt,
+  children,
+}: {
+  place: string;
+  rt: ShellRuntime | null;
+  children?: ReactNode;
+}): ReactElement {
   const read = (): ReturnType<typeof askPaneOf> => askPaneOf(place);
   const state = useSyncExternalStore(subscribeAskPane, read, read);
-  const pane = state && rt ? <Suspense fallback={null}><AskPane rt={rt} state={state} /></Suspense> : null;
+  const pane =
+    state && rt ? (
+      <Suspense fallback={null}>
+        <AskPane rt={rt} state={state} />
+      </Suspense>
+    ) : null;
   return (
     <View style={st.host} testID="ask-host">
       {ASK_SIDE === "left" ? pane : null}

@@ -90,7 +90,11 @@ export function automationMenu(f: AutomationFacts, d: AutomationDo): MenuEntry[]
   return tidy([
     item("Open", d.open, { hint: KEY.enter }),
     f.canRun ? item("Run Now", d.run) : null,
-    f.canEdit ? (f.enabled ? item("Turn Off", () => d.setEnabled(false)) : item("Turn On", () => d.setEnabled(true))) : null,
+    f.canEdit
+      ? f.enabled
+        ? item("Turn Off", () => d.setEnabled(false))
+        : item("Turn On", () => d.setEnabled(true))
+      : null,
     f.canEdit ? item(ellipsis("Test"), d.test) : null,
     item(f.failedRuns > 0 ? `Runs (${f.failedRuns} failed)` : "Runs", d.runs),
     sep,
@@ -257,10 +261,24 @@ export function machineMenu(f: MachineFacts, d: MachineDo): MenuEntry[] {
 // ---------------------------------------------------------------- Console rows
 
 /** What every Console row shares: Open and a copy of its name, then its own actions, then Remove last when the person may. */
-export interface ConsoleFacts { name: string; /** Manage on the Console object: its changing actions. */ manage: boolean }
+export interface ConsoleFacts {
+  name: string;
+  /** Manage on the Console object: its changing actions. */ manage: boolean;
+}
 
-export interface ConsolePersonFacts extends ConsoleFacts { suspended: boolean; /** You: you cannot suspend or remove yourself. */ self: boolean; owner: boolean }
-export interface ConsolePersonDo { open(): void; copyName(): void; suspend(): void; reactivate(): void; changeRole(): void; remove(): void }
+export interface ConsolePersonFacts extends ConsoleFacts {
+  suspended: boolean;
+  /** You: you cannot suspend or remove yourself. */ self: boolean;
+  owner: boolean;
+}
+export interface ConsolePersonDo {
+  open(): void;
+  copyName(): void;
+  suspend(): void;
+  reactivate(): void;
+  changeRole(): void;
+  remove(): void;
+}
 export function consolePersonMenu(f: ConsolePersonFacts, d: ConsolePersonDo): MenuEntry[] {
   const other = f.manage && !f.self;
   return tidy([
@@ -275,8 +293,16 @@ export function consolePersonMenu(f: ConsolePersonFacts, d: ConsolePersonDo): Me
 }
 
 /** A built-in group keeps its name and stays: no Rename, no Delete. */
-export interface ConsoleGroupFacts extends ConsoleFacts { builtIn: boolean }
-export interface ConsoleGroupDo { open(): void; copyName(): void; addPerson(): void; rename(): void; remove(): void }
+export interface ConsoleGroupFacts extends ConsoleFacts {
+  builtIn: boolean;
+}
+export interface ConsoleGroupDo {
+  open(): void;
+  copyName(): void;
+  addPerson(): void;
+  rename(): void;
+  remove(): void;
+}
 export function consoleGroupMenu(f: ConsoleGroupFacts, d: ConsoleGroupDo): MenuEntry[] {
   return tidy([
     item("Open", d.open, { hint: KEY.enter }),
@@ -289,8 +315,17 @@ export function consoleGroupMenu(f: ConsoleGroupFacts, d: ConsoleGroupDo): MenuE
   ]);
 }
 
-export interface ConsoleRoleFacts extends ConsoleFacts { builtIn: boolean; /** People who hold it: a role someone holds cannot be deleted. */ holders: number }
-export interface ConsoleRoleDo { open(): void; copyName(): void; duplicate(): void; preview(): void; remove(): void }
+export interface ConsoleRoleFacts extends ConsoleFacts {
+  builtIn: boolean;
+  /** People who hold it: a role someone holds cannot be deleted. */ holders: number;
+}
+export interface ConsoleRoleDo {
+  open(): void;
+  copyName(): void;
+  duplicate(): void;
+  preview(): void;
+  remove(): void;
+}
 export function consoleRoleMenu(f: ConsoleRoleFacts, d: ConsoleRoleDo): MenuEntry[] {
   return tidy([
     item("Open", d.open, { hint: KEY.enter }),
@@ -299,11 +334,24 @@ export function consoleRoleMenu(f: ConsoleRoleFacts, d: ConsoleRoleDo): MenuEntr
     f.manage ? item("Duplicate", d.duplicate) : null,
     f.manage ? item(ellipsis("Preview Changes"), d.preview) : null,
     f.manage && !f.builtIn ? sep : null,
-    f.manage && !f.builtIn ? (f.holders > 0 ? item(ellipsis("Delete Role"), d.remove, { danger: true, disabled: true, reason: `${f.holders} ${f.holders === 1 ? "person holds" : "people hold"} this role` }) : item(ellipsis("Delete Role"), d.remove, { danger: true, hint: KEY.remove })) : null,
+    f.manage && !f.builtIn
+      ? f.holders > 0
+        ? item(ellipsis("Delete Role"), d.remove, {
+            danger: true,
+            disabled: true,
+            reason: `${f.holders} ${f.holders === 1 ? "person holds" : "people hold"} this role`,
+          })
+        : item(ellipsis("Delete Role"), d.remove, { danger: true, hint: KEY.remove })
+      : null,
   ]);
 }
 
-export interface ConsoleNumberDo { open(): void; copyNumber(): void; assign(): void; release(): void }
+export interface ConsoleNumberDo {
+  open(): void;
+  copyNumber(): void;
+  assign(): void;
+  release(): void;
+}
 export function consoleNumberMenu(f: ConsoleFacts, d: ConsoleNumberDo): MenuEntry[] {
   return tidy([
     item("Open", d.open, { hint: KEY.enter }),
@@ -315,7 +363,12 @@ export function consoleNumberMenu(f: ConsoleFacts, d: ConsoleNumberDo): MenuEntr
   ]);
 }
 
-export interface ConsoleDomainDo { open(): void; copyName(): void; check(): void; remove(): void }
+export interface ConsoleDomainDo {
+  open(): void;
+  copyName(): void;
+  check(): void;
+  remove(): void;
+}
 export function consoleDomainMenu(f: ConsoleFacts, d: ConsoleDomainDo): MenuEntry[] {
   return tidy([
     item("Open", d.open, { hint: KEY.enter }),

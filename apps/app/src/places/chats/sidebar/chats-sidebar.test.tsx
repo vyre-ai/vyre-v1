@@ -15,7 +15,8 @@ import type { ChatRow, RecentOut } from "./model.ts";
 import { createSampleSidebar, harbor, northwind, personal } from "./sample.ts";
 import type { SampleSidebar } from "./sample.ts";
 
-const html = (s: SampleSidebar): string => renderToStaticMarkup(<ChatsSidebar data={s.data} window={{ start: 0, end: 500 }} />).replaceAll("<!-- -->", "");
+const html = (s: SampleSidebar): string =>
+  renderToStaticMarkup(<ChatsSidebar data={s.data} window={{ start: 0, end: 500 }} />).replaceAll("<!-- -->", "");
 const at = (s: string, needle: string): number => {
   const i = s.indexOf(needle);
   assert.ok(i >= 0, `expected ${needle}`);
@@ -30,12 +31,21 @@ const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms)
 
 test("the sections render from the Northwind sample, in the prototype's order", () => {
   const out = html(createSampleSidebar());
-  const heads = ["row-nav:tasks", "head-recent", "head-channels", "head-faces"].map((id) => at(out, `data-testid="${id}"`));
-  assert.deepEqual([...heads].sort((a, b) => a - b), heads, "Tasks, Recent, Channels, Agents");
+  const heads = ["row-nav:tasks", "head-recent", "head-channels", "head-faces"].map((id) =>
+    at(out, `data-testid="${id}"`),
+  );
+  assert.deepEqual(
+    [...heads].sort((a, b) => a - b),
+    heads,
+    "Tasks, Recent, Channels, Agents",
+  );
   for (const text of ["Tasks", "Recent", "Agents", "Channels", "Northwind"]) assert.ok(out.includes(text), text);
   assert.ok(!out.includes("row-nav:threads"), "no Threads row");
   // The title, the hide button are the shared slot's; there is one search, Cmd-K, so the content draws neither.
-  assert.ok(!out.includes("sidebar-toggle") && !out.includes("Hide the sidebar") && !out.includes("Search"), "no frame of its own");
+  assert.ok(
+    !out.includes("sidebar-toggle") && !out.includes("Hide the sidebar") && !out.includes("Search"),
+    "no frame of its own",
+  );
   assert.ok(!out.includes(String.fromCharCode(0x2014)), "no em dash in any copy");
   assert.ok(!out.includes("chats-sidebar-loading"));
 });
@@ -64,7 +74,10 @@ test("unread chats carry a dot and channels a count; Projects sit under Channels
   const out = html(createSampleSidebar());
   assert.ok(out.includes('data-testid="unread-dot"'));
   assert.ok(out.includes('data-testid="unread-intake"'));
-  assert.ok(at(out, "pruitt-matter") > at(out, "data-testid=\"group-Projects\"") && at(out, "data-testid=\"group-Projects\"") > at(out, "rivera-matter"));
+  assert.ok(
+    at(out, "pruitt-matter") > at(out, 'data-testid="group-Projects"') &&
+      at(out, 'data-testid="group-Projects"') > at(out, "rivera-matter"),
+  );
   assert.ok(out.includes("other-space-dot"), "another Space needs you");
 });
 
@@ -91,26 +104,49 @@ test("before the data arrives the sidebar draws its loading frame; offline it sa
 
 test("star, mark read and approve change what the next render shows", async () => {
   const s = createSampleSidebar();
-  const api = createSidebarApi(s.data, () => undefined, () => undefined);
+  const api = createSidebarApi(
+    s.data,
+    () => undefined,
+    () => undefined,
+  );
   await api.star("thread", "c3", true);
-  assert.ok(recentNow(s).starred.some((x) => x.threadId === "c3"), "October invoices moved to Starred");
+  assert.ok(
+    recentNow(s).starred.some((x) => x.threadId === "c3"),
+    "October invoices moved to Starred",
+  );
   await api.markRead("c4");
   assert.equal(recentNow(s).today.find((x) => x.threadId === "c4")!.unread, 0);
   assert.equal(recentNow(s).nextUnread, "d1", "next unread moves on (oldest unread first)");
   await api.star("agent", "agt_docs", false);
   // agents.list takes no "starred" input (the contract refuses it), so the Agents group is the Space's agents and starring one leaves the group as it was; the star itself is the stars.toggle call below.
-  const faces = (s.data.screens.query("chats.all-agents", "agents", {}).getSnapshot() as { data: { agents: { name: string }[] } }).data.agents;
-  assert.ok(faces.some((a) => a.name === "Docs"), "Docs stays in the Agents group");
+  const faces = (
+    s.data.screens.query("chats.all-agents", "agents", {}).getSnapshot() as { data: { agents: { name: string }[] } }
+  ).data.agents;
+  assert.ok(
+    faces.some((a) => a.name === "Docs"),
+    "Docs stays in the Agents group",
+  );
   assert.deepEqual(s.rejected, [], "every read the sidebar sent was accepted by the generated validators");
-  const need = (s.data.screens.query("tasks.my-work", "needs", { limit: 50 }).getSnapshot() as { data: { items: Parameters<typeof api.act>[0][] } }).data.items[0]!;
+  const need = (
+    s.data.screens.query("tasks.my-work", "needs", { limit: 50 }).getSnapshot() as {
+      data: { items: Parameters<typeof api.act>[0][] };
+    }
+  ).data.items[0]!;
   await api.act(need);
-  assert.deepEqual(s.calls.map((c) => c.cap), ["stars.toggle", "threads.mark_read", "stars.toggle", "tasks.act"]);
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["stars.toggle", "threads.mark_read", "stars.toggle", "tasks.act"],
+  );
 });
 
 test("a new chat with a starred face asks for that agent; a failed start drops only the local row", async () => {
   const s = createSampleSidebar();
   const settled: string[] = [];
-  const api = createSidebarApi(s.data, () => undefined, (id) => settled.push(id));
+  const api = createSidebarApi(
+    s.data,
+    () => undefined,
+    (id) => settled.push(id),
+  );
   s.failNext("chat.start");
   const row = api.newChat({ agentId: "agt_docs", name: "Docs" });
   await wait(10);
@@ -123,32 +159,67 @@ test("a new chat with a starred face asks for that agent; a failed start drops o
 // ---- the shared place sidebar slot (P-L9b_22)
 
 const slotApi = (): SidebarSlotApi => ({
-  query: "", collapsed: false, setCollapsed: () => undefined, hasSidebar: true, compact: true, openBody: () => undefined, back: () => undefined, view: "list", title: "Chats",
+  query: "",
+  collapsed: false,
+  setCollapsed: () => undefined,
+  hasSidebar: true,
+  compact: true,
+  openBody: () => undefined,
+  back: () => undefined,
+  view: "list",
+  title: "Chats",
 });
 /** What the place hands the shell: the SidebarContent element and the content its render prop draws for a given search text. */
-const registered = (s: SampleSidebar, query: string, slot: SidebarSlotApi = slotApi()): { entry: { title: string; searchPlaceholder?: string }; out: string } => {
-  const el = ChatsSidebarSlot({ data: s.data, window: { start: 0, end: 500 } }) as ReactElement<{ title: string; searchPlaceholder?: string; children: (q: string, slot: SidebarSlotApi) => ReactElement }>;
-  assert.equal(el.type, SidebarContent, "the Chats sidebar goes into the shared SidebarContent, not a frame of its own");
+const registered = (
+  s: SampleSidebar,
+  query: string,
+  slot: SidebarSlotApi = slotApi(),
+): { entry: { title: string; searchPlaceholder?: string }; out: string } => {
+  const el = ChatsSidebarSlot({ data: s.data, window: { start: 0, end: 500 } }) as ReactElement<{
+    title: string;
+    searchPlaceholder?: string;
+    children: (q: string, slot: SidebarSlotApi) => ReactElement;
+  }>;
+  assert.equal(
+    el.type,
+    SidebarContent,
+    "the Chats sidebar goes into the shared SidebarContent, not a frame of its own",
+  );
   const content = el.props.children(query, slot);
-  return { entry: { title: el.props.title, ...(el.props.searchPlaceholder ? { searchPlaceholder: el.props.searchPlaceholder } : {}) }, out: renderToStaticMarkup(content).replaceAll("<!-- -->", "") };
+  return {
+    entry: {
+      title: el.props.title,
+      ...(el.props.searchPlaceholder ? { searchPlaceholder: el.props.searchPlaceholder } : {}),
+    },
+    out: renderToStaticMarkup(content).replaceAll("<!-- -->", ""),
+  };
 };
 
 test("the sidebar registers in the shared slot as Chats with no search of its own, and draws all its rows inside it", () => {
   const { entry, out } = registered(createSampleSidebar(), "");
   assert.deepEqual(entry, { title: "Chats" });
   for (const text of ["Tasks", "Intake", "rivera-matter"]) assert.ok(out.includes(text), text);
-  assert.ok(out.includes('data-testid="new-menu"') && out.includes('data-testid="filter-chats"'), "filter and New keep their place");
+  assert.ok(
+    out.includes('data-testid="new-menu"') && out.includes('data-testid="filter-chats"'),
+    "filter and New keep their place",
+  );
 });
 
 test("the query narrows Agents, Channels and Chats; a word nothing holds leaves only the section heads", () => {
   const s = createSampleSidebar();
   const out = registered(s, "rivera").out;
   assert.ok(out.includes("Rivera intake") && out.includes("rivera-matter"));
-  assert.ok(!out.includes("Competitor pricing") && !out.includes("data-testid=\"face-Billing\""));
+  assert.ok(!out.includes("Competitor pricing") && !out.includes('data-testid="face-Billing"'));
   const none = registered(s, "zzzz").out;
-  assert.ok(!none.includes("Rivera intake") && !none.includes("rivera-matter") && !none.includes('data-testid="row-nav:tasks"'));
+  assert.ok(
+    !none.includes("Rivera intake") && !none.includes("rivera-matter") && !none.includes('data-testid="row-nav:tasks"'),
+  );
   assert.equal(registered(s, "  ").out, registered(s, "").out, "blank text is no search");
-  assert.ok(matchesQuery("pric comp", "Competitor pricing") && !matchesQuery("pric zzz", "Competitor pricing") && matchesQuery("", "x"));
+  assert.ok(
+    matchesQuery("pric comp", "Competitor pricing") &&
+      !matchesQuery("pric zzz", "Competitor pricing") &&
+      matchesQuery("", "x"),
+  );
 });
 
 // ---- reads the contract accepts, and reads that fail (P-L9b_26)
@@ -156,70 +227,167 @@ test("the query narrows Agents, Channels and Chats; a word nothing holds leaves 
 test("the inputs the Chats sidebar and All agents send are accepted by the generated validators", () => {
   const s = createSampleSidebar();
   html(s);
-  assert.deepEqual(s.rejected, [], "the sample answers a refused input like the real handler (an error), and none was refused");
+  assert.deepEqual(
+    s.rejected,
+    [],
+    "the sample answers a refused input like the real handler (an error), and none was refused",
+  );
   // the screen queries the sidebar declares, with the state it passes
-  for (const [cap, input] of [["chat.recent", { filter: "all" }], ["channels.list", {}], ["agents.list", {}], ["tasks.needs_you", {}]] as const) {
+  for (const [cap, input] of [
+    ["chat.recent", { filter: "all" }],
+    ["channels.list", {}],
+    ["agents.list", {}],
+    ["tasks.needs_you", {}],
+  ] as const) {
     assert.deepEqual(validateInput(cap, 1, input), [], cap);
   }
-  assert.notDeepEqual(validateInput("agents.list", 1, { section: "starred" }), [], "the input that was refused in the real app (422) is refused here too");
-  assert.throws(() => s.data.screens.query("chats.all-agents", "agents", { section: "starred" }).getSnapshot(), /bad_input/, "the sample refuses it as the server does");
+  assert.notDeepEqual(
+    validateInput("agents.list", 1, { section: "starred" }),
+    [],
+    "the input that was refused in the real app (422) is refused here too",
+  );
+  assert.throws(
+    () => s.data.screens.query("chats.all-agents", "agents", { section: "starred" }).getSnapshot(),
+    /bad_input/,
+    "the sample refuses it as the server does",
+  );
   assert.equal(s.rejected.length > 0, true);
 });
 
 test("the Agents group shows the first agents and an All agents row for the rest", () => {
   const agent = (n: number) => ({ agentId: `a${n}`, name: `Agent ${n}` }) as never;
   const faces = Array.from({ length: FACES_SHOWN }, (_, n) => agent(n));
-  const base = { moreAgents: true, faces, workingAgents: new Set<string>(), groups: [], channels: [], filter: "all" as const, closed: new Set<never>() };
+  const base = {
+    moreAgents: true,
+    faces,
+    workingAgents: new Set<string>(),
+    groups: [],
+    channels: [],
+    filter: "all" as const,
+    closed: new Set<never>(),
+  };
   const withMore = buildEntries({ ...base, facesMore: 5 });
   const more = withMore.find((e) => e.type === "more");
   assert.ok(more && more.type === "more" && more.label === `All agents (${FACES_SHOWN + 5})`);
-  assert.equal(buildEntries(base).some((e) => e.type === "more"), false, "nothing more, no row");
+  assert.equal(
+    buildEntries(base).some((e) => e.type === "more"),
+    false,
+    "nothing more, no row",
+  );
 });
 
-const FAILED = { status: "loading" as const, error: { message: "agents.list: bad_input", code: "validation.bad_input", traceId: "trace-1" } };
+const FAILED = {
+  status: "loading" as const,
+  error: { message: "agents.list: bad_input", code: "validation.bad_input", traceId: "trace-1" },
+};
 const failing = (s: SampleSidebar, screen: string): string =>
-  renderToStaticMarkup(<ChatsSidebar data={{ ...s.data, screens: { query: (id, name, state) => (id === screen ? { subscribe: () => () => undefined, getSnapshot: () => FAILED } : s.data.screens.query(id, name, state)) } }} window={{ start: 0, end: 500 }} />).replaceAll("<!-- -->", "");
+  renderToStaticMarkup(
+    <ChatsSidebar
+      data={{
+        ...s.data,
+        screens: {
+          query: (id, name, state) =>
+            id === screen
+              ? { subscribe: () => () => undefined, getSnapshot: () => FAILED }
+              : s.data.screens.query(id, name, state),
+        },
+      }}
+      window={{ start: 0, end: 500 }}
+    />,
+  ).replaceAll("<!-- -->", "");
 
 test("a failed read puts one compact row under that section's head, the rest still draws, and it is never the empty state", () => {
   const s = createSampleSidebar();
   const agents = failing(s, "chats.all-agents");
-  const at2 = (n: string): number => { const i = agents.indexOf(n); assert.ok(i >= 0, n); return i; };
-  assert.ok(at2('data-testid="head-faces"') < at2('data-testid="section-error-faces"'), "the error row sits under the Agents head");
-  assert.ok(agents.includes("load agents") && agents.includes('data-testid="retry-faces"') && agents.includes('data-testid="error-more-faces"'), "one row: the words, Retry and the details menu");
-  assert.ok(!agents.includes("trace-1") && !agents.includes('data-testid="state-error"'), "the cause and trace id are behind the menu, no States block");
+  const at2 = (n: string): number => {
+    const i = agents.indexOf(n);
+    assert.ok(i >= 0, n);
+    return i;
+  };
+  assert.ok(
+    at2('data-testid="head-faces"') < at2('data-testid="section-error-faces"'),
+    "the error row sits under the Agents head",
+  );
+  assert.ok(
+    agents.includes("load agents") &&
+      agents.includes('data-testid="retry-faces"') &&
+      agents.includes('data-testid="error-more-faces"'),
+    "one row: the words, Retry and the details menu",
+  );
+  assert.ok(
+    !agents.includes("trace-1") && !agents.includes('data-testid="state-error"'),
+    "the cause and trace id are behind the menu, no States block",
+  );
   assert.ok(agents.includes("rivera-matter") && agents.includes("Recent"), "chats and channels still draw");
-  assert.ok(!agents.includes("chats-sidebar-loading") && !agents.includes("No chats yet"), "no skeleton, no empty state");
+  assert.ok(
+    !agents.includes("chats-sidebar-loading") && !agents.includes("No chats yet"),
+    "no skeleton, no empty state",
+  );
   const chats = failing(s, "chats.sidebar");
   const ci = (n: string): number => chats.indexOf(n);
-  assert.ok(ci('data-testid="head-recent"') >= 0 && ci('data-testid="head-recent"') < ci('data-testid="section-error-recent"'), "the Chats error row is under the Chats head");
-  assert.ok(chats.includes("load chats") && chats.includes("load channels"), "both reads of that screen say so, each under its own head");
-  assert.ok(!chats.includes("No chats yet") && !chats.includes("Nothing here") && !chats.includes("chats-sidebar-loading"), "a failed Chats read is not 'No chats yet'");
+  assert.ok(
+    ci('data-testid="head-recent"') >= 0 && ci('data-testid="head-recent"') < ci('data-testid="section-error-recent"'),
+    "the Chats error row is under the Chats head",
+  );
+  assert.ok(
+    chats.includes("load chats") && chats.includes("load channels"),
+    "both reads of that screen say so, each under its own head",
+  );
+  assert.ok(
+    !chats.includes("No chats yet") && !chats.includes("Nothing here") && !chats.includes("chats-sidebar-loading"),
+    "a failed Chats read is not 'No chats yet'",
+  );
   assert.ok(chats.includes("Tasks"), "Tasks still draws");
 });
 
 test("Retry asks the live reads to read again; a stand-in without that has nothing to re-ask", () => {
   let asked = 0;
-  assert.equal(refetch({ invalidate() { asked++; } }), true);
+  assert.equal(
+    refetch({
+      invalidate() {
+        asked++;
+      },
+    }),
+    true,
+  );
   assert.equal(asked, 1);
   assert.equal(refetch({}), false);
 });
 
 test("a section head's tools are always under the pointer: drawn on hover or focus, never made unreachable (no pointer-events: none)", () => {
-  const out = renderToStaticMarkup(<SectionHead id="faces" label="Agents" open onToggle={() => undefined}><Tool icon="arrow" label="All agents" onPress={() => undefined} testID="all-agents" /></SectionHead>);
+  const out = renderToStaticMarkup(
+    <SectionHead id="faces" label="Agents" open onToggle={() => undefined}>
+      <Tool icon="arrow" label="All agents" onPress={() => undefined} testID="all-agents" />
+    </SectionHead>,
+  );
   assert.ok(out.includes('data-testid="all-agents"'), "the tool is in the head");
-  assert.ok(!out.includes("r-pointerEvents"), "a tool hidden until hover must still take the pointer, or the head sits over it and it cannot be pressed");
+  assert.ok(
+    !out.includes("r-pointerEvents"),
+    "a tool hidden until hover must still take the pointer, or the head sits over it and it cannot be pressed",
+  );
 });
 
 test("only the open page's row is drawn selected: none on the new-chat page (with a filter on too), Tasks on Tasks, one chat on that chat (lane l-polish)", () => {
   const draw = (open: string | null, startFilter?: "unread"): string[] => {
     const s = createSampleSidebar();
-    const out = renderToStaticMarkup(<ChatsSidebar data={s.data} window={{ start: 0, end: 500 }} open={open} {...(startFilter ? { startFilter } : {})} />);
-    return [...out.matchAll(/aria-selected="true"[^>]*data-testid="([^"]+)"|data-testid="([^"]+)"[^>]*aria-selected="true"/g)].map((m) => m[1] ?? m[2]!);
+    const out = renderToStaticMarkup(
+      <ChatsSidebar
+        data={s.data}
+        window={{ start: 0, end: 500 }}
+        open={open}
+        {...(startFilter ? { startFilter } : {})}
+      />,
+    );
+    return [
+      ...out.matchAll(/aria-selected="true"[^>]*data-testid="([^"]+)"|data-testid="([^"]+)"[^>]*aria-selected="true"/g),
+    ].map((m) => m[1] ?? m[2]!);
   };
   assert.deepEqual(draw(null), [], "the new-chat page has no row");
   assert.deepEqual(draw(null, "unread"), [], "and the Unread filter selects nothing either");
   assert.deepEqual(draw("tasks"), ["row-nav:tasks"]);
   const s = createSampleSidebar();
-  const first = /data-testid="row-c:([^"]+)"/.exec(renderToStaticMarkup(<ChatsSidebar data={s.data} window={{ start: 0, end: 500 }} open={null} />))![1]!;
+  const first = /data-testid="row-c:([^"]+)"/.exec(
+    renderToStaticMarkup(<ChatsSidebar data={s.data} window={{ start: 0, end: 500 }} open={null} />),
+  )![1]!;
   assert.deepEqual(draw(`t:${first}`), [`row-c:${first}`]);
 });

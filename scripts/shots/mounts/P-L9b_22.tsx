@@ -28,20 +28,39 @@ function Inner({ search }: { search: string }): ReactNode {
     const skin = query.get("skin") ?? "paper";
     const root = (globalThis as { document?: { documentElement?: RootLike } }).document?.documentElement;
     const themeRoot: ThemeRoot = {
-      setAttribute: (n, v) => { root?.setAttribute(n, v); },
-      setProperty: (n, v) => { root?.style.setProperty(n, v); },
-      removeProperty: (n) => { root?.style.removeProperty(n); },
+      setAttribute: (n, v) => {
+        root?.setAttribute(n, v);
+      },
+      setProperty: (n, v) => {
+        root?.style.setProperty(n, v);
+      },
+      removeProperty: (n) => {
+        root?.style.removeProperty(n);
+      },
     };
-    const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
+    const theme = createThemeController({
+      personId: "irfad",
+      spaceId: "nw",
+      spaceSkin: { nw: skin, hb: skin, me: skin },
+      prefersDark: skin === "graphite",
+      root: themeRoot,
+      storage: null,
+    });
     const hub = createSampleShell({ openId: "nw", theme });
     hub.go("chats");
     const sample = createMountSample();
-    const shown: Shown = query.get("screen") === "needs" ? step(START, { t: "needs", taskId: "n1" }) : step(START, { t: "chat", threadId: "c1" });
+    const shown: Shown =
+      query.get("screen") === "needs"
+        ? step(START, { t: "needs", taskId: "n1" })
+        : step(START, { t: "chat", threadId: "c1" });
     return { hub, theme, sample, shown };
   }, [search]);
-  const renderPlace = (ctx: PlaceContext): ReactNode => (ctx.place === "chats"
-    ? <ChatsMounted key={ctx.spaceId} rt={made.sample.rt} initial={made.shown} window={{ start: 0, end: 500 }} />
-    : samplePlace(ctx));
+  const renderPlace = (ctx: PlaceContext): ReactNode =>
+    ctx.place === "chats" ? (
+      <ChatsMounted key={ctx.spaceId} rt={made.sample.rt} initial={made.shown} window={{ start: 0, end: 500 }} />
+    ) : (
+      samplePlace(ctx)
+    );
   return (
     <View style={{ height }}>
       <Shell hub={made.hub} theme={made.theme} renderPlace={renderPlace} />

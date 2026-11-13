@@ -8,7 +8,24 @@
 // The access level of each capability was checked on the channel before these run. Read cursors belong to threads.mark_read (table chat_thread_read, made here if it is not there yet).
 import { readFloor } from "./floor.ts";
 import {
-  MAX_NAME, askerOf, channelBy, channelByName, channelOfRecord, channelOut, ensure, membersOf, agentsOf, isMember, addAgent, addMember, messageBy, messageOf, nameKey, raise, threadBy, threadOf,
+  MAX_NAME,
+  askerOf,
+  channelBy,
+  channelByName,
+  channelOfRecord,
+  channelOut,
+  ensure,
+  membersOf,
+  agentsOf,
+  isMember,
+  addAgent,
+  addMember,
+  messageBy,
+  messageOf,
+  nameKey,
+  raise,
+  threadBy,
+  threadOf,
 } from "../projections.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChannelRec, ChatCtx, Db, Mode } from "../projections.ts";
@@ -21,19 +38,32 @@ const KINDS = ["people", "agents", "runs"] as const;
 type StreamKind = (typeof KINDS)[number];
 
 function tables(db: Db): void {
-  db.run("CREATE TABLE IF NOT EXISTS chat_thread_read (thread TEXT NOT NULL, principal TEXT NOT NULL, seq INTEGER NOT NULL, PRIMARY KEY (thread, principal))");
-  db.run("CREATE TABLE IF NOT EXISTS chat_stream_pref (channel TEXT NOT NULL, principal TEXT NOT NULL, hide TEXT NOT NULL, PRIMARY KEY (channel, principal))");
+  db.run(
+    "CREATE TABLE IF NOT EXISTS chat_thread_read (thread TEXT NOT NULL, principal TEXT NOT NULL, seq INTEGER NOT NULL, PRIMARY KEY (thread, principal))",
+  );
+  db.run(
+    "CREATE TABLE IF NOT EXISTS chat_stream_pref (channel TEXT NOT NULL, principal TEXT NOT NULL, hide TEXT NOT NULL, PRIMARY KEY (channel, principal))",
+  );
 }
-function prepare(ctx: ChatCtx): void { ensure(ctx.db); tables(ctx.db); }
+function prepare(ctx: ChatCtx): void {
+  ensure(ctx.db);
+  tables(ctx.db);
+}
 
 function load(ctx: ChatCtx, channelId: string, o: { anyone?: boolean; govern?: boolean } = {}): ChannelRec {
   prepare(ctx);
   const ch = channelBy(ctx.db, channelId);
   if (!ch) raise(ctx, "validation.not_found", "That channel does not exist.");
   // an invite-only channel is not there for someone who is not in it (the same answer as a channel that does not exist); Join alone says why it cannot be entered
-  if (o.anyone !== true && ch.visibility === "invite" && !isTrustedService(ctx.principal) && !isMember(ctx.db, ch.mainThread, askerOf(ctx)) && ch.createdBy !== askerOf(ctx)
-    && !(ctx.principal.kind === "agent" && agentsOf(ctx.db, ch.mainThread).some((a) => a.agentId === ctx.principal.id))
-    && !(o.govern === true && mayGovernChannel(ctx, ch.id))) {
+  if (
+    o.anyone !== true &&
+    ch.visibility === "invite" &&
+    !isTrustedService(ctx.principal) &&
+    !isMember(ctx.db, ch.mainThread, askerOf(ctx)) &&
+    ch.createdBy !== askerOf(ctx) &&
+    !(ctx.principal.kind === "agent" && agentsOf(ctx.db, ch.mainThread).some((a) => a.agentId === ctx.principal.id)) &&
+    !(o.govern === true && mayGovernChannel(ctx, ch.id))
+  ) {
     raise(ctx, "validation.not_found", "That channel does not exist.");
   }
   return ch;
@@ -41,7 +71,8 @@ function load(ctx: ChatCtx, channelId: string, o: { anyone?: boolean; govern?: b
 /** A channel that still takes changes. */
 function loadLive(ctx: ChatCtx, channelId: string, o: { anyone?: boolean } = {}): ChannelRec {
   const ch = load(ctx, channelId, o);
-  if (ch.archived) raise(ctx, "validation.bad_input", "This channel is archived. Bring it back first.", { reason: "archived" });
+  if (ch.archived)
+    raise(ctx, "validation.bad_input", "This channel is archived. Bring it back first.", { reason: "archived" });
   return ch;
 }
 
@@ -57,10 +88,16 @@ const humans = (db: Db, thread: string): string[] => membersOf(db, thread).filte
 
 /** Messages in the main thread after my read cursor that someone else wrote. */
 function unreadOf(db: Db, ch: ChannelRec, person: string): number {
-  const r = (db.all(
-    `SELECT COUNT(*) AS n FROM chat_message m WHERE m.thread = ? AND m.deleted_at IS NULL AND m.author != ?
-       AND m.threadSeq > COALESCE((SELECT seq FROM chat_thread_read r WHERE r.thread = ? AND r.principal = ?), 0)`, ch.mainThread, person, ch.mainThread, person,
-  ) as Row[])[0];
+  const r = (
+    db.all(
+      `SELECT COUNT(*) AS n FROM chat_message m WHERE m.thread = ? AND m.deleted_at IS NULL AND m.author != ?
+       AND m.threadSeq > COALESCE((SELECT seq FROM chat_thread_read r WHERE r.thread = ? AND r.principal = ?), 0)`,
+      ch.mainThread,
+      person,
+      ch.mainThread,
+      person,
+    ) as Row[]
+  )[0];
   return Number(r?.["n"] ?? 0);
 }
 function row(ctx: ChatCtx, ch: ChannelRec): Record<string, unknown> {
@@ -72,7 +109,8 @@ const refreshed = (ctx: ChatCtx, id: string) => view(ctx, channelBy(ctx.db, id)!
 function cleanName(ctx: ChatCtx, raw: string): string {
   const name = raw.trim().replace(/^#+/, "").trim().replace(/\s+/g, " ");
   if (name === "") raise(ctx, "validation.bad_input", "Give the channel a name.");
-  if (name.length > MAX_NAME) raise(ctx, "validation.bad_input", `A channel name can be at most ${MAX_NAME} characters.`);
+  if (name.length > MAX_NAME)
+    raise(ctx, "validation.bad_input", `A channel name can be at most ${MAX_NAME} characters.`);
   return name;
 }
 /** Out of the channel: what being in it gave (the person's view of the agents the channel and its threads made) goes back first, then the membership (owned.ts). True when they were in it. */
@@ -82,7 +120,15 @@ async function leaveWithGrants(ctx: ChatCtx, ch: ChannelRec, person: string): Pr
 }
 
 function dropMember(ctx: ChatCtx, thread: string, person: string): boolean {
-  return ctx.db.run("UPDATE chat_thread_member SET deleted_at = ?, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL", ctx.now(), ctx.now(), thread, person).changes > 0;
+  return (
+    ctx.db.run(
+      "UPDATE chat_thread_member SET deleted_at = ?, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL",
+      ctx.now(),
+      ctx.now(),
+      thread,
+      person,
+    ).changes > 0
+  );
 }
 
 // ---- read ---------------------------------------------------------------------------------------------------------------------------------------------
@@ -91,12 +137,22 @@ export async function channelsGet(ctx: ChatCtx, input: { channelId: string }) {
   return view(ctx, load(ctx, input.channelId, { govern: true }));
 }
 
-export async function channelsList(ctx: ChatCtx, input: { section?: "personal" | "shared" | "space"; folderId?: string; governance?: boolean; limit?: number; cursor?: string }) {
+export async function channelsList(
+  ctx: ChatCtx,
+  input: {
+    section?: "personal" | "shared" | "space";
+    folderId?: string;
+    governance?: boolean;
+    limit?: number;
+    cursor?: string;
+  },
+) {
   prepare(ctx);
   const asker = askerOf(ctx);
   let offset = 0;
   if (input.cursor !== undefined) {
-    if (!/^\d{1,9}$/.test(input.cursor)) raise(ctx, "validation.bad_input", "That page cursor is not one this list gave out.");
+    if (!/^\d{1,9}$/.test(input.cursor))
+      raise(ctx, "validation.bad_input", "That page cursor is not one this list gave out.");
     offset = Number(input.cursor);
   }
   const limit = input.limit ?? 100;
@@ -115,13 +171,18 @@ export async function channelsList(ctx: ChatCtx, input: { section?: "personal" |
       if (input.governance !== true || !mayGovernChannel(ctx, ch.id)) continue;
       restricted.add(ch.id);
     }
-    const section = ch.visibility === "public" ? "space" : humans(ctx.db, ch.mainThread).length <= 1 ? "personal" : "shared";
+    const section =
+      ch.visibility === "public" ? "space" : humans(ctx.db, ch.mainThread).length <= 1 ? "personal" : "shared";
     if (input.section !== undefined && input.section !== section) continue;
     seen.push(ch);
   }
   const page = seen.slice(offset, offset + limit);
   const next = offset + limit < seen.length ? String(offset + limit) : undefined;
-  return { channels: page.map((c) => (restricted.has(c.id) ? { ...channelOut(ctx.db, c), restricted: true } : row(ctx, c))), total: seen.length, ...(next !== undefined ? { next } : {}) };
+  return {
+    channels: page.map((c) => (restricted.has(c.id) ? { ...channelOut(ctx.db, c), restricted: true } : row(ctx, c))),
+    total: seen.length,
+    ...(next !== undefined ? { next } : {}),
+  };
 }
 
 // ---- me in and out -------------------------------------------------------------------------------------------------------------------------------
@@ -131,7 +192,8 @@ export async function channelsJoin(ctx: ChatCtx, input: { channelId: string }) {
   const asker = askerOf(ctx);
   if (!asker.startsWith("usr_")) raise(ctx, "validation.bad_input", "Only a person joins a channel.");
   if (isMember(ctx.db, ch.mainThread, asker)) return view(ctx, ch);
-  if (ch.visibility !== "public") raise(ctx, "validation.bad_input", "This channel is invite-only. Ask a member to add you.");
+  if (ch.visibility !== "public")
+    raise(ctx, "validation.bad_input", "This channel is invite-only. Ask a member to add you.");
   addMember(ctx, ch.mainThread, asker);
   await joinThreads(ctx, ch.mainThread, asker);
   ctx.emit("channel.member_added", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId: asker, by: asker });
@@ -141,15 +203,25 @@ export async function channelsJoin(ctx: ChatCtx, input: { channelId: string }) {
 export async function channelsLeave(ctx: ChatCtx, input: { channelId: string }) {
   const ch = load(ctx, input.channelId);
   const asker = askerOf(ctx);
-  if (await leaveWithGrants(ctx, ch, asker)) ctx.emit("channel.member_removed", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId: asker, by: asker });
+  if (await leaveWithGrants(ctx, ch, asker))
+    ctx.emit("channel.member_removed", ch.id, {
+      channelId: ch.id,
+      threadId: ch.mainThread,
+      personId: asker,
+      by: asker,
+    });
   return { ok: true };
 }
 
 // ---- the room ------------------------------------------------------------------------------------------------------------------------------------
 
-export async function channelsUpdate(ctx: ChatCtx, input: { channelId: string; name?: string; topic?: string; visibility?: "public" | "invite" }) {
+export async function channelsUpdate(
+  ctx: ChatCtx,
+  input: { channelId: string; name?: string; topic?: string; visibility?: "public" | "invite" },
+) {
   const ch = loadLive(ctx, input.channelId);
-  if (input.name === undefined && input.topic === undefined && input.visibility === undefined) raise(ctx, "validation.bad_input", "Say what to change: the name, the topic or the visibility.");
+  if (input.name === undefined && input.topic === undefined && input.visibility === undefined)
+    raise(ctx, "validation.bad_input", "Say what to change: the name, the topic or the visibility.");
   const fields: string[] = [];
   const now = ctx.now();
   // Every refusal comes before the first write: a refused call must leave no row changed.
@@ -157,7 +229,8 @@ export async function channelsUpdate(ctx: ChatCtx, input: { channelId: string; n
   if (input.name !== undefined) {
     name = cleanName(ctx, input.name);
     const other = channelByName(ctx.db, name);
-    if (other && other.id !== ch.id) raise(ctx, "validation.bad_input", "A channel with that name already exists.", { name });
+    if (other && other.id !== ch.id)
+      raise(ctx, "validation.bad_input", "A channel with that name already exists.", { name });
   }
   let topic: string | undefined;
   if (input.topic !== undefined) {
@@ -165,11 +238,25 @@ export async function channelsUpdate(ctx: ChatCtx, input: { channelId: string; n
     if (topic.length > 250) raise(ctx, "validation.bad_input", "A topic can be at most 250 characters.");
   }
   if (name !== undefined && name !== ch.name) {
-    ctx.db.run("UPDATE chat_channel SET name = ?, nameKey = ?, updatedAt = ? WHERE id = ?", name, nameKey(name), now, ch.id);
+    ctx.db.run(
+      "UPDATE chat_channel SET name = ?, nameKey = ?, updatedAt = ? WHERE id = ?",
+      name,
+      nameKey(name),
+      now,
+      ch.id,
+    );
     ctx.db.run("UPDATE chat_thread SET title = ?, updated_at = ? WHERE id = ?", name, now, ch.mainThread);
     fields.push("name");
   }
-  if (topic !== undefined && topic !== (ch.topic ?? "")) { ctx.db.run("UPDATE chat_channel SET topic = ?, updatedAt = ? WHERE id = ?", topic === "" ? null : topic, now, ch.id); fields.push("topic"); }
+  if (topic !== undefined && topic !== (ch.topic ?? "")) {
+    ctx.db.run(
+      "UPDATE chat_channel SET topic = ?, updatedAt = ? WHERE id = ?",
+      topic === "" ? null : topic,
+      now,
+      ch.id,
+    );
+    fields.push("topic");
+  }
   if (input.visibility !== undefined && input.visibility !== ch.visibility) {
     ctx.db.run("UPDATE chat_channel SET visibility = ?, updatedAt = ? WHERE id = ?", input.visibility, now, ch.id);
     fields.push("visibility");
@@ -194,28 +281,42 @@ export async function channelsUnarchive(ctx: ChatCtx, input: { channelId: string
   if (ch.archived) {
     // The name and the record may have been taken while it slept.
     const named = channelByName(ctx.db, ch.name);
-    if (named && named.id !== ch.id) raise(ctx, "validation.bad_input", "Another channel has this name now. Rename one of them first.", { name: ch.name });
+    if (named && named.id !== ch.id)
+      raise(ctx, "validation.bad_input", "Another channel has this name now. Rename one of them first.", {
+        name: ch.name,
+      });
     const rec = ch.recordId !== undefined ? channelOfRecord(ctx.db, ch.recordId) : null;
-    if (rec && rec.id !== ch.id) raise(ctx, "validation.bad_input", "That record has a channel again.", { recordId: ch.recordId });
+    if (rec && rec.id !== ch.id)
+      raise(ctx, "validation.bad_input", "That record has a channel again.", { recordId: ch.recordId });
     ctx.db.run("UPDATE chat_channel SET archived = 0, updatedAt = ? WHERE id = ?", ctx.now(), ch.id);
     ctx.emit("channel.unarchived", ch.id, { channelId: ch.id });
   }
   return refreshed(ctx, ch.id);
 }
 
-export async function channelsMembersAdd(ctx: ChatCtx, input: { channelId: string; personIds: string[]; level?: string; mentionedIn?: string }) {
+export async function channelsMembersAdd(
+  ctx: ChatCtx,
+  input: { channelId: string; personIds: string[]; level?: string; mentionedIn?: string },
+) {
   const ch = loadLive(ctx, input.channelId);
   // added from "Maya is not in this chat. Add" under a message in this channel (or a reply thread under it): the message must be here and mention each of them (review M2, M3)
   const mentioned = input.mentionedIn !== undefined ? messageBy(ctx.db, input.mentionedIn) : null;
   const where = mentioned ? threadBy(ctx.db, mentioned.thread) : null;
-  if (input.mentionedIn !== undefined && (!mentioned || !where || rootOf(ctx, where).id !== ch.mainThread)) raise(ctx, "validation.bad_input", "That message is not in this channel.", { mentionedIn: input.mentionedIn });
+  if (input.mentionedIn !== undefined && (!mentioned || !where || rootOf(ctx, where).id !== ch.mainThread))
+    raise(ctx, "validation.bad_input", "That message is not in this channel.", { mentionedIn: input.mentionedIn });
   const ids: string[] = [];
   for (const id of input.personIds) {
     if (!id.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.", { id });
     if (!ids.includes(id)) ids.push(id);
   }
   if (ids.length === 0) raise(ctx, "validation.bad_input", "Pick at least one person.");
-  if (mentioned) for (const id of ids) if (!mentions(ctx, mentioned.id, id)) raise(ctx, "validation.bad_input", "That message does not mention them.", { mentionedIn: input.mentionedIn, personId: id });
+  if (mentioned)
+    for (const id of ids)
+      if (!mentions(ctx, mentioned.id, id))
+        raise(ctx, "validation.bad_input", "That message does not mention them.", {
+          mentionedIn: input.mentionedIn,
+          personId: id,
+        });
   const by = askerOf(ctx);
   for (const personId of ids) {
     if (isMember(ctx.db, ch.mainThread, personId)) continue;
@@ -229,15 +330,27 @@ export async function channelsMembersAdd(ctx: ChatCtx, input: { channelId: strin
 
 export async function channelsMembersRemove(ctx: ChatCtx, input: { channelId: string; personId: string }) {
   const ch = loadForRemoval(ctx, input.channelId);
-  if (!input.personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.", { id: input.personId });
-  if (await leaveWithGrants(ctx, ch, input.personId)) ctx.emit("channel.member_removed", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId: input.personId, by: askerOf(ctx) });
+  if (!input.personId.startsWith("usr_"))
+    raise(ctx, "validation.bad_input", "That is not a person.", { id: input.personId });
+  if (await leaveWithGrants(ctx, ch, input.personId))
+    ctx.emit("channel.member_removed", ch.id, {
+      channelId: ch.id,
+      threadId: ch.mainThread,
+      personId: input.personId,
+      by: askerOf(ctx),
+    });
   return refreshed(ctx, ch.id);
 }
 
 export async function channelsAgentsAdd(ctx: ChatCtx, input: { channelId: string; agentId: string; mode?: Mode }) {
   const ch = loadLive(ctx, input.channelId);
-  if (!input.agentId.startsWith("agt_")) raise(ctx, "validation.bad_input", "That is not an agent.", { id: input.agentId });
-  if (agentsOf(ctx.db, ch.mainThread).length >= 20 && !agentsOf(ctx.db, ch.mainThread).some((a) => a.agentId === input.agentId)) raise(ctx, "validation.bad_input", "A channel can have at most 20 agents.");
+  if (!input.agentId.startsWith("agt_"))
+    raise(ctx, "validation.bad_input", "That is not an agent.", { id: input.agentId });
+  if (
+    agentsOf(ctx.db, ch.mainThread).length >= 20 &&
+    !agentsOf(ctx.db, ch.mainThread).some((a) => a.agentId === input.agentId)
+  )
+    raise(ctx, "validation.bad_input", "A channel can have at most 20 agents.");
   if (!agentsOf(ctx.db, ch.mainThread).some((a) => a.agentId === input.agentId)) {
     const mode: Mode = input.mode ?? "listen";
     const by = askerOf(ctx);
@@ -252,7 +365,13 @@ export async function channelsAgentsRemove(ctx: ChatCtx, input: { channelId: str
   const ch = loadForRemoval(ctx, input.channelId);
   // what the channel gave the agent (threads.outside_agent.add, tagged chat:<thread>) goes back first, as threads.remove_agent does: if that cannot be done the agent stays, so nothing is left behind
   await revokeGrants(ctx, ch.mainThread, input.agentId, grantsOf(ctx, ch.mainThread, input.agentId));
-  const changed = ctx.db.run("UPDATE chat_thread_agent SET deleted_at = ?, updated_at = ? WHERE thread = ? AND agentId = ? AND deleted_at IS NULL", ctx.now(), ctx.now(), ch.mainThread, input.agentId).changes;
+  const changed = ctx.db.run(
+    "UPDATE chat_thread_agent SET deleted_at = ?, updated_at = ? WHERE thread = ? AND agentId = ? AND deleted_at IS NULL",
+    ctx.now(),
+    ctx.now(),
+    ch.mainThread,
+    input.agentId,
+  ).changes;
   if (changed > 0) {
     ctx.emit("channel.agent_removed", ch.id, { channelId: ch.id, agentId: input.agentId });
     ctx.emit("agent.disengaged", ch.mainThread, { threadId: ch.mainThread, agentId: input.agentId, by: askerOf(ctx) });
@@ -260,13 +379,27 @@ export async function channelsAgentsRemove(ctx: ChatCtx, input: { channelId: str
   return refreshed(ctx, ch.id);
 }
 
-export async function channelsAgentWatchSet(ctx: ChatCtx, input: { channelId: string; agentId: string; watches: boolean }) {
+export async function channelsAgentWatchSet(
+  ctx: ChatCtx,
+  input: { channelId: string; agentId: string; watches: boolean },
+) {
   const ch = loadLive(ctx, input.channelId);
   const a = agentsOf(ctx.db, ch.mainThread).find((x) => x.agentId === input.agentId);
   if (!a) raise(ctx, "validation.not_found", "That agent is not in this channel.", { agentId: input.agentId });
   if ((a.watches === true) !== input.watches) {
-    ctx.db.run("UPDATE chat_thread_agent SET watches = ?, updated_at = ? WHERE thread = ? AND agentId = ? AND deleted_at IS NULL", input.watches ? 1 : 0, ctx.now(), ch.mainThread, input.agentId);
-    ctx.emit("channel.agent_watch_changed", ch.id, { channelId: ch.id, agentId: input.agentId, watches: input.watches, by: askerOf(ctx) });
+    ctx.db.run(
+      "UPDATE chat_thread_agent SET watches = ?, updated_at = ? WHERE thread = ? AND agentId = ? AND deleted_at IS NULL",
+      input.watches ? 1 : 0,
+      ctx.now(),
+      ch.mainThread,
+      input.agentId,
+    );
+    ctx.emit("channel.agent_watch_changed", ch.id, {
+      channelId: ch.id,
+      agentId: input.agentId,
+      watches: input.watches,
+      by: askerOf(ctx),
+    });
   }
   return refreshed(ctx, ch.id);
 }
@@ -274,9 +407,15 @@ export async function channelsAgentWatchSet(ctx: ChatCtx, input: { channelId: st
 // ---- the stream ----------------------------------------------------------------------------------------------------------------------------------
 
 function prefsOf(db: Db, channel: string, principal: string): StreamKind[] {
-  const r = (db.all("SELECT hide FROM chat_stream_pref WHERE channel = ? AND principal = ?", channel, principal) as Row[])[0];
+  const r = (
+    db.all("SELECT hide FROM chat_stream_pref WHERE channel = ? AND principal = ?", channel, principal) as Row[]
+  )[0];
   let list: unknown[] = [];
-  try { list = r ? (JSON.parse(String(r["hide"])) as unknown[]) : []; } catch { list = []; }
+  try {
+    list = r ? (JSON.parse(String(r["hide"])) as unknown[]) : [];
+  } catch {
+    list = [];
+  }
   return KINDS.filter((k) => list.includes(k));
 }
 
@@ -287,16 +426,31 @@ export async function channelsStreamPrefsGet(ctx: ChatCtx, input: { channelId: s
 
 export async function channelsStreamPrefsSet(ctx: ChatCtx, input: { channelId: string; hide: string[] }) {
   const ch = load(ctx, input.channelId);
-  for (const k of input.hide) if (!(KINDS as readonly string[]).includes(k)) raise(ctx, "validation.bad_input", "You can hide people, agents or runs.", { kind: k });
+  for (const k of input.hide)
+    if (!(KINDS as readonly string[]).includes(k))
+      raise(ctx, "validation.bad_input", "You can hide people, agents or runs.", { kind: k });
   const hide = KINDS.filter((k) => input.hide.includes(k));
-  ctx.db.run("INSERT OR REPLACE INTO chat_stream_pref (channel, principal, hide) VALUES (?, ?, ?)", ch.id, askerOf(ctx), JSON.stringify(hide));
+  ctx.db.run(
+    "INSERT OR REPLACE INTO chat_stream_pref (channel, principal, hide) VALUES (?, ?, ?)",
+    ch.id,
+    askerOf(ctx),
+    JSON.stringify(hide),
+  );
   return { hide };
 }
 
-interface Entry { at: number; run?: { runId: string; name?: string; durationMs?: number }; message?: { id: string; authorKind: "person" | "agent" | "actor" } }
-const authorKindOf = (id: string): "person" | "agent" | "actor" => (id.startsWith("agt_") ? "agent" : id.startsWith("act_") ? "actor" : "person");
+interface Entry {
+  at: number;
+  run?: { runId: string; name?: string; durationMs?: number };
+  message?: { id: string; authorKind: "person" | "agent" | "actor" };
+}
+const authorKindOf = (id: string): "person" | "agent" | "actor" =>
+  id.startsWith("agt_") ? "agent" : id.startsWith("act_") ? "actor" : "person";
 
-export async function channelsStream(ctx: ChatCtx, input: { channelId: string; before?: number; limit?: number; show?: string[]; expand?: string[] }) {
+export async function channelsStream(
+  ctx: ChatCtx,
+  input: { channelId: string; before?: number; limit?: number; show?: string[]; expand?: string[] },
+) {
   const ch = load(ctx, input.channelId);
   const main = threadBy(ctx.db, ch.mainThread);
   if (!main) raise(ctx, "validation.not_found", "That channel has no timeline.");
@@ -306,17 +460,38 @@ export async function channelsStream(ctx: ChatCtx, input: { channelId: string; b
   const limit = input.limit ?? 50;
 
   // A Run shows as one row of its own, so the system line chat.start wrote for it is left out.
-  const runs = (ctx.db.all("SELECT * FROM chat_thread WHERE parentThreadId = ? AND kind = 'run' AND deleted_at IS NULL ORDER BY createdAt, id LIMIT 1000", main.id) as Row[]).map(threadOf);
+  const runs = (
+    ctx.db.all(
+      "SELECT * FROM chat_thread WHERE parentThreadId = ? AND kind = 'run' AND deleted_at IS NULL ORDER BY createdAt, id LIMIT 1000",
+      main.id,
+    ) as Row[]
+  ).map(threadOf);
   const lines = new Set(runs.map((r) => r.parentMessageId));
   // the stream holds no message from before a newcomer's start
-  const msgs = (ctx.db.all("SELECT * FROM chat_message WHERE thread = ? AND createdAt >= ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT 1000", main.id, readFloor(ctx, main)) as Row[]).map(messageOf).reverse();
+  const msgs = (
+    ctx.db.all(
+      "SELECT * FROM chat_message WHERE thread = ? AND createdAt >= ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT 1000",
+      main.id,
+      readFloor(ctx, main),
+    ) as Row[]
+  )
+    .map(messageOf)
+    .reverse();
 
   let entries: Entry[] = [
-    ...msgs.filter((m) => !lines.has(m.id)).map((m): Entry => ({ at: m.createdAt, message: { id: m.id, authorKind: authorKindOf(m.author) } })),
-    ...runs.map((r): Entry => ({
-      at: r.createdAt,
-      run: { runId: r.scopeId ?? r.id, ...(r.title !== undefined ? { name: r.title } : {}), ...(r.closedAt !== undefined ? { durationMs: Math.max(0, r.closedAt - r.createdAt) } : {}) },
-    })),
+    ...msgs
+      .filter((m) => !lines.has(m.id))
+      .map((m): Entry => ({ at: m.createdAt, message: { id: m.id, authorKind: authorKindOf(m.author) } })),
+    ...runs.map(
+      (r): Entry => ({
+        at: r.createdAt,
+        run: {
+          runId: r.scopeId ?? r.id,
+          ...(r.title !== undefined ? { name: r.title } : {}),
+          ...(r.closedAt !== undefined ? { durationMs: Math.max(0, r.closedAt - r.createdAt) } : {}),
+        },
+      }),
+    ),
   ].sort((a, b) => a.at - b.at);
   entries = entries.filter((e) => {
     if (e.run) return !hidden.includes("runs");
@@ -333,18 +508,44 @@ export async function channelsStream(ctx: ChatCtx, input: { channelId: string; b
     if (!o) return;
     if (o.list.length === 1) {
       const r = o.list[0]!;
-      items.push({ kind: "run", at: o.at, runId: r.runId, ...(r.name !== undefined ? { name: r.name } : {}), ...(r.durationMs !== undefined ? { durationMs: r.durationMs } : {}) });
+      items.push({
+        kind: "run",
+        at: o.at,
+        runId: r.runId,
+        ...(r.name !== undefined ? { name: r.name } : {}),
+        ...(r.durationMs !== undefined ? { durationMs: r.durationMs } : {}),
+      });
     } else {
-      items.push({ kind: "run_group", at: o.at, count: o.list.length, groupKey: o.key, runIds: o.list.map((r) => r.runId), ...(o.list[0]!.name !== undefined ? { name: o.list[0]!.name } : {}) });
+      items.push({
+        kind: "run_group",
+        at: o.at,
+        count: o.list.length,
+        groupKey: o.key,
+        runIds: o.list.map((r) => r.runId),
+        ...(o.list[0]!.name !== undefined ? { name: o.list[0]!.name } : {}),
+      });
     }
     st.open = null;
   };
   for (const e of entries) {
-    if (e.message) { flush(); items.push({ kind: "message", at: e.at, messageId: e.message.id, authorKind: e.message.authorKind }); continue; }
+    if (e.message) {
+      flush();
+      items.push({ kind: "message", at: e.at, messageId: e.message.id, authorKind: e.message.authorKind });
+      continue;
+    }
     const run = e.run!;
     const key = run.name !== undefined ? `flow:${nameKey(run.name)}` : undefined;
-    if (key === undefined || expand.has(key)) { flush(); st.open = { key: key ?? run.runId, list: [run], at: e.at }; flush(); continue; }
-    if (st.open && st.open.key === key) { st.open.list.push(run); st.open.at = e.at; continue; }
+    if (key === undefined || expand.has(key)) {
+      flush();
+      st.open = { key: key ?? run.runId, list: [run], at: e.at };
+      flush();
+      continue;
+    }
+    if (st.open && st.open.key === key) {
+      st.open.list.push(run);
+      st.open.at = e.at;
+      continue;
+    }
     flush();
     st.open = { key, list: [run], at: e.at };
   }
@@ -352,7 +553,8 @@ export async function channelsStream(ctx: ChatCtx, input: { channelId: string; b
 
   const page = items.slice(Math.max(0, items.length - limit));
   return {
-    items: page, hasMore: items.length > page.length,
+    items: page,
+    hasMore: items.length > page.length,
     counts: { people: humans(ctx.db, main.id).length, agents: agentsOf(ctx.db, main.id).length, runs: runs.length },
     hidden,
   };

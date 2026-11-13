@@ -22,7 +22,8 @@ function sources(dir: string): string[] {
 
 const BARE = /(?:\bfrom\s+|\bimport\s*\(\s*|\brequire\s*\(\s*|^\s*import\s+)["']([^"']+)["']/gm;
 const builtins = new Set([...builtinModules, ...builtinModules.map((m) => `node:${m}`)]);
-const pkgName = (spec: string): string => (spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0] as string);
+const pkgName = (spec: string): string =>
+  spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : (spec.split("/")[0] as string);
 
 function bareImports(): Map<string, string> {
   const found = new Map<string, string>();
@@ -37,14 +38,21 @@ function bareImports(): Map<string, string> {
   return found;
 }
 
-interface Lock { packages: Record<string, { version?: string; license?: string; link?: boolean }> }
-const manifest = JSON.parse(readFileSync(path.join(mailDir, "package.json"), "utf8")) as { dependencies: Record<string, string> };
+interface Lock {
+  packages: Record<string, { version?: string; license?: string; link?: boolean }>;
+}
+const manifest = JSON.parse(readFileSync(path.join(mailDir, "package.json"), "utf8")) as {
+  dependencies: Record<string, string>;
+};
 const lock = JSON.parse(readFileSync(path.join(root, "package-lock.json"), "utf8")) as Lock;
 
 test("every bare import in modules/mail is declared in modules/mail/package.json", () => {
   const imports = bareImports();
-  for (const dep of ["imapflow", "mailparser"]) assert.ok(imports.has(dep), `the scan sees ${dep} (impl.ts imports it)`);
-  const missing = [...imports].filter(([name]) => manifest.dependencies[name] === undefined).map(([name, file]) => `${name} (${file})`);
+  for (const dep of ["imapflow", "mailparser"])
+    assert.ok(imports.has(dep), `the scan sees ${dep} (impl.ts imports it)`);
+  const missing = [...imports]
+    .filter(([name]) => manifest.dependencies[name] === undefined)
+    .map(([name, file]) => `${name} (${file})`);
   assert.deepEqual(missing, [], "imported but not declared");
 });
 
@@ -59,10 +67,18 @@ test("every declared dependency is pinned exactly and resolves from the lockfile
 });
 
 test("the four mail dependencies carry licenses the allowlist accepts", () => {
-  const allowed = JSON.parse(readFileSync(path.join(root, "scripts/allowlist.json"), "utf8")) as { deps: Array<{ name: string }> };
+  const allowed = JSON.parse(readFileSync(path.join(root, "scripts/allowlist.json"), "utf8")) as {
+    deps: Array<{ name: string }>;
+  };
   for (const name of Object.keys(manifest.dependencies)) {
-    assert.ok(allowed.deps.some((d) => d.name === name), `${name} has an allowlist entry`);
+    assert.ok(
+      allowed.deps.some((d) => d.name === name),
+      `${name} has an allowlist entry`,
+    );
     const license = lock.packages[`node_modules/${name}`]?.license;
-    assert.ok(license === undefined || /^(MIT|MIT-0|Apache-2\.0|BSD-[23]-Clause|ISC)$/.test(license), `${name} license ${String(license)} is permissive`);
+    assert.ok(
+      license === undefined || /^(MIT|MIT-0|Apache-2\.0|BSD-[23]-Clause|ISC)$/.test(license),
+      `${name} license ${String(license)} is permissive`,
+    );
   }
 });

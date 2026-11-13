@@ -5,7 +5,23 @@
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { forgetExpiredWorkspaces, onAgentGone, onAgentRestored, openTabForRun, stopRuns } from "./handlers/sessions.ts";
-import { bindWorkspaceStatus, bindHost, bindKit, bindMachineHost, bindMachinePlace, bindMachineValues, bindPlace, bindTeam, bindValues, bindWorkspaces, boundHost, redeemTicket, scopeOfId, scrubberFor, spellingsFor } from "./projections.ts";
+import {
+  bindWorkspaceStatus,
+  bindHost,
+  bindKit,
+  bindMachineHost,
+  bindMachinePlace,
+  bindMachineValues,
+  bindPlace,
+  bindTeam,
+  bindValues,
+  bindWorkspaces,
+  boundHost,
+  redeemTicket,
+  scopeOfId,
+  scrubberFor,
+  spellingsFor,
+} from "./projections.ts";
 import { unixSocketHttp } from "../../sandbox/src/docker.ts";
 import { buildWorkspaceManager, createWorkspaceTerminalHost } from "./workspace.ts";
 import type { WorkspaceManager, WorkspaceOptions, WorkspaceTerminalHost } from "./workspace.ts";
@@ -20,8 +36,14 @@ import type { RoomFinding } from "./netroom.ts";
  * folder.moved names the parents as fromParentId and toParentId).
  */
 export function filesChangeOf(p: Record<string, unknown>): { folderIds: string[]; fileId?: string; by?: string } {
-  const folderIds = ["folderId", "fromFolderId", "toFolderId", "parentId", "fromParentId", "toParentId"].map((k) => p[k]).filter((v): v is string => typeof v === "string");
-  return { folderIds: [...new Set(folderIds)], ...(typeof p["fileId"] === "string" ? { fileId: p["fileId"] } : {}), ...(typeof p["by"] === "string" ? { by: p["by"] } : {}) };
+  const folderIds = ["folderId", "fromFolderId", "toFolderId", "parentId", "fromParentId", "toParentId"]
+    .map((k) => p[k])
+    .filter((v): v is string => typeof v === "string");
+  return {
+    folderIds: [...new Set(folderIds)],
+    ...(typeof p["fileId"] === "string" ? { fileId: p["fileId"] } : {}),
+    ...(typeof p["by"] === "string" ? { by: p["by"] } : {}),
+  };
 }
 
 import { STOPPED_LINE } from "./stop-line.ts";
@@ -36,7 +58,11 @@ export { mayEnterWorkspace } from "./handlers/sessions.ts";
 
 // ---- tmux ---------------------------------------------------------------------------------------------------------------------------------------------------
 
-export interface ExecResult { code: number; stdout: string; stderr: string }
+export interface ExecResult {
+  code: number;
+  stdout: string;
+  stderr: string;
+}
 /** Run `argv` (argv[0] is "tmux") on the machine the session lives on, without a shell. `stdin`: what the program reads on its standard input (the values of a command, for `tmux load-buffer -`). */
 export type Exec = (argv: readonly string[], o?: { stdin?: string }) => Promise<ExecResult>;
 
@@ -70,7 +96,11 @@ export interface TmuxOptions {
  * of its limit at a time, so between two reads it may have dropped some whole number of tenths; the last finished lines seen (the anchor) say which number it was: the one that puts them back where
  * they were. With no anchor to go by (a full-screen program redrew everything) the fewest drops that explain the history size are taken, which can only show a line twice, never skip one.
  */
-interface Marks { h: number; dropped: number; anchor?: { at: number; lines: string[] } }
+interface Marks {
+  h: number;
+  dropped: number;
+  anchor?: { at: number; lines: string[] };
+}
 const POS = "#{history_size} #{cursor_y} #{history_limit}";
 
 const SHELLS: ReadonlySet<string> = new Set(["bash", "zsh", "sh", "dash", "fish", "ksh", "ash", "tmux"]);
@@ -80,10 +110,13 @@ export const HISTORY_ENV: readonly string[] = ["-e", "HISTCONTROL=ignorespace"];
 /** The name every values buffer starts with (a random 32 hex characters follow). */
 export const ENV_BUFFER = "vyre-env-";
 /** What a command answers when its tab was busy with something else for all of its time: what runs there, and the two ways on. */
-export const busyLine = (what: string): string => `That tab is still running something${what !== "" ? ` (${what})` : ""}, so this command was not typed into it. Run it in another tab (name a session), or interrupt what runs there first.`;
-const BUSY = "This tab is still running something, so no Vault value is handed to it. Wait for it to finish, or run the command in another tab.";
+export const busyLine = (what: string): string =>
+  `That tab is still running something${what !== "" ? ` (${what})` : ""}, so this command was not typed into it. Run it in another tab (name a session), or interrupt what runs there first.`;
+const BUSY =
+  "This tab is still running something, so no Vault value is handed to it. Wait for it to finish, or run the command in another tab.";
 const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-const rnd = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
+const rnd = (n: number): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 
 /**
  * An argument tmux takes as it is. tmux reads an argument that ends in ";" as the end of a command and drops that character (or, after a backslash, the backslash): a lone ";" key, or a chunk of typing
@@ -98,12 +131,14 @@ export const shQuote = (v: string): string => `'${v.replace(/'/g, `'\\''`)}'`;
 export function decodeControlOutput(data: string): string {
   const bytes: number[] = [];
   const enc = new TextEncoder();
-  const chars = Array.from(data);   // by code point, so a character outside the basic plane is encoded whole
+  const chars = Array.from(data); // by code point, so a character outside the basic plane is encoded whole
   for (let i = 0; i < chars.length; i++) {
     const c = chars[i] as string;
     const oct = chars.slice(i + 1, i + 4).join("");
-    if (c === "\\" && /^[0-7]{3}$/.test(oct)) { bytes.push(parseInt(oct, 8)); i += 3; }
-    else bytes.push(...enc.encode(c));
+    if (c === "\\" && /^[0-7]{3}$/.test(oct)) {
+      bytes.push(parseInt(oct, 8));
+      i += 3;
+    } else bytes.push(...enc.encode(c));
   }
   return new TextDecoder().decode(new Uint8Array(bytes));
 }
@@ -121,7 +156,14 @@ export function frameOf(line: string): string | null {
  * told is a no. (Lane f-term calls this before every run.)
  */
 export async function shellAtPrompt(exec: Exec, target: string): Promise<boolean> {
-  const r = await exec(["tmux", "display-message", "-p", "-t", target, "#{pane_pid} #{pane_dead} #{pane_in_mode} #{cursor_y} #{pane_current_command}"]).catch(() => null);
+  const r = await exec([
+    "tmux",
+    "display-message",
+    "-p",
+    "-t",
+    target,
+    "#{pane_pid} #{pane_dead} #{pane_in_mode} #{cursor_y} #{pane_current_command}",
+  ]).catch(() => null);
   if (!r || r.code !== 0) return false;
   const [pid, dead, mode, cursor, cmd] = r.stdout.trim().split(/\s+/);
   if (pid === undefined || !/^\d+$/.test(pid) || dead === "1" || mode === "1") return false;
@@ -159,10 +201,22 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
   const tidy = (text: string): string => text.replace(/\s+$/u, "");
   /** A session's shell keeps no line that starts with a space in its history (agent commands are typed that way). A tmux older than 3.0 has no -e: the session opens without it. */
   async function newSession(session: string, cols: number, rows: number, cwd: string | undefined): Promise<void> {
-    const rest = ["-d", "-s", session, "-x", String(cols), "-y", String(rows), ...(cwd === undefined ? [] : ["-c", cwd])];
+    const rest = [
+      "-d",
+      "-s",
+      session,
+      "-x",
+      String(cols),
+      "-y",
+      String(rows),
+      ...(cwd === undefined ? [] : ["-c", cwd]),
+    ];
     const r = await o.exec(["tmux", "new-session", ...HISTORY_ENV, ...rest]);
     if (r.code === 0) return;
-    if (/unknown option|invalid option|usage:/i.test(r.stderr)) { await tmux(["new-session", ...rest]); return; }
+    if (/unknown option|invalid option|usage:/i.test(r.stderr)) {
+      await tmux(["new-session", ...rest]);
+      return;
+    }
     throw new Error(`tmux new-session failed: ${r.stderr.trim().slice(0, 200)}`);
   }
   async function capture(session: string, lines: number): Promise<string> {
@@ -183,15 +237,36 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
   }
   /** The last `back` lines of history and the whole screen, with the position, in one tmux call (output between two calls would shift one against the other). */
   async function grab(run: Exec, session: string, back: number): Promise<{ parts: string[]; p: Pos; shown: number }> {
-    const r = await run(["tmux", "capture-pane", "-p", "-t", session, "-S", `-${back}`, ";", "display-message", "-p", "-t", session, POS]);
+    const r = await run([
+      "tmux",
+      "capture-pane",
+      "-p",
+      "-t",
+      session,
+      "-S",
+      `-${back}`,
+      ";",
+      "display-message",
+      "-p",
+      "-t",
+      session,
+      POS,
+    ]);
     if (r.code !== 0) throw new Error(`tmux capture-pane failed: ${r.stderr.trim().slice(0, 200)}`);
-    const parts = r.stdout.replace(/\n$/, "").split("\n").map((l) => l.replace(/\s+$/u, ""));
+    const parts = r.stdout
+      .replace(/\n$/, "")
+      .split("\n")
+      .map((l) => l.replace(/\s+$/u, ""));
     const p = posOf(parts.pop() ?? "");
     if (!p) throw new Error("tmux did not say where the screen is");
     return { parts, p, shown: Math.min(back, p.h) };
   }
   /** The session's lines from `since` (counted from its first line, or the cursor's line when not given) through the cursor's line, and the cursor's line. Moves the session's marks on. */
-  async function locate(run: Exec, session: string, since: number | undefined): Promise<{ lines: string[]; cursor: number }> {
+  async function locate(
+    run: Exec,
+    session: string,
+    since: number | undefined,
+  ): Promise<{ lines: string[]; cursor: number }> {
     const mk = marks.get(session);
     const pre = await position(run, session);
     const kmin = (h: number, ny: number): number => (mk ? Math.max(0, Math.ceil((mk.h - h) / ny)) : 0);
@@ -218,7 +293,13 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     const from = since === undefined ? cursor : Math.max(first, Math.min(since, cursor));
     const lines = g.parts.slice(from - first, cursor - first + 1);
     const anchorFrom = Math.max(first, cursor - 3);
-    marks.set(session, { h: g.p.h, dropped, ...(cursor > anchorFrom ? { anchor: { at: anchorFrom, lines: g.parts.slice(anchorFrom - first, cursor - first) } } : {}) });
+    marks.set(session, {
+      h: g.p.h,
+      dropped,
+      ...(cursor > anchorFrom
+        ? { anchor: { at: anchorFrom, lines: g.parts.slice(anchorFrom - first, cursor - first) } }
+        : {}),
+    });
     return { lines, cursor };
   }
   /**
@@ -243,7 +324,9 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
   async function sweepBuffers(): Promise<void> {
     const l = await o.exec(["tmux", "list-buffers", "-F", "#{buffer_name}"]).catch(() => null);
     if (!l || l.code !== 0) return;
-    for (const name of l.stdout.split("\n").map((x) => x.trim())) if (name.startsWith(own) && !mine.has(name)) await o.exec(["tmux", "delete-buffer", "-b", name]).catch(() => undefined);
+    for (const name of l.stdout.split("\n").map((x) => x.trim()))
+      if (name.startsWith(own) && !mine.has(name))
+        await o.exec(["tmux", "delete-buffer", "-b", name]).catch(() => undefined);
   }
 
   /** Type one line, press Enter and read the screen until the end marker shows: the output between the markers and the exit code. */
@@ -258,15 +341,37 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
    */
   async function stopIn(session: string): Promise<void> {
     await tmux(["send-keys", "-t", session, "C-c"]).catch(() => undefined);
-    const back = async (ms: number): Promise<boolean> => { const t1 = now(); while (now() - t1 < ms) { if (await shellAtPrompt(o.exec, session).catch(() => false)) return true; await sleep(Math.max(pollMs, 100)); } return false; };
+    const back = async (ms: number): Promise<boolean> => {
+      const t1 = now();
+      while (now() - t1 < ms) {
+        if (await shellAtPrompt(o.exec, session).catch(() => false)) return true;
+        await sleep(Math.max(pollMs, 100));
+      }
+      return false;
+    };
     if (await back(3000)) return;
     await tmux(["send-keys", "-t", session, "C-c"]).catch(() => undefined);
     const pid = tidy(await tmux(["display-message", "-p", "-t", session, "#{pane_pid}"]).catch(() => ""));
-    if (/^\d+$/.test(pid)) await o.exec(["sh", "-c", `g=$(ps -o tpgid= -p ${pid} | tr -d ' '); [ -n "$g" ] && [ "$g" != "${pid}" ] && [ "$g" -gt 1 ] && kill -KILL -"$g"`]).catch(() => undefined);
+    if (/^\d+$/.test(pid))
+      await o
+        .exec([
+          "sh",
+          "-c",
+          `g=$(ps -o tpgid= -p ${pid} | tr -d ' '); [ -n "$g" ] && [ "$g" != "${pid}" ] && [ "$g" -gt 1 ] && kill -KILL -"$g"`,
+        ])
+        .catch(() => undefined);
     await back(2000);
   }
 
-  async function runLine(session: string, line: string, beg: string, end: string, timeoutMs: number, rcOption: string, signal?: AbortSignal): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }> {
+  async function runLine(
+    session: string,
+    line: string,
+    beg: string,
+    end: string,
+    timeoutMs: number,
+    rcOption: string,
+    signal?: AbortSignal,
+  ): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }> {
     const t0 = now();
     await tmux(["send-keys", "-t", session, "-l", "--", line]);
     await tmux(["send-keys", "-t", session, "Enter"]);
@@ -274,22 +379,57 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     const RC = "__VYRE_RC__:";
     const cut = (lines: string[], code: number) => {
       let from = -1;
-      for (let i = lines.length - 1; i >= 0; i--) if (lines[i] === beg) { from = i; break; }
-      let output = tidy(lines.slice(from + 1).filter((l) => !l.includes(end)).join("\n"));
+      for (let i = lines.length - 1; i >= 0; i--)
+        if (lines[i] === beg) {
+          from = i;
+          break;
+        }
+      let output = tidy(
+        lines
+          .slice(from + 1)
+          .filter((l) => !l.includes(end))
+          .join("\n"),
+      );
       let truncated = from < 0;
-      if (output.length > maxOutput) { output = output.slice(output.length - maxOutput); truncated = true; }
+      if (output.length > maxOutput) {
+        output = output.slice(output.length - maxOutput);
+        truncated = true;
+      }
       return { exitCode: code, output, truncated, durationMs: now() - t0 };
     };
-    const forget = (): Promise<unknown> => o.exec(["tmux", "set-option", "-u", "-q", "-t", session, rcOption]).catch(() => undefined);
+    const forget = (): Promise<unknown> =>
+      o.exec(["tmux", "set-option", "-u", "-q", "-t", session, rcOption]).catch(() => undefined);
     for (;;) {
       // the screen and the stored exit code in one tmux call
-      const both = tidy(await tmux(["capture-pane", "-p", "-J", "-t", session, "-S", `-${Math.max(1, scrollback)}`, ";", "display-message", "-p", "-t", session, `${RC}#{${rcOption}}`]));
+      const both = tidy(
+        await tmux([
+          "capture-pane",
+          "-p",
+          "-J",
+          "-t",
+          session,
+          "-S",
+          `-${Math.max(1, scrollback)}`,
+          ";",
+          "display-message",
+          "-p",
+          "-t",
+          session,
+          `${RC}#{${rcOption}}`,
+        ]),
+      );
       const at = both.lastIndexOf(RC);
       const rc = at >= 0 ? both.slice(at + RC.length).trim() : "";
       const screen = tidy(at >= 0 ? both.slice(0, at) : both);
       const m = endRe.exec(screen);
-      if (m && m.index !== undefined) { await forget(); return cut(screen.slice(0, m.index).split("\n"), Number(m[1])); }
-      if (/^\d+$/.test(rc)) { await forget(); return cut(screen.split("\n"), Number(rc)); }
+      if (m && m.index !== undefined) {
+        await forget();
+        return cut(screen.slice(0, m.index).split("\n"), Number(m[1]));
+      }
+      if (/^\d+$/.test(rc)) {
+        await forget();
+        return cut(screen.split("\n"), Number(rc));
+      }
       if (signal?.aborted) {
         await stopIn(session);
         await forget();
@@ -315,10 +455,15 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     },
     async input(terminalId, data) {
       const session = nameOf(terminalId);
-      for (let i = 0; i < data.length; i += 1000) await tmux(["send-keys", "-t", session, "-l", "--", tmuxLiteral(data.slice(i, i + 1000))]);
+      for (let i = 0; i < data.length; i += 1000)
+        await tmux(["send-keys", "-t", session, "-l", "--", tmuxLiteral(data.slice(i, i + 1000))]);
     },
-    async interrupt(terminalId) { await tmux(["send-keys", "-t", nameOf(terminalId), "C-c"]); },
-    async resize(terminalId, cols, rows) { await tmux(["resize-window", "-t", nameOf(terminalId), "-x", String(cols), "-y", String(rows)]); },
+    async interrupt(terminalId) {
+      await tmux(["send-keys", "-t", nameOf(terminalId), "C-c"]);
+    },
+    async resize(terminalId, cols, rows) {
+      await tmux(["resize-window", "-t", nameOf(terminalId), "-x", String(cols), "-y", String(rows)]);
+    },
     async read(terminalId, r) {
       const session = nameOf(terminalId);
       if (r.since !== undefined) return readSince(o.quietExec ?? o.exec, session, r.since);
@@ -331,7 +476,8 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
       const nonce = rnd(6);
       const beg = `__VYRE_BEG_${nonce}__`;
       const end = `__VYRE_END_${nonce}__`;
-      for (const k of Object.keys(r.env)) if (!ENV_NAME.test(k)) throw new Error(`${k} is not a name an environment variable can have`);
+      for (const k of Object.keys(r.env))
+        if (!ENV_NAME.test(k)) throw new Error(`${k} is not a name an environment variable can have`);
       // Values are never typed (W6): they go into a tmux buffer through the standard input of `tmux load-buffer`, in the tmux server's memory only, never on disk and never in a program's arguments.
       // The typed line reads the buffer inside a subshell, deletes it before the command starts and exports the values there, so they are the environment of this one command and gone after it.
       // Without variables the command runs in braces so `cd` and exports persist like typing it.
@@ -343,7 +489,12 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
         // stopped before it was typed: nothing is typed
         if (r.signal?.aborted) throw Object.assign(new Error(STOPPED_LINE), { code: "stopped" });
         if (now() - t0 >= r.timeoutMs) {
-          const what = (await o.exec(["tmux", "display-message", "-p", "-t", session, "#{pane_current_command}"]).catch(() => null))?.stdout.trim() ?? "";
+          const what =
+            (
+              await o
+                .exec(["tmux", "display-message", "-p", "-t", session, "#{pane_current_command}"])
+                .catch(() => null)
+            )?.stdout.trim() ?? "";
           throw Object.assign(new Error(busyLine(what)), { code: "busy" });
         }
         await sleep(Math.max(pollMs, 250));
@@ -361,16 +512,19 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
       const buffer = withValues ? `${own}${rnd(16)}` : null;
       try {
         if (buffer !== null) {
-          const script = Object.entries(r.env).map(([k, v]) => `export ${k}=${shQuote(v)}\n`).join("");
+          const script = Object.entries(r.env)
+            .map(([k, v]) => `export ${k}=${shQuote(v)}\n`)
+            .join("");
           mine.add(buffer);
           const loaded = await o.exec(["tmux", "load-buffer", "-b", buffer, "-"], { stdin: script });
           if (loaded.code !== 0) throw new Error(`tmux load-buffer failed: ${loaded.stderr.trim().slice(0, 200)}`);
         }
         const tm = shQuote(o.tmuxPath ?? "tmux");
         // a tab may have xtrace or verbose on (set -x, set -v): the subshell turns both off before it touches a value, or the shell would print the values, re-quoted, past the scrubber
-        const body = buffer !== null
-          ? `( { set +xv; } 2>/dev/null; __vyre_env="$(${tm} save-buffer -b ${shQuote(buffer)} - 2>/dev/null)"; ${tm} delete-buffer -b ${shQuote(buffer)} 2>/dev/null; [ -n "$__vyre_env" ] || { echo 'Vyre could not hand this command its values.' >&2; exit 125; }; eval "$__vyre_env"; unset __vyre_env; ${r.command}\n)`
-          : `{ ${r.command}\n}`;
+        const body =
+          buffer !== null
+            ? `( { set +xv; } 2>/dev/null; __vyre_env="$(${tm} save-buffer -b ${shQuote(buffer)} - 2>/dev/null)"; ${tm} delete-buffer -b ${shQuote(buffer)} 2>/dev/null; [ -n "$__vyre_env" ] || { echo 'Vyre could not hand this command its values.' >&2; exit 125; }; eval "$__vyre_env"; unset __vyre_env; ${r.command}\n)`
+            : `{ ${r.command}\n}`;
         const cd = r.cwd === undefined ? "" : `cd ${shQuote(r.cwd)} && `;
         // Begin and end markers are printed by the shell, so the typed line (which holds them only inside quotes) never matches a marker line. The leading space keeps the line out of the shell's history.
         // the exit code also goes into a tmux option of the session, which nothing on the screen can overwrite (runLine)
@@ -379,7 +533,10 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
         return await runLine(session, line, beg, end, leftMs, rcOption, r.signal);
       } finally {
         running.delete(session);
-        if (buffer !== null) { await o.exec(["tmux", "delete-buffer", "-b", buffer]).catch(() => undefined); mine.delete(buffer); }
+        if (buffer !== null) {
+          await o.exec(["tmux", "delete-buffer", "-b", buffer]).catch(() => undefined);
+          mine.delete(buffer);
+        }
       }
     },
     async status(ids) {
@@ -387,10 +544,21 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
       for (const terminalId of ids) {
         const session = nameOf(terminalId);
         const has = await o.exec(["tmux", "has-session", "-t", session]);
-        if (has.code !== 0) { out.push({ terminalId, state: "exited", exitCode: null }); continue; }
+        if (has.code !== 0) {
+          out.push({ terminalId, state: "exited", exitCode: null });
+          continue;
+        }
         const cmd = tidy(await tmux(["display-message", "-p", "-t", session, "#{pane_current_command}"]));
-        const last = (await capture(session, 5)).split("\n").filter((l) => l.trim() !== "").pop();
-        out.push({ terminalId, state: SHELLS.has(cmd) ? "idle" : "running", ...(last === undefined ? {} : { lastLine: last.slice(0, 300) }), exitCode: null });
+        const last = (await capture(session, 5))
+          .split("\n")
+          .filter((l) => l.trim() !== "")
+          .pop();
+        out.push({
+          terminalId,
+          state: SHELLS.has(cmd) ? "idle" : "running",
+          ...(last === undefined ? {} : { lastLine: last.slice(0, 300) }),
+          exitCode: null,
+        });
       }
       return out;
     },
@@ -398,7 +566,8 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
       marks.delete(nameOf(terminalId));
       const r = await o.exec(["tmux", "kill-session", "-t", nameOf(terminalId)]);
       // A session that is already gone is closed.
-      if (r.code !== 0 && !/can't find session|no server running|no such session/i.test(r.stderr)) throw new Error(`tmux kill-session failed: ${r.stderr.trim().slice(0, 200)}`);
+      if (r.code !== 0 && !/can't find session|no server running|no such session/i.test(r.stderr))
+        throw new Error(`tmux kill-session failed: ${r.stderr.trim().slice(0, 200)}`);
     },
     async health() {
       const v = await o.exec(["tmux", "-V"]);
@@ -413,8 +582,15 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     host.stream = (terminalId, onFrame) => {
       // Stopping a viewer ends its tmux client, which takes a moment: lines it had already written still arrive. Once stop() has been called nothing more may reach the viewer.
       let live = true;
-      const stop = control(nameOf(terminalId), (line) => { if (!live) return; const f = frameOf(line); if (f !== null) onFrame(f); });
-      return () => { live = false; stop(); };
+      const stop = control(nameOf(terminalId), (line) => {
+        if (!live) return;
+        const f = frameOf(line);
+        if (f !== null) onFrame(f);
+      });
+      return () => {
+        live = false;
+        stop();
+      };
     };
   }
   return host;
@@ -427,7 +603,12 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
  * Output goes out as it arrives; only a tail that is the start of a secret's spelling is held back until the next frame shows whether it was one (and dropped if the tab closes first).
  * Null when the ticket is unknown, spent or expired, or this host runs no terminals.
  */
-export async function openFrames(db: Db, ticket: string, now: number, send: (text: string) => void): Promise<{ terminalId: string; personId: string; close(): void } | null> {
+export async function openFrames(
+  db: Db,
+  ticket: string,
+  now: number,
+  send: (text: string) => void,
+): Promise<{ terminalId: string; personId: string; close(): void } | null> {
   const host = boundHost();
   if (!host?.stream) return null;
   const who = await redeemTicket(db, ticket, now);
@@ -439,7 +620,11 @@ export async function openFrames(db: Db, ticket: string, now: number, send: (tex
   const stop = host.stream(who.terminalId, (frame) => {
     if (closed) return;
     const sc = scrubberFor(scope);
-    if (!sc) { send(carry + frame); carry = ""; return; }
+    if (!sc) {
+      send(carry + frame);
+      carry = "";
+      return;
+    }
     // Scrub first, hold back after: a value that is whole in what has arrived is removed whole. Holding the tail before scrubbing cut the value's last character off whenever it could itself start another
     // spelling of the value (an s, a 7 for the hex form, a c for the base64 form) and the frame ended exactly on the value, which left the rest of the value in the stream.
     const text = sc.scrub(carry + frame);
@@ -448,7 +633,14 @@ export async function openFrames(db: Db, ticket: string, now: number, send: (tex
     carry = text.slice(text.length - hold);
     if (out !== "") send(out);
   });
-  return { ...who, close() { closed = true; carry = ""; stop(); } };
+  return {
+    ...who,
+    close() {
+      closed = true;
+      carry = "";
+      stop();
+    },
+  };
 }
 
 /** Length of the longest tail of `text` that is a proper prefix of one of the spellings. */
@@ -464,7 +656,13 @@ export function partialSpellingAt(text: string, spellings: readonly string[]): n
 // ---- a computer without tmux -------------------------------------------------------------------------------------------------------------------------------
 
 /** Run one command line in a shell on this machine. `onData` gets what it prints (both streams) as it prints it; aborting `signal` stops it (Ctrl-C). */
-export type ShellRun = (a: { command: string; cwd: string; env: Readonly<Record<string, string>>; onData(text: string): void; signal: AbortSignal }) => Promise<{ exitCode: number | null }>;
+export type ShellRun = (a: {
+  command: string;
+  cwd: string;
+  env: Readonly<Record<string, string>>;
+  onData(text: string): void;
+  signal: AbortSignal;
+}) => Promise<{ exitCode: number | null }>;
 
 export interface ShellOptions {
   run: ShellRun;
@@ -477,7 +675,16 @@ export interface ShellOptions {
   scrollback?: number;
 }
 
-interface ShellSession { cwd: string; lines: string[]; partial: string; typed: string; running: AbortController | null; exitCode: number | null; listeners: Set<(text: string) => void>; dropped: number }
+interface ShellSession {
+  cwd: string;
+  lines: string[];
+  partial: string;
+  typed: string;
+  running: AbortController | null;
+  exitCode: number | null;
+  listeners: Set<(text: string) => void>;
+  dropped: number;
+}
 
 /**
  * A session on a computer that has no tmux (a Mac does not ship it): each command runs in its own shell in the session's folder, and the session keeps a screen of what ran and what it printed, so
@@ -500,16 +707,24 @@ export function createShellHost(o: ShellOptions): TerminalHost {
     const parts = (s.partial + text.replace(/\r\n/g, "\n")).split("\n");
     s.partial = parts.pop() ?? "";
     s.lines.push(...parts);
-    if (s.lines.length > scrollback) { s.dropped += s.lines.length - scrollback; s.lines.splice(0, s.lines.length - scrollback); }
+    if (s.lines.length > scrollback) {
+      s.dropped += s.lines.length - scrollback;
+      s.lines.splice(0, s.lines.length - scrollback);
+    }
     const frame = text.replace(/\r?\n/g, "\r\n");
     for (const f of s.listeners) f(frame);
   };
   const tidy = (text: string): string => text.replace(/\s+$/u, "");
 
   /** `typed`: the person typed the line, so it is on the screen already. */
-  async function exec(s: ShellSession, r: { command: string; cwd?: string; env: Readonly<Record<string, string>>; timeoutMs: number }, typed = false): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }> {
+  async function exec(
+    s: ShellSession,
+    r: { command: string; cwd?: string; env: Readonly<Record<string, string>>; timeoutMs: number },
+    typed = false,
+  ): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }> {
     if (s.running) throw new Error("a command is still running in this session");
-    for (const k of Object.keys(r.env)) if (!ENV_NAME.test(k)) throw new Error(`${k} is not a name an environment variable can have`);
+    for (const k of Object.keys(r.env))
+      if (!ENV_NAME.test(k)) throw new Error(`${k} is not a name an environment variable can have`);
     if (!typed) {
       if (s.partial !== "") show(s, "\n");
       show(s, `$ ${r.command}\n`);
@@ -519,50 +734,113 @@ export function createShellHost(o: ShellOptions): TerminalHost {
     let out = "";
     let timedOut = false;
     const t0 = now();
-    const timer = setTimeout(() => { timedOut = true; ac.abort(); }, r.timeoutMs);
+    const timer = setTimeout(() => {
+      timedOut = true;
+      ac.abort();
+    }, r.timeoutMs);
     // the turn that started it was stopped: the command stops as a Ctrl-C would stop it
     let stopped = false;
-    const onStop = (): void => { stopped = true; ac.abort(); };
-    if (r.signal?.aborted) onStop(); else r.signal?.addEventListener("abort", onStop, { once: true });
+    const onStop = (): void => {
+      stopped = true;
+      ac.abort();
+    };
+    if (r.signal?.aborted) onStop();
+    else r.signal?.addEventListener("abort", onStop, { once: true });
     let res: { exitCode: number | null };
-    try { res = await o.run({ command: r.command, cwd: r.cwd ?? s.cwd, env: r.env, signal: ac.signal, onData: (t) => { out += t; if (out.length > maxOutput * 2) out = out.slice(out.length - maxOutput); show(s, t); } }); }
-    finally { clearTimeout(timer); s.running = null; r.signal?.removeEventListener("abort", onStop); }
+    try {
+      res = await o.run({
+        command: r.command,
+        cwd: r.cwd ?? s.cwd,
+        env: r.env,
+        signal: ac.signal,
+        onData: (t) => {
+          out += t;
+          if (out.length > maxOutput * 2) out = out.slice(out.length - maxOutput);
+          show(s, t);
+        },
+      });
+    } finally {
+      clearTimeout(timer);
+      s.running = null;
+      r.signal?.removeEventListener("abort", onStop);
+    }
     if (s.partial !== "") show(s, "\n");
-    if (stopped && !timedOut) { show(s, `${STOPPED_LINE}\n`); return { exitCode: 130, output: `${tidy(out)}\n${STOPPED_LINE}`.trim(), truncated: false, durationMs: now() - t0 }; }
+    if (stopped && !timedOut) {
+      show(s, `${STOPPED_LINE}\n`);
+      return {
+        exitCode: 130,
+        output: `${tidy(out)}\n${STOPPED_LINE}`.trim(),
+        truncated: false,
+        durationMs: now() - t0,
+      };
+    }
     s.exitCode = res.exitCode;
     if (timedOut) throw Object.assign(new Error("the command did not finish in time"), { code: "timeout" });
     let output = tidy(out);
     let truncated = false;
-    if (output.length > maxOutput) { output = output.slice(output.length - maxOutput); truncated = true; }
+    if (output.length > maxOutput) {
+      output = output.slice(output.length - maxOutput);
+      truncated = true;
+    }
     return { exitCode: res.exitCode, output, truncated, durationMs: now() - t0 };
   }
 
   return {
     async open(a) {
       const cwd = a.cwd ?? o.home;
-      sessions.set(a.terminalId, { cwd, lines: [], partial: "", typed: "", running: null, exitCode: null, listeners: new Set(), dropped: 0 });
+      sessions.set(a.terminalId, {
+        cwd,
+        lines: [],
+        partial: "",
+        typed: "",
+        running: null,
+        exitCode: null,
+        listeners: new Set(),
+        dropped: 0,
+      });
       return { cwd };
     },
     // A person typing: the line is kept until Enter, then run like a command of their own. Backspace takes back a character; Ctrl-C stops what runs.
     async input(terminalId, data) {
       const s = must(terminalId);
       for (const ch of data) {
-        if (ch === "\x03") { s.running?.abort(); s.typed = ""; show(s, "^C\n"); continue; }
+        if (ch === "\x03") {
+          s.running?.abort();
+          s.typed = "";
+          show(s, "^C\n");
+          continue;
+        }
         if (ch === "\r" || ch === "\n") {
           const line = s.typed;
           s.typed = "";
           show(s, "\n");
-          if (line.trim() !== "" && !s.running) void exec(s, { command: line, env: {}, timeoutMs: 3_600_000 }, true).catch((e: unknown) => show(s, `${e instanceof Error ? e.message : "the command failed"}\n`));
+          if (line.trim() !== "" && !s.running)
+            void exec(s, { command: line, env: {}, timeoutMs: 3_600_000 }, true).catch((e: unknown) =>
+              show(s, `${e instanceof Error ? e.message : "the command failed"}\n`),
+            );
           continue;
         }
-        if (ch === "\x7f" || ch === "\b") { if (s.typed !== "") { s.typed = s.typed.slice(0, -1); s.partial = s.partial.slice(0, -1); for (const f of s.listeners) f("\b \b"); } continue; }
+        if (ch === "\x7f" || ch === "\b") {
+          if (s.typed !== "") {
+            s.typed = s.typed.slice(0, -1);
+            s.partial = s.partial.slice(0, -1);
+            for (const f of s.listeners) f("\b \b");
+          }
+          continue;
+        }
         if (s.typed === "" && s.partial === "") show(s, "$ ");
         s.typed += ch;
         show(s, ch);
       }
     },
-    async interrupt(terminalId) { const s = must(terminalId); s.running?.abort(); show(s, "^C\n"); },
-    async resize(terminalId) { must(terminalId); },
+    async interrupt(terminalId) {
+      const s = must(terminalId);
+      s.running?.abort();
+      show(s, "^C\n");
+    },
+    async resize(terminalId) {
+      must(terminalId);
+    },
     async read(terminalId, r) {
       // lines are counted from the session's first one, and the line being written on (the partial one) is `next`, sent again until it ends: the same reading as a tmux session's
       const s = must(terminalId);
@@ -575,15 +853,24 @@ export function createShellHost(o: ShellOptions): TerminalHost {
       return ids.map((terminalId) => {
         const s = sessions.get(terminalId);
         if (!s) return { terminalId, state: "exited" as const, exitCode: null };
-        const last = screen(s).filter((l) => l.trim() !== "").pop();
-        return { terminalId, state: s.running ? ("running" as const) : ("idle" as const), ...(last === undefined ? {} : { lastLine: last.slice(0, 300) }), exitCode: s.exitCode };
+        const last = screen(s)
+          .filter((l) => l.trim() !== "")
+          .pop();
+        return {
+          terminalId,
+          state: s.running ? ("running" as const) : ("idle" as const),
+          ...(last === undefined ? {} : { lastLine: last.slice(0, 300) }),
+          exitCode: s.exitCode,
+        };
       });
     },
     stream(terminalId, onFrame) {
       const s = sessions.get(terminalId);
       if (!s) return () => undefined;
       s.listeners.add(onFrame);
-      return () => { s.listeners.delete(onFrame); };
+      return () => {
+        s.listeners.delete(onFrame);
+      };
     },
     async close(terminalId) {
       const s = sessions.get(terminalId);
@@ -592,9 +879,27 @@ export function createShellHost(o: ShellOptions): TerminalHost {
       s.listeners.clear();
       sessions.delete(terminalId);
     },
-    async health() { return { ok: true, detail: "Commands run in a shell on this computer. Install tmux for full terminals.", sessions: sessions.size }; },
+    async health() {
+      return {
+        ok: true,
+        detail: "Commands run in a shell on this computer. Install tmux for full terminals.",
+        sessions: sessions.size,
+      };
+    },
     // a plain session lives in this process: after a restart its row is made a session again, empty, in its folder
-    adopt(a) { if (!sessions.has(a.terminalId)) sessions.set(a.terminalId, { cwd: a.cwd ?? o.home, lines: [], partial: "", typed: "", running: null, exitCode: null, listeners: new Set(), dropped: 0 }); },
+    adopt(a) {
+      if (!sessions.has(a.terminalId))
+        sessions.set(a.terminalId, {
+          cwd: a.cwd ?? o.home,
+          lines: [],
+          partial: "",
+          typed: "",
+          running: null,
+          exitCode: null,
+          listeners: new Set(),
+          dropped: 0,
+        });
+    },
   };
 }
 
@@ -621,7 +926,22 @@ export interface TerminalHostSeam {
 }
 
 /** What the daemon hands over for agent workspaces (host/src/seams/terminal-host.ts): configuration only. The module builds the Docker managers from it, as agent computers are built. */
-export interface WorkspaceConfig extends Pick<WorkspaceOptions, "image" | "limits" | "idleMs" | "home" | "projectsOf" | "admit" | "capacity" | "log" | "owner" | "ownsAgent" | "inTurn" | "folders"> {
+export interface WorkspaceConfig
+  extends Pick<
+    WorkspaceOptions,
+    | "image"
+    | "limits"
+    | "idleMs"
+    | "home"
+    | "projectsOf"
+    | "admit"
+    | "capacity"
+    | "log"
+    | "owner"
+    | "ownsAgent"
+    | "inTurn"
+    | "folders"
+  > {
   /** Is this agent in Trash now (agents_agent.deletedAt)? Read before Trash volumes go and when agent.deleted is consumed, so a restored agent never loses them (third look T2). */
   inTrash?: (agentId: string) => boolean | undefined;
   /** The Docker Engine socket of this machine. With no socket and no runner the Space has no runtime of its own, and its workspaces go on servers that joined. */
@@ -629,12 +949,20 @@ export interface WorkspaceConfig extends Pick<WorkspaceOptions, "image" | "limit
   /** A Team server: the container runner's socket and its token (read again on each call). vyred holds no Docker socket there. */
   runner?: { socket: string; token(): string };
   /** Servers that joined the Space: a question for one over its live socket, and which one (connected, with Docker) an agent's workspace goes on when the Space has no runtime of its own. */
-  nodes?: { ask(nodeId: string, kind: string, input: unknown, timeoutMs?: number): Promise<unknown>; place(agentId: string): Promise<string | null>; /** Is this server's link to the Space private? Absent: no server's is, so none gets a Vault value. */ secure?(nodeId: string): boolean };
+  nodes?: {
+    ask(nodeId: string, kind: string, input: unknown, timeoutMs?: number): Promise<unknown>;
+    place(agentId: string): Promise<string | null>;
+    /** Is this server's link to the Space private? Absent: no server's is, so none gets a Vault value. */ secure?(
+      nodeId: string,
+    ): boolean;
+  };
 }
 
 /** The manager of one machine's Docker engine, not yet used: the first terminal command or attach makes the workspace. */
 export function buildWorkspaces(c: WorkspaceConfig): WorkspaceManager {
-  const http = c.runner ? unixSocketHttp(c.runner.socket, undefined, () => ({ authorization: `Bearer ${c.runner!.token()}` })) : unixSocketHttp(c.socketPath);
+  const http = c.runner
+    ? unixSocketHttp(c.runner.socket, undefined, () => ({ authorization: `Bearer ${c.runner!.token()}` }))
+    : unixSocketHttp(c.socketPath);
   const { socketPath: _s, runner, nodes: _n, ...rest } = c;
   return buildWorkspaceManager({ ...rest, http, ...(runner ? { runner: true } : {}) } as Omit<WorkspaceOptions, "api">);
 }
@@ -650,21 +978,60 @@ export function buildWorkspaceFleet(c: WorkspaceConfig): WorkspaceFleet {
       if (!nodes) throw new Error("This Space has no servers to run workspaces on.");
       const { socketPath: _s, runner: _r, nodes: _x, capacity, ...rest } = c;
       const http = remoteDockerHttp((input, timeoutMs) => nodes.ask(nodeId, "docker", input, timeoutMs));
-      return buildWorkspaceManager({ ...rest, valuesAllowed: () => nodes.secure?.(nodeId) === true, ...(capacity ? { capacity: { claim: (a: string) => capacity.claim(a, nodeId), release: (a: string) => capacity.release(a, nodeId), ...(capacity.waiting ? { waiting: (a: string) => capacity.waiting!(a, nodeId) } : {}) } } : {}), http, runner: true } as Omit<WorkspaceOptions, "api">);
+      return buildWorkspaceManager({
+        ...rest,
+        valuesAllowed: () => nodes.secure?.(nodeId) === true,
+        ...(capacity
+          ? {
+              capacity: {
+                claim: (a: string) => capacity.claim(a, nodeId),
+                release: (a: string) => capacity.release(a, nodeId),
+                ...(capacity.waiting ? { waiting: (a: string) => capacity.waiting!(a, nodeId) } : {}),
+              },
+            }
+          : {}),
+        http,
+        runner: true,
+      } as Omit<WorkspaceOptions, "api">);
     },
     place: async (agentId) => (nodes ? nodes.place(agentId) : null),
   });
 }
 /** The sessions of this machine: tmux when it is installed, else a plain shell. A target on another machine is refused at open. */
-export function createLocalHost(o: Omit<TerminalHostSeam, "place" | "workspaces" | "values">, workspaces?: WorkspaceManager | WorkspaceTerminalHost): TerminalHost {
-  const ws: WorkspaceTerminalHost | null = workspaces === undefined ? null : "has" in workspaces ? workspaces : createWorkspaceTerminalHost({ manager: workspaces });
-  const tmux = createTmuxHost({ exec: o.exec, ...(o.control ? { control: o.control } : {}), ...(o.tmuxPath ? { tmuxPath: o.tmuxPath } : {}), ...(o.mark ? { mark: o.mark } : {}) });
+export function createLocalHost(
+  o: Omit<TerminalHostSeam, "place" | "workspaces" | "values">,
+  workspaces?: WorkspaceManager | WorkspaceTerminalHost,
+): TerminalHost {
+  const ws: WorkspaceTerminalHost | null =
+    workspaces === undefined
+      ? null
+      : "has" in workspaces
+        ? workspaces
+        : createWorkspaceTerminalHost({ manager: workspaces });
+  const tmux = createTmuxHost({
+    exec: o.exec,
+    ...(o.control ? { control: o.control } : {}),
+    ...(o.tmuxPath ? { tmuxPath: o.tmuxPath } : {}),
+    ...(o.mark ? { mark: o.mark } : {}),
+  });
   const plain = createShellHost({ run: o.shell, home: o.home });
   let tmuxKnown: boolean | null = null;
   let probe: Promise<boolean> | null = null;
-  const hasTmux = (): Promise<boolean> => (probe ??= o.exec(["tmux", "-V"]).then((r) => r.code === 0, () => false).then((v) => { tmuxKnown = v; return v; }));
+  const hasTmux = (): Promise<boolean> =>
+    (probe ??= o
+      .exec(["tmux", "-V"])
+      .then(
+        (r) => r.code === 0,
+        () => false,
+      )
+      .then((v) => {
+        tmuxKnown = v;
+        return v;
+      }));
   // a host that starts removes what a run of this daemon left on this computer's tmux server before it died (review 12 Nov, 3b)
-  void hasTmux().then((on) => (on ? tmux.sweep() : undefined)).catch(() => undefined);
+  void hasTmux()
+    .then((on) => (on ? tmux.sweep() : undefined))
+    .catch(() => undefined);
   const owner = new Map<string, TerminalHost>();
   /** Sessions whose row this process has been told about (adopt), so a session is looked for and made again at most once per process. */
   const adopted = new Set<string>();
@@ -677,11 +1044,22 @@ export function createLocalHost(o: Omit<TerminalHostSeam, "place" | "workspaces"
     revive.delete(id);
     const session = `vyre-${id}`;
     if ((await o.exec(["tmux", "has-session", "-t", session])).code === 0) return;
-    const rest = ["-d", "-s", session, "-x", String(a.cols), "-y", String(a.rows), ...(a.cwd === undefined ? [] : ["-c", a.cwd])];
+    const rest = [
+      "-d",
+      "-s",
+      session,
+      "-x",
+      String(a.cols),
+      "-y",
+      String(a.rows),
+      ...(a.cwd === undefined ? [] : ["-c", a.cwd]),
+    ];
     const made = await o.exec(["tmux", "new-session", ...HISTORY_ENV, ...rest]);
-    if (made.code !== 0 && /unknown option|invalid option|usage:/i.test(made.stderr)) await o.exec(["tmux", "new-session", ...rest]);
+    if (made.code !== 0 && /unknown option|invalid option|usage:/i.test(made.stderr))
+      await o.exec(["tmux", "new-session", ...rest]);
   };
-  const of = async (id: string): Promise<TerminalHost> => owner.get(id) ?? (ws && (await ws.has(id)) ? ws : (await hasTmux()) ? tmux : plain);
+  const of = async (id: string): Promise<TerminalHost> =>
+    owner.get(id) ?? (ws && (await ws.has(id)) ? ws : (await hasTmux()) ? tmux : plain);
   return {
     async open(a) {
       // an agent's workspace is a container on this machine, whatever machine the person is on
@@ -698,12 +1076,27 @@ export function createLocalHost(o: Omit<TerminalHostSeam, "place" | "workspaces"
       adopted.add(a.terminalId);
       return r;
     },
-    input: async (id, data) => { await ready(id); return (await of(id)).input(id, data); },
-    interrupt: async (id) => { await ready(id); return (await of(id)).interrupt(id); },
-    resize: async (id, cols, rows) => { await ready(id); return (await of(id)).resize(id, cols, rows); },
+    input: async (id, data) => {
+      await ready(id);
+      return (await of(id)).input(id, data);
+    },
+    interrupt: async (id) => {
+      await ready(id);
+      return (await of(id)).interrupt(id);
+    },
+    resize: async (id, cols, rows) => {
+      await ready(id);
+      return (await of(id)).resize(id, cols, rows);
+    },
     // an attach (the replay) makes it again; the live read of an open tab does not
-    read: async (id, r) => { if (r.since === undefined) await ready(id); return (await of(id)).read(id, r); },
-    run: async (id, r) => { await ready(id); return (await of(id)).run(id, r); },
+    read: async (id, r) => {
+      if (r.since === undefined) await ready(id);
+      return (await of(id)).read(id, r);
+    },
+    run: async (id, r) => {
+      await ready(id);
+      return (await of(id)).run(id, r);
+    },
     async status(ids) {
       const out: Awaited<ReturnType<TerminalHost["status"]>> = [];
       for (const id of ids) out.push(...(await (await of(id)).status([id])));
@@ -713,7 +1106,11 @@ export function createLocalHost(o: Omit<TerminalHostSeam, "place" | "workspaces"
       const h = owner.get(id) ?? (tmuxKnown === true ? tmux : plain);
       return h.stream ? h.stream(id, onFrame) : () => undefined;
     },
-    async close(id) { await (await of(id)).close(id); owner.delete(id); adopted.delete(id); },
+    async close(id) {
+      await (await of(id)).close(id);
+      owner.delete(id);
+      adopted.delete(id);
+    },
     health: async () => ((await hasTmux()) ? tmux.health() : plain.health()),
     async adopt(a) {
       // the first use of a session in this process: an agent's goes to its workspace (asleep or not, made or not); one on this computer to tmux, made again when tmux lost it, or to the plain shell
@@ -771,19 +1168,35 @@ export async function networkRoomFindings(ok: string): Promise<RoomFinding[]> {
   const note = workspaceManager?.networkNote() ?? null;
   return [
     ...(subnets ? [networkRoomFinding(networkRoom(subnets), ok, siteRoom(subnets))] : []),
-    ...(note ? [{ key: "host.workspace_network", state: "degraded" as const, detail: note, next: "Free Docker address pools (remove networks you no longer use, or add default-address-pools to Docker's daemon.json), then restart Docker. Workspaces move to their own network when they are next quiet." }] : []),
+    ...(note
+      ? [
+          {
+            key: "host.workspace_network",
+            state: "degraded" as const,
+            detail: note,
+            next: "Free Docker address pools (remove networks you no longer use, or add default-address-pools to Docker's daemon.json), then restart Docker. Workspaces move to their own network when they are next quiet.",
+          },
+        ]
+      : []),
   ];
 }
 
 /** The subnets of the networks running workspaces are on, read: the daemon awaits this before it takes calls, so its guard refuses them from the first one (third look T5). */
-export async function workspacesReady(): Promise<void> { await workspaceManager?.ready().catch(() => undefined); }
+export async function workspacesReady(): Promise<void> {
+  await workspaceManager?.ready().catch(() => undefined);
+}
 
 /** Jobs the host runs on a clock. */
 export const periodic = {
   /** Hourly: the home and Files volumes of an agent in Trash longer than the Space's Trash retention are removed (12 Nov, the Space browser's rule for its profiles). */
   "terminal.trash_volumes": {
     everyMs: 60 * 60_000,
-    run: (ctx: TermCtx): Promise<string[]> => forgetExpiredWorkspaces(ctx, workspaceManager ? (agentId) => (workspaceManager as WorkspaceManager).remove(agentId) : null, inTrashCheck),
+    run: (ctx: TermCtx): Promise<string[]> =>
+      forgetExpiredWorkspaces(
+        ctx,
+        workspaceManager ? (agentId) => (workspaceManager as WorkspaceManager).remove(agentId) : null,
+        inTrashCheck,
+      ),
   },
 };
 
@@ -793,9 +1206,14 @@ export const periodic = {
  */
 export const hostCalls = {
   /** terminal_run's new tab, opened and committed before its command runs (only terminal.run may call it: host/src/daemon/consumers.ts MODULE_PATH_CALL). */
-  "terminal.open_tab": (ctx: TermCtx, input: unknown): Promise<{ terminalId: string }> => openTabForRun(ctx, input as Parameters<typeof openTabForRun>[1]),
-  "terminal.workspace_revoke": async (_ctx: TermCtx, input: { agentId?: unknown; projectId?: unknown }): Promise<{ done: boolean }> => {
-    if (typeof input?.agentId !== "string" || typeof input.projectId !== "string" || !workspaceManager) return { done: false };
+  "terminal.open_tab": (ctx: TermCtx, input: unknown): Promise<{ terminalId: string }> =>
+    openTabForRun(ctx, input as Parameters<typeof openTabForRun>[1]),
+  "terminal.workspace_revoke": async (
+    _ctx: TermCtx,
+    input: { agentId?: unknown; projectId?: unknown },
+  ): Promise<{ done: boolean }> => {
+    if (typeof input?.agentId !== "string" || typeof input.projectId !== "string" || !workspaceManager)
+      return { done: false };
     await workspaceManager.cut(input.agentId, input.projectId);
     return { done: true };
   },
@@ -806,12 +1224,34 @@ export const consumers = {
   /** An agent went to Trash (deleted, or the Assistant of a person removed from the Space): its sessions close and its workspace's container and room go; what it kept stays (handlers/sessions.ts onAgentGone). */
   "terminal.agent_gone": {
     on: ["agent.deleted"],
-    run: (ctx: TermCtx, event: { payload: { agentId?: unknown } }): Promise<string[]> => onAgentGone(ctx, event, workspaceManager ? (agentId) => (workspaceManager as WorkspaceManager).remove(agentId, { keepVolumes: true }) : null, inTrashCheck),
+    run: (ctx: TermCtx, event: { payload: { agentId?: unknown } }): Promise<string[]> =>
+      onAgentGone(
+        ctx,
+        event,
+        workspaceManager
+          ? (agentId) => (workspaceManager as WorkspaceManager).remove(agentId, { keepVolumes: true })
+          : null,
+        inTrashCheck,
+      ),
   },
   /** Something changed in Files: awake workspaces whose Files mirror slowed down while quiet make their next pass within seconds, so a file a person drops appears without a command (fourth look U2). */
   "terminal.files_changed": {
-    on: ["file.created", "file.version_added", "file.moved", "file.renamed", "file.deleted", "file.restored", "folder.created", "folder.moved", "folder.renamed", "folder.deleted"],
-    run: (_ctx: TermCtx, event: { payload: Record<string, unknown> }): string[] => { workspaceManager?.filesChanged(filesChangeOf(event.payload ?? {})); return []; },
+    on: [
+      "file.created",
+      "file.version_added",
+      "file.moved",
+      "file.renamed",
+      "file.deleted",
+      "file.restored",
+      "folder.created",
+      "folder.moved",
+      "folder.renamed",
+      "folder.deleted",
+    ],
+    run: (_ctx: TermCtx, event: { payload: Record<string, unknown> }): string[] => {
+      workspaceManager?.filesChanged(filesChangeOf(event.payload ?? {}));
+      return [];
+    },
   },
   /** A turn was stopped: the commands it started in a terminal are interrupted at once (release gate, 12 Nov). */
   "terminal.turn_stopped": {
@@ -820,14 +1260,24 @@ export const consumers = {
       const p = event.payload ?? {};
       const str = (k: string): string | undefined => (typeof p[k] === "string" ? (p[k] as string) : undefined);
       // a Run stopped: its own commands, matched on the run (its reason is the stopper's free text, never a marker; ninth look Z1)
-      if (event.name === "run.stopped") { const runId = str("runId"); if (!runId) return []; const n = stopRuns({ runId, ...(typeof event.at === "number" ? { at: event.at } : {}) }); return n > 0 ? [String(n)] : []; }
+      if (event.name === "run.stopped") {
+        const runId = str("runId");
+        if (!runId) return [];
+        const n = stopRuns({ runId, ...(typeof event.at === "number" ? { at: event.at } : {}) });
+        return n > 0 ? [String(n)] : [];
+      }
       // Only a Stop: an event written at the press (Stop, Interrupt, an agent paused, removed or leaving: pressed true), or a turn's end record whose reason is one that stops work. A daemon
       // stopping or updating (reason closing), a lost host (lease), a recovered turn, or an event with neither: nothing is interrupted (eighth look Y1). Decided by these facts, never by who
       // `by` names (a turn's end record runs as its asker). A run with no mark here (it ended, or this process started after it) is left alone; a second event finds it already stopped.
       const pressed = p["pressed"] === true;
       if (!pressed && !STOP_REASONS.has(str("reason") ?? "")) return [];
       // the cancel's commit time: a command asked for after it belongs to a later turn (seventh look X1)
-      const n = stopRuns({ ...(str("agentId") ? { agentId: str("agentId") as string } : {}), ...(str("threadId") ? { threadId: str("threadId") as string } : {}), ...(str("runId") ? { runId: str("runId") as string } : {}), ...(typeof event.at === "number" ? { at: event.at } : {}) });
+      const n = stopRuns({
+        ...(str("agentId") ? { agentId: str("agentId") as string } : {}),
+        ...(str("threadId") ? { threadId: str("threadId") as string } : {}),
+        ...(str("runId") ? { runId: str("runId") as string } : {}),
+        ...(typeof event.at === "number" ? { at: event.at } : {}),
+      });
       return n > 0 ? [String(n)] : [];
     },
   },
@@ -856,6 +1306,12 @@ export const consumers = {
 
 export { bindHost, bindKit, bindPlace, bindTeam, bindValues, bindWorkspaces };
 export { createWorkspaceFleet, remoteDockerHttp } from "./fleet.ts";
-export { buildWorkspaceManager, createWorkspaceManager, createWorkspaceTerminalHost, reviewWorkspaceConfig, workspaceContainerConfig } from "./workspace.ts";
+export {
+  buildWorkspaceManager,
+  createWorkspaceManager,
+  createWorkspaceTerminalHost,
+  reviewWorkspaceConfig,
+  workspaceContainerConfig,
+} from "./workspace.ts";
 export type { WorkspaceManager, WorkspaceRow } from "./workspace.ts";
 export { commandsOf, judge, redeemTicket, rulesOf } from "./projections.ts";

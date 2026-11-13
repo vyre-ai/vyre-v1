@@ -12,29 +12,65 @@ import { nativePlugins } from "../plugin-native.ts";
 
 const GREETER = new URL("../../../fixtures/plugins/test-marketplace/plugins/greeter", import.meta.url).pathname;
 const files = readTree(GREETER).files;
-const call = (enabled = true) => async (cap: string): Promise<unknown> => {
-  if (cap === "plugins.list") return { plugins: [{ pluginId: "plg_greeter", name: "greeter", enabled }] };
-  if (cap === "plugins.files") return { files };
-  if (cap === "plugins.mcp.servers") return { servers: [
-    { key: "greeter/echo", name: "echo", from: "plugin", pluginId: "plg_greeter", transport: "stdio", command: "node", args: ["${CLAUDE_PLUGIN_ROOT}/server.mjs"], env: { ECHO_TOKEN: "#Dana_Echo.token", REGION: "eu" }, needs: [] },
-    { key: "crm", name: "crm", from: "connection", transport: "http", args: [], env: {}, needs: [] },
-    { key: "greeter/waiting", name: "waiting", from: "plugin", pluginId: "plg_greeter", transport: "stdio", command: "node", args: [], env: {}, needs: ["echo_token"] },
-  ] };
-  throw new Error(`unexpected ${cap}`);
-};
+const call =
+  (enabled = true) =>
+  async (cap: string): Promise<unknown> => {
+    if (cap === "plugins.list") return { plugins: [{ pluginId: "plg_greeter", name: "greeter", enabled }] };
+    if (cap === "plugins.files") return { files };
+    if (cap === "plugins.mcp.servers")
+      return {
+        servers: [
+          {
+            key: "greeter/echo",
+            name: "echo",
+            from: "plugin",
+            pluginId: "plg_greeter",
+            transport: "stdio",
+            command: "node",
+            args: ["${CLAUDE_PLUGIN_ROOT}/server.mjs"],
+            env: { ECHO_TOKEN: "#Dana_Echo.token", REGION: "eu" },
+            needs: [],
+          },
+          { key: "crm", name: "crm", from: "connection", transport: "http", args: [], env: {}, needs: [] },
+          {
+            key: "greeter/waiting",
+            name: "waiting",
+            from: "plugin",
+            pluginId: "plg_greeter",
+            transport: "stdio",
+            command: "node",
+            args: [],
+            env: {},
+            needs: ["echo_token"],
+          },
+        ],
+      };
+    throw new Error(`unexpected ${cap}`);
+  };
 const work = (): string => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-native-")));
 
 test("Claude Code: the plugin folder is in the work folder, the CLI session sees its command and skill, and its server is configured with the secret by variable name only", async () => {
   const w = work();
   const native = (await nativePlugins({ call: call() }, "claude_code", "agt_intake", "per_dana", w))!;
   assert.deepEqual(native.dirs, [path.join(w, ".plugins", "plg_greeter")]);
-  assert.deepEqual(Object.keys(native.mcpServers), ["echo"], "a remote connection and a server waiting for an option are not written");
+  assert.deepEqual(
+    Object.keys(native.mcpServers),
+    ["echo"],
+    "a remote connection and a server waiting for an option are not written",
+  );
   assert.deepEqual(native.secrets, { VYRE_PLUGIN_1: "#Dana_Echo.token" });
   assert.equal(native.mcpServers["echo"]!.args[0], path.join(w, ".plugins", "plg_greeter", "server.mjs"));
   assert.deepEqual(native.mcpServers["echo"]!.env, { ECHO_TOKEN: "${VYRE_PLUGIN_1}", REGION: "eu" });
   assert.ok(!JSON.stringify(native).includes("s3cret"));
   const spy = newSpy();
-  const session = await createCliDriver(CLI_ADAPTERS.claude_code, driverDeps(spy, { plugins: () => native, workFolder: () => w, env: () => ({ VYRE_PLUGIN_1: "filled-by-the-vault" }) })).open(specOf());
+  const session = await createCliDriver(
+    CLI_ADAPTERS.claude_code,
+    driverDeps(spy, {
+      plugins: () => native,
+      workFolder: () => w,
+      env: () => ({ VYRE_PLUGIN_1: "filled-by-the-vault" }),
+    }),
+  ).open(specOf());
   const said = texts(await collect(session.send(turnOf("plugins")))).join("");
   await session.close();
   assert.ok(spy.launches[0]!.includes("--plugin-dir"));
@@ -43,14 +79,20 @@ test("Claude Code: the plugin folder is in the work folder, the CLI session sees
   assert.match(said, /mcp:plugin_echo:\{"ECHO_TOKEN":"\$\{VYRE_PLUGIN_1\}","REGION":"eu"\}/);
   assert.match(said, /token:filled-by-the-vault/);
   assert.ok(spy.launches[0]!.includes("mcp__plugin_echo__*"), "its tools are allowed");
-  assert.ok(!JSON.stringify(spy.launches).includes("filled-by-the-vault"), "the value is in the environment only, never in the command line");
+  assert.ok(
+    !JSON.stringify(spy.launches).includes("filled-by-the-vault"),
+    "the value is in the environment only, never in the command line",
+  );
 });
 
 test("Codex: the skills go where Codex looks for them, named for their plugin, and the server is a -c override", async () => {
   const w = work();
   const native = (await nativePlugins({ call: call() }, "codex", "agt_intake", "per_dana", w))!;
   const spy = newSpy();
-  const session = await createCliDriver(CLI_ADAPTERS.codex, driverDeps(spy, { plugins: () => native, workFolder: () => w })).open(specOf());
+  const session = await createCliDriver(
+    CLI_ADAPTERS.codex,
+    driverDeps(spy, { plugins: () => native, workFolder: () => w }),
+  ).open(specOf());
   const said = texts(await collect(session.send(turnOf("plugins")))).join("");
   await session.close();
   assert.match(said, /skill:greeter-greeting:description: How to greet a person warmly/);
@@ -61,22 +103,50 @@ test("Codex: the skills go where Codex looks for them, named for their plugin, a
 
 // The environment a plugin's server process sees, started the way each CLI starts it (the fake CLI's pluginenv: Claude Code expands ${NAME} in the server's env from its own environment; Codex passes
 // a short default environment, the env table's plain values and the variables env_vars names, and expands nothing). The server prints what it got.
-const DUMP = "process.stdout.write(JSON.stringify({ ECHO_TOKEN: process.env.ECHO_TOKEN ?? null, REGION: process.env.REGION ?? null, VYRE_PLUGIN_1: process.env.VYRE_PLUGIN_1 ?? null, OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? null }));\n";
+const DUMP =
+  "process.stdout.write(JSON.stringify({ ECHO_TOKEN: process.env.ECHO_TOKEN ?? null, REGION: process.env.REGION ?? null, VYRE_PLUGIN_1: process.env.VYRE_PLUGIN_1 ?? null, OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? null }));\n";
 const dumpCall = async (cap: string): Promise<unknown> => {
   if (cap === "plugins.list") return { plugins: [{ pluginId: "plg_greeter", name: "greeter", enabled: true }] };
   if (cap === "plugins.files") return { files: { ...files, "env-dump.mjs": DUMP } };
-  if (cap === "plugins.mcp.servers") return { servers: [{ key: "greeter/dump", name: "dump", from: "plugin", pluginId: "plg_greeter", transport: "stdio", command: process.execPath, args: ["${CLAUDE_PLUGIN_ROOT}/env-dump.mjs"], env: { ECHO_TOKEN: "#Dana_Echo.token", REGION: "eu" }, needs: [] }] };
+  if (cap === "plugins.mcp.servers")
+    return {
+      servers: [
+        {
+          key: "greeter/dump",
+          name: "dump",
+          from: "plugin",
+          pluginId: "plg_greeter",
+          transport: "stdio",
+          command: process.execPath,
+          args: ["${CLAUDE_PLUGIN_ROOT}/env-dump.mjs"],
+          env: { ECHO_TOKEN: "#Dana_Echo.token", REGION: "eu" },
+          needs: [],
+        },
+      ],
+    };
   throw new Error(`unexpected ${cap}`);
 };
-const seen = (said: string): Record<string, string | null> => JSON.parse(/plugin_dump=(\{.*?\})(\||$)/.exec(said)?.[1] ?? "null") as Record<string, string | null>;
+const seen = (said: string): Record<string, string | null> =>
+  JSON.parse(/plugin_dump=(\{.*?\})(\||$)/.exec(said)?.[1] ?? "null") as Record<string, string | null>;
 
 for (const driver of ["claude_code", "codex"] as const) {
   test(`${driver}: the plugin's server process gets its secret under its own name and its plain values, and the engine's own key stays the engine's`, async () => {
     const w = work();
     const native = (await nativePlugins({ call: dumpCall }, driver, "agt_intake", "per_dana", w))!;
-    assert.deepEqual(native.secrets, { VYRE_PLUGIN_1: "#Dana_Echo.token" }, "the Vault fills the value under Vyre's own name");
+    assert.deepEqual(
+      native.secrets,
+      { VYRE_PLUGIN_1: "#Dana_Echo.token" },
+      "the Vault fills the value under Vyre's own name",
+    );
     const spy = newSpy();
-    const session = await createCliDriver(CLI_ADAPTERS[driver], driverDeps(spy, { plugins: () => native, workFolder: () => w, env: () => ({ VYRE_PLUGIN_1: "filled-by-the-vault", OPENAI_API_KEY: "the-engine-key" }) })).open(specOf());
+    const session = await createCliDriver(
+      CLI_ADAPTERS[driver],
+      driverDeps(spy, {
+        plugins: () => native,
+        workFolder: () => w,
+        env: () => ({ VYRE_PLUGIN_1: "filled-by-the-vault", OPENAI_API_KEY: "the-engine-key" }),
+      }),
+    ).open(specOf());
     const said = texts(await collect(session.send(turnOf("pluginenv")))).join("");
     await session.close();
     const env = seen(said);
@@ -87,7 +157,10 @@ for (const driver of ["claude_code", "codex"] as const) {
       assert.equal(env["VYRE_PLUGIN_1"], null, "Vyre's own name for the secret is dropped before the server starts");
       assert.equal(env["OPENAI_API_KEY"], null, "Codex's own key is not passed to a plugin server");
     }
-    assert.ok(!JSON.stringify(spy.launches).includes("filled-by-the-vault"), "the value is in the environment only, never in the command line");
+    assert.ok(
+      !JSON.stringify(spy.launches).includes("filled-by-the-vault"),
+      "the value is in the environment only, never in the command line",
+    );
   });
 }
 

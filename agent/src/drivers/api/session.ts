@@ -9,7 +9,14 @@ import { slimTool } from "./slim.ts";
 import { FIRST_TOKEN_API_MS, NO_FIRST_TOKEN_CODE, NO_FIRST_TOKEN_LINE, logNoFirstToken } from "../first-token.ts";
 import type { NoFirstTokenLog } from "../first-token.ts";
 import { windowFor } from "../../transcript/windows.ts";
-import type { DriverEvent, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
+import type {
+  DriverEvent,
+  EngineSession,
+  SessionSpec,
+  StoredMessage,
+  ToolResult,
+  TurnInput,
+} from "../../turn-engine/types.ts";
 import { classify, plainRefusal, retryAfterMs, scrub } from "./errors.ts";
 import { sha256b64 } from "../../../../kernel/src/seal/wire.ts";
 import { opencodeHeaders } from "./openai.ts";
@@ -19,7 +26,19 @@ import { createPrefixTracker, orderSystem, prefixHash } from "./prefix.ts";
 import type { PrefixStats } from "./prefix.ts";
 import { parseSse } from "./sse.ts";
 import type {
-  AccountRef, ApiTool, Authorizer, CallRequest, Clock, Decoded, Fetch, FetchResponse, Msg, ProviderAdapter, SystemBlock, ToolCall, Usage,
+  AccountRef,
+  ApiTool,
+  Authorizer,
+  CallRequest,
+  Clock,
+  Decoded,
+  Fetch,
+  FetchResponse,
+  Msg,
+  ProviderAdapter,
+  SystemBlock,
+  ToolCall,
+  Usage,
 } from "./types.ts";
 
 export interface SessionContext {
@@ -78,10 +97,23 @@ const MAX_STEPS = 40;
 const zero = (): Usage => ({ inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 });
 
 /** Wait for the next value but give up when nothing arrives for `ms`. */
-async function nextWithin<T>(it: AsyncIterator<T>, ms: number, onIdle: () => void): Promise<IteratorResult<T> | "idle"> {
+async function nextWithin<T>(
+  it: AsyncIterator<T>,
+  ms: number,
+  onIdle: () => void,
+): Promise<IteratorResult<T> | "idle"> {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const idle = new Promise<"idle">((resolve) => { timer = setTimeout(() => { onIdle(); resolve("idle"); }, ms); });
-  try { return await Promise.race([it.next(), idle]); } finally { if (timer !== undefined) clearTimeout(timer); }
+  const idle = new Promise<"idle">((resolve) => {
+    timer = setTimeout(() => {
+      onIdle();
+      resolve("idle");
+    }, ms);
+  });
+  try {
+    return await Promise.race([it.next(), idle]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 /**
@@ -89,11 +121,14 @@ async function nextWithin<T>(it: AsyncIterator<T>, ms: number, onIdle: () => voi
  * (OpenCode Go's x-opencode-session) sees one conversation. A one-shot job (memory learning, upkeep: a `oneshot_` thread per call) gets one id per job kind and person.
  */
 export function conversationId(spec: Pick<SessionSpec, "threadId" | "agent" | "asker">): string {
-  const where = spec.threadId.startsWith("oneshot_") ? `oneshot|${spec.agent.id}|${spec.asker}` : `${spec.threadId}|${spec.agent.id}`;
+  const where = spec.threadId.startsWith("oneshot_")
+    ? `oneshot|${spec.agent.id}|${spec.asker}`
+    : `${spec.threadId}|${spec.agent.id}`;
   return `vyre-${sha256b64(where).slice(0, 32)}`;
 }
 
-export const NO_MODEL_LINE = "No model is set for this chat. Pick one in the chat's model menu, or set the agent's model in its settings.";
+export const NO_MODEL_LINE =
+  "No model is set for this chat. Pick one in the chat's model menu, or set the agent's model in its settings.";
 
 export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSession {
   const policy: RetryPolicy = { ...RETRY_DEFAULTS, ...deps.retry };
@@ -111,7 +146,11 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
   const results = new Map<string, ToolResult>();
   let wake: (() => void) | null = null;
 
-  const poke = (): void => { const w = wake; wake = null; w?.(); };
+  const poke = (): void => {
+    const w = wake;
+    wake = null;
+    w?.();
+  };
 
   /** One provider call. Yields decoded events as they arrive; the last one is `stop`, `error`, or the end of the stream. */
   async function* call(req: CallRequest, signal: AbortSignal): AsyncGenerator<Decoded> {
@@ -121,10 +160,19 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
     for (let attempt = 0; ; attempt++) {
       if (signal.aborted) return;
       let auth: Record<string, string>;
-      try { auth = await deps.authorize(deps.account, deps.adapter.id); }
-      catch { yield { type: "error", status: 401, code: "provider.auth_failed", message: "No usable key for this account." }; return; }
+      try {
+        auth = await deps.authorize(deps.account, deps.adapter.id);
+      } catch {
+        yield { type: "error", status: 401, code: "provider.auth_failed", message: "No usable key for this account." };
+        return;
+      }
       const secrets = Object.values(auth);
-      const retryOrFail = async (status: number, text: string, res: FetchResponse | null, code?: string): Promise<boolean> => {
+      const retryOrFail = async (
+        status: number,
+        text: string,
+        res: FetchResponse | null,
+        code?: string,
+      ): Promise<boolean> => {
         const c = classify(status, text, code);
         const after = res ? retryAfterMs(res.headers.get("retry-after"), deps.clock.now()) : undefined;
         const okToWait = status === 429 ? after !== undefined && after <= policy.rateLimitWaitMs : true;
@@ -145,15 +193,29 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
       const startedAt = Date.now();
       const deadline = startedAt + waitMs;
       const noFirstToken = (): Decoded => {
-        (deps.onNoFirstToken ?? logNoFirstToken)({ provider: deps.adapter.id, model, account: deps.account.ref, waitedMs: Date.now() - startedAt });
+        (deps.onNoFirstToken ?? logNoFirstToken)({
+          provider: deps.adapter.id,
+          model,
+          account: deps.account.ref,
+          waitedMs: Date.now() - startedAt,
+        });
         return { type: "error", status: 0, code: NO_FIRST_TOKEN_CODE, message: NO_FIRST_TOKEN_LINE };
       };
       try {
         let waited: ReturnType<typeof setTimeout> | undefined;
-        const silent = new Promise<"silent">((resolve) => { waited = setTimeout(() => resolve("silent"), Math.max(0, deadline - Date.now())); });
-        const got = deps.fetch(url, { method: "POST", headers: { ...wire.headers, ...opencodeHeaders(deps.base, req.conversation ?? req.prefixHash), ...auth }, body: JSON.stringify(wire.body), signal: att.signal });
-        got.catch(() => undefined);   // a request cut below must not surface as an unhandled rejection
-        const first = await Promise.race([got, silent]).finally(() => { if (waited !== undefined) clearTimeout(waited); });
+        const silent = new Promise<"silent">((resolve) => {
+          waited = setTimeout(() => resolve("silent"), Math.max(0, deadline - Date.now()));
+        });
+        const got = deps.fetch(url, {
+          method: "POST",
+          headers: { ...wire.headers, ...opencodeHeaders(deps.base, req.conversation ?? req.prefixHash), ...auth },
+          body: JSON.stringify(wire.body),
+          signal: att.signal,
+        });
+        got.catch(() => undefined); // a request cut below must not surface as an unhandled rejection
+        const first = await Promise.race([got, silent]).finally(() => {
+          if (waited !== undefined) clearTimeout(waited);
+        });
         if (first === "silent") {
           // the provider took the request and never answered: the connection is released and the turn says so, plainly (no retry)
           att.abort();
@@ -168,7 +230,12 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         if (signal.aborted) return;
         const message = scrub(e instanceof Error ? e.message : "network error", secrets);
         if (await retryOrFail(0, message, null)) continue;
-        yield { type: "error", status: 0, code: "provider.unavailable", message: `The provider could not be reached: ${message}` };
+        yield {
+          type: "error",
+          status: 0,
+          code: "provider.unavailable",
+          message: `The provider could not be reached: ${message}`,
+        };
         return;
       }
       if (!res.ok) {
@@ -176,14 +243,31 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         const text = scrub((await res.text().catch(() => "")).slice(0, 2_000), secrets);
         // a refusal the provider says how to fix (openai.ts amend: reasoning_effort with function tools): the corrected request goes once, nothing having been streamed yet
         const fixed = amended ? undefined : deps.adapter.amend?.(req, wire, res.status, text);
-        if (fixed) { wire = fixed; amended = true; continue; }
+        if (fixed) {
+          wire = fixed;
+          amended = true;
+          continue;
+        }
         if (await retryOrFail(res.status, text, res)) continue;
         const c = classify(res.status, text);
-        const after = c.code === "provider.rate_limited" ? retryAfterMs(res.headers.get("retry-after"), deps.clock.now()) : undefined;
-        yield { type: "error", status: res.status, code: c.code, message: plainRefusal(res.status, text) ?? `The provider answered ${res.status}: ${text.slice(0, 200)}`, ...(after !== undefined ? { retryAfterMs: after } : {}) };
+        const after =
+          c.code === "provider.rate_limited"
+            ? retryAfterMs(res.headers.get("retry-after"), deps.clock.now())
+            : undefined;
+        yield {
+          type: "error",
+          status: res.status,
+          code: c.code,
+          message: plainRefusal(res.status, text) ?? `The provider answered ${res.status}: ${text.slice(0, 200)}`,
+          ...(after !== undefined ? { retryAfterMs: after } : {}),
+        };
         return;
       }
-      if (!res.body) { signal.removeEventListener("abort", relay); yield { type: "error", status: 200, code: "provider.bad_response", message: "The provider sent no stream." }; return; }
+      if (!res.body) {
+        signal.removeEventListener("abort", relay);
+        yield { type: "error", status: 200, code: "provider.bad_response", message: "The provider sent no stream." };
+        return;
+      }
 
       const dec = deps.adapter.decoder();
       const it = parseSse(res.body)[Symbol.asyncIterator]();
@@ -196,21 +280,48 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
           // that says nothing always ends with the first-token line (decided by state, never by reading the clock again when the wait fires). After it, the idle limit is the clock.
           const wait = got ? (deps.idleMs ?? IDLE_MS) : Math.max(0, deadline - Date.now());
           const step = await nextWithin(it, wait, () => att.abort());
-          if (step === "idle" && !got) { yield noFirstToken(); return; }
-          if (step === "idle") { failed = { type: "error", status: 0, code: "provider.unavailable", message: "The provider stopped answering." }; break; }
+          if (step === "idle" && !got) {
+            yield noFirstToken();
+            return;
+          }
+          if (step === "idle") {
+            failed = {
+              type: "error",
+              status: 0,
+              code: "provider.unavailable",
+              message: "The provider stopped answering.",
+            };
+            break;
+          }
           if (step.done) break;
           for (const d of dec.push(step.value)) {
-            if (d.type === "error") { failed = d; break; }
+            if (d.type === "error") {
+              failed = d;
+              break;
+            }
             // Usage and stop carry no content: a failure after only those can still be replayed. Content that left cannot.
             if (d.type === "text" || d.type === "thinking" || d.type === "tool_call") got = true;
             yield d;
           }
           if (failed) break;
         }
-        if (!failed) for (const d of dec.end()) { if (d.type === "error") { failed = d; break; } if (d.type === "text" || d.type === "thinking" || d.type === "tool_call") got = true; yield d; }
+        if (!failed)
+          for (const d of dec.end()) {
+            if (d.type === "error") {
+              failed = d;
+              break;
+            }
+            if (d.type === "text" || d.type === "thinking" || d.type === "tool_call") got = true;
+            yield d;
+          }
       } catch (e) {
         if (signal.aborted && failed === null) return;
-        failed = { type: "error", status: 0, code: "provider.unavailable", message: `The stream broke: ${scrub(e instanceof Error ? e.message : "read error", secrets)}` };
+        failed = {
+          type: "error",
+          status: 0,
+          code: "provider.unavailable",
+          message: `The stream broke: ${scrub(e instanceof Error ? e.message : "read error", secrets)}`,
+        };
       } finally {
         signal.removeEventListener("abort", relay);
         // The request is released whether the stream ended, the consumer stopped reading (a call held at the Gate) or the turn was cancelled.
@@ -229,7 +340,11 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
       }
       if (failed.type === "error") {
         const c = classify(failed.status, failed.message, failed.code);
-        yield { ...failed, code: failed.code?.startsWith("provider.") ? failed.code : c.code, message: scrub(failed.message, secrets) };
+        yield {
+          ...failed,
+          code: failed.code?.startsWith("provider.") ? failed.code : c.code,
+          message: scrub(failed.message, secrets),
+        };
       }
       return;
     }
@@ -238,13 +353,16 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
   async function* send(input: TurnInput): AsyncGenerator<DriverEvent> {
     sends += 1;
     // no model: a provider answers 400 "`model` must be a non-empty string", which reads as a refusal. Nothing is sent; the turn says how to pick one.
-    if (model === "" && deps.adapter.defaultsModel !== true) { yield { type: "error", status: 0, code: "engine.no_model", message: NO_MODEL_LINE }; return; }
+    if (model === "" && deps.adapter.defaultsModel !== true) {
+      yield { type: "error", status: 0, code: "engine.no_model", message: NO_MODEL_LINE };
+      return;
+    }
     const ac = new AbortController();
     abort = ac;
     results.clear();
     try {
       const asked = await deps.context(spec, input);
-      const ctx = { ...asked, tools: asked.tools.map(slimTool) };   // the copy the model reads is trimmed (slim.ts); calls are still validated against the full schema
+      const ctx = { ...asked, tools: asked.tools.map(slimTool) }; // the copy the model reads is trimmed (slim.ts); calls are still validated against the full schema
       const system = orderSystem(ctx.system);
       let hash = prefixHash(system, ctx.tools, model);
       let fixed = fixedTokens(system, ctx.tools);
@@ -254,8 +372,20 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
       for (let step = 0; step < maxSteps; step++) {
         if (ac.signal.aborted || closed) return;
         const c = await compact(fixed, messages, window, deps.summarize, input.keep);
-        if (c.dropped > 0) { compactions += 1; messages = c.messages; }
-        const req: CallRequest = { model, system, tools: ctx.tools, messages, maxOutputTokens: ctx.maxOutputTokens ?? deps.adapter.defaultMaxOutput, prefixHash: hash, conversation, ...(spec.agent.effort !== undefined ? { effort: spec.agent.effort } : {}) };
+        if (c.dropped > 0) {
+          compactions += 1;
+          messages = c.messages;
+        }
+        const req: CallRequest = {
+          model,
+          system,
+          tools: ctx.tools,
+          messages,
+          maxOutputTokens: ctx.maxOutputTokens ?? deps.adapter.defaultMaxOutput,
+          prefixHash: hash,
+          conversation,
+          ...(spec.agent.effort !== undefined ? { effort: spec.agent.effort } : {}),
+        };
         tracker.note(hash);
         calls += 1;
         let text = "";
@@ -265,26 +395,50 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         const told = new Set<string>();
         let stop: Extract<Decoded, { type: "stop" }>["reason"] = "end";
         for await (const d of call(req, ac.signal)) {
-          if (d.type === "text") { text += d.text; yield { type: "text", text: d.text }; }
-          else if (d.type === "thinking") yield { type: "thinking", text: d.text };
-          else if (d.type === "tool_call") { pending.push(d.call); yield { type: "tool_call", id: d.call.id, name: d.call.name, input: d.call.input }; }
-          else if (d.type === "usage") { Object.assign(u, d.usage); for (const k of Object.keys(d.usage)) told.add(k); }
-          else if (d.type === "stop") stop = d.reason;
-          else { yield { type: "error", code: d.code ?? "provider.error", message: d.message, ...(d.retryAfterMs !== undefined ? { resetsAt: deps.clock.now() + d.retryAfterMs } : {}) }; return; }
+          if (d.type === "text") {
+            text += d.text;
+            yield { type: "text", text: d.text };
+          } else if (d.type === "thinking") yield { type: "thinking", text: d.text };
+          else if (d.type === "tool_call") {
+            pending.push(d.call);
+            yield { type: "tool_call", id: d.call.id, name: d.call.name, input: d.call.input };
+          } else if (d.type === "usage") {
+            Object.assign(u, d.usage);
+            for (const k of Object.keys(d.usage)) told.add(k);
+          } else if (d.type === "stop") stop = d.reason;
+          else {
+            yield {
+              type: "error",
+              code: d.code ?? "provider.error",
+              message: d.message,
+              ...(d.retryAfterMs !== undefined ? { resetsAt: deps.clock.now() + d.retryAfterMs } : {}),
+            };
+            return;
+          }
         }
         if (ac.signal.aborted) return;
-        const inTokens = deps.adapter.inputIncludesCache ? u.inputTokens : u.inputTokens + u.cacheReadTokens + u.cacheWriteTokens;
+        const inTokens = deps.adapter.inputIncludesCache
+          ? u.inputTokens
+          : u.inputTokens + u.cacheReadTokens + u.cacheWriteTokens;
         tracker.settle(u.cacheReadTokens, u.cacheWriteTokens);
         if (inTokens > 0 || u.outputTokens > 0) {
           yield {
-            type: "usage", inputTokens: inTokens, outputTokens: u.outputTokens, contextTokens: inTokens,
-            ...(told.has("cacheReadTokens") ? { cacheReadTokens: u.cacheReadTokens } : {}), ...(told.has("cacheWriteTokens") ? { cacheWriteTokens: u.cacheWriteTokens } : {}),
-            ...(u.reasoningTokens !== undefined ? { reasoningTokens: u.reasoningTokens } : {}), ...(u.costUsd !== undefined ? { costUsd: u.costUsd } : {}),
+            type: "usage",
+            inputTokens: inTokens,
+            outputTokens: u.outputTokens,
+            contextTokens: inTokens,
+            ...(told.has("cacheReadTokens") ? { cacheReadTokens: u.cacheReadTokens } : {}),
+            ...(told.has("cacheWriteTokens") ? { cacheWriteTokens: u.cacheWriteTokens } : {}),
+            ...(u.reasoningTokens !== undefined ? { reasoningTokens: u.reasoningTokens } : {}),
+            ...(u.costUsd !== undefined ? { costUsd: u.costUsd } : {}),
             // a request that named no model ran on the provider's default: its label is the model the provider reported, else the provider's name, never blank
             ...(model === "" ? { model: u.model ?? deps.adapter.id } : {}),
           };
         }
-        if (stop === "filtered" && text === "" && pending.length === 0) { yield { type: "error", code: "provider.filtered", message: "The provider declined to answer." }; return; }
+        if (stop === "filtered" && text === "" && pending.length === 0) {
+          yield { type: "error", code: "provider.filtered", message: "The provider declined to answer." };
+          return;
+        }
 
         if (pending.length > 0) {
           // the step is complete: these calls are the whole batch, and results may come back in any order
@@ -293,12 +447,20 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
           for (const p of pending) {
             const r = await waitFor(p.id, ac.signal);
             if (r === null) return;
-            messages.push({ role: "tool", callId: p.id, name: p.name, ok: r.ok, content: cap(typeof r.content === "string" ? r.content : JSON.stringify(r.content ?? null)) });
+            messages.push({
+              role: "tool",
+              callId: p.id,
+              name: p.name,
+              ok: r.ok,
+              content: cap(typeof r.content === "string" ? r.content : JSON.stringify(r.content ?? null)),
+            });
           }
           // A tool the search just found is callable in the very next step. The new ones go at the end, so the tools already sent keep their place and the cached prefix up to them stays valid.
           if (ctx.reload && pending.some((p) => p.name === "tool_search")) {
             const known = new Set(ctx.tools.map((t) => t.name));
-            const fresh = (await ctx.reload().catch(() => [] as readonly ApiTool[])).filter((t) => !known.has(t.name)).map(slimTool);
+            const fresh = (await ctx.reload().catch(() => [] as readonly ApiTool[]))
+              .filter((t) => !known.has(t.name))
+              .map(slimTool);
             if (fresh.length > 0) {
               ctx.tools = [...ctx.tools, ...fresh];
               hash = prefixHash(system, ctx.tools, model);
@@ -310,10 +472,21 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         }
         // Steering: a message that arrived during the step is read before the next call. At the end of a reply it earns another reply.
         const steer = injected.splice(0, injected.length);
-        for (const m of steer) messages.push({ role: "user", text: m.author.kind === "agent" || m.author.id !== input.asker ? `${m.author.id}: ${m.body}` : m.body });
-        if (pending.length === 0 && steer.length === 0) { yield { type: "done" }; return; }
+        for (const m of steer)
+          messages.push({
+            role: "user",
+            text: m.author.kind === "agent" || m.author.id !== input.asker ? `${m.author.id}: ${m.body}` : m.body,
+          });
+        if (pending.length === 0 && steer.length === 0) {
+          yield { type: "done" };
+          return;
+        }
       }
-      yield { type: "error", code: "engine.step_limit", message: `The agent made ${maxSteps} model calls in one turn and was stopped.` };
+      yield {
+        type: "error",
+        code: "engine.step_limit",
+        message: `The agent made ${maxSteps} model calls in one turn and was stopped.`,
+      };
     } finally {
       if (abort === ac) abort = null;
       ac.abort();
@@ -324,20 +497,40 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
   async function waitFor(id: string, signal: AbortSignal): Promise<ToolResult | null> {
     for (;;) {
       const r = results.get(id);
-      if (r) { results.delete(id); return r; }
+      if (r) {
+        results.delete(id);
+        return r;
+      }
       if (signal.aborted || closed) return null;
-      await new Promise<void>((resolve) => { wake = resolve; signal.addEventListener("abort", () => resolve(), { once: true }); });
+      await new Promise<void>((resolve) => {
+        wake = resolve;
+        signal.addEventListener("abort", () => resolve(), { once: true });
+      });
     }
   }
 
   return {
-    get warm() { return sends > 0; },
+    get warm() {
+      return sends > 0;
+    },
     parallelTools: true,
     send: (input) => send(input),
-    sendToolResult(callId, result) { results.set(callId, result); poke(); },
-    inject(msg) { injected.push(msg); },
-    async cancel() { abort?.abort(); poke(); },
-    async close() { closed = true; abort?.abort(); poke(); },
+    sendToolResult(callId, result) {
+      results.set(callId, result);
+      poke();
+    },
+    inject(msg) {
+      injected.push(msg);
+    },
+    async cancel() {
+      abort?.abort();
+      poke();
+    },
+    async close() {
+      closed = true;
+      abort?.abort();
+      poke();
+    },
     stats: () => ({ calls, retries, compactions, prefix: tracker.stats() }),
   };
 }

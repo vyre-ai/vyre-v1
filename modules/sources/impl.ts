@@ -19,9 +19,17 @@ export function loadRegistry(path: URL = new URL("../../generated/registry.json"
   return { connectors: raw.connectors };
 }
 
-export interface SourcesHandle { deps: SourcesDeps; tx: Tx; store?: Store; host?: ProjectionHost; handlers: SourcesHandlers }
+export interface SourcesHandle {
+  deps: SourcesDeps;
+  tx: Tx;
+  store?: Store;
+  host?: ProjectionHost;
+  handlers: SourcesHandlers;
+}
 
-export function openSources(o: Partial<Omit<SourcesDeps, "tx">> & { tx?: Tx; path?: string; space?: string } = {}): SourcesHandle {
+export function openSources(
+  o: Partial<Omit<SourcesDeps, "tx">> & { tx?: Tx; path?: string; space?: string } = {},
+): SourcesHandle {
   let tx = o.tx;
   let host: ProjectionHost | undefined;
   let store: Store | undefined;
@@ -32,8 +40,12 @@ export function openSources(o: Partial<Omit<SourcesDeps, "tx">> & { tx?: Tx; pat
     tx = opened.host.tx;
   }
   const deps: SourcesDeps = {
-    tx, registry: o.registry ?? loadRegistry(),
-    ...(o.now ? { now: o.now } : {}), ...(o.secret ? { secret: o.secret } : {}), ...(o.reachable ? { reachable: o.reachable } : {}), ...(o.maxBodyBytes ? { maxBodyBytes: o.maxBodyBytes } : {}),
+    tx,
+    registry: o.registry ?? loadRegistry(),
+    ...(o.now ? { now: o.now } : {}),
+    ...(o.secret ? { secret: o.secret } : {}),
+    ...(o.reachable ? { reachable: o.reachable } : {}),
+    ...(o.maxBodyBytes ? { maxBodyBytes: o.maxBodyBytes } : {}),
   };
   ensureTables(tx);
   return { deps, tx, ...(store ? { store } : {}), ...(host ? { host } : {}), handlers: createSourcesHandlers(deps) };
@@ -41,7 +53,12 @@ export function openSources(o: Partial<Omit<SourcesDeps, "tx">> & { tx?: Tx; pat
 
 // ---- loader entry ----
 
-type HostCtx = { trace: { traceId: string }; emit(name: string, subject: string, payload: Record<string, unknown>): unknown; call(cap: string, input: unknown): Promise<unknown>; principal?: { id: string } };
+type HostCtx = {
+  trace: { traceId: string };
+  emit(name: string, subject: string, payload: Record<string, unknown>): unknown;
+  call(cap: string, input: unknown): Promise<unknown>;
+  principal?: { id: string };
+};
 let resolver: ((name: string) => Promise<string | undefined>) | null = null;
 const handles = new Set<SourcesHandle>();
 // One handle per Space store (two daemons in one process each have their own); a call is served from the one its ctx.db belongs to.
@@ -52,30 +69,66 @@ const stores = perSpaceStore<SourcesHandle>((seam) => {
   return h;
 });
 /** The host hands the Space store (P-H_08, ruling 31). */
-export function setSourcesSpaceStore(seam: SpaceStoreSeam | null): void { stores.set(seam); }
+export function setSourcesSpaceStore(seam: SpaceStoreSeam | null): void {
+  stores.set(seam);
+}
 const live = (ctx?: { db?: unknown }): SourcesHandle => stores.get(ctx);
 
 function adapt(name: keyof SourcesHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
-    const sc: SourcesCtx = { trace: ctx.trace, emit: (n, s, p) => ctx.emit(n, s, p), call: (c, i) => ctx.call(c, i), ...(ctx.principal ? { actor: ctx.principal.id } : {}) };
+    const sc: SourcesCtx = {
+      trace: ctx.trace,
+      emit: (n, s, p) => ctx.emit(n, s, p),
+      call: (c, i) => ctx.call(c, i),
+      ...(ctx.principal ? { actor: ctx.principal.id } : {}),
+    };
     return (live(ctx as { db?: unknown }).handlers[name] as (c: SourcesCtx, i: unknown) => Promise<unknown>)(sc, input);
   };
 }
 
 const NAMES = [
-  "sources.list", "sources.get", "sources.kinds", "sources.create", "sources.update", "sources.set_secret", "sources.pause", "sources.resume", "sources.delete",
-  "sources.preview_mapping", "sources.deliveries.list", "sources.replay", "sources.ingest", "sources.link.match", "sources.link.list_pending", "sources.link.resolve", "sources.health",
+  "sources.list",
+  "sources.get",
+  "sources.kinds",
+  "sources.create",
+  "sources.update",
+  "sources.set_secret",
+  "sources.pause",
+  "sources.resume",
+  "sources.delete",
+  "sources.preview_mapping",
+  "sources.deliveries.list",
+  "sources.replay",
+  "sources.ingest",
+  "sources.link.match",
+  "sources.link.list_pending",
+  "sources.link.resolve",
+  "sources.health",
 ] as const satisfies readonly (keyof SourcesHandlers)[];
 
-export const handlers = Object.fromEntries(NAMES.map((n) => [n, adapt(n)])) as Record<(typeof NAMES)[number], (ctx: HostCtx, input: never) => Promise<unknown>>;
+export const handlers = Object.fromEntries(NAMES.map((n) => [n, adapt(n)])) as Record<
+  (typeof NAMES)[number],
+  (ctx: HostCtx, input: never) => Promise<unknown>
+>;
 export { createSourcesHandlers };
-export { runSync, undoPush, retryPush, flushOutbox, confirmDeletes, resolveConflict, removedAtSource } from "./handlers/index.ts";
+export {
+  runSync,
+  undoPush,
+  retryPush,
+  flushOutbox,
+  confirmDeletes,
+  resolveConflict,
+  removedAtSource,
+} from "./handlers/index.ts";
 export const SYNC_RUN_KIND = "connector_sync";
 
 /** The Vault resolves a webhook signing secret by item name, for one delivery only (deps.secret). */
 export function setSourcesSecretResolver(fn: ((name: string) => Promise<string | undefined>) | null): void {
   resolver = fn;
-  for (const h of handles) { if (fn) h.deps.secret = fn; else delete h.deps.secret; }
+  for (const h of handles) {
+    if (fn) h.deps.secret = fn;
+    else delete h.deps.secret;
+  }
 }
 /** Where the host hands its half at boot (ruling 31): the loader reads this export and the daemon calls each setter with the driver of the same name. */
 export const hostSeams: SeamSetters = { setSourcesSecretResolver, setSourcesSpaceStore };

@@ -11,13 +11,22 @@ import { codeAvailability, runInSandbox, setCodeHost } from "../code-sandbox.ts"
 const hours = { timezone: "America/New_York", days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00" };
 
 test("transform copies named paths and skips a missing one", () => {
-  assert.deepEqual(transformValue({ person: { name: "Ada" }, n: 2 }, { name: "person.name", n: "n", missing: "no.such" }), { name: "Ada", n: 2 });
-  assert.throws(() => transformValue({}, "nope"), (e) => codeOf(e) === "validation.bad_input");
+  assert.deepEqual(
+    transformValue({ person: { name: "Ada" }, n: 2 }, { name: "person.name", n: "n", missing: "no.such" }),
+    { name: "Ada", n: 2 },
+  );
+  assert.throws(
+    () => transformValue({}, "nope"),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
 });
 
 test("collect keeps a list and can pick fields", () => {
   assert.deepEqual(collectItems([{ a: 1, b: 2 }, 3], ["a"]), { items: [{ a: 1 }, 3], count: 2 });
-  assert.throws(() => collectItems({ a: 1 }, []), (e) => codeOf(e) === "validation.bad_input");
+  assert.throws(
+    () => collectItems({ a: 1 }, []),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
 });
 
 test("group by keeps the first-seen order and an empty key", () => {
@@ -26,7 +35,10 @@ test("group by keeps the first-seen order and an empty key", () => {
     { key: "B", items: [{ city: "B" }], count: 1 },
     { key: "", items: [{ other: 1 }], count: 1 },
   ]);
-  assert.throws(() => groupItems("nope", "city"), (e) => codeOf(e) === "validation.bad_input");
+  assert.throws(
+    () => groupItems("nope", "city"),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
 });
 
 test("open hours keep an instant inside the window and move one that is closed", () => {
@@ -34,16 +46,27 @@ test("open hours keep an instant inside the window and move one that is closed",
   assert.equal(nextOpen(inside, hours), inside);
   const saturdayNight = Date.UTC(2026, 0, 18, 1, 0, 0);
   assert.equal(nextOpen(saturdayNight, hours), Date.UTC(2026, 0, 19, 14, 0, 0));
-  assert.throws(() => nextOpen(inside, { timezone: "UTC", days: [], start: "09:00", end: "17:00" }), (e) => codeOf(e) === "validation.bad_input");
+  assert.throws(
+    () => nextOpen(inside, { timezone: "UTC", days: [], start: "09:00", end: "17:00" }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
 });
 
 test("a duration wait uses open hours on the first park and again when it resumes", async () => {
   const h = harness();
   const start = h.now();
   const open = { timezone: "UTC", days: [0, 1, 2, 3, 4, 5, 6], start: "09:00", end: "17:00" };
-  const first = await runStep(h.env, node("w", "wait", { forDuration: "1h", hours: open }), callOf({ startedAt: start }));
+  const first = await runStep(
+    h.env,
+    node("w", "wait", { forDuration: "1h", hours: open }),
+    callOf({ startedAt: start }),
+  );
   assert.equal(first.wait?.at, nextOpen(start + HOUR, open));
-  const again = await runStep(h.env, node("w", "wait", { forDuration: "1h", hours: open }), callOf({ startedAt: start, resumed: true }));
+  const again = await runStep(
+    h.env,
+    node("w", "wait", { forDuration: "1h", hours: open }),
+    callOf({ startedAt: start, resumed: true }),
+  );
   if (h.now() < nextOpen(start + HOUR, open)) assert.equal(again.wait?.at, nextOpen(start + HOUR, open));
   else assert.equal((again.output as { resumedBy?: string }).resumedBy, "duration");
 });
@@ -64,7 +87,10 @@ test("run code never runs in the daemon: with no sandbox host, or a platform tha
   setCodeHost({ dataDir: "/nonexistent", platform: "linux", bwrapPaths: ["/nonexistent/bwrap"] });
   assert.match(codeAvailability() ?? "", /bubblewrap \(bwrap\)/);
   setCodeHost({ dataDir: "/nonexistent", unavailable: "The host says no." });
-  await assert.rejects(runInSandbox("return 1", {}), (e) => codeOf(e) === "run.no_code" && /host says no/.test((e as Error).message));
+  await assert.rejects(
+    runInSandbox("return 1", {}),
+    (e) => codeOf(e) === "run.no_code" && /host says no/.test((e as Error).message),
+  );
   setCodeHost(null);
 });
 
@@ -76,31 +102,55 @@ test("run code checks its own input before it starts anything", async () => {
     await assert.rejects(runInSandbox("return 1", {}, ["10.0.0.1"]), (e) => codeOf(e) === "validation.bad_input");
     await assert.rejects(runInSandbox("return 1", {}, ["*.com.*"]), (e) => codeOf(e) === "validation.bad_input");
     await assert.rejects(runInSandbox("return 1", {}, "api.example.com"), (e) => codeOf(e) === "validation.bad_input");
-    await assert.rejects(runInSandbox("return 1", {}, Array.from({ length: 11 }, (_, i) => `h${i}.example.com`)), (e) => codeOf(e) === "validation.bad_input");
-  } finally { setCodeHost(null); }
+    await assert.rejects(
+      runInSandbox(
+        "return 1",
+        {},
+        Array.from({ length: 11 }, (_, i) => `h${i}.example.com`),
+      ),
+      (e) => codeOf(e) === "validation.bad_input",
+    );
+  } finally {
+    setCodeHost(null);
+  }
 });
 
 test("the code step uses the sandbox when the host provides one", async () => {
   const h = harness();
-  const r = await runStep({
-    ...h.env,
-    code: async (_node, input) => ({ output: { result: (input.input as { n: number }).n + 1, logs: [] } }),
-  }, node("c", "code", { language: "javascript", source: "return input.n + 1", input: { n: 2 } }), callOf());
+  const r = await runStep(
+    {
+      ...h.env,
+      code: async (_node, input) => ({ output: { result: (input.input as { n: number }).n + 1, logs: [] } }),
+    },
+    node("c", "code", { language: "javascript", source: "return input.n + 1", input: { n: 2 } }),
+    callOf(),
+  );
   assert.deepEqual(r.output, { result: 3, logs: [] });
 });
 
 test("a code step with no sandbox connected fails by name and does not run", async () => {
   const h = harness();
-  await assert.rejects(runStep(h.env, node("c", "code", { language: "javascript", source: "return 1" }), callOf()), (e) => codeOf(e) === "run.no_code");
+  await assert.rejects(
+    runStep(h.env, node("c", "code", { language: "javascript", source: "return 1" }), callOf()),
+    (e) => codeOf(e) === "run.no_code",
+  );
 });
 
 test("transform, collect, and group by run through the step catalogue", async () => {
   const h = harness();
-  const transformed = await runStep(h.env, node("t", "transform", { value: { person: { name: "Ada" } }, mapping: { name: "person.name" } }), callOf());
+  const transformed = await runStep(
+    h.env,
+    node("t", "transform", { value: { person: { name: "Ada" } }, mapping: { name: "person.name" } }),
+    callOf(),
+  );
   assert.deepEqual(transformed.output, { value: { name: "Ada" } });
   const collected = await runStep(h.env, node("c", "collect", { items: [{ a: 1, b: 2 }], fields: ["a"] }), callOf());
   assert.deepEqual(collected.output, { items: [{ a: 1 }], count: 1 });
-  const grouped = await runStep(h.env, node("g", "group_by", { items: [{ city: "A" }, { city: "A" }], by: "city" }), callOf());
+  const grouped = await runStep(
+    h.env,
+    node("g", "group_by", { items: [{ city: "A" }, { city: "A" }], by: "city" }),
+    callOf(),
+  );
   assert.deepEqual(grouped.output, { groups: [{ key: "A", items: [{ city: "A" }, { city: "A" }], count: 2 }] });
 });
 
@@ -113,11 +163,18 @@ test("run another automation waits, and a dropped start does not report success"
     return { runId: "run_child" };
   });
   h.callee("runs.get", () => ({ run: { status: "running" } }));
-  const waiting = await callAutomation(h.env, callOf(), { automationId: "aut_child", trigger: "manual", payload: { n: 1 } });
+  const waiting = await callAutomation(h.env, callOf(), {
+    automationId: "aut_child",
+    trigger: "manual",
+    payload: { n: 1 },
+  });
   assert.equal(waiting.wait?.runId, "run_child");
   h.callee("runs.get", () => ({ run: { status: "succeeded" } }));
   const done = await callAutomation(h.env, callOf(), { automationId: "aut_child", trigger: "manual" });
   assert.deepEqual(done.output, { runId: "run_child", status: "succeeded" });
   h.callee("automations.fire", () => ({ dropped: "paused" }));
-  await assert.rejects(callAutomation(h.env, callOf(), { automationId: "aut_child", trigger: "manual" }), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(
+    callAutomation(h.env, callOf(), { automationId: "aut_child", trigger: "manual" }),
+    (e) => codeOf(e) === "validation.precondition_failed",
+  );
 });

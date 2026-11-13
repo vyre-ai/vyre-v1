@@ -13,12 +13,17 @@ test("a task thread lists the baton tools; a chat finds them with tool_search", 
   const chat = session.toolsFor(ctx({ thread: thread({}) }));
   const chatListed = new Set(chat.listed.map((t) => t.name));
   const chatSearchable = new Set(chat.searchable.map((t) => t.name));
-  for (const n of BATON) { assert.ok(!chatListed.has(n), `${n} is not listed in a chat`); assert.ok(chatSearchable.has(n), `${n} is found by tool_search`); }
+  for (const n of BATON) {
+    assert.ok(!chatListed.has(n), `${n} is not listed in a chat`);
+    assert.ok(chatSearchable.has(n), `${n} is found by tool_search`);
+  }
 });
 
 test("an agent that may not use a baton tool does not get it even in a task thread", () => {
   const { session } = makeSession();
-  const set = session.toolsFor(ctx({ thread: thread({ scope: { type: "task", id: "tsk_1" } }), rules: { deny: ["task_decide"] } }));
+  const set = session.toolsFor(
+    ctx({ thread: thread({ scope: { type: "task", id: "tsk_1" } }), rules: { deny: ["task_decide"] } }),
+  );
   const names = new Set([...set.listed, ...set.searchable].map((t) => t.name));
   assert.ok(!names.has("task_decide"));
   assert.ok(names.has("task_submit"));
@@ -26,7 +31,10 @@ test("an agent that may not use a baton tool does not get it even in a task thre
 
 test("a baton tool can be called in a task thread without a search, and not in a chat", async () => {
   const { session } = makeSession();
-  const inTask = await session.call(ctx({ thread: thread({ scope: { type: "task", id: "tsk_1" } }) }), "task_submit", { taskId: "tsk_1", summary: "Done" });
+  const inTask = await session.call(ctx({ thread: thread({ scope: { type: "task", id: "tsk_1" } }) }), "task_submit", {
+    taskId: "tsk_1",
+    summary: "Done",
+  });
   assert.notEqual(inTask.kind === "error" && inTask.error.details?.["reason"], "not_loaded");
   const chat = await session.call(ctx({ thread: thread({}) }), "task_submit", { taskId: "tsk_1", summary: "Done" });
   assert.equal(chat.kind === "error" && chat.error.details?.["reason"], "not_loaded");

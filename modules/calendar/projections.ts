@@ -20,13 +20,21 @@ export interface CalCtx {
   run?: string;
   now(): number;
   db: CalDb;
-  emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
+  emit(
+    name: string,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
   authorize(
     action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
     resource: { type: string; id: string | null },
   ): { effect: "allow" | "deny" | "hold"; reason: string; decisionId: string };
-  log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
+  log: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 export type Level = "view" | "use" | "edit" | "manage";
@@ -135,7 +143,8 @@ export function readAttendees(value: unknown): Attendee[] {
       if (typeof rec.name === "string" && rec.name) a.name = rec.name;
       if (typeof rec.contactId === "string" && rec.contactId) a.contactId = rec.contactId;
       if (typeof rec.optional === "boolean") a.optional = rec.optional;
-      if (typeof rec.response === "string" && (RESPONSES as readonly string[]).includes(rec.response)) a.response = rec.response as Response;
+      if (typeof rec.response === "string" && (RESPONSES as readonly string[]).includes(rec.response))
+        a.response = rec.response as Response;
       out.push(a);
     }
     return out;
@@ -165,7 +174,10 @@ export function cleanAttendees(ctx: Pick<CalCtx, "trace">, given: unknown, befor
       a.contactId = rec.contactId;
     }
     if (typeof rec.optional === "boolean") a.optional = rec.optional;
-    const asked = typeof rec.response === "string" && (RESPONSES as readonly string[]).includes(rec.response) ? (rec.response as Response) : undefined;
+    const asked =
+      typeof rec.response === "string" && (RESPONSES as readonly string[]).includes(rec.response)
+        ? (rec.response as Response)
+        : undefined;
     a.response = asked ?? had.get(email)?.response ?? "needs_action";
     out.push(a);
   }
@@ -191,9 +203,12 @@ export function toCalendar(row: Row): CalendarOut {
   const provider = str(row, "provider");
   const state = str(row, "state");
   const out: CalendarOut = {
-    id: str(row, "id"), title: str(row, "title"), color: str(row, "color") || "#4f6bed",
+    id: str(row, "id"),
+    title: str(row, "title"),
+    color: str(row, "color") || "#4f6bed",
     provider: provider === "google" || provider === "microsoft" ? provider : "local",
-    ownerId: str(row, "ownerId"), personal: num(row, "personal") === 1,
+    ownerId: str(row, "ownerId"),
+    personal: num(row, "personal") === 1,
     state: state === "paused" || state === "error" ? state : "syncing",
   };
   const connection = strOrNull(row, "connectionId");
@@ -227,13 +242,23 @@ export interface EventOut {
 }
 
 export type ConferenceProvider = "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
-export interface Conference { provider: ConferenceProvider; url?: string; meetingId?: string; passcode?: string; dialIns: Array<{ number: string; pin?: string; label?: string }> }
+export interface Conference {
+  provider: ConferenceProvider;
+  url?: string;
+  meetingId?: string;
+  passcode?: string;
+  dialIns: Array<{ number: string; pin?: string; label?: string }>;
+}
 
 /** The video service a join link belongs to, by its host. */
 export function conferenceOfUrl(url: string | undefined): ConferenceProvider | null {
   if (!url) return null;
   let host = "";
-  try { host = new URL(url).hostname.toLowerCase(); } catch { return null; }
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
   if (host === "meet.google.com") return "meet";
   if (host.endsWith("zoom.us") || host.endsWith("zoom.com")) return "zoom";
   if (host.endsWith("teams.microsoft.com") || host.endsWith("teams.live.com")) return "teams";
@@ -248,20 +273,40 @@ export function readConference(v: unknown): Conference | undefined {
   if (typeof v !== "string" || !v) return undefined;
   try {
     const c = JSON.parse(v) as Conference;
-    return c && typeof c.provider === "string" ? { ...c, dialIns: Array.isArray(c.dialIns) ? c.dialIns : [] } : undefined;
-  } catch { return undefined; }
+    return c && typeof c.provider === "string"
+      ? { ...c, dialIns: Array.isArray(c.dialIns) ? c.dialIns : [] }
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function toEvent(row: Row): EventOut {
   const join = str(row, "joinProvider");
   const status = str(row, "status");
   const out: EventOut = {
-    id: str(row, "id"), calendarId: str(row, "calendarId"), title: str(row, "title"), startsAt: num(row, "startsAt"), endsAt: num(row, "endsAt"), allDay: num(row, "allDay") === 1,
+    id: str(row, "id"),
+    calendarId: str(row, "calendarId"),
+    title: str(row, "title"),
+    startsAt: num(row, "startsAt"),
+    endsAt: num(row, "endsAt"),
+    allDay: num(row, "allDay") === 1,
     joinProvider: join === "zoom" || join === "meet" || join === "teams" ? join : "none",
-    attendees: readAttendees(row.attendees), recordIds: readStrings(row.recordIds),
+    attendees: readAttendees(row.attendees),
+    recordIds: readStrings(row.recordIds),
     status: status === "tentative" || status === "canceled" ? status : "confirmed",
   };
-  for (const key of ["location", "joinUrl", "description", "agenda", "organizer", "meetingId", "bookedByAgentId", "fromBookingPage", "seriesId"] as const) {
+  for (const key of [
+    "location",
+    "joinUrl",
+    "description",
+    "agenda",
+    "organizer",
+    "meetingId",
+    "bookedByAgentId",
+    "fromBookingPage",
+    "seriesId",
+  ] as const) {
     const v = strOrNull(row, key);
     if (v) out[key] = v;
   }
@@ -277,11 +322,17 @@ export const ceilToStep = (ts: number): number => Math.ceil(ts / STEP_MS) * STEP
 /** Round a time to the nearest 15 minute mark: what a drag on the Week grid lands on. */
 export const snapToStep = (ts: number): number => Math.round(ts / STEP_MS) * STEP_MS;
 
-export interface Span { s: number; e: number }
+export interface Span {
+  s: number;
+  e: number;
+}
 
 /** Sort and join overlapping or touching spans. */
 export function mergeSpans(spans: readonly Span[]): Span[] {
-  const sorted = spans.filter((x) => x.e > x.s).map((x) => ({ ...x })).sort((a, b) => a.s - b.s || a.e - b.e);
+  const sorted = spans
+    .filter((x) => x.e > x.s)
+    .map((x) => ({ ...x }))
+    .sort((a, b) => a.s - b.s || a.e - b.e);
   const out: Span[] = [];
   for (const x of sorted) {
     const last = out[out.length - 1];
@@ -291,7 +342,12 @@ export function mergeSpans(spans: readonly Span[]): Span[] {
   return out;
 }
 
-export interface Hours { days: number[]; from: string; to: string; timeZone: string }
+export interface Hours {
+  days: number[];
+  from: string;
+  to: string;
+  timeZone: string;
+}
 
 const DOW: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 const formatters = new Map<string, Intl.DateTimeFormat>();
@@ -300,15 +356,37 @@ function localParts(ts: number, timeZone: string): { dow: number; day: string; m
   let f = formatters.get(timeZone);
   if (!f) {
     try {
-      f = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", weekday: "short", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+      f = new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        hourCycle: "h23",
+        weekday: "short",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     } catch {
-      f = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", hourCycle: "h23", weekday: "short", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+      f = new Intl.DateTimeFormat("en-US", {
+        timeZone: "UTC",
+        hourCycle: "h23",
+        weekday: "short",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     }
     formatters.set(timeZone, f);
   }
   const p: Record<string, string> = {};
   for (const part of f.formatToParts(new Date(ts))) p[part.type] = part.value;
-  return { dow: DOW[p.weekday ?? "Sun"] ?? 0, day: `${p.year}-${p.month}-${p.day}`, minute: Number(p.hour) * 60 + Number(p.minute) };
+  return {
+    dow: DOW[p.weekday ?? "Sun"] ?? 0,
+    day: `${p.year}-${p.month}-${p.day}`,
+    minute: Number(p.hour) * 60 + Number(p.minute),
+  };
 }
 
 const minutesOf = (hhmm: string): number => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
@@ -327,7 +405,15 @@ export const DEFAULT_HOURS: Hours = { days: [1, 2, 3, 4, 5], from: "09:00", to: 
  * The next free slots: starts on the 15 minute grid, each at least `gap` after the previous one, never over a busy span, and inside working hours when given.
  * `busy` must be merged (mergeSpans). The search stops at `limit` slots or at `to`.
  */
-export function freeSlots(busy: readonly Span[], from: number, to: number, durationMs: number, limit: number, hours: Hours | null, gap = 2 * STEP_MS): Span[] {
+export function freeSlots(
+  busy: readonly Span[],
+  from: number,
+  to: number,
+  durationMs: number,
+  limit: number,
+  hours: Hours | null,
+  gap = 2 * STEP_MS,
+): Span[] {
   const out: Span[] = [];
   let t = ceilToStep(from);
   let at = 0;
@@ -380,7 +466,16 @@ export function graphTime(value: unknown): number | undefined {
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_calendar_core.sql", "0002_calendar_account.sql", "0003_calendar_last_sync.sql", "0004_calendar_series.sql", "0005_calendar_conference.sql", "0006_calendar_event_provider_index.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = [
+  "0001_calendar_core.sql",
+  "0002_calendar_account.sql",
+  "0003_calendar_last_sync.sql",
+  "0004_calendar_series.sql",
+  "0005_calendar_conference.sql",
+  "0006_calendar_event_provider_index.sql",
+]
+  .map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8"))
+  .join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];

@@ -13,7 +13,10 @@ async function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const s = net.createServer();
     s.once("error", reject);
-    s.listen(0, "127.0.0.1", () => { const { port } = s.address() as net.AddressInfo; s.close(() => resolve(port)); });
+    s.listen(0, "127.0.0.1", () => {
+      const { port } = s.address() as net.AddressInfo;
+      s.close(() => resolve(port));
+    });
   });
 }
 
@@ -21,9 +24,15 @@ async function statusOf(script: string): Promise<number | null> {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-bridge-")));
   try {
     fs.writeFileSync(path.join(dir, "bridge.mjs"), BRIDGE_SOURCE);
-    const r = spawnSync(process.execPath, [path.join(dir, "bridge.mjs"), path.join(dir, "p.sock"), String(await freePort()), "--", "sh", "-c", script], { timeout: 20_000 });
+    const r = spawnSync(
+      process.execPath,
+      [path.join(dir, "bridge.mjs"), path.join(dir, "p.sock"), String(await freePort()), "--", "sh", "-c", script],
+      { timeout: 20_000 },
+    );
     return r.status;
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 test("the bridge passes on an exit status, and 128 plus the number of the signal a program died on", async () => {

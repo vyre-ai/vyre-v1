@@ -9,7 +9,12 @@ export type TrayModel = { tooltip: string; badge: string; items: TrayItem[] };
 
 export const TRAY_IDS = ["open", "needs", "status", "quit"] as const;
 
-const STATUS: Record<SidecarPhase, string> = { starting: "Starting", ready: "Running", failed: "Not running", stopped: "Stopped" };
+const STATUS: Record<SidecarPhase, string> = {
+  starting: "Starting",
+  ready: "Running",
+  failed: "Not running",
+  stopped: "Stopped",
+};
 
 export function trayModel(s: TrayState): TrayModel {
   const n = Number.isFinite(s.needsYou) && s.needsYou > 0 ? Math.floor(s.needsYou) : 0;
@@ -20,7 +25,11 @@ export function trayModel(s: TrayState): TrayModel {
       { id: "open", label: s.windowVisible ? "Hide Vyre" : "Open Vyre", enabled: true },
       { id: "needs", label: n > 0 ? `Needs you (${n})` : "Needs you", enabled: n > 0 },
       { id: "sep", label: "", enabled: false },
-      { id: "status", label: `Vyre on this computer: ${STATUS[s.sidecar]}${s.version && s.sidecar === "ready" ? ` (${s.version})` : ""}`, enabled: false },
+      {
+        id: "status",
+        label: `Vyre on this computer: ${STATUS[s.sidecar]}${s.version && s.sidecar === "ready" ? ` (${s.version})` : ""}`,
+        enabled: false,
+      },
       { id: "quit", label: "Quit Vyre", enabled: true },
     ],
   };

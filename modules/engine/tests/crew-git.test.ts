@@ -4,7 +4,18 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { GitError, branchFacts, cleanBranch, commitLeftovers, git, landBranch, prepareClone, pushBase, repoHead, summarize } from "../crew-git.ts";
+import {
+  GitError,
+  branchFacts,
+  cleanBranch,
+  commitLeftovers,
+  git,
+  landBranch,
+  prepareClone,
+  pushBase,
+  repoHead,
+  summarize,
+} from "../crew-git.ts";
 
 const tmp = (): string => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-git-")));
 const ID = { GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
@@ -20,7 +31,8 @@ async function repo(): Promise<string> {
 
 test("a branch name is plain: no spaces, no climbing, nothing git reads as an option", () => {
   assert.equal(cleanBranch("crew/ember-1"), "crew/ember-1");
-  for (const bad of ["", "a b", "-x", "a..b", "a/", "x.lock", "$(id)"]) assert.throws(() => cleanBranch(bad), GitError, bad);
+  for (const bad of ["", "a b", "-x", "a..b", "a/", "x.lock", "$(id)"])
+    assert.throws(() => cleanBranch(bad), GitError, bad);
 });
 
 test("the repository head is read, and a folder that is not a repository is refused in words", async () => {
@@ -35,15 +47,36 @@ test("the repository head is read, and a folder that is not a repository is refu
 test("the copy is its own repository on its own branch, cut off from the original, and a second open changes nothing", async () => {
   const r = await repo();
   const dest = path.join(tmp(), "work");
-  const made = await prepareClone({ repo: r, dest, branch: "crew/ember-1", base: "main", ident: { name: "Ember", email: "ember@vyre.invalid" } });
+  const made = await prepareClone({
+    repo: r,
+    dest,
+    branch: "crew/ember-1",
+    base: "main",
+    ident: { name: "Ember", email: "ember@vyre.invalid" },
+  });
   assert.equal(made.created, true);
   assert.equal(fs.readFileSync(path.join(dest, "README.md"), "utf8"), "hello\n");
   assert.equal((await git(["rev-parse", "--abbrev-ref", "HEAD"], dest)).out.trim(), "crew/ember-1");
   assert.equal((await git(["remote"], dest)).out.trim(), "", "no remote to push to");
   assert.equal((await git(["config", "user.name"], dest)).out.trim(), "Ember");
   fs.writeFileSync(path.join(dest, "mine.txt"), "work in progress\n");
-  assert.equal((await prepareClone({ repo: r, dest, branch: "crew/ember-1", base: "main", ident: { name: "Ember", email: "e@e" } })).created, false);
-  assert.equal(fs.readFileSync(path.join(dest, "mine.txt"), "utf8"), "work in progress\n", "the teammate's files are left as they were");
+  assert.equal(
+    (
+      await prepareClone({
+        repo: r,
+        dest,
+        branch: "crew/ember-1",
+        base: "main",
+        ident: { name: "Ember", email: "e@e" },
+      })
+    ).created,
+    false,
+  );
+  assert.equal(
+    fs.readFileSync(path.join(dest, "mine.txt"), "utf8"),
+    "work in progress\n",
+    "the teammate's files are left as they were",
+  );
   assert.equal(fs.existsSync(path.join(r, "mine.txt")), false, "nothing reached the original");
 });
 
@@ -51,7 +84,10 @@ test("a folder with other files in it is refused, not cloned over", async () => 
   const r = await repo();
   const dest = tmp();
   fs.writeFileSync(path.join(dest, "stray.txt"), "x");
-  await assert.rejects(prepareClone({ repo: r, dest, branch: "crew/a", base: "main", ident: { name: "A", email: "a@a" } }), /already holds files/);
+  await assert.rejects(
+    prepareClone({ repo: r, dest, branch: "crew/a", base: "main", ident: { name: "A", email: "a@a" } }),
+    /already holds files/,
+  );
 });
 
 test("the summary names the commits and files since the start, and leftovers are saved as a commit", async () => {
@@ -64,7 +100,10 @@ test("the summary names the commits and files since the start, and leftovers are
   assert.equal(await commitLeftovers(dest, "nothing"), false);
   const s = await summarize(dest, "main");
   assert.deepEqual([s.branch, s.ahead, s.dirty], ["crew/x", 1, false]);
-  assert.deepEqual(s.commits.map((c) => c.subject), ["add a.txt"]);
+  assert.deepEqual(
+    s.commits.map((c) => c.subject),
+    ["add a.txt"],
+  );
   assert.deepEqual(s.files, [{ path: "a.txt", added: 2, deleted: 0 }]);
 });
 
@@ -117,7 +156,13 @@ test("pushing sends the base branch to the origin from the host, and a repositor
 test("the repository says whether a branch is merged and pushed, however it got there: the button, a person in a terminal, or a push", async () => {
   const r = await repo();
   const dest = path.join(tmp(), "work");
-  await prepareClone({ repo: r, dest, branch: "crew/ember-1", base: "main", ident: { name: "Ember", email: "ember@vyre.invalid" } });
+  await prepareClone({
+    repo: r,
+    dest,
+    branch: "crew/ember-1",
+    base: "main",
+    ident: { name: "Ember", email: "ember@vyre.invalid" },
+  });
   const o = { repo: r, clone: dest, branch: "crew/ember-1", base: "main" };
   assert.deepEqual(await branchFacts(o), { ahead: 0, merged: false, pushed: false }, "no work yet is not merged");
   fs.writeFileSync(path.join(dest, "a.txt"), "a\n");

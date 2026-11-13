@@ -59,11 +59,18 @@ export function marbleInner(name: string): string {
 
 /** The prototype's hslHex: the soft tint behind a face, as six hex digits. */
 export function hslHex(h: number, s: number, l: number): string {
-  const sat = s / 100, lig = l / 100;
+  const sat = s / 100,
+    lig = l / 100;
   const k = (n: number): number => (n + h / 30) % 12;
   const a = sat * Math.min(lig, 1 - lig);
   const f = (n: number): number => lig - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-  return [0, 8, 4].map((n) => Math.round(f(n) * 255).toString(16).padStart(2, "0")).join("");
+  return [0, 8, 4]
+    .map((n) =>
+      Math.round(f(n) * 255)
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("");
 }
 
 /** The soft tint behind an agent's face (prototype: hsl(hue 55% 86%)), six hex digits. */
@@ -73,18 +80,30 @@ export function faceTint(seed: string): string {
 
 export function initialsOf(name: string, size: number, person: boolean): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
-  if (person && size >= 24) return words.map((w) => Array.from(w)[0] ?? "").slice(0, 2).join("").toUpperCase() || "?";
+  if (person && size >= 24)
+    return (
+      words
+        .map((w) => Array.from(w)[0] ?? "")
+        .slice(0, 2)
+        .join("")
+        .toUpperCase() || "?"
+    );
   return Array.from(words[0] ?? "?")[0]?.toUpperCase() ?? "?";
 }
 
 /** Where a marble blob's centre lands in the 80 unit box: the path's own centre, scaled 1.2, turned about (40,40), then moved. */
 function blobAt(c: readonly [number, number], t: { x: number; y: number; rot: number }): [number, number] {
-  const sx = (c[0] - 0) * 1.2, sy = (c[1] - 0) * 1.2;
+  const sx = (c[0] - 0) * 1.2,
+    sy = (c[1] - 0) * 1.2;
   const r = (t.rot * Math.PI) / 180;
-  const dx = sx - 40, dy = sy - 40;
+  const dx = sx - 40,
+    dy = sy - 40;
   const x = 40 + dx * Math.cos(r) - dy * Math.sin(r) + t.x;
   const y = 40 + dx * Math.sin(r) + dy * Math.cos(r) + t.y;
-  return [Math.round(Math.min(110, Math.max(-30, (x / 80) * 100))), Math.round(Math.min(110, Math.max(-30, (y / 80) * 100)))];
+  return [
+    Math.round(Math.min(110, Math.max(-30, (x / 80) * 100))),
+    Math.round(Math.min(110, Math.max(-30, (y / 80) * 100))),
+  ];
 }
 
 /**

@@ -4,8 +4,23 @@ import { isHostService, isSystemCall } from "../../../lib/trust.ts";
 import { checkpointBytes } from "../../../kernel/src/audit/index.ts";
 import type { AuditCtx, CheckpointRec, Filter, Klass, Ref, ResRef, RowRec } from "../projections.ts";
 import {
-  ARCHIVE_MAX, CHECKPOINT_STALE_MS, CHUNK, EXPORT_MAX, appendRow, checkpointValid, csvOf, cursorOf, findRows, genesis, headOf, limitOf, raise, rowOut, setMeta,
-  verifyRange, sampled,
+  ARCHIVE_MAX,
+  CHECKPOINT_STALE_MS,
+  CHUNK,
+  EXPORT_MAX,
+  appendRow,
+  checkpointValid,
+  csvOf,
+  cursorOf,
+  findRows,
+  genesis,
+  headOf,
+  limitOf,
+  raise,
+  rowOut,
+  setMeta,
+  verifyRange,
+  sampled,
 } from "../projections.ts";
 
 type Page = { cursor?: string; limit?: number };
@@ -18,9 +33,19 @@ export const VIEW_VISIT_MS = 15 * 60_000;
 function noteView(ctx: AuditCtx, action: string, resource: ResRef | undefined, detail: unknown): void {
   // the host reading its own log (a join retry checking for a change since a step failed) is not a person viewing it
   if (isHostService(ctx.principal)) return;
-  const last = ctx.db.all(`SELECT * FROM audit_row WHERE actor_id = ? AND action = ? ORDER BY seq DESC LIMIT 1`, ctx.principal.id, action)[0] as { at?: number } | undefined;
+  const last = ctx.db.all(
+    `SELECT * FROM audit_row WHERE actor_id = ? AND action = ? ORDER BY seq DESC LIMIT 1`,
+    ctx.principal.id,
+    action,
+  )[0] as { at?: number } | undefined;
   if (last?.at !== undefined && ctx.now() - Number(last.at) < VIEW_VISIT_MS) return;
-  appendRow(ctx, { actor: { kind: ctx.principal.kind, id: ctx.principal.id }, action, class: "sensitive", ...(resource ? { resource } : {}), after: detail });
+  appendRow(ctx, {
+    actor: { kind: ctx.principal.kind, id: ctx.principal.id },
+    action,
+    class: "sensitive",
+    ...(resource ? { resource } : {}),
+    after: detail,
+  });
 }
 
 export async function list(ctx: AuditCtx, input: Filter & Page) {
@@ -28,7 +53,12 @@ export async function list(ctx: AuditCtx, input: Filter & Page) {
   const size = limitOf(limit);
   const found = findRows(ctx, filter, cursorOf(cursor), size);
   // the view is recorded after the answer is read, so a page never lists its own view
-  noteView(ctx, "audit.viewed", { type: "space", id: ctx.space }, { rows: found.rows.length, filters: Object.keys(filter).sort() });
+  noteView(
+    ctx,
+    "audit.viewed",
+    { type: "space", id: ctx.space },
+    { rows: found.rows.length, filters: Object.keys(filter).sort() },
+  );
   const last = found.rows[found.rows.length - 1];
   return { rows: found.rows.map(rowOut), ...(found.more && last ? { next: String(last.seq) } : {}) };
 }
@@ -51,13 +81,22 @@ export async function exportCsv(ctx: AuditCtx, input: Omit<Filter, "q" | "traceI
     before = page.rows[page.rows.length - 1]!.seq;
   }
   // The read filter cannot reach the contents of the file, so a row that names a resource goes in only on an explicit view allow for it (hold is a deny). No authorize in the context: refuse (P-SEC_07).
-  if (typeof ctx.authorize !== "function") raise(ctx, "permission.role_lacks_permission", "This server cannot check who may see each row, so it exports nothing.");
+  if (typeof ctx.authorize !== "function")
+    raise(
+      ctx,
+      "permission.role_lacks_permission",
+      "This server cannot check who may see each row, so it exports nothing.",
+    );
   const may = new Map<string, boolean>();
   const visible = (r: RowRec): boolean => {
     if (!r.resource_type) return true;
     const key = `${r.resource_type}:${r.resource_id}`;
     let ok = may.get(key);
-    if (ok === undefined) { ok = ctx.authorize!({ perm: null, level: "view" }, { type: r.resource_type, id: r.resource_id }).effect === "allow"; may.set(key, ok); }
+    if (ok === undefined) {
+      ok =
+        ctx.authorize!({ perm: null, level: "view" }, { type: r.resource_type, id: r.resource_id }).effect === "allow";
+      may.set(key, ok);
+    }
     return ok;
   };
   const kept = rows.slice(0, EXPORT_MAX).filter(visible).reverse();
@@ -69,7 +108,12 @@ export async function exportCsv(ctx: AuditCtx, input: Omit<Filter, "q" | "traceI
 
 export async function verify(ctx: AuditCtx, input: { fromSeq?: number; toSeq?: number }) {
   const v = verifyRange(ctx, input.fromSeq, input.toSeq);
-  ctx.emit("audit.verified", who(ctx), { ok: v.ok, checked: v.checked, ...(v.firstBadSeq !== undefined ? { firstBadSeq: v.firstBadSeq } : {}), by: who(ctx) });
+  ctx.emit("audit.verified", who(ctx), {
+    ok: v.ok,
+    checked: v.checked,
+    ...(v.firstBadSeq !== undefined ? { firstBadSeq: v.firstBadSeq } : {}),
+    by: who(ctx),
+  });
   return v;
 }
 
@@ -80,22 +124,33 @@ function checkpointOut(ctx: AuditCtx, cp: CheckpointRec) {
 export async function checkpointsList(ctx: AuditCtx, input: Page) {
   const size = limitOf(input.limit);
   const before = cursorOf(input.cursor);
-  const rows = (before === undefined
-    ? ctx.db.all(`SELECT * FROM audit_checkpoint ORDER BY seq DESC LIMIT ?`, size + 1)
-    : ctx.db.all(`SELECT * FROM audit_checkpoint WHERE seq < ? ORDER BY seq DESC LIMIT ?`, before, size + 1)) as CheckpointRec[];
+  const rows = (
+    before === undefined
+      ? ctx.db.all(`SELECT * FROM audit_checkpoint ORDER BY seq DESC LIMIT ?`, size + 1)
+      : ctx.db.all(`SELECT * FROM audit_checkpoint WHERE seq < ? ORDER BY seq DESC LIMIT ?`, before, size + 1)
+  ) as CheckpointRec[];
   const page = rows.slice(0, size);
-  return { checkpoints: page.map((c) => checkpointOut(ctx, c)), ...(rows.length > size ? { next: String(page[page.length - 1]!.seq) } : {}) };
+  return {
+    checkpoints: page.map((c) => checkpointOut(ctx, c)),
+    ...(rows.length > size ? { next: String(page[page.length - 1]!.seq) } : {}),
+  };
 }
 
 export async function archivesList(ctx: AuditCtx, _input: Record<string, never>) {
-  const rows = ctx.db.all(`SELECT * FROM audit_archive ORDER BY year DESC`) as { year: number; file: string; row_count: number; size_bytes: number }[];
+  const rows = ctx.db.all(`SELECT * FROM audit_archive ORDER BY year DESC`) as {
+    year: number;
+    file: string;
+    row_count: number;
+    size_bytes: number;
+  }[];
   return { archives: rows.map((r) => ({ year: r.year, file: r.file, rows: r.row_count, sizeBytes: r.size_bytes })) };
 }
 
 // ---- system halves
 
 export async function checkpoint(ctx: AuditCtx, _input: Record<string, never>) {
-  if (!isSystemCall(ctx)) raise(ctx, "permission.no_grant", "This is for the server and for other modules, not for a direct call.");
+  if (!isSystemCall(ctx))
+    raise(ctx, "permission.no_grant", "This is for the server and for other modules, not for a direct call.");
   if (!ctx.signer) raise(ctx, "internal.not_implemented", "no checkpoint signing key is wired");
   const head = headOf(ctx);
   const have = ctx.db.all(`SELECT * FROM audit_checkpoint WHERE seq = ?`, head.seq)[0] as CheckpointRec | undefined;
@@ -103,19 +158,35 @@ export async function checkpoint(ctx: AuditCtx, _input: Record<string, never>) {
   const at = ctx.now();
   const body = { space: ctx.space, seq: head.seq, hash: head.hash, time: at, key_id: ctx.signer.keyId };
   const sig = await ctx.signer.sign(checkpointBytes(body));
-  ctx.db.run(`INSERT INTO audit_checkpoint (seq, at, hash, key_id, sig) VALUES (?, ?, ?, ?, ?)`, head.seq, at, head.hash, body.key_id, sig);
+  ctx.db.run(
+    `INSERT INTO audit_checkpoint (seq, at, hash, key_id, sig) VALUES (?, ?, ?, ?, ?)`,
+    head.seq,
+    at,
+    head.hash,
+    body.key_id,
+    sig,
+  );
   ctx.emit("audit.checkpointed", String(head.seq), { seq: head.seq, hash: head.hash });
   return { checkpoint: checkpointOut(ctx, { seq: head.seq, at, hash: head.hash, key_id: body.key_id, sig }) };
 }
 
-export async function append(ctx: AuditCtx, input: { action: string; class: Klass; resource?: ResRef; onBehalfOf?: Ref; detail?: unknown }) {
+export async function append(
+  ctx: AuditCtx,
+  input: { action: string; class: Klass; resource?: ResRef; onBehalfOf?: Ref; detail?: unknown },
+) {
   // a row a module audits by hand: only a module (a nested call) or the server may write one; a person typing the URL could otherwise forge entries and who they were made on behalf of
-  if (!isSystemCall(ctx)) raise(ctx, "permission.no_grant", "This is for the server and for other modules, not for a direct call.");
+  if (!isSystemCall(ctx))
+    raise(ctx, "permission.no_grant", "This is for the server and for other modules, not for a direct call.");
   const action = input.action.trim();
-  if (action.length === 0 || action.length > 200) raise(ctx, "validation.bad_input", "an audit action is 1 to 200 characters");
+  if (action.length === 0 || action.length > 200)
+    raise(ctx, "validation.bad_input", "an audit action is 1 to 200 characters");
   const out = appendRow(ctx, {
-    actor: { kind: ctx.principal.kind, id: ctx.principal.id }, action, class: input.class, ...(input.resource ? { resource: input.resource } : {}),
-    ...(input.onBehalfOf ? { onBehalfOf: input.onBehalfOf } : {}), after: sampled(input.detail),
+    actor: { kind: ctx.principal.kind, id: ctx.principal.id },
+    action,
+    class: input.class,
+    ...(input.resource ? { resource: input.resource } : {}),
+    ...(input.onBehalfOf ? { onBehalfOf: input.onBehalfOf } : {}),
+    after: sampled(input.detail),
   });
   return { auditId: out.auditId };
 }
@@ -123,11 +194,16 @@ export async function append(ctx: AuditCtx, input: { action: string; class: Klas
 /** Move rows older than `before` into the encrypted archive file, oldest first, and keep the chain verifiable through an anchor on the last row that moved. */
 export async function archive(ctx: AuditCtx, input: { before: number }) {
   // archiving moves rows out of the log everyone reads: with a cutoff in the future it would hide the whole trail, so only retention (a nested call) and the server may
-  if (!isSystemCall(ctx)) raise(ctx, "permission.no_grant", "This is for the server and for other modules, not for a direct call.");
+  if (!isSystemCall(ctx))
+    raise(ctx, "permission.no_grant", "This is for the server and for other modules, not for a direct call.");
   if (!ctx.archive) raise(ctx, "internal.not_implemented", "no archive store is wired");
   const old: RowRec[] = [];
-  for (let after = 0; old.length < ARCHIVE_MAX;) {
-    const chunk = ctx.db.all(`SELECT * FROM audit_row WHERE seq > ? ORDER BY seq ASC LIMIT ?`, after, CHUNK) as RowRec[];
+  for (let after = 0; old.length < ARCHIVE_MAX; ) {
+    const chunk = ctx.db.all(
+      `SELECT * FROM audit_row WHERE seq > ? ORDER BY seq ASC LIMIT ?`,
+      after,
+      CHUNK,
+    ) as RowRec[];
     const stop = chunk.findIndex((r) => r.at >= input.before);
     old.push(...(stop < 0 ? chunk : chunk.slice(0, stop)));
     if (stop >= 0 || chunk.length < CHUNK) break;
@@ -143,10 +219,29 @@ export async function archive(ctx: AuditCtx, input: { before: number }) {
   }
   const written: { year: number; rows: number; file: string }[] = [];
   for (const [year, rows] of [...byYear.entries()].sort((a, b) => a[0] - b[0])) {
-    const res = await ctx.archive.write(year, rows.map((r) => JSON.stringify(r)));
-    const have = ctx.db.all(`SELECT year, row_count, size_bytes FROM audit_archive WHERE year = ?`, year)[0] as { year: number; row_count: number; size_bytes: number } | undefined;
-    if (have) ctx.db.run(`UPDATE audit_archive SET file = ?, row_count = ?, size_bytes = ? WHERE year = ?`, res.file, have.row_count + rows.length, res.sizeBytes, year);
-    else ctx.db.run(`INSERT INTO audit_archive (year, file, row_count, size_bytes) VALUES (?, ?, ?, ?)`, year, res.file, rows.length, res.sizeBytes);
+    const res = await ctx.archive.write(
+      year,
+      rows.map((r) => JSON.stringify(r)),
+    );
+    const have = ctx.db.all(`SELECT year, row_count, size_bytes FROM audit_archive WHERE year = ?`, year)[0] as
+      | { year: number; row_count: number; size_bytes: number }
+      | undefined;
+    if (have)
+      ctx.db.run(
+        `UPDATE audit_archive SET file = ?, row_count = ?, size_bytes = ? WHERE year = ?`,
+        res.file,
+        have.row_count + rows.length,
+        res.sizeBytes,
+        year,
+      );
+    else
+      ctx.db.run(
+        `INSERT INTO audit_archive (year, file, row_count, size_bytes) VALUES (?, ?, ?, ?)`,
+        year,
+        res.file,
+        rows.length,
+        res.sizeBytes,
+      );
     written.push({ year, rows: rows.length, file: res.file });
   }
   // every year is written: now the anchor, then the move
@@ -166,7 +261,10 @@ async function freshChain(ctx: AuditCtx): Promise<boolean> {
   return typeof first?.at === "number" && ctx.now() - first.at < FRESH_CHAIN_MS;
 }
 
-export async function chainHealth(ctx: AuditCtx, _input: Record<string, never>): Promise<{ state: "healthy" | "degraded" | "down"; detail?: string; latencyMs: number }> {
+export async function chainHealth(
+  ctx: AuditCtx,
+  _input: Record<string, never>,
+): Promise<{ state: "healthy" | "degraded" | "down"; detail?: string; latencyMs: number }> {
   const t0 = performance.now();
   const ms = (): number => Math.max(0, Math.round(performance.now() - t0));
   const head = headOf(ctx);
@@ -175,15 +273,23 @@ export async function chainHealth(ctx: AuditCtx, _input: Record<string, never>):
     const empty = head.seq === 0 || head.hash === genesis(ctx.space);
     return empty
       ? { state: "healthy", detail: "The audit log is empty.", latencyMs: ms() }
-      : await freshChain(ctx)
-        ? { state: "healthy", detail: "No checkpoint has been signed yet; the first is signed within minutes.", latencyMs: ms() }
+      : (await freshChain(ctx))
+        ? {
+            state: "healthy",
+            detail: "No checkpoint has been signed yet; the first is signed within minutes.",
+            latencyMs: ms(),
+          }
         : { state: "degraded", detail: "No checkpoint has been signed yet.", latencyMs: ms() };
   }
   const tail = verifyRange(ctx, cp.seq, undefined);
-  if (!checkpointValid(ctx, cp) || !tail.ok) return { state: "down", detail: "The newest checkpoint or the chain after it does not verify.", latencyMs: ms() };
+  if (!checkpointValid(ctx, cp) || !tail.ok)
+    return { state: "down", detail: "The newest checkpoint or the chain after it does not verify.", latencyMs: ms() };
   const age = ctx.now() - cp.at;
-  if (age > CHECKPOINT_STALE_MS) return { state: "degraded", detail: `The newest checkpoint is ${Math.round(age / 60_000)} minutes old.`, latencyMs: ms() };
+  if (age > CHECKPOINT_STALE_MS)
+    return {
+      state: "degraded",
+      detail: `The newest checkpoint is ${Math.round(age / 60_000)} minutes old.`,
+      latencyMs: ms(),
+    };
   return { state: "healthy", latencyMs: ms() };
 }
-
-

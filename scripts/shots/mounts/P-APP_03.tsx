@@ -23,20 +23,64 @@ export const title = "Owner claim";
 
 export default function Mount(): ReactNode {
   const [view, setView] = useState<string | null>(null);
-  useEffect(() => setView(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("view") ?? "details"), []);
+  useEffect(
+    () =>
+      setView(
+        new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("view") ??
+          "details",
+      ),
+    [],
+  );
   if (view === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  if (view === "join-known") return <ContinueAs prefix="join-as" space="Northwind" username="dana" sub="Enter your Vyre password to join Northwind" working="Joining Northwind" onContinue={never} onOther={noop} onBack={noop} />;
-  if (view === "known-error") return <ContinueAs prefix="claim-as" space="Northwind" username="dana" sub="Enter your Vyre password to set up Northwind" working="Setting up Northwind" onContinue={never} onOther={noop} initialError="That password is not right." />;
+  if (view === "join-known")
+    return (
+      <ContinueAs
+        prefix="join-as"
+        space="Northwind"
+        username="dana"
+        sub="Enter your Vyre password to join Northwind"
+        working="Joining Northwind"
+        onContinue={never}
+        onOther={noop}
+        onBack={noop}
+      />
+    );
+  if (view === "known-error")
+    return (
+      <ContinueAs
+        prefix="claim-as"
+        space="Northwind"
+        username="dana"
+        sub="Enter your Vyre password to set up Northwind"
+        working="Setting up Northwind"
+        onContinue={never}
+        onOther={noop}
+        initialError="That password is not right."
+      />
+    );
   if (view === "rotate" || view === "rotate-code") {
     return (
       <View style={{ flex: 1, minHeight: 640, backgroundColor: "var(--win)" as string }}>
-        <SecuritySheet action="recovery" call={async () => ({})} onClose={noop} spaceName="Personal" newCode={() => "Q2WE-R3TY-U4PA-S5DF"} {...(view === "rotate-code" ? { initialCode: { code: "Q2WE-R3TY-U4PA-S5DF", updated: ["Personal", "Northwind"], missed: [] } } : {})} />
+        <SecuritySheet
+          action="recovery"
+          call={async () => ({})}
+          onClose={noop}
+          spaceName="Personal"
+          newCode={() => "Q2WE-R3TY-U4PA-S5DF"}
+          {...(view === "rotate-code"
+            ? { initialCode: { code: "Q2WE-R3TY-U4PA-S5DF", updated: ["Personal", "Northwind"], missed: [] } }
+            : {})}
+        />
       </View>
     );
   }
   return (
     <ClaimOwner
-      key={view} space="Northwind" newCode={() => "K7QM-4TXD-9WPA-H3NE"} onClaim={async () => undefined} onSignIn={() => undefined}
+      key={view}
+      space="Northwind"
+      newCode={() => "K7QM-4TXD-9WPA-H3NE"}
+      onClaim={async () => undefined}
+      onSignIn={() => undefined}
       {...(view === "used" ? { dead: "used" as const } : view === "recovery" ? { stage: "recovery" as const } : {})}
       {...(view === "known" ? { known: { username: "dana", name: "Dana Wills" }, onClaimAs: never } : {})}
       {...(view === "open-app" ? { onOpenApp: noop, fingerprint: "9f3c 1a2b 77de 0c41" } : {})}

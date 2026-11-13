@@ -17,7 +17,10 @@ import type { AsyncConsumer, Tx } from "../../kernel/src/store/projection.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 
 /** The part of the host Ctx these handlers use. The full Ctx satisfies it. */
-export type EventsCtx = Pick<Ctx, "space" | "principal" | "trace" | "now" | "db" | "emit" | "call" | "seal" | "schedule"> & { actingFor?: string | undefined };
+export type EventsCtx = Pick<
+  Ctx,
+  "space" | "principal" | "trace" | "now" | "db" | "emit" | "call" | "seal" | "schedule"
+> & { actingFor?: string | undefined };
 
 type Code = Parameters<typeof fail>[0];
 export function raise(ctx: Pick<EventsCtx, "trace">, code: Code, message?: string): never {
@@ -29,10 +32,15 @@ export function raise(ctx: Pick<EventsCtx, "trace">, code: Code, message?: strin
 /** Starts a capability as the system (the host's consumer runner provides it); the consumer uses it to begin each delivery. */
 export type Dispatch = (cap: string, input: unknown) => Promise<unknown>;
 const runtime: { host: EventsHostSeam | null; dispatch: Dispatch | null } = { host: null, dispatch: null };
-export function setEventsHost(h: EventsHostSeam | null): void { runtime.host = h; }
-export function setEventsDispatch(d: Dispatch | null): void { runtime.dispatch = d; }
+export function setEventsHost(h: EventsHostSeam | null): void {
+  runtime.host = h;
+}
+export function setEventsDispatch(d: Dispatch | null): void {
+  runtime.dispatch = d;
+}
 export function hostPorts(ctx: Pick<EventsCtx, "trace">): EventsHostSeam {
-  if (!runtime.host) raise(ctx, "internal.unavailable", "Event reading and delivery are not set up on this server yet.");
+  if (!runtime.host)
+    raise(ctx, "internal.unavailable", "Event reading and delivery are not set up on this server yet.");
   return runtime.host!;
 }
 export const hostIfSet = (): EventsHostSeam | null => runtime.host;
@@ -48,7 +56,11 @@ export function nid(prefix: string, bytes = 9): string {
 }
 export const PAGE_DEFAULT = 100;
 export const PAGE_MAX = 500;
-export function pageOf<T>(rows: T[], cursor: string | undefined, limit: number | undefined): { items: T[]; next?: string; total: number } {
+export function pageOf<T>(
+  rows: T[],
+  cursor: string | undefined,
+  limit: number | undefined,
+): { items: T[]; next?: string; total: number } {
   const start = cursor !== undefined && /^[0-9]+$/.test(cursor) ? Number(cursor) : 0;
   const size = Math.min(PAGE_MAX, Math.max(1, limit ?? PAGE_DEFAULT));
   const items = rows.slice(start, start + size);
@@ -59,33 +71,78 @@ export function pageOf<T>(rows: T[], cursor: string | undefined, limit: number |
 
 export type DeliveryState = "pending" | "retrying" | "delivered" | "failed" | "gave_up";
 export interface WebhookRec {
-  id: string; name: string; url: string; event_types: string; filter: string | null; active: number; secret: string; secret_hint: string; created_by: string;
-  created_at: number; last_delivery_at: number | null; failure_streak: number; gave_up_streak: number; version: number; updated_at: number | null; deleted_at: number | null;
+  id: string;
+  name: string;
+  url: string;
+  event_types: string;
+  filter: string | null;
+  active: number;
+  secret: string;
+  secret_hint: string;
+  created_by: string;
+  created_at: number;
+  last_delivery_at: number | null;
+  failure_streak: number;
+  gave_up_streak: number;
+  version: number;
+  updated_at: number | null;
+  deleted_at: number | null;
 }
 export interface DeliveryRec {
-  id: string; webhook_id: string; event_id: string; event_type: string; kind: "event" | "test" | "replay"; replay_of: string | null; state: DeliveryState; attempts: number;
-  http_status: number | null; last_error: string | null; at: number; first_at: number; next_attempt_at: number | null; duration_ms: number | null; body: string | null; trace_id: string | null;
+  id: string;
+  webhook_id: string;
+  event_id: string;
+  event_type: string;
+  kind: "event" | "test" | "replay";
+  replay_of: string | null;
+  state: DeliveryState;
+  attempts: number;
+  http_status: number | null;
+  last_error: string | null;
+  at: number;
+  first_at: number;
+  next_attempt_at: number | null;
+  duration_ms: number | null;
+  body: string | null;
+  trace_id: string | null;
 }
 
 export function webhookOut(w: WebhookRec) {
   return {
-    id: w.id, name: w.name, url: w.url, eventTypes: JSON.parse(w.event_types) as string[],
+    id: w.id,
+    name: w.name,
+    url: w.url,
+    eventTypes: JSON.parse(w.event_types) as string[],
     ...(w.filter !== null ? { filter: JSON.parse(w.filter) as unknown } : {}),
-    active: w.active === 1, secretHint: w.secret_hint, createdBy: w.created_by, createdAt: w.created_at,
-    ...(w.last_delivery_at !== null ? { lastDeliveryAt: w.last_delivery_at } : {}), failureStreak: w.failure_streak,
+    active: w.active === 1,
+    secretHint: w.secret_hint,
+    createdBy: w.created_by,
+    createdAt: w.created_at,
+    ...(w.last_delivery_at !== null ? { lastDeliveryAt: w.last_delivery_at } : {}),
+    failureStreak: w.failure_streak,
   };
 }
 
 export function deliveryOut(d: DeliveryRec) {
   return {
-    id: d.id, webhookId: d.webhook_id, eventId: d.event_id, eventType: d.event_type, state: d.state, attempts: d.attempts,
-    ...(d.http_status !== null ? { httpStatus: d.http_status } : {}), ...(d.last_error !== null ? { lastError: d.last_error } : {}), at: d.at,
-    ...(d.next_attempt_at !== null ? { nextAttemptAt: d.next_attempt_at } : {}), ...(d.duration_ms !== null ? { durationMs: d.duration_ms } : {}),
+    id: d.id,
+    webhookId: d.webhook_id,
+    eventId: d.event_id,
+    eventType: d.event_type,
+    state: d.state,
+    attempts: d.attempts,
+    ...(d.http_status !== null ? { httpStatus: d.http_status } : {}),
+    ...(d.last_error !== null ? { lastError: d.last_error } : {}),
+    at: d.at,
+    ...(d.next_attempt_at !== null ? { nextAttemptAt: d.next_attempt_at } : {}),
+    ...(d.duration_ms !== null ? { durationMs: d.duration_ms } : {}),
   };
 }
 
 export function webhookById(ctx: Pick<EventsCtx, "db">, id: string): WebhookRec | undefined {
-  return ctx.db.all(`SELECT * FROM events_webhook WHERE id = ? AND deleted_at IS NULL`, id)[0] as WebhookRec | undefined;
+  return ctx.db.all(`SELECT * FROM events_webhook WHERE id = ? AND deleted_at IS NULL`, id)[0] as
+    | WebhookRec
+    | undefined;
 }
 export function mustWebhook(ctx: EventsCtx, id: string): WebhookRec {
   return webhookById(ctx, id) ?? raise(ctx, "validation.not_found", "no such webhook");
@@ -141,10 +198,12 @@ export const backoffMs = (n: number): number => Math.min(MAX_BACKOFF_MS, FIRST_R
 // ---- the consumer
 
 const SEQ_KEY = "last_seq";
-export const lastSeq = (ctx: Pick<EventsCtx, "db">): number => (ctx.db.all(`SELECT value FROM events_state WHERE key = ?`, SEQ_KEY)[0] as { value: number } | undefined)?.value ?? 0;
+export const lastSeq = (ctx: Pick<EventsCtx, "db">): number =>
+  (ctx.db.all(`SELECT value FROM events_state WHERE key = ?`, SEQ_KEY)[0] as { value: number } | undefined)?.value ?? 0;
 
 /** The module's tables, from the migration file, so the consumer can open on a database the migration has not reached yet. */
-export const migrationSql = (): string => readFileSync(new URL("./migrations/0001_events.sql", import.meta.url), "utf8");
+export const migrationSql = (): string =>
+  readFileSync(new URL("./migrations/0001_events.sql", import.meta.url), "utf8");
 
 /**
  * Queue one pending delivery for every active webhook the event matches (at most one per webhook and event, so a repeated event after a crash queues nothing new),
@@ -163,41 +222,75 @@ export async function fanOut(tx: Tx, e: StoredEvent, dispatch: Dispatch | null, 
       payload ??= JSON.parse(new TextDecoder().decode(e.payload));
       if (!filterMatches(JSON.parse(w.filter), payload)) continue;
     }
-    if (tx.get(`SELECT id FROM events_delivery WHERE webhook_id = ? AND event_id = ? AND kind = 'event'`, w.id, e.id)) continue;
+    if (tx.get(`SELECT id FROM events_delivery WHERE webhook_id = ? AND event_id = ? AND kind = 'event'`, w.id, e.id))
+      continue;
     tx.run(
       `INSERT INTO events_delivery (id, webhook_id, event_id, event_type, kind, state, attempts, at, first_at, next_attempt_at, trace_id) VALUES (?, ?, ?, ?, 'event', 'pending', 0, ?, ?, ?, ?)`,
-      nid("dlv"), w.id, e.id, e.type, now, now, now, e.trace_id,
+      nid("dlv"),
+      w.id,
+      e.id,
+      e.type,
+      now,
+      now,
+      now,
+      e.trace_id,
     );
     queued++;
     started.push(w.id);
   }
   if (dispatch) {
     for (const webhookId of started) {
-      try { await dispatch("webhooks.send_delivery", { webhookId, eventId: e.id, attempt: 1, idempotencyKey: `${webhookId}:${e.id}:1` }); } catch { /* the row stays pending; the next sweep or manual replay picks it up */ }
+      try {
+        await dispatch("webhooks.send_delivery", {
+          webhookId,
+          eventId: e.id,
+          attempt: 1,
+          idempotencyKey: `${webhookId}:${e.id}:1`,
+        });
+      } catch {
+        /* the row stays pending; the next sweep or manual replay picks it up */
+      }
     }
   }
   return queued;
 }
 
-const everyEvent: Record<string, (tx: Tx, e: StoredEvent) => Promise<void>> = new Proxy({} as Record<string, (tx: Tx, e: StoredEvent) => Promise<void>>, {
-  get: (_t, name) => (typeof name === "string" ? async (tx: Tx, e: StoredEvent) => { await fanOut(tx, e, runtime.dispatch, Date.now()); } : undefined),
-});
+const everyEvent: Record<string, (tx: Tx, e: StoredEvent) => Promise<void>> = new Proxy(
+  {} as Record<string, (tx: Tx, e: StoredEvent) => Promise<void>>,
+  {
+    get: (_t, name) =>
+      typeof name === "string"
+        ? async (tx: Tx, e: StoredEvent) => {
+            await fanOut(tx, e, runtime.dispatch, Date.now());
+          }
+        : undefined,
+  },
+);
 
 export const webhooksOut: AsyncConsumer = {
   name: "events.webhooks_out",
   version: 1,
   mode: "async",
   rebuild: "replay",
-  init(tx) { tx.exec(migrationSql()); },
-  reset(tx) { tx.run(`DELETE FROM events_state`); },   // deliveries and webhooks are the module's own records, not derived from the log
+  init(tx) {
+    tx.exec(migrationSql());
+  },
+  reset(tx) {
+    tx.run(`DELETE FROM events_state`);
+  }, // deliveries and webhooks are the module's own records, not derived from the log
   on: everyEvent,
   batch: 100,
 };
 
 /** Deliveries that have waited past their time and have no scheduled retry behind them: pending ones (the dispatcher was missing) and retrying ones. */
 export function dueDeliveries(ctx: Pick<EventsCtx, "db">, now: number, limit = 100): DeliveryRec[] {
-  return (ctx.db.all(`SELECT * FROM events_delivery WHERE next_attempt_at IS NOT NULL AND next_attempt_at <= ? ORDER BY next_attempt_at ASC LIMIT ?`, now, limit) as DeliveryRec[])
-    .filter((d) => d.kind === "event" && (d.state === "pending" || d.state === "retrying"));
+  return (
+    ctx.db.all(
+      `SELECT * FROM events_delivery WHERE next_attempt_at IS NOT NULL AND next_attempt_at <= ? ORDER BY next_attempt_at ASC LIMIT ?`,
+      now,
+      limit,
+    ) as DeliveryRec[]
+  ).filter((d) => d.kind === "event" && (d.state === "pending" || d.state === "retrying"));
 }
 
 export const projections = [webhooksOut];

@@ -7,7 +7,10 @@ import { registry } from "../../../generated/registry.ts";
 import { harness } from "../fixtures/harness.ts";
 
 test("the handler map covers exactly the capabilities of the manifest", () => {
-  const declared = registry.capabilities.filter((c) => c.module === "contacts-link").map((c) => c.name).sort();
+  const declared = registry.capabilities
+    .filter((c) => c.module === "contacts-link")
+    .map((c) => c.name)
+    .sort();
   assert.equal(declared.length, 18);
   assert.deepEqual(Object.keys(handlers).sort(), declared);
   assert.deepEqual(Object.keys(projections), ["inline", "consumers"]);
@@ -17,9 +20,21 @@ test("a handler runs through the host signature", async () => {
   const h = harness();
   h.contact("rec_pat01", { name: "Pat Lee", email: "pat@x.test" });
   const asHost = h.ctx as unknown as Parameters<(typeof handlers)[string]>[0];
-  const found = (await handlers["contacts.resolve"]!(asHost, { email: "pat@x.test" })) as { sure: { recordId: string }[] };
-  assert.deepEqual(found.sure.map((c) => c.recordId), ["rec_pat01"]);
-  const added = (await handlers["contacts.suppression.add"]!(asHost, { channel: "email", addresses: ["pat@x.test"], reason: "manual" })) as { added: number };
+  const found = (await handlers["contacts.resolve"]!(asHost, { email: "pat@x.test" })) as {
+    sure: { recordId: string }[];
+  };
+  assert.deepEqual(
+    found.sure.map((c) => c.recordId),
+    ["rec_pat01"],
+  );
+  const added = (await handlers["contacts.suppression.add"]!(asHost, {
+    channel: "email",
+    addresses: ["pat@x.test"],
+    reason: "manual",
+  })) as { added: number };
   assert.equal(added.added, 1);
-  assert.deepEqual(await handlers["contacts.suppression.check"]!(asHost, { channel: "email", addresses: ["pat@x.test"] }), { suppressed: [{ address: "pat@x.test", reason: "manual" }] });
+  assert.deepEqual(
+    await handlers["contacts.suppression.check"]!(asHost, { channel: "email", addresses: ["pat@x.test"] }),
+    { suppressed: [{ address: "pat@x.test", reason: "manual" }] },
+  );
 });

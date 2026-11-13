@@ -126,7 +126,14 @@ test("manual clock injects the same latency without a wall wait", async () => {
   const pending = iter.next();
   clock.advance(199);
   let early = false;
-  pending.then(() => { early = true; }, () => { early = true; });
+  pending.then(
+    () => {
+      early = true;
+    },
+    () => {
+      early = true;
+    },
+  );
   await Promise.resolve();
   assert.equal(early, false);
   clock.advance(1);

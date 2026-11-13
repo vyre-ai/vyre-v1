@@ -47,26 +47,65 @@ function Viewer({ view }: { view: View_ }): ReactNode {
     const v = createSampleViewer();
     const row = v.rows.get("f_note")!;
     row.comments = [];
-    const name = view === "docx" ? "Engagement letter - 12 Elm Street.docx" : view === "pptx" ? "Q4 review.pptx" : "Settlement terms (locked).docx";
+    const name =
+      view === "docx"
+        ? "Engagement letter - 12 Elm Street.docx"
+        : view === "pptx"
+          ? "Q4 review.pptx"
+          : "Settlement terms (locked).docx";
     const kind = view === "pptx" ? "presentation" : "document";
-    const mime = view === "pptx" ? "application/vnd.openxmlformats-officedocument.presentationml.presentation" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-    row.data = { ...row.data, file: { ...row.data.file, name, kind, mime, size: 48_200, source: SHAREPOINT }, text: view === "docx" ? LETTER : view === "pptx" ? DECK : "", pages: view === "pptx" ? 4 : undefined, canEdit: true } as ViewerData;
+    const mime =
+      view === "pptx"
+        ? "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    row.data = {
+      ...row.data,
+      file: { ...row.data.file, name, kind, mime, size: 48_200, source: SHAREPOINT },
+      text: view === "docx" ? LETTER : view === "pptx" ? DECK : "",
+      pages: view === "pptx" ? 4 : undefined,
+      canEdit: true,
+    } as ViewerData;
     const app = view === "pptx" ? "PowerPoint" : "Word";
     const inner = v.data.call;
-    return { ...v.data, pathOf: () => "Shared / Client matters", openUrl: () => undefined, call: async (cap: string, input: unknown): Promise<unknown> => (cap === "mounts.file_link" ? { link: { openIn: app, webUrl: "https://firm.sharepoint.com/", type: view === "pptx" ? "powerpoint" : "word", edit: [] } } : inner(cap, input)) };
+    return {
+      ...v.data,
+      pathOf: () => "Shared / Client matters",
+      openUrl: () => undefined,
+      call: async (cap: string, input: unknown): Promise<unknown> =>
+        cap === "mounts.file_link"
+          ? {
+              link: {
+                openIn: app,
+                webUrl: "https://firm.sharepoint.com/",
+                type: view === "pptx" ? "powerpoint" : "word",
+                edit: [],
+              },
+            }
+          : inner(cap, input),
+    };
   }, [view]);
-  return <FilesViewerDataProvider value={s}><FileViewer fileId="f_note" /></FilesViewerDataProvider>;
+  return (
+    <FilesViewerDataProvider value={s}>
+      <FileViewer fileId="f_note" />
+    </FilesViewerDataProvider>
+  );
 }
 
 function Page({ q }: { q: URLSearchParams }): ReactNode {
   const v = q.get("view");
   const view: View_ = v === "pptx" || v === "locked" ? v : "docx";
-  return <View style={{ flex: 1, minHeight: 0 }} testID={`officeview-${view}`}><Viewer view={view} /></View>;
+  return (
+    <View style={{ flex: 1, minHeight: 0 }} testID={`officeview-${view}`}>
+      <Viewer view={view} />
+    </View>
+  );
 }
 
 // The page reads its query after it is live (rule 25).
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  useEffect(() => {
+    setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""));
+  }, []);
   return q ? <Page q={q} /> : null;
 }

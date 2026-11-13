@@ -14,7 +14,10 @@ export const HOST_OFF_LINE = "Your computer is off";
 export const HOST_OFF_CHAT_LINE = "Your computer is off, turn it on to continue";
 
 /** What the matrix needs of a capability row (the registry's rows have more). */
-export interface CapabilityRow { name: string; teamOnly?: boolean }
+export interface CapabilityRow {
+  name: string;
+  teamOnly?: boolean;
+}
 
 /** The capabilities a Personal Space refuses. */
 export function teamOnlySet(caps: Iterable<CapabilityRow>): ReadonlySet<string> {
@@ -29,8 +32,11 @@ export function needsTeamError(cap: string, traceId: string): VyreErr {
   return new VyreErr({
     code: "permission.needs_team",
     // plain words for a person: never the capability's name (it stays in details). Same lines as host/src/invoke.ts needsTeamLine
-    message: SHARE_CAPS.has(cap) ? "Sharing with other people needs a Team Space. Create or join one to share this." : `${NEEDS_TEAM_LINE}. Create or join one to use this.`,
-    retryable: false, traceId,
+    message: SHARE_CAPS.has(cap)
+      ? "Sharing with other people needs a Team Space. Create or join one to share this."
+      : `${NEEDS_TEAM_LINE}. Create or join one to use this.`,
+    retryable: false,
+    traceId,
     next: [{ kind: "open_settings", label: "Create or join a Team Space" }],
     details: { capability: cap },
   });
@@ -57,27 +63,46 @@ export interface Relay<H extends Record<string, Handler>> {
   refused(): number;
 }
 
-export const hostOffError = (traceId: string): VyreErr => new VyreErr({
-  code: "internal.unavailable",
-  message: `${HOST_OFF_LINE}. Changes are kept and sent when it is back.`,
-  retryable: true, traceId,
-  next: [{ kind: "wait", label: "Turn your computer on" }],
-  details: { host: "off" },
-});
+export const hostOffError = (traceId: string): VyreErr =>
+  new VyreErr({
+    code: "internal.unavailable",
+    message: `${HOST_OFF_LINE}. Changes are kept and sent when it is back.`,
+    retryable: true,
+    traceId,
+    next: [{ kind: "wait", label: "Turn your computer on" }],
+    details: { host: "off" },
+  });
 
 /** Put a relay in front of a handler table. `traceOf` reads the trace id out of the call context (the host's own ctx has `trace.traceId`); `state` is shared when several relays follow one host. */
-export function relayTo<H extends Record<string, Handler>>(host: H, o: { traceOf?: (ctx: unknown) => string; state?: { on: boolean } } = {}): Relay<H> {
+export function relayTo<H extends Record<string, Handler>>(
+  host: H,
+  o: { traceOf?: (ctx: unknown) => string; state?: { on: boolean } } = {},
+): Relay<H> {
   const state = o.state ?? { on: true };
   let refused = 0;
-  const traceOf = o.traceOf ?? ((c) => (c as { trace?: { traceId?: string } } | null)?.trace?.traceId ?? "0".repeat(32));
+  const traceOf =
+    o.traceOf ?? ((c) => (c as { trace?: { traceId?: string } } | null)?.trace?.traceId ?? "0".repeat(32));
   const wrapped: Record<string, Handler> = {};
   for (const [name, fn] of Object.entries(host)) {
     wrapped[name] = (async (ctx: unknown, input: unknown) => {
-      if (!state.on) { refused++; throw hostOffError(traceOf(ctx)); }
+      if (!state.on) {
+        refused++;
+        throw hostOffError(traceOf(ctx));
+      }
       return (fn as unknown as (c: unknown, i: unknown) => Promise<unknown>)(ctx, input);
     }) as unknown as Handler;
   }
-  return { handlers: wrapped as H, presence: () => (state.on ? "present" : "absent"), hostOn() { state.on = true; }, hostOff() { state.on = false; }, refused: () => refused };
+  return {
+    handlers: wrapped as H,
+    presence: () => (state.on ? "present" : "absent"),
+    hostOn() {
+      state.on = true;
+    },
+    hostOff() {
+      state.on = false;
+    },
+    refused: () => refused,
+  };
 }
 
 // ---- a revoked device
@@ -85,12 +110,14 @@ export function relayTo<H extends Record<string, Handler>>(host: H, o: { traceOf
 /** The epoch a device must present: its person's, or its own if that is higher (sync/src/purge `effectiveEpoch` over the host's tables). */
 export type DeviceEpoch = (person: string, device: string) => number;
 
-export const deviceRevokedError = (traceId: string): VyreErr => new VyreErr({
-  code: "auth.device_revoked",
-  message: "This device was signed out of the Space. Pair it again to use it.",
-  retryable: false, traceId,
-  next: [{ kind: "open_settings", label: "Pair this device again" }],
-});
+export const deviceRevokedError = (traceId: string): VyreErr =>
+  new VyreErr({
+    code: "auth.device_revoked",
+    message: "This device was signed out of the Space. Pair it again to use it.",
+    retryable: false,
+    traceId,
+    next: [{ kind: "open_settings", label: "Pair this device again" }],
+  });
 
 /**
  * Hold a revoked device to the epoch the host has for it. A pull that presents an older epoch is answered `reset: "purge"` with the host's epoch and no rows; a push that presents one is
@@ -98,10 +125,16 @@ export const deviceRevokedError = (traceId: string): VyreErr => new VyreErr({
  */
 export function guardDeviceEpoch<H extends Record<string, Handler>>(
   host: H,
-  o: { epoch: DeviceEpoch; whoOf: (ctx: unknown) => { person: string; device: string }; traceOf: (ctx: unknown) => string },
+  o: {
+    epoch: DeviceEpoch;
+    whoOf: (ctx: unknown) => { person: string; device: string };
+    traceOf: (ctx: unknown) => string;
+  },
 ): H {
   const out: Record<string, Handler> = { ...host };
-  const pull = host["sync.pull"] as unknown as ((c: unknown, i: { epoch: number; cursor: number }) => Promise<Record<string, unknown>>) | undefined;
+  const pull = host["sync.pull"] as unknown as
+    | ((c: unknown, i: { epoch: number; cursor: number }) => Promise<Record<string, unknown>>)
+    | undefined;
   if (pull) {
     out["sync.pull"] = (async (ctx: unknown, req: { epoch: number; cursor: number }) => {
       const w = o.whoOf(ctx);
@@ -144,23 +177,38 @@ const changes = (n: number): string => (n === 0 ? "" : `${n} ${n === 1 ? "change
 export function deviceView(o: { status: ConnStatus; presence?: Presence; pending: number }): DeviceView {
   const waiting = changes(o.pending);
   switch (o.status) {
-    case "live": return { state: "online", line: "", waiting };
-    case "read_only": return { state: "read_only", line: "Update the app to make changes", waiting };
-    case "stopped": case "idle": return { state: "stopped", line: "", waiting };
-    case "connecting": case "reconnecting":
+    case "live":
+      return { state: "online", line: "", waiting };
+    case "read_only":
+      return { state: "read_only", line: "Update the app to make changes", waiting };
+    case "stopped":
+    case "idle":
+      return { state: "stopped", line: "", waiting };
+    case "connecting":
+    case "reconnecting":
       if (o.presence === "absent") return { state: "host_off", line: HOST_OFF_LINE, waiting };
-      return { state: o.status === "connecting" ? "connecting" : "no_network", line: o.status === "connecting" ? "" : "Offline", waiting };
+      return {
+        state: o.status === "connecting" ? "connecting" : "no_network",
+        line: o.status === "connecting" ? "" : "Offline",
+        waiting,
+      };
   }
 }
 
 /** Where an agent turn runs in a Personal Space: on the host device only. A phone chat waits while the host is off. */
-export function placeAgentTurn(kind: SpaceKind, presence: Presence): { where: "host" | "waiting" | "anywhere"; line: string } {
+export function placeAgentTurn(
+  kind: SpaceKind,
+  presence: Presence,
+): { where: "host" | "waiting" | "anywhere"; line: string } {
   if (kind === "team") return { where: "anywhere", line: "" };
   return presence === "present" ? { where: "host", line: "" } : { where: "waiting", line: HOST_OFF_CHAT_LINE };
 }
 
 /** The endpoint list a device keeps for a Personal Space: the host device directly when it is reachable, always the relay (ARCH 5.13). */
-export function personalEndpoints(o: { direct?: string; relay: string }): Array<{ kind: "direct" | "relay"; url: string }> {
+export function personalEndpoints(o: {
+  direct?: string;
+  relay: string;
+}): Array<{ kind: "direct" | "relay"; url: string }> {
   return [...(o.direct ? [{ kind: "direct" as const, url: o.direct }] : []), { kind: "relay" as const, url: o.relay }];
 }
 

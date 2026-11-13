@@ -4,10 +4,20 @@
 import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
-import { Calendar, ME, TEAM, createCalendarSample, newDraft } from "../../../apps/app/src/places/inbox/calendar/index.ts";
+import {
+  Calendar,
+  ME,
+  TEAM,
+  createCalendarSample,
+  newDraft,
+} from "../../../apps/app/src/places/inbox/calendar/index.ts";
 import type { Mode } from "../../../apps/app/src/places/inbox/calendar/index.ts";
 import { harbor, northwind } from "../../../apps/app/src/places/inbox/contactlist/sample.ts";
-import { InboxDataProvider, InboxSidebar, InboxStateProvider } from "../../../apps/app/src/places/inbox/sidebar/index.ts";
+import {
+  InboxDataProvider,
+  InboxSidebar,
+  InboxStateProvider,
+} from "../../../apps/app/src/places/inbox/sidebar/index.ts";
 
 export const title = "Inbox calendar";
 
@@ -16,22 +26,47 @@ const DAY = 86_400_000;
 const FRI = Date.UTC(2025, 9, 24);
 
 export default function Mount(): ReactNode {
-  const q = useMemo(() => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""), []);
+  const q = useMemo(
+    () => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""),
+    [],
+  );
   const space = q.get("space") === "harbor" ? harbor : northwind;
   const sample = useMemo(() => createCalendarSample(space), [space]);
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 720;
   const mode = MODES.find((m) => m === q.get("view"));
-  const people = (q.get("people") ?? "").split(",").filter(Boolean).map((p) => `${p}@northwind.example`);
+  const people = (q.get("people") ?? "")
+    .split(",")
+    .filter(Boolean)
+    .map((p) => `${p}@northwind.example`);
   const mon = FRI + 3 * DAY;
-  const draft = q.get("new") === "1" ? newDraft({ startsAt: mon + 10 * 3_600_000, endsAt: mon + 10.5 * 3_600_000 }, "cal_work", people.length ? people : ["maya@northwind.example"]) : undefined;
+  const draft =
+    q.get("new") === "1"
+      ? newDraft(
+          { startsAt: mon + 10 * 3_600_000, endsAt: mon + 10.5 * 3_600_000 },
+          "cal_work",
+          people.length ? people : ["maya@northwind.example"],
+        )
+      : undefined;
   const hidden = (q.get("hide") ?? "").split(",").filter(Boolean);
   return (
     <InboxDataProvider value={sample.data}>
       <InboxStateProvider initial={{ main: "calendar", hiddenCalendars: hidden }}>
         <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          {phone ? null : <View style={{ width: 240 }}><InboxSidebar /></View>}
-          <Calendar me={ME} team={TEAM} initial={{ ...(mode ? { mode } : {}), ...(draft ? { day: mon, draft } : {}), ...(people.length ? { people } : {}) }} />
+          {phone ? null : (
+            <View style={{ width: 240 }}>
+              <InboxSidebar />
+            </View>
+          )}
+          <Calendar
+            me={ME}
+            team={TEAM}
+            initial={{
+              ...(mode ? { mode } : {}),
+              ...(draft ? { day: mon, draft } : {}),
+              ...(people.length ? { people } : {}),
+            }}
+          />
         </View>
       </InboxStateProvider>
     </InboxDataProvider>

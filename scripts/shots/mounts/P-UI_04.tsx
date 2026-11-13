@@ -49,10 +49,12 @@ export default function Mount() {
           </Pressable>
         </View>
         <View style={styles.body}>
-          <View style={styles.badge}><Text style={styles.badgeText}>G</Text></View>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>G</Text>
+          </View>
           <View>
             <Text style={styles.name}>GoHighLevel</Text>
-            <Text style={styles.sub}>#Northwind_GHL  PIT</Text>
+            <Text style={styles.sub}>#Northwind_GHL PIT</Text>
           </View>
         </View>
       </View>
@@ -68,7 +70,16 @@ const styles = StyleSheet.create({
   editText: { color: "var(--ink)" as string, fontSize: 13, fontWeight: "500" },
   more: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 8 },
   body: { flexDirection: "row", alignItems: "center", gap: 18, paddingTop: 24, paddingHorizontal: 24 },
-  badge: { width: 64, height: 64, borderRadius: 14, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string, alignItems: "center", justifyContent: "center" },
+  badge: {
+    width: 64,
+    height: 64,
+    borderRadius: 14,
+    backgroundColor: "var(--sunk)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   badgeText: { color: "var(--ink)" as string, fontSize: 26, fontWeight: "500" },
   name: { color: "var(--ink)" as string, fontSize: 26, fontWeight: "600" },
   sub: { color: "var(--ink-3)" as string, fontSize: 12.5, marginTop: 4 },

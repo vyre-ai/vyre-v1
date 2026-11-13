@@ -14,7 +14,12 @@ const run = (): ReturnType<typeof runMatrix> => (started ??= runMatrix(LIVE_FOR_
 test("golden 12: the steps that are wired already pass", async () => {
   const { trail } = await run();
   const ok = okSteps(trail);
-  for (const name of ["every built-in role holds exactly the catalogue's permissions", "refusal: Tess cannot open View as", "the General channel is not visible to Tess"]) assert.ok(ok.includes(name), `${name} is ok\n${trail.report()}`);
+  for (const name of [
+    "every built-in role holds exactly the catalogue's permissions",
+    "refusal: Tess cannot open View as",
+    "the General channel is not visible to Tess",
+  ])
+    assert.ok(ok.includes(name), `${name} is ok\n${trail.report()}`);
 });
 
 test("golden 12: permission-matrix", { todo: todoOf(GAPS) }, async () => {

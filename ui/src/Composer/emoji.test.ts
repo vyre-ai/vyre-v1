@@ -10,5 +10,12 @@ test("a whole name becomes its emoji at the cursor", () => {
 });
 
 test("anything that is not an exact name stays as typed", () => {
-  for (const [text, at] of [["10:30:", 6], ["http://x:", 9], [":nosuch:", 8], ["a:joy:", 6], [":joy", 4]] as const) assert.equal(closeEmoji(text, at), null, text);
+  for (const [text, at] of [
+    ["10:30:", 6],
+    ["http://x:", 9],
+    [":nosuch:", 8],
+    ["a:joy:", 6],
+    [":joy", 4],
+  ] as const)
+    assert.equal(closeEmoji(text, at), null, text);
 });

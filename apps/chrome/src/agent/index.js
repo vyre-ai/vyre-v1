@@ -38,7 +38,12 @@ function randomRef(n) {
 export function createAgentControl(ext, o = {}) {
   const now = o.now ?? Date.now;
   const store = createStore(ext.storage.local);
-  const activeSpace = o.activeSpace ?? (async () => { const kept = await store.get(["activeSpace"]); return typeof kept["activeSpace"] === "string" ? kept["activeSpace"] : null; });
+  const activeSpace =
+    o.activeSpace ??
+    (async () => {
+      const kept = await store.get(["activeSpace"]);
+      return typeof kept["activeSpace"] === "string" ? kept["activeSpace"] : null;
+    });
 
   /** @type {Set<string>} */
   let optedIn = new Set();
@@ -48,14 +53,38 @@ export function createAgentControl(ext, o = {}) {
   const fills = new Map();
   let counter = 0;
 
-  const transport = o.transport ?? createTransport(ext, { onMessage: (m) => { void onIncoming(m); }, ...(o.setTimer ? { setTimer: o.setTimer } : {}), ...(o.clearTimer ? { clearTimer: o.clearTimer } : {}) });
+  const transport =
+    o.transport ??
+    createTransport(ext, {
+      onMessage: (m) => {
+        void onIncoming(m);
+      },
+      ...(o.setTimer ? { setTimer: o.setTimer } : {}),
+      ...(o.clearTimer ? { clearTimer: o.clearTimer } : {}),
+    });
   const cdp = createCdp(ext.debugger);
   const traffic = createTraffic(cdp, { now });
   /** The chat each agent was last asked in, so what it does in the person's Chrome can be shown in that chat. @type {Map<string, string>} */
   const threads = new Map();
   /** @param {Record<string, any>} event */
-  const emit = (event) => transport.tell("agent.event", typeof event["agent"] === "string" && threads.has(event["agent"]) ? { ...event, thread: threads.get(event["agent"]) } : event);
-  const sessions = createSessions({ ext, cdp, traffic, emit, now, grouping: () => mode === "personal", ...(o.setTimer ? { setTimer: o.setTimer } : {}), ...(o.clearTimer ? { clearTimer: o.clearTimer } : {}), ...(o.idleMs !== undefined ? { idleMs: o.idleMs } : {}) });
+  const emit = (event) =>
+    transport.tell(
+      "agent.event",
+      typeof event["agent"] === "string" && threads.has(event["agent"])
+        ? { ...event, thread: threads.get(event["agent"]) }
+        : event,
+    );
+  const sessions = createSessions({
+    ext,
+    cdp,
+    traffic,
+    emit,
+    now,
+    grouping: () => mode === "personal",
+    ...(o.setTimer ? { setTimer: o.setTimer } : {}),
+    ...(o.clearTimer ? { clearTimer: o.clearTimer } : {}),
+    ...(o.idleMs !== undefined ? { idleMs: o.idleMs } : {}),
+  });
 
   /** The agent's Space must be the one active here, and the person (or the agent computer's owner) must have opened Chrome to it. @param {{ space: string }} call */
   async function authorize(call) {
@@ -68,32 +97,63 @@ export function createAgentControl(ext, o = {}) {
     const ref = randomRef(++counter);
     /** @type {Promise<string | null>} */
     const landed = new Promise((resolve) => {
-      const timer = (o.setTimer ?? ((f, ms) => setTimeout(f, ms)))(() => { fills.delete(ref); resolve(null); }, FILL_WAIT_MS);
-      fills.set(ref, (v) => { (o.clearTimer ?? ((t) => clearTimeout(t)))(timer); fills.delete(ref); resolve(v); });
+      const timer = (o.setTimer ?? ((f, ms) => setTimeout(f, ms)))(() => {
+        fills.delete(ref);
+        resolve(null);
+      }, FILL_WAIT_MS);
+      fills.set(ref, (v) => {
+        (o.clearTimer ?? ((t) => clearTimeout(t)))(timer);
+        fills.delete(ref);
+        resolve(v);
+      });
     });
     try {
-      const done = await transport.call("invoke", "vault.fill", { handle, target: { kind: "browser", ref } }, { agent: call.agent.id, space: call.space });
-      if (!done || !done.filled) { fills.get(ref)?.(null); return null; }
-    } catch { fills.get(ref)?.(null); return null; }
+      const done = await transport.call(
+        "invoke",
+        "vault.fill",
+        { handle, target: { kind: "browser", ref } },
+        { agent: call.agent.id, space: call.space },
+      );
+      if (!done || !done.filled) {
+        fills.get(ref)?.(null);
+        return null;
+      }
+    } catch {
+      fills.get(ref)?.(null);
+      return null;
+    }
     return landed;
   }
 
   const rights = createRights({
     list: (call) => transport.call("invoke", "browser.sites.list", {}, { agent: call.agent.id, space: call.space }),
-    mode: () => mode, now,
+    mode: () => mode,
+    now,
   });
 
   const tools = createTools({
-    ext, cdp, traffic, sessions, authorize, vaultFill, emit, rights,
+    ext,
+    cdp,
+    traffic,
+    sessions,
+    authorize,
+    vaultFill,
+    emit,
+    rights,
     mode: () => mode,
     connected: (call) => transport.online && optedIn.has(call.space),
-    now, ...(o.sleep ? { sleep: o.sleep } : {}), ...(o.settleMs !== undefined ? { settleMs: o.settleMs } : {}),
+    now,
+    ...(o.sleep ? { sleep: o.sleep } : {}),
+    ...(o.settleMs !== undefined ? { settleMs: o.settleMs } : {}),
   });
 
   /** One message from the app on the agent channel. @param {unknown} raw */
   async function onIncoming(raw) {
     const fill = parseIncoming(raw);
-    if (fill && "type" in fill && fill.type === "fill") { fills.get(fill.ref)?.(fill.value); return; }
+    if (fill && "type" in fill && fill.type === "fill") {
+      fills.get(fill.ref)?.(fill.value);
+      return;
+    }
     const cmd = parseCommand(raw);
     if (!cmd) return;
     if (cmd.type === "agent.optin") {
@@ -103,16 +163,35 @@ export function createAgentControl(ext, o = {}) {
       if (dropped.length) await sessions.releaseAll();
       return;
     }
-    if (cmd.type === "agent.held.drop") { sessions.dropHeld(cmd.id); return; }
-    if (cmd.type === "agent.takeover") { await sessions.pause(cmd.agent, "takeover"); return; }
+    if (cmd.type === "agent.held.drop") {
+      sessions.dropHeld(cmd.id);
+      return;
+    }
+    if (cmd.type === "agent.takeover") {
+      await sessions.pause(cmd.agent, "takeover");
+      return;
+    }
     if (cmd.type === "agent.watch") {
       const tabId = sessions.currentTab(cmd.agent);
-      if (tabId !== null) { try { const t = await ext.tabs.update(tabId, { active: true }); if (t && t.windowId !== undefined && ext.windows) await ext.windows.update(t.windowId, { focused: true }); } catch { /* the tab is gone */ } }
+      if (tabId !== null) {
+        try {
+          const t = await ext.tabs.update(tabId, { active: true });
+          if (t && t.windowId !== undefined && ext.windows) await ext.windows.update(t.windowId, { focused: true });
+        } catch {
+          /* the tab is gone */
+        }
+      }
       return;
     }
     if (cmd.thread) threads.set(cmd.agent.id, cmd.thread);
     try {
-      const output = await tools.run({ id: cmd.id, tool: cmd.tool, input: cmd.input, agent: cmd.agent, space: cmd.space });
+      const output = await tools.run({
+        id: cmd.id,
+        tool: cmd.tool,
+        input: cmd.input,
+        agent: cmd.agent,
+        space: cmd.space,
+      });
       transport.tell("agent.result", { callId: cmd.id, ok: true, output });
     } catch (e) {
       transport.tell("agent.result", { callId: cmd.id, ok: false, error: errorOf(e) });
@@ -130,14 +209,21 @@ export function createAgentControl(ext, o = {}) {
         const who = agent ?? shownAgent;
         const thread = who ? threads.get(who.id) : undefined;
         // the exact chat the agent works in: the desktop app opens it, else the Space's web app does
-        void transport.call("bridge", "app.open", { place: "chats", ...(thread ? { threadId: thread } : {}) }).catch(async () => {
-          const kept = await store.get(["spaces", "activeSpace"]);
-          const sp = (kept["spaces"] ?? []).find((/** @type {any} */ x) => x.id === kept["activeSpace"]);
-          if (sp && sp.webUrl) void ext.tabs.create({ url: `${sp.webUrl}/chats${thread ? `/${thread}` : ""}` });
+        void transport
+          .call("bridge", "app.open", { place: "chats", ...(thread ? { threadId: thread } : {}) })
+          .catch(async () => {
+            const kept = await store.get(["spaces", "activeSpace"]);
+            const sp = (kept["spaces"] ?? []).find((/** @type {any} */ x) => x.id === kept["activeSpace"]);
+            if (sp && sp.webUrl) void ext.tabs.create({ url: `${sp.webUrl}/chats${thread ? `/${thread}` : ""}` });
+          });
+        return;
+      }
+      if (m && (m.type === "giveback" || m.type === "endtask") && shownAgent) {
+        void sessions.resume(shownAgent.id).then(() => {
+          if (m.type === "endtask") emit({ event: "ended", agent: shownAgent.id });
         });
         return;
       }
-      if (m && (m.type === "giveback" || m.type === "endtask") && shownAgent) { void sessions.resume(shownAgent.id).then(() => { if (m.type === "endtask") emit({ event: "ended", agent: shownAgent.id }); }); return; }
       if (!agent || !m) return;
       if (m.type === "stop") void sessions.pause(agent.id, "person");
       else if (m.type === "takeover") void sessions.pause(agent.id, "takeover");
@@ -151,16 +237,29 @@ export function createAgentControl(ext, o = {}) {
     if (reason === "canceled_by_user") void sessions.pause(agent.id, "person");
     else void sessions.release(tabId, "detached");
   });
-  cdp.onEvent((tabId, method) => { if (method === "Page.loadEventFired") void sessions.redraw(tabId); });
-  ext.tabs.onRemoved.addListener((/** @type {number} */ id) => { void sessions.tabGone(id); });
+  cdp.onEvent((tabId, method) => {
+    if (method === "Page.loadEventFired") void sessions.redraw(tabId);
+  });
+  ext.tabs.onRemoved.addListener((/** @type {number} */ id) => {
+    void sessions.tabGone(id);
+  });
 
   return {
-    sessions, tools, cdp, traffic, transport, rights,
+    sessions,
+    tools,
+    cdp,
+    traffic,
+    transport,
+    rights,
     connect: () => transport.connect(),
     run: tools.run,
     onIncoming,
-    get optedIn() { return [...optedIn]; },
-    get mode() { return mode; },
+    get optedIn() {
+      return [...optedIn];
+    },
+    get mode() {
+      return mode;
+    },
   };
 }
 

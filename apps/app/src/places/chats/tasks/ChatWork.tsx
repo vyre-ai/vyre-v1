@@ -18,16 +18,41 @@ export interface ChatWorkProps {
   openProfile(who: Who): void;
 }
 
-const Line = memo(function Line({ row, rt, keyOf, nameOf, openTask, openProfile }: Omit<ChatWorkProps, "threadId"> & { row: TaskRow; keyOf(id: string): string | undefined }): ReactElement {
+const Line = memo(function Line({
+  row,
+  rt,
+  keyOf,
+  nameOf,
+  openTask,
+  openProfile,
+}: Omit<ChatWorkProps, "threadId"> & { row: TaskRow; keyOf(id: string): string | undefined }): ReactElement {
   const turn = useLiveTurn(rt.turns, row.workerThread ?? row.threadId);
   const who = holderOf(row) ?? row.assigned;
-  return <Pressable accessibilityRole="link" accessibilityLabel={`${row.title}, ${nameOf(who.id)}`} testID={`chat-work-${row.id}`} onPress={() => openTask(row.id)} style={st.row}>
-    <FaceButton who={who} name={nameOf(who.id)} size={24} onPress={() => openProfile(who)} />
-    <View style={st.text}>
-      <Text numberOfLines={1} style={st.title}>{row.title}</Text>
-      {turn ? <View style={st.step}><LiveWords turn={turn} turns={rt.turns} name={nameOf(turn.agentId)} /></View> : <Text numberOfLines={1} style={st.quiet}>{workStep(row, keyOf, nameOf)}</Text>}
-    </View>
-  </Pressable>;
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={`${row.title}, ${nameOf(who.id)}`}
+      testID={`chat-work-${row.id}`}
+      onPress={() => openTask(row.id)}
+      style={st.row}
+    >
+      <FaceButton who={who} name={nameOf(who.id)} size={24} onPress={() => openProfile(who)} />
+      <View style={st.text}>
+        <Text numberOfLines={1} style={st.title}>
+          {row.title}
+        </Text>
+        {turn ? (
+          <View style={st.step}>
+            <LiveWords turn={turn} turns={rt.turns} name={nameOf(turn.agentId)} />
+          </View>
+        ) : (
+          <Text numberOfLines={1} style={st.quiet}>
+            {workStep(row, keyOf, nameOf)}
+          </Text>
+        )}
+      </View>
+    </Pressable>
+  );
 });
 
 export function ChatWork({ rt, threadId, nameOf, openTask, openProfile }: ChatWorkProps): ReactElement | null {
@@ -35,18 +60,43 @@ export function ChatWork({ rt, threadId, nameOf, openTask, openProfile }: ChatWo
   const snap = useSyncExternalStore(store.subscribe, store.get, store.get);
   const rev = useLive<{ rev: string }>(rt.screens, "tasks.my-work", "rev", {});
   const revValue = rev.status === "ready" ? rev.data.rev : undefined;
-  useEffect(() => { store.refresh(revValue); }, [store, revValue]);
+  useEffect(() => {
+    store.refresh(revValue);
+  }, [store, revValue]);
   const rows = useMemo(() => openWork(snap.rows), [snap.rows]);
   const keys = useMemo(() => new Map(snap.rows.map((r) => [r.id, r.key] as const)), [snap.rows]);
   if (rows.length === 0) return null;
   const lines: ReactElement[] = [];
-  for (const r of rows.slice(0, WORK_SHOWN)) lines.push(<Line key={r.id} row={r} rt={rt} keyOf={(id) => keys.get(id)} nameOf={nameOf} openTask={openTask} openProfile={openProfile} />);
+  for (const r of rows.slice(0, WORK_SHOWN))
+    lines.push(
+      <Line
+        key={r.id}
+        row={r}
+        rt={rt}
+        keyOf={(id) => keys.get(id)}
+        nameOf={nameOf}
+        openTask={openTask}
+        openProfile={openProfile}
+      />,
+    );
   const more = rows.length - WORK_SHOWN;
   const parent = rows[0]!.parentTaskId;
-  return <View testID="chat-work" style={st.box}>
-    {lines}
-    {more > 0 && parent ? <Pressable accessibilityRole="link" accessibilityLabel={`${more} more`} testID="chat-work-more" onPress={() => openTask(parent)} style={st.more}><Text style={st.quiet}>{`${more} more`}</Text></Pressable> : null}
-  </View>;
+  return (
+    <View testID="chat-work" style={st.box}>
+      {lines}
+      {more > 0 && parent ? (
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={`${more} more`}
+          testID="chat-work-more"
+          onPress={() => openTask(parent)}
+          style={st.more}
+        >
+          <Text style={st.quiet}>{`${more} more`}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
 }
 
 const st = StyleSheet.create({

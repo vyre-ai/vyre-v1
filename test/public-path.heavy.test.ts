@@ -19,8 +19,13 @@ import { createFormsPageRoute } from "../host/src/routes/forms-page.ts";
 
 /** Chromium, resolved before anything starts. Null skips the test by name; under VYRE_REQUIRE_CHROME a missing browser fails it. */
 function browserOr(t: TestContext): ((args: readonly string[]) => Promise<any>) | null {
-  if (process.env["VYRE_REQUIRE_CHROME"] !== "1") { t.skip("needs Chromium: runs in the chrome-real job, with VYRE_REQUIRE_CHROME=1"); return null; }
-  const { chromium } = createRequire(path.join(process.cwd(), "package.json"))("playwright-core") as { chromium: { launch(o: unknown): Promise<any>; executablePath(): string } };
+  if (process.env["VYRE_REQUIRE_CHROME"] !== "1") {
+    t.skip("needs Chromium: runs in the chrome-real job, with VYRE_REQUIRE_CHROME=1");
+    return null;
+  }
+  const { chromium } = createRequire(path.join(process.cwd(), "package.json"))("playwright-core") as {
+    chromium: { launch(o: unknown): Promise<any>; executablePath(): string };
+  };
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
   assert.ok(fs.existsSync(exe), `Chromium is required at ${exe}`);
   return (args) => chromium.launch({ executablePath: exe, args: ["--no-sandbox", ...args] });
@@ -47,12 +52,19 @@ test("a hostile page under /p/ reads nothing of the app and acts as nobody; a re
   if (!launch) return;
   // what started is stopped whatever fails after it: a test that throws must not leave a socket holding the process open
   const closers: (() => unknown)[] = [];
-  t.after(async () => { for (const c of closers.reverse()) await c(); });
+  t.after(async () => {
+    for (const c of closers.reverse()) await c();
+  });
   forgetUnclaimed();
   const rt = createRuntime({
-    worker, Class: W.RouteRelay, classes: { TICKETS: W.PairTicket, CODES: W.CodeSlot, SIGNIN: W.SigninSlot, HOSTS: W.HostSlot },
+    worker,
+    Class: W.RouteRelay,
+    classes: { TICKETS: W.PairTicket, CODES: W.CodeSlot, SIGNIN: W.SigninSlot, HOSTS: W.HostSlot },
     env: {
-      NAMES_FETCH: async (u: string) => new Response(JSON.stringify({ data: { name: new URL(u).searchParams.get("name"), status: "ok" } }), { status: 200 }),
+      NAMES_FETCH: async (u: string) =>
+        new Response(JSON.stringify({ data: { name: new URL(u).searchParams.get("name"), status: "ok" } }), {
+          status: 200,
+        }),
       DOH_FETCH: async () => new Response(JSON.stringify({ Status: 0 }), { status: 200 }),
       ASSETS: { fetch: async () => new Response("asset") },
     },
@@ -60,26 +72,56 @@ test("a hostile page under /p/ reads nothing of the app and acts as nobody; a re
   // the daemon's side: the public route, the real form page, and a log of every request that reached the gateway
   const reached: { url: string; cookie?: string | undefined; authorization?: string | undefined }[] = [];
   const submitted: unknown[] = [];
-  const view = { slug: "quote", kind: "public", name: "Quote", captcha: false, fields: [{ field: "name", hidden: false, step: 0, title: "Your name", type: "text", required: true }] };
+  const view = {
+    slug: "quote",
+    kind: "public",
+    name: "Quote",
+    captcha: false,
+    fields: [{ field: "name", hidden: false, step: 0, title: "Your name", type: "text", required: true }],
+  };
   const forms = createFormsPageRoute({
     read: async (slug) => (slug === "quote" ? view : null) as never,
-    call: async (cap, input) => { submitted.push({ cap, input }); return { recordId: "rec_1" }; },
+    call: async (cap, input) => {
+      submitted.push({ cap, input });
+      return { recordId: "rec_1" };
+    },
   } as never);
-  const inner = { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean {
-    if (req.url === "/f/hostile") { res.writeHead(200, { "content-type": "text/html" }); res.end(HOSTILE); return true; }
-    return forms.handle(req, res);
-  } };
+  const inner = {
+    handle(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+      if (req.url === "/f/hostile") {
+        res.writeHead(200, { "content-type": "text/html" });
+        res.end(HOSTILE);
+        return true;
+      }
+      return forms.handle(req, res);
+    },
+  };
   const route = createPublicPathRoute({ forms: () => inner, origin: () => "https://harbor.vyre.run" });
   const gateway = http.createServer((req, res) => {
     reached.push({ url: req.url ?? "", cookie: req.headers.cookie, authorization: req.headers.authorization });
-    if (!route.handle(req, res)) { res.writeHead(599); res.end("the app's own routes, which a visitor must never reach"); }
+    if (!route.handle(req, res)) {
+      res.writeHead(599);
+      res.end("the app's own routes, which a visitor must never reach");
+    }
   });
   await new Promise<void>((r) => gateway.listen(0, "127.0.0.1", r));
-  closers.push(() => { gateway.closeAllConnections(); gateway.close(); });
+  closers.push(() => {
+    gateway.closeAllConnections();
+    gateway.close();
+  });
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-p-"));
   closers.push(() => fs.rmSync(dataDir, { recursive: true, force: true }));
-  const box = startRelayBox({ relayUrl: "http://relay.test", dataDir, localPort: () => (gateway.address() as AddressInfo).port, onState: () => {}, WebSocket: rt.WebSocket });
-  closers.push(async () => { box.stop(); await rt.settle(); });
+  const box = startRelayBox({
+    relayUrl: "http://relay.test",
+    dataDir,
+    localPort: () => (gateway.address() as AddressInfo).port,
+    onState: () => {},
+    WebSocket: rt.WebSocket,
+  });
+  closers.push(async () => {
+    box.stop();
+    await rt.settle();
+  });
   await box.ready;
   assert.equal((await box.host.claim("harbor", "Harbor")).status, "claimed");
   // the browser's side: this address stands for https://harbor.vyre.run
@@ -87,15 +129,28 @@ test("a hostile page under /p/ reads nothing of the app and acts as nobody; a re
     const chunks: Buffer[] = [];
     for await (const c of req) chunks.push(c as Buffer);
     const headers = new Headers();
-    for (const [k, v] of Object.entries(req.headers)) if (typeof v === "string" && k !== "host" && k !== "connection") headers.set(k, v);
-    const r = await worker.fetch(new Request(`https://harbor.vyre.run${req.url}`, { method: req.method ?? "GET", headers, ...(chunks.length ? { body: Buffer.concat(chunks) } : {}) }), rt.env);
+    for (const [k, v] of Object.entries(req.headers))
+      if (typeof v === "string" && k !== "host" && k !== "connection") headers.set(k, v);
+    const r = await worker.fetch(
+      new Request(`https://harbor.vyre.run${req.url}`, {
+        method: req.method ?? "GET",
+        headers,
+        ...(chunks.length ? { body: Buffer.concat(chunks) } : {}),
+      }),
+      rt.env,
+    );
     const out: Record<string, string> = {};
-    r.headers.forEach((v: string, k: string) => { out[k] = v; });
+    r.headers.forEach((v: string, k: string) => {
+      out[k] = v;
+    });
     res.writeHead(r.status, out);
     res.end(Buffer.from(await r.arrayBuffer()));
   });
   await new Promise<void>((r) => front.listen(0, "127.0.0.1", r));
-  closers.push(() => { front.closeAllConnections(); front.close(); });
+  closers.push(() => {
+    front.closeAllConnections();
+    front.close();
+  });
   const port = (front.address() as AddressInfo).port;
   const browser = await launch([`--host-resolver-rules=MAP harbor.vyre.run 127.0.0.1:${port}`]);
   closers.push(() => browser.close());
@@ -104,11 +159,17 @@ test("a hostile page under /p/ reads nothing of the app and acts as nobody; a re
   const app = "http://harbor.vyre.run";
   // the app: a signed-in person's storage and cookie on this origin
   await page.goto(`${app}/__vyre/info.json`);
-  await page.evaluate(() => { localStorage.setItem("vyre_secret", "s3cret"); document.cookie = "vyre_session=live; path=/"; });
+  await page.evaluate(() => {
+    localStorage.setItem("vyre_secret", "s3cret");
+    document.cookie = "vyre_session=live; path=/";
+  });
   // the hostile page, opened in the same browser
   await page.goto(`${app}/p/forms/hostile`);
   await page.waitForFunction(() => document.documentElement.dataset.out, undefined, { timeout: 15_000 });
-  const out = JSON.parse(await page.evaluate(() => document.documentElement.dataset.out as string)) as Record<string, unknown>;
+  const out = JSON.parse(await page.evaluate(() => document.documentElement.dataset.out as string)) as Record<
+    string,
+    unknown
+  >;
   process.stdout.write(`hostile page saw: ${JSON.stringify(out)}\n`);
   assert.equal(out.origin, "null", "an opaque origin");
   assert.match(String(out.ls), /^blocked:/);
@@ -130,7 +191,14 @@ test("a hostile page under /p/ reads nothing of the app and acts as nobody; a re
   await page.goto(`${app}/p/forms/quote`);
   await page.fill("input", "Ada");
   await page.click("button[type=submit]");
-  await page.waitForFunction(() => { const t = document.getElementById("vf-thanks"); return t && !t.hidden; }, undefined, { timeout: 15_000 });
+  await page.waitForFunction(
+    () => {
+      const t = document.getElementById("vf-thanks");
+      return t && !t.hidden;
+    },
+    undefined,
+    { timeout: 15_000 },
+  );
   assert.equal(submitted.length, 1);
   assert.deepEqual((submitted[0] as { cap: string }).cap, "forms.submit");
   assert.deepEqual((submitted[0] as { input: { answers: unknown } }).input.answers, { name: "Ada" });
@@ -142,16 +210,32 @@ test("a hostile artifact in the app's frame reads nothing, and its parent cannot
   // an artifact opens in a sandboxed frame inside the app: the same policy, plus the frame's own sandbox
   const hostile = `<!doctype html><script>const out={origin:self.origin};try{out.ls=localStorage.length}catch(e){out.ls="blocked"}try{out.parent=parent.document.title}catch(e){out.parent="blocked"}try{out.cookie=document.cookie}catch(e){out.cookie="blocked"}parent.postMessage(out,"*")</script>`;
   const s = http.createServer((req, res) => {
-    if (req.url === "/app") { res.writeHead(200, { "content-type": "text/html" }); res.end(`<!doctype html><title>the app</title><script>localStorage.setItem("k","v");addEventListener("message",e=>{document.documentElement.dataset.out=JSON.stringify(e.data)})</script><iframe src="/a/sit_x/k/t/" sandbox="allow-scripts allow-forms allow-popups allow-downloads"></iframe>`); return; }
-    res.writeHead(200, { "content-type": "text/html", "content-security-policy": "sandbox allow-scripts allow-forms allow-popups allow-downloads" }); res.end(hostile);
+    if (req.url === "/app") {
+      res.writeHead(200, { "content-type": "text/html" });
+      res.end(
+        `<!doctype html><title>the app</title><script>localStorage.setItem("k","v");addEventListener("message",e=>{document.documentElement.dataset.out=JSON.stringify(e.data)})</script><iframe src="/a/sit_x/k/t/" sandbox="allow-scripts allow-forms allow-popups allow-downloads"></iframe>`,
+      );
+      return;
+    }
+    res.writeHead(200, {
+      "content-type": "text/html",
+      "content-security-policy": "sandbox allow-scripts allow-forms allow-popups allow-downloads",
+    });
+    res.end(hostile);
   });
   await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
-  t.after(() => { s.closeAllConnections(); s.close(); });
+  t.after(() => {
+    s.closeAllConnections();
+    s.close();
+  });
   const browser = await launch([]);
   t.after(() => browser.close());
   const page = await browser.newPage();
   await page.goto(`http://127.0.0.1:${(s.address() as AddressInfo).port}/app`);
   await page.waitForFunction(() => document.documentElement.dataset.out, undefined, { timeout: 10_000 });
-  const out = JSON.parse(await page.evaluate(() => document.documentElement.dataset.out as string)) as Record<string, unknown>;
+  const out = JSON.parse(await page.evaluate(() => document.documentElement.dataset.out as string)) as Record<
+    string,
+    unknown
+  >;
   assert.deepEqual(out, { origin: "null", ls: "blocked", parent: "blocked", cookie: "blocked" });
 });

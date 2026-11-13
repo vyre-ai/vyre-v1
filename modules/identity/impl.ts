@@ -21,9 +21,18 @@ export const consumers = {
    */
   "identity.space_name": {
     on: ["space.updated"],
-    async run(ctx: { space: string; db: { run(sql: string, ...a: unknown[]): unknown }; call(cap: string, input: unknown): Promise<unknown> }, event: { payload: { fields?: unknown } }): Promise<void> {
+    async run(
+      ctx: {
+        space: string;
+        db: { run(sql: string, ...a: unknown[]): unknown };
+        call(cap: string, input: unknown): Promise<unknown>;
+      },
+      event: { payload: { fields?: unknown } },
+    ): Promise<void> {
       if (!Array.isArray(event.payload.fields) || !event.payload.fields.includes("name")) return;
-      const name = String(((await ctx.call("spaces.get", {})) as { space?: { name?: unknown } }).space?.name ?? "").trim();
+      const name = String(
+        ((await ctx.call("spaces.get", {})) as { space?: { name?: unknown } }).space?.name ?? "",
+      ).trim();
       if (ownName(name)) ctx.db.run(`UPDATE identity_space SET name = ? WHERE id = ?`, name, ctx.space);
     },
   },
@@ -36,20 +45,47 @@ export const consumers = {
  */
 export const hostCalls = {
   /** rc.17: a sign-in from another Space's web page makes a carry token, never a session (handlers/carry.ts; the host's carry door is its only caller) */
-  "identity.carry_sign_in": (ctx: unknown, i: { username: string; password: string; totp?: string; origin: string }) => carrySignIn(ctx as IdentityCtx, i),
-  "identity.carry_use": (ctx: unknown, i: { token: string; origin: string; op: "keys_get" | "whoami" | "sign_out" }) => carryUse(ctx as IdentityCtx, i),
+  "identity.carry_sign_in": (ctx: unknown, i: { username: string; password: string; totp?: string; origin: string }) =>
+    carrySignIn(ctx as IdentityCtx, i),
+  "identity.carry_use": (ctx: unknown, i: { token: string; origin: string; op: "keys_get" | "whoami" | "sign_out" }) =>
+    carryUse(ctx as IdentityCtx, i),
   /** ruling 71: a fresh one-time claim link for an owner who has no account yet (null once they have one) */
-  "identity.claim_issue": (ctx: unknown, i: { personId: string }): { code: string; expiresAt: number } | null => claimIssue(ctx as IdentityCtx, i),
-  "identity.ensure_space": (ctx: { space: string; db: { run(sql: string, ...a: unknown[]): unknown } }, i: { name: string; github: boolean }): void => {
-    ctx.db.run(`CREATE TABLE IF NOT EXISTS "identity_space" ("id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "logo_file_id" TEXT, "fingerprint" TEXT NOT NULL, "github" INTEGER NOT NULL DEFAULT 0, "second_factor_required" INTEGER NOT NULL DEFAULT 0, "sso_json" TEXT NOT NULL DEFAULT '[]')`);
+  "identity.claim_issue": (ctx: unknown, i: { personId: string }): { code: string; expiresAt: number } | null =>
+    claimIssue(ctx as IdentityCtx, i),
+  "identity.ensure_space": (
+    ctx: { space: string; db: { run(sql: string, ...a: unknown[]): unknown } },
+    i: { name: string; github: boolean },
+  ): void => {
+    ctx.db.run(
+      `CREATE TABLE IF NOT EXISTS "identity_space" ("id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "logo_file_id" TEXT, "fingerprint" TEXT NOT NULL, "github" INTEGER NOT NULL DEFAULT 0, "second_factor_required" INTEGER NOT NULL DEFAULT 0, "sso_json" TEXT NOT NULL DEFAULT '[]')`,
+    );
     let h = 0x811c9dc5;
-    const hex = Array.from(ctx.space).map((c) => { h = Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0; return h.toString(16).padStart(8, "0"); }).join("").slice(-16).padStart(16, "0");
+    const hex = Array.from(ctx.space)
+      .map((c) => {
+        h = Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0;
+        return h.toString(16).padStart(8, "0");
+      })
+      .join("")
+      .slice(-16)
+      .padStart(16, "0");
     // the name is the Space's own, refreshed at each boot (a rename since, or a row first made with only the id); an id never replaces a name the row already has
-    ctx.db.run(`INSERT OR IGNORE INTO identity_space (id, name, logo_file_id, fingerprint, github, second_factor_required, sso_json) VALUES (?, ?, NULL, ?, ?, 0, '[]') ON CONFLICT(id) DO UPDATE SET github = excluded.github, name = CASE WHEN excluded.name <> '' AND lower(substr(excluded.name, 1, 4)) <> 'spc_' THEN excluded.name ELSE identity_space.name END`,
-      ctx.space, i.name, hex.replace(/(.{4})(?=.)/g, "$1 "), i.github ? 1 : 0);
+    ctx.db.run(
+      `INSERT OR IGNORE INTO identity_space (id, name, logo_file_id, fingerprint, github, second_factor_required, sso_json) VALUES (?, ?, NULL, ?, ?, 0, '[]') ON CONFLICT(id) DO UPDATE SET github = excluded.github, name = CASE WHEN excluded.name <> '' AND lower(substr(excluded.name, 1, 4)) <> 'spc_' THEN excluded.name ELSE identity_space.name END`,
+      ctx.space,
+      i.name,
+      hex.replace(/(.{4})(?=.)/g, "$1 "),
+      i.github ? 1 : 0,
+    );
   },
   /** whether the server has a GitHub app now (the environment's, or the one an admin saved in the app) */
-  "identity.set_github": (ctx: { space: string; db: { run(sql: string, ...a: unknown[]): unknown } }, i: { on: boolean }): void => {
-    try { ctx.db.run(`UPDATE identity_space SET github = ? WHERE id = ?`, i.on ? 1 : 0, ctx.space); } catch { /* the Space row is made at boot */ }
+  "identity.set_github": (
+    ctx: { space: string; db: { run(sql: string, ...a: unknown[]): unknown } },
+    i: { on: boolean },
+  ): void => {
+    try {
+      ctx.db.run(`UPDATE identity_space SET github = ? WHERE id = ?`, i.on ? 1 : 0, ctx.space);
+    } catch {
+      /* the Space row is made at boot */
+    }
   },
 };

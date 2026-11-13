@@ -16,7 +16,10 @@ test("every drawn face is there, with no tint rect and no script", async () => {
   for (const fam of ["faces", "friends", "blobs", "glass"]) {
     const list = (m.FACE_SVGS as Record<string, string[]>)[fam]!;
     assert.equal(list.length, 24, fam);
-    for (const svg of list) { assert.match(svg, /^<svg /); assert.ok(!/<script|onload|<foreignObject/i.test(svg)); }
+    for (const svg of list) {
+      assert.match(svg, /^<svg /);
+      assert.ok(!/<script|onload|<foreignObject/i.test(svg));
+    }
   }
   assert.equal(m.FACE_TINTS.length, 8);
 });

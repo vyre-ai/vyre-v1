@@ -18,10 +18,13 @@ const call = async (hn: Harness, cap: string, input: Record<string, unknown>): P
 test("a teammate carries its project, is left out of the Agents page by default, and shows when asked for", async () => {
   const hn = harness();
   const space = (await call(hn, "agents.create", { name: "Intake", role: "Takes intake." })).agent;
-  const mate = (await call(hn, "agents.create", { name: "Reviewer one", role: "Reviews drafts.", projectId: "prj_probate" })).agent;
+  const mate = (
+    await call(hn, "agents.create", { name: "Reviewer one", role: "Reviews drafts.", projectId: "prj_probate" })
+  ).agent;
   assert.equal(mate.teammateOf, "prj_probate");
   assert.equal(space.teammateOf, undefined);
-  const ids = async (input: Record<string, unknown>): Promise<string[]> => (await call(hn, "agents.list", input)).agents.map((a: { agentId: string }) => a.agentId);
+  const ids = async (input: Record<string, unknown>): Promise<string[]> =>
+    (await call(hn, "agents.list", input)).agents.map((a: { agentId: string }) => a.agentId);
   assert.deepEqual(await ids({}), [space.agentId], "the Agents page lists the Space's agents");
   assert.deepEqual((await ids({ teammates: "include" })).sort(), [space.agentId, mate.agentId].sort());
   assert.deepEqual(await ids({ teammates: "only" }), [mate.agentId]);

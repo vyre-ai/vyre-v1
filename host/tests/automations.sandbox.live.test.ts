@@ -12,7 +12,13 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon, DaemonOptions } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const OWNER = "tok-usr_olivia";
 const HOUR = 3_600_000;
 const WRITE_SAMPLE = { recordId: "rec_a1b2c3" };
@@ -28,33 +34,49 @@ function seededDir(): string {
   return dir;
 }
 
-const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> => startDaemon({
-  config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
-  platform: fakePlatform({
-    os: "linux", hostname: "exec-live", free: 80e9,
-    commands: {
-      [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
-      "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
-      "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> =>
+  startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux",
+      hostname: "exec-live",
+      free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    session: (h) => {
+      const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+      const who = t === OWNER ? "usr_olivia" : null;
+      return who === null ? null : { space: "spc_core", principal: { kind: "person", id: who }, device: "exec-live" };
     },
-  }),
-  fetch: caddyFetch,
-  session: (h) => {
-    const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-    const who = t === OWNER ? "usr_olivia" : null;
-    return who === null ? null : { space: "spc_core", principal: { kind: "person", id: who }, device: "exec-live" };
-  },
-  intervals: { fast: HOUR, slow: HOUR, encryption: HOUR, commands: HOUR, hooks: 200, tick: HOUR, sweep: HOUR },
-  ...extra,
-});
+    intervals: { fast: HOUR, slow: HOUR, encryption: HOUR, commands: HOUR, hooks: 200, tick: HOUR, sweep: HOUR },
+    ...extra,
+  });
 
-interface Reply { status: number; data: Record<string, unknown>; text: string }
+interface Reply {
+  status: number;
+  data: Record<string, unknown>;
+  text: string;
+}
 
 const call = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<Reply> => {
-  const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
+  const r = await fetch(`${d.url}${p}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8_000),
+  });
   const text = await r.text();
   let data: Record<string, unknown> = {};
-  try { data = ((JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}); } catch { /* the body is not JSON */ }
+  try {
+    data = (JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {};
+  } catch {
+    /* the body is not JSON */
+  }
   return { status: r.status, data, text };
 };
 const ok = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<Record<string, unknown>> => {
@@ -77,10 +99,21 @@ async function noteCount(d: Daemon, title: string): Promise<number> {
   return rows.filter((row) => row.fields?.title === title).length;
 }
 
-interface StoredStep { step: string; state: string; output: unknown }
+interface StoredStep {
+  step: string;
+  state: string;
+  output: unknown;
+}
 function storedSteps(d: Daemon, runId: string): StoredStep[] {
-  const rows = d.db!.all("SELECT step, state, output_json FROM runs_steps WHERE run_id = ? ORDER BY ord, attempt", runId) as { step: string; state: string; output_json: string | null }[];
-  return rows.map((row) => ({ step: row.step, state: row.state, output: row.output_json == null ? undefined : JSON.parse(row.output_json) as unknown }));
+  const rows = d.db!.all(
+    "SELECT step, state, output_json FROM runs_steps WHERE run_id = ? ORDER BY ord, attempt",
+    runId,
+  ) as { step: string; state: string; output_json: string | null }[];
+  return rows.map((row) => ({
+    step: row.step,
+    state: row.state,
+    output: row.output_json == null ? undefined : (JSON.parse(row.output_json) as unknown),
+  }));
 }
 
 test("a sandbox test reads a note for real and does not create or send", async () => {
@@ -90,15 +123,30 @@ test("a sandbox test reads a note for real and does not create or send", async (
     const seen = `Sandbox read ${stamp}`;
     const missed = `Sandbox write ${stamp}`;
     const outward = `Sandbox send ${stamp}`;
-    await ok(d, "/v1/records/create", { idempotencyKey: `sandbox-read-${stamp}`, type: "note_board", fields: { title: seen } });
+    await ok(d, "/v1/records/create", {
+      idempotencyKey: `sandbox-read-${stamp}`,
+      type: "note_board",
+      fields: { title: seen },
+    });
     assert.equal(await noteCount(d, seen), 1, "the read has a real note to find");
     const made = await ok(d, "/v1/automations/create", {
-      idempotencyKey: `sandbox-${stamp}`, name: "sandbox-test",
+      idempotencyKey: `sandbox-${stamp}`,
+      name: "sandbox-test",
       definition: {
         triggers: [{ key: "manual" }],
         nodes: [
-          { id: "find", key: "records.find", input: { type: "note_board", filter: { field: "title", op: "eq", value: seen } }, next: ["note"] },
-          { id: "note", key: "records.create", input: { type: "note_board", fields: { title: missed } }, next: ["say"] },
+          {
+            id: "find",
+            key: "records.find",
+            input: { type: "note_board", filter: { field: "title", op: "eq", value: seen } },
+            next: ["note"],
+          },
+          {
+            id: "note",
+            key: "records.create",
+            input: { type: "note_board", fields: { title: missed } },
+            next: ["say"],
+          },
           { id: "say", key: "post_message", input: { channelId: "chn_general", text: outward } },
         ],
       },
@@ -109,13 +157,17 @@ test("a sandbox test reads a note for real and does not create or send", async (
     await until("the test run to succeed", 12_000, async () => {
       const body = await ok(d, "/v1/runs/get", { runId });
       const run = body["run"] as { status?: string; kind?: string } | undefined;
-      if (run?.status === "failed" || run?.status === "stopped") assert.fail(`the run ${run.status}: ${JSON.stringify(body)}`);
+      if (run?.status === "failed" || run?.status === "stopped")
+        assert.fail(`the run ${run.status}: ${JSON.stringify(body)}`);
       return run?.status === "succeeded" ? run : undefined;
     });
     const run = (await ok(d, "/v1/runs/get", { runId }))["run"] as { kind?: string };
     assert.equal(run.kind, "automation_test");
     const listed = (await ok(d, "/v1/runs/steps", { runId }))["steps"] as { step: string; state: string }[];
-    assert.deepEqual(listed.map((row) => `${row.step}:${row.state}`), ["find:succeeded", "note:succeeded", "say:succeeded"]);
+    assert.deepEqual(
+      listed.map((row) => `${row.step}:${row.state}`),
+      ["find:succeeded", "note:succeeded", "say:succeeded"],
+    );
     const stored = storedSteps(d, runId);
     const find = stored.find((row) => row.step === "find");
     assert.ok(find, "the read step is in the step log");
@@ -127,6 +179,12 @@ test("a sandbox test reads a note for real and does not create or send", async (
     assert.deepEqual(say?.output, SEND_SAMPLE);
     assert.equal(await noteCount(d, missed), 0, "the write did not create the note");
     const fetched = await call(d, "/v1/records/get", { type: "note_board", recordId: WRITE_SAMPLE.recordId });
-    assert.equal(fetched.text.includes(missed), false, "the catalogue record id is not the note the step would have written");
-  } finally { await d.stop(); }
+    assert.equal(
+      fetched.text.includes(missed),
+      false,
+      "the catalogue record id is not the note the step would have written",
+    );
+  } finally {
+    await d.stop();
+  }
 });

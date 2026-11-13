@@ -1,6 +1,6 @@
 // Time zones as a person reads them: "Pacific Time, Los Angeles", not "America/Los_Angeles". A short list of the common zones; any other id reads as its name with the underscores taken out.
 export const ZONE_LABELS: Readonly<Record<string, string>> = {
-  "UTC": "UTC",
+  UTC: "UTC",
   "America/Los_Angeles": "Pacific Time, Los Angeles",
   "America/Denver": "Mountain Time, Denver",
   "America/Chicago": "Central Time, Chicago",

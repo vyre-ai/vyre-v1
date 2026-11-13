@@ -12,7 +12,18 @@ import { useLive, useRecordsData } from "../sidebar/data.tsx";
 import { Glyph, pointOf } from "../sidebar/parts.tsx";
 import { cellText, hueOf } from "../table/model.ts";
 import { moveCard, moveError } from "./actions.ts";
-import { cardFields, each, isLaneField, LANE_PAGE, LANE_W, laneCountSpec, laneFieldOf, lanesOf, laneSpec, neighbour } from "./model.ts";
+import {
+  cardFields,
+  each,
+  isLaneField,
+  LANE_PAGE,
+  LANE_W,
+  laneCountSpec,
+  laneFieldOf,
+  lanesOf,
+  laneSpec,
+  neighbour,
+} from "./model.ts";
 import type { FieldDef, Lane, RecordRow } from "./model.ts";
 import { Value } from "./parts.tsx";
 import { ViewHead, useViewState } from "./view.tsx";
@@ -55,19 +66,42 @@ function Card({ row, board, lane }: { row: RecordRow; board: Board; lane: Lane }
     { label: "Open", onSelect: () => board.open(row.id) },
     { separator: true },
     { head: "Move to" },
-    ...each(lanes.filter((l) => !l.none || lane.none || (board.counts.current[l.key] ?? 0) > 0), (l): MenuEntry => ({ label: l.title, checked: l.key === lane.key, onSelect: () => board.move(row, l) })),
+    ...each(
+      lanes.filter((l) => !l.none || lane.none || (board.counts.current[l.key] ?? 0) > 0),
+      (l): MenuEntry => ({ label: l.title, checked: l.key === lane.key, onSelect: () => board.move(row, l) }),
+    ),
   ];
-  const trig = menuTrigger((x, y) => { board.select(row.id); board.show(entries(), x, y); });
+  const trig = menuTrigger((x, y) => {
+    board.select(row.id);
+    board.show(entries(), x, y);
+  });
   const card = (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={`${title}, ${lane.title}`} accessibilityState={{ selected }} testID={`card-${row.id}`}
-      onPress={() => { board.select(row.id); board.open(row.id); }} {...trig}
-      style={({ hovered }: { hovered?: boolean }) => [c.card, shadow(hovered === true ? "var(--sh-2), inset 0 0 0 1px var(--line)" : "var(--sh-1), inset 0 0 0 1px var(--line)"), selected && c.cardOn]}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}, ${lane.title}`}
+      accessibilityState={{ selected }}
+      testID={`card-${row.id}`}
+      onPress={() => {
+        board.select(row.id);
+        board.open(row.id);
+      }}
+      {...trig}
+      style={({ hovered }: { hovered?: boolean }) => [
+        c.card,
+        shadow(
+          hovered === true ? "var(--sh-2), inset 0 0 0 1px var(--line)" : "var(--sh-1), inset 0 0 0 1px var(--line)",
+        ),
+        selected && c.cardOn,
+      ]}
     >
-      <Text numberOfLines={2} style={c.title}>{title}</Text>
+      <Text numberOfLines={2} style={c.title}>
+        {title}
+      </Text>
       {shown.length > 0 ? (
         <View style={c.meta}>
-          {each(shown, (f) => <Value key={f.key} field={f} row={row} names={names} />)}
+          {each(shown, (f) => (
+            <Value key={f.key} field={f} row={row} names={names} />
+          ))}
         </View>
       ) : null}
     </Pressable>
@@ -76,9 +110,18 @@ function Card({ row, board, lane }: { row: RecordRow; board: Board; lane: Lane }
   return createElement(
     "div",
     {
-      draggable: true, "data-testid": `drag-${row.id}`,
-      onDragStart: (e: { dataTransfer?: { setData(t: string, v: string): void; effectAllowed: string } }) => { board.drag.current = row; if (e.dataTransfer) { e.dataTransfer.setData("text/plain", row.id); e.dataTransfer.effectAllowed = "move"; } },
-      onDragEnd: () => { board.drag.current = null; },
+      draggable: true,
+      "data-testid": `drag-${row.id}`,
+      onDragStart: (e: { dataTransfer?: { setData(t: string, v: string): void; effectAllowed: string } }) => {
+        board.drag.current = row;
+        if (e.dataTransfer) {
+          e.dataTransfer.setData("text/plain", row.id);
+          e.dataTransfer.effectAllowed = "move";
+        }
+      },
+      onDragEnd: () => {
+        board.drag.current = null;
+      },
       style: { cursor: "grab", width: "100%" },
     },
     card,
@@ -105,26 +148,59 @@ function LaneColumn({ board, lane, width }: { board: Board; lane: Lane; width: n
   if (lane.none && count === 0) return null;
   const hue = lane.color && /^\d+$/.test(lane.color) ? Number(lane.color) : hueOf(lane.key || "none");
   const body = (
-    <View testID={`lane-${lane.key || "none"}`} accessibilityLabel={`${lane.title}, ${count}`} style={[c.lane, { width }, over && c.laneOver]}>
+    <View
+      testID={`lane-${lane.key || "none"}`}
+      accessibilityLabel={`${lane.title}, ${count}`}
+      style={[c.lane, { width }, over && c.laneOver]}
+    >
       <View style={c.laneHead}>
         <View style={[c.dot, { backgroundColor: lane.none ? "var(--ink-4)" : `hsl(${hue}, 55%, 52%)` }]} />
-        <Text numberOfLines={1} style={c.laneTitle}>{lane.title}</Text>
-        <Text style={c.laneCount} testID={`lane-count-${lane.key || "none"}`}>{count.toLocaleString("en-US")}</Text>
+        <Text numberOfLines={1} style={c.laneTitle}>
+          {lane.title}
+        </Text>
+        <Text style={c.laneCount} testID={`lane-count-${lane.key || "none"}`}>
+          {count.toLocaleString("en-US")}
+        </Text>
       </View>
       <ScrollView style={c.laneBody} contentContainerStyle={c.laneCards}>
-        {each(rows, (r) => <Card key={r.id} row={r} board={board} lane={lane} />)}
-        {failed && rows.length === 0 ? <Text style={c.none} accessibilityRole="alert" testID={`lane-error-${lane.key || "none"}`}>{`Couldn't load these cards. ${failed.message}`}</Text> : null}
+        {each(rows, (r) => (
+          <Card key={r.id} row={r} board={board} lane={lane} />
+        ))}
+        {failed && rows.length === 0 ? (
+          <Text
+            style={c.none}
+            accessibilityRole="alert"
+            testID={`lane-error-${lane.key || "none"}`}
+          >{`Couldn't load these cards. ${failed.message}`}</Text>
+        ) : null}
         {count > rows.length && !(failed && rows.length === 0) ? (
-          <Pressable accessibilityRole="button" testID={`more-${lane.key || "none"}`} onPress={() => setLimit(limit + LANE_PAGE)} style={({ hovered }: { hovered?: boolean }) => [c.add, hovered === true && c.addOver]}>
-            <Text style={c.addText}>{`Show ${Math.min(LANE_PAGE, count - rows.length)} more of ${(count - rows.length).toLocaleString("en-US")}`}</Text>
+          <Pressable
+            accessibilityRole="button"
+            testID={`more-${lane.key || "none"}`}
+            onPress={() => setLimit(limit + LANE_PAGE)}
+            style={({ hovered }: { hovered?: boolean }) => [c.add, hovered === true && c.addOver]}
+          >
+            <Text
+              style={c.addText}
+            >{`Show ${Math.min(LANE_PAGE, count - rows.length)} more of ${(count - rows.length).toLocaleString("en-US")}`}</Text>
           </Pressable>
         ) : null}
-        {count === 0 && !failed ? <Text style={c.none} testID={`empty-${lane.key || "none"}`}>No cards</Text> : null}
+        {count === 0 && !failed ? (
+          <Text style={c.none} testID={`empty-${lane.key || "none"}`}>
+            No cards
+          </Text>
+        ) : null}
       </ScrollView>
       {lane.none ? null : (
         <Pressable
-          accessibilityRole="button" accessibilityLabel={`New in ${lane.title}`} testID={`add-${lane.key}`}
-          onPress={(e) => { if (board.ctx.journey) board.addAt(lane, pointOf(e)); else st.newRecord({ [field.key]: lane.key }); }} style={({ hovered }: { hovered?: boolean }) => [c.add, hovered === true && c.addOver]}
+          accessibilityRole="button"
+          accessibilityLabel={`New in ${lane.title}`}
+          testID={`add-${lane.key}`}
+          onPress={(e) => {
+            if (board.ctx.journey) board.addAt(lane, pointOf(e));
+            else st.newRecord({ [field.key]: lane.key });
+          }}
+          style={({ hovered }: { hovered?: boolean }) => [c.add, hovered === true && c.addOver]}
         >
           <Glyph name="plus" size={12} color="var(--ink-3)" />
           <Text style={c.addText}>New</Text>
@@ -136,10 +212,21 @@ function LaneColumn({ board, lane, width }: { board: Board; lane: Lane; width: n
   return createElement(
     "div",
     {
-      "data-testid": `drop-${lane.key || "none"}`, style: { display: "flex", flexDirection: "column", minHeight: 0, maxHeight: "100%", width },
-      onDragOver: (e: { preventDefault(): void; dataTransfer?: { dropEffect: string } }) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = "move"; if (!over) setOver(true); },
+      "data-testid": `drop-${lane.key || "none"}`,
+      style: { display: "flex", flexDirection: "column", minHeight: 0, maxHeight: "100%", width },
+      onDragOver: (e: { preventDefault(): void; dataTransfer?: { dropEffect: string } }) => {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+        if (!over) setOver(true);
+      },
       onDragLeave: () => setOver(false),
-      onDrop: (e: { preventDefault(): void }) => { e.preventDefault(); setOver(false); const row = board.drag.current; board.drag.current = null; if (row) board.move(row, lane); },
+      onDrop: (e: { preventDefault(): void }) => {
+        e.preventDefault();
+        setOver(false);
+        const row = board.drag.current;
+        board.drag.current = null;
+        if (row) board.move(row, lane);
+      },
     },
     body,
   );
@@ -160,10 +247,33 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const counts = useRef<Record<string, number>>({});
   const width = useWindowDimensions().width;
   const field = ctx.journey?.field ?? laneFieldOf(ctx.def, ctx.saved, picked);
-  const head = <ViewHead ctx={ctx} st={st} lanes={{ field, choices: ctx.journey ? [ctx.journey.field] : ctx.def.fields.filter(isLaneField), pick: setPicked }} />;
+  const head = (
+    <ViewHead
+      ctx={ctx}
+      st={st}
+      lanes={{
+        field,
+        choices: ctx.journey ? [ctx.journey.field] : ctx.def.fields.filter(isLaneField),
+        pick: setPicked,
+      }}
+    />
+  );
   if (!field) {
     const choices = ctx.def.fields.filter(isLaneField);
-    return <View style={c.main} testID="records-board">{head}<States kind="empty" title={choices.length > 0 ? "Pick a field to group by." : `${ctx.def.plural} have no status or choice field to make lanes from.`} icon="records" /></View>;
+    return (
+      <View style={c.main} testID="records-board">
+        {head}
+        <States
+          kind="empty"
+          title={
+            choices.length > 0
+              ? "Pick a field to group by."
+              : `${ctx.def.plural} have no status or choice field to make lanes from.`
+          }
+          icon="records"
+        />
+      </View>
+    );
   }
   // the lane of records with no value comes first: a board whose records have none shows them at the left, and not beyond the screen behind lanes that say "No cards" (it is drawn only while it has cards)
   const own = lanesOf(field);
@@ -173,16 +283,40 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const move = (row: RecordRow, to: Lane): void => {
     setError(null);
     setSelected(row.id);
-    if (ctx.journey) { if (!to.none) ctx.journey.move(row, to.key).catch((e: unknown) => setError(e instanceof Error ? e.message : "Could not move it. Try again.")); return; }
+    if (ctx.journey) {
+      if (!to.none)
+        ctx.journey
+          .move(row, to.key)
+          .catch((e: unknown) => setError(e instanceof Error ? e.message : "Could not move it. Try again."));
+      return;
+    }
     moveCard(data, ctx.type, field, row, to).catch((e: unknown) => setError(moveError(e)));
   };
   const addAt = (lane: Lane, at: { x: number; y: number }): void => {
     setError(null);
-    ctx.journey?.addChoices(lane.key, (message) => { if (message) setError(message); })
+    ctx.journey
+      ?.addChoices(lane.key, (message) => {
+        if (message) setError(message);
+      })
       .then((items) => menu.show(items, at.x, at.y, "other"))
       .catch(() => setError("Could not load the records to add."));
   };
-  const board: Board = { ctx, st, field, lanes, selected, select: setSelected, drag, ids, rows, counts, move, addAt, open: data.nav.openRecord, show: menu.show };
+  const board: Board = {
+    ctx,
+    st,
+    field,
+    lanes,
+    selected,
+    select: setSelected,
+    drag,
+    ids,
+    rows,
+    counts,
+    move,
+    addAt,
+    open: data.nav.openRecord,
+    show: menu.show,
+  };
   const shown = (l: Lane): boolean => !l.none || (counts.current[l.key] ?? 0) > 0;
 
   const laneOfSelected = (): { lane: Lane; at: number } | null => {
@@ -196,15 +330,23 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const onKeyDown = (ev: { key?: string; altKey?: boolean; preventDefault?: () => void }): void => {
     const here = laneOfSelected();
     const key = ev.key;
-    if (key !== "ArrowDown" && key !== "ArrowUp" && key !== "ArrowLeft" && key !== "ArrowRight" && key !== "Enter") return;
+    if (key !== "ArrowDown" && key !== "ArrowUp" && key !== "ArrowLeft" && key !== "ArrowRight" && key !== "Enter")
+      return;
     if (!here) {
       const first = lanes.find((l) => (ids.current[l.key] ?? []).length > 0);
       const id = first ? ids.current[first.key]?.[0] : undefined;
-      if (id && key !== "Enter") { ev.preventDefault?.(); setSelected(id); }
+      if (id && key !== "Enter") {
+        ev.preventDefault?.();
+        setSelected(id);
+      }
       return;
     }
     const list = ids.current[here.lane.key] ?? [];
-    if (key === "Enter") { ev.preventDefault?.(); if (selected) data.nav.openRecord(selected); return; }
+    if (key === "Enter") {
+      ev.preventDefault?.();
+      if (selected) data.nav.openRecord(selected);
+      return;
+    }
     ev.preventDefault?.();
     if (key === "ArrowDown" || key === "ArrowUp") {
       const next = list[Math.max(0, Math.min(list.length - 1, here.at + (key === "ArrowDown" ? 1 : -1)))];
@@ -220,14 +362,20 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
     }
     let to = neighbour(lanes, here.lane.key, dir, shown);
     while (to && (ids.current[to.key] ?? []).length === 0) to = neighbour(lanes, to.key, dir, shown);
-    const next = to ? (ids.current[to.key] ?? [])[Math.min(here.at, (ids.current[to.key] ?? []).length - 1)] : undefined;
+    const next = to
+      ? (ids.current[to.key] ?? [])[Math.min(here.at, (ids.current[to.key] ?? []).length - 1)]
+      : undefined;
     if (next) setSelected(next);
   };
 
   return (
     <View style={c.main} testID="records-board" accessibilityLabel={`${ctx.def.plural} board`}>
       {head}
-      {error ? <Text style={c.error} accessibilityRole="alert" testID="board-error">{error}</Text> : null}
+      {error ? (
+        <Text style={c.error} accessibilityRole="alert" testID="board-error">
+          {error}
+        </Text>
+      ) : null}
       <View style={c.sheet} {...({ onKeyDown } as object)}>
         <ScrollView horizontal style={c.lanes} contentContainerStyle={c.lanesIn} testID="board-lanes">
           {each(lanes, (l) => (
@@ -247,17 +395,40 @@ const c = StyleSheet.create({
   lanesIn: { flexDirection: "row", alignItems: "flex-start", gap: 12, padding: 16, height: "100%" },
   lane: { borderRadius: 12, backgroundColor: "var(--sunk)" as string, maxHeight: "100%", minHeight: 96 },
   laneOver: { boxShadow: "inset 0 0 0 2px var(--accent-line)" } as object,
-  laneHead: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 10, paddingBottom: 8, paddingHorizontal: 12 },
+  laneHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingTop: 10,
+    paddingBottom: 8,
+    paddingHorizontal: 12,
+  },
   dot: { width: 8, height: 8, borderRadius: 8 },
   laneTitle: { flexShrink: 1, fontSize: 12.5, fontWeight: "600", color: "var(--ink)" as string },
   laneCount: { fontSize: 12, fontWeight: "500", color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   laneBody: { flexGrow: 0, flexShrink: 1, minHeight: 0 },
   laneCards: { gap: 8, paddingHorizontal: 8, paddingTop: 2, paddingBottom: 8 },
-  card: { width: "100%", borderRadius: 10, backgroundColor: "var(--raised)" as string, paddingVertical: 10, paddingHorizontal: 11, gap: 8 },
+  card: {
+    width: "100%",
+    borderRadius: 10,
+    backgroundColor: "var(--raised)" as string,
+    paddingVertical: 10,
+    paddingHorizontal: 11,
+    gap: 8,
+  },
   cardOn: { backgroundColor: "var(--sel)" as string },
   title: { fontSize: 13, lineHeight: 18, fontWeight: "500", color: "var(--ink)" as string },
   meta: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
-  add: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, marginHorizontal: 8, marginBottom: 8, paddingHorizontal: 8, borderRadius: 7 },
+  add: {
+    height: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginHorizontal: 8,
+    marginBottom: 8,
+    paddingHorizontal: 8,
+    borderRadius: 7,
+  },
   addOver: { backgroundColor: "var(--hover)" as string },
   addText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   none: { fontSize: 12, color: "var(--ink-4)" as string, paddingHorizontal: 6, paddingVertical: 4 },

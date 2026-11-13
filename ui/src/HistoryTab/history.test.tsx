@@ -31,7 +31,14 @@ import {
 import type { HistoryInvoke, HistoryResourceType, HistoryVersion } from "./index.tsx";
 
 const V = (n: number, over: Partial<HistoryVersion> = {}): HistoryVersion => ({
-  id: `ver_${n}`, n, who: "Lena Ortiz", why: `change ${n}`, at: `2026-10-${10 + n}T09:00:00Z`, runId: null, undoable: true, ...over,
+  id: `ver_${n}`,
+  n,
+  who: "Lena Ortiz",
+  why: `change ${n}`,
+  at: `2026-10-${10 + n}T09:00:00Z`,
+  runId: null,
+  undoable: true,
+  ...over,
 });
 
 /** The opening tag of the element with this test id. */
@@ -41,7 +48,13 @@ function tagOf(html: string, testId: string): string {
   return hit[0];
 }
 
-const VERSIONS: readonly HistoryVersion[] = [V(5), V(4, { runId: "run_a" }), V(3, { runId: "run_a", undoable: false }), V(2, { runId: "run_a" }), V(1, { why: "" })];
+const VERSIONS: readonly HistoryVersion[] = [
+  V(5),
+  V(4, { runId: "run_a" }),
+  V(3, { runId: "run_a", undoable: false }),
+  V(2, { runId: "run_a" }),
+  V(1, { why: "" }),
+];
 
 test("every resource type has its own versions and restore_version capability", () => {
   assert.equal(HISTORY_RESOURCE_TYPES.length, 6);
@@ -75,7 +88,11 @@ test("undo test: restoring a version from History for a record, a file and an au
     { cap: "files.restore_version", input: { fileId: "file_agent_md", versionId: "ver_2" } },
     { cap: "automations.restore_version", input: { automationId: "aut_weekly", versionId: "ver_2" } },
   ]);
-  assert.deepEqual(lines, ["Restored v2 as a new version.", "Restored v2 as a new version.", "Restored v2 as a new version."]);
+  assert.deepEqual(lines, [
+    "Restored v2 as a new version.",
+    "Restored v2 as a new version.",
+    "Restored v2 as a new version.",
+  ]);
 });
 
 test("memory, Kit and agent definitions restore through their own modules too", () => {
@@ -98,7 +115,11 @@ test("Undo this run calls runs.undo once with the run id and reports what stayed
   assert.equal(UNDO_RUN_CAPABILITY, "runs.undo");
   assert.equal(PREVIEW_UNDO_CAPABILITY, "runs.preview_undo");
   assert.equal(line, "Undid 2, 1 could not be undone.");
-  assert.equal(await performUndo({ type: "file", resourceId: "f1", invoke }, VERSIONS, V(5)), "", "a version no run wrote has nothing to undo and calls nothing");
+  assert.equal(
+    await performUndo({ type: "file", resourceId: "f1", invoke }, VERSIONS, V(5)),
+    "",
+    "a version no run wrote has nothing to undo and calls nothing",
+  );
   assert.equal(calls.length, 1);
   assert.deepEqual(undoRunInput("run_a", "wrong file"), { runId: "run_a", reason: "wrong file" });
   assert.deepEqual(undoRunInput("run_a", ""), { runId: "run_a" });
@@ -106,18 +127,31 @@ test("Undo this run calls runs.undo once with the run id and reports what stayed
 
 test("the undo plan splits a run into what is reverted and what stays", () => {
   const plan = undoPlan(VERSIONS, "run_a");
-  assert.deepEqual(plan.undo.map((v) => v.n), [4, 2]);
-  assert.deepEqual(plan.keep.map((v) => v.n), [3]);
+  assert.deepEqual(
+    plan.undo.map((v) => v.n),
+    [4, 2],
+  );
+  assert.deepEqual(
+    plan.keep.map((v) => v.n),
+    [3],
+  );
   assert.equal(undoLabel(plan), "Undo this run (2 changes)");
   assert.equal(undoLabel({ runId: "r", undo: [V(1)], keep: [] }), "Undo this run (1 change)");
   assert.equal(undoLabel({ runId: "r", undo: [], keep: [V(1)] }), "Undo this run");
-  assert.deepEqual(runGroup(VERSIONS, "run_a").map((v) => v.n), [4, 3, 2], "newest first");
+  assert.deepEqual(
+    runGroup(VERSIONS, "run_a").map((v) => v.n),
+    [4, 3, 2],
+    "newest first",
+  );
   assert.deepEqual(undoPlan(VERSIONS, "none").undo, []);
 });
 
 test("versions order newest first; the newest is current; the previous one is the compare target", () => {
   const shuffled = [V(2), V(5), V(1), V(4), V(3)];
-  assert.deepEqual(newestFirst(shuffled).map((v) => v.n), [5, 4, 3, 2, 1]);
+  assert.deepEqual(
+    newestFirst(shuffled).map((v) => v.n),
+    [5, 4, 3, 2, 1],
+  );
   assert.equal(currentVersion(shuffled)?.n, 5);
   assert.equal(currentVersion([]), null);
   assert.equal(previousOf(shuffled, "ver_4")?.n, 3);
@@ -130,13 +164,23 @@ test("which actions a version offers: compare needs an earlier one, restore is n
   assert.deepEqual(actionsFor(VERSIONS, V(4, { runId: "run_a" })), { compare: true, restore: true, undo: true });
   assert.deepEqual(actionsFor(VERSIONS, V(1)), { compare: false, restore: true, undo: false });
   const stuck: HistoryVersion[] = [V(2, { runId: "r", undoable: false }), V(1)];
-  assert.equal(actionsFor(stuck, V(2, { runId: "r", undoable: false })).undo, false, "a run with nothing undoable cannot be undone");
+  assert.equal(
+    actionsFor(stuck, V(2, { runId: "r", undoable: false })).undo,
+    false,
+    "a run with nothing undoable cannot be undone",
+  );
 });
 
 test("confirm lines state the impact before anything changes", () => {
   assert.equal(confirmText("restore", V(3)), "Restore v3? It is saved as a new version; nothing is lost.");
-  assert.equal(confirmText("undo", V(4), undoPlan(VERSIONS, "run_a")), "Undo what this run changed? 2 changes are reverted, 1 stay.");
-  assert.equal(confirmText("undo", V(4), { runId: "r", undo: [V(1)], keep: [] }), "Undo what this run changed? 1 change is reverted.");
+  assert.equal(
+    confirmText("undo", V(4), undoPlan(VERSIONS, "run_a")),
+    "Undo what this run changed? 2 changes are reverted, 1 stay.",
+  );
+  assert.equal(
+    confirmText("undo", V(4), { runId: "r", undo: [V(1)], keep: [] }),
+    "Undo what this run changed? 1 change is reverted.",
+  );
 });
 
 test("arrows move through versions without wrapping; Home and End jump", () => {
@@ -170,8 +214,16 @@ test("the tab shows every version as a shared Row with a dot, the Current mark o
   assert.match(html, /Irfad · Shorten the role line/);
   assert.match(html, />Oct 24</);
   assert.ok(html.includes(RETENTION_NOTE));
-  assert.doesNotMatch(html, /background-color:var\(--accent\)/, "the selected row is the quiet wash, never a filled accent box");
-  assert.match(html, /background-color:var\(--sel\)/, "the selected version paints the selection token on the whole row");
+  assert.doesNotMatch(
+    html,
+    /background-color:var\(--accent\)/,
+    "the selected row is the quiet wash, never a filled accent box",
+  );
+  assert.match(
+    html,
+    /background-color:var\(--sel\)/,
+    "the selected version paints the selection token on the whole row",
+  );
 });
 
 test("the selected version offers Compare and Restore; the current one cannot restore itself", () => {
@@ -191,7 +243,10 @@ test("a version written by a run shows Undo this run, and says why it cannot whe
   const stuck = renderToStaticMarkup(<HistoryTab {...frozenHistoryTabProps} selectedVersionId="ver_1" />);
   assert.match(stuck, /data-testid="history-undo"/);
   assert.match(tagOf(stuck, "history-undo"), /aria-disabled="true"/);
-  assert.ok(stuck.includes(UNDO_NOTE.replaceAll("'", "&#x27;")), "the note is shown (the markup escapes the apostrophe)");
+  assert.ok(
+    stuck.includes(UNDO_NOTE.replaceAll("'", "&#x27;")),
+    "the note is shown (the markup escapes the apostrophe)",
+  );
 });
 
 test("no versions says so", () => {
@@ -205,9 +260,15 @@ test("a version's date and stamp read in the Space's zone", async () => {
   const { setCurrentZones } = await import("../../../lib/zones.ts");
   try {
     setCurrentZones({ space: "America/Los_Angeles", viewer: "Asia/Karachi" });
-    assert.equal(shortDate("2026-11-05T03:00:00Z"), "Nov 4", "Karachi's 8 AM on the 5th is the evening of the 4th in the Space");
+    assert.equal(
+      shortDate("2026-11-05T03:00:00Z"),
+      "Nov 4",
+      "Karachi's 8 AM on the 5th is the evening of the 4th in the Space",
+    );
     assert.equal(longStamp("2026-11-05T03:00:00Z"), "Nov 4 at 7:00 pm");
     setCurrentZones(null);
     assert.equal(longStamp("2026-10-20T11:00:00Z"), "Oct 20 at 11:00 am");
-  } finally { setCurrentZones(null); }
+  } finally {
+    setCurrentZones(null);
+  }
 });

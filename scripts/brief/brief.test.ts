@@ -16,11 +16,23 @@ WORKFLOW: trk start ${id}`;
 const samples: BriefInput[] = [
   { id: "P-A", title: "Small packet", trackerBrief: tracker("P-A"), owns: ["lib/a.ts"], laneDoc: "short lane note" },
   {
-    id: "P-B", title: "Many globs", trackerBrief: tracker("P-B"),
+    id: "P-B",
+    title: "Many globs",
+    trackerBrief: tracker("P-B"),
     owns: Array.from({ length: 40 }, (_, i) => `modules/m${i}/**`),
-    laneDoc: "lane ".repeat(2000), spec: ["4.12", "5 b12"], tests: ["kernel/x.test.ts"], budgets: ["write p95 under 10 ms"], proofs: ["test_run", "perf"],
+    laneDoc: "lane ".repeat(2000),
+    spec: ["4.12", "5 b12"],
+    tests: ["kernel/x.test.ts"],
+    budgets: ["write p95 under 10 ms"],
+    proofs: ["test_run", "perf"],
   },
-  { id: "P-C", title: "Huge lane doc", trackerBrief: tracker("P-C"), owns: ["sync/**", "client/src/store/**"], laneDoc: "word ".repeat(20000) },
+  {
+    id: "P-C",
+    title: "Huge lane doc",
+    trackerBrief: tracker("P-C"),
+    owns: ["sync/**", "client/src/store/**"],
+    laneDoc: "word ".repeat(20000),
+  },
 ];
 
 test("builder output for three sample packets is under 6k tokens and lists every owned glob", () => {
@@ -46,6 +58,11 @@ test("the checklist and proof kinds come through", () => {
 });
 
 test("owned globs that alone exceed the budget fail loudly", () => {
-  const big: BriefInput = { id: "P-D", title: "x", trackerBrief: tracker("P-D"), owns: Array.from({ length: 6000 }, (_, i) => `dir/${i}/**`) };
+  const big: BriefInput = {
+    id: "P-D",
+    title: "x",
+    trackerBrief: tracker("P-D"),
+    owns: Array.from({ length: 6000 }, (_, i) => `dir/${i}/**`),
+  };
   assert.throws(() => buildBrief(big, template), /over 6000 tokens/);
 });

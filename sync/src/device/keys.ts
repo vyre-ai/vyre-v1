@@ -21,8 +21,14 @@ export function memoryKeyBox(): KeyBox {
   const m = new Map<string, unknown>();
   return {
     get: (n) => Promise.resolve(m.get(n)),
-    put: (n, v) => { m.set(n, v); return Promise.resolve(); },
-    delete: (n) => { m.delete(n); return Promise.resolve(); },
+    put: (n, v) => {
+      m.set(n, v);
+      return Promise.resolve();
+    },
+    delete: (n) => {
+      m.delete(n);
+      return Promise.resolve();
+    },
   };
 }
 
@@ -30,8 +36,15 @@ export function memoryKeyBox(): KeyBox {
 export interface IdbFactoryLike {
   open(name: string, version?: number): IdbOpenRequest;
 }
-interface IdbRequest<T> { result: T; error: unknown; onsuccess: (() => void) | null; onerror: (() => void) | null }
-interface IdbOpenRequest extends IdbRequest<IdbDatabase> { onupgradeneeded: (() => void) | null }
+interface IdbRequest<T> {
+  result: T;
+  error: unknown;
+  onsuccess: (() => void) | null;
+  onerror: (() => void) | null;
+}
+interface IdbOpenRequest extends IdbRequest<IdbDatabase> {
+  onupgradeneeded: (() => void) | null;
+}
 interface IdbDatabase {
   createObjectStore(name: string): unknown;
   transaction(store: string, mode: "readonly" | "readwrite"): { objectStore(name: string): IdbStore };
@@ -52,7 +65,9 @@ export function indexedDbKeyBox(dbName = "vyre-device-keys", factory?: IdbFactor
   const db = (): Promise<IdbDatabase> => {
     opened ??= new Promise<IdbDatabase>((resolve, reject) => {
       const req = idb.open(dbName, 1);
-      req.onupgradeneeded = () => { req.result.createObjectStore(STORE); };
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore(STORE);
+      };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(new ReplicaError("idb_open", "could not open the key store"));
     });
@@ -68,21 +83,38 @@ export function indexedDbKeyBox(dbName = "vyre-device-keys", factory?: IdbFactor
   };
   return {
     get: (n) => run("readonly", (s) => s.get(n)),
-    put: async (n, v) => { await run("readwrite", (s) => s.put(v, n)); },
-    delete: async (n) => { await run("readwrite", (s) => s.delete(n)); },
+    put: async (n, v) => {
+      await run("readwrite", (s) => s.put(v, n));
+    },
+    delete: async (n) => {
+      await run("readwrite", (s) => s.delete(n));
+    },
   };
 }
 
 /** HKDF-SHA256 over the personKey. The info string joins the three parts with NUL so ("a","bc") and ("ab","c") differ. */
-export async function deriveReplicaKey(personKey: Uint8Array, spaceId: string, deviceId: string, c: CryptoLike = defaultCrypto()): Promise<Uint8Array> {
+export async function deriveReplicaKey(
+  personKey: Uint8Array,
+  spaceId: string,
+  deviceId: string,
+  c: CryptoLike = defaultCrypto(),
+): Promise<Uint8Array> {
   if (personKey.length !== REPLICA_KEY_BYTES) throw new ReplicaError("bad_key", "personKey must be 32 bytes");
   if (!spaceId || !deviceId) throw new ReplicaError("bad_key", "spaceId and deviceId are required");
   const base = await c.subtle.importKey("raw", personKey, "HKDF", false, ["deriveBits"]);
-  const bits = await c.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: utf8(`replica\0${spaceId}\0${deviceId}`) }, base, REPLICA_KEY_BYTES * 8);
+  const bits = await c.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: utf8(`replica\0${spaceId}\0${deviceId}`) },
+    base,
+    REPLICA_KEY_BYTES * 8,
+  );
   return new Uint8Array(bits);
 }
 
-interface WrappedBlob { v: 1; iv: Uint8Array; ct: Uint8Array }
+interface WrappedBlob {
+  v: 1;
+  iv: Uint8Array;
+  ct: Uint8Array;
+}
 
 function isBlob(x: unknown): x is WrappedBlob {
   if (typeof x !== "object" || x === null) return false;
@@ -103,7 +135,11 @@ export interface ReplicaKeyVault {
   /** Make a new wrapping key and re-wrap every listed slot under it. The old wrapping key is gone afterwards. All or nothing. */
   rewrap(slots: readonly string[]): Promise<void>;
   /** Change the replica key of a slot. `rekey` re-encrypts the database from old to new; the new key is stored only after it succeeds. */
-  rotate(slot: string, next: Uint8Array, rekey: (oldKey: Uint8Array, newKey: Uint8Array) => Promise<void>): Promise<void>;
+  rotate(
+    slot: string,
+    next: Uint8Array,
+    rekey: (oldKey: Uint8Array, newKey: Uint8Array) => Promise<void>,
+  ): Promise<void>;
   /** Sign out: delete the slot's wrapped key. The wrapping key goes too when `all` is set, or when `slots` (every slot of this device) is given and none of the others holds a key. */
   wipe(slot: string, opts?: { all?: boolean; slots?: readonly string[] }): Promise<void>;
 }
@@ -122,13 +158,17 @@ export function createReplicaKeyVault(box: KeyBox, c: CryptoLike = defaultCrypto
 
   async function seal(key: CryptoKeyLike, slot: string, replicaKey: Uint8Array): Promise<WrappedBlob> {
     const iv = c.getRandomValues(new Uint8Array(12));
-    const ct = new Uint8Array(await c.subtle.encrypt({ name: "AES-GCM", iv, additionalData: aad(slot) }, key, replicaKey));
+    const ct = new Uint8Array(
+      await c.subtle.encrypt({ name: "AES-GCM", iv, additionalData: aad(slot) }, key, replicaKey),
+    );
     return { v: 1, iv, ct };
   }
 
   async function unseal(key: CryptoKeyLike, slot: string, blob: WrappedBlob): Promise<Uint8Array> {
     try {
-      const raw = new Uint8Array(await c.subtle.decrypt({ name: "AES-GCM", iv: blob.iv, additionalData: aad(slot) }, key, blob.ct));
+      const raw = new Uint8Array(
+        await c.subtle.decrypt({ name: "AES-GCM", iv: blob.iv, additionalData: aad(slot) }, key, blob.ct),
+      );
       if (raw.length !== REPLICA_KEY_BYTES) throw new Error("length");
       return raw;
     } catch {

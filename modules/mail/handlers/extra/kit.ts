@@ -35,14 +35,22 @@ export function eventErrors(h: Harness): string[] {
   const out: string[] = [];
   for (const e of h.emitted) {
     const def = registry.events.find((d) => d.name === e.name);
-    if (!def) { out.push(`${e.name} is not in the registry`); continue; }
+    if (!def) {
+      out.push(`${e.name} is not in the registry`);
+      continue;
+    }
     for (const err of validate(def.payload, e.payload, "", registry.$defs)) out.push(`${e.name}: ${err}`);
   }
   return out;
 }
 
 /** A DNS zone as the resolver would answer it: name to values per record type. A name listed in `broken` answers with a temporary failure. */
-export interface Zone { txt?: Record<string, string[]>; cname?: Record<string, string[]>; mx?: Record<string, string[]>; broken?: string[] }
+export interface Zone {
+  txt?: Record<string, string[]>;
+  cname?: Record<string, string[]>;
+  mx?: Record<string, string[]>;
+  broken?: string[];
+}
 
 export function zone(z: Zone): DnsLookup {
   const answer = (table: Record<string, string[]> | undefined, name: string): string[] => {
@@ -52,9 +60,15 @@ export function zone(z: Zone): DnsLookup {
     return hit;
   };
   return {
-    async txt(name) { return answer(z.txt, name); },
-    async cname(name) { return answer(z.cname, name); },
-    async mx(name) { return answer(z.mx, name); },
+    async txt(name) {
+      return answer(z.txt, name);
+    },
+    async cname(name) {
+      return answer(z.cname, name);
+    },
+    async mx(name) {
+      return answer(z.mx, name);
+    },
   };
 }
 
@@ -79,13 +93,38 @@ export function seedSent(h: Harness, o: SentOpts): void {
       "fromAddress", "toAddresses", "ccAddresses", subject, snippet, body, "sentAt", "contactId",
       "isPrivate", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    o.id, o.mailboxId, JSON.stringify([o.mailboxId]), o.providerId, `<${o.id}@vyre.test>`, o.id, "out", o.status ?? "sent",
-    o.from ?? "hello@vyre.test", party(o.to ?? ["pat@acme.test"]), party(o.cc ?? []), "Hello", "Hello", "Hello", NOW, null,
-    0, "[]", null, h.ctx.trace.traceId, 1, NOW, null,
+    o.id,
+    o.mailboxId,
+    JSON.stringify([o.mailboxId]),
+    o.providerId,
+    `<${o.id}@vyre.test>`,
+    o.id,
+    "out",
+    o.status ?? "sent",
+    o.from ?? "hello@vyre.test",
+    party(o.to ?? ["pat@acme.test"]),
+    party(o.cc ?? []),
+    "Hello",
+    "Hello",
+    "Hello",
+    NOW,
+    null,
+    0,
+    "[]",
+    null,
+    h.ctx.trace.traceId,
+    1,
+    NOW,
+    null,
   );
   h.ctx.db.run(
     `INSERT INTO mail_body ("messageId", text, html, "fromName", bcc, headers) VALUES (?, ?, ?, ?, ?, ?)`,
-    o.id, "Hello", null, null, party(o.bcc ?? []), null,
+    o.id,
+    "Hello",
+    null,
+    null,
+    party(o.bcc ?? []),
+    null,
   );
 }
 
@@ -107,7 +146,18 @@ export function seedDomain(h: Harness, o: DomainOpts): void {
   h.ctx.db.run(
     `INSERT INTO mail_domain (id, name, provider, spf, dkim, dmarc, verified, "isDefault", records, "checkedAt", version, updated_at, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    o.id, o.name, o.provider ?? "resend", o.spf ?? "pending", o.dkim ?? "pending", o.dmarc ?? "pending", o.verified ? 1 : 0, o.isDefault ? 1 : 0,
-    JSON.stringify({ ref: o.ref ?? "pdm_1", providerVerified: o.verified === true, records: o.records ?? [] }), null, 1, NOW, null,
+    o.id,
+    o.name,
+    o.provider ?? "resend",
+    o.spf ?? "pending",
+    o.dkim ?? "pending",
+    o.dmarc ?? "pending",
+    o.verified ? 1 : 0,
+    o.isDefault ? 1 : 0,
+    JSON.stringify({ ref: o.ref ?? "pdm_1", providerVerified: o.verified === true, records: o.records ?? [] }),
+    null,
+    1,
+    NOW,
+    null,
   );
 }

@@ -8,10 +8,21 @@ import type { CliDriverDeps } from "../src/drivers/cli/index.ts";
 import { createPool, poolOpenSession } from "../src/pool/index.ts";
 import type { TurnContext } from "../src/turn-engine/context.ts";
 import {
-  alive, collect, driverDeps, kinds, message, newSpy, sleep, specOf, texts, turnOf, until,
+  alive,
+  collect,
+  driverDeps,
+  kinds,
+  message,
+  newSpy,
+  sleep,
+  specOf,
+  texts,
+  turnOf,
+  until,
 } from "../fixtures/golden-streams/rig.ts";
 
-const claude = (spy = newSpy(), over: Partial<CliDriverDeps> = {}) => createCliDriver(CLI_ADAPTERS.claude_code, driverDeps(spy, over));
+const claude = (spy = newSpy(), over: Partial<CliDriverDeps> = {}) =>
+  createCliDriver(CLI_ADAPTERS.claude_code, driverDeps(spy, over));
 
 test("warm reuse: the process starts when the session opens, answers turn after turn, and is the same process each time", async () => {
   const spy = newSpy();
@@ -24,7 +35,19 @@ test("warm reuse: the process starts when the session opens, answers turn after 
   const one = await collect(session.send(turnOf("text")));
   assert.deepEqual(kinds(one), ["text", "text", "usage", "done"]);
   assert.deepEqual(texts(one), ["Hello", " from Claude."]);
-  assert.deepEqual(one.find((e) => e.type === "usage"), { type: "usage", inputTokens: 112, outputTokens: 6, cacheReadTokens: 100, cacheWriteTokens: 0, costUsd: 0.0012, model: "claude-sonnet-5-5", contextTokens: 112 });
+  assert.deepEqual(
+    one.find((e) => e.type === "usage"),
+    {
+      type: "usage",
+      inputTokens: 112,
+      outputTokens: 6,
+      cacheReadTokens: 100,
+      cacheWriteTokens: 0,
+      costUsd: 0.0012,
+      model: "claude-sonnet-5-5",
+      contextTokens: 112,
+    },
+  );
 
   const two = await collect(session.send(turnOf("text")));
   assert.equal(two.at(-1)?.type, "done");
@@ -50,16 +73,34 @@ test("the turn context goes in front of the first message once; a later turn is 
   const session = await claude(spy).open(specOf());
   try {
     const context = (can: string, now: string): TurnContext => ({
-      names: {}, sections: [{ id: "identity", stable: true, text: "You are Intake." }, { id: "can", stable: true, text: can }, { id: "now", stable: false, text: now }],
+      names: {},
+      sections: [
+        { id: "identity", stable: true, text: "You are Intake." },
+        { id: "can", stable: true, text: can },
+        { id: "now", stable: false, text: now },
+      ],
     });
     await collect(session.send({ ...turnOf("text"), context: context("Tools: all.", "It is Monday.") }));
     await collect(session.send({ ...turnOf("text"), context: context("Tools: all.", "It is Tuesday.") }));
     await collect(session.send({ ...turnOf("text"), context: context("Tools: all. One routine.", "It is Tuesday.") }));
     const sent = spy.writes.map((w) => String(JSON.parse(w).message.content[0].text));
-    assert.equal(sent[0], "<vyre-context>\nYou are Intake.\n\nWhat you can do here:\nTools: all.\n\nIt is Monday.\n</vyre-context>\n\ntext");
-    assert.equal(sent[1], "<vyre-context>\nIt is Tuesday.\n</vyre-context>\n\ntext", "the stable sections the engine already holds are not sent again");
-    assert.equal(sent[2], "<vyre-context>\nWhat you can do here:\nTools: all. One routine.\n\nIt is Tuesday.\n</vyre-context>\n\ntext", "a stable section that changed is sent again");
-  } finally { await session.close(); }
+    assert.equal(
+      sent[0],
+      "<vyre-context>\nYou are Intake.\n\nWhat you can do here:\nTools: all.\n\nIt is Monday.\n</vyre-context>\n\ntext",
+    );
+    assert.equal(
+      sent[1],
+      "<vyre-context>\nIt is Tuesday.\n</vyre-context>\n\ntext",
+      "the stable sections the engine already holds are not sent again",
+    );
+    assert.equal(
+      sent[2],
+      "<vyre-context>\nWhat you can do here:\nTools: all. One routine.\n\nIt is Tuesday.\n</vyre-context>\n\ntext",
+      "a stable section that changed is sent again",
+    );
+  } finally {
+    await session.close();
+  }
 });
 
 test("a process that died between turns is replaced by one started with --resume <the engine's session id>", async () => {
@@ -104,7 +145,11 @@ test("steering: a message the engine reads inside the running turn (it replays i
   session.inject(message("text", "m2"));
   const events = await turn;
   assert.equal(events.filter((e) => e.type === "done").length, 1);
-  assert.deepEqual(texts(events), ["Hello", " from Claude."], "answered once: the second message was folded into the first turn");
+  assert.deepEqual(
+    texts(events),
+    ["Hello", " from Claude."],
+    "answered once: the second message was folded into the first turn",
+  );
   const again = await collect(session.send(turnOf("text")));
   assert.equal(again.at(-1)?.type, "done", "the session is usable after a folded steer");
   await session.close();
@@ -125,7 +170,11 @@ test("a model the engine will not run is engine.model_unavailable, its own line 
   const spy = newSpy();
   const session = await claude(spy).open(specOf());
   const bad = await collect(session.send(turnOf("nomodel")));
-  assert.deepEqual(bad.map((e) => e.type), ["error"], "no text event: the line is an error, not an answer");
+  assert.deepEqual(
+    bad.map((e) => e.type),
+    ["error"],
+    "no text event: the line is an error, not an answer",
+  );
   const e = bad[0] as { code: string; message: string };
   assert.equal(e.code, "engine.model_unavailable");
   assert.doesNotMatch(e.message, /--model|Run /);
@@ -137,7 +186,9 @@ test("a sign-in that is gone is provider.auth_failed (the backup key's cue) and 
   const spy = newSpy();
   const session = await claude(spy).open(specOf());
   const bad = await collect(session.send(turnOf("authfail")));
-  assert.deepEqual(bad, [{ type: "error", code: "provider.auth_failed", message: "Invalid API key · Please run /login" }]);
+  assert.deepEqual(bad, [
+    { type: "error", code: "provider.auth_failed", message: "Invalid API key · Please run /login" },
+  ]);
   const pid = session.pid;
   const ok = await collect(session.send(turnOf("text")));
   assert.equal(ok.at(-1)?.type, "done");
@@ -148,7 +199,10 @@ test("a sign-in that is gone is provider.auth_failed (the backup key's cue) and 
 test("a turn limit is engine.step_limit, with the tokens it used", async () => {
   const session = await claude().open(specOf());
   const events = await collect(session.send(turnOf("maxturns")));
-  assert.deepEqual(events, [{ type: "usage", inputTokens: 900, outputTokens: 120, model: "claude-sonnet-5-5" }, { type: "error", code: "engine.step_limit", message: "error_max_turns" }]);
+  assert.deepEqual(events, [
+    { type: "usage", inputTokens: 900, outputTokens: 120, model: "claude-sonnet-5-5" },
+    { type: "error", code: "engine.step_limit", message: "error_max_turns" },
+  ]);
   await session.close();
 });
 
@@ -156,7 +210,9 @@ test("Vyre's tools not connecting ends the turn at once and stops the process", 
   const session = await claude().open(specOf());
   const pid = session.pid;
   const events = await collect(session.send(turnOf("mcpfail")));
-  assert.deepEqual(events, [{ type: "error", code: "engine.mcp_failed", message: "Vyre's tools did not connect to the engine." }]);
+  assert.deepEqual(events, [
+    { type: "error", code: "engine.mcp_failed", message: "Vyre's tools did not connect to the engine." },
+  ]);
   assert.ok(pid !== undefined);
   await until(() => !alive(pid));
   assert.equal(session.warm, false);
@@ -185,10 +241,14 @@ test("a process that goes quiet is cut off after the idle time with engine.timeo
 test("a process that never says anything is ended at the first-token deadline, before the idle limit, and logged", async () => {
   const spy = newSpy();
   const seen: Array<{ provider: string; waitedMs: number }> = [];
-  const session = await claude(spy, { idleMs: 60_000, firstTokenMs: 250, onNoFirstToken: (e) => seen.push(e) }).open(specOf());
+  const session = await claude(spy, { idleMs: 60_000, firstTokenMs: 250, onNoFirstToken: (e) => seen.push(e) }).open(
+    specOf(),
+  );
   const pid = session.pid;
   const events = await collect(session.send(turnOf("hang")));
-  assert.deepEqual(events, [{ type: "error", code: "engine.no_first_token", message: "Your AI didn't answer in time" }]);
+  assert.deepEqual(events, [
+    { type: "error", code: "engine.no_first_token", message: "Your AI didn't answer in time" },
+  ]);
   assert.equal(seen.length, 1);
   assert.equal(seen[0]?.provider, "claude_code");
   assert.ok(pid !== undefined);
@@ -200,13 +260,21 @@ test("a silent process hears the first-token line even when its timer fires befo
   // a busy runner fired the wait a millisecond before Date.now() reached the deadline, and the old check read the clock again and answered engine.timeout (CI fast-22 on int/rc25, 12 Nov)
   const spy = newSpy();
   const seen: Array<{ provider: string }> = [];
-  const session = await claude(spy, { idleMs: 60_000, firstTokenMs: 250, onNoFirstToken: (e) => seen.push(e) }).open(specOf());
+  const session = await claude(spy, { idleMs: 60_000, firstTokenMs: 250, onNoFirstToken: (e) => seen.push(e) }).open(
+    specOf(),
+  );
   const realNow = Date.now;
   const held = realNow();
   Date.now = () => held;
   let events: unknown[];
-  try { events = await collect(session.send(turnOf("hang"))); } finally { Date.now = realNow; }
-  assert.deepEqual(events, [{ type: "error", code: "engine.no_first_token", message: "Your AI didn't answer in time" }]);
+  try {
+    events = await collect(session.send(turnOf("hang")));
+  } finally {
+    Date.now = realNow;
+  }
+  assert.deepEqual(events, [
+    { type: "error", code: "engine.no_first_token", message: "Your AI didn't answer in time" },
+  ]);
   assert.equal(seen.length, 1);
   await session.close();
 });
@@ -220,18 +288,31 @@ test("a second send while one is running is refused, a closed session says so, a
   assert.equal((await first).at(-1)?.type, "done");
   await session.close();
   await session.close();
-  assert.deepEqual(await collect(session.send(turnOf("text"))), [{ type: "error", code: "engine.closed", message: "This session is closed." }]);
+  assert.deepEqual(await collect(session.send(turnOf("text"))), [
+    { type: "error", code: "engine.closed", message: "This session is closed." },
+  ]);
 });
 
 test("the MCP session is released when the session closes, and a program that is not installed is a driver error at open", async () => {
   const spy = newSpy();
   const closed: string[] = [];
-  const driver = claude(spy, { mcpClose: (s) => { closed.push(s.threadId); } });
+  const driver = claude(spy, {
+    mcpClose: (s) => {
+      closed.push(s.threadId);
+    },
+  });
   const session = await driver.open(specOf({}, "thr_7"));
   await session.close();
   assert.deepEqual(closed, ["thr_7"]);
 
-  const missing = createCliDriver(CLI_ADAPTERS.claude_code, { ...driverDeps(spy), launcher: { spawn: async () => { throw new LaunchError("engine.cli_missing", "claude is not installed here."); } } });
+  const missing = createCliDriver(CLI_ADAPTERS.claude_code, {
+    ...driverDeps(spy),
+    launcher: {
+      spawn: async () => {
+        throw new LaunchError("engine.cli_missing", "claude is not installed here.");
+      },
+    },
+  });
   await assert.rejects(missing.open(specOf()), (e: Error & { code?: string }) => e.code === "engine.cli_missing");
 });
 
@@ -240,7 +321,18 @@ test("the pool keeps a CLI session warm for the next turn of its thread: acquire
   const driver = claude(spy);
   const pool = createPool({ placement: "device", drivers: [driver] });
   const spec = specOf();
-  const ps = { key: { driver: "claude_code", accountRef: "#Dana_Claude", model: "sonnet", sandboxId: "vyre-sbx-dana", mcpProfile: "default" }, threadId: "thr_1", person: "per_dana", session: spec };
+  const ps = {
+    key: {
+      driver: "claude_code",
+      accountRef: "#Dana_Claude",
+      model: "sonnet",
+      sandboxId: "vyre-sbx-dana",
+      mcpProfile: "default",
+    },
+    threadId: "thr_1",
+    person: "per_dana",
+    session: spec,
+  };
   const open = poolOpenSession(pool, () => ps);
 
   const a = await open(spec);
@@ -271,10 +363,20 @@ test("a hint opens the process ahead of the first message, so the first acquire 
   const spy = newSpy();
   const pool = createPool({ placement: "device", drivers: [claude(spy)] });
   const spec = specOf();
-  pool.hint({ key: { driver: "claude_code", accountRef: "#Dana_Claude", model: "sonnet", sandboxId: "s", mcpProfile: "default" }, threadId: "thr_1", person: "per_dana", session: spec });
+  pool.hint({
+    key: { driver: "claude_code", accountRef: "#Dana_Claude", model: "sonnet", sandboxId: "s", mcpProfile: "default" },
+    threadId: "thr_1",
+    person: "per_dana",
+    session: spec,
+  });
   await pool.settled();
   assert.equal(spy.launches.length, 1);
-  const lease = await pool.acquire({ key: { driver: "claude_code", accountRef: "#Dana_Claude", model: "sonnet", sandboxId: "s", mcpProfile: "default" }, threadId: "thr_1", person: "per_dana", session: spec });
+  const lease = await pool.acquire({
+    key: { driver: "claude_code", accountRef: "#Dana_Claude", model: "sonnet", sandboxId: "s", mcpProfile: "default" },
+    threadId: "thr_1",
+    person: "per_dana",
+    session: spec,
+  });
   assert.equal(lease.warm, true);
   assert.equal(spy.launches.length, 1);
   await pool.release(lease);

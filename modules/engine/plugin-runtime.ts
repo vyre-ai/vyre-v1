@@ -20,12 +20,36 @@ import type { SandboxPlan } from "./sandbox.ts";
 
 /** One MCP server as `plugins.mcp.servers` describes it. */
 export interface ServerSpec {
-  key: string; name: string; from: "plugin" | "connection"; pluginId?: string; transport: "stdio" | "http" | "sse" | "ws";
-  command?: string; args: string[]; env: Record<string, string>; url?: string; headers: Record<string, string>; files?: string; needs: string[]; hub?: string; oauth?: boolean; connectionId?: string;
+  key: string;
+  name: string;
+  from: "plugin" | "connection";
+  pluginId?: string;
+  transport: "stdio" | "http" | "sse" | "ws";
+  command?: string;
+  args: string[];
+  env: Record<string, string>;
+  url?: string;
+  headers: Record<string, string>;
+  files?: string;
+  needs: string[];
+  hub?: string;
+  oauth?: boolean;
+  connectionId?: string;
 }
 /** One hook as `plugins.hooks.list` describes it. */
-export interface HookSpec { pluginId: string; plugin: string; event: string; matcher: string; command: string; args: string[]; timeoutSec?: number }
-export interface Who { agentId: string; asker: string }
+export interface HookSpec {
+  pluginId: string;
+  plugin: string;
+  event: string;
+  matcher: string;
+  command: string;
+  args: string[];
+  timeoutSec?: number;
+}
+export interface Who {
+  agentId: string;
+  asker: string;
+}
 
 export interface PluginRuntimeDeps {
   /** Calls a capability as the asker (plugins.files, plugins.mcp.servers ...). */
@@ -50,11 +74,24 @@ export interface PluginRuntimeDeps {
 }
 
 export class PluginError extends Error {
-  readonly code: "permission.no_grant" | "provider.unavailable" | "validation.bad_input" | "validation.precondition_failed";
-  constructor(code: PluginError["code"], message: string) { super(message); this.name = "PluginError"; this.code = code; }
+  readonly code:
+    | "permission.no_grant"
+    | "provider.unavailable"
+    | "validation.bad_input"
+    | "validation.precondition_failed";
+  constructor(code: PluginError["code"], message: string) {
+    super(message);
+    this.name = "PluginError";
+    this.code = code;
+  }
 }
 
-interface Live { client: McpClient; secrets: Secret[]; last: number; spec: string }
+interface Live {
+  client: McpClient;
+  secrets: Secret[];
+  last: number;
+  spec: string;
+}
 const HOOK_OUT = 64_000;
 /** The server answered 401: its token ended or was withdrawn. */
 const refused = (e: unknown): boolean => e instanceof Error && /answered 401/.test(e.message);
@@ -65,7 +102,8 @@ const hash = (s: string): string => {
 };
 
 /** What the hub is told about whose sign-in a call uses: one value for the Space, and for a person a hash of their id, so the hub never holds a Vyre id and two people never share one. */
-const identityValue = (kind: Identity, asker: string): string => (kind === "space" ? "space" : `p_${sha256Hex(`vyre-hub|${asker}`).slice(0, 32)}`);
+const identityValue = (kind: Identity, asker: string): string =>
+  kind === "space" ? "space" : `p_${sha256Hex(`vyre-hub|${asker}`).slice(0, 32)}`;
 
 export function createPluginRuntime(d: PluginRuntimeDeps) {
   const live = new Map<string, Live>();
@@ -94,7 +132,11 @@ export function createPluginRuntime(d: PluginRuntimeDeps) {
     const values = new Map<string, string>();
     const secrets: Secret[] = [];
     for (const h of new Set(texts.flatMap((t) => handlesIn(t)))) {
-      if (!d.source) throw new PluginError("permission.no_grant", `${h} is a Vault handle and this server has no Vault to fill it from.`);
+      if (!d.source)
+        throw new PluginError(
+          "permission.no_grant",
+          `${h} is a Vault handle and this server has no Vault to fill it from.`,
+        );
       const r = await d.source.lookup(h, { agentId: who.agentId, asker: who.asker, where: "computer" });
       if (r.kind === "unknown") continue;
       if (r.kind === "denied") throw new PluginError("permission.no_grant", `You cannot use ${h} here.`);
@@ -116,24 +158,37 @@ export function createPluginRuntime(d: PluginRuntimeDeps) {
   }
 
   async function open(spec: ServerSpec, who: Who, fresh = false, ident: Identity = "space"): Promise<Live> {
-    const sig = hash(JSON.stringify([spec.transport, spec.command, spec.args, spec.env, spec.url, spec.headers, spec.files]));
-    if (spec.needs.length > 0) throw new PluginError("validation.precondition_failed", `${spec.name} needs ${spec.needs.join(", ")} set first.`);
+    const sig = hash(
+      JSON.stringify([spec.transport, spec.command, spec.args, spec.env, spec.url, spec.headers, spec.files]),
+    );
+    if (spec.needs.length > 0)
+      throw new PluginError("validation.precondition_failed", `${spec.name} needs ${spec.needs.join(", ")} set first.`);
     if (spec.transport === "stdio") {
       if (!spec.command) throw new PluginError("validation.bad_input", `${spec.name} has no command.`);
       const cwd = workFolder(d.dataDir, who.asker, "plugins");
-      const staged = spec.files ? await stage(spec.files, who, cwd) : { root: cwd, data: path.join(cwd, ".plugin-data") };
+      const staged = spec.files
+        ? await stage(spec.files, who, cwd)
+        : { root: cwd, data: path.join(cwd, ".plugin-data") };
       const vars = { CLAUDE_PLUGIN_ROOT: staged.root, CLAUDE_PLUGIN_DATA: staged.data, CLAUDE_PROJECT_DIR: cwd };
       const { values, secrets } = await fill([spec.command, ...spec.args, ...Object.values(spec.env)], who);
       const argv = [spec.command, ...spec.args].map((a) => sub(expandVars(a, vars), values));
       const env: Record<string, string> = { HOME: cwd, ...vars };
       for (const [k, v] of Object.entries(spec.env)) env[k] = sub(expandVars(v, vars), values);
       let proc: CliProcess;
-      try { proc = await launch(argv, env, cwd); }
-      catch (e) { throw new PluginError("provider.unavailable", e instanceof Error ? e.message : "Could not start the server."); }
+      try {
+        proc = await launch(argv, env, cwd);
+      } catch (e) {
+        throw new PluginError("provider.unavailable", e instanceof Error ? e.message : "Could not start the server.");
+      }
       try {
         const client = await McpClient.connect(stdioTransport(proc), { timeoutMs: 20_000 });
         return { client, secrets, last: now(), spec: sig };
-      } catch (e) { throw new PluginError("provider.unavailable", `${spec.name} did not start: ${e instanceof Error ? e.message : "no answer"}`); }
+      } catch (e) {
+        throw new PluginError(
+          "provider.unavailable",
+          `${spec.name} did not start: ${e instanceof Error ? e.message : "no answer"}`,
+        );
+      }
     }
     if (spec.transport === "http") {
       if (!spec.url) throw new PluginError("validation.bad_input", `${spec.name} has no URL.`);
@@ -151,34 +206,66 @@ export function createPluginRuntime(d: PluginRuntimeDeps) {
       if (hub) {
         const value = identityValue(ident, who.asker);
         if (hub.identity.in === "header") headers[hub.identity.name] = value;
-        else { const u = new URL(url); u.searchParams.set(hub.identity.name, value); url = u.toString(); }
+        else {
+          const u = new URL(url);
+          u.searchParams.set(hub.identity.name, value);
+          url = u.toString();
+        }
       }
       try {
-        const client = await McpClient.connect(httpTransport({ url, fetch: d.fetch, headers: () => headers }), { timeoutMs: 20_000 });
+        const client = await McpClient.connect(httpTransport({ url, fetch: d.fetch, headers: () => headers }), {
+          timeoutMs: 20_000,
+        });
         return { client, secrets, last: now(), spec: sig };
-      } catch (e) { throw new PluginError("provider.unavailable", `${spec.name} did not answer: ${e instanceof Error ? e.message : "no answer"}`); }
+      } catch (e) {
+        throw new PluginError(
+          "provider.unavailable",
+          `${spec.name} did not answer: ${e instanceof Error ? e.message : "no answer"}`,
+        );
+      }
     }
-    throw new PluginError("validation.precondition_failed", `${spec.name} uses ${spec.transport}, which is not supported yet. Use a command or an https URL.`);
+    throw new PluginError(
+      "validation.precondition_failed",
+      `${spec.name} uses ${spec.transport}, which is not supported yet. Use a command or an https URL.`,
+    );
   }
 
   /** A hub connection holds one live session per identity (the person's own, and the Space's); any other connection holds one. */
-  const liveKey = (spec: ServerSpec, who: Who, ident: Identity): string => `${who.asker}|${who.agentId}|${spec.key}${spec.hub ? `|${ident}` : ""}`;
+  const liveKey = (spec: ServerSpec, who: Who, ident: Identity): string =>
+    `${who.asker}|${who.agentId}|${spec.key}${spec.hub ? `|${ident}` : ""}`;
 
   async function connection(spec: ServerSpec, who: Who, fresh = false, ident: Identity = "space"): Promise<Live> {
     const key = liveKey(spec, who, ident);
-    const sig = hash(JSON.stringify([spec.transport, spec.command, spec.args, spec.env, spec.url, spec.headers, spec.files]));
+    const sig = hash(
+      JSON.stringify([spec.transport, spec.command, spec.args, spec.env, spec.url, spec.headers, spec.files]),
+    );
     const cur = live.get(key);
-    if (cur && !fresh && !cur.client.isClosed && cur.spec === sig) { cur.last = now(); return cur; }
-    if (cur) { void cur.client.close(); live.delete(key); }
+    if (cur && !fresh && !cur.client.isClosed && cur.spec === sig) {
+      cur.last = now();
+      return cur;
+    }
+    if (cur) {
+      void cur.client.close();
+      live.delete(key);
+    }
     const pending = connecting.get(key);
     if (pending) return pending;
-    const p = open(spec, who, fresh, ident).then((l) => { live.set(key, l); return l; }).finally(() => connecting.delete(key));
+    const p = open(spec, who, fresh, ident)
+      .then((l) => {
+        live.set(key, l);
+        return l;
+      })
+      .finally(() => connecting.delete(key));
     connecting.set(key, p);
     return p;
   }
 
   const timer = setInterval(() => {
-    for (const [k, l] of live) if (now() - l.last > idleMs) { void l.client.close(); live.delete(k); }
+    for (const [k, l] of live)
+      if (now() - l.last > idleMs) {
+        void l.client.close();
+        live.delete(k);
+      }
   }, 60_000);
   timer.unref();
 
@@ -187,56 +274,111 @@ export function createPluginRuntime(d: PluginRuntimeDeps) {
     async tools(spec: ServerSpec, who: Who): Promise<McpTool[]> {
       const ident: Identity = "space"; // the list of tools is the same for everyone
       const l = await connection(spec, who, false, ident);
-      try { return await l.client.listTools(); }
-      catch (e) {
+      try {
+        return await l.client.listTools();
+      } catch (e) {
         live.delete(liveKey(spec, who, ident));
         // a signed-in server that refuses the token gets one fresh token and one more try
-        if (spec.oauth && refused(e)) { const again = await connection(spec, who, true, ident); try { return await again.client.listTools(); } catch { live.delete(liveKey(spec, who, ident)); } }
+        if (spec.oauth && refused(e)) {
+          const again = await connection(spec, who, true, ident);
+          try {
+            return await again.client.listTools();
+          } catch {
+            live.delete(liveKey(spec, who, ident));
+          }
+        }
         throw new PluginError("provider.unavailable", e instanceof Error ? e.message : "The server did not answer.");
       }
     },
     /** Calls one tool. The text has any filled secret removed; a leftover fragment withholds it whole. */
-    async callTool(spec: ServerSpec, who: Who, tool: string, args: unknown): Promise<{ isError: boolean; text: string; structured?: unknown }> {
+    async callTool(
+      spec: ServerSpec,
+      who: Who,
+      tool: string,
+      args: unknown,
+    ): Promise<{ isError: boolean; text: string; structured?: unknown }> {
       const hub = hubById(spec.hub);
       const ident: Identity = hub ? identityOfTool(hub, tool) : "space";
       let l = await connection(spec, who, false, ident);
-      try { d.onUse?.(spec, who); } catch { /* the record of use never fails the call */ }
+      try {
+        d.onUse?.(spec, who);
+      } catch {
+        /* the record of use never fails the call */
+      }
       let r;
-      try { r = await l.client.callTool(tool, args); }
-      catch (e) {
+      try {
+        r = await l.client.callTool(tool, args);
+      } catch (e) {
         live.delete(liveKey(spec, who, ident));
         if (e instanceof McpError && e.code === "mcp.server_error") return { isError: true, text: e.message };
         if (spec.oauth && refused(e)) {
           l = await connection(spec, who, true, ident);
-          try { r = await l.client.callTool(tool, args); } catch (e2) { live.delete(liveKey(spec, who, ident)); if (e2 instanceof McpError && e2.code === "mcp.server_error") return { isError: true, text: e2.message }; throw new PluginError("provider.unavailable", e2 instanceof Error ? e2.message : "The server did not answer."); }
-        } else throw new PluginError("provider.unavailable", e instanceof Error ? e.message : "The server did not answer.");
+          try {
+            r = await l.client.callTool(tool, args);
+          } catch (e2) {
+            live.delete(liveKey(spec, who, ident));
+            if (e2 instanceof McpError && e2.code === "mcp.server_error") return { isError: true, text: e2.message };
+            throw new PluginError(
+              "provider.unavailable",
+              e2 instanceof Error ? e2.message : "The server did not answer.",
+            );
+          }
+        } else
+          throw new PluginError("provider.unavailable", e instanceof Error ? e.message : "The server did not answer.");
       }
       let text = resultText(r);
       if (l.secrets.length > 0) {
         const s = createScrubber(l.secrets);
         const scrubbed = s.scrub(text);
         const miss = s.residual(scrubbed);
-        if (miss.length > 0) { for (const m of miss) await d.reportMiss?.({ itemId: m.itemId, place: "terminal", traceId: "0".repeat(32) }); text = WITHHELD; }
-        else text = scrubbed;
+        if (miss.length > 0) {
+          for (const m of miss) await d.reportMiss?.({ itemId: m.itemId, place: "terminal", traceId: "0".repeat(32) });
+          text = WITHHELD;
+        } else text = scrubbed;
       }
-      return { isError: r.isError, text, ...(r.structured !== undefined && l.secrets.length === 0 ? { structured: r.structured } : {}) };
+      return {
+        isError: r.isError,
+        text,
+        ...(r.structured !== undefined && l.secrets.length === 0 ? { structured: r.structured } : {}),
+      };
     },
     /**
      * Runs one hook command in the sandbox with the event as JSON on its standard input. Exit code 2 means "block" for a Pre hook, as in Claude Code. A hook that cannot be confined does not run.
      * Output is bounded and scrubbed.
      */
-    async runHook(hook: HookSpec, who: Who, event: unknown): Promise<{ code: number | null; stdout: string; stderr: string; timedOut: boolean }> {
+    async runHook(
+      hook: HookSpec,
+      who: Who,
+      event: unknown,
+    ): Promise<{ code: number | null; stdout: string; stderr: string; timedOut: boolean }> {
       const cwd = workFolder(d.dataDir, who.asker, "plugins");
       const staged = await stage(hook.pluginId, who, cwd);
       const vars = { CLAUDE_PLUGIN_ROOT: staged.root, CLAUDE_PLUGIN_DATA: staged.data, CLAUDE_PROJECT_DIR: cwd };
       const { values, secrets } = await fill([hook.command, ...hook.args], who);
-      const argv = hook.args.length > 0 ? [hook.command, ...hook.args].map((a) => sub(expandVars(a, vars), values)) : ["/bin/sh", "-c", sub(expandVars(hook.command, vars), values)];
+      const argv =
+        hook.args.length > 0
+          ? [hook.command, ...hook.args].map((a) => sub(expandVars(a, vars), values))
+          : ["/bin/sh", "-c", sub(expandVars(hook.command, vars), values)];
       const proc = await launch(argv, { HOME: cwd, ...vars }, cwd);
       let out = "";
-      const read = (async () => { for await (const c of proc.stdout) { out += typeof c === "string" ? c : Buffer.from(c).toString("utf8"); if (out.length > HOOK_OUT) out = out.slice(0, HOOK_OUT); } })();
-      proc.write(`${JSON.stringify(event)}\n`).then(() => proc.endInput(), () => undefined);
+      const read = (async () => {
+        for await (const c of proc.stdout) {
+          out += typeof c === "string" ? c : Buffer.from(c).toString("utf8");
+          if (out.length > HOOK_OUT) out = out.slice(0, HOOK_OUT);
+        }
+      })();
+      proc.write(`${JSON.stringify(event)}\n`).then(
+        () => proc.endInput(),
+        () => undefined,
+      );
       let timedOut = false;
-      const t = setTimeout(() => { timedOut = true; proc.kill("SIGKILL"); }, (hook.timeoutSec ?? 30) * 1000);
+      const t = setTimeout(
+        () => {
+          timedOut = true;
+          proc.kill("SIGKILL");
+        },
+        (hook.timeoutSec ?? 30) * 1000,
+      );
       const exit = await proc.exited;
       clearTimeout(t);
       await read.catch(() => undefined);
@@ -247,18 +389,36 @@ export function createPluginRuntime(d: PluginRuntimeDeps) {
      * Runs one hook command an agent or a person wrote (modules/hooks), in the agent's own sandbox and work folder, with the event as JSON on its standard input. Same wall, bounds and scrubbing as a
      * plugin's hook; there are no plugin files to stage. Exit code 2 means "stop".
      */
-    async runCommand(hook: { command: string; args?: string[]; timeoutSec: number }, who: Who, event: unknown): Promise<{ code: number | null; stdout: string; stderr: string; timedOut: boolean }> {
+    async runCommand(
+      hook: { command: string; args?: string[]; timeoutSec: number },
+      who: Who,
+      event: unknown,
+    ): Promise<{ code: number | null; stdout: string; stderr: string; timedOut: boolean }> {
       const cwd = workFolder(d.dataDir, who.asker, "hooks");
       fs.mkdirSync(cwd, { recursive: true });
       const args = hook.args ?? [];
       const { values, secrets } = await fill([hook.command, ...args], who);
-      const argv = args.length > 0 ? [hook.command, ...args].map((a) => sub(a, values)) : ["/bin/sh", "-c", sub(hook.command, values)];
+      const argv =
+        args.length > 0
+          ? [hook.command, ...args].map((a) => sub(a, values))
+          : ["/bin/sh", "-c", sub(hook.command, values)];
       const proc = await launch(argv, { HOME: cwd, CLAUDE_PROJECT_DIR: cwd }, cwd);
       let out = "";
-      const read = (async () => { for await (const c of proc.stdout) { out += typeof c === "string" ? c : Buffer.from(c).toString("utf8"); if (out.length > HOOK_OUT) out = out.slice(0, HOOK_OUT); } })();
-      proc.write(`${JSON.stringify(event)}\n`).then(() => proc.endInput(), () => undefined);
+      const read = (async () => {
+        for await (const c of proc.stdout) {
+          out += typeof c === "string" ? c : Buffer.from(c).toString("utf8");
+          if (out.length > HOOK_OUT) out = out.slice(0, HOOK_OUT);
+        }
+      })();
+      proc.write(`${JSON.stringify(event)}\n`).then(
+        () => proc.endInput(),
+        () => undefined,
+      );
       let timedOut = false;
-      const t = setTimeout(() => { timedOut = true; proc.kill("SIGKILL"); }, hook.timeoutSec * 1000);
+      const t = setTimeout(() => {
+        timedOut = true;
+        proc.kill("SIGKILL");
+      }, hook.timeoutSec * 1000);
       const exit = await proc.exited;
       clearTimeout(t);
       await read.catch(() => undefined);

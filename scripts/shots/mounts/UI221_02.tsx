@@ -5,7 +5,8 @@ import { CommentReply } from "../../../ui/src/CommentReply/index.tsx";
 
 export const title = "Comment reply";
 
-const draft = "Looks good to me. One thing: the retainer in section 3 still reads 2,500 and the older template said 2,800, so please check it before we send this to the client.";
+const draft =
+  "Looks good to me. One thing: the retainer in section 3 still reads 2,500 and the older template said 2,800, so please check it before we send this to the client.";
 
 export default function Mount(): ReactNode {
   return (

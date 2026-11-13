@@ -68,14 +68,17 @@ export function emitReport(report: RunReport, write: (line: string) => void = co
 
 /** One METRIC line for the perf proof. The name is the budget id. */
 export function metricLine(report: RunReport): string {
-  return "METRIC " + JSON.stringify({
-    name: report.id,
-    p50: report.p50,
-    p95: report.p95,
-    budget_p50: report.budgetP50,
-    budget_p95: report.budgetP95,
-    unit: report.unit,
-    machine: report.machine,
-    pass: report.ok,
-  });
+  return (
+    "METRIC " +
+    JSON.stringify({
+      name: report.id,
+      p50: report.p50,
+      p95: report.p95,
+      budget_p50: report.budgetP50,
+      budget_p95: report.budgetP95,
+      unit: report.unit,
+      machine: report.machine,
+      pass: report.ok,
+    })
+  );
 }

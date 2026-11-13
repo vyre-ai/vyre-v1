@@ -21,11 +21,19 @@ test("the test read's host is read one way: the shared function, and the plan th
   for (const [input, want] of CASES) {
     assert.equal(keyReadHost(input), want, JSON.stringify(input));
     const url = keyReadUrl(input);
-    if (want === null) { assert.equal(url, null, JSON.stringify(input)); continue; }
+    if (want === null) {
+      assert.equal(url, null, JSON.stringify(input));
+      continue;
+    }
     assert.equal(hostOfUrl(url!), want);
     const i = input as { path: string; domains: string[] };
     const plan = planSafeTest({ method: "GET", path: i.path, domains: i.domains, vaultItemId: "#K" });
-    if (plan.ok) assert.equal(hostOfUrl(plan.plan.url), want, `the sender's plan reads the same host for ${JSON.stringify(input)}`);
+    if (plan.ok)
+      assert.equal(
+        hostOfUrl(plan.plan.url),
+        want,
+        `the sender's plan reads the same host for ${JSON.stringify(input)}`,
+      );
   }
 });
 

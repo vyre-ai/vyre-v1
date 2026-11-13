@@ -14,7 +14,8 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 function scratch(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "scaffold-"));
   fs.writeFileSync(path.join(root, "package.json"), '{"private":true,"type":"module"}');
-  fs.mkdirSync(path.join(root, "scripts")); fs.mkdirSync(path.join(root, "host"));
+  fs.mkdirSync(path.join(root, "scripts"));
+  fs.mkdirSync(path.join(root, "host"));
   fs.copyFileSync(path.join(REPO, "scripts/lanes.json"), path.join(root, "scripts/lanes.json"));
   fs.copyFileSync(path.join(REPO, "host/modules.json"), path.join(root, "host/modules.json"));
   fs.symlinkSync(path.join(REPO, "packages"), path.join(root, "packages"));
@@ -26,7 +27,8 @@ const nodeTest = (cwd: string, files: string[]) => {
   delete env["NODE_TEST_CONTEXT"];
   return spawnSync(process.execPath, ["--test", "--test-reporter=tap", ...files], { cwd, encoding: "utf8", env });
 };
-const modulesOf = (root: string): ModulesFile => JSON.parse(fs.readFileSync(path.join(root, "host/modules.json"), "utf8")) as ModulesFile;
+const modulesOf = (root: string): ModulesFile =>
+  JSON.parse(fs.readFileSync(path.join(root, "host/modules.json"), "utf8")) as ModulesFile;
 
 test("the anatomy of a new module is the one in ARCH 2.3, and the README is ten lines at most", () => {
   const files = scaffoldFiles("widgets", "L1");
@@ -43,14 +45,25 @@ test("the anatomy of a new module is the one in ARCH 2.3, and the README is ten 
   ]);
   const by = new Map(files.map((f) => [f.path, f.content]));
   assert.ok(by.get("modules/widgets/README.md")!.trim().split("\n").length <= 10);
-  assert.deepEqual(JSON.parse(by.get("modules/widgets/package.json")!), { name: "@vyre/mod-widgets", version: "0.0.0", private: true, type: "module", vyre: { manifest: "../../manifests/widgets.ts" } });
-  assert.match(by.get("modules/widgets/migrations/0001_init.sql")!, /CREATE TABLE IF NOT EXISTS widgets_item/, "the module's tables carry its prefix");
+  assert.deepEqual(JSON.parse(by.get("modules/widgets/package.json")!), {
+    name: "@vyre/mod-widgets",
+    version: "0.0.0",
+    private: true,
+    type: "module",
+    vyre: { manifest: "../../manifests/widgets.ts" },
+  });
+  assert.match(
+    by.get("modules/widgets/migrations/0001_init.sql")!,
+    /CREATE TABLE IF NOT EXISTS widgets_item/,
+    "the module's tables carry its prefix",
+  );
   assert.match(by.get("manifests/widgets.ts")!, /owner: "L1"/);
   assert.deepEqual(scaffoldFiles("widgets", "L1"), files, "pure: the same input gives the same files");
 });
 
 test("names: kebab case only; a hyphen becomes an underscore in capability, event and table names", () => {
-  for (const bad of ["Widgets", "wid_gets", "1widgets", "", "wid gets", "-w"]) assert.throws(() => scaffoldFiles(bad, "L1"), /kebab case/, bad);
+  for (const bad of ["Widgets", "wid_gets", "1widgets", "", "wid gets", "-w"])
+    assert.throws(() => scaffoldFiles(bad, "L1"), /kebab case/, bad);
   const files = scaffoldFiles("my-module", "L3");
   assert.match(files.find((f) => f.path === "modules/my-module/impl.ts")!.content, /"my_module\.create"/);
   assert.match(files.find((f) => f.path === "modules/my-module/migrations/0001_init.sql")!.content, /my_module_item/);
@@ -60,10 +73,19 @@ test("registering: a row joins host/modules.json in id order with status stub; a
   const text = fs.readFileSync(path.join(REPO, "host/modules.json"), "utf8");
   const next = registerModule(text, { id: "widgets", owner: "L1", status: "stub" });
   const rows = (JSON.parse(next) as ModulesFile).modules;
-  assert.equal(rows.length, 80);   // the 79 modules (goals, notes, browser, machines, talk, ci and hooks among them) and widgets
-  assert.deepEqual(rows.map((r) => r.id), [...rows.map((r) => r.id)].sort());
-  assert.deepEqual(rows.find((r) => r.id === "widgets"), { id: "widgets", owner: "L1", status: "stub" });
-  assert.throws(() => registerModule(next, { id: "widgets", owner: "L1", status: "stub" }), /already in host\/modules\.json/);
+  assert.equal(rows.length, 80); // the 79 modules (goals, notes, browser, machines, talk, ci and hooks among them) and widgets
+  assert.deepEqual(
+    rows.map((r) => r.id),
+    [...rows.map((r) => r.id)].sort(),
+  );
+  assert.deepEqual(
+    rows.find((r) => r.id === "widgets"),
+    { id: "widgets", owner: "L1", status: "stub" },
+  );
+  assert.throws(
+    () => registerModule(next, { id: "widgets", owner: "L1", status: "stub" }),
+    /already in host\/modules\.json/,
+  );
   assert.throws(() => registerModule(text, { id: "records", owner: "L3", status: "stub" }), /already/);
 });
 
@@ -85,14 +107,28 @@ test("a scaffolded module builds: it is written, registered, and its generated t
   const r = writeScaffold(root, "widgets", "L1");
   assert.equal(r.written.length, 9);
   for (const p of r.written) assert.ok(fs.existsSync(path.join(root, p)), p);
-  assert.deepEqual(modulesOf(root).modules.find((m) => m.id === "widgets"), { id: "widgets", owner: "L1", status: "stub" });
+  assert.deepEqual(
+    modulesOf(root).modules.find((m) => m.id === "widgets"),
+    { id: "widgets", owner: "L1", status: "stub" },
+  );
   assert.equal(modulesOf(root).modules.length, 80);
-  const run = nodeTest(root, ["modules/widgets/tests/widgets.contract.test.ts", "modules/widgets/tests/widgets.space.test.ts"]);
+  const run = nodeTest(root, [
+    "modules/widgets/tests/widgets.contract.test.ts",
+    "modules/widgets/tests/widgets.space.test.ts",
+  ]);
   assert.equal(run.status, 0, run.stdout + run.stderr);
   assert.match(run.stdout, /# pass 1\b/);
   assert.match(run.stdout, /# skipped 1\b/, "no testkit yet");
   // the manifest it wrote loads and is the one the registry would read
-  const again = spawnSync(process.execPath, ["--input-type=module", "-e", "import('./manifests/widgets.ts').then((m) => console.log(m.default.id, m.default.owner, m.default.capabilities.length))"], { cwd: root, encoding: "utf8" });
+  const again = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      "import('./manifests/widgets.ts').then((m) => console.log(m.default.id, m.default.owner, m.default.capabilities.length))",
+    ],
+    { cwd: root, encoding: "utf8" },
+  );
   assert.equal(again.stdout.trim(), "widgets L1 2", again.stderr);
 });
 
@@ -106,24 +142,58 @@ test("the contract test the scaffold writes has teeth: a handler missing from im
 });
 
 // ---- types ----
-test("the scaffold and the module it writes typecheck under tsconfig.base.json, with the checker left on", { timeout: 120_000 }, () => {
-  const own = ["manifest/gen/scaffold/index.ts", "manifest/tests/scaffold.module.test.ts"];
-  for (const f of own) assert.ok(!new RegExp("@ts-" + "(nocheck|ignore|expect-error)").test(fs.readFileSync(path.join(REPO, f), "utf8")), `${f} must not switch the type checker off`);
-  let cache = "";
-  for (const d of ["/var/lib/ci-run/tsc-cache-v1", path.join(os.tmpdir(), "tsc-cache-v1")]) { try { fs.mkdirSync(d, { recursive: true }); fs.accessSync(d, fs.constants.W_OK); cache = d; break; } catch { /* next */ } }
-  assert.ok(cache, "a writable cache directory");
-  const tsc = path.join(cache, "node_modules/typescript/bin/tsc");
-  if (!fs.existsSync(tsc)) {
-    fs.writeFileSync(path.join(cache, "package.json"), '{"private":true}');
-    const r = spawnSync("npm", ["install", "--no-audit", "--no-fund", "--ignore-scripts", "typescript@5.9.3", "@types/node@24"], { cwd: cache, encoding: "utf8" });
-    assert.equal(r.status, 0, `npm install failed: ${r.stderr}`);
-  }
-  const root = scratch();
-  const w = writeScaffold(root, "widgets", "L1");
-  const cfg = path.join(root, "tsconfig.json");
-  const generated = w.written.filter((p) => p.endsWith(".ts")).map((p) => path.join(root, p));
-  fs.writeFileSync(cfg, JSON.stringify({ extends: path.join(REPO, "tsconfig.base.json"), compilerOptions: { typeRoots: [path.join(cache, "node_modules/@types")], types: ["node"], noEmit: true }, files: [...generated, ...own.map((f) => path.join(REPO, f))] }));
-  const r = spawnSync(process.execPath, [tsc, "-p", cfg, "--pretty", "false"], { cwd: root, encoding: "utf8" });
-  const mine = r.stdout.split("\n").filter((l) => /error TS/.test(l) && (/^manifest\/(gen\/scaffold|tests\/scaffold)/.test(l) || /(manifests\/widgets|modules\/widgets)/.test(l)));
-  assert.deepEqual(mine.slice(0, 100), [], `${mine.length} type errors`);
-});
+test(
+  "the scaffold and the module it writes typecheck under tsconfig.base.json, with the checker left on",
+  { timeout: 120_000 },
+  () => {
+    const own = ["manifest/gen/scaffold/index.ts", "manifest/tests/scaffold.module.test.ts"];
+    for (const f of own)
+      assert.ok(
+        !new RegExp("@ts-" + "(nocheck|ignore|expect-error)").test(fs.readFileSync(path.join(REPO, f), "utf8")),
+        `${f} must not switch the type checker off`,
+      );
+    let cache = "";
+    for (const d of ["/var/lib/ci-run/tsc-cache-v1", path.join(os.tmpdir(), "tsc-cache-v1")]) {
+      try {
+        fs.mkdirSync(d, { recursive: true });
+        fs.accessSync(d, fs.constants.W_OK);
+        cache = d;
+        break;
+      } catch {
+        /* next */
+      }
+    }
+    assert.ok(cache, "a writable cache directory");
+    const tsc = path.join(cache, "node_modules/typescript/bin/tsc");
+    if (!fs.existsSync(tsc)) {
+      fs.writeFileSync(path.join(cache, "package.json"), '{"private":true}');
+      const r = spawnSync(
+        "npm",
+        ["install", "--no-audit", "--no-fund", "--ignore-scripts", "typescript@5.9.3", "@types/node@24"],
+        { cwd: cache, encoding: "utf8" },
+      );
+      assert.equal(r.status, 0, `npm install failed: ${r.stderr}`);
+    }
+    const root = scratch();
+    const w = writeScaffold(root, "widgets", "L1");
+    const cfg = path.join(root, "tsconfig.json");
+    const generated = w.written.filter((p) => p.endsWith(".ts")).map((p) => path.join(root, p));
+    fs.writeFileSync(
+      cfg,
+      JSON.stringify({
+        extends: path.join(REPO, "tsconfig.base.json"),
+        compilerOptions: { typeRoots: [path.join(cache, "node_modules/@types")], types: ["node"], noEmit: true },
+        files: [...generated, ...own.map((f) => path.join(REPO, f))],
+      }),
+    );
+    const r = spawnSync(process.execPath, [tsc, "-p", cfg, "--pretty", "false"], { cwd: root, encoding: "utf8" });
+    const mine = r.stdout
+      .split("\n")
+      .filter(
+        (l) =>
+          /error TS/.test(l) &&
+          (/^manifest\/(gen\/scaffold|tests\/scaffold)/.test(l) || /(manifests\/widgets|modules\/widgets)/.test(l)),
+      );
+    assert.deepEqual(mine.slice(0, 100), [], `${mine.length} type errors`);
+  },
+);

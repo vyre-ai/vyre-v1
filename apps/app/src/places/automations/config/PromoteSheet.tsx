@@ -10,12 +10,24 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { useAutomationsData } from "../canvas/data.tsx";
 import { TextButton, pointer } from "../canvas/parts.tsx";
 import { Glyph } from "./glyphs.tsx";
-import { LEVEL_WORDS, VIA_WORDS, canPromote, choiceFor, initialChoices, plural, promoteInput, setChoice } from "./model.ts";
+import {
+  LEVEL_WORDS,
+  VIA_WORDS,
+  canPromote,
+  choiceFor,
+  initialChoices,
+  plural,
+  promoteInput,
+  setChoice,
+} from "./model.ts";
 import type { Automation, Choice, PromoteDiff } from "./model.ts";
 import { each } from "../runs/each.ts";
 import { Hint } from "./parts.tsx";
 
-export type PreviewState = { phase: "loading" } | { phase: "ready"; preview: PromoteDiff } | { phase: "failed"; message: string };
+export type PreviewState =
+  | { phase: "loading" }
+  | { phase: "ready"; preview: PromoteDiff }
+  | { phase: "failed"; message: string };
 
 /** The access diff of promoting one Automation, read once when the sheet (or a Personal Automation's Settings) opens. */
 export function usePromotePreview(automationId: string, enabled = true): PreviewState {
@@ -24,8 +36,17 @@ export function usePromotePreview(automationId: string, enabled = true): Preview
   useEffect(() => {
     if (!enabled) return undefined;
     let live = true;
-    data.call("automations.preview_promote", { automationId }).then((p) => { if (live) setState({ phase: "ready", preview: p as PromoteDiff }); }).catch((e: unknown) => { if (live) setState({ phase: "failed", message: e instanceof Error ? e.message : "That did not load." }); });
-    return () => { live = false; };
+    data
+      .call("automations.preview_promote", { automationId })
+      .then((p) => {
+        if (live) setState({ phase: "ready", preview: p as PromoteDiff });
+      })
+      .catch((e: unknown) => {
+        if (live) setState({ phase: "failed", message: e instanceof Error ? e.message : "That did not load." });
+      });
+    return () => {
+      live = false;
+    };
   }, [data, automationId, enabled]);
   return state;
 }
@@ -49,16 +70,64 @@ export function PromoteSheet({ automation, onClose, onPromoted, preview: given }
           <Text numberOfLines={2} style={s.title}>{`Promote “${automation.name}” to the Space`}</Text>
           <Text style={s.sub}>Teammates who can open Automations will see it. This is the access it will run on.</Text>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} testID="promote-close" style={[s.x, pointer]}><Glyph name="x" size={14} color="var(--ink-3)" /></Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          onPress={onClose}
+          testID="promote-close"
+          style={[s.x, pointer]}
+        >
+          <Glyph name="x" size={14} color="var(--ink-3)" />
+        </Pressable>
       </View>
-      {state.phase === "loading" ? <View style={s.body}><Text style={s.dim}>Working out what it would run on…</Text></View> : null}
-      {state.phase === "failed" ? <View style={s.body}><Text testID="promote-failed" style={s.err}>{state.message}</Text></View> : null}
-      {state.phase === "ready" ? <PromoteBody key={automation.id} automation={automation} preview={state.preview} onClose={onClose} {...(onPromoted ? { onPromoted } : {})} call={data.call} keys={data.keys} me={data.me.id} name={data.name} /> : null}
+      {state.phase === "loading" ? (
+        <View style={s.body}>
+          <Text style={s.dim}>Working out what it would run on…</Text>
+        </View>
+      ) : null}
+      {state.phase === "failed" ? (
+        <View style={s.body}>
+          <Text testID="promote-failed" style={s.err}>
+            {state.message}
+          </Text>
+        </View>
+      ) : null}
+      {state.phase === "ready" ? (
+        <PromoteBody
+          key={automation.id}
+          automation={automation}
+          preview={state.preview}
+          onClose={onClose}
+          {...(onPromoted ? { onPromoted } : {})}
+          call={data.call}
+          keys={data.keys}
+          me={data.me.id}
+          name={data.name}
+        />
+      ) : null}
     </View>
   );
 }
 
-function PromoteBody({ automation, preview, onClose, onPromoted, call, keys, me, name }: { automation: Automation; preview: PromoteDiff; onClose(): void; onPromoted?: (a: Automation) => void; call(cap: string, input: unknown): Promise<unknown>; keys: readonly { id: string; name: string; kind: "subscription" | "api"; shared?: boolean }[]; me: string; name(id: string): string }): ReactElement {
+function PromoteBody({
+  automation,
+  preview,
+  onClose,
+  onPromoted,
+  call,
+  keys,
+  me,
+  name,
+}: {
+  automation: Automation;
+  preview: PromoteDiff;
+  onClose(): void;
+  onPromoted?: (a: Automation) => void;
+  call(cap: string, input: unknown): Promise<unknown>;
+  keys: readonly { id: string; name: string; kind: "subscription" | "api"; shared?: boolean }[];
+  me: string;
+  name(id: string): string;
+}): ReactElement {
   const { element, show } = useMenu();
   const openConnect = useOpenConnect();
   const [choices, setChoices] = useState<Choice[]>(() => initialChoices(preview.diff, keys));
@@ -67,16 +136,26 @@ function PromoteBody({ automation, preview, onClose, onPromoted, call, keys, me,
   const d = preview.diff;
   const ok = canPromote(preview, choices, keys) && !busy;
   const apiKeys = keys.filter((k) => k.kind === "api" && k.shared !== false);
-  const nodeTitle = (stepId: string): string => automation.definition.nodes.find((n) => n.id === stepId)?.title ?? stepId;
-  const nodeAgent = (stepId: string): string => { const id = automation.definition.nodes.find((n) => n.id === stepId)?.ai?.agentId; return id ? name(id) : "An agent"; };
+  const nodeTitle = (stepId: string): string =>
+    automation.definition.nodes.find((n) => n.id === stepId)?.title ?? stepId;
+  const nodeAgent = (stepId: string): string => {
+    const id = automation.definition.nodes.find((n) => n.id === stepId)?.ai?.agentId;
+    return id ? name(id) : "An agent";
+  };
 
   const promote = async (): Promise<void> => {
-    setBusy(true); setErr(null);
+    setBusy(true);
+    setErr(null);
     try {
-      const out = (await call("automations.promote", promoteInput(automation.id, me, choices))) as { automation: Automation };
+      const out = (await call("automations.promote", promoteInput(automation.id, me, choices))) as {
+        automation: Automation;
+      };
       onPromoted?.(out.automation);
       onClose();
-    } catch (e) { setErr(e instanceof Error ? e.message : "That did not work."); setBusy(false); }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "That did not work.");
+      setBusy(false);
+    }
   };
 
   return (
@@ -86,20 +165,68 @@ function PromoteBody({ automation, preview, onClose, onPromoted, call, keys, me,
           <View style={s.mark} />
           <View style={{ flex: 1 }}>
             <Text style={s.strong}>It becomes a Service</Text>
-            <Text style={s.dim}>{`It runs as “${automation.name}”, not as you, and its access is capped by yours. Agent steps run on a shared API key, never a subscription.`}</Text>
+            <Text
+              style={s.dim}
+            >{`It runs as “${automation.name}”, not as you, and its access is capped by yours. Agent steps run on a shared API key, never a subscription.`}</Text>
           </View>
         </View>
 
-        <Text accessibilityRole="header" style={s.fl}>Stops running on your access</Text>
-        {d.grants.filter((g) => g.via === "owner_access").length === 0 && d.vaultNames.length === 0 && d.keysToReplace.length === 0 ? <Text style={s.dim}>Nothing.</Text> : null}
-        {each(d.grants.filter((g) => g.via === "owner_access"), (g) => <DiffRow key={`o-${g.resource}`} sign="-" text={`Your own access to ${g.resource}`} sub={`${LEVEL_WORDS[g.level]}`} />)}
-        {each(d.vaultNames, (v) => <DiffRow key={`ov-${v}`} sign="-" text={`Your own ${v} sign-in`} />)}
-        {d.keysToReplace.length ? <DiffRow sign="-" text={`Your own AI account for ${plural(d.keysToReplace.length, "agent step")}`} sub="A subscription sign-in stays yours and cannot be shared" /> : null}
+        <Text accessibilityRole="header" style={s.fl}>
+          Stops running on your access
+        </Text>
+        {d.grants.filter((g) => g.via === "owner_access").length === 0 &&
+        d.vaultNames.length === 0 &&
+        d.keysToReplace.length === 0 ? (
+          <Text style={s.dim}>Nothing.</Text>
+        ) : null}
+        {each(
+          d.grants.filter((g) => g.via === "owner_access"),
+          (g) => (
+            <DiffRow
+              key={`o-${g.resource}`}
+              sign="-"
+              text={`Your own access to ${g.resource}`}
+              sub={`${LEVEL_WORDS[g.level]}`}
+            />
+          ),
+        )}
+        {each(d.vaultNames, (v) => (
+          <DiffRow key={`ov-${v}`} sign="-" text={`Your own ${v} sign-in`} />
+        ))}
+        {d.keysToReplace.length ? (
+          <DiffRow
+            sign="-"
+            text={`Your own AI account for ${plural(d.keysToReplace.length, "agent step")}`}
+            sub="A subscription sign-in stays yours and cannot be shared"
+          />
+        ) : null}
 
-        <Text accessibilityRole="header" style={s.fl}>Will run on access given to it</Text>
-        {each(d.grants.filter((g) => g.via !== "owner_access"), (g) => <DiffRow key={`n-${g.resource}`} sign="+" text={`${LEVEL_WORDS[g.level]} on ${g.resource}`} sub={VIA_WORDS[g.via]} />)}
-        {each(d.vaultNames, (v) => <DiffRow key={`nv-${v}`} sign="+" mono text={v} sub="From the Vault. Shared with the automation. Agents see the handle, never the value." />)}
-        {each(d.connections, (c) => <DiffRow key={`c-${c}`} sign="+" text={`The ${c} connection`} sub="Used by the Automation only" />)}
+        <Text accessibilityRole="header" style={s.fl}>
+          Will run on access given to it
+        </Text>
+        {each(
+          d.grants.filter((g) => g.via !== "owner_access"),
+          (g) => (
+            <DiffRow
+              key={`n-${g.resource}`}
+              sign="+"
+              text={`${LEVEL_WORDS[g.level]} on ${g.resource}`}
+              sub={VIA_WORDS[g.via]}
+            />
+          ),
+        )}
+        {each(d.vaultNames, (v) => (
+          <DiffRow
+            key={`nv-${v}`}
+            sign="+"
+            mono
+            text={v}
+            sub="From the Vault. Shared with the automation. Agents see the handle, never the value."
+          />
+        ))}
+        {each(d.connections, (c) => (
+          <DiffRow key={`c-${c}`} sign="+" text={`The ${c} connection`} sub="Used by the Automation only" />
+        ))}
         {each(d.keysToReplace, (k) => {
           const chosen = choiceFor(choices, k.stepId);
           const label = keys.find((x) => x.id === chosen)?.name ?? "Choose a key";
@@ -107,41 +234,98 @@ function PromoteBody({ automation, preview, onClose, onPromoted, call, keys, me,
             <View key={k.stepId} testID={`replace-${k.stepId}`} style={s.keyRow}>
               <Text style={[s.sign, { color: "var(--ok)" as string }]}>+</Text>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text numberOfLines={1} style={s.strong2}>{nodeTitle(k.stepId)}</Text>
+                <Text numberOfLines={1} style={s.strong2}>
+                  {nodeTitle(k.stepId)}
+                </Text>
                 <Text numberOfLines={2} style={s.dim}>{`${nodeAgent(k.stepId)}. ${k.reason}`}</Text>
               </View>
               <Pressable
-                accessibilityRole="button" accessibilityLabel={`Key for ${nodeTitle(k.stepId)}, ${label}`} testID={`replace-pick-${k.stepId}`}
-                onPress={(e) => { const n = (e as { nativeEvent?: { clientX?: number; clientY?: number; pageX?: number; pageY?: number } }).nativeEvent ?? {}; show(connectEntries(each(apiKeys, (x) => ({ label: x.name, checked: x.id === chosen, onSelect: () => setChoices((c) => setChoice(c, k.stepId, x.id)) })), { kind: "ai" }, openConnect, (made) => setChoices((c) => setChoice(c, k.stepId, made.id)), apiKeys.length === 0), n.clientX ?? n.pageX ?? 0, n.clientY ?? n.pageY ?? 0, "other", { label: "Shared API keys" }); }}
+                accessibilityRole="button"
+                accessibilityLabel={`Key for ${nodeTitle(k.stepId)}, ${label}`}
+                testID={`replace-pick-${k.stepId}`}
+                onPress={(e) => {
+                  const n =
+                    (e as { nativeEvent?: { clientX?: number; clientY?: number; pageX?: number; pageY?: number } })
+                      .nativeEvent ?? {};
+                  show(
+                    connectEntries(
+                      each(apiKeys, (x) => ({
+                        label: x.name,
+                        checked: x.id === chosen,
+                        onSelect: () => setChoices((c) => setChoice(c, k.stepId, x.id)),
+                      })),
+                      { kind: "ai" },
+                      openConnect,
+                      (made) => setChoices((c) => setChoice(c, k.stepId, made.id)),
+                      apiKeys.length === 0,
+                    ),
+                    n.clientX ?? n.pageX ?? 0,
+                    n.clientY ?? n.pageY ?? 0,
+                    "other",
+                    { label: "Shared API keys" },
+                  );
+                }}
                 style={[s.pick, pointer]}
               >
                 <Glyph name="key" size={13} color="var(--ink-3)" />
-                <Text numberOfLines={1} style={[s.pickText, chosen === "" && { color: "var(--ink-3)" as string }]}>{label}</Text>
+                <Text numberOfLines={1} style={[s.pickText, chosen === "" && { color: "var(--ink-3)" as string }]}>
+                  {label}
+                </Text>
                 <Glyph name="chevD" size={11} color="var(--ink-3)" />
               </Pressable>
             </View>
           );
         })}
-        {d.grants.filter((g) => g.via !== "owner_access").length === 0 && d.vaultNames.length === 0 && d.connections.length === 0 && d.keysToReplace.length === 0 ? <Text style={s.dim}>Nothing new.</Text> : null}
+        {d.grants.filter((g) => g.via !== "owner_access").length === 0 &&
+        d.vaultNames.length === 0 &&
+        d.connections.length === 0 &&
+        d.keysToReplace.length === 0 ? (
+          <Text style={s.dim}>Nothing new.</Text>
+        ) : null}
 
-        <Hint>History, versions and runs come with it. You stay the owner and can hand it off after. Anyone who can edit it is equally an owner.</Hint>
-        {err ? <Text testID="promote-error" style={s.err}>{err}</Text> : null}
+        <Hint>
+          History, versions and runs come with it. You stay the owner and can hand it off after. Anyone who can edit it
+          is equally an owner.
+        </Hint>
+        {err ? (
+          <Text testID="promote-error" style={s.err}>
+            {err}
+          </Text>
+        ) : null}
       </ScrollView>
       <View style={s.foot}>
         <Text style={s.footNote}>You can make a personal copy later.</Text>
         <View style={{ flex: 1 }} />
         <TextButton label="Cancel" testID="promote-cancel" onPress={onClose} />
-        <TextButton label="Promote to Space" primary disabled={!ok} testID="promote-confirm" onPress={() => void promote()} />
+        <TextButton
+          label="Promote to Space"
+          primary
+          disabled={!ok}
+          testID="promote-confirm"
+          onPress={() => void promote()}
+        />
       </View>
       {element}
     </>
   );
 }
 
-function DiffRow({ sign, text, sub, mono = false }: { sign: "+" | "-"; text: string; sub?: string; mono?: boolean }): ReactElement {
+function DiffRow({
+  sign,
+  text,
+  sub,
+  mono = false,
+}: {
+  sign: "+" | "-";
+  text: string;
+  sub?: string;
+  mono?: boolean;
+}): ReactElement {
   return (
     <View style={s.diff} testID={`diff-${sign === "+" ? "add" : "drop"}`}>
-      <Text style={[s.sign, { color: (sign === "+" ? "var(--ok)" : "var(--danger)") as string }]}>{sign === "+" ? "+" : "−"}</Text>
+      <Text style={[s.sign, { color: (sign === "+" ? "var(--ok)" : "var(--danger)") as string }]}>
+        {sign === "+" ? "+" : "−"}
+      </Text>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={[s.strong2, mono && s.mono]}>{text}</Text>
         {sub ? <Text style={s.dim}>{sub}</Text> : null}
@@ -152,8 +336,24 @@ function DiffRow({ sign, text, sub, mono = false }: { sign: "+" | "-"; text: str
 
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 const s = StyleSheet.create({
-  card: { width: 560, maxWidth: "100%", maxHeight: "92%", borderRadius: 14, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string, overflow: "hidden" },
-  head: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingTop: 18, paddingHorizontal: 20, paddingBottom: 10 },
+  card: {
+    width: 560,
+    maxWidth: "100%",
+    maxHeight: "92%",
+    borderRadius: 14,
+    backgroundColor: "var(--raised)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+    overflow: "hidden",
+  },
+  head: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingTop: 18,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+  },
   title: { fontSize: 15, lineHeight: 20, fontWeight: "600", color: "var(--ink)" as string },
   sub: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, marginTop: 2 },
   x: { width: 26, height: 26, borderRadius: 7, alignItems: "center", justifyContent: "center" },
@@ -170,8 +370,25 @@ const s = StyleSheet.create({
   diff: { flexDirection: "row", gap: 10, minHeight: 30, paddingVertical: 4, alignItems: "flex-start" },
   sign: { width: 14, fontSize: 14, lineHeight: 20, fontWeight: "600", fontFamily: MONO },
   keyRow: { flexDirection: "row", gap: 10, minHeight: 40, paddingVertical: 4, alignItems: "center" },
-  pick: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 7, backgroundColor: "var(--hover)" as string, maxWidth: 210 },
+  pick: {
+    height: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 8,
+    borderRadius: 7,
+    backgroundColor: "var(--hover)" as string,
+    maxWidth: 210,
+  },
   pickText: { fontSize: 12.5, color: "var(--ink)" as string, flexShrink: 1 },
-  foot: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  foot: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
   footNote: { fontSize: 12, color: "var(--ink-3)" as string },
 });

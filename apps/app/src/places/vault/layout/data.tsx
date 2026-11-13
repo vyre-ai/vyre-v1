@@ -5,7 +5,11 @@ import { createContext, useContext, useMemo, useSyncExternalStore } from "react"
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 
-export interface Principal { id: string; name: string; kind: "person" | "agent" | "group" | "role" | "automation" }
+export interface Principal {
+  id: string;
+  name: string;
+  kind: "person" | "agent" | "group" | "role" | "automation";
+}
 
 /** Where a click goes outside this place. The shell supplies these; the Vault never decides how something opens. */
 export interface VaultNav {
@@ -51,7 +55,10 @@ export interface VaultBrowsers {
   revealFolder(): Promise<void>;
 }
 
-export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
+export interface Connection {
+  get(): "online" | "offline";
+  subscribe(l: () => void): () => void;
+}
 
 export interface VaultData {
   screens: ScreenHooks;
@@ -75,7 +82,10 @@ export interface VaultData {
   /** Install Vyre for Chrome from this app (desktop only). Without it the Advanced page has no row for it. */
   browsers?: VaultBrowsers;
   /** A Space server's sealed copy of the person's key for Google or GitHub sign-ins, and Forget on this server (ServerKeyLine). Absent: no such row. */
-  serverKey?: { state(): Promise<{ held: boolean; remembered: boolean; forgotten: boolean } | null>; keep(keep: boolean): Promise<boolean> };
+  serverKey?: {
+    state(): Promise<{ held: boolean; remembered: boolean; forgotten: boolean } | null>;
+    keep(keep: boolean): Promise<boolean>;
+  };
   /** Where the Space runs (ai-signin/own-ai.ts), for the words of a refused save: "here" may unlock in place; elsewhere signing in opens the key. Absent: as "here". */
   aiHome?: AiHome;
 }
@@ -102,7 +112,10 @@ const NEVER: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot:
 export function useScreenQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}): QueryState<T> {
   const { screens } = useVaultData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>, [screens, screenId, name, key]);
+  const q = useMemo(
+    () => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>,
+    [screens, screenId, name, key],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 
@@ -120,7 +133,11 @@ export function usePrincipals(): { name(id: string): string; all: readonly Princ
   const snap = useSyncExternalStore(src.subscribe, src.getSnapshot, src.getSnapshot) as QueryState<Principal[]>;
   return useMemo(() => {
     const by = new Map((snap.status === "ready" ? snap.data : []).map((p) => [p.id, p] as const));
-    return { name: (id: string) => by.get(id)?.name ?? id, all: snap.status === "ready" ? snap.data : [], loading: snap.status !== "ready" };
+    return {
+      name: (id: string) => by.get(id)?.name ?? id,
+      all: snap.status === "ready" ? snap.data : [],
+      loading: snap.status !== "ready",
+    };
   }, [snap]);
 }
 
@@ -132,7 +149,10 @@ export function useOnline(): boolean {
 
 /** The clipboard, through the shell's hook when it gave one. */
 export async function copyText(data: VaultData, text: string): Promise<void> {
-  if (data.copy) { await data.copy(text); return; }
+  if (data.copy) {
+    await data.copy(text);
+    return;
+  }
   const nav = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator;
   await nav?.clipboard?.writeText(text);
 }

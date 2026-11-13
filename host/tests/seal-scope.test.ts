@@ -4,7 +4,7 @@ import { boundedScope } from "../../kernel/src/seal/scope.ts";
 import { createCtxSeal } from "../src/ctx/seal.ts";
 
 test("a scope stays short and valid whatever the ids are, and still tells the ids apart", () => {
-  const longSpace = `spc_${"a".repeat(195)}`;   // the longest id the Personal Space allows (199 characters)
+  const longSpace = `spc_${"a".repeat(195)}`; // the longest id the Personal Space allows (199 characters)
   const realSpace = `spc_${"0123456789abcdef".repeat(2)}`;
   for (const prefix of ["files.blob", "files.changeset"]) {
     for (const space of [longSpace, realSpace, "spc_personal"]) {
@@ -19,6 +19,10 @@ test("a scope stays short and valid whatever the ids are, and still tells the id
   assert.equal(boundedScope("files.blob", realSpace, "blb_1"), boundedScope("files.blob", realSpace, "blb_1"));
   assert.notEqual(boundedScope("files.blob", realSpace, "blb_1"), boundedScope("files.blob", realSpace, "blb_2"));
   assert.notEqual(boundedScope("files.blob", realSpace, "blb_1"), boundedScope("files.blob", longSpace, "blb_1"));
-  assert.notEqual(boundedScope("files.blob", "ab", "c"), boundedScope("files.blob", "a", "bc"), "the parts do not run together");
+  assert.notEqual(
+    boundedScope("files.blob", "ab", "c"),
+    boundedScope("files.blob", "a", "bc"),
+    "the parts do not run together",
+  );
   assert.throws(() => boundedScope("x".repeat(60), "a"));
 });

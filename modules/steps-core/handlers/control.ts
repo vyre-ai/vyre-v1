@@ -16,12 +16,23 @@ import { SHEET_STEPS } from "./sheets.ts";
 import { clean, durationMs, evalExpr, momentMs, raise, render, stepError, truthy } from "../projections.ts";
 import type { Scope, StepsCtx } from "../projections.ts";
 
-type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 // ---- the shapes shared with the Run engine (structural: modules do not import each other) ----
 
-export interface Branch { label: string; to: string }
-export interface StepNode { id: string; key: string; input: Record<string, unknown>; branches?: Branch[]; next?: string[]; ai?: Record<string, unknown>; askBeforeSending?: boolean }
+export interface Branch {
+  label: string;
+  to: string;
+}
+export interface StepNode {
+  id: string;
+  key: string;
+  input: Record<string, unknown>;
+  branches?: Branch[];
+  next?: string[];
+  ai?: Record<string, unknown>;
+  askBeforeSending?: boolean;
+}
 export interface WaitSpec {
   reason: "approval" | "background" | "key";
   taskId?: string;
@@ -39,7 +50,11 @@ export interface WaitSpec {
   /** another Run this step is waiting on */
   runId?: string;
 }
-export interface LoopIteration { iterationKey: string; iterationIndex: number; item: unknown }
+export interface LoopIteration {
+  iterationKey: string;
+  iterationIndex: number;
+  item: unknown;
+}
 /** One child Run as the host last read it. `id` is the lane id or the iteration key. */
 export interface ChildReport {
   id: string;
@@ -51,7 +66,12 @@ export interface ChildReport {
   iterationIndex?: number;
   held?: boolean;
 }
-export interface StepResult { output?: unknown; next?: string | null; wait?: WaitSpec; prepare?: { iterations: LoopIteration[] } }
+export interface StepResult {
+  output?: unknown;
+  next?: string | null;
+  wait?: WaitSpec;
+  prepare?: { iterations: LoopIteration[] };
+}
 export interface StepCall {
   attempt: number;
   /** run:step:attempt */
@@ -76,7 +96,18 @@ export interface StepCall {
 }
 export interface StepEnv {
   ctx: StepsCtx;
-  run: { id: string; label?: string; automation?: string; /** what kind of trigger started the Run (webhook, email_received, form_submit, schedule...) */ trigger?: string; defHash?: string; depth?: number; /** The automation's own AI account: the key and backup an AI step uses when it chooses none. */ ai?: { keyId?: string; backupKeyId?: string } };
+  run: {
+    id: string;
+    label?: string;
+    automation?: string;
+    /** what kind of trigger started the Run (webhook, email_received, form_submit, schedule...) */ trigger?: string;
+    defHash?: string;
+    depth?: number;
+    /** The automation's own AI account: the key and backup an AI step uses when it chooses none. */ ai?: {
+      keyId?: string;
+      backupKeyId?: string;
+    };
+  };
   defaults?: { mailboxId?: string; numberId?: string };
   /** AI and code steps run in the agent and sandbox services */
   ai?: (node: StepNode, input: Record<string, unknown>, call: StepCall) => Promise<StepResult>;
@@ -89,7 +120,15 @@ const DAY30 = "30d";
 
 export function scopeOf(env: StepEnv, call: Pick<StepCall, "trigger" | "outputs" | "vars" | "item" | "index">): Scope {
   const steps = Object.fromEntries(Object.entries(call.outputs).map(([k, v]) => [k, { out: v }]));
-  return clean({ trigger: call.trigger, steps, vars: call.vars ?? {}, item: call.item, index: call.index, run: { id: env.run.id }, now: env.ctx.now() });
+  return clean({
+    trigger: call.trigger,
+    steps,
+    vars: call.vars ?? {},
+    item: call.item,
+    index: call.index,
+    run: { id: env.run.id },
+    now: env.ctx.now(),
+  });
 }
 
 const branchTo = (node: StepNode, ...labels: string[]): string | undefined =>
@@ -124,8 +163,16 @@ function pathsStep(node: StepNode, i: In, scope: Scope): StepResult {
 }
 
 function stopStep(i: In): StepResult {
-  if (i.outcome === "failed") throw stepError("run.stopped", typeof i.message === "string" && i.message ? i.message : "The run was stopped on purpose.", false);
-  return { output: { stopped: true, ...(typeof i.message === "string" && i.message ? { message: i.message } : {}) }, next: null };
+  if (i.outcome === "failed")
+    throw stepError(
+      "run.stopped",
+      typeof i.message === "string" && i.message ? i.message : "The run was stopped on purpose.",
+      false,
+    );
+  return {
+    output: { stopped: true, ...(typeof i.message === "string" && i.message ? { message: i.message } : {}) },
+    next: null,
+  };
 }
 
 // ---- Parallel and Loop (coordinators: the host owns the child Runs) ----
@@ -134,11 +181,12 @@ const TERMINAL = new Set(["succeeded", "failed", "stopped"]);
 const LOOP_HARD_MAX = 1000;
 const LOOP_DEFAULT_MAX = 500;
 const childWait = (env: StepEnv, nodeId: string): WaitSpec => ({
-  reason: "background", on: "child runs",
+  reason: "background",
+  on: "child runs",
   event: { event: "run.child_terminal", filter: { parentRunId: env.run.id, containerNodeId: nodeId } },
 });
 const openChild = (c: ChildReport): boolean => !TERMINAL.has(c.status);
-const childReason = (c: ChildReport | undefined): string => c?.error?.trim() ? c.error : "it did not finish";
+const childReason = (c: ChildReport | undefined): string => (c?.error?.trim() ? c.error : "it did not finish");
 
 function parallelStep(env: StepEnv, node: StepNode, i: In, call: StepCall): StepResult {
   const children = call.children;
@@ -160,7 +208,8 @@ function parallelStep(env: StepEnv, node: StepNode, i: In, call: StepCall): Step
     throw stepError("run.branch_failed", `${who} did not finish: ${childReason(first)}`, false);
   }
   const stopped = children.find((c) => c.status === "stopped");
-  if (stopped) throw stepError("run.branch_failed", `The lane ${stopped.id} did not finish: ${childReason(stopped)}`, false);
+  if (stopped)
+    throw stepError("run.branch_failed", `The lane ${stopped.id} did not finish: ${childReason(stopped)}`, false);
   return { output: { finished: children.map((c) => c.id) } };
 }
 
@@ -181,7 +230,12 @@ function loopItems(i: In, scope: Scope): unknown[] {
   if (!Array.isArray(items)) throw stepError("validation.bad_input", "Loop needs a list to go through.");
   const requested = typeof i.maxIterations === "number" ? i.maxIterations : LOOP_DEFAULT_MAX;
   if (requested > LOOP_HARD_MAX) throw stepError("run.loop_too_large", "A loop allows at most 1000 iterations.", false);
-  if (items.length > requested) throw stepError("run.loop_too_large", `The list has ${items.length} items and the loop allows ${requested}. Raise the limit or narrow the list.`, false);
+  if (items.length > requested)
+    throw stepError(
+      "run.loop_too_large",
+      `The list has ${items.length} items and the loop allows ${requested}. Raise the limit or narrow the list.`,
+      false,
+    );
   return items;
 }
 
@@ -190,7 +244,11 @@ function loopStep(env: StepEnv, node: StepNode, i: In, scope: Scope, call: StepC
   if (call.prepare || items.length === 0) {
     if (items.length === 0) return { output: { iterations: 0, results: [] } };
     const seen = new Set<string>();
-    const iterations = items.map((item, iterationIndex) => ({ iterationKey: iterationKey(item, iterationIndex, seen), iterationIndex, item }));
+    const iterations = items.map((item, iterationIndex) => ({
+      iterationKey: iterationKey(item, iterationIndex, seen),
+      iterationIndex,
+      item,
+    }));
     if (call.prepare) return { prepare: { iterations } };
   }
   const children = call.children;
@@ -200,14 +258,25 @@ function loopStep(env: StepEnv, node: StepNode, i: In, scope: Scope, call: StepC
   const failed = children.filter((c) => c.status === "failed").sort(byIndex);
   if (failed.length > 0) {
     const f = failed[0]!;
-    throw stepError("run.loop_failed", `Item ${(f.iterationIndex ?? 0) + 1} of ${items.length} failed: ${childReason(f)}`, false);
+    throw stepError(
+      "run.loop_failed",
+      `Item ${(f.iterationIndex ?? 0) + 1} of ${items.length} failed: ${childReason(f)}`,
+      false,
+    );
   }
   const stopped = children.filter((c) => c.status !== "succeeded").sort(byIndex);
   if (stopped.length > 0) {
     const f = stopped[0]!;
-    throw stepError("run.loop_failed", `Item ${(f.iterationIndex ?? 0) + 1} of ${items.length} failed: ${childReason(f)}`, false);
+    throw stepError(
+      "run.loop_failed",
+      `Item ${(f.iterationIndex ?? 0) + 1} of ${items.length} failed: ${childReason(f)}`,
+      false,
+    );
   }
-  const results = children.slice().sort(byIndex).map((c) => ({ iterationKey: c.iterationKey ?? c.id, status: c.status, ...(c.runId ? { runId: c.runId } : {}) }));
+  const results = children
+    .slice()
+    .sort(byIndex)
+    .map((c) => ({ iterationKey: c.iterationKey ?? c.id, status: c.status, ...(c.runId ? { runId: c.runId } : {}) }));
   return { output: { iterations: items.length, results } };
 }
 
@@ -218,11 +287,25 @@ const MISSED = { missed: true, skipTimeSensitive: true, reason: "milestone_passe
 
 function zoneOffsetMs(utcMs: number, timeZone: string): number {
   const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
   });
   const parts = Object.fromEntries(fmt.formatToParts(new Date(utcMs)).map((p) => [p.type, p.value]));
   const hour = Number(parts.hour) === 24 ? 0 : Number(parts.hour);
-  const asUtc = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), hour, Number(parts.minute), Number(parts.second));
+  const asUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    hour,
+    Number(parts.minute),
+    Number(parts.second),
+  );
   return asUtc - utcMs;
 }
 
@@ -231,19 +314,33 @@ function civilToUtc(text: string, timeZone: string | undefined, now: number): nu
   if (!timeZone || /[zZ]|[+-]\d{2}:?\d{2}$/.test(text.trim())) return momentMs(text, now);
   const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(text.trim());
   if (!m) return momentMs(text, now);
-  const utcGuess = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4] ?? 0), Number(m[5] ?? 0), Number(m[6] ?? 0));
+  const utcGuess = Date.UTC(
+    Number(m[1]),
+    Number(m[2]) - 1,
+    Number(m[3]),
+    Number(m[4] ?? 0),
+    Number(m[5] ?? 0),
+    Number(m[6] ?? 0),
+  );
   let off = zoneOffsetMs(utcGuess, timeZone);
   off = zoneOffsetMs(utcGuess - off, timeZone);
   return utcGuess - off;
 }
 
 function isMilestone(i: In, hasEvent: boolean): boolean {
-  return i.anchorId !== undefined || i.direction === "before" || i.direction === "after" || (i.at !== undefined && i.forDuration === undefined && i.until === undefined && !hasEvent);
+  return (
+    i.anchorId !== undefined ||
+    i.direction === "before" ||
+    i.direction === "after" ||
+    (i.at !== undefined && i.forDuration === undefined && i.until === undefined && !hasEvent)
+  );
 }
 
 async function anchorBase(env: StepEnv, anchorId: string): Promise<number | undefined> {
   if (!env.ctx.call) return undefined;
-  const got = (await env.ctx.call("calendar.get_event", { eventId: anchorId })) as { event?: { startsAt?: unknown } } | null;
+  const got = (await env.ctx.call("calendar.get_event", { eventId: anchorId })) as {
+    event?: { startsAt?: unknown };
+  } | null;
   const raw = got?.event?.startsAt;
   if (typeof raw === "number" && Number.isFinite(raw)) return raw;
   if (typeof raw === "string" && raw) return momentMs(raw, env.ctx.now());
@@ -252,7 +349,10 @@ async function anchorBase(env: StepEnv, anchorId: string): Promise<number | unde
 
 function milestoneWaitSpec(label: string, at: number, anchorId: string | undefined): WaitSpec {
   return clean({
-    reason: "background" as const, on: label, at, anchorId,
+    reason: "background" as const,
+    on: label,
+    at,
+    anchorId,
     event: anchorId ? { event: "calendar_event.updated", filter: { eventId: anchorId } } : undefined,
     cancelOn: WAIT_CANCEL,
   });
@@ -266,14 +366,23 @@ async function milestoneStep(env: StepEnv, call: StepCall, i: In): Promise<StepR
   const anchorId = typeof i.anchorId === "string" && i.anchorId ? i.anchorId : undefined;
   const fromInput = (): number | undefined => {
     if (i.at === undefined) return undefined;
-    const base = typeof i.at === "number" ? i.at : civilToUtc(String(i.at), typeof i.timezone === "string" ? i.timezone : undefined, now);
+    const base =
+      typeof i.at === "number"
+        ? i.at
+        : civilToUtc(String(i.at), typeof i.timezone === "string" ? i.timezone : undefined, now);
     return apply(base);
   };
   if (call.resumed && anchorId) {
     let fresh: number | undefined;
-    try { const base = await anchorBase(env, anchorId); if (base !== undefined) fresh = apply(base); } catch { /* keep the parked time */ }
+    try {
+      const base = await anchorBase(env, anchorId);
+      if (base !== undefined) fresh = apply(base);
+    } catch {
+      /* keep the parked time */
+    }
     if (fresh === undefined) {
-      if (typeof call.priorAt === "number" && call.priorAt > now) return { wait: milestoneWaitSpec("a milestone", call.priorAt, anchorId) };
+      if (typeof call.priorAt === "number" && call.priorAt > now)
+        return { wait: milestoneWaitSpec("a milestone", call.priorAt, anchorId) };
       return { output: { resumedBy: "time", at: now } };
     }
     if (fresh > now) return { wait: milestoneWaitSpec("a milestone", fresh, anchorId) };
@@ -294,10 +403,16 @@ async function milestoneStep(env: StepEnv, call: StepCall, i: In): Promise<StepR
 
 function openHours(raw: unknown): OpenHours | undefined {
   if (raw === undefined || raw === null) return undefined;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw stepError("validation.bad_input", "Open hours need a time zone, days, a start, and an end.", false);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw))
+    throw stepError("validation.bad_input", "Open hours need a time zone, days, a start, and an end.", false);
   const h = raw as Record<string, unknown>;
   const days = Array.isArray(h.days) ? h.days.filter((day): day is number => typeof day === "number") : [];
-  return { timezone: typeof h.timezone === "string" ? h.timezone : "", days, start: typeof h.start === "string" ? h.start : "", end: typeof h.end === "string" ? h.end : "" };
+  return {
+    timezone: typeof h.timezone === "string" ? h.timezone : "",
+    days,
+    start: typeof h.start === "string" ? h.start : "",
+    end: typeof h.end === "string" ? h.end : "",
+  };
 }
 
 async function waitStep(env: StepEnv, call: StepCall, i: In): Promise<StepResult> {
@@ -305,19 +420,41 @@ async function waitStep(env: StepEnv, call: StepCall, i: In): Promise<StepResult
   const start = call.startedAt ?? now;
   const hasEvent = i.event && typeof i.event === "object" && typeof i.event.event === "string";
   if (isMilestone(i, hasEvent)) return milestoneStep(env, call, i);
-  if (i.forDuration === undefined && i.until === undefined && !hasEvent) throw stepError("validation.bad_input", "Wait needs a duration, a time or an event.");
-  const rawAt = i.forDuration !== undefined ? start + durationMs(String(i.forDuration)) : i.until !== undefined ? momentMs(i.until, start) : undefined;
+  if (i.forDuration === undefined && i.until === undefined && !hasEvent)
+    throw stepError("validation.bad_input", "Wait needs a duration, a time or an event.");
+  const rawAt =
+    i.forDuration !== undefined
+      ? start + durationMs(String(i.forDuration))
+      : i.until !== undefined
+        ? momentMs(i.until, start)
+        : undefined;
   const hours = openHours(i.hours);
   const at = rawAt !== undefined && hours ? nextOpen(rawAt, hours) : rawAt;
   const timeoutAt = hasEvent ? start + durationMs(String(i.timeout ?? DAY30)) : undefined;
   const label = hasEvent ? `event ${i.event.event}` : i.forDuration !== undefined ? `${i.forDuration}` : "a time";
   if (call.resumed) {
     // woken: a time wait is over when its time has come; an event wait ended by its event, or by its timeout
-    if (at !== undefined && call.startedAt !== undefined && now < at) return { wait: { reason: "background", on: label, at, cancelOn: WAIT_CANCEL } };
-    const by = hasEvent ? (timeoutAt !== undefined && call.startedAt !== undefined && now >= timeoutAt ? "timeout" : "event") : i.forDuration !== undefined ? "duration" : "time";
+    if (at !== undefined && call.startedAt !== undefined && now < at)
+      return { wait: { reason: "background", on: label, at, cancelOn: WAIT_CANCEL } };
+    const by = hasEvent
+      ? timeoutAt !== undefined && call.startedAt !== undefined && now >= timeoutAt
+        ? "timeout"
+        : "event"
+      : i.forDuration !== undefined
+        ? "duration"
+        : "time";
     return { output: { resumedBy: by, at: now } };
   }
-  return { wait: clean({ reason: "background" as const, on: label, at, event: hasEvent ? { event: String(i.event.event), filter: i.event.filter } : undefined, timeoutAt, cancelOn: WAIT_CANCEL }) };
+  return {
+    wait: clean({
+      reason: "background" as const,
+      on: label,
+      at,
+      event: hasEvent ? { event: String(i.event.event), filter: i.event.filter } : undefined,
+      timeoutAt,
+      cancelOn: WAIT_CANCEL,
+    }),
+  };
 }
 
 function waitStage(env: StepEnv, call: StepCall, i: In): StepResult {
@@ -327,7 +464,10 @@ function waitStage(env: StepEnv, call: StepCall, i: In): StepResult {
   if (call.resumed) return { output: { enteredAt: now, timedOut: call.startedAt !== undefined && now >= timeoutAt } };
   return {
     wait: {
-      reason: "background", on: `${i.stage} stage`, timeoutAt, cancelOn: ["record.deleted", "journey.stage_exited"],
+      reason: "background",
+      on: `${i.stage} stage`,
+      timeoutAt,
+      cancelOn: ["record.deleted", "journey.stage_exited"],
       event: { event: "journey.stage_entered", filter: { recordId: i.recordId, stage: i.stage } },
     },
   };
@@ -342,19 +482,31 @@ async function approvalStep(env: StepEnv, node: StepNode, call: StepCall, i: In)
   if (!env.ctx.call) throw stepError("internal.unavailable", "Approvals are not available right now.", true);
   const now = env.ctx.now();
   const create = {
-    kind: "approve", title: i.title, ...(i.summary ? { summary: i.summary } : {}), assigned: i.approver, approver: i.approver, ...(i.reviewer ? { reviewer: i.reviewer } : {}),
-    ...(Array.isArray(i.blocks) ? { blocks: i.blocks } : {}), source: { kind: "run", id: env.run.id }, notes: { "run.step": stepOfKey(call.key) },
-    ...(i.timeout !== undefined ? { expiresAt: now + durationMs(String(i.timeout)) } : {}), idempotencyKey: call.key,
+    kind: "approve",
+    title: i.title,
+    ...(i.summary ? { summary: i.summary } : {}),
+    assigned: i.approver,
+    approver: i.approver,
+    ...(i.reviewer ? { reviewer: i.reviewer } : {}),
+    ...(Array.isArray(i.blocks) ? { blocks: i.blocks } : {}),
+    source: { kind: "run", id: env.run.id },
+    notes: { "run.step": stepOfKey(call.key) },
+    ...(i.timeout !== undefined ? { expiresAt: now + durationMs(String(i.timeout)) } : {}),
+    idempotencyKey: call.key,
   };
   // the same key returns the same task, so a resumed step finds its task again
-  const made = (await env.ctx.call("tasks.create", create)) as { task?: { id?: string; state?: string; expiresAt?: number } };
+  const made = (await env.ctx.call("tasks.create", create)) as {
+    task?: { id?: string; state?: string; expiresAt?: number };
+  };
   const taskId = made?.task?.id;
   if (!taskId) throw stepError("internal.unexpected", "The approval task was not created.", true);
   if (!call.resumed) return { wait: { reason: "approval", taskId, on: "an approval", cancelOn: ["task.withdrawn"] } };
 
   const got = (await env.ctx.call("tasks.get", { taskId })) as { task?: { state?: string; expiresAt?: number } };
   const state = got?.task?.state;
-  const hist = (await env.ctx.call("tasks.history", { taskId })) as { entries?: { type?: string; by?: string; note?: string }[] };
+  const hist = (await env.ctx.call("tasks.history", { taskId })) as {
+    entries?: { type?: string; by?: string; note?: string }[];
+  };
   const last = (type: string) => (hist?.entries ?? []).find((e) => e.type === type);
   // each decision can have a branch of its own; without one the Run goes on to the next step
   const decided = (decision: string, who?: { note?: string; by?: string }): StepResult => {
@@ -365,7 +517,16 @@ async function approvalStep(env: StepEnv, node: StepNode, call: StepCall, i: In)
   if (state === "doing" || state === "canceled") return decided("rejected", last("rejected"));
   const expires = got?.task?.expiresAt ?? (typeof create.expiresAt === "number" ? create.expiresAt : undefined);
   if (expires !== undefined && now >= expires) {
-    try { await env.ctx.call("tasks.withdraw", { taskId, note: "The approval timed out.", sourceKind: "run", sourceId: env.run.id }); } catch { /* the Run goes on with the answer it has */ }
+    try {
+      await env.ctx.call("tasks.withdraw", {
+        taskId,
+        note: "The approval timed out.",
+        sourceKind: "run",
+        sourceId: env.run.id,
+      });
+    } catch {
+      /* the Run goes on with the answer it has */
+    }
     return decided("timed_out");
   }
   return { wait: { reason: "approval", taskId, on: "an approval", cancelOn: ["task.withdrawn"] } };
@@ -373,7 +534,14 @@ async function approvalStep(env: StepEnv, node: StepNode, call: StepCall, i: In)
 
 // ---- Create a task and wait for it ----
 
-const jsonOf = (v: string | undefined): unknown => { if (!v) return undefined; try { return JSON.parse(v) as unknown; } catch { return undefined; } };
+const jsonOf = (v: string | undefined): unknown => {
+  if (!v) return undefined;
+  try {
+    return JSON.parse(v) as unknown;
+  } catch {
+    return undefined;
+  }
+};
 
 /**
  * Create a task, and with `wait` hold the Run until the task is Done or Canceled. What the task's doer handed in comes back as the step's output (`outputs`, `summary`), so an Automation can hand work to
@@ -387,12 +555,21 @@ async function createTaskStep(env: StepEnv, call: StepCall, i: In): Promise<Step
   if (!taskId) throw stepError("internal.unexpected", "The task was not created.", true);
   const waiting: StepResult = { wait: { reason: "approval", taskId, on: "a task", cancelOn: ["task.withdrawn"] } };
   if (!call.resumed) return waiting;
-  const got = (await env.ctx.call("tasks.get", { taskId })) as { task?: { state?: string; workingNotes?: Record<string, string> } };
+  const got = (await env.ctx.call("tasks.get", { taskId })) as {
+    task?: { state?: string; workingNotes?: Record<string, string> };
+  };
   const state = got?.task?.state;
   if (state === "done" || state === "canceled") {
     const notes = got?.task?.workingNotes ?? {};
     const outputs = jsonOf(notes["outputs"]);
-    return { output: clean({ taskId, state, outputs: outputs && typeof outputs === "object" ? outputs : undefined, summary: notes["summary"] }) };
+    return {
+      output: clean({
+        taskId,
+        state,
+        outputs: outputs && typeof outputs === "object" ? outputs : undefined,
+        summary: notes["summary"],
+      }),
+    };
   }
   return waiting;
 }
@@ -402,18 +579,34 @@ export async function callAutomation(env: StepEnv, call: StepCall, i: In): Promi
   if (!env.ctx.call) throw stepError("internal.unavailable", "Runs are not available right now.", true);
   const automationId = typeof i.automationId === "string" ? i.automationId : "";
   const trigger = typeof i.trigger === "string" ? i.trigger : "";
-  if (!automationId || !trigger) throw stepError("validation.bad_input", "Run another automation needs an automation and a trigger.", false);
+  if (!automationId || !trigger)
+    throw stepError("validation.bad_input", "Run another automation needs an automation and a trigger.", false);
   const depth = (env.run.depth ?? 0) + 1;
   const origin = env.run.automation ? `automation:${env.run.automation}` : undefined;
-  const fired = await env.ctx.call("automations.fire", clean({
-    automationId, trigger, payload: i.payload && typeof i.payload === "object" && !Array.isArray(i.payload) ? i.payload : {},
-    depth, idempotencyKey: call.key, ...(origin ? { origin } : {}),
-  })) as { runId?: string; dropped?: string };
-  if (fired.dropped || !fired.runId) throw stepError("validation.precondition_failed", `That automation did not start${fired.dropped ? `: ${fired.dropped}` : "."}`, false);
-  const got = await env.ctx.call("runs.get", { runId: fired.runId }) as { run?: { status?: string; summary?: string } };
+  const fired = (await env.ctx.call(
+    "automations.fire",
+    clean({
+      automationId,
+      trigger,
+      payload: i.payload && typeof i.payload === "object" && !Array.isArray(i.payload) ? i.payload : {},
+      depth,
+      idempotencyKey: call.key,
+      ...(origin ? { origin } : {}),
+    }),
+  )) as { runId?: string; dropped?: string };
+  if (fired.dropped || !fired.runId)
+    throw stepError(
+      "validation.precondition_failed",
+      `That automation did not start${fired.dropped ? `: ${fired.dropped}` : "."}`,
+      false,
+    );
+  const got = (await env.ctx.call("runs.get", { runId: fired.runId })) as {
+    run?: { status?: string; summary?: string };
+  };
   const status = got?.run?.status ?? "queued";
   if (status === "succeeded") return { output: { runId: fired.runId, status } };
-  if (status === "failed" || status === "stopped") throw stepError("step.failed", got?.run?.summary || "The other automation did not finish.", false);
+  if (status === "failed" || status === "stopped")
+    throw stepError("step.failed", got?.run?.summary || "The other automation did not finish.", false);
   return { wait: { reason: "background", on: automationId, runId: fired.runId } };
 }
 
@@ -422,9 +615,10 @@ export async function callAutomation(env: StepEnv, call: StepCall, i: In): Promi
 interface Adapter {
   cap: string | ((i: In) => string);
   input?: (i: In, env: StepEnv, call: StepCall) => Promise<Record<string, unknown>> | Record<string, unknown>;
-  output?: (o: any, i: In) => unknown;   // eslint-disable-line @typescript-eslint/no-explicit-any
+  output?: (o: any, i: In) => unknown; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
-const people = (v: unknown): { address: string }[] => (Array.isArray(v) ? v : v === undefined ? [] : [v]).map((a) => ({ address: String(a) }));
+const people = (v: unknown): { address: string }[] =>
+  (Array.isArray(v) ? v : v === undefined ? [] : [v]).map((a) => ({ address: String(a) }));
 const looksHtml = (s: string): boolean => /^\s*</.test(s);
 const SECRET_KEY = /(secret|password|authorization|cookie|token|api[-_]?key|credential)/i;
 const SECRET_VALUE = /^(bearer\s+|sk-|key_)/i;
@@ -432,11 +626,16 @@ const holdsSecret = (value: unknown): boolean => {
   if (typeof value === "string") return SECRET_VALUE.test(value.trim());
   if (!value || typeof value !== "object") return false;
   if (Array.isArray(value)) return value.some((item) => holdsSecret(item));
-  return Object.entries(value as Record<string, unknown>).some(([key, item]) => SECRET_KEY.test(key) || holdsSecret(item));
+  return Object.entries(value as Record<string, unknown>).some(
+    ([key, item]) => SECRET_KEY.test(key) || holdsSecret(item),
+  );
 };
 
 /** An HTTP request step reads when its method is GET or HEAD; anything else sends. */
-const isRead = (i: In): boolean => { const m = String(i.method ?? "GET").toUpperCase(); return m === "GET" || m === "HEAD"; };
+const isRead = (i: In): boolean => {
+  const m = String(i.method ?? "GET").toUpperCase();
+  return m === "GET" || m === "HEAD";
+};
 const pick = (i: In, keys: string[], extra: Record<string, unknown>): Record<string, unknown> => {
   const out: Record<string, unknown> = { ...extra };
   for (const k of keys) if (i[k] !== undefined && i[k] !== null) out[k] = i[k];
@@ -448,14 +647,28 @@ const sandboxStubs = (def: { effects: string; kind: string; key: string }, i: In
 
 const ADAPTERS: Record<string, Adapter> = {
   "records.create": { cap: "records.create", output: (o) => ({ recordId: o?.record?.id ?? o?.recordId }) },
-  "records.find": { cap: "records.query", output: (o) => ({ rows: o?.rows ?? [], count: o?.total ?? (o?.rows ?? []).length }) },
-  "records.update": { cap: "records.update", output: (o, i) => ({ recordId: o?.record?.id ?? i.recordId, version: o?.record?.version ?? 0 }) },
+  "records.find": {
+    cap: "records.query",
+    output: (o) => ({ rows: o?.rows ?? [], count: o?.total ?? (o?.rows ?? []).length }),
+  },
+  "records.update": {
+    cap: "records.update",
+    output: (o, i) => ({ recordId: o?.record?.id ?? i.recordId, version: o?.record?.version ?? 0 }),
+  },
   create_task: {
     cap: "tasks.create",
     input: (i, env, call) => ({
-      kind: i.kind ?? "work", title: i.title, ...(i.summary ? { summary: i.summary } : {}), assigned: i.assigned, ...(i.reviewer ? { reviewer: i.reviewer } : {}),
-      ...(i.approver ? { approver: i.approver } : {}), ...(i.due !== undefined ? { due: momentMs(i.due, env.ctx.now()) } : {}), ...(i.recordId ? { recordId: i.recordId } : {}),
-      source: { kind: "run", id: env.run.id }, notes: { "run.step": stepOfKey(call.key) }, idempotencyKey: call.key,
+      kind: i.kind ?? "work",
+      title: i.title,
+      ...(i.summary ? { summary: i.summary } : {}),
+      assigned: i.assigned,
+      ...(i.reviewer ? { reviewer: i.reviewer } : {}),
+      ...(i.approver ? { approver: i.approver } : {}),
+      ...(i.due !== undefined ? { due: momentMs(i.due, env.ctx.now()) } : {}),
+      ...(i.recordId ? { recordId: i.recordId } : {}),
+      source: { kind: "run", id: env.run.id },
+      notes: { "run.step": stepOfKey(call.key) },
+      idempotencyKey: call.key,
     }),
     output: (o) => ({ taskId: o?.task?.id }),
   },
@@ -463,11 +676,22 @@ const ADAPTERS: Record<string, Adapter> = {
     cap: (i) => (i.draftOnly === true ? "mail.draft" : "mail.send"),
     input: (i, _env, call) => {
       const mailboxId = i.mailboxId;
-      if (!mailboxId) throw stepError("validation.precondition_failed", "Send an email needs a mailbox. Pick one in the step.", false);
+      if (!mailboxId)
+        throw stepError(
+          "validation.precondition_failed",
+          "Send an email needs a mailbox. Pick one in the step.",
+          false,
+        );
       const body = String(i.body ?? "");
       return {
-        mailboxId, to: people(i.to), ...(i.cc ? { cc: people(i.cc) } : {}), subject: i.subject, ...(looksHtml(body) ? { html: body } : { text: body }),
-        ...(Array.isArray(i.fileIds) ? { attachments: i.fileIds } : {}), ...(i.recordId ? { contactId: i.recordId } : {}), idempotencyKey: call.key,
+        mailboxId,
+        to: people(i.to),
+        ...(i.cc ? { cc: people(i.cc) } : {}),
+        subject: i.subject,
+        ...(looksHtml(body) ? { html: body } : { text: body }),
+        ...(Array.isArray(i.fileIds) ? { attachments: i.fileIds } : {}),
+        ...(i.recordId ? { contactId: i.recordId } : {}),
+        idempotencyKey: call.key,
         // regular email from a flow always carries a way out; a draft becomes a person's own message
         ...(i.draftOnly === true ? {} : { unsubscribe: true }),
       };
@@ -481,9 +705,20 @@ const ADAPTERS: Record<string, Adapter> = {
       const action = typeof i.action === "string" ? i.action : "";
       const connectionId = typeof i.connectionId === "string" ? i.connectionId : "";
       if (!connector || !action) throw stepError("validation.bad_input", "Name the connector and the action.", false);
-      if (!connectionId) throw stepError("validation.precondition_failed", "An authenticated request needs a connection. The step does not take a secret.", false);
-      if (holdsSecret(i.input)) throw stepError("validation.bad_input", "An authenticated request cannot hold a secret. Use the connection.", false);
-      const body = i.input && typeof i.input === "object" && !Array.isArray(i.input) ? i.input as Record<string, unknown> : {};
+      if (!connectionId)
+        throw stepError(
+          "validation.precondition_failed",
+          "An authenticated request needs a connection. The step does not take a secret.",
+          false,
+        );
+      if (holdsSecret(i.input))
+        throw stepError(
+          "validation.bad_input",
+          "An authenticated request cannot hold a secret. Use the connection.",
+          false,
+        );
+      const body =
+        i.input && typeof i.input === "object" && !Array.isArray(i.input) ? (i.input as Record<string, unknown>) : {};
       return { key: connector, action, connectionId, input: body, ...(i.dryRun === true ? { dryRun: true } : {}) };
     },
     output: (o) => ({ output: o?.output ?? null, dryRun: o?.dryRun === true }),
@@ -500,11 +735,23 @@ const ADAPTERS: Record<string, Adapter> = {
     cap: "telephony.send_sms",
     input: (i, _env, call) => {
       const numberId = i.numberId;
-      if (!numberId) throw stepError("validation.precondition_failed", "Send a text needs a number. Pick one in the step.", false);
-      const media = Array.isArray(i.mediaFileIds) ? i.mediaFileIds.filter((id) => typeof id === "string" && id.length > 0) : [];
-      return { numberId, to: i.to, body: i.body, ...(media.length > 0 ? { mediaFileIds: media } : {}), ...(i.recordId ? { contactId: i.recordId } : {}), idempotencyKey: call.key,
+      if (!numberId)
+        throw stepError("validation.precondition_failed", "Send a text needs a number. Pick one in the step.", false);
+      const media = Array.isArray(i.mediaFileIds)
+        ? i.mediaFileIds.filter((id) => typeof id === "string" && id.length > 0)
+        : [];
+      return {
+        numberId,
+        to: i.to,
+        body: i.body,
+        ...(media.length > 0 ? { mediaFileIds: media } : {}),
+        ...(i.recordId ? { contactId: i.recordId } : {}),
+        idempotencyKey: call.key,
         // one text to one person about an appointment does not wait for the send window: the person who built the step said so, or a booking started this Run
-        ...(i.sendAtOnce === true || (call.trigger as { booking?: unknown } | null | undefined)?.booking === true ? { transactional: true } : {}) };
+        ...(i.sendAtOnce === true || (call.trigger as { booking?: unknown } | null | undefined)?.booking === true
+          ? { transactional: true }
+          : {}),
+      };
     },
     output: (o) => ({ messageId: o?.smsId ?? o?.messageId }),
   },
@@ -512,8 +759,12 @@ const ADAPTERS: Record<string, Adapter> = {
     cap: "chat.post",
     input: async (i, env, call) => {
       let threadId = i.threadId as string | undefined;
-      if (!threadId && i.channelId) threadId = ((await env.ctx.call!("channels.get", { channelId: i.channelId })) as { channel?: { mainThreadId?: string } })?.channel?.mainThreadId;
-      if (!threadId) throw stepError("validation.precondition_failed", "Post a chat message needs a channel or a thread.", false);
+      if (!threadId && i.channelId)
+        threadId = (
+          (await env.ctx.call!("channels.get", { channelId: i.channelId })) as { channel?: { mainThreadId?: string } }
+        )?.channel?.mainThreadId;
+      if (!threadId)
+        throw stepError("validation.precondition_failed", "Post a chat message needs a channel or a thread.", false);
       return { threadId, body: i.text, idempotencyKey: call.key };
     },
     output: (o) => ({ messageId: o?.message?.id ?? o?.messageId }),
@@ -521,7 +772,12 @@ const ADAPTERS: Record<string, Adapter> = {
   start_journey: { cap: "journeys.start", output: (o, i) => ({ recordId: o?.recordId ?? i.subjectRecordId }) },
   sign: {
     cap: "esign.send",
-    input: (i, _env, call) => ({ fileId: i.fileId, signers: i.signers, ...(i.recordId ? { recordId: i.recordId } : {}), idempotencyKey: call.key }),
+    input: (i, _env, call) => ({
+      fileId: i.fileId,
+      signers: i.signers,
+      ...(i.recordId ? { recordId: i.recordId } : {}),
+      idempotencyKey: call.key,
+    }),
     output: (o) => ({ envelopeId: o?.envelopeId, ...(o?.taskId ? { taskId: o.taskId } : {}) }),
   },
 };
@@ -529,20 +785,37 @@ const ADAPTERS: Record<string, Adapter> = {
 /** A call the Gate held parks the Run on the Gate's approval task; anything else is the caller's to handle. */
 function gateHold(e: unknown): StepResult | undefined {
   const err = (e as { error?: { code?: string; details?: { taskId?: string } } } | null)?.error;
-  if (err?.code === "permission.needs_approval" && err.details?.taskId) return { wait: { reason: "approval", taskId: err.details.taskId, on: "approval to send", cancelOn: ["task.withdrawn"] } };
+  if (err?.code === "permission.needs_approval" && err.details?.taskId)
+    return {
+      wait: { reason: "approval", taskId: err.details.taskId, on: "approval to send", cancelOn: ["task.withdrawn"] },
+    };
   return undefined;
 }
 
 /** The step goes along with its call, so the Gate can match the grants the automation holds: a Run acts as a person or a service, and neither says who wrote this step. */
-const stepRef = (env: StepEnv, node: StepNode) => (env.run.automation && env.run.defHash ? { automationId: env.run.automation, nodeId: node.id, defHash: env.run.defHash, ...(node.askBeforeSending === true ? { ask: true } : {}) } : undefined);
+const stepRef = (env: StepEnv, node: StepNode) =>
+  env.run.automation && env.run.defHash
+    ? {
+        automationId: env.run.automation,
+        nodeId: node.id,
+        defHash: env.run.defHash,
+        ...(node.askBeforeSending === true ? { ask: true } : {}),
+      }
+    : undefined;
 
 /** A code step that names hosts reaches the network from a definition: it is an outward step like any other and passes the Gate before the sandbox opens. Null means go on. */
 async function codeReach(env: StepEnv, node: StepNode, input: In, call: StepCall): Promise<StepResult | null> {
-  const hosts = Array.isArray(input["hosts"]) ? input["hosts"].filter((h): h is string => typeof h === "string" && h !== "") : [];
+  const hosts = Array.isArray(input["hosts"])
+    ? input["hosts"].filter((h): h is string => typeof h === "string" && h !== "")
+    : [];
   if (hosts.length === 0 || !env.ctx.call) return null;
   const step = stepRef(env, node);
   try {
-    await env.ctx.call("automations.code_reach", { hosts, idempotencyKey: `${call.key}:reach` }, { gate: "admin_only", ...(step ? { step } : {}) });
+    await env.ctx.call(
+      "automations.code_reach",
+      { hosts, idempotencyKey: `${call.key}:reach` },
+      { gate: "admin_only", ...(step ? { step } : {}) },
+    );
     return null;
   } catch (e) {
     const held = gateHold(e);
@@ -558,16 +831,26 @@ async function capabilityStep(env: StepEnv, node: StepNode, i: In, call: StepCal
   const ad = ADAPTERS[node.key];
   const cap = ad ? (typeof ad.cap === "function" ? ad.cap(i) : ad.cap) : def.cap;
   if (!cap) throw stepError("internal.unexpected", `The step ${node.key} has no capability.`, false);
-  if ((node.key.startsWith("google.") || node.key.startsWith("ms.") || node.key.startsWith("github.")) && holdsSecret(i)) {
+  if (
+    (node.key.startsWith("google.") || node.key.startsWith("ms.") || node.key.startsWith("github.")) &&
+    holdsSecret(i)
+  ) {
     throw stepError("validation.bad_input", "This step cannot hold a secret. Use the connection.", false);
   }
   let input: Record<string, unknown> = ad?.input ? await ad.input(i, env, call) : { ...i };
   // every capability that takes a key gets the step's own, so a retry of the same attempt is the same act
-  if (!("idempotencyKey" in input) && "idempotencyKey" in ((CAPS.get(cap)?.input as { properties?: object } | undefined)?.properties ?? {})) input = { ...input, idempotencyKey: call.key };
+  if (
+    !("idempotencyKey" in input) &&
+    "idempotencyKey" in ((CAPS.get(cap)?.input as { properties?: object } | undefined)?.properties ?? {})
+  )
+    input = { ...input, idempotencyKey: call.key };
   try {
     // Ask before sending is Off unless the step says On: the Gate then holds only when a Space admin rule requires approval for this act
     const step = stepRef(env, node);
-    const opts = { ...(def.effects === "outward" && node.askBeforeSending !== true ? { gate: "admin_only" as const } : {}), ...(step ? { step } : {}) };
+    const opts = {
+      ...(def.effects === "outward" && node.askBeforeSending !== true ? { gate: "admin_only" as const } : {}),
+      ...(step ? { step } : {}),
+    };
     const out = await env.ctx.call(cap, input, Object.keys(opts).length > 0 ? opts : undefined);
     return { output: ad?.output ? ad.output(out, i) : out };
   } catch (e) {
@@ -587,20 +870,35 @@ export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Pro
   const input = render(node.input, scope) as In;
   if (call.sandbox && sandboxStubs(def, input)) return { output: def.sample };
   switch (node.key) {
-    case "if": return ifStep(node, input, scope);
-    case "paths": return pathsStep(node, input, scope);
-    case "stop": return stopStep(input);
-    case "parallel": return parallelStep(env, node, input, call);
-    case "loop": return loopStep(env, node, input, scope, call);
-    case "wait": return waitStep(env, call, input);
-    case "wait_stage": return waitStage(env, call, input);
-    case "approval": return approvalStep(env, node, call, input);
-    case "create_task": if (input.wait === true) return createTaskStep(env, call, input); break;
-    case "transform": return { output: { value: transformValue(input.value, input.mapping ?? {}) } };
-    case "collect": return { output: collectItems(input.items, input.fields) };
-    case "group_by": return { output: { groups: groupItems(input.items, String(input.by ?? "")) } };
-    case "call_automation": return callAutomation(env, call, input);
-    default: break;
+    case "if":
+      return ifStep(node, input, scope);
+    case "paths":
+      return pathsStep(node, input, scope);
+    case "stop":
+      return stopStep(input);
+    case "parallel":
+      return parallelStep(env, node, input, call);
+    case "loop":
+      return loopStep(env, node, input, scope, call);
+    case "wait":
+      return waitStep(env, call, input);
+    case "wait_stage":
+      return waitStage(env, call, input);
+    case "approval":
+      return approvalStep(env, node, call, input);
+    case "create_task":
+      if (input.wait === true) return createTaskStep(env, call, input);
+      break;
+    case "transform":
+      return { output: { value: transformValue(input.value, input.mapping ?? {}) } };
+    case "collect":
+      return { output: collectItems(input.items, input.fields) };
+    case "group_by":
+      return { output: { groups: groupItems(input.items, String(input.by ?? "")) } };
+    case "call_automation":
+      return callAutomation(env, call, input);
+    default:
+      break;
   }
   if (def.kind === "ai") {
     if (!env.ai) throw stepError("run.no_ai", "AI steps run in the agent service, which is not connected here.", false);
@@ -615,8 +913,13 @@ export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Pro
   if (node.key.startsWith("sheet.")) {
     const f = SHEET_STEPS[node.key];
     if (!f) throw stepError("validation.bad_input", `There is no spreadsheet step called ${node.key}.`, false);
-    try { return { output: await f({ ctx: env.ctx, run: env.run }, input, call.key) }; }
-    catch (e) { const held = gateHold(e); if (held) return held; throw e; }
+    try {
+      return { output: await f({ ctx: env.ctx, run: env.run }, input, call.key) };
+    } catch (e) {
+      const held = gateHold(e);
+      if (held) return held;
+      throw e;
+    }
   }
   return capabilityStep(env, node, input, call);
 }
@@ -627,7 +930,14 @@ export async function stepsTest(ctx: StepsCtx, input: In): Promise<unknown> {
   const def = STEPS.get(input.key);
   if (!def) raise(ctx, "validation.bad_input", `There is no step called ${input.key}.`);
   const env: StepEnv = { ctx, run: { id: "run_test", label: "Test" } };
-  const call: StepCall = { attempt: 1, key: "run_test:test:1", outputs: {}, sandbox: true, resumed: false, trigger: input.sample ?? {} };
+  const call: StepCall = {
+    attempt: 1,
+    key: "run_test:test:1",
+    outputs: {},
+    sandbox: true,
+    resumed: false,
+    trigger: input.sample ?? {},
+  };
   const stubbed = sandboxStubs(def, (input.input ?? {}) as In);
   try {
     // a step that only reads runs for real; loops and lanes have nothing to run in a test
@@ -635,6 +945,10 @@ export async function stepsTest(ctx: StepsCtx, input: In): Promise<unknown> {
     return { output: r.output ?? null, stubbed };
   } catch (e) {
     const er = (e as { error?: { code?: string; message?: string } } | null)?.error;
-    return { output: null, stubbed: false, error: { code: er?.code ?? "step.failed", message: er?.message ?? (e as Error).message ?? "The step failed." } };
+    return {
+      output: null,
+      stubbed: false,
+      error: { code: er?.code ?? "step.failed", message: er?.message ?? (e as Error).message ?? "The step failed." },
+    };
   }
 }

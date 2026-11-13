@@ -8,9 +8,7 @@ import type { FetchDeps } from "./public-fetch.ts";
 
 const NO_TOOLS = "That document has no tools.";
 
-type McpActions =
-  | { ok: true; actions: NamedAction[] }
-  | { ok: false; reason: string };
+type McpActions = { ok: true; actions: NamedAction[] } | { ok: false; reason: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

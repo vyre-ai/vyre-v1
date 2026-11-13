@@ -8,8 +8,20 @@ import { PhoneNotices } from "./PhoneNotices.tsx";
 import { matchShortcut, keyboardRows } from "../keyboard/map.ts";
 import { shellKey, SHELL_KEYS } from "../spaces/keys.ts";
 
-const clock = () => { let t = 1_000_000; return { now: () => t, advance: (ms: number) => { t += ms; } }; };
-const text = (h: string): string => h.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+const clock = () => {
+  let t = 1_000_000;
+  return {
+    now: () => t,
+    advance: (ms: number) => {
+      t += ms;
+    },
+  };
+};
+const text = (h: string): string =>
+  h
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 const act = (label: string) => ({ label, run: () => undefined });
 
 test("the most important notice shows first: locked, then offline, update, machine, approval, reply", () => {
@@ -21,8 +33,13 @@ test("the most important notice shows first: locked, then offline, update, machi
   s.raise({ id: "offline", kind: "offline", text: "Offline, 3 changes waiting" });
   s.raise({ id: "locked", kind: "locked", text: "Sign-ins locked", action: act("Unlock") });
   s.raise({ id: "machine", kind: "machine", text: "Mac mini is offline" });
-  assert.deepEqual(s.getSnapshot().live.map((n) => n.id), ["locked", "offline", "update", "machine", "approval", "reply"]);
-  assert.ok(PRIORITY.locked < PRIORITY.offline && PRIORITY.offline < PRIORITY.update && PRIORITY.update < PRIORITY.machine);
+  assert.deepEqual(
+    s.getSnapshot().live.map((n) => n.id),
+    ["locked", "offline", "update", "machine", "approval", "reply"],
+  );
+  assert.ok(
+    PRIORITY.locked < PRIORITY.offline && PRIORITY.offline < PRIORITY.update && PRIORITY.update < PRIORITY.machine,
+  );
   const v = slotView(s.getSnapshot());
   assert.equal(v.top?.id, "locked");
   assert.equal(v.more, 5);
@@ -35,12 +52,22 @@ test("a persisting notice stays until it is resolved and cannot be dismissed; a 
   s.raise({ id: "locked", kind: "locked", text: "Sign-ins locked", action: act("Unlock") });
   s.pass("Link copied");
   assert.equal(s.getSnapshot().live[0]!.text, "Link copied", "what just passed shows while it lasts");
-  c.advance(PASSING_MS - 1); s.tick();
+  c.advance(PASSING_MS - 1);
+  s.tick();
   assert.equal(s.getSnapshot().live.length, 2);
-  c.advance(2); s.tick();
-  assert.deepEqual(s.getSnapshot().live.map((n) => n.id), ["locked"], "the passing one faded; the lock stays");
-  assert.deepEqual(s.getSnapshot().recent.map((n) => n.text), ["Link copied"]);
-  c.advance(60 * 60_000); s.tick();
+  c.advance(2);
+  s.tick();
+  assert.deepEqual(
+    s.getSnapshot().live.map((n) => n.id),
+    ["locked"],
+    "the passing one faded; the lock stays",
+  );
+  assert.deepEqual(
+    s.getSnapshot().recent.map((n) => n.text),
+    ["Link copied"],
+  );
+  c.advance(60 * 60_000);
+  s.tick();
   assert.equal(s.getSnapshot().live[0]!.id, "locked", "an hour later it is still there");
   s.resolve("locked");
   assert.equal(s.getSnapshot().live.length, 0);
@@ -69,7 +96,17 @@ test("the slot shows the top notice with its one action and +N; the popover list
 test("a notice's action runs when pressed", () => {
   const s = createNoticeStore();
   let pressed = 0;
-  s.raise({ id: "locked", kind: "locked", text: "Sign-ins locked", action: { label: "Unlock", run: () => { pressed++; } } });
+  s.raise({
+    id: "locked",
+    kind: "locked",
+    text: "Sign-ins locked",
+    action: {
+      label: "Unlock",
+      run: () => {
+        pressed++;
+      },
+    },
+  });
   s.getSnapshot().live[0]!.action!.run();
   assert.equal(pressed, 1);
 });
@@ -78,13 +115,22 @@ test("Cmd-L is not a shortcut any more: signed in means unlocked, so a plain Cmd
   assert.equal(shellKey({ key: "l", metaKey: true }), null);
   assert.equal(shellKey({ key: "L", ctrlKey: true }), null);
   assert.equal(matchShortcut({ key: "l", metaKey: true }, "mac"), null);
-  assert.equal(keyboardRows("mac").some((r) => r.id === "vault.lock"), false);
-  assert.equal(SHELL_KEYS.some((k) => k.keys === "Cmd-L"), false);
+  assert.equal(
+    keyboardRows("mac").some((r) => r.id === "vault.lock"),
+    false,
+  );
+  assert.equal(
+    SHELL_KEYS.some((k) => k.keys === "Cmd-L"),
+    false,
+  );
 });
 
 test("Cmd-K has no Lock or Unlock command", async () => {
   const { gateActions } = await import("../cmdk/gate.ts");
-  assert.equal(gateActions({ away: false, offline: false }).some((a) => a.key === "vault.lock"), false);
+  assert.equal(
+    gateActions({ away: false, offline: false }).some((a) => a.key === "vault.lock"),
+    false,
+  );
 });
 
 test("the phone has one slim row with the bell only while something needs the person", () => {
@@ -97,7 +143,11 @@ test("the phone has one slim row with the bell only while something needs the pe
   assert.match(h, /notice-bell/);
   s.pass("Saved");
   s.resolve("r");
-  assert.match(renderToStaticMarkup(<PhoneNotices store={s} />), /notice-bell/, "a passing notice shows on the bell too, briefly");
+  assert.match(
+    renderToStaticMarkup(<PhoneNotices store={s} />),
+    /notice-bell/,
+    "a passing notice shows on the bell too, briefly",
+  );
   c.advance(PASSING_MS + 10);
   s.tick();
   assert.equal(renderToStaticMarkup(<PhoneNotices store={s} />), "", "and the row goes when it has passed");

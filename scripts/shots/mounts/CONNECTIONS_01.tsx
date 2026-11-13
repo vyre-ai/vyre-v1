@@ -15,7 +15,11 @@ import { View } from "react-native";
 import Vault from "../../../apps/app/src/places/vault/layout/index.tsx";
 import type { VaultData } from "../../../apps/app/src/places/vault/layout/data.tsx";
 import { createSampleVault } from "../../../apps/app/src/places/vault/layout/sample.ts";
-import { SAMPLE_CATALOG, sampleConnectionsCall, sampleConnectionsData } from "../../../apps/app/src/places/vault/connections/sample.ts";
+import {
+  SAMPLE_CATALOG,
+  sampleConnectionsCall,
+  sampleConnectionsData,
+} from "../../../apps/app/src/places/vault/connections/sample.ts";
 import { pendingFromEntry } from "../../../apps/app/src/places/vault/connections/AddConnection.tsx";
 import type { AddInitial } from "../../../apps/app/src/places/vault/connections/AddConnection.tsx";
 import { SettingsPlace } from "../../../apps/app/src/places/settings/SettingsPlace.tsx";
@@ -30,46 +34,135 @@ export const title = "Vault > Connections";
 
 function vaultFor(o: { admin?: boolean; personal?: boolean; fresh?: boolean }): VaultData {
   const v = createSampleVault();
-  return { ...v.data, assistantId: "agt_assistant", call: sampleConnectionsCall(v.data.call, o), nav: { ...v.data.nav, openConnections: () => undefined }, ...(o.personal ? { personal: true } : {}) };
+  return {
+    ...v.data,
+    assistantId: "agt_assistant",
+    call: sampleConnectionsCall(v.data.call, o),
+    nav: { ...v.data.nav, openConnections: () => undefined },
+    ...(o.personal ? { personal: true } : {}),
+  };
 }
 
 const ADD: Record<string, AddInitial> = {
   browse: { way: "browse", query: "notion" },
   "browse-open": { way: "browse", query: "notion" },
-  paste: { way: "paste", text: "GITHUB_PERSONAL_ACCESS_TOKEN=ghp_9f3kQe7LmZt2Vb8N npx -y @modelcontextprotocol/server-github" },
-  import: { way: "import", text: '# ~/.codex/config.toml\n[mcp_servers.context7]\ncommand = "npx"\nargs = ["-y", "@upstash/context7-mcp"]\n\n[mcp_servers.figma]\nurl = "https://mcp.figma.com/mcp"\nbearer_token_env_var = "FIGMA_OAUTH_TOKEN"\n\n[mcp_servers.brave]\ncommand = "npx"\nargs = ["-y", "@brave/brave-search-mcp-server"]\nenv = { BRAVE_API_KEY = "BSAq8Lr2Tz5Wm9Xc3Vb7Nk1Jh4Gf6Dd0Ss", REGION = "eu" }\n' },
+  paste: {
+    way: "paste",
+    text: "GITHUB_PERSONAL_ACCESS_TOKEN=ghp_9f3kQe7LmZt2Vb8N npx -y @modelcontextprotocol/server-github",
+  },
+  import: {
+    way: "import",
+    text: '# ~/.codex/config.toml\n[mcp_servers.context7]\ncommand = "npx"\nargs = ["-y", "@upstash/context7-mcp"]\n\n[mcp_servers.figma]\nurl = "https://mcp.figma.com/mcp"\nbearer_token_env_var = "FIGMA_OAUTH_TOKEN"\n\n[mcp_servers.brave]\ncommand = "npx"\nargs = ["-y", "@brave/brave-search-mcp-server"]\nenv = { BRAVE_API_KEY = "BSAq8Lr2Tz5Wm9Xc3Vb7Nk1Jh4Gf6Dd0Ss", REGION = "eu" }\n',
+  },
   setup: { pending: [pendingFromEntry(SAMPLE_CATALOG[1]!)] },
 };
 
 function consoleData(): ConsoleData {
   const base = createSampleConsole().data;
   const rows: Record<string, unknown> = {
-    "plugins.marketplaces.list": { marketplaces: [{ marketplaceId: "mkt_anthropic", name: "anthropic-skills", kind: "git", source: "https://github.com/anthropics/skills", owner: "Anthropic", plugins: 14, allowed: true, warnings: [], updatedAt: 1 }] },
-    "plugins.list": { plugins: [{ pluginId: "plg_pdf", name: "pdf-tools", marketplace: "anthropic-skills", marketplaceId: "mkt_anthropic", scope: "space", enabled: true, parts: { skills: ["pdf"], commands: [], agents: [], hooks: 0, mcpServers: ["pdf"] }, userConfig: [], config: {}, configured: true, warnings: [], installedAt: 1 }] },
+    "plugins.marketplaces.list": {
+      marketplaces: [
+        {
+          marketplaceId: "mkt_anthropic",
+          name: "anthropic-skills",
+          kind: "git",
+          source: "https://github.com/anthropics/skills",
+          owner: "Anthropic",
+          plugins: 14,
+          allowed: true,
+          warnings: [],
+          updatedAt: 1,
+        },
+      ],
+    },
+    "plugins.list": {
+      plugins: [
+        {
+          pluginId: "plg_pdf",
+          name: "pdf-tools",
+          marketplace: "anthropic-skills",
+          marketplaceId: "mkt_anthropic",
+          scope: "space",
+          enabled: true,
+          parts: { skills: ["pdf"], commands: [], agents: [], hooks: 0, mcpServers: ["pdf"] },
+          userConfig: [],
+          config: {},
+          configured: true,
+          warnings: [],
+          installedAt: 1,
+        },
+      ],
+    },
     "plugins.browse": { plugins: [], total: 0 },
     "agents.list": { agents: [] },
   };
   const call = sampleConnectionsCall(base.call);
-  return { ...base, call, screens: { ...base.screens, capQuery: (cap: string) => { const state = rows[cap] === undefined ? { status: "loading" } : { status: "ready", data: rows[cap] }; return { subscribe: () => () => undefined, getSnapshot: () => state }; } } as never };
+  return {
+    ...base,
+    call,
+    screens: {
+      ...base.screens,
+      capQuery: (cap: string) => {
+        const state = rows[cap] === undefined ? { status: "loading" } : { status: "ready", data: rows[cap] };
+        return { subscribe: () => () => undefined, getSnapshot: () => state };
+      },
+    } as never,
+  };
 }
 
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
-  useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "vault"), []);
+  useEffect(
+    () =>
+      setPart(
+        new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ??
+          "vault",
+      ),
+    [],
+  );
   const admin = useMemo(() => vaultFor({ admin: true }), []);
   const member = useMemo(() => vaultFor({ admin: false }), []);
   const personal = useMemo(() => vaultFor({ personal: true }), []);
   const fresh = useMemo(() => vaultFor({ admin: true, fresh: true }), []);
-  const settings = useMemo(() => { const s = createSampleSettings(); return { ...s.data, call: sampleConnectionsCall(s.data.call) }; }, []);
+  const settings = useMemo(() => {
+    const s = createSampleSettings();
+    return { ...s.data, call: sampleConnectionsCall(s.data.call) };
+  }, []);
   const cons = useMemo(() => consoleData(), []);
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  if (part === "settings") return <SettingsDataProvider value={settings}><View style={{ flex: 1, minHeight: 760 }}><SettingsPlace initialPage="connected" /></View></SettingsDataProvider>;
-  if (part === "console") return <ConsoleDataProvider value={cons}><View style={{ flex: 1, minHeight: 760, padding: 24 }}><PluginsPage /></View></ConsoleDataProvider>;
-  const o = part === "member" ? { admin: false } : part === "personal" ? { personal: true } : part === "browse-open" ? { admin: true, fresh: true } : { admin: true };
+  if (part === "settings")
+    return (
+      <SettingsDataProvider value={settings}>
+        <View style={{ flex: 1, minHeight: 760 }}>
+          <SettingsPlace initialPage="connected" />
+        </View>
+      </SettingsDataProvider>
+    );
+  if (part === "console")
+    return (
+      <ConsoleDataProvider value={cons}>
+        <View style={{ flex: 1, minHeight: 760, padding: 24 }}>
+          <PluginsPage />
+        </View>
+      </ConsoleDataProvider>
+    );
+  const o =
+    part === "member"
+      ? { admin: false }
+      : part === "personal"
+        ? { personal: true }
+        : part === "browse-open"
+          ? { admin: true, fresh: true }
+          : { admin: true };
   const data = part === "member" ? member : part === "personal" ? personal : part === "browse-open" ? fresh : admin;
   return (
     <View style={{ flex: 1, minHeight: 760 }}>
-      <Vault data={data} route={{ surface: "connections" }} connectionsInitial={sampleConnectionsData(o)} {...(ADD[part] ? { connectionsAdd: ADD[part] } : {})} />
+      <Vault
+        data={data}
+        route={{ surface: "connections" }}
+        connectionsInitial={sampleConnectionsData(o)}
+        {...(ADD[part] ? { connectionsAdd: ADD[part] } : {})}
+      />
     </View>
   );
 }

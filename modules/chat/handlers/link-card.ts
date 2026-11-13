@@ -4,13 +4,27 @@ import { askerOf, insertMessage, mintId } from "../projections.ts";
 import type { ChatCtx, MessageRec } from "../projections.ts";
 
 export interface CardData {
-  icon: string; lead: string; title: string; style?: "noted" | "question"; sub?: string; who?: string; by?: string; to?: string; target?: { type: string; id: string }; body?: string; actions?: { key: string; label: string; cap?: string; input?: Record<string, unknown> }[];
+  icon: string;
+  lead: string;
+  title: string;
+  style?: "noted" | "question";
+  sub?: string;
+  who?: string;
+  by?: string;
+  to?: string;
+  target?: { type: string; id: string };
+  body?: string;
+  actions?: { key: string; label: string; cap?: string; input?: Record<string, unknown> }[];
 }
 
 /** Post the card into `threadId` as a system line (a card with a body or buttons, from an agent, is posted by the agent's own reply instead). */
 export function postLinkCard(ctx: ChatCtx, threadId: string, d: CardData, line: string): MessageRec {
   return insertMessage(ctx, threadId, {
-    author: askerOf(ctx), kind: "system", body: line,
-    blocks: [{ type: "link_card", v: 1, id: mintId("blk", ctx.now()), data: d, state: "done", traceId: ctx.trace.traceId }],
+    author: askerOf(ctx),
+    kind: "system",
+    body: line,
+    blocks: [
+      { type: "link_card", v: 1, id: mintId("blk", ctx.now()), data: d, state: "done", traceId: ctx.trace.traceId },
+    ],
   });
 }

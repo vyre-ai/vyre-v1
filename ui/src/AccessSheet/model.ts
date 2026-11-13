@@ -55,7 +55,11 @@ export interface LevelDef {
   label: string;
 }
 
-const L3: readonly LevelDef[] = [{ id: "view", label: "Can view" }, { id: "edit", label: "Can edit" }, { id: "manage", label: "Can manage" }];
+const L3: readonly LevelDef[] = [
+  { id: "view", label: "Can view" },
+  { id: "edit", label: "Can edit" },
+  { id: "manage", label: "Can manage" },
+];
 
 export interface ItemDef {
   /** The item in a sentence. */
@@ -70,31 +74,63 @@ export interface ItemDef {
 export const ITEM_DEFS: Readonly<Record<ShareItemType, ItemDef>> = {
   note: { label: "note", levels: L3, def: "view", tail: "They see its history from now on." },
   file: { label: "folder", levels: L3, def: "view", tail: "Everything inside comes with it, including new files." },
-  record: { label: "record", levels: L3, def: "view", tail: "They see this record's fields, not the rest of the table." },
+  record: {
+    label: "record",
+    levels: L3,
+    def: "view",
+    tail: "They see this record's fields, not the rest of the table.",
+  },
   rtype: {
     label: "record type",
-    levels: [{ id: "view", label: "Can view records" }, { id: "edit", label: "Can edit records" }, { id: "manage", label: "Can manage the type" }],
+    levels: [
+      { id: "view", label: "Can view records" },
+      { id: "edit", label: "Can edit records" },
+      { id: "manage", label: "Can manage the type" },
+    ],
     def: "view",
     tail: "Every record of this type, and its fields.",
   },
   skill: {
     label: "skill",
-    levels: [{ id: "use", label: "Can use" }, { id: "edit", label: "Can edit" }, { id: "manage", label: "Can manage" }],
+    levels: [
+      { id: "use", label: "Can use" },
+      { id: "edit", label: "Can edit" },
+      { id: "manage", label: "Can manage" },
+    ],
     def: "use",
     tail: "They get each new version as it is saved.",
   },
   artifact: { label: "artifact", levels: L3, def: "view", tail: "They see the latest version and its comments." },
-  project: { label: "project", levels: L3, def: "view", tail: "They see the project's chats, files folder and records." },
-  automation: { label: "automation", levels: L3, def: "view", tail: "View sees it, its runs and its history. Edit changes and pauses it. Manage also shares and deletes it." },
+  project: {
+    label: "project",
+    levels: L3,
+    def: "view",
+    tail: "They see the project's chats, files folder and records.",
+  },
+  automation: {
+    label: "automation",
+    levels: L3,
+    def: "view",
+    tail: "View sees it, its runs and its history. Edit changes and pauses it. Manage also shares and deletes it.",
+  },
   vault: {
     label: "Vault item",
-    levels: [{ id: "use", label: "Can use without seeing" }, { id: "view", label: "Can see" }, { id: "edit", label: "Can edit" }, { id: "manage", label: "Can manage" }],
+    levels: [
+      { id: "use", label: "Can use without seeing" },
+      { id: "view", label: "Can see" },
+      { id: "edit", label: "Can edit" },
+      { id: "manage", label: "Can manage" },
+    ],
     def: "use",
     tail: "The value is never shown or sent in chat to anyone who can only use it.",
   },
   agent: {
     label: "agent",
-    levels: [{ id: "use", label: "Can use" }, { id: "edit", label: "Can edit" }, { id: "manage", label: "Can manage" }],
+    levels: [
+      { id: "use", label: "Can use" },
+      { id: "edit", label: "Can edit" },
+      { id: "manage", label: "Can manage" },
+    ],
     def: "use",
     tail: "",
   },
@@ -140,7 +176,8 @@ export function isViewOnly(g: Giving): boolean {
 }
 
 export const LOCKED_NOTE = " (you do not have this)";
-export const VIEW_ONLY_NOTE = "You can view here, so you can add people as viewers only. A person can give only what they have.";
+export const VIEW_ONLY_NOTE =
+  "You can view here, so you can add people as viewers only. A person can give only what they have.";
 
 /* ---------- what they get: share ---------- */
 
@@ -166,7 +203,8 @@ export interface Line {
 
 export function sharedBy(type: ShareItemType, name: string, who: readonly string[] = []): string {
   void type;
-  if (who.length === 0) return `Whoever uses ${name} pays with their own AI account, and ${name} only sees what they can see.`;
+  if (who.length === 0)
+    return `Whoever uses ${name} pays with their own AI account, and ${name} only sees what they can see.`;
   const them = who.length === 1 ? `${who[0]}'s` : "their";
   const subject = who.length === 1 ? (who[0] as string) : joinNames(who);
   return `${subject} ${who.length === 1 ? "pays" : "pay"} with ${them} own AI account, and ${name} only sees what ${subject} can see.`;
@@ -197,21 +235,41 @@ export function shareLines(i: ShareLinesInput): Line[] {
   if (P.length === 0) return [];
   const levels = levelDefs(i.type).map((l) => l.id);
   for (const lv of levels) {
-    const names = P.filter((p) => p.role === lv && p.kind !== "guest" && p.kind !== "outside" && p.kind !== "agent" && p.kind !== "new" && p.kind !== "space").map((p) => p.name);
+    const names = P.filter(
+      (p) =>
+        p.role === lv &&
+        p.kind !== "guest" &&
+        p.kind !== "outside" &&
+        p.kind !== "agent" &&
+        p.kind !== "new" &&
+        p.kind !== "space",
+    ).map((p) => p.name);
     if (names.length > 0) {
-      const text = i.type === "agent" && (lv === "use" || lv === "view")
-        ? `${joinNames(names)} can use ${i.name} in ${possessiveOf(names)} chats, tasks and automations.`
-        : `${joinNames(names)} can ${shareVerb(i.type, lv, i.name)}.`;
+      const text =
+        i.type === "agent" && (lv === "use" || lv === "view")
+          ? `${joinNames(names)} can use ${i.name} in ${possessiveOf(names)} chats, tasks and automations.`
+          : `${joinNames(names)} can ${shareVerb(i.type, lv, i.name)}.`;
       out.push({ id: `lv-${lv}`, tone: "plain", text });
     }
-    if (P.some((p) => p.kind === "space" && p.role === lv)) out.push({ id: `space-${lv}`, tone: "plain", text: `Anyone in the Space can ${shareVerb(i.type, lv, i.name)}.` });
+    if (P.some((p) => p.kind === "space" && p.role === lv))
+      out.push({ id: `space-${lv}`, tone: "plain", text: `Anyone in the Space can ${shareVerb(i.type, lv, i.name)}.` });
   }
   const guests = P.filter((p) => p.kind === "guest");
-  if (guests.length > 0) out.push({ id: "guests", tone: "plain", text: `${joinNames(guests.map((g) => g.name))} ${guests.length === 1 ? "sees" : "see"} only this ${label}, never what is around it.` });
+  if (guests.length > 0)
+    out.push({
+      id: "guests",
+      tone: "plain",
+      text: `${joinNames(guests.map((g) => g.name))} ${guests.length === 1 ? "sees" : "see"} only this ${label}, never what is around it.`,
+    });
   for (const o of P.filter((p) => p.kind === "outside")) {
-    out.push({ id: `out-${o.id}`, tone: "lock", text: `${o.name} reaches it through MCP tools scoped to exactly this ${label}, never wider. It shows as ${i.ownerName} (Agent), is audited, and removing it ends access at once.` });
+    out.push({
+      id: `out-${o.id}`,
+      tone: "lock",
+      text: `${o.name} reaches it through MCP tools scoped to exactly this ${label}, never wider. It shows as ${i.ownerName} (Agent), is audited, and removing it ends access at once.`,
+    });
   }
-  if (P.some((p) => p.kind === "space")) out.push({ id: "space", tone: "note", text: "Anyone in the Space can find it from search." });
+  if (P.some((p) => p.kind === "space"))
+    out.push({ id: "space", tone: "note", text: "Anyone in the Space can find it from search." });
   if (i.type === "agent") {
     const people = P.filter((p) => p.kind === "person" || p.kind === "group" || p.kind === "role").map((p) => p.name);
     out.push({ id: "pays", tone: "note", text: sharedBy(i.type, i.name, people) });
@@ -219,7 +277,12 @@ export function shareLines(i: ShareLinesInput): Line[] {
   // a Vault item given to an agent reaches everyone who can ask that agent, through it (owner rule, 12 Nov): said where the agent is picked
   if (i.type === "vault") {
     const agents = P.filter((p) => p.kind === "agent").map((p) => p.name);
-    if (agents.length > 0) out.push({ id: "vault-agents", tone: "note", text: `Everyone who can ask ${joinNames(agents)} can use it through ${agents.length === 1 ? agents[0] : "them"}.` });
+    if (agents.length > 0)
+      out.push({
+        id: "vault-agents",
+        tone: "note",
+        text: `Everyone who can ask ${joinNames(agents)} can use it through ${agents.length === 1 ? agents[0] : "them"}.`,
+      });
   }
   const tail = `${def.tail}${i.limited === true ? " You can give only what you have yourself." : ""}`.trim();
   if (tail !== "") out.push({ id: "tail", tone: "note", text: tail });
@@ -258,28 +321,54 @@ export function addLines(i: AddLinesInput): Line[] {
     // what they get is only what the target really has: a folder and records are named when there are some, and left out when there are none
     const pr = t.project;
     const parts = pr
-      ? [...(pr.hasFiles ? [`${pr.name}'s files`] : []), ...(pr.linkedRecords > 0 ? [`its ${pr.linkedRecords} linked record${pr.linkedRecords === 1 ? "" : "s"}`] : [])]
-      : [...(t.filesFolder ? [`its files folder ${t.filesFolder}`] : []), ...(t.recordsFolder ? [`records in ${t.recordsFolder}`] : [])];
+      ? [
+          ...(pr.hasFiles ? [`${pr.name}'s files`] : []),
+          ...(pr.linkedRecords > 0
+            ? [`its ${pr.linkedRecords} linked record${pr.linkedRecords === 1 ? "" : "s"}`]
+            : []),
+        ]
+      : [
+          ...(t.filesFolder ? [`its files folder ${t.filesFolder}`] : []),
+          ...(t.recordsFolder ? [`records in ${t.recordsFolder}`] : []),
+        ];
     // a project's chat is still a chat to the person reading this line
     const said = pr ? "this chat" : noun;
-    const lead = i.earlier ? `They'll see the whole ${said.replace(/^this /, "")}` : `They'll see ${said}'s messages from now on`;
-    const tail = parts.length === 0 ? "." : parts.length === 1 ? `, and ${parts[0]}.` : `, ${parts[0]}, and ${parts[1]}.`;
+    const lead = i.earlier
+      ? `They'll see the whole ${said.replace(/^this /, "")}`
+      : `They'll see ${said}'s messages from now on`;
+    const tail =
+      parts.length === 0 ? "." : parts.length === 1 ? `, and ${parts[0]}.` : `, ${parts[0]}, and ${parts[1]}.`;
     out.push({ id: "std", tone: "plain", text: lead + tail });
   }
-  if (guests.length > 0) out.push({ id: "guests", tone: "plain", text: `${joinNames(guests.map((g) => g.name))} ${guests.length === 1 ? "sees" : "see"} only what ${noun} allows: messages from now on, no files folder, no records.` });
+  if (guests.length > 0)
+    out.push({
+      id: "guests",
+      tone: "plain",
+      text: `${joinNames(guests.map((g) => g.name))} ${guests.length === 1 ? "sees" : "see"} only what ${noun} allows: messages from now on, no files folder, no records.`,
+    });
   for (const o of P.filter((p) => p.kind === "outside")) {
     const reads = t.kind === "project" ? "the project's context and folders" : "its folder and the records folder";
-    out.push({ id: `out-${o.id}`, tone: "lock", text: `${o.name} reads and posts in ${noun} and reads ${reads}, through MCP tools scoped to exactly these, never wider. It shows as ${i.ownerName} (Agent), is audited, and removing it ends access at once.` });
+    out.push({
+      id: `out-${o.id}`,
+      tone: "lock",
+      text: `${o.name} reads and posts in ${noun} and reads ${reads}, through MCP tools scoped to exactly these, never wider. It shows as ${i.ownerName} (Agent), is audited, and removing it ends access at once.`,
+    });
   }
   const made = P.filter((p) => p.kind === "new");
-  if (made.length > 0) out.push({ id: "new", tone: "note", text: `${joinNames(made.map((n) => n.name))} ${made.length === 1 ? "belongs" : "belong"} to ${targetOwn(t.kind)} and ${made.length === 1 ? "is" : "are"} removed with it.` });
+  if (made.length > 0)
+    out.push({
+      id: "new",
+      tone: "note",
+      text: `${joinNames(made.map((n) => n.name))} ${made.length === 1 ? "belongs" : "belong"} to ${targetOwn(t.kind)} and ${made.length === 1 ? "is" : "are"} removed with it.`,
+    });
   if (i.limited === true) out.push({ id: "limited", tone: "note", text: VIEW_ONLY_NOTE });
   return out;
 }
 
 /** The footer when nothing is picked. */
 export function idleLine(mode: "add" | "share", type?: ShareItemType, name?: string): string {
-  void type; void name;
+  void type;
+  void name;
   return mode === "add" ? "Pick who to add. You will see what they get before you confirm." : "";
 }
 
@@ -311,8 +400,14 @@ export interface RoleOption {
 }
 
 const ADD_ROLES: Readonly<Record<"person" | "guest", readonly { id: string; label: string }[]>> = {
-  person: [{ id: "member", label: "Member" }, { id: "view", label: "Can view" }],
-  guest: [{ id: "gview", label: "Can view" }, { id: "greply", label: "Can reply" }],
+  person: [
+    { id: "member", label: "Member" },
+    { id: "view", label: "Can view" },
+  ],
+  guest: [
+    { id: "gview", label: "Can view" },
+    { id: "greply", label: "Can reply" },
+  ],
 };
 
 export interface RoleContext {
@@ -381,7 +476,15 @@ export function pickFromEntry(e: AccessEntry, c: RoleContext): AccessPick {
 
 export function pickFromEmail(email: string, c: RoleContext): AccessPick {
   const mail = email.trim();
-  return { key: guestKey(mail), kind: "guest", id: mail, name: mail, email: mail, sub: "Guest, by email", role: defaultRole("guest", c) };
+  return {
+    key: guestKey(mail),
+    kind: "guest",
+    id: mail,
+    name: mail,
+    email: mail,
+    sub: "Guest, by email",
+    role: defaultRole("guest", c),
+  };
 }
 
 export interface NewAgentDraft {
@@ -440,18 +543,28 @@ export function sections(i: SectionsInput): Sections {
   const allowed = (e: AccessEntry): boolean => !(agentShare && (e.kind === "agent" || e.kind === "outside"));
   const first = q === "" ? (d.suggested ?? []).filter((e) => fits(e) && allowed(e)) : [];
   // Share mode with nothing typed: one short Suggested list (five rows at most) of people, then groups and agents; typing searches everything
-  const pool = i.mode === "share" && q === "" ? [...first, ...(d.people ?? []), ...(d.groups ?? []), ...(i.itemType === "agent" ? [] : d.agents ?? [])].filter((e) => fits(e) && allowed(e)) : first;
+  const pool =
+    i.mode === "share" && q === ""
+      ? [
+          ...first,
+          ...(d.people ?? []),
+          ...(d.groups ?? []),
+          ...(i.itemType === "agent" ? [] : (d.agents ?? [])),
+        ].filter((e) => fits(e) && allowed(e))
+      : first;
   const dedup = [...new Map(pool.map((e) => [ek(e), e] as const)).values()];
   const suggested = i.mode === "share" && q === "" ? dedup.slice(0, 5) : first;
   const seen = new Set(suggested.map(ek));
-  const rest = (list: readonly AccessEntry[] | undefined): AccessEntry[] => (list ?? []).filter((e) => fits(e) && allowed(e) && !seen.has(ek(e)));
+  const rest = (list: readonly AccessEntry[] | undefined): AccessEntry[] =>
+    (list ?? []).filter((e) => fits(e) && allowed(e) && !seen.has(ek(e)));
   const invite = q !== "" && isEmail(i.query) && !i.taken.has(guestKey(i.query)) ? i.query.trim() : null;
   return {
     suggested,
     people: i.mode === "share" && q === "" ? [] : rest(d.people),
     groups: i.mode === "share" ? (q === "" ? [] : rest(d.groups)) : [],
     // the General access row at the top is the Space; it is found by typing, not listed a second time
-    space: i.mode === "share" && q !== "" && d.space !== undefined && fits(d.space) && allowed(d.space) ? d.space : null,
+    space:
+      i.mode === "share" && q !== "" && d.space !== undefined && fits(d.space) && allowed(d.space) ? d.space : null,
     agents: agentShare || (i.mode === "share" && q === "") ? [] : rest(d.agents),
     outside: agentShare ? [] : rest(d.outside),
     invite,
@@ -466,7 +579,12 @@ export function topMatch(s: Sections): { entry: AccessEntry } | { invite: string
 }
 
 export function noMatch(s: Sections, query: string): boolean {
-  return query.trim() !== "" && s.invite === null && s.suggested.length + s.people.length + s.groups.length + s.agents.length + s.outside.length === 0 && s.space === null;
+  return (
+    query.trim() !== "" &&
+    s.invite === null &&
+    s.suggested.length + s.people.length + s.groups.length + s.agents.length + s.outside.length === 0 &&
+    s.space === null
+  );
 }
 
 /* ---------- how an agent answers ---------- */
@@ -498,7 +616,12 @@ export function pokeNote(name: string): string {
 
 export function settingsSummary(s: AgentSettings): string {
   const how = HOW_OPTIONS.find((h) => h.id === s.how)?.label ?? "";
-  const when = s.when === "topics" ? `Only on ${s.topics.trim() === "" ? "topics" : s.topics.trim()}` : s.when === "hours" ? `${s.hoursFrom} to ${s.hoursTo}` : "Any time";
+  const when =
+    s.when === "topics"
+      ? `Only on ${s.topics.trim() === "" ? "topics" : s.topics.trim()}`
+      : s.when === "hours"
+        ? `${s.hoursFrom} to ${s.hoursTo}`
+        : "Any time";
   return `${how} · ${when} · ${STYLE_OPTIONS.find((o) => o.id === s.style)?.label ?? ""}`;
 }
 
@@ -524,7 +647,11 @@ export function addAgentInput(threadId: string, agentId: string, how: AgentHow =
   return { threadId, agentId, mode: how === "lead" ? "lead" : "listen" };
 }
 
-export function agentCreateInput(threadId: string, d: { name: string; brief?: string | undefined; model?: string | undefined; how?: AgentHow | undefined }, idempotencyKey: string): In<"threads.agent.create"> {
+export function agentCreateInput(
+  threadId: string,
+  d: { name: string; brief?: string | undefined; model?: string | undefined; how?: AgentHow | undefined },
+  idempotencyKey: string,
+): In<"threads.agent.create"> {
   const brief = d.brief?.trim();
   return {
     threadId,
@@ -537,15 +664,26 @@ export function agentCreateInput(threadId: string, d: { name: string; brief?: st
 }
 
 /** Settings for one agent in one chat: mode from How, and the hours and topics only when When asks for them (else cleared). */
-export function agentSettingsInput(threadId: string, agentId: string, s: Partial<AgentSettings>): In<"threads.agent_settings.set"> {
+export function agentSettingsInput(
+  threadId: string,
+  agentId: string,
+  s: Partial<AgentSettings>,
+): In<"threads.agent_settings.set"> {
   const topics = s.topics?.trim();
   return {
     threadId,
     agentId,
     ...(s.how === undefined ? {} : { mode: modeOf(s.how) }),
     ...(s.when === undefined ? {} : { when: s.when }),
-    ...(s.when === undefined ? {} : { topics: s.when === "topics" && topics !== undefined && topics !== "" ? topics : null }),
-    ...(s.when === undefined ? {} : { hoursFrom: s.when === "hours" ? (s.hoursFrom ?? null) : null, hoursTo: s.when === "hours" ? (s.hoursTo ?? null) : null }),
+    ...(s.when === undefined
+      ? {}
+      : { topics: s.when === "topics" && topics !== undefined && topics !== "" ? topics : null }),
+    ...(s.when === undefined
+      ? {}
+      : {
+          hoursFrom: s.when === "hours" ? (s.hoursFrom ?? null) : null,
+          hoursTo: s.when === "hours" ? (s.hoursTo ?? null) : null,
+        }),
     ...(s.style === undefined ? {} : { style: s.style }),
   };
 }
@@ -555,7 +693,11 @@ export function pokeInput(threadId: string, agentId: string, note?: string): In<
   return { threadId, agentId, ...(n === undefined || n === "" ? {} : { note: n }) };
 }
 
-export function outsideAgentAddInput(threadId: string, agentId: string, how?: AgentHow): In<"threads.outside_agent.add"> {
+export function outsideAgentAddInput(
+  threadId: string,
+  agentId: string,
+  how?: AgentHow,
+): In<"threads.outside_agent.add"> {
   return { threadId, agentId, ...(how === undefined ? {} : { mode: modeOf(how) }) };
 }
 
@@ -564,7 +706,12 @@ export function outsideAgentRemoveInput(threadId: string, agentId: string): In<"
 }
 
 /** gview = Can view; greply = Can reply. */
-export function inviteGuestInput(threadId: string, email: string, role: "gview" | "greply" | string, idempotencyKey: string): In<"threads.invite_guest"> {
+export function inviteGuestInput(
+  threadId: string,
+  email: string,
+  role: "gview" | "greply" | string,
+  idempotencyKey: string,
+): In<"threads.invite_guest"> {
   return { threadId, email: email.trim(), level: role === "greply" ? "reply" : "view", idempotencyKey };
 }
 
@@ -574,12 +721,21 @@ export function threadMemberInput(threadId: string, personId: string, fromStart 
 }
 
 /** Member is use; Can view is view. */
-export function channelMembersInput(channelId: string, personIds: readonly string[], role: "member" | "view" | string = "member"): In<"channels.members.add"> {
+export function channelMembersInput(
+  channelId: string,
+  personIds: readonly string[],
+  role: "member" | "view" | string = "member",
+): In<"channels.members.add"> {
   return { channelId, personIds: personIds.slice(), level: role === "view" ? "view" : "use" };
 }
 
 /** A project has the roles lead, member, reviewer and guest: Member is member; Can view is guest. */
-export function projectMemberInput(projectId: string, principal: string, role: "member" | "view" | string, idempotencyKey: string): In<"projects.members.set"> {
+export function projectMemberInput(
+  projectId: string,
+  principal: string,
+  role: "member" | "view" | string,
+  idempotencyKey: string,
+): In<"projects.members.set"> {
   return { projectId, principal, role: role === "view" ? "guest" : "member", idempotencyKey };
 }
 
@@ -609,29 +765,44 @@ export interface AddPlan {
 }
 
 const isDefaultSettings = (s: AgentSettings): boolean =>
-  s.how === DEFAULT_AGENT_SETTINGS.how && s.when === DEFAULT_AGENT_SETTINGS.when && s.style === DEFAULT_AGENT_SETTINGS.style;
+  s.how === DEFAULT_AGENT_SETTINGS.how &&
+  s.when === DEFAULT_AGENT_SETTINGS.when &&
+  s.style === DEFAULT_AGENT_SETTINGS.style;
 
 /** The capability calls for the picks, in order. People first (a channel's people in one call, grouped by role), then agents, outside agents, new agents, guests; settings follow any agent whose answers differ from the default. */
-export function addCalls(ctx: AddContext, picks: readonly AccessPick[], newKey: (p: AccessPick) => string, opts: { earlier?: boolean } = {}): AddPlan {
+export function addCalls(
+  ctx: AddContext,
+  picks: readonly AccessPick[],
+  newKey: (p: AccessPick) => string,
+  opts: { earlier?: boolean } = {},
+): AddPlan {
   const calls: AddCall[] = [];
   const unsupported: AccessPick[] = [];
   const threadId = ctx.kind === "channel" ? ctx.mainThreadId : ctx.kind === "project" ? "" : ctx.threadId;
   const settingsFor = (p: AccessPick): void => {
     const s = p.settings;
-    if (s !== undefined && !isDefaultSettings(s) && threadId !== "") calls.push({ cap: "threads.agent_settings.set", input: agentSettingsInput(threadId, p.id, s) });
+    if (s !== undefined && !isDefaultSettings(s) && threadId !== "")
+      calls.push({ cap: "threads.agent_settings.set", input: agentSettingsInput(threadId, p.id, s) });
   };
   if (ctx.kind === "channel") {
     for (const role of ["member", "view"]) {
       const ids = picks.filter((p) => p.kind === "person" && p.role === role).map((p) => p.id);
-      if (ids.length > 0) calls.push({ cap: "channels.members.add", input: channelMembersInput(ctx.channelId, ids, role) });
+      if (ids.length > 0)
+        calls.push({ cap: "channels.members.add", input: channelMembersInput(ctx.channelId, ids, role) });
     }
   }
   for (const p of picks) {
     if (p.kind === "person") {
-      if (ctx.kind === "chat" || ctx.kind === "thread") calls.push({ cap: "threads.members.add", input: threadMemberInput(ctx.threadId, p.id, opts.earlier === true) });
-      else if (ctx.kind === "project") calls.push({ cap: "projects.members.set", input: projectMemberInput(ctx.projectId, p.id, p.role, newKey(p)) });
+      if (ctx.kind === "chat" || ctx.kind === "thread")
+        calls.push({ cap: "threads.members.add", input: threadMemberInput(ctx.threadId, p.id, opts.earlier === true) });
+      else if (ctx.kind === "project")
+        calls.push({ cap: "projects.members.set", input: projectMemberInput(ctx.projectId, p.id, p.role, newKey(p)) });
     } else if (p.kind === "agent") {
-      if (ctx.kind === "project") calls.push({ cap: "projects.members.set", input: projectMemberInput(ctx.projectId, p.id, "member", newKey(p)) });
+      if (ctx.kind === "project")
+        calls.push({
+          cap: "projects.members.set",
+          input: projectMemberInput(ctx.projectId, p.id, "member", newKey(p)),
+        });
       else {
         calls.push({ cap: "threads.add_agent", input: addAgentInput(threadId, p.id, p.settings?.how) });
         settingsFor(p);
@@ -644,7 +815,15 @@ export function addCalls(ctx: AddContext, picks: readonly AccessPick[], newKey: 
       }
     } else if (p.kind === "new") {
       if (ctx.kind === "project") unsupported.push(p);
-      else calls.push({ cap: "threads.agent.create", input: agentCreateInput(threadId, { name: p.name, brief: p.brief, model: p.model, how: p.settings?.how }, newKey(p)) });
+      else
+        calls.push({
+          cap: "threads.agent.create",
+          input: agentCreateInput(
+            threadId,
+            { name: p.name, brief: p.brief, model: p.model, how: p.settings?.how },
+            newKey(p),
+          ),
+        });
     } else if (p.kind === "guest") {
       if (ctx.kind === "project" || p.email === undefined) unsupported.push(p);
       else calls.push({ cap: "threads.invite_guest", input: inviteGuestInput(threadId, p.email, p.role, newKey(p)) });
@@ -670,10 +849,30 @@ export interface ShareRes {
   resourceId: string;
 }
 
-export function shareInput(res: ShareRes, subject: { kind: ShareSubjectKind; id: string }, level: ShareLevel, idempotencyKey: string): ShareInput & { idempotencyKey: string };
-export function shareInput(res: ShareRes, subject: { kind: ShareSubjectKind; id: string }, level: ShareLevel, idempotencyKey?: string): ShareInput;
-export function shareInput(res: ShareRes, subject: { kind: ShareSubjectKind; id: string }, level: ShareLevel, idempotencyKey?: string): ShareInput {
-  return { resource: { type: res.resourceType, id: res.resourceId }, subject: { kind: subject.kind, id: subject.id }, level: effectiveLevel(subject.kind, level), ...(idempotencyKey === undefined ? {} : { idempotencyKey }) };
+export function shareInput(
+  res: ShareRes,
+  subject: { kind: ShareSubjectKind; id: string },
+  level: ShareLevel,
+  idempotencyKey: string,
+): ShareInput & { idempotencyKey: string };
+export function shareInput(
+  res: ShareRes,
+  subject: { kind: ShareSubjectKind; id: string },
+  level: ShareLevel,
+  idempotencyKey?: string,
+): ShareInput;
+export function shareInput(
+  res: ShareRes,
+  subject: { kind: ShareSubjectKind; id: string },
+  level: ShareLevel,
+  idempotencyKey?: string,
+): ShareInput {
+  return {
+    resource: { type: res.resourceType, id: res.resourceId },
+    subject: { kind: subject.kind, id: subject.id },
+    level: effectiveLevel(subject.kind, level),
+    ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+  };
 }
 
 export function unshareInput(res: ShareRes, subject: { kind: ShareSubjectKind; id: string }): UnshareInput {
@@ -681,9 +880,13 @@ export function unshareInput(res: ShareRes, subject: { kind: ShareSubjectKind; i
 }
 
 /** The subject a share pick grants: the entry's own override, else its kind (an outside agent is an agent). */
-export function subjectOfPick(p: Pick<AccessPick, "kind" | "id" | "subject">): { kind: "person" | "agent" | "group" | "role"; id: string } {
+export function subjectOfPick(p: Pick<AccessPick, "kind" | "id" | "subject">): {
+  kind: "person" | "agent" | "group" | "role";
+  id: string;
+} {
   if (p.subject !== undefined) return p.subject;
-  const kind = p.kind === "person" || p.kind === "group" || p.kind === "role" ? p.kind : p.kind === "space" ? "group" : "agent";
+  const kind =
+    p.kind === "person" || p.kind === "group" || p.kind === "role" ? p.kind : p.kind === "space" ? "group" : "agent";
   return { kind, id: p.id };
 }
 
@@ -707,7 +910,11 @@ export interface AccessRowLike {
 }
 
 /** Levels a row may take: the item's levels; an inherited row can only be raised from where it is. A link is view only. */
-export function levelsFor(row: Pick<AccessRowLike, "subjectKind" | "level" | "via">, type: ShareItemType, offered?: readonly ShareLevel[]): ShareLevel[] {
+export function levelsFor(
+  row: Pick<AccessRowLike, "subjectKind" | "level" | "via">,
+  type: ShareItemType,
+  offered?: readonly ShareLevel[],
+): ShareLevel[] {
   const defs = levelDefs(type, offered).map((l) => l.id);
   if (row.subjectKind === "link") return defs.includes("view") ? ["view"] : [];
   const floor = row.via === "folder" || row.via === "space" ? levelRank(type, row.level) : 0;
@@ -720,8 +927,12 @@ export function removable(row: Pick<AccessRowLike, "via">): boolean {
 }
 
 /** Rows in the order the sheet shows them: what this item grants, most access first, then what comes from the folder. */
-export function sheetRows<R extends AccessRowLike>(shares: readonly R[], type: ShareItemType = "note"): { direct: R[]; inherited: R[]; link: R | null } {
-  const byAccess = (a: R, b: R): number => levelRank(type, b.level) - levelRank(type, a.level) || a.name.localeCompare(b.name);
+export function sheetRows<R extends AccessRowLike>(
+  shares: readonly R[],
+  type: ShareItemType = "note",
+): { direct: R[]; inherited: R[]; link: R | null } {
+  const byAccess = (a: R, b: R): number =>
+    levelRank(type, b.level) - levelRank(type, a.level) || a.name.localeCompare(b.name);
   const link = shares.find((r) => r.subjectKind === "link") ?? null;
   const people = shares.filter((r) => r.subjectKind !== "link");
   return {
@@ -736,7 +947,9 @@ export function rowSub(row: { subjectKind: ShareSubjectKind; via: string }, fold
   if (row.via === "folder") return folderName ? `From the folder ${folderName}` : "From the Space";
   if (row.via === "space") return "From the Space";
   // a person has no label under their name (their title or email, when the host has one); a group, role or agent says what it is
-  return ({ person: "", group: "Team", role: "Role", agent: "Agent", link: "Link" } as Record<ShareSubjectKind, string>)[row.subjectKind];
+  return (
+    { person: "", group: "Team", role: "Role", agent: "Agent", link: "Link" } as Record<ShareSubjectKind, string>
+  )[row.subjectKind];
 }
 
 export function accessSubtitle(type: ShareItemType, count: number, label?: string): string {
@@ -755,10 +968,20 @@ export function validTime(text: string): boolean {
 }
 
 /** Keys of directory entries that already hold a row of the access list, in the entries' own key form. */
-export function takenFromRows(directory: AccessDirectory, rows: readonly { subjectKind: string; subjectId: string }[]): Set<string> {
+export function takenFromRows(
+  directory: AccessDirectory,
+  rows: readonly { subjectKind: string; subjectId: string }[],
+): Set<string> {
   const have = new Set(rows.map((r) => `${r.subjectKind}:${r.subjectId}`));
   const out = new Set<string>();
-  const lists = [directory.suggested, directory.people, directory.agents, directory.outside, directory.groups, directory.space === undefined ? undefined : [directory.space]];
+  const lists = [
+    directory.suggested,
+    directory.people,
+    directory.agents,
+    directory.outside,
+    directory.groups,
+    directory.space === undefined ? undefined : [directory.space],
+  ];
   for (const list of lists) {
     for (const e of list ?? []) {
       const s = subjectOfPick({ kind: e.kind, id: e.id, ...(e.subject === undefined ? {} : { subject: e.subject }) });
@@ -803,7 +1026,8 @@ export interface AccessView {
 
 const VIA_RANK: Record<ShareRow["via"], number> = { owner: 3, grant: 2, folder: 1, space: 0 };
 
-export const isEveryoneRow = (r: Pick<ShareRow, "subjectKind" | "subjectId">): boolean => r.subjectKind === "group" && EVERYONE_IDS.includes(r.subjectId);
+export const isEveryoneRow = (r: Pick<ShareRow, "subjectKind" | "subjectId">): boolean =>
+  r.subjectKind === "group" && EVERYONE_IDS.includes(r.subjectId);
 
 /** Merge the same subject into one row at its highest level; at the same level the direct grant wins, so it can be removed. */
 function onePerSubject(type: ShareItemType, rows: readonly ShareRow[]): ShareRow[] {
@@ -811,7 +1035,10 @@ function onePerSubject(type: ShareItemType, rows: readonly ShareRow[]): ShareRow
   for (const r of rows) {
     const key = `${r.subjectKind}:${r.subjectId}`;
     const have = best.get(key);
-    if (!have) { best.set(key, r); continue; }
+    if (!have) {
+      best.set(key, r);
+      continue;
+    }
     const d = levelRank(type, r.level) - levelRank(type, have.level);
     if (d > 0 || (d === 0 && VIA_RANK[r.via] > VIA_RANK[have.via])) best.set(key, r);
   }
@@ -819,7 +1046,8 @@ function onePerSubject(type: ShareItemType, rows: readonly ShareRow[]): ShareRow
 }
 
 export function accessView(i: AccessViewInput): AccessView {
-  const byAccess = (a: ShareRow, b: ShareRow): number => levelRank(i.itemType, b.level) - levelRank(i.itemType, a.level) || a.name.localeCompare(b.name);
+  const byAccess = (a: ShareRow, b: ShareRow): number =>
+    levelRank(i.itemType, b.level) - levelRank(i.itemType, a.level) || a.name.localeCompare(b.name);
   const rows = i.shares.filter((r) => {
     if (r.subjectKind === "agent" && (r.subjectId === i.resourceId || r.privateAgent === true)) return false;
     if (i.ownerId !== undefined && r.subjectKind === "person" && r.subjectId === i.ownerId) return false;
@@ -828,7 +1056,11 @@ export function accessView(i: AccessViewInput): AccessView {
   const merged = onePerSubject(i.itemType, rows);
   const link = merged.find((r) => r.subjectKind === "link") ?? null;
   const everyone = merged.find(isEveryoneRow) ?? null;
-  const people = merged.filter((r) => (r.subjectKind === "person" || r.subjectKind === "group" || r.subjectKind === "role") && !isEveryoneRow(r)).sort(byAccess);
+  const people = merged
+    .filter(
+      (r) => (r.subjectKind === "person" || r.subjectKind === "group" || r.subjectKind === "role") && !isEveryoneRow(r),
+    )
+    .sort(byAccess);
   const agentRows = merged.filter((r) => r.subjectKind === "agent").sort(byAccess);
   const specific = agentRows.filter((r) => r.via === "grant");
   const inherited = agentRows.some((r) => r.via !== "grant");
@@ -836,9 +1068,12 @@ export function accessView(i: AccessViewInput): AccessView {
   return {
     owner: { id: i.ownerId ?? null, name: i.ownerName },
     general: { level: everyone ? everyone.level : null, row: everyone },
-    people, agents: { on: i.agentsOn ?? (inherited || specific.length > 0), inherited, specific }, link,
+    people,
+    agents: { on: i.agentsOn ?? (inherited || specific.length > 0), inherited, specific },
+    link,
     inheritedFrom: i.folderName ? `From the folder ${i.folderName}` : "From the Space",
-    count, empty: people.length === 0 && specific.length === 0 && everyone === null && !inherited,
+    count,
+    empty: people.length === 0 && specific.length === 0 && everyone === null && !inherited,
   };
 }
 
@@ -850,15 +1085,45 @@ export function accessCount(i: AccessViewInput): number {
 /** The one-line description of a level, for the picker's menu. */
 export function levelHint(type: ShareItemType, level: ShareLevel): string {
   const by: Record<ShareItemType, Partial<Record<ShareLevel, string>>> = {
-    agent: { use: "Chat with it and put it to work in their own chats, tasks, automations and crews, on their own AI account.", edit: "Change its instructions, context and tools.", manage: "Share it, move it and delete it." },
-    vault: { use: "Agents and automations use it. The value stays hidden.", view: "See the value and use it.", edit: "See, use and change it.", manage: "Change it, share it and delete it." },
-    automation: { view: "See it, its runs and its history.", use: "Run it.", edit: "Change it and pause it.", manage: "Share it and delete it." },
+    agent: {
+      use: "Chat with it and put it to work in their own chats, tasks, automations and crews, on their own AI account.",
+      edit: "Change its instructions, context and tools.",
+      manage: "Share it, move it and delete it.",
+    },
+    vault: {
+      use: "Agents and automations use it. The value stays hidden.",
+      view: "See the value and use it.",
+      edit: "See, use and change it.",
+      manage: "Change it, share it and delete it.",
+    },
+    automation: {
+      view: "See it, its runs and its history.",
+      use: "Run it.",
+      edit: "Change it and pause it.",
+      manage: "Share it and delete it.",
+    },
     note: { view: "Read it.", edit: "Read it and change it.", manage: "Share it, move it and delete it." },
-    file: { view: "Open everything inside.", edit: "Open and change everything inside.", manage: "Share it, move it and delete it." },
-    artifact: { view: "Open it and read it.", edit: "Open it and change it.", manage: "Share it, move it and delete it." },
-    project: { view: "Open the project and its work.", edit: "Change the plan, tasks and files.", manage: "Share it and delete it." },
+    file: {
+      view: "Open everything inside.",
+      edit: "Open and change everything inside.",
+      manage: "Share it, move it and delete it.",
+    },
+    artifact: {
+      view: "Open it and read it.",
+      edit: "Open it and change it.",
+      manage: "Share it, move it and delete it.",
+    },
+    project: {
+      view: "Open the project and its work.",
+      edit: "Change the plan, tasks and files.",
+      manage: "Share it and delete it.",
+    },
     record: { view: "Open this record.", edit: "Open it and change it.", manage: "Share it and delete it." },
-    rtype: { view: "Open every record of this type.", edit: "Open and change every record of this type.", manage: "Change its fields and views, and share it." },
+    rtype: {
+      view: "Open every record of this type.",
+      edit: "Open and change every record of this type.",
+      manage: "Change its fields and views, and share it.",
+    },
   };
   return by[type][level] ?? "";
 }
@@ -866,14 +1131,26 @@ export function levelHint(type: ShareItemType, level: ShareLevel): string {
 /** The line under "Everyone in Northwind": what the chosen level means, or that nobody but the people added can open it. */
 export function generalSub(type: ShareItemType, level: ShareLevel | null, spaceName: string, itemName: string): string {
   if (level === null) return "Only people added can open it";
-  const verb = type === "vault" && level === "use" ? "use it without seeing it" : ({ view: "view", use: "use", edit: "edit", manage: "manage" } as Record<ShareLevel, string>)[level];
-  return type === "vault" && level === "use" ? `Anyone in ${spaceName} can ${verb}` : `Anyone in ${spaceName} can ${verb} ${itemName}`;
+  const verb =
+    type === "vault" && level === "use"
+      ? "use it without seeing it"
+      : ({ view: "view", use: "use", edit: "edit", manage: "manage" } as Record<ShareLevel, string>)[level];
+  return type === "vault" && level === "use"
+    ? `Anyone in ${spaceName} can ${verb}`
+    : `Anyone in ${spaceName} can ${verb} ${itemName}`;
 }
 
 /** "Already has access through Everyone in Northwind": a person at or below the general level gains nothing from their own grant. */
-export function redundantVia(type: ShareItemType, general: ShareLevel | null, level: ShareLevel, spaceName: string): string | null {
+export function redundantVia(
+  type: ShareItemType,
+  general: ShareLevel | null,
+  level: ShareLevel,
+  spaceName: string,
+): string | null {
   if (general === null) return null;
-  return levelRank(type, level) <= levelRank(type, general) ? `Already has access through Everyone in ${spaceName}` : null;
+  return levelRank(type, level) <= levelRank(type, general)
+    ? `Already has access through Everyone in ${spaceName}`
+    : null;
 }
 
 /** Joins names the way a sentence does, with the possessive of each: "Omar", "Omar and Sara". Pronouns are never guessed. */
@@ -883,11 +1160,24 @@ export function possessiveOf(names: readonly string[]): string {
 
 /* ---------- the Add menu: a plain people picker for places that only need to pick someone (a routine's new owner) ---------- */
 
-export interface DirectoryEntry { id: string; name: string; sub?: string }
-export interface ShareDirectory { people?: readonly DirectoryEntry[]; groups?: readonly DirectoryEntry[]; roles?: readonly DirectoryEntry[]; agents?: readonly DirectoryEntry[] }
+export interface DirectoryEntry {
+  id: string;
+  name: string;
+  sub?: string;
+}
+export interface ShareDirectory {
+  people?: readonly DirectoryEntry[];
+  groups?: readonly DirectoryEntry[];
+  roles?: readonly DirectoryEntry[];
+  agents?: readonly DirectoryEntry[];
+}
 
 /** People, Teams, Roles, Agents; entries that already have access show a check and do nothing. */
-export function addMenu(directory: ShareDirectory, shares: readonly { subjectKind: string; subjectId: string }[], onAdd: (subject: { kind: ShareSubjectKind; id: string }, name: string) => void): MenuEntry[] {
+export function addMenu(
+  directory: ShareDirectory,
+  shares: readonly { subjectKind: string; subjectId: string }[],
+  onAdd: (subject: { kind: ShareSubjectKind; id: string }, name: string) => void,
+): MenuEntry[] {
   const have = new Set(shares.map((r) => `${r.subjectKind}:${r.subjectId}`));
   const out: MenuEntry[] = [];
   const groups: readonly { head: string; kind: ShareSubjectKind; list: readonly DirectoryEntry[] | undefined }[] = [
@@ -902,7 +1192,11 @@ export function addMenu(directory: ShareDirectory, shares: readonly { subjectKin
     out.push({ head: g.head });
     for (const e of g.list) {
       const added = have.has(`${g.kind}:${e.id}`);
-      out.push({ label: e.name, checked: added, ...(added ? {} : { onSelect: () => onAdd({ kind: g.kind, id: e.id }, e.name) }) });
+      out.push({
+        label: e.name,
+        checked: added,
+        ...(added ? {} : { onSelect: () => onAdd({ kind: g.kind, id: e.id }, e.name) }),
+      });
     }
   }
   return out;

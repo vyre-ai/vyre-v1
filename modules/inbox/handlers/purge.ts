@@ -9,14 +9,25 @@ export async function itemErase(ctx: InboxCtx, input: { refId: string; idempoten
   ensure(ctx);
   const rows = rowsOf(ctx.db.all(`SELECT * FROM inbox_item WHERE "refId" = ?`, input.refId));
   if (rows.length === 0) return { erased: false };
-  const conversations = [...new Set([...rows.map((r) => str(r, "conversationId")), ...conversationsShowing(ctx, rows.map((r) => str(r, "id")))])];
+  const conversations = [
+    ...new Set([
+      ...rows.map((r) => str(r, "conversationId")),
+      ...conversationsShowing(
+        ctx,
+        rows.map((r) => str(r, "id")),
+      ),
+    ]),
+  ];
   for (const r of rows) {
     ctx.db.run(`DELETE FROM inbox_item WHERE id = ?`, str(r, "id"));
     ctx.db.run(`DELETE FROM inbox_party WHERE "itemId" = ?`, str(r, "id"));
   }
   for (const id of conversations) {
     const conv = first(ctx.db.all(`SELECT * FROM inbox_conversation WHERE id = ?`, id));
-    if (conv && itemsOf(ctx, conv).length) { refresh(ctx, id); continue; }
+    if (conv && itemsOf(ctx, conv).length) {
+      refresh(ctx, id);
+      continue;
+    }
     ctx.db.run(`DELETE FROM inbox_match_task WHERE "conversationId" = ?`, id);
     ctx.db.run(`DELETE FROM inbox_undo WHERE "sourceId" = ?`, id);
     ctx.db.run(`DELETE FROM inbox_undo WHERE "targetId" = ?`, id);

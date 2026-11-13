@@ -37,7 +37,15 @@ export type MergeCtx = Pick<WriteCtx, "trace" | "emit"> & {
   /** Who is calling. The host's own service (hooks, the scheduler, the engine seams) is pre-authorized by the pipeline for every capability, so it changes records here as it does through records.update. */
   principal?: { kind: string; id: string };
   /** The host decision for the caller on one record. Writing an existing record, or merging records away, needs the same right the single-record capability needs (records.edit, records.delete), checked here for each record. */
-  authorize?: (action: { perm: string | null; level: "view" | "use" | "edit" | "manage"; cap?: string; fields?: readonly string[] }, resource: { type: string; id: string | null }) => { effect: "allow" | "deny" | "hold"; reason?: string };
+  authorize?: (
+    action: {
+      perm: string | null;
+      level: "view" | "use" | "edit" | "manage";
+      cap?: string;
+      fields?: readonly string[];
+    },
+    resource: { type: string; id: string | null },
+  ) => { effect: "allow" | "deny" | "hold"; reason?: string };
 };
 export type ExportCtx = Pick<WriteCtx, "trace"> & {
   actor?: string;
@@ -45,12 +53,26 @@ export type ExportCtx = Pick<WriteCtx, "trace"> & {
   call?: (cap: string, input: unknown) => Promise<unknown>;
   now?: () => number;
   /** The host decision for the caller on one record. An export writes a file, which the row filter on the way out cannot reach, so the rows are checked here (the label against the clearance lives in it). */
-  authorize?: (action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }) => { effect: "allow" | "deny" | "hold"; reason?: string };
+  authorize?: (
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
+    resource: { type: string; id: string | null },
+  ) => { effect: "allow" | "deny" | "hold"; reason?: string };
 };
 
 /** The rows not done when a bulk upsert stopped part way (the store went away, or a record changed under it): what was written before is kept and committed, these rows were not tried. */
-export interface UpsertStopped { reason: "unavailable" | "version_conflict"; row: number; message: string; notDone: number[] }
-export interface UpsertOut { created: number; updated: number; skipped: number; refused?: Array<{ row: number; reason: string; message: string }>; stopped?: UpsertStopped }
+export interface UpsertStopped {
+  reason: "unavailable" | "version_conflict";
+  row: number;
+  message: string;
+  notDone: number[];
+}
+export interface UpsertOut {
+  created: number;
+  updated: number;
+  skipped: number;
+  refused?: Array<{ row: number; reason: string; message: string }>;
+  stopped?: UpsertStopped;
+}
 
 export interface MergeDeps {
   store: Store;
@@ -61,9 +83,25 @@ export interface MergeDeps {
 }
 
 export interface MergeHandlers {
-  "records.merge"(ctx: MergeCtx, input: { type: string; survivorId: string; mergedIds: string[]; picks: Record<string, string> }): Promise<{ record: RecordRow; undoUntil: number }>;
-  "records.bulk_upsert"(ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean; createOnly?: boolean; skipExisting?: boolean }): Promise<UpsertOut>;
-  "records.export"(ctx: ExportCtx, input: { type: string; format: "csv" | "xlsx"; recordIds?: string[] } & ViewSpec): Promise<{ fileId: string }>;
+  "records.merge"(
+    ctx: MergeCtx,
+    input: { type: string; survivorId: string; mergedIds: string[]; picks: Record<string, string> },
+  ): Promise<{ record: RecordRow; undoUntil: number }>;
+  "records.bulk_upsert"(
+    ctx: MergeCtx,
+    input: {
+      type: string;
+      rows: Record<string, unknown>[];
+      match: string[];
+      runAutomations?: boolean;
+      createOnly?: boolean;
+      skipExisting?: boolean;
+    },
+  ): Promise<UpsertOut>;
+  "records.export"(
+    ctx: ExportCtx,
+    input: { type: string; format: "csv" | "xlsx"; recordIds?: string[] } & ViewSpec,
+  ): Promise<{ fileId: string }>;
 }
 
 function bad(ctx: Pick<WriteCtx, "trace">, message: string): never {
@@ -74,9 +112,14 @@ const same = (a: unknown, b: unknown): boolean => {
   const x = a === undefined ? null : a;
   const y = b === undefined ? null : b;
   if (x === y) return true;
-  try { return canonical(x) === canonical(y); } catch { return false; }
+  try {
+    return canonical(x) === canonical(y);
+  } catch {
+    return false;
+  }
 };
-const present = (v: unknown): boolean => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0);
+const present = (v: unknown): boolean =>
+  v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0);
 const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 
 // ---- schema owned by this file ----
@@ -93,7 +136,9 @@ function ensure(tx: Tx): void {
     type TEXT NOT NULL, id TEXT NOT NULL, field TEXT NOT NULL, value TEXT, hlc TEXT NOT NULL, actor TEXT NOT NULL, seq INTEGER NOT NULL, reason TEXT NOT NULL
   )`);
   tx.exec("CREATE INDEX IF NOT EXISTS records_field_history_row ON records_field_history (type, id, field)");
-  tx.exec("CREATE TABLE IF NOT EXISTS records_row_meta (type TEXT NOT NULL, id TEXT NOT NULL, owner TEXT, label INTEGER NOT NULL DEFAULT 0, holds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (type, id))");
+  tx.exec(
+    "CREATE TABLE IF NOT EXISTS records_row_meta (type TEXT NOT NULL, id TEXT NOT NULL, owner TEXT, label INTEGER NOT NULL DEFAULT 0, holds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (type, id))",
+  );
   ready.add(tx);
 }
 
@@ -106,7 +151,11 @@ async function needType(store: Store, type: string): Promise<TypeDef> {
 }
 
 const metaOf = (tx: Tx, type: string, id: string): { label: number; holds: number } => {
-  const m = tx.get<{ label: number; holds: number }>("SELECT label, holds FROM records_row_meta WHERE type = ? AND id = ?", type, id);
+  const m = tx.get<{ label: number; holds: number }>(
+    "SELECT label, holds FROM records_row_meta WHERE type = ? AND id = ?",
+    type,
+    id,
+  );
   return { label: m?.label ?? 0, holds: m?.holds ?? 0 };
 };
 
@@ -114,12 +163,20 @@ const rowOf = (tx: Tx, r: StoredRecord): RecordRow => toRow(r, metaOf(tx, r.type
 
 function historyText(kind: string | undefined, field: string, value: unknown): string {
   if (kind === "sealed") return JSON.stringify({ sealed: field, masked: true });
-  try { return JSON.stringify(value ?? null); } catch { return "null"; }
+  try {
+    return JSON.stringify(value ?? null);
+  } catch {
+    return "null";
+  }
 }
 
 function clockSeq(tx: Tx, type: string, id: string, field: string): number {
   if (!TYPE_NAME.test(type)) return 0;
-  try { return tx.get<{ seq: number }>(`SELECT seq FROM "rt_${type}__fm" WHERE id = ? AND field = ?`, id, field)?.seq ?? 0; } catch { return 0; }
+  try {
+    return tx.get<{ seq: number }>(`SELECT seq FROM "rt_${type}__fm" WHERE id = ? AND field = ?`, id, field)?.seq ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 // ---- relations ----
@@ -154,8 +211,16 @@ function repoint(item: unknown, survivor: string): unknown {
 }
 
 /** The new value of one relation field after merged ids point at the survivor, or undefined when nothing changes. */
-function rewriteValue(value: unknown, type: string, bare: boolean, merged: ReadonlySet<string>, survivor: string, dropSelf: string | null): unknown {
-  const keyOf = (x: unknown): string => (typeof x === "string" ? x : isObj(x) && typeof x["urn"] === "string" ? (x["urn"] as string) : canonical(x));
+function rewriteValue(
+  value: unknown,
+  type: string,
+  bare: boolean,
+  merged: ReadonlySet<string>,
+  survivor: string,
+  dropSelf: string | null,
+): unknown {
+  const keyOf = (x: unknown): string =>
+    typeof x === "string" ? x : isObj(x) && typeof x["urn"] === "string" ? (x["urn"] as string) : canonical(x);
   if (Array.isArray(value)) {
     let hit = false;
     const out: unknown[] = [];
@@ -163,11 +228,20 @@ function rewriteValue(value: unknown, type: string, bare: boolean, merged: Reado
     for (const item of value) {
       const ref = refOf(item, type, bare);
       let next = item;
-      if (ref !== null && merged.has(ref)) { next = repoint(item, survivor); hit = true; }
+      if (ref !== null && merged.has(ref)) {
+        next = repoint(item, survivor);
+        hit = true;
+      }
       const nref = refOf(next, type, bare);
-      if (dropSelf !== null && nref === dropSelf) { hit = true; continue; }
+      if (dropSelf !== null && nref === dropSelf) {
+        hit = true;
+        continue;
+      }
       const k = keyOf(next);
-      if (seen.has(k)) { hit = true; continue; }
+      if (seen.has(k)) {
+        hit = true;
+        continue;
+      }
       seen.add(k);
       out.push(next);
     }
@@ -179,7 +253,13 @@ function rewriteValue(value: unknown, type: string, bare: boolean, merged: Reado
   return dropSelf !== null && refOf(next, type, bare) === dropSelf ? null : next;
 }
 
-interface Rewrite { type: string; id: string; field: string; before: unknown; after: unknown }
+interface Rewrite {
+  type: string;
+  id: string;
+  field: string;
+  before: unknown;
+  after: unknown;
+}
 interface Journal {
   mergeId: string;
   type: string;
@@ -203,13 +283,21 @@ async function scan(store: Store, type: string, each: (r: StoredRecord) => Promi
 
 const isSynced = (def: TypeDef): boolean => !!def["sync"] || !!def["synced"];
 
-async function applyMerge(deps: MergeDeps, ctx: MergeCtx, input: { type: string; survivorId: string; mergedIds: string[]; picks: Record<string, string> }): Promise<{ record: RecordRow; undoUntil: number }> {
+async function applyMerge(
+  deps: MergeDeps,
+  ctx: MergeCtx,
+  input: { type: string; survivorId: string; mergedIds: string[]; picks: Record<string, string> },
+): Promise<{ record: RecordRow; undoUntil: number }> {
   const { store, tx } = deps;
   ensure(tx);
   const now = deps.now ?? Date.now;
   const actor = ctx.actor ?? "merge";
   const def = await needType(store, input.type);
-  if (def["protected"] === true) throw new RecordsError("protected", `type ${input.type} is protected: its records cannot be deleted, so they cannot be merged away`);
+  if (def["protected"] === true)
+    throw new RecordsError(
+      "protected",
+      `type ${input.type} is protected: its records cannot be deleted, so they cannot be merged away`,
+    );
   if (isSynced(def)) bad(ctx, `${input.type} is a synced type: synced records are linked, not merged`);
   const mergedIds = [...new Set(input.mergedIds)];
   if (mergedIds.length === 0) bad(ctx, "mergedIds is empty: name at least one record to merge into the survivor");
@@ -219,9 +307,19 @@ async function applyMerge(deps: MergeDeps, ctx: MergeCtx, input: { type: string;
   if (!survivor) throw new StoreError("not_found", `no ${input.type} ${input.survivorId}`);
   // the host checked the survivor (records.delete on it); the records merged away are deleted and the survivor is rewritten, so the caller needs the same rights on them
   const may = (perm: string, id: string): void => {
-    if (isHostService(ctx.principal)) return;   // pre-authorized by the pipeline, as for every capability
-    const d = ctx.authorize?.({ perm, level: "edit", cap: perm === "records.delete" ? "records.delete" : "records.update" }, { type: "record", id });
-    if (d?.effect !== "allow") fail(ctx as WriteCtx, "permission.no_grant", d === undefined ? "This call cannot check what you may change, so it merges nothing." : "You may not merge these records: you cannot delete or edit one of them.");
+    if (isHostService(ctx.principal)) return; // pre-authorized by the pipeline, as for every capability
+    const d = ctx.authorize?.(
+      { perm, level: "edit", cap: perm === "records.delete" ? "records.delete" : "records.update" },
+      { type: "record", id },
+    );
+    if (d?.effect !== "allow")
+      fail(
+        ctx as WriteCtx,
+        "permission.no_grant",
+        d === undefined
+          ? "This call cannot check what you may change, so it merges nothing."
+          : "You may not merge these records: you cannot delete or edit one of them.",
+      );
   };
   may("records.edit", input.survivorId);
   for (const id of mergedIds) may("records.delete", id);
@@ -236,7 +334,8 @@ async function applyMerge(deps: MergeDeps, ctx: MergeCtx, input: { type: string;
   const sources = new Map<string, StoredRecord>([[survivor.id, survivor], ...merged.map((r) => [r.id, r] as const)]);
   for (const [field, from] of Object.entries(input.picks)) {
     if (!known.has(field)) throw new StoreError("unknown_field", `${input.type} has no field ${field}`);
-    if (!sources.has(from)) bad(ctx, `pick for ${field} names ${from}, which is neither the survivor nor a merged record`);
+    if (!sources.has(from))
+      bad(ctx, `pick for ${field} names ${from}, which is neither the survivor nor a merged record`);
   }
 
   // The value of every field after the merge.
@@ -248,22 +347,38 @@ async function applyMerge(deps: MergeDeps, ctx: MergeCtx, input: { type: string;
     if (pick !== undefined) value = sources.get(pick)!.data[f.name];
     else {
       value = survivor.data[f.name];
-      if (!present(value)) for (const m of merged) if (present(m.data[f.name])) { value = m.data[f.name]; break; }
+      if (!present(value))
+        for (const m of merged)
+          if (present(m.data[f.name])) {
+            value = m.data[f.name];
+            break;
+          }
     }
-    if (!same(value, survivor.data[f.name])) { patch[f.name] = value === undefined ? null : value; before[f.name] = survivor.data[f.name] ?? null; }
+    if (!same(value, survivor.data[f.name])) {
+      patch[f.name] = value === undefined ? null : value;
+      before[f.name] = survivor.data[f.name] ?? null;
+    }
   }
 
   // Relation fields on other records that point at a merged record are repointed to the survivor. That changes those records, so the caller needs edit on each of them, checked before anything is written.
   // Links other records hold to the merged ones move to the survivor as a consequence of the merge: the system does that, so it needs no edit on those records (each moved link is announced like an edit below).
   const mergedSet = new Set(mergedIds);
-  const relationFieldsOf = (other: TypeDef): FieldDef[] => other.fields.filter((f) => {
-    if (!isRelation(f)) return false;
-    const to = targetOf(f);
-    return to === undefined || to === input.type;
-  });
+  const relationFieldsOf = (other: TypeDef): FieldDef[] =>
+    other.fields.filter((f) => {
+      if (!isRelation(f)) return false;
+      const to = targetOf(f);
+      return to === undefined || to === input.type;
+    });
   const events: Array<{ type: string; id: string; prev: Record<string, unknown>; rec: StoredRecord }> = [];
 
-  const journal: Journal = { mergeId: mintUuid(), type: input.type, survivor: survivor.id, merged: mergedIds, before, rewrites: [] };
+  const journal: Journal = {
+    mergeId: mintUuid(),
+    type: input.type,
+    survivor: survivor.id,
+    merged: mergedIds,
+    before,
+    rewrites: [],
+  };
   const removed: string[] = [];
   let updated = false;
   try {
@@ -276,19 +391,36 @@ async function applyMerge(deps: MergeDeps, ctx: MergeCtx, input: { type: string;
       if (!fields.length) continue;
       await scan(store, other.name, async (row) => {
         if (mergedSet.has(row.id) && other.name === input.type) return;
-        const next: Record<string, unknown> = {}, prev: Record<string, unknown> = {};
+        const next: Record<string, unknown> = {},
+          prev: Record<string, unknown> = {};
         for (const f of fields) {
           const bare = targetOf(f) === input.type;
           const dropSelf = other.name === input.type && row.id === survivor.id ? survivor.id : null;
           const v = rewriteValue(row.data[f.name], input.type, bare, mergedSet, survivor.id, dropSelf);
-          if (v !== undefined) { next[f.name] = v; prev[f.name] = row.data[f.name] ?? null; journal.rewrites.push({ type: other.name, id: row.id, field: f.name, before: row.data[f.name] ?? null, after: v }); }
+          if (v !== undefined) {
+            next[f.name] = v;
+            prev[f.name] = row.data[f.name] ?? null;
+            journal.rewrites.push({
+              type: other.name,
+              id: row.id,
+              field: f.name,
+              before: row.data[f.name] ?? null,
+              after: v,
+            });
+          }
         }
-        if (Object.keys(next).length) { const rec = await store.update(other.name, row.id, next, row.version); events.push({ type: other.name, id: row.id, prev, rec }); }
+        if (Object.keys(next).length) {
+          const rec = await store.update(other.name, row.id, next, row.version);
+          events.push({ type: other.name, id: row.id, prev, rec });
+        }
       });
     }
     for (const m of merged) {
       const cur = await store.get(input.type, m.id);
-      if (cur) { await store.remove(input.type, m.id, cur.version); removed.push(m.id); }
+      if (cur) {
+        await store.remove(input.type, m.id, cur.version);
+        removed.push(m.id);
+      }
     }
   } catch (e) {
     await revert(deps, journal, removed, updated);
@@ -299,12 +431,22 @@ async function applyMerge(deps: MergeDeps, ctx: MergeCtx, input: { type: string;
   const stamp = formatHlc({ ms: now(), counter: 0, deviceId: "merge" });
   const tag = `merge:${journal.mergeId}`;
   const ins = (id: string, field: string, kind: string | undefined, value: unknown, reason: string): void => {
-    tx.run("INSERT INTO records_field_history (type, id, field, value, hlc, actor, seq, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      input.type, survivor.id, field, historyText(kind, field, value), stamp, actor, clockSeq(tx, input.type, id, field), reason);
+    tx.run(
+      "INSERT INTO records_field_history (type, id, field, value, hlc, actor, seq, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      input.type,
+      survivor.id,
+      field,
+      historyText(kind, field, value),
+      stamp,
+      actor,
+      clockSeq(tx, input.type, id, field),
+      reason,
+    );
   };
   const final = (await store.get(input.type, survivor.id)) ?? survivor;
   for (const f of def.fields) {
-    if (Object.prototype.hasOwnProperty.call(before, f.name) && present(survivor.data[f.name])) ins(survivor.id, f.name, f.kind, survivor.data[f.name], `${tag}:survivor_replaced`);
+    if (Object.prototype.hasOwnProperty.call(before, f.name) && present(survivor.data[f.name]))
+      ins(survivor.id, f.name, f.kind, survivor.data[f.name], `${tag}:survivor_replaced`);
     for (const m of merged) {
       const v = m.data[f.name];
       if (present(v) && !same(v, final.data[f.name])) ins(m.id, f.name, f.kind, v, `${tag}:lost_from:${m.id}`);
@@ -313,24 +455,58 @@ async function applyMerge(deps: MergeDeps, ctx: MergeCtx, input: { type: string;
   for (const id of mergedIds) {
     tx.run(
       "INSERT INTO records_field_history (type, id, field, value, hlc, actor, seq, reason) SELECT type, ?, field, value, hlc, actor, seq, ? || ':history_of:' || ? || ':' || reason FROM records_field_history WHERE type = ? AND id = ? AND reason NOT LIKE 'merge:%'",
-      survivor.id, tag, id, input.type, id,
+      survivor.id,
+      tag,
+      id,
+      input.type,
+      id,
     );
   }
   const undoUntil = now() + UNDO_WINDOW_MS;
-  tx.run("INSERT INTO qm_merges (merge_id, type, survivor, merged, before, rewrites, actor, created_at, undo_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    journal.mergeId, input.type, survivor.id, JSON.stringify(mergedIds), JSON.stringify(before), JSON.stringify(journal.rewrites), actor, now(), undoUntil);
+  tx.run(
+    "INSERT INTO qm_merges (merge_id, type, survivor, merged, before, rewrites, actor, created_at, undo_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    journal.mergeId,
+    input.type,
+    survivor.id,
+    JSON.stringify(mergedIds),
+    JSON.stringify(before),
+    JSON.stringify(journal.rewrites),
+    actor,
+    now(),
+    undoUntil,
+  );
   // the records whose links moved to the survivor changed like any edit: automations and sync see it
-  for (const w of events) { const keys = Object.keys(w.prev); ctx.emit("record.updated", `record/${w.id}`, { recordId: w.id, type: w.type, fields: changedOf(keys, w.rec.data), prev: w.prev, version: w.rec.version }); }
-  for (const id of mergedIds) ctx.emit("record.merged", `record/${survivor.id}`, { survivorId: survivor.id, mergedId: id, type: input.type });
+  for (const w of events) {
+    const keys = Object.keys(w.prev);
+    ctx.emit("record.updated", `record/${w.id}`, {
+      recordId: w.id,
+      type: w.type,
+      fields: changedOf(keys, w.rec.data),
+      prev: w.prev,
+      version: w.rec.version,
+    });
+  }
+  for (const id of mergedIds)
+    ctx.emit("record.merged", `record/${survivor.id}`, { survivorId: survivor.id, mergedId: id, type: input.type });
   return { record: rowOf(tx, final), undoUntil };
 }
 
 /** Put everything a merge (or its failed attempt) changed back. Returns the items it could not restore. */
-async function revert(deps: MergeDeps, j: Journal, removed: readonly string[], survivorUpdated: boolean, moved?: (w: Journal["rewrites"][number], rec: StoredRecord) => void): Promise<string[]> {
+async function revert(
+  deps: MergeDeps,
+  j: Journal,
+  removed: readonly string[],
+  survivorUpdated: boolean,
+  moved?: (w: Journal["rewrites"][number], rec: StoredRecord) => void,
+): Promise<string[]> {
   const { store } = deps;
   const stuck: string[] = [];
   for (const id of removed) {
-    try { await store.restore(j.type, id); } catch (e) { if (!(e instanceof StoreError && e.code === "invalid")) stuck.push(`restore ${id}`); }
+    try {
+      await store.restore(j.type, id);
+    } catch (e) {
+      if (!(e instanceof StoreError && e.code === "invalid")) stuck.push(`restore ${id}`);
+    }
   }
   for (const w of [...j.rewrites].reverse()) {
     try {
@@ -339,7 +515,9 @@ async function revert(deps: MergeDeps, j: Journal, removed: readonly string[], s
       if (!same(cur.data[w.field], w.after)) continue; // changed since: leave the newer value
       const back = await store.update(w.type, w.id, { [w.field]: w.before }, cur.version);
       moved?.(w, back);
-    } catch { stuck.push(`${w.type}/${w.id}.${w.field}`); }
+    } catch {
+      stuck.push(`${w.type}/${w.id}.${w.field}`);
+    }
   }
   if (survivorUpdated) {
     for (const [field, was] of Object.entries(j.before)) {
@@ -347,40 +525,100 @@ async function revert(deps: MergeDeps, j: Journal, removed: readonly string[], s
         const cur = await store.get(j.type, j.survivor);
         if (!cur) break;
         await store.update(j.type, j.survivor, { [field]: was }, cur.version);
-      } catch { stuck.push(`${j.type}/${j.survivor}.${field}`); }
+      } catch {
+        stuck.push(`${j.type}/${j.survivor}.${field}`);
+      }
     }
   }
   return stuck;
 }
 
-interface MergeRow { merge_id: string; type: string; survivor: string; merged: string; before: string; rewrites: string; actor: string; created_at: number; undo_until: number; undone_at: number | null }
+interface MergeRow {
+  merge_id: string;
+  type: string;
+  survivor: string;
+  merged: string;
+  before: string;
+  rewrites: string;
+  actor: string;
+  created_at: number;
+  undo_until: number;
+  undone_at: number | null;
+}
 
 /** The most recent merge into a survivor that is still open, or the one named by mergeId. */
-export function findMerge(deps: Pick<MergeDeps, "tx">, o: { survivorId?: string; mergeId?: string }): { mergeId: string; type: string; survivorId: string; mergedIds: string[]; createdAt: number; undoUntil: number; undoneAt?: number } | null {
+export function findMerge(
+  deps: Pick<MergeDeps, "tx">,
+  o: { survivorId?: string; mergeId?: string },
+): {
+  mergeId: string;
+  type: string;
+  survivorId: string;
+  mergedIds: string[];
+  createdAt: number;
+  undoUntil: number;
+  undoneAt?: number;
+} | null {
   ensure(deps.tx);
   const r = o.mergeId
     ? deps.tx.get<MergeRow>("SELECT * FROM qm_merges WHERE merge_id = ?", o.mergeId)
-    : deps.tx.get<MergeRow>("SELECT * FROM qm_merges WHERE survivor = ? AND undone_at IS NULL ORDER BY created_at DESC, rowid DESC LIMIT 1", o.survivorId ?? "");
+    : deps.tx.get<MergeRow>(
+        "SELECT * FROM qm_merges WHERE survivor = ? AND undone_at IS NULL ORDER BY created_at DESC, rowid DESC LIMIT 1",
+        o.survivorId ?? "",
+      );
   if (!r) return null;
-  return { mergeId: r.merge_id, type: r.type, survivorId: r.survivor, mergedIds: JSON.parse(r.merged) as string[], createdAt: r.created_at, undoUntil: r.undo_until, ...(r.undone_at !== null ? { undoneAt: r.undone_at } : {}) };
+  return {
+    mergeId: r.merge_id,
+    type: r.type,
+    survivorId: r.survivor,
+    mergedIds: JSON.parse(r.merged) as string[],
+    createdAt: r.created_at,
+    undoUntil: r.undo_until,
+    ...(r.undone_at !== null ? { undoneAt: r.undone_at } : {}),
+  };
 }
 
 /** Undo a merge inside its 30 days: merged records come back from Trash, relations and survivor fields return, the history rows of the merge go. Needs records.delete (host). */
-export async function undoMerge(deps: MergeDeps, ctx: Pick<WriteCtx, "trace"> & { emit?: WriteCtx["emit"] }, o: { survivorId?: string; mergeId?: string }): Promise<{ restored: string[]; unrestored: string[] }> {
+export async function undoMerge(
+  deps: MergeDeps,
+  ctx: Pick<WriteCtx, "trace"> & { emit?: WriteCtx["emit"] },
+  o: { survivorId?: string; mergeId?: string },
+): Promise<{ restored: string[]; unrestored: string[] }> {
   ensure(deps.tx);
   const now = (deps.now ?? Date.now)();
   const row = o.mergeId
     ? deps.tx.get<MergeRow>("SELECT * FROM qm_merges WHERE merge_id = ?", o.mergeId)
-    : deps.tx.get<MergeRow>("SELECT * FROM qm_merges WHERE survivor = ? AND undone_at IS NULL ORDER BY created_at DESC, rowid DESC LIMIT 1", o.survivorId ?? "");
+    : deps.tx.get<MergeRow>(
+        "SELECT * FROM qm_merges WHERE survivor = ? AND undone_at IS NULL ORDER BY created_at DESC, rowid DESC LIMIT 1",
+        o.survivorId ?? "",
+      );
   if (!row) throw new StoreError("not_found", "no merge to undo");
   if (row.undone_at !== null) bad(ctx, "this merge was already undone");
   if (now > row.undo_until) bad(ctx, "the 30 days to undo this merge have passed");
-  const j: Journal = { mergeId: row.merge_id, type: row.type, survivor: row.survivor, merged: JSON.parse(row.merged) as string[], before: JSON.parse(row.before) as Record<string, unknown>, rewrites: JSON.parse(row.rewrites) as Rewrite[] };
+  const j: Journal = {
+    mergeId: row.merge_id,
+    type: row.type,
+    survivor: row.survivor,
+    merged: JSON.parse(row.merged) as string[],
+    before: JSON.parse(row.before) as Record<string, unknown>,
+    rewrites: JSON.parse(row.rewrites) as Rewrite[],
+  };
   // the links that moved to the survivor move back; each is announced like an edit, so sync and automations that saw them move see them return
   const unrestored = await revert(deps, j, j.merged, true, (w, rec) => {
-    ctx.emit?.("record.updated", `record/${w.id}`, { recordId: w.id, type: w.type, fields: { [w.field]: w.before ?? null }, prev: { [w.field]: w.after }, version: rec.version });
+    ctx.emit?.("record.updated", `record/${w.id}`, {
+      recordId: w.id,
+      type: w.type,
+      fields: { [w.field]: w.before ?? null },
+      prev: { [w.field]: w.after },
+      version: rec.version,
+    });
   });
-  deps.tx.run("DELETE FROM records_field_history WHERE type = ? AND id = ? AND reason LIKE ?", j.type, j.survivor, `merge:${j.mergeId}:%`);
+  deps.tx.run(
+    "DELETE FROM records_field_history WHERE type = ? AND id = ? AND reason LIKE ?",
+    j.type,
+    j.survivor,
+    `merge:${j.mergeId}:%`,
+  );
   deps.tx.run("UPDATE qm_merges SET undone_at = ? WHERE merge_id = ?", now, j.mergeId);
   return { restored: j.merged.filter((id) => !unrestored.includes(`restore ${id}`)), unrestored };
 }
@@ -397,46 +635,106 @@ const changedOf = (keys: string[], data: Record<string, unknown>): Record<string
   return out;
 };
 
-async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean; createOnly?: boolean; skipExisting?: boolean }): Promise<UpsertOut> {
+async function upsert(
+  deps: MergeDeps,
+  ctx: MergeCtx,
+  input: {
+    type: string;
+    rows: Record<string, unknown>[];
+    match: string[];
+    runAutomations?: boolean;
+    createOnly?: boolean;
+    skipExisting?: boolean;
+  },
+): Promise<UpsertOut> {
   const { store, tx } = deps;
   ensure(tx);
   const def = await needType(store, input.type);
   const known = new Map(def.fields.map((f) => [f.name, f]));
-  const createOnly = input.createOnly === true;   // every row is a new record: nothing is matched
-  if (!createOnly && !input.match.length) bad(ctx, "match is empty: name the fields that identify a row (for example email)");
+  const createOnly = input.createOnly === true; // every row is a new record: nothing is matched
+  if (!createOnly && !input.match.length)
+    bad(ctx, "match is empty: name the fields that identify a row (for example email)");
   for (const m of input.match) {
     const f = known.get(m);
     if (!f) throw new StoreError("unknown_field", `${input.type} has no field ${m}`);
     if (f.kind === "sealed") bad(ctx, `${m} is sealed and cannot be a match field`);
   }
-  if (input.rows.length > MAX_UPSERT_ROWS) bad(ctx, `a bulk upsert takes at most ${MAX_UPSERT_ROWS} rows: split them into smaller batches`);
+  if (input.rows.length > MAX_UPSERT_ROWS)
+    bad(ctx, `a bulk upsert takes at most ${MAX_UPSERT_ROWS} rows: split them into smaller batches`);
   const quiet = input.runAutomations !== true;
 
   // Plan: one entry per distinct match key; later rows with the same key fold into the first. With createOnly every row is its own new record.
-  interface Plan { existing: { id: string; version: number; fields: Record<string, unknown> } | null; values: Record<string, unknown>; index: number; folded: number[]; blocked?: "hold" | "deny" | "blind"; hold?: string; skip?: boolean }
+  interface Plan {
+    existing: { id: string; version: number; fields: Record<string, unknown> } | null;
+    values: Record<string, unknown>;
+    index: number;
+    folded: number[];
+    blocked?: "hold" | "deny" | "blind";
+    hold?: string;
+    skip?: boolean;
+  }
   const plans = new Map<string, Plan>();
   if (!createOnly) ensureMatchIndex(tx, input.type, input.match);
   for (let i = 0; i < input.rows.length; i++) {
     const row = input.rows[i];
     if (!isObj(row)) bad(ctx, `row ${i} is not an object`);
-    for (const k of Object.keys(row!)) if (!known.has(k)) throw new StoreError("unknown_field", `row ${i}: ${input.type} has no field ${k}`);
+    for (const k of Object.keys(row!))
+      if (!known.has(k)) throw new StoreError("unknown_field", `row ${i}: ${input.type} has no field ${k}`);
     for (const m of input.match) if (!present(row![m])) bad(ctx, `row ${i} has no value for match field ${m}`);
-    if (createOnly) { plans.set(`#${i}`, { existing: null, values: { ...row! }, index: i, folded: [] }); continue; }
+    if (createOnly) {
+      plans.set(`#${i}`, { existing: null, values: { ...row! }, index: i, folded: [] });
+      continue;
+    }
     const key = keyFor(row!, input.match);
     const prior = plans.get(key);
-    if (prior) { Object.assign(prior.values, row); prior.folded.push(i); continue; }
+    if (prior) {
+      Object.assign(prior.values, row);
+      prior.folded.push(i);
+      continue;
+    }
     const filter: Filter = { and: input.match.map((m) => ({ field: m, op: "eq" as const, value: row![m] })) };
     // sorted by the match fields, so the match index answers the filter and the order together (by created_at, the planner could walk the whole type in that order instead)
-    const found = findRows(tx, input.type, { filter, sort: input.match.map((field) => ({ field, dir: "asc" as const })), limit: ctx.authorize ? 100 : 2 });
+    const found = findRows(tx, input.type, {
+      filter,
+      sort: input.match.map((field) => ({ field, dir: "asc" as const })),
+      limit: ctx.authorize ? 100 : 2,
+    });
     // Who may see and change what is decided before anything is compared or counted, so the answer carries nothing a caller could not have learned from records.query plus records.create:
     // a match they cannot see is no match (the row is created), a match they can see but not edit is refused whatever the row holds, two visible matches are told to resolve the duplicates.
-    const seen = found.rows.map((r) => { const note: { approval?: string } = {}; return { r, v: judge(ctx, r.id, input.match, note), note }; }).filter((x) => x.v !== "hidden");
-    if (seen.length && input.skipExisting === true) { plans.set(key, { existing: null, values: { ...row! }, index: i, folded: [], skip: true }); continue; }
+    const seen = found.rows
+      .map((r) => {
+        const note: { approval?: string } = {};
+        return { r, v: judge(ctx, r.id, input.match, note), note };
+      })
+      .filter((x) => x.v !== "hidden");
+    if (seen.length && input.skipExisting === true) {
+      plans.set(key, { existing: null, values: { ...row! }, index: i, folded: [], skip: true });
+      continue;
+    }
     const blocked = seen.find((x) => x.v !== "allow");
-    if (blocked) { plans.set(key, { existing: null, values: { ...row! }, index: i, folded: [], blocked: blocked.v as "hold" | "deny" | "blind", ...(blocked.note.approval ? { hold: blocked.note.approval } : {}) }); continue; }
-    if (seen.length > 1) throw new StoreError("unique_violation", `row ${i}: ${seen.length} records already match ${input.match.join(", ")}; resolve the duplicates first`);
+    if (blocked) {
+      plans.set(key, {
+        existing: null,
+        values: { ...row! },
+        index: i,
+        folded: [],
+        blocked: blocked.v as "hold" | "deny" | "blind",
+        ...(blocked.note.approval ? { hold: blocked.note.approval } : {}),
+      });
+      continue;
+    }
+    if (seen.length > 1)
+      throw new StoreError(
+        "unique_violation",
+        `row ${i}: ${seen.length} records already match ${input.match.join(", ")}; resolve the duplicates first`,
+      );
     const hit = seen[0]?.r;
-    plans.set(key, { existing: hit ? { id: hit.id, version: hit.version, fields: hit.fields } : null, values: { ...row! }, index: i, folded: [] });
+    plans.set(key, {
+      existing: hit ? { id: hit.id, version: hit.version, fields: hit.fields } : null,
+      values: { ...row! },
+      index: i,
+      folded: [],
+    });
   }
 
   let created = 0;
@@ -444,19 +742,46 @@ async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; row
   let skipped = 0;
   // a row the caller may not write, or the store refuses (a locked field, a record on hold), is reported for that row and the rest of the batch goes on
   const refused: Array<{ row: number; reason: string; message: string }> = [];
-  const refuse = (plan: Plan, reason: string, message: string): void => { for (const r of [plan.index, ...plan.folded]) refused.push({ row: r, reason, message }); };
+  const refuse = (plan: Plan, reason: string, message: string): void => {
+    for (const r of [plan.index, ...plan.folded]) refused.push({ row: r, reason, message });
+  };
   // There is no transaction: when the call stops part way the rows already written stay.
   // so a store that goes away (or a record that changes under the batch) stops the loop and the call still answers: what was written is committed with its events, and the rows not tried are listed.
   const all = [...plans.values()];
   let stopped: UpsertStopped | undefined;
   for (let at = 0; at < all.length && !stopped; at++) {
     const plan = all[at]!;
-    const stop = (reason: UpsertStopped["reason"], message: string): void => { stopped = { reason, row: plan.index, message, notDone: all.slice(at).flatMap((p) => [p.index, ...p.folded]).sort((a, b) => a - b) }; };
+    const stop = (reason: UpsertStopped["reason"], message: string): void => {
+      stopped = {
+        reason,
+        row: plan.index,
+        message,
+        notDone: all
+          .slice(at)
+          .flatMap((p) => [p.index, ...p.folded])
+          .sort((a, b) => a - b),
+      };
+    };
     try {
-      if (plan.skip) { skipped += 1 + plan.folded.length; continue; }
+      if (plan.skip) {
+        skipped += 1 + plan.folded.length;
+        continue;
+      }
       if (plan.blocked) {
-        if (plan.blocked === "hold") refuse(plan, "needs_approval", `A change to this record needs approval${plan.hold ? ` from ${plan.hold}` : ""}, so this row was not written.`);
-        else refuse(plan, "not_allowed", plan.blocked === "blind" ? "This call cannot check what you may edit, so it changes no existing record." : "You may not edit this record.");
+        if (plan.blocked === "hold")
+          refuse(
+            plan,
+            "needs_approval",
+            `A change to this record needs approval${plan.hold ? ` from ${plan.hold}` : ""}, so this row was not written.`,
+          );
+        else
+          refuse(
+            plan,
+            "not_allowed",
+            plan.blocked === "blind"
+              ? "This call cannot check what you may edit, so it changes no existing record."
+              : "You may not edit this record.",
+          );
         continue;
       }
       if (!plan.existing) {
@@ -464,26 +789,51 @@ async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; row
         const rec = await store.create(input.type, id, plan.values);
         created++;
         skipped += plan.folded.length;
-        ctx.emit("record.created", `record/${rec.id}`, { recordId: rec.id, type: rec.type, fields: { ...rec.data }, ...(quiet ? { quiet: true } : {}) });
+        ctx.emit("record.created", `record/${rec.id}`, {
+          recordId: rec.id,
+          type: rec.type,
+          fields: { ...rec.data },
+          ...(quiet ? { quiet: true } : {}),
+        });
         continue;
       }
       // an existing record is changed under exactly the rules of records.update: the store's field locks and write-once rules (edit on the record was decided in the plan)
       const diff: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(plan.values)) if (!same(plan.existing.fields[k], v)) diff[k] = v;
-      if (!Object.keys(diff).length) { skipped += 1 + plan.folded.length; continue; }
+      if (!Object.keys(diff).length) {
+        skipped += 1 + plan.folded.length;
+        continue;
+      }
       const rec = await store.update(input.type, plan.existing.id, diff, plan.existing.version);
       updated++;
       skipped += plan.folded.length;
       const keys = Object.keys(diff);
       // the values the row replaced, an empty field as empty (null), so undoing the Run clears what the import filled
       const prev: Record<string, unknown> = {};
-      for (const k of keys) prev[k] = Object.prototype.hasOwnProperty.call(plan.existing.fields, k) ? plan.existing.fields[k] : null;
-      ctx.emit("record.updated", `record/${rec.id}`, { recordId: rec.id, type: rec.type, fields: changedOf(keys, rec.data), prev, version: rec.version, ...(quiet ? { quiet: true } : {}) });
+      for (const k of keys)
+        prev[k] = Object.prototype.hasOwnProperty.call(plan.existing.fields, k) ? plan.existing.fields[k] : null;
+      ctx.emit("record.updated", `record/${rec.id}`, {
+        recordId: rec.id,
+        type: rec.type,
+        fields: changedOf(keys, rec.data),
+        prev,
+        version: rec.version,
+        ...(quiet ? { quiet: true } : {}),
+      });
     } catch (e) {
-      if (e instanceof RecordsError) { refuse(plan, e.reason, e.message); continue; }
+      if (e instanceof RecordsError) {
+        refuse(plan, e.reason, e.message);
+        continue;
+      }
       // a store that is down is a failed call, not a refused row; a row that vanished or clashes is that row's result
-      if (e instanceof StoreError && (e.code === "unavailable" || e.code === "version_conflict")) { stop(e.code, e.message); continue; }
-      if (e instanceof StoreError) { refuse(plan, e.code, e.message); continue; }
+      if (e instanceof StoreError && (e.code === "unavailable" || e.code === "version_conflict")) {
+        stop(e.code, e.message);
+        continue;
+      }
+      if (e instanceof StoreError) {
+        refuse(plan, e.code, e.message);
+        continue;
+      }
       throw e;
     }
   }
@@ -494,18 +844,30 @@ async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; row
  * What this caller may do with an existing record the rows matched. "hidden": they cannot see it (or the fields it was matched on), so the row is treated as unmatched, as records.query plus
  * records.create would. "deny"/"hold": they can see it but may not edit it, or the edit waits for approval. "blind": the call carries no way to check, so nothing existing is changed.
  */
-function judge(ctx: MergeCtx, id: string, matchFields: readonly string[], note: { approval?: string } = {}): "allow" | "hold" | "deny" | "blind" | "hidden" {
-  if (isHostService(ctx.principal)) return "allow";   // pre-authorized by the pipeline, as for every capability
+function judge(
+  ctx: MergeCtx,
+  id: string,
+  matchFields: readonly string[],
+  note: { approval?: string } = {},
+): "allow" | "hold" | "deny" | "blind" | "hidden" {
+  if (isHostService(ctx.principal)) return "allow"; // pre-authorized by the pipeline, as for every capability
   if (!ctx.authorize) return "blind";
   const at = { type: "record", id };
   if (ctx.authorize({ perm: null, level: "view", fields: matchFields }, at).effect !== "allow") return "hidden";
   const d = ctx.authorize({ perm: "records.edit", level: "edit", cap: "records.update" }, at);
-  if (d.effect === "hold") { const who = /^needs_approval: (.+)$/.exec(d.reason ?? "")?.[1]; if (who) note.approval = who; }
+  if (d.effect === "hold") {
+    const who = /^needs_approval: (.+)$/.exec(d.reason ?? "")?.[1];
+    if (who) note.approval = who;
+  }
   return d.effect === "allow" ? "allow" : d.effect === "hold" ? "hold" : "deny";
 }
 
 function mapErr(ctx: Pick<WriteCtx, "trace">, e: unknown): unknown {
-  try { return mapError(ctx as WriteCtx, e); } catch (out) { return out; }
+  try {
+    return mapError(ctx as WriteCtx, e);
+  } catch (out) {
+    return out;
+  }
 }
 
 // ---- export ----
@@ -519,9 +881,14 @@ export function cellText(f: FieldDef, v: unknown): { text: string; number?: numb
   if (typeof v === "number") return { text: String(v), number: v };
   if (typeof v === "boolean") return { text: v ? "true" : "false" };
   if (typeof v === "string") return { text: v };
-  if (f.kind === "money" && isObj(v) && typeof v["amount"] === "number") return { text: `${v["amount"]} ${String(v["currency"] ?? "")}`.trim() };
+  if (f.kind === "money" && isObj(v) && typeof v["amount"] === "number")
+    return { text: `${v["amount"]} ${String(v["currency"] ?? "")}`.trim() };
   if (Array.isArray(v) && v.every((x) => typeof x === "string")) return { text: JSON.stringify(v) };
-  try { return { text: canonical(v) }; } catch { return { text: JSON.stringify(v) }; }
+  try {
+    return { text: canonical(v) };
+  } catch {
+    return { text: JSON.stringify(v) };
+  }
 }
 
 const csvCell = (c: { text: string; number?: number }, plainText: boolean): string => {
@@ -537,7 +904,12 @@ export function toCsv(columns: readonly FieldDef[], rows: readonly Record<string
 }
 
 const xmlEsc = (s: string): string =>
-  s.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f￾￿]/g, "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  s
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f￾￿]/g, "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 const colName = (i: number): string => {
   let s = "";
   for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
@@ -546,10 +918,18 @@ const colName = (i: number): string => {
 
 const CRC = (() => {
   const t = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
   return t;
 })();
-const crc32 = (b: Uint8Array): number => { let c = 0xffffffff; for (const x of b) c = CRC[(c ^ x) & 0xff]! ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+const crc32 = (b: Uint8Array): number => {
+  let c = 0xffffffff;
+  for (const x of b) c = CRC[(c ^ x) & 0xff]! ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+};
 
 /** A zip with stored (uncompressed) entries. */
 export function zipStore(files: readonly { name: string; data: Uint8Array }[]): Uint8Array {
@@ -561,11 +941,29 @@ export function zipStore(files: readonly { name: string; data: Uint8Array }[]): 
     const name = enc.encode(f.name);
     const crc = crc32(f.data);
     const lh = new DataView(new ArrayBuffer(30));
-    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
-    lh.setUint16(10, 0, true); lh.setUint16(12, 0x21, true); lh.setUint32(14, crc, true); lh.setUint32(18, f.data.length, true); lh.setUint32(22, f.data.length, true); lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+    lh.setUint32(0, 0x04034b50, true);
+    lh.setUint16(4, 20, true);
+    lh.setUint16(6, 0x0800, true);
+    lh.setUint16(8, 0, true);
+    lh.setUint16(10, 0, true);
+    lh.setUint16(12, 0x21, true);
+    lh.setUint32(14, crc, true);
+    lh.setUint32(18, f.data.length, true);
+    lh.setUint32(22, f.data.length, true);
+    lh.setUint16(26, name.length, true);
+    lh.setUint16(28, 0, true);
     const ch = new DataView(new ArrayBuffer(46));
-    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
-    ch.setUint16(12, 0, true); ch.setUint16(14, 0x21, true); ch.setUint32(16, crc, true); ch.setUint32(20, f.data.length, true); ch.setUint32(24, f.data.length, true); ch.setUint16(28, name.length, true);
+    ch.setUint32(0, 0x02014b50, true);
+    ch.setUint16(4, 20, true);
+    ch.setUint16(6, 20, true);
+    ch.setUint16(8, 0x0800, true);
+    ch.setUint16(10, 0, true);
+    ch.setUint16(12, 0, true);
+    ch.setUint16(14, 0x21, true);
+    ch.setUint32(16, crc, true);
+    ch.setUint32(20, f.data.length, true);
+    ch.setUint32(24, f.data.length, true);
+    ch.setUint16(28, name.length, true);
     ch.setUint32(42, offset, true);
     locals.push(new Uint8Array(lh.buffer), name, f.data);
     central.push(new Uint8Array(ch.buffer), name);
@@ -573,15 +971,26 @@ export function zipStore(files: readonly { name: string; data: Uint8Array }[]): 
   }
   const size = central.reduce((n, p) => n + p.length, 0);
   const end = new DataView(new ArrayBuffer(22));
-  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, size, true); end.setUint32(16, offset, true);
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(8, files.length, true);
+  end.setUint16(10, files.length, true);
+  end.setUint32(12, size, true);
+  end.setUint32(16, offset, true);
   const parts = [...locals, ...central, new Uint8Array(end.buffer)];
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   let at = 0;
-  for (const p of parts) { out.set(p, at); at += p.length; }
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
   return out;
 }
 
-export function toXlsx(sheet: string, columns: readonly FieldDef[], rows: readonly Record<string, unknown>[]): Uint8Array {
+export function toXlsx(
+  sheet: string,
+  columns: readonly FieldDef[],
+  rows: readonly Record<string, unknown>[],
+): Uint8Array {
   const enc = new TextEncoder();
   const cell = (ref: string, c: { text: string; number?: number }): string => {
     if (c.number !== undefined) return `<c r="${ref}"><v>${c.number}</v></c>`;
@@ -591,42 +1000,102 @@ export function toXlsx(sheet: string, columns: readonly FieldDef[], rows: readon
   };
   const body: string[] = [];
   body.push(`<row r="1">${columns.map((c, i) => cell(`${colName(i)}1`, { text: c.label ?? c.name })).join("")}</row>`);
-  rows.forEach((r, n) => body.push(`<row r="${n + 2}">${columns.map((c, i) => cell(`${colName(i)}${n + 2}`, cellText(c, r[c.name]))).join("")}</row>`));
+  rows.forEach((r, n) =>
+    body.push(
+      `<row r="${n + 2}">${columns.map((c, i) => cell(`${colName(i)}${n + 2}`, cellText(c, r[c.name]))).join("")}</row>`,
+    ),
+  );
   const name = xmlEsc(sheet.replace(/[\\/?*[\]:]/g, " ").slice(0, 31) || "Sheet1");
   const xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
   return zipStore([
-    { name: "[Content_Types].xml", data: enc.encode(`${xml}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`) },
-    { name: "_rels/.rels", data: enc.encode(`${xml}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`) },
-    { name: "xl/workbook.xml", data: enc.encode(`${xml}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${name}" sheetId="1" r:id="rId1"/></sheets></workbook>`) },
-    { name: "xl/_rels/workbook.xml.rels", data: enc.encode(`${xml}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`) },
-    { name: "xl/worksheets/sheet1.xml", data: enc.encode(`${xml}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${body.join("")}</sheetData></worksheet>`) },
+    {
+      name: "[Content_Types].xml",
+      data: enc.encode(
+        `${xml}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`,
+      ),
+    },
+    {
+      name: "_rels/.rels",
+      data: enc.encode(
+        `${xml}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+      ),
+    },
+    {
+      name: "xl/workbook.xml",
+      data: enc.encode(
+        `${xml}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${name}" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+      ),
+    },
+    {
+      name: "xl/_rels/workbook.xml.rels",
+      data: enc.encode(
+        `${xml}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`,
+      ),
+    },
+    {
+      name: "xl/worksheets/sheet1.xml",
+      data: enc.encode(
+        `${xml}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${body.join("")}</sheetData></worksheet>`,
+      ),
+    },
   ]);
 }
 
 /** An export is a file in the caller's own Exports folder (Personal), made through the Files module as the caller, so what they cannot read was never in it and the file is theirs to share. */
-function filesPort(call: (cap: string, input: unknown) => Promise<unknown>, trace: string): (f: { name: string; mime: string; bytes: Uint8Array }) => Promise<string> {
+function filesPort(
+  call: (cap: string, input: unknown) => Promise<unknown>,
+  trace: string,
+): (f: { name: string; mime: string; bytes: Uint8Array }) => Promise<string> {
   return async (f) => {
-    const root = ((await call("files.tree", {})) as { roots: { key: string; folderId?: string }[] }).roots.find((r) => r.key === "personal")?.folderId;
+    const root = ((await call("files.tree", {})) as { roots: { key: string; folderId?: string }[] }).roots.find(
+      (r) => r.key === "personal",
+    )?.folderId;
     if (!root) throw new Error("the caller has no Personal folder for the export");
-    const inside = async (): Promise<string | undefined> => ((await call("files.list", { folder: root })) as { folders?: { folderId: string; name: string }[]; files?: { fileId: string; name: string }[] }).folders?.find((x) => x.name === "Exports")?.folderId;
+    const inside = async (): Promise<string | undefined> =>
+      (
+        (await call("files.list", { folder: root })) as {
+          folders?: { folderId: string; name: string }[];
+          files?: { fileId: string; name: string }[];
+        }
+      ).folders?.find((x) => x.name === "Exports")?.folderId;
     let folder = await inside();
     if (!folder) {
-      try { folder = ((await call("files.folder.create", { parentId: root, name: "Exports", idempotencyKey: `exports-folder:${trace}` })) as { folder: { folderId: string } }).folder.folderId; }
-      catch { folder = await inside(); }
+      try {
+        folder = (
+          (await call("files.folder.create", {
+            parentId: root,
+            name: "Exports",
+            idempotencyKey: `exports-folder:${trace}`,
+          })) as { folder: { folderId: string } }
+        ).folder.folderId;
+      } catch {
+        folder = await inside();
+      }
     }
     if (!folder) throw new Error("no folder for the export");
-    const made = (await call("files.create", { folderId: folder, name: f.name, mime: f.mime, content: { base64: Buffer.from(f.bytes).toString("base64") }, idempotencyKey: `export:${trace}` })) as { file: { fileId: string } };
+    const made = (await call("files.create", {
+      folderId: folder,
+      name: f.name,
+      mime: f.mime,
+      content: { base64: Buffer.from(f.bytes).toString("base64") },
+      idempotencyKey: `export:${trace}`,
+    })) as { file: { fileId: string } };
     return made.file.fileId;
   };
 }
 
-async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string; format: "csv" | "xlsx"; recordIds?: string[] } & ViewSpec): Promise<{ fileId: string }> {
+async function exportRows(
+  deps: MergeDeps,
+  ctx: ExportCtx,
+  input: { type: string; format: "csv" | "xlsx"; recordIds?: string[] } & ViewSpec,
+): Promise<{ fileId: string }> {
   const { store, tx } = deps;
   ensure(tx);
   const putFile = deps.putFile ?? (ctx.call ? filesPort(ctx.call, ctx.trace.traceId) : undefined);
   if (!putFile) throw new Error("records.export needs a file store: createMergeHandlers was given no putFile");
   // fail closed: a file cannot be filtered after it is written, so with no way to ask what the caller may read, nothing is exported
-  if (!ctx.authorize) fail(ctx as WriteCtx, "permission.no_grant", "This export cannot check what you may read, so it exports nothing.");
+  if (!ctx.authorize)
+    fail(ctx as WriteCtx, "permission.no_grant", "This export cannot check what you may read, so it exports nothing.");
   const def = await needType(store, input.type);
   const wanted = input.fields && input.fields.length ? input.fields : def.fields.map((f) => f.name);
   const byName = new Map(def.fields.map((f) => [f.name, f]));
@@ -641,7 +1110,12 @@ async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string
   // a hand-picked selection: only these ids, taken from what the view returns, so an id the caller may not read (or that is gone) simply is not there
   const picked = input.recordIds === undefined ? null : new Set(input.recordIds);
   const rows: Record<string, unknown>[] = [];
-  const first: ViewSpec = { ...(input.filter !== undefined ? { filter: input.filter } : {}), ...(input.sort ? { sort: input.sort } : {}), ...(input.offset ? { offset: input.offset } : {}), limit: MAX_LIMIT };
+  const first: ViewSpec = {
+    ...(input.filter !== undefined ? { filter: input.filter } : {}),
+    ...(input.sort ? { sort: input.sort } : {}),
+    ...(input.offset ? { offset: input.offset } : {}),
+    limit: MAX_LIMIT,
+  };
   let cursor: string | undefined;
   for (;;) {
     const res = findRows(tx, input.type, { ...first, ...(cursor ? { cursor } : {}) });
@@ -658,9 +1132,18 @@ async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string
   }
   const stamp = new Date((deps.now ?? Date.now)()).toISOString().slice(0, 10);
   const base = `${input.type}-${stamp}`;
-  const fileId = input.format === "csv"
-    ? await putFile({ name: `${base}.csv`, mime: "text/csv; charset=utf-8", bytes: new TextEncoder().encode(toCsv(columns, rows)) })
-    : await putFile({ name: `${base}.xlsx`, mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes: toXlsx(def.label ?? def.name, columns, rows) });
+  const fileId =
+    input.format === "csv"
+      ? await putFile({
+          name: `${base}.csv`,
+          mime: "text/csv; charset=utf-8",
+          bytes: new TextEncoder().encode(toCsv(columns, rows)),
+        })
+      : await putFile({
+          name: `${base}.xlsx`,
+          mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          bytes: toXlsx(def.label ?? def.name, columns, rows),
+        });
   return { fileId };
 }
 
@@ -668,8 +1151,17 @@ async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string
 
 export function createMergeHandlers(deps: MergeDeps): MergeHandlers {
   return {
-    "records.merge": (ctx, input) => applyMerge(deps, ctx, input).catch((e) => { throw mapErr(ctx, e); }),
-    "records.bulk_upsert": (ctx, input) => upsert(deps, ctx, input).catch((e) => { throw mapErr(ctx, e); }),
-    "records.export": (ctx, input) => exportRows(deps, ctx, input).catch((e) => { throw mapErr(ctx, e); }),
+    "records.merge": (ctx, input) =>
+      applyMerge(deps, ctx, input).catch((e) => {
+        throw mapErr(ctx, e);
+      }),
+    "records.bulk_upsert": (ctx, input) =>
+      upsert(deps, ctx, input).catch((e) => {
+        throw mapErr(ctx, e);
+      }),
+    "records.export": (ctx, input) =>
+      exportRows(deps, ctx, input).catch((e) => {
+        throw mapErr(ctx, e);
+      }),
   };
 }

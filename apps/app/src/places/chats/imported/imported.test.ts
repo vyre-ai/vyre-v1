@@ -1,7 +1,17 @@
 // Imported sessions in Chats: the pure parts. Sorting and the group's default, the header line, the transcript items, Continue here, and the rows in the sidebar's flat list.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { IMPORTED_OPEN_MAX, dayLabel, headerLine, importedItems, importedRows, importedStartsOpen, providerMark, providerName, toolLabel } from "./model.ts";
+import {
+  IMPORTED_OPEN_MAX,
+  dayLabel,
+  headerLine,
+  importedItems,
+  importedRows,
+  importedStartsOpen,
+  providerMark,
+  providerName,
+  toolLabel,
+} from "./model.ts";
 import { continueImported } from "./continue.ts";
 import { buildEntries } from "../sidebar/model.ts";
 import { step, START } from "../mounts/route.ts";
@@ -12,11 +22,27 @@ const NOW = D("2026-10-31T12:00:00Z");
 test("rows are listed newest first, malformed ones dropped, an empty title gets a name", () => {
   const rows = importedRows([
     { conversationId: "isc_a", provider: "codex", title: "Older", startedAt: D("2026-10-01T00:00:00Z"), importedAt: 5 },
-    { conversationId: "isc_b", provider: "claude_code", title: "  ", startedAt: D("2026-10-20T00:00:00Z"), importedAt: 6, continuedThreadId: "thr_1" },
+    {
+      conversationId: "isc_b",
+      provider: "claude_code",
+      title: "  ",
+      startedAt: D("2026-10-20T00:00:00Z"),
+      importedAt: 6,
+      continuedThreadId: "thr_1",
+    },
     { provider: "claude_code", title: "no id" },
-    { conversationId: "isc_c", provider: "claude_code", title: "Newest", startedAt: D("2026-10-27T00:00:00Z"), importedAt: 7 },
+    {
+      conversationId: "isc_c",
+      provider: "claude_code",
+      title: "Newest",
+      startedAt: D("2026-10-27T00:00:00Z"),
+      importedAt: 7,
+    },
   ]);
-  assert.deepEqual(rows.map((r) => r.conversationId), ["isc_c", "isc_b", "isc_a"]);
+  assert.deepEqual(
+    rows.map((r) => r.conversationId),
+    ["isc_c", "isc_b", "isc_a"],
+  );
   assert.equal(rows[1]!.title, "Imported session");
   assert.equal(rows[1]!.continuedThreadId, "thr_1");
   assert.equal("continuedThreadId" in rows[0]!, false);
@@ -50,7 +76,16 @@ test("the header line names the source and the day, and the folder when it is kn
 test("the transcript becomes your turns and assistant turns with their tool calls folded", () => {
   const items = importedItems([
     { sourceMessageId: "m1", role: "user", text: "Fix the login", at: 1 },
-    { sourceMessageId: "m2", role: "assistant", text: "Done.", at: 2, tools: [{ id: "t1", name: "Edit", summary: "Edit src/app.ts", ok: true }, { id: "t2", name: "Bash", summary: "Run npm test", ok: false }] },
+    {
+      sourceMessageId: "m2",
+      role: "assistant",
+      text: "Done.",
+      at: 2,
+      tools: [
+        { id: "t1", name: "Edit", summary: "Edit src/app.ts", ok: true },
+        { id: "t2", name: "Bash", summary: "Run npm test", ok: false },
+      ],
+    },
     { role: "assistant", text: "No tools", at: 3 },
   ]);
   assert.equal(items[0]!.kind, "me");
@@ -63,20 +98,60 @@ test("the transcript becomes your turns and assistant turns with their tool call
 
 test("Continue here asks the continue capability for the assistant in this Space and returns the chat", async () => {
   const seen: unknown[] = [];
-  const data = { spaceId: "spc_me", assistantId: "agt_assist", call: async (cap: string, input: unknown) => { seen.push([cap, input]); return { threadId: "thr_9", linkedFrom: "isc_a" }; } };
+  const data = {
+    spaceId: "spc_me",
+    assistantId: "agt_assist",
+    call: async (cap: string, input: unknown) => {
+      seen.push([cap, input]);
+      return { threadId: "thr_9", linkedFrom: "isc_a" };
+    },
+  };
   assert.equal(await continueImported(data, "isc_a"), "thr_9");
-  assert.deepEqual(seen, [["sessions.continue", { conversationId: "isc_a", destinationSpaceId: "spc_me", destinationScope: "personal", agentId: "agt_assist" }]]);
+  assert.deepEqual(seen, [
+    [
+      "sessions.continue",
+      { conversationId: "isc_a", destinationSpaceId: "spc_me", destinationScope: "personal", agentId: "agt_assist" },
+    ],
+  ]);
   await assert.rejects(continueImported({ ...data, call: async () => ({}) }, "isc_a"), /did not start/);
-  await assert.rejects(continueImported({ ...data, call: async () => { throw new Error("nope"); } }, "isc_a"), /nope/);
+  await assert.rejects(
+    continueImported(
+      {
+        ...data,
+        call: async () => {
+          throw new Error("nope");
+        },
+      },
+      "isc_a",
+    ),
+    /nope/,
+  );
 });
 
 test("the sidebar lists the Imported group after Chats only when there are sessions, and folds it when asked", () => {
-  const base = { personal: true, faces: [], workingAgents: new Set<string>(), groups: [], channels: [], filter: "all" as const, closed: new Set<never>() };
+  const base = {
+    personal: true,
+    faces: [],
+    workingAgents: new Set<string>(),
+    groups: [],
+    channels: [],
+    filter: "all" as const,
+    closed: new Set<never>(),
+  };
   const none = buildEntries(base);
-  assert.equal(none.some((e) => e.key === "h:imported"), false);
-  const imported = importedRows([{ conversationId: "isc_a", provider: "codex", title: "A", startedAt: 1 }, { conversationId: "isc_b", provider: "claude_code", title: "B", startedAt: 2 }]);
+  assert.equal(
+    none.some((e) => e.key === "h:imported"),
+    false,
+  );
+  const imported = importedRows([
+    { conversationId: "isc_a", provider: "codex", title: "A", startedAt: 1 },
+    { conversationId: "isc_b", provider: "claude_code", title: "B", startedAt: 2 },
+  ]);
   const keys = buildEntries({ ...base, imported }).map((e) => e.key);
-  assert.deepEqual(keys.slice(keys.indexOf("h:recent")).filter((k) => k !== "e:recent"), ["h:recent", "h:imported", "i:isc_b", "i:isc_a"]);
+  assert.deepEqual(
+    keys.slice(keys.indexOf("h:recent")).filter((k) => k !== "e:recent"),
+    ["h:recent", "h:imported", "i:isc_b", "i:isc_a"],
+  );
   const folded = buildEntries({ ...base, imported, closed: new Set(["imported" as const]) }).map((e) => e.key);
   assert.ok(folded.includes("h:imported") && !folded.includes("i:isc_b"));
   const head = buildEntries({ ...base, imported }).find((e) => e.key === "h:imported");

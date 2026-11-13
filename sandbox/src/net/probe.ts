@@ -10,10 +10,18 @@ export interface WallProbeOptions {
   allowed?: { url: string; expect: string };
 }
 
-export interface WallCheck { name: string; ok: boolean; detail?: string }
-export interface WallProbeResult { walled: boolean; checks: WallCheck[] }
+export interface WallCheck {
+  name: string;
+  ok: boolean;
+  detail?: string;
+}
+export interface WallProbeResult {
+  walled: boolean;
+  checks: WallCheck[];
+}
 
-const NO_PROXY_ENV = "env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy -u NO_PROXY -u no_proxy";
+const NO_PROXY_ENV =
+  "env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy -u NO_PROXY -u no_proxy";
 
 export async function networkWall(sbx: Sandbox, o: WallProbeOptions): Promise<WallProbeResult> {
   const checks: WallCheck[] = [];
@@ -22,16 +30,31 @@ export async function networkWall(sbx: Sandbox, o: WallProbeOptions): Promise<Wa
   // /proc/net/dev lists the interfaces of the process's own network namespace (the sandbox may not have /sys).
   const nics = await run("tail -n +3 /proc/net/dev 2>/dev/null | cut -d: -f1 | tr -d ' ' | tr '\\n' ' '");
   const names = nics.stdout.trim().split(/\s+/).filter(Boolean);
-  checks.push({ name: "no network interface but loopback", ok: nics.exitCode === 0 && names.length > 0 && names.every((n) => n === "lo"), detail: nics.stdout.trim() });
+  checks.push({
+    name: "no network interface but loopback",
+    ok: nics.exitCode === 0 && names.length > 0 && names.every((n) => n === "lo"),
+    detail: nics.stdout.trim(),
+  });
 
   const routes = await run("tail -n +2 /proc/net/route 2>/dev/null | wc -l");
-  checks.push({ name: "no route out", ok: routes.exitCode === 0 && routes.stdout.trim() === "0", detail: `routes: ${routes.stdout.trim()}` });
+  checks.push({
+    name: "no route out",
+    ok: routes.exitCode === 0 && routes.stdout.trim() === "0",
+    detail: `routes: ${routes.stdout.trim()}`,
+  });
 
   for (const t of o.hostServices) {
     // `-m 3` bounds the wait; --noproxy and the removed variables make sure the connection is attempted directly. Success means a service answered.
-    const r = await run(`${NO_PROXY_ENV} curl --noproxy "*" -sS -m 3 -o /dev/null http://${t.host.includes(":") ? `[${t.host}]` : t.host}:${t.port}/; echo $?`, 15_000);
+    const r = await run(
+      `${NO_PROXY_ENV} curl --noproxy "*" -sS -m 3 -o /dev/null http://${t.host.includes(":") ? `[${t.host}]` : t.host}:${t.port}/; echo $?`,
+      15_000,
+    );
     const code = r.stdout.trim().split("\n").pop() ?? "";
-    checks.push({ name: `cannot reach ${t.host}:${t.port}`, ok: code !== "0" && code !== "", detail: `curl exit ${code}` });
+    checks.push({
+      name: `cannot reach ${t.host}:${t.port}`,
+      ok: code !== "0" && code !== "",
+      detail: `curl exit ${code}`,
+    });
   }
 
   const dns = await run(`${NO_PROXY_ENV} getent hosts example.com >/dev/null 2>&1; echo $?`);
@@ -39,7 +62,11 @@ export async function networkWall(sbx: Sandbox, o: WallProbeOptions): Promise<Wa
 
   if (o.allowed) {
     const r = await run(`curl -sS -m 8 ${JSON.stringify(o.allowed.url)}`, 20_000);
-    checks.push({ name: `reaches ${o.allowed.url} through the proxy`, ok: r.exitCode === 0 && r.stdout.includes(o.allowed.expect), detail: `exit ${String(r.exitCode)} ${r.stdout.slice(0, 80)}` });
+    checks.push({
+      name: `reaches ${o.allowed.url} through the proxy`,
+      ok: r.exitCode === 0 && r.stdout.includes(o.allowed.expect),
+      detail: `exit ${String(r.exitCode)} ${r.stdout.slice(0, 80)}`,
+    });
   }
   return { walled: checks.every((c) => c.ok), checks };
 }

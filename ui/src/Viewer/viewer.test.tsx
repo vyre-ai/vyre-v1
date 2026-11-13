@@ -3,16 +3,47 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Viewer, linksOf, commentRuns, openComments, lineNumbers, stripInline, inlineRuns, ZOOM_MAX, ZOOM_MIN, boxFrom, clampZoom, findMatches, markRuns, pinAt, sheetFoot, sortRows, stepZoom, toUnit, VIEWER_KINDS, MARKUP_TOOLS } from "./index.tsx";
+import {
+  Viewer,
+  linksOf,
+  commentRuns,
+  openComments,
+  lineNumbers,
+  stripInline,
+  inlineRuns,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  boxFrom,
+  clampZoom,
+  findMatches,
+  markRuns,
+  pinAt,
+  sheetFoot,
+  sortRows,
+  stepZoom,
+  toUnit,
+  VIEWER_KINDS,
+  MARKUP_TOOLS,
+} from "./index.tsx";
 import type { DocBlock, MarkupBox, ViewerViewProps } from "./index.tsx";
 
-const BOXES: readonly MarkupBox[] = [{ id: "b1", x: 0.08, y: 0.32, w: 0.44, h: 0.32, text: "Is this offer still live?" }, { id: "b2", x: 0.6, y: 0.2, w: 0.2, h: 0.2, text: "Crop here" }];
+const BOXES: readonly MarkupBox[] = [
+  { id: "b1", x: 0.08, y: 0.32, w: 0.44, h: 0.32, text: "Is this offer still live?" },
+  { id: "b2", x: 0.6, y: 0.2, w: 0.2, h: 0.2, text: "Crop here" },
+];
 const BLOCKS: readonly DocBlock[] = [
   { id: "h", tag: "h1", text: "Fee schedule" },
   { id: "p1", tag: "p", text: "The referral fee is paid once. The fee is shown on the invoice." },
   { id: "l1", tag: "li", text: "No fee for family" },
 ];
-const SHEET = { cols: ["Client", "Amount"], rows: [["Rivera", "$1,200"], ["Chen", "$300"], ["Ortiz", "$900"]] } as const;
+const SHEET = {
+  cols: ["Client", "Amount"],
+  rows: [
+    ["Rivera", "$1,200"],
+    ["Chen", "$300"],
+    ["Ortiz", "$900"],
+  ],
+} as const;
 const tag = (html: string, id: string): string => {
   const m = new RegExp(`<[^>]*data-testid="${id}"[^>]*>`).exec(html);
   assert.ok(m !== null, `${id} is rendered`);
@@ -58,15 +89,25 @@ test("pins are numbered in order with their notes beside the image", () => {
   const html = renderToStaticMarkup(<Viewer fileId="f" title="Offer.png" kind="image" boxes={BOXES} />);
   assert.ok(html.includes('data-testid="vw-pinrow-1"') && html.includes("Is this offer still live?"));
   assert.ok(html.includes('data-testid="vw-pinrow-2"') && html.includes("Crop here"));
-  assert.ok(html.includes('data-testid="vw-tool-draw"') && html.includes("Comment on an area") && html.includes('data-testid="vw-clear"'));
-  assert.match(tag(renderToStaticMarkup(<Viewer fileId="f" title="x" kind="image" tool="comment" />), "viewer"), /data-tool="comment"/);
+  assert.ok(
+    html.includes('data-testid="vw-tool-draw"') &&
+      html.includes("Comment on an area") &&
+      html.includes('data-testid="vw-clear"'),
+  );
+  assert.match(
+    tag(renderToStaticMarkup(<Viewer fileId="f" title="x" kind="image" tool="comment" />), "viewer"),
+    /data-tool="comment"/,
+  );
 });
 
 test("find in file lists every match in reading order and marks the current one", () => {
   const texts = BLOCKS.map((b) => b.text);
   const hits = findMatches(texts, "fee");
   assert.equal(hits.length, 4);
-  assert.deepEqual(hits.map((h) => h.block), [0, 1, 1, 2]);
+  assert.deepEqual(
+    hits.map((h) => h.block),
+    [0, 1, 1, 2],
+  );
   assert.deepEqual(findMatches(texts, "  "), []);
   const runs = markRuns(texts[1] ?? "", hits, 1, 2, hits);
   assert.deepEqual(runs.filter((r) => r.hit === true).length, 2);
@@ -76,7 +117,10 @@ test("find in file lists every match in reading order and marks the current one"
   assert.equal(html.match(/data-find="(?:match|current)"/g)?.length, 4, "every match is highlighted");
   assert.equal(html.match(/data-find="current"/g)?.length, 1);
   assert.match(html, /1 of 4/);
-  assert.match(renderToStaticMarkup(<Viewer fileId="d" title="Fees.md" kind="document" blocks={BLOCKS} find="zzz" />), /No matches/);
+  assert.match(
+    renderToStaticMarkup(<Viewer fileId="d" title="Fees.md" kind="document" blocks={BLOCKS} find="zzz" />),
+    /No matches/,
+  );
 });
 
 test("a document edits in place when editing is on, and reads as text otherwise", () => {
@@ -87,21 +131,44 @@ test("a document edits in place when editing is on, and reads as text otherwise"
 });
 
 test("a sheet sorts numbers by value, shows the footer and sum for a numeric column; other files say there is no preview", () => {
-  assert.deepEqual(sortRows(SHEET.rows, 1, 1).map((r) => r[0]), ["Chen", "Ortiz", "Rivera"]);
-  assert.deepEqual(sortRows(SHEET.rows, 0, -1).map((r) => r[0]), ["Rivera", "Ortiz", "Chen"]);
+  assert.deepEqual(
+    sortRows(SHEET.rows, 1, 1).map((r) => r[0]),
+    ["Chen", "Ortiz", "Rivera"],
+  );
+  assert.deepEqual(
+    sortRows(SHEET.rows, 0, -1).map((r) => r[0]),
+    ["Rivera", "Ortiz", "Chen"],
+  );
   assert.equal(sheetFoot(SHEET, null), "3 rows · 2 columns");
   assert.equal(sheetFoot(SHEET, 1), "3 rows · 2 columns · Amount: sum 2,400, average 800.0");
   const html = renderToStaticMarkup(<Viewer fileId="c" title="fees.csv" kind="csv" sheet={SHEET} />);
-  assert.ok(html.includes('data-testid="vw-sort-1"') && html.includes('data-testid="vw-cell-2-0"') && html.includes("3 rows · 2 columns"));
+  assert.ok(
+    html.includes('data-testid="vw-sort-1"') &&
+      html.includes('data-testid="vw-cell-2-0"') &&
+      html.includes("3 rows · 2 columns"),
+  );
   assert.ok(renderToStaticMarkup(<Viewer fileId="o" title="x.bin" kind="other" />).includes("No preview"));
 });
 
 test("the header shows the shared Ask control when given", () => {
-  const ask: ViewerViewProps["ask"] = { place: "files", context: { kind: "file", id: "f", title: "Offer.png", access: "edit" }, agents: [{ id: "a", name: "Assistant", assistant: true }], onAsk: () => undefined };
+  const ask: ViewerViewProps["ask"] = {
+    place: "files",
+    context: { kind: "file", id: "f", title: "Offer.png", access: "edit" },
+    agents: [{ id: "a", name: "Assistant", assistant: true }],
+    onAsk: () => undefined,
+  };
   const html = renderToStaticMarkup(<Viewer fileId="f" title="Offer.png" kind="image" ask={ask} />);
   assert.match(html, /Ask/);
-  assert.ok(html.includes('data-testid="vw-find-btn"') && !html.includes('data-testid="vw-find-input"'), "the find box opens from its button");
-  assert.ok(renderToStaticMarkup(<Viewer fileId="f" title="Offer.png" kind="image" find="x" />).includes('data-testid="vw-find-input"'), "a find query opens the box");
+  assert.ok(
+    html.includes('data-testid="vw-find-btn"') && !html.includes('data-testid="vw-find-input"'),
+    "the find box opens from its button",
+  );
+  assert.ok(
+    renderToStaticMarkup(<Viewer fileId="f" title="Offer.png" kind="image" find="x" />).includes(
+      'data-testid="vw-find-input"',
+    ),
+    "a find query opens the box",
+  );
 });
 
 test("History and More are drawn only when there is a handler: no dead buttons", () => {
@@ -112,71 +179,206 @@ test("History and More are drawn only when there is a handler: no dead buttons",
 });
 
 test("the header shows the file tile, its path line, Find, Details, History and More; csv and plan add View and Edit with the saved version", () => {
-  const html = renderToStaticMarkup(<Viewer fileId="c" title="competitors.csv" kind="csv" kindLabel="CSV" subtitle="Agents / Research · Yesterday 4:40 pm" saved={3} sheet={SHEET} onHistory={() => undefined} onMore={() => undefined} />);
-  for (const id of ["vw-tile", "vw-sub", "vw-find-btn", "vw-info", "vw-history", "vw-more", "vw-mode", "vw-mode-view", "vw-mode-edit", "vw-saved"]) assert.ok(html.includes(`data-testid="${id}"`), id);
+  const html = renderToStaticMarkup(
+    <Viewer
+      fileId="c"
+      title="competitors.csv"
+      kind="csv"
+      kindLabel="CSV"
+      subtitle="Agents / Research · Yesterday 4:40 pm"
+      saved={3}
+      sheet={SHEET}
+      onHistory={() => undefined}
+      onMore={() => undefined}
+    />,
+  );
+  for (const id of [
+    "vw-tile",
+    "vw-sub",
+    "vw-find-btn",
+    "vw-info",
+    "vw-history",
+    "vw-more",
+    "vw-mode",
+    "vw-mode-view",
+    "vw-mode-edit",
+    "vw-saved",
+  ])
+    assert.ok(html.includes(`data-testid="${id}"`), id);
   assert.match(html, /v3/);
-  assert.ok(!renderToStaticMarkup(<Viewer fileId="f" title="x.png" kind="image" />).includes('data-testid="vw-mode"'), "no View and Edit on an image");
+  assert.ok(
+    !renderToStaticMarkup(<Viewer fileId="f" title="x.png" kind="image" />).includes('data-testid="vw-mode"'),
+    "no View and Edit on an image",
+  );
   const edit = renderToStaticMarkup(<Viewer fileId="c" title="c.csv" kind="csv" sheet={SHEET} edit />);
   assert.ok(edit.includes('data-testid="vw-hint"'), "Edit mode shows how to edit a cell");
-  assert.ok(!renderToStaticMarkup(<Viewer fileId="c" title="c.csv" kind="csv" sheet={SHEET} />).includes('data-testid="vw-hint"'), "View mode has no hint");
+  assert.ok(
+    !renderToStaticMarkup(<Viewer fileId="c" title="c.csv" kind="csv" sheet={SHEET} />).includes(
+      'data-testid="vw-hint"',
+    ),
+    "View mode has no hint",
+  );
 });
 
 test("markup shows Ask <agent> once something is marked, red numbered boxes with their note beside the pin, and the sibling strip", () => {
-  const marked = renderToStaticMarkup(<Viewer fileId="f" title="a.png" kind="image" boxes={BOXES} agentName="Research" siblings={[{ id: "a", title: "one" }, { id: "b", title: "two" }]} current="b" />);
+  const marked = renderToStaticMarkup(
+    <Viewer
+      fileId="f"
+      title="a.png"
+      kind="image"
+      boxes={BOXES}
+      agentName="Research"
+      siblings={[
+        { id: "a", title: "one" },
+        { id: "b", title: "two" },
+      ]}
+      current="b"
+    />,
+  );
   assert.ok(marked.includes('data-testid="vw-ask-markup"') && marked.includes("Ask Research"));
   assert.ok(marked.includes('data-testid="vw-bubble-1"') && marked.includes("Is this offer still live?"));
   assert.ok(marked.includes('data-testid="vw-sib-a"') && marked.includes('data-testid="vw-sib-b"'));
-  assert.ok(!renderToStaticMarkup(<Viewer fileId="f" title="a.png" kind="image" agentName="Research" />).includes('data-testid="vw-ask-markup"'), "nothing marked, no Ask");
+  assert.ok(
+    !renderToStaticMarkup(<Viewer fileId="f" title="a.png" kind="image" agentName="Research" />).includes(
+      'data-testid="vw-ask-markup"',
+    ),
+    "nothing marked, no Ask",
+  );
 });
 
 test("inline **bold** and [[link]] markers become runs and never count in find", () => {
   assert.equal(stripInline("The fee is **$250** and [[Pricing landscape]]"), "The fee is $250 and Pricing landscape");
-  assert.deepEqual(inlineRuns("a **b** [[c]] d"), [{ text: "a " }, { text: "b", bold: true }, { text: " " }, { text: "c", link: true, ref: "c", kind: "wiki" }, { text: " d" }]);
-  assert.deepEqual(inlineRuns("see [the plan](docs/plan.md)."), [{ text: "see " }, { text: "the plan", link: true, ref: "docs/plan.md", kind: "md" }, { text: "." }]);
+  assert.deepEqual(inlineRuns("a **b** [[c]] d"), [
+    { text: "a " },
+    { text: "b", bold: true },
+    { text: " " },
+    { text: "c", link: true, ref: "c", kind: "wiki" },
+    { text: " d" },
+  ]);
+  assert.deepEqual(inlineRuns("see [the plan](docs/plan.md)."), [
+    { text: "see " },
+    { text: "the plan", link: true, ref: "docs/plan.md", kind: "md" },
+    { text: "." },
+  ]);
   assert.equal(stripInline("see [the plan](docs/plan.md)."), "see the plan.");
-  assert.equal(inlineRuns("x **y** z").map((r) => r.text).join(""), stripInline("x **y** z"));
+  assert.equal(
+    inlineRuns("x **y** z")
+      .map((r) => r.text)
+      .join(""),
+    stripInline("x **y** z"),
+  );
   const blocks: DocBlock[] = [{ id: "a", tag: "p", text: "The **fee** is [[fee]] schedule" }];
-  assert.equal(findMatches(blocks.map((b) => stripInline(b.text)), "fee").length, 3 - 1, "markers are not matched");
+  assert.equal(
+    findMatches(
+      blocks.map((b) => stripInline(b.text)),
+      "fee",
+    ).length,
+    3 - 1,
+    "markers are not matched",
+  );
   const html = renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={blocks} />);
   assert.ok(!html.includes("**") && !html.includes("[["), "markers never show");
   assert.match(html, /data-link="true"/);
 });
 
 test("a front-matter block draws as a card, and the info button opens the Details panel with rows and linked sections", () => {
-  const blocks: DocBlock[] = [{ id: "m", tag: "meta", text: "kind\tdecision\nsource\tchat" }, { id: "h", tag: "h1", text: "Consult fee" }];
-  const details = { rows: [["Path", "Agents / Intake"], ["Kind", "Note"]] as const, sections: [{ title: "Links to", count: 2, items: [{ id: "a", title: "Pricing landscape" }, { id: "b", title: "Maya Chen" }] }] };
-  const closed = renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={blocks} details={details} />);
-  assert.ok(closed.includes('data-testid="vw-block-m"') && closed.includes("decision") && !closed.includes('data-testid="vw-details"'));
-  const open = renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={blocks} details={details} detailsOpen />);
-  for (const id of ["vw-details", "vw-detail-Path", "vw-detail-section-Links to", "row-d-a", "vw-details-close"]) assert.ok(open.includes(`data-testid="${id}"`), id);
+  const blocks: DocBlock[] = [
+    { id: "m", tag: "meta", text: "kind\tdecision\nsource\tchat" },
+    { id: "h", tag: "h1", text: "Consult fee" },
+  ];
+  const details = {
+    rows: [
+      ["Path", "Agents / Intake"],
+      ["Kind", "Note"],
+    ] as const,
+    sections: [
+      {
+        title: "Links to",
+        count: 2,
+        items: [
+          { id: "a", title: "Pricing landscape" },
+          { id: "b", title: "Maya Chen" },
+        ],
+      },
+    ],
+  };
+  const closed = renderToStaticMarkup(
+    <Viewer fileId="d" title="n.md" kind="document" blocks={blocks} details={details} />,
+  );
+  assert.ok(
+    closed.includes('data-testid="vw-block-m"') &&
+      closed.includes("decision") &&
+      !closed.includes('data-testid="vw-details"'),
+  );
+  const open = renderToStaticMarkup(
+    <Viewer fileId="d" title="n.md" kind="document" blocks={blocks} details={details} detailsOpen />,
+  );
+  for (const id of ["vw-details", "vw-detail-Path", "vw-detail-section-Links to", "row-d-a", "vw-details-close"])
+    assert.ok(open.includes(`data-testid="${id}"`), id);
   assert.match(open, /Links to\s+2/);
 });
 
 test("a picture shows when src is given and strokes draw over it; the first cell can be pre-selected and the footer then sums its column", () => {
-  const img = renderToStaticMarkup(<Viewer fileId="f" title="a.png" kind="image" src="data:image/svg+xml;charset=utf-8,%3Csvg%2F%3E" boxes={BOXES} />);
+  const img = renderToStaticMarkup(
+    <Viewer fileId="f" title="a.png" kind="image" src="data:image/svg+xml;charset=utf-8,%3Csvg%2F%3E" boxes={BOXES} />,
+  );
   assert.ok(img.includes('data-testid="vw-picture"') && img.includes('data-testid="vw-handle-1"'));
-  const sheet = renderToStaticMarkup(<Viewer fileId="c" title="c.csv" kind="csv" sheet={SHEET} initialCell={{ r: 0, c: 1 }} />);
+  const sheet = renderToStaticMarkup(
+    <Viewer fileId="c" title="c.csv" kind="csv" sheet={SHEET} initialCell={{ r: 0, c: 1 }} />,
+  );
   assert.match(tag(sheet, "vw-cell-0-1"), /aria-selected="true"|selected/);
   assert.match(sheet, /Amount: sum 2,400, average 800\.0/);
 });
 
 test("a document has View and Edit, and Edit makes its blocks editable; code files have neither; strokes draw as an svg over the picture", () => {
   const doc: DocBlock[] = [{ id: "a", tag: "p", text: "Hello" }];
-  assert.ok(renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={doc} />).includes('data-testid="vw-mode"'));
-  assert.ok(!renderToStaticMarkup(<Viewer fileId="d" title="f.py" kind="document" blocks={[{ id: "c", tag: "code", text: "x = 1" }]} />).includes('data-testid="vw-mode"'));
-  assert.ok(!renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={doc} />).includes("<textarea"), "View mode has no inputs");
-  assert.ok(renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" edit blocks={doc} />).includes("<textarea"), "Edit mode makes the blocks editable");
-  const strokes = [{ points: [[0.1, 0.1], [0.2, 0.2]] as const }];
+  assert.ok(
+    renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={doc} />).includes(
+      'data-testid="vw-mode"',
+    ),
+  );
+  assert.ok(
+    !renderToStaticMarkup(
+      <Viewer fileId="d" title="f.py" kind="document" blocks={[{ id: "c", tag: "code", text: "x = 1" }]} />,
+    ).includes('data-testid="vw-mode"'),
+  );
+  assert.ok(
+    !renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={doc} />).includes("<textarea"),
+    "View mode has no inputs",
+  );
+  assert.ok(
+    renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" edit blocks={doc} />).includes("<textarea"),
+    "Edit mode makes the blocks editable",
+  );
+  const strokes = [
+    {
+      points: [
+        [0.1, 0.1],
+        [0.2, 0.2],
+      ] as const,
+    },
+  ];
   const img = renderToStaticMarkup(<Viewer fileId="f" title="a.png" kind="image" strokes={strokes} />);
-  assert.ok(img.includes('data-testid="vw-strokes"') && img.includes("<polyline") && img.includes('points="0.1,0.1 0.2,0.2"'));
+  assert.ok(
+    img.includes('data-testid="vw-strokes"') && img.includes("<polyline") && img.includes('points="0.1,0.1 0.2,0.2"'),
+  );
 });
 
 test("Links to and Linked from come from the graph's link edges, once each, only for nodes the graph holds", () => {
   const graph = {
-    nodes: [{ nodeId: "me", title: "Consult fee" }, { nodeId: "a", title: "A", link: "Agents / A" }, { nodeId: "b", title: "B" }, { nodeId: "c", title: "C" }],
+    nodes: [
+      { nodeId: "me", title: "Consult fee" },
+      { nodeId: "a", title: "A", link: "Agents / A" },
+      { nodeId: "b", title: "B" },
+      { nodeId: "c", title: "C" },
+    ],
     edges: [
-      { from: "me", to: "a", kind: "link" as const }, { from: "me", to: "a", kind: "link" as const }, { from: "b", to: "me", kind: "link" as const },
-      { from: "c", to: "me", kind: "relation" as const }, { from: "ghost", to: "me", kind: "link" as const }, { from: "me", to: "me", kind: "link" as const },
+      { from: "me", to: "a", kind: "link" as const },
+      { from: "me", to: "a", kind: "link" as const },
+      { from: "b", to: "me", kind: "link" as const },
+      { from: "c", to: "me", kind: "relation" as const },
+      { from: "ghost", to: "me", kind: "link" as const },
+      { from: "me", to: "me", kind: "link" as const },
     ],
   };
   const r = linksOf(graph, "me");
@@ -184,47 +386,107 @@ test("Links to and Linked from come from the graph's link edges, once each, only
   assert.deepEqual(r.from, [{ id: "b", title: "B" }]);
   assert.deepEqual(linksOf(graph, "nope"), { to: [], from: [] });
   const blocks: DocBlock[] = [{ id: "h", tag: "h1", text: "Consult fee" }];
-  const html = renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={blocks} graph={graph} nodeId="me" detailsOpen />);
-  assert.ok(html.includes('data-testid="vw-linkedfrom"') && html.includes("Linked from · 1") && html.includes('data-testid="row-lf-b"'));
-  for (const id of ["vw-detail-section-Links to", "vw-detail-section-Linked from"]) assert.ok(html.includes(`data-testid="${id}"`), id);
-  assert.ok(!renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={blocks} />).includes("vw-linkedfrom"), "no graph, no section");
+  const html = renderToStaticMarkup(
+    <Viewer fileId="d" title="n.md" kind="document" blocks={blocks} graph={graph} nodeId="me" detailsOpen />,
+  );
+  assert.ok(
+    html.includes('data-testid="vw-linkedfrom"') &&
+      html.includes("Linked from · 1") &&
+      html.includes('data-testid="row-lf-b"'),
+  );
+  for (const id of ["vw-detail-section-Links to", "vw-detail-section-Linked from"])
+    assert.ok(html.includes(`data-testid="${id}"`), id);
+  assert.ok(
+    !renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={blocks} />).includes("vw-linkedfrom"),
+    "no graph, no section",
+  );
 });
 
 test("comments: the quoted words are marked in the text, resolved ones drop out, and the panel lists open ones with Reply and Resolve", () => {
   const comments = [
-    { id: "k1", quote: "standard $250 consult fee", by: "You", at: "9:42", text: "Should we waive this for referrals?", replies: [{ by: "Maya", text: "Yes, for partner firms." }] },
+    {
+      id: "k1",
+      quote: "standard $250 consult fee",
+      by: "You",
+      at: "9:42",
+      text: "Should we waive this for referrals?",
+      replies: [{ by: "Maya", text: "Yes, for partner firms." }],
+    },
     { id: "k2", quote: "gone words", by: "Lena", at: "9:50", text: "old", resolved: true },
   ];
-  assert.deepEqual(openComments(comments).map((c) => c.id), ["k1"]);
+  assert.deepEqual(
+    openComments(comments).map((c) => c.id),
+    ["k1"],
+  );
   const runs = commentRuns("Docs prepares the letter at the standard $250 consult fee.", comments);
   assert.deepEqual(runs.map((r) => r.text).join(""), "Docs prepares the letter at the standard $250 consult fee.");
-  assert.deepEqual(runs.filter((r) => r.comment !== undefined).map((r) => [r.text, r.comment]), [["standard $250 consult fee", "k1"]]);
+  assert.deepEqual(
+    runs.filter((r) => r.comment !== undefined).map((r) => [r.text, r.comment]),
+    [["standard $250 consult fee", "k1"]],
+  );
   assert.deepEqual(commentRuns("no match here", comments), [{ text: "no match here" }]);
-  const blocks: DocBlock[] = [{ id: "a", tag: "p", text: "Docs prepares the letter at the standard $250 consult fee." }];
+  const blocks: DocBlock[] = [
+    { id: "a", tag: "p", text: "Docs prepares the letter at the standard $250 consult fee." },
+  ];
   const html = renderToStaticMarkup(<Viewer fileId="p" title="plan" kind="plan" blocks={blocks} comments={comments} />);
-  for (const id of ["vw-comments", "vw-comment-k1", "vw-reply-k1", "vw-resolve-k1"]) assert.ok(html.includes(`data-testid="${id}"`), id);
-  assert.ok(!html.includes("vw-comment-k2") && html.includes("Comments · 1") && html.includes('data-comment="k1"') && html.includes("Yes, for partner firms."));
-  assert.ok(!renderToStaticMarkup(<Viewer fileId="p" title="plan" kind="plan" blocks={blocks} />).includes("vw-comments"), "no comments, no panel");
+  for (const id of ["vw-comments", "vw-comment-k1", "vw-reply-k1", "vw-resolve-k1"])
+    assert.ok(html.includes(`data-testid="${id}"`), id);
+  assert.ok(
+    !html.includes("vw-comment-k2") &&
+      html.includes("Comments · 1") &&
+      html.includes('data-comment="k1"') &&
+      html.includes("Yes, for partner firms."),
+  );
+  assert.ok(
+    !renderToStaticMarkup(<Viewer fileId="p" title="plan" kind="plan" blocks={blocks} />).includes("vw-comments"),
+    "no comments, no panel",
+  );
 });
 
 test("a code file shows a line number for each line", () => {
   assert.equal(lineNumbers(3), "1\n2\n3");
   assert.equal(lineNumbers(0), "");
-  const code: DocBlock[] = [{ id: "c1", tag: "code", text: "a = 1" }, { id: "c2", tag: "code", text: "b = 2" }];
-  assert.ok(renderToStaticMarkup(<Viewer fileId="c" title="x.py" kind="document" blocks={code} />).includes('data-testid="vw-lines"'));
-  assert.ok(!renderToStaticMarkup(<Viewer fileId="c" title="x.md" kind="document" blocks={[{ id: "p", tag: "p", text: "hi" }]} />).includes("vw-lines"));
+  const code: DocBlock[] = [
+    { id: "c1", tag: "code", text: "a = 1" },
+    { id: "c2", tag: "code", text: "b = 2" },
+  ];
+  assert.ok(
+    renderToStaticMarkup(<Viewer fileId="c" title="x.py" kind="document" blocks={code} />).includes(
+      'data-testid="vw-lines"',
+    ),
+  );
+  assert.ok(
+    !renderToStaticMarkup(
+      <Viewer fileId="c" title="x.md" kind="document" blocks={[{ id: "p", tag: "p", text: "hi" }]} />,
+    ).includes("vw-lines"),
+  );
 });
 
 test("a plan has no View and Edit switch: its blocks edit in place (editing prop opens them all), and a plan shows its comments beside it", () => {
-  const blocks: DocBlock[] = [{ id: "a", tag: "p", text: "One" }, { id: "b", tag: "p", text: "Two" }];
+  const blocks: DocBlock[] = [
+    { id: "a", tag: "p", text: "One" },
+    { id: "b", tag: "p", text: "Two" },
+  ];
   const plan = renderToStaticMarkup(<Viewer fileId="p" title="plan" kind="plan" blocks={blocks} />);
   assert.ok(!plan.includes('data-testid="vw-mode"'), "a plan has no View and Edit switch");
   assert.ok(!plan.includes("<textarea"), "blocks read as text until one is pressed");
-  assert.equal(renderToStaticMarkup(<Viewer fileId="p" title="plan" kind="plan" editing blocks={blocks} />).match(/<textarea/g)?.length, 2);
+  assert.equal(
+    renderToStaticMarkup(<Viewer fileId="p" title="plan" kind="plan" editing blocks={blocks} />).match(/<textarea/g)
+      ?.length,
+    2,
+  );
 });
 
 test("a file that lives at a provider shows one Open in button in the header, with its words; without it there is none", () => {
-  const on = renderToStaticMarkup(<Viewer fileId="f_1" title="Plan" kind="document" blocks={BLOCKS} openIn={{ label: "Open in Google Docs", onOpen: () => undefined }} />);
+  const on = renderToStaticMarkup(
+    <Viewer
+      fileId="f_1"
+      title="Plan"
+      kind="document"
+      blocks={BLOCKS}
+      openIn={{ label: "Open in Google Docs", onOpen: () => undefined }}
+    />,
+  );
   assert.ok(on.includes('data-testid="vw-open-in"') && on.includes('aria-label="Open in Google Docs"'));
   assert.ok(on.includes(">Open in Google Docs<"));
   const off = renderToStaticMarkup(<Viewer fileId="f_1" title="Plan" kind="document" blocks={BLOCKS} />);

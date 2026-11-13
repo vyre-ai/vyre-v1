@@ -27,13 +27,34 @@ function ShellView({ view, skin }: { view: string; skin: string }): ReactNode {
   const made = useMemo(() => {
     const root = (globalThis as { document?: { documentElement?: RootLike } }).document?.documentElement;
     const themeRoot: ThemeRoot = {
-      setAttribute: (n, v) => { root?.setAttribute(n, v); },
-      setProperty: (n, v) => { root?.style.setProperty(n, v); },
-      removeProperty: (n) => { root?.style.removeProperty(n); },
+      setAttribute: (n, v) => {
+        root?.setAttribute(n, v);
+      },
+      setProperty: (n, v) => {
+        root?.style.setProperty(n, v);
+      },
+      removeProperty: (n) => {
+        root?.style.removeProperty(n);
+      },
     };
-    const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
+    const theme = createThemeController({
+      personId: "irfad",
+      spaceId: "nw",
+      spaceSkin: { nw: skin, hb: skin, me: skin },
+      prefersDark: skin === "graphite",
+      root: themeRoot,
+      storage: null,
+    });
     // nothing flows into Inbox yet: the answer this device last saw
-    const hub = createSampleShell({ theme, spaces: SEED_DEFS.map((d) => ({ ...d, inbox: false, counts: d.spaceId === "nw" ? { chats: 3 } : d.counts, dots: {} })) });
+    const hub = createSampleShell({
+      theme,
+      spaces: SEED_DEFS.map((d) => ({
+        ...d,
+        inbox: false,
+        counts: d.spaceId === "nw" ? { chats: 3 } : d.counts,
+        dots: {},
+      })),
+    });
     if (view === "inbox") hub.go("inbox");
     return { hub, theme };
   }, [view, skin]);
@@ -43,13 +64,24 @@ function ShellView({ view, skin }: { view: string; skin: string }): ReactNode {
     const t = setTimeout(() => made.hub.setInbox(true, { tip: INBOX_TIP }), 60);
     return () => clearTimeout(t);
   }, [made, view]);
-  const render = (ctx: PlaceContext): ReactNode => (ctx.place === "inbox" ? <View testID="inbox-place" style={{ flex: 1, backgroundColor: "var(--win)" as string }}><ConnectChannel /></View> : samplePlace(ctx));
+  const render = (ctx: PlaceContext): ReactNode =>
+    ctx.place === "inbox" ? (
+      <View testID="inbox-place" style={{ flex: 1, backgroundColor: "var(--win)" as string }}>
+        <ConnectChannel />
+      </View>
+    ) : (
+      samplePlace(ctx)
+    );
   return <Shell hub={made.hub} theme={made.theme} renderPlace={render} />;
 }
 
 function SettingsView({ space }: { space: "northwind" | "harbor" }): ReactNode {
   const sample = useMemo(() => createSampleSettings(space === "harbor" ? harbor : northwind), [space]);
-  return <SettingsDataProvider value={sample.data}><SettingsPlace initialPage="mail" /></SettingsDataProvider>;
+  return (
+    <SettingsDataProvider value={sample.data}>
+      <SettingsPlace initialPage="mail" />
+    </SettingsDataProvider>
+  );
 }
 
 export default function Mount(): ReactNode {
@@ -59,7 +91,11 @@ export default function Mount(): ReactNode {
   return (
     // fills the page box: a window height read at render is 0 in the static first frame, and the default view hydrates onto it unchanged
     <View style={StyleSheet.absoluteFill}>
-      {view === "settings" ? <SettingsView space={q.get("space") === "harbor" ? "harbor" : "northwind"} /> : <ShellView view={view} skin={skin} />}
+      {view === "settings" ? (
+        <SettingsView space={q.get("space") === "harbor" ? "harbor" : "northwind"} />
+      ) : (
+        <ShellView view={view} skin={skin} />
+      )}
     </View>
   );
 }

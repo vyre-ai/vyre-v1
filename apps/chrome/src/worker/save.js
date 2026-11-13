@@ -27,7 +27,9 @@ function randomHex() {
 
 /** Try a call, and once more with the same key if the answer was lost. @template T @param {() => Promise<T>} f @returns {Promise<T>} */
 async function again(f) {
-  try { return await f(); } catch (e) {
+  try {
+    return await f();
+  } catch (e) {
     const code = e instanceof BridgeFailure ? e.code : "";
     if (code === "offline" || code === "timeout" || code === "no_host") return f();
     throw e;
@@ -43,7 +45,14 @@ const PENDING_MS = 60_000;
  *   now?: () => number, setTimer?: (f: () => void, ms: number) => any, clearTimer?: (t: any) => void,
  * }} deps
  */
-export function createSave({ bridge, scripting, rules, now = Date.now, setTimer = (f, ms) => setTimeout(f, ms), clearTimer = (t) => clearTimeout(t) }) {
+export function createSave({
+  bridge,
+  scripting,
+  rules,
+  now = Date.now,
+  setTimer = (f, ms) => setTimeout(f, ms),
+  clearTimer = (t) => clearTimeout(t),
+}) {
   /** @type {Map<number, { origin: string, host: string, username: string, password: string, mode: "save"|"update", name: string, itemId: string | null, agent: { id: string, name: string } | null, at: number, loading: boolean, timer: any }>} */
   const pending = new Map();
 
@@ -63,9 +72,19 @@ export function createSave({ bridge, scripting, rules, now = Date.now, setTimer 
   async function show(tabId) {
     const p = pending.get(tabId);
     if (!p) return false;
-    if (now() - p.at > PENDING_MS) { drop(tabId); return false; }
+    if (now() - p.at > PENDING_MS) {
+      drop(tabId);
+      return false;
+    }
     offers.set(tabId, { itemId: p.itemId, agentId: p.agent ? p.agent.id : null });
-    const card = { host: p.host, username: p.username, password: p.password, mode: p.mode, name: p.name, agent: p.agent };
+    const card = {
+      host: p.host,
+      username: p.username,
+      password: p.password,
+      mode: p.mode,
+      name: p.name,
+      agent: p.agent,
+    };
     drop(tabId);
     try {
       await scripting.executeScript({ target: { tabId, frameIds: [0] }, func: showPromptInPage, args: [card] });
@@ -86,13 +105,19 @@ export function createSave({ bridge, scripting, rules, now = Date.now, setTimer 
     async submitted(sender, msg) {
       const page = pageOf(sender.origin);
       if (!page || !fillablePage(page)) return { prompt: false, why: "page" };
-      if (!msg.password || typeof msg.password !== "string" || msg.password.length > 1024) return { prompt: false, why: "password" };
+      if (!msg.password || typeof msg.password !== "string" || msg.password.length > 1024)
+        return { prompt: false, why: "password" };
       const rule = await rules.forHost(page.host);
       if (rule && rule.neverSave) return { prompt: false, why: "never_save" };
       /** @type {any} */
       let check;
       try {
-        check = await bridge.op("login.check", { origin: page.origin, username: msg.username, password: msg.password, kind: msg.kind });
+        check = await bridge.op("login.check", {
+          origin: page.origin,
+          username: msg.username,
+          password: msg.password,
+          kind: msg.kind,
+        });
       } catch {
         return { prompt: false, why: "app" };
       }
@@ -101,16 +126,30 @@ export function createSave({ bridge, scripting, rules, now = Date.now, setTimer 
       let agent = null;
       try {
         const a = await bridge.op("agents.list", {});
-        if (a && a.suggested && a.suggested.id) agent = { id: String(a.suggested.id), name: String(a.suggested.name || "your agent") };
-      } catch { /* no agent to offer */ }
+        if (a && a.suggested && a.suggested.id)
+          agent = { id: String(a.suggested.id), name: String(a.suggested.name || "your agent") };
+      } catch {
+        /* no agent to offer */
+      }
       drop(sender.tabId);
       const entry = {
-        origin: page.origin, host: page.host, username: String(msg.username || ""), password: msg.password,
-        mode: /** @type {"save"|"update"} */ (check.state === "changed" ? "update" : "save"), name: String(check.name || page.host),
-        itemId: check.itemId ? String(check.itemId) : null, agent, at: now(), loading: false, timer: null,
+        origin: page.origin,
+        host: page.host,
+        username: String(msg.username || ""),
+        password: msg.password,
+        mode: /** @type {"save"|"update"} */ (check.state === "changed" ? "update" : "save"),
+        name: String(check.name || page.host),
+        itemId: check.itemId ? String(check.itemId) : null,
+        agent,
+        at: now(),
+        loading: false,
+        timer: null,
       };
       // Show it once the page after the sign-in has loaded; a single-page app that never navigates shows it after a short settle.
-      entry.timer = setTimer(() => { const p = pending.get(sender.tabId); if (p && !p.loading) void show(sender.tabId); }, SETTLE_MS);
+      entry.timer = setTimer(() => {
+        const p = pending.get(sender.tabId);
+        if (p && !p.loading) void show(sender.tabId);
+      }, SETTLE_MS);
       pending.set(sender.tabId, entry);
       return { prompt: true };
     },
@@ -119,12 +158,18 @@ export function createSave({ bridge, scripting, rules, now = Date.now, setTimer 
     async tabUpdated(tabId, info) {
       const p = pending.get(tabId);
       if (!p) return;
-      if (info.status === "loading") { p.loading = true; return; }
+      if (info.status === "loading") {
+        p.loading = true;
+        return;
+      }
       if (info.status === "complete" && p.loading) await show(tabId);
     },
 
     /** Wire to chrome.tabs.onRemoved. @param {number} tabId */
-    tabClosed(tabId) { drop(tabId); offers.delete(tabId); },
+    tabClosed(tabId) {
+      drop(tabId);
+      offers.delete(tabId);
+    },
 
     /**
      * What the card may choose from when the person picks Shared: the Space's shared folders they may add to, and the agents that can be allowed. Names and ids only.
@@ -138,9 +183,15 @@ export function createSave({ bridge, scripting, rules, now = Date.now, setTimer 
         bridge.invoke("vault.folders.list", { scope: "shared" }).catch(() => ({ folders: [] })),
         bridge.op("agents.list", {}).catch(() => ({ agents: [], suggested: null })),
       ]);
-      const folders = (Array.isArray(f && f.folders) ? f.folders : []).filter(canAdd).map((/** @type {any} */ x) => ({ id: String(x.id), name: String(x.name || "Shared folder").slice(0, 80) }));
+      const folders = (Array.isArray(f && f.folders) ? f.folders : [])
+        .filter(canAdd)
+        .map((/** @type {any} */ x) => ({ id: String(x.id), name: String(x.name || "Shared folder").slice(0, 80) }));
       const suggested = a && a.suggested ? String(a.suggested.id) : "";
-      const agents = (Array.isArray(a && a.agents) ? a.agents : []).map((/** @type {any} */ x) => ({ id: String(x.id), name: String(x.name || "Agent").slice(0, 60), suggested: String(x.id) === suggested }));
+      const agents = (Array.isArray(a && a.agents) ? a.agents : []).map((/** @type {any} */ x) => ({
+        id: String(x.id),
+        name: String(x.name || "Agent").slice(0, 60),
+        suggested: String(x.id) === suggested,
+      }));
       return { folders, agents };
     },
 
@@ -161,22 +212,36 @@ export function createSave({ bridge, scripting, rules, now = Date.now, setTimer 
       /** @type {any} */
       let item;
       if (msg.mode === "update" && offer.itemId) {
-        const out = await again(() => bridge.invoke("vault.item.update", { itemId: offer.itemId, fieldsSet: [{ key: "password", value: msg.password, secret: true }] }));
+        const out = await again(() =>
+          bridge.invoke("vault.item.update", {
+            itemId: offer.itemId,
+            fieldsSet: [{ key: "password", value: msg.password, secret: true }],
+          }),
+        );
         item = out && out.item;
       } else {
         const folders = await bridge.invoke("vault.folders.list", { scope: shared ? "shared" : "mine" });
         const list = (Array.isArray(folders && folders.folders) ? folders.folders : []).filter(canAdd);
         // A Shared save names its folder, and only a folder the Space just listed for this person is accepted: the page's word is never enough.
         const target = shared ? list.find((/** @type {any} */ f) => String(f.id) === String(msg.folderId)) : list[0];
-        if (!target) throw new BridgeFailure("no_folder", shared ? "That shared folder is not one you can add to." : "There is no folder of yours to save into.");
-        const out = await again(() => bridge.invoke("vault.item.put", {
-          idempotencyKey: `${card}_put`, folderId: target.id, name, kind: "login",
-          fields: [
-            { key: "url", value: page.origin },
-            { key: "username", value: msg.username },
-            { key: "password", value: msg.password, secret: true },
-          ],
-        }));
+        if (!target)
+          throw new BridgeFailure(
+            "no_folder",
+            shared ? "That shared folder is not one you can add to." : "There is no folder of yours to save into.",
+          );
+        const out = await again(() =>
+          bridge.invoke("vault.item.put", {
+            idempotencyKey: `${card}_put`,
+            folderId: target.id,
+            name,
+            kind: "login",
+            fields: [
+              { key: "url", value: page.origin },
+              { key: "username", value: msg.username },
+              { key: "password", value: msg.password, secret: true },
+            ],
+          }),
+        );
         item = out && out.item;
       }
       /** @type {string[]} */
@@ -184,16 +249,41 @@ export function createSave({ bridge, scripting, rules, now = Date.now, setTimer 
       /** @type {string[]} */
       const refused = [];
       if (shared && item && item.id) {
-        const known = new Set((await bridge.op("agents.list", {}).catch(() => ({ agents: [] }))).agents?.map((/** @type {any} */ a) => String(a.id)) ?? []);
-        for (const agentId of [...new Set((Array.isArray(msg.agentIds) ? msg.agentIds : []).map(String))].slice(0, 20)) {
-          if (!known.has(agentId)) { refused.push(agentId); continue; }
+        const known = new Set(
+          (await bridge.op("agents.list", {}).catch(() => ({ agents: [] }))).agents?.map((/** @type {any} */ a) =>
+            String(a.id),
+          ) ?? [],
+        );
+        for (const agentId of [...new Set((Array.isArray(msg.agentIds) ? msg.agentIds : []).map(String))].slice(
+          0,
+          20,
+        )) {
+          if (!known.has(agentId)) {
+            refused.push(agentId);
+            continue;
+          }
           try {
-            await again(() => bridge.invoke("vault.share", { idempotencyKey: `${card}_use_${agentId}`, resource: { type: "vault_item", id: item.id }, subject: { kind: "agent", id: agentId }, level: "use" }));
+            await again(() =>
+              bridge.invoke("vault.share", {
+                idempotencyKey: `${card}_use_${agentId}`,
+                resource: { type: "vault_item", id: item.id },
+                subject: { kind: "agent", id: agentId },
+                level: "use",
+              }),
+            );
             allowed.push(agentId);
-          } catch { refused.push(agentId); }
+          } catch {
+            refused.push(agentId);
+          }
         }
       }
-      return { saved: true, itemId: item ? String(item.id) : null, scope: shared ? "shared" : "mine", allowed, refused };
+      return {
+        saved: true,
+        itemId: item ? String(item.id) : null,
+        scope: shared ? "shared" : "mine",
+        allowed,
+        refused,
+      };
     },
 
     /** The card's Not now or Never. @param {{ tabId: number, origin: string }} sender @param {{ never: boolean }} msg */
@@ -205,6 +295,8 @@ export function createSave({ bridge, scripting, rules, now = Date.now, setTimer 
       return { never: Boolean(msg.never && page) };
     },
 
-    get pendingCount() { return pending.size; },
+    get pendingCount() {
+      return pending.size;
+    },
   };
 }

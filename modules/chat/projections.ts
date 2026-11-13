@@ -11,7 +11,10 @@ export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
 }
-export interface Principal { kind: "person" | "agent" | "actor" | "service"; id: string }
+export interface Principal {
+  kind: "person" | "agent" | "actor" | "service";
+  id: string;
+}
 
 /** The part of the host Ctx these handlers read. A test passes a small object; the host passes the full Ctx. */
 export interface ChatCtx {
@@ -39,7 +42,12 @@ type Row = Record<string, unknown>;
 export type ThreadKind = "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
 export type Mode = "lead" | "listen";
 
-export function raise(ctx: Pick<ChatCtx, "trace">, code: ErrorCode, message: string, details?: Record<string, unknown>): never {
+export function raise(
+  ctx: Pick<ChatCtx, "trace">,
+  code: ErrorCode,
+  message: string,
+  details?: Record<string, unknown>,
+): never {
   throw fail(code, ctx.trace.traceId, { message, ...(details ? { details } : {}) });
 }
 
@@ -64,14 +72,29 @@ export function refOf(id: string): { kind: Principal["kind"]; id: string } {
 export async function refuseUnseenAgents(ctx: ChatCtx, ids: readonly string[]): Promise<void> {
   if (!ctx.call || ctx.principal.kind !== "person") return;
   for (const agentId of new Set(ids)) {
-    try { await ctx.call("agents.get", { agentId }); } catch (e) {
-      const x = e as { code?: string; message?: string; details?: { reason?: string }; error?: { code?: string; message?: string; details?: { reason?: string } } };
+    try {
+      await ctx.call("agents.get", { agentId });
+    } catch (e) {
+      const x = e as {
+        code?: string;
+        message?: string;
+        details?: { reason?: string };
+        error?: { code?: string; message?: string; details?: { reason?: string } };
+      };
       const code = x.code ?? x.error?.code;
       // someone else's private agent (their assistant, an outside agent they connected) is refused in the agents module's own plain words
       const priv = (x.details ?? x.error?.details)?.reason === "private";
       // Only "not found" refuses here. A permission refusal from agents.get is NOT a reason to refuse the chat: a member who may talk to a Space agent often may not read its settings,
       // and treating that as "does not exist" stopped ordinary chats with agents (12 Nov, CI on 664e3b157: ten live files). Who may reach a chat's own agent is decided by access.
-      if (code === "validation.not_found") raise(ctx, "validation.not_found", priv ? (x.error?.message ?? x.message ?? "That agent is private to the person it belongs to.") : "That agent does not exist.", { agentId, ...(priv ? { reason: "private" } : {}) });
+      if (code === "validation.not_found")
+        raise(
+          ctx,
+          "validation.not_found",
+          priv
+            ? (x.error?.message ?? x.message ?? "That agent is private to the person it belongs to.")
+            : "That agent does not exist.",
+          { agentId, ...(priv ? { reason: "private" } : {}) },
+        );
     }
   }
 }
@@ -82,26 +105,76 @@ export const askerOf = (ctx: Pick<ChatCtx, "principal" | "actingFor">): string =
 // ---- schema -----------------------------------------------------------------------------------------------------------------------------------------
 
 const SCHEMA = readFileSync(new URL("./migrations/0001_chat.sql", import.meta.url), "utf8")
-  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 const SETTINGS_SCHEMA = readFileSync(new URL("./migrations/0005_agent_settings.sql", import.meta.url), "utf8")
-  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 const HISTORY_SCHEMA = readFileSync(new URL("./migrations/0006_history_from.sql", import.meta.url), "utf8")
-  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 const REPLIES_SCHEMA = readFileSync(new URL("./migrations/0007_replies_in.sql", import.meta.url), "utf8")
-  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
 
 /** Make sure the chat tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. The per-chat agent settings (0005) are added the same way when their columns are missing. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT id FROM chat_plan WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
-  try { db.all("SELECT respond, owned, grants FROM chat_thread_agent WHERE id = ?", "probe"); } catch { for (const stmt of SETTINGS_SCHEMA) { try { db.run(stmt); } catch { /* the column is already there */ } } }
-  try { db.all("SELECT fromAt FROM chat_thread_member WHERE id = ?", "probe"); } catch { for (const stmt of HISTORY_SCHEMA) { try { db.run(stmt); } catch { /* the column is already there */ } } }
-  try { db.all("SELECT repliesIn FROM chat_thread WHERE id = ?", "probe"); } catch { for (const stmt of REPLIES_SCHEMA) { try { db.run(stmt); } catch { /* the column is already there */ } } }
+  try {
+    db.all("SELECT id FROM chat_plan WHERE id = ?", "probe");
+  } catch {
+    for (const stmt of SCHEMA) db.run(stmt);
+  }
+  try {
+    db.all("SELECT respond, owned, grants FROM chat_thread_agent WHERE id = ?", "probe");
+  } catch {
+    for (const stmt of SETTINGS_SCHEMA) {
+      try {
+        db.run(stmt);
+      } catch {
+        /* the column is already there */
+      }
+    }
+  }
+  try {
+    db.all("SELECT fromAt FROM chat_thread_member WHERE id = ?", "probe");
+  } catch {
+    for (const stmt of HISTORY_SCHEMA) {
+      try {
+        db.run(stmt);
+      } catch {
+        /* the column is already there */
+      }
+    }
+  }
+  try {
+    db.all("SELECT repliesIn FROM chat_thread WHERE id = ?", "probe");
+  } catch {
+    for (const stmt of REPLIES_SCHEMA) {
+      try {
+        db.run(stmt);
+      } catch {
+        /* the column is already there */
+      }
+    }
+  }
   ready.add(db);
 }
 
@@ -117,10 +190,15 @@ export const MAX_NAME = 80;
 export async function hopLimit(ctx: ChatCtx): Promise<number> {
   if (!ctx.call) return DEFAULT_HOPS;
   try {
-    const out = (await ctx.call("settings.get", { key: "engine.agent_hops" })) as { row?: { value?: unknown } } | null | undefined;
+    const out = (await ctx.call("settings.get", { key: "engine.agent_hops" })) as
+      | { row?: { value?: unknown } }
+      | null
+      | undefined;
     const v = out?.row?.value;
     return typeof v === "number" && Number.isInteger(v) && v >= 1 ? v : DEFAULT_HOPS;
-  } catch { return DEFAULT_HOPS; }
+  } catch {
+    return DEFAULT_HOPS;
+  }
 }
 
 // ---- threads ----------------------------------------------------------------------------------------------------------------------------------------
@@ -133,18 +211,48 @@ export const modeOfCode = (v: unknown): ChatMode => (Number(v) === 1 ? "plan" : 
 export const codeOfMode = (m: ChatMode): number => (m === "plan" ? 1 : m === "auto" ? 2 : 0);
 
 export interface ThreadRec {
-  id: string; kind: ThreadKind; title?: string; starter?: string; recordId?: string; folderId?: string; scopeType?: string; scopeId?: string; channelId?: string;
-  parentThreadId?: string; parentMessageId?: string; listed: boolean; planMode: boolean; mode: ChatMode; createdAt: number; closedAt?: number;
+  id: string;
+  kind: ThreadKind;
+  title?: string;
+  starter?: string;
+  recordId?: string;
+  folderId?: string;
+  scopeType?: string;
+  scopeId?: string;
+  channelId?: string;
+  parentThreadId?: string;
+  parentMessageId?: string;
+  listed: boolean;
+  planMode: boolean;
+  mode: ChatMode;
+  createdAt: number;
+  closedAt?: number;
   /** The person's own choice of where agents reply (null column: the default of the kind of chat). */
   repliesIn?: boolean;
 }
 export function threadOf(r: Row): ThreadRec {
   const mode = modeOfCode(r["modePlan"]);
-  const o: ThreadRec = { id: str(r["id"]), kind: str(r["kind"]) as ThreadKind, listed: flag(r["listed"]), planMode: mode === "plan", mode, createdAt: num(r["createdAt"]) };
-  const set = <K extends keyof ThreadRec>(k: K, v: ThreadRec[K] | undefined): void => { if (v !== undefined) o[k] = v; };
-  set("title", optStr(r["title"])); set("starter", optStr(r["starter"])); set("recordId", optStr(r["recordId"])); set("folderId", optStr(r["folderId"]));
-  set("scopeType", optStr(r["scopeType"])); set("scopeId", optStr(r["scopeId"])); set("channelId", optStr(r["channelId"]));
-  set("parentThreadId", optStr(r["parentThreadId"])); set("parentMessageId", optStr(r["parentMessageId"])); set("closedAt", optNum(r["closedAt"]));
+  const o: ThreadRec = {
+    id: str(r["id"]),
+    kind: str(r["kind"]) as ThreadKind,
+    listed: flag(r["listed"]),
+    planMode: mode === "plan",
+    mode,
+    createdAt: num(r["createdAt"]),
+  };
+  const set = <K extends keyof ThreadRec>(k: K, v: ThreadRec[K] | undefined): void => {
+    if (v !== undefined) o[k] = v;
+  };
+  set("title", optStr(r["title"]));
+  set("starter", optStr(r["starter"]));
+  set("recordId", optStr(r["recordId"]));
+  set("folderId", optStr(r["folderId"]));
+  set("scopeType", optStr(r["scopeType"]));
+  set("scopeId", optStr(r["scopeId"]));
+  set("channelId", optStr(r["channelId"]));
+  set("parentThreadId", optStr(r["parentThreadId"]));
+  set("parentMessageId", optStr(r["parentMessageId"]));
+  set("closedAt", optNum(r["closedAt"]));
   if (r["repliesIn"] !== null && r["repliesIn"] !== undefined) o.repliesIn = Number(r["repliesIn"]) === 1;
   return o;
 }
@@ -155,8 +263,19 @@ export function threadBy(db: Db, id: string): ThreadRec | null {
 }
 
 export interface NewThread {
-  kind: ThreadKind; title?: string | undefined; starter?: string | undefined; recordId?: string | undefined; folderId?: string | undefined; scopeType?: string | undefined; scopeId?: string | undefined;
-  channelId?: string | undefined; parentThreadId?: string | undefined; parentMessageId?: string | undefined; listed: boolean; planMode?: boolean; mode?: ChatMode;
+  kind: ThreadKind;
+  title?: string | undefined;
+  starter?: string | undefined;
+  recordId?: string | undefined;
+  folderId?: string | undefined;
+  scopeType?: string | undefined;
+  scopeId?: string | undefined;
+  channelId?: string | undefined;
+  parentThreadId?: string | undefined;
+  parentMessageId?: string | undefined;
+  listed: boolean;
+  planMode?: boolean;
+  mode?: ChatMode;
 }
 export function insertThread(ctx: Pick<ChatCtx, "db" | "now">, t: NewThread): ThreadRec {
   const now = ctx.now();
@@ -164,8 +283,21 @@ export function insertThread(ctx: Pick<ChatCtx, "db" | "now">, t: NewThread): Th
   ctx.db.run(
     `INSERT INTO chat_thread (id, kind, title, starter, recordId, folderId, scopeType, scopeId, channelId, parentThreadId, parentMessageId, listed, modePlan, createdAt, closedAt, version, updated_at, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, NULL)`,
-    id, t.kind, t.title ?? null, t.starter ?? null, t.recordId ?? null, t.folderId ?? null, t.scopeType ?? null, t.scopeId ?? null, t.channelId ?? null,
-    t.parentThreadId ?? null, t.parentMessageId ?? null, t.listed ? 1 : 0, codeOfMode(t.mode ?? (t.planMode ? "plan" : "auto")), now, now,
+    id,
+    t.kind,
+    t.title ?? null,
+    t.starter ?? null,
+    t.recordId ?? null,
+    t.folderId ?? null,
+    t.scopeType ?? null,
+    t.scopeId ?? null,
+    t.channelId ?? null,
+    t.parentThreadId ?? null,
+    t.parentMessageId ?? null,
+    t.listed ? 1 : 0,
+    codeOfMode(t.mode ?? (t.planMode ? "plan" : "auto")),
+    now,
+    now,
   );
   return threadBy(ctx.db, id)!;
 }
@@ -183,66 +315,149 @@ export function encOf(db: Db, t: ThreadRec): number {
 // ---- members and agents -----------------------------------------------------------------------------------------------------------------------------
 
 export function membersOf(db: Db, thread: string): string[] {
-  return (db.all("SELECT principal FROM chat_thread_member WHERE thread = ? AND deleted_at IS NULL ORDER BY rowid", thread) as Row[]).map((r) => str(r["principal"]));
+  return (
+    db.all(
+      "SELECT principal FROM chat_thread_member WHERE thread = ? AND deleted_at IS NULL ORDER BY rowid",
+      thread,
+    ) as Row[]
+  ).map((r) => str(r["principal"]));
 }
 export function isMember(db: Db, thread: string, principal: string): boolean {
-  return db.all("SELECT 1 AS x FROM chat_thread_member WHERE thread = ? AND principal = ? AND deleted_at IS NULL", thread, principal).length > 0;
+  return (
+    db.all(
+      "SELECT 1 AS x FROM chat_thread_member WHERE thread = ? AND principal = ? AND deleted_at IS NULL",
+      thread,
+      principal,
+    ).length > 0
+  );
 }
-export function addMember(ctx: Pick<ChatCtx, "db" | "now">, thread: string, principal: string, role: "owner" | "member" = "member"): void {
+export function addMember(
+  ctx: Pick<ChatCtx, "db" | "now">,
+  thread: string,
+  principal: string,
+  role: "owner" | "member" = "member",
+): void {
   if (isMember(ctx.db, thread, principal)) return;
   const now = ctx.now();
   ctx.db.run(
     "INSERT INTO chat_thread_member (id, thread, principal, role, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, 0, ?, NULL)",
-    mintId("thm", now), thread, principal, role, now,
+    mintId("thm", now),
+    thread,
+    principal,
+    role,
+    now,
   );
 }
 
 export type Respond = "always" | "topics" | "hours";
 export type Style = "short" | "full";
 export interface AgentRec {
-  agentId: string; mode: Mode; model?: string; provider?: string; effort?: string; accountRef?: string; watches?: boolean;
+  agentId: string;
+  mode: Mode;
+  model?: string;
+  provider?: string;
+  effort?: string;
+  accountRef?: string;
+  watches?: boolean;
   /** when it answers a message nobody @mentioned: always (the default), only on topics, or only inside hours */
-  when?: Respond; topics?: string; hoursFrom?: string; hoursTo?: string; style?: Style;
+  when?: Respond;
+  topics?: string;
+  hoursFrom?: string;
+  hoursTo?: string;
+  style?: Style;
   /** Listening: reads the chat and never posts unless someone pokes it */
   quiet?: boolean;
   /** the chat made this agent for itself and removes it with the chat */
   owned?: boolean;
 }
 export function agentsOf(db: Db, thread: string): AgentRec[] {
-  return (db.all("SELECT * FROM chat_thread_agent WHERE thread = ? AND deleted_at IS NULL ORDER BY rowid", thread) as Row[]).map((r) => {
+  return (
+    db.all("SELECT * FROM chat_thread_agent WHERE thread = ? AND deleted_at IS NULL ORDER BY rowid", thread) as Row[]
+  ).map((r) => {
     const o: AgentRec = { agentId: str(r["agentId"]), mode: str(r["mode"]) === "lead" ? "lead" : "listen" };
-    const model = optStr(r["model"]); if (model !== undefined) o.model = model;
-    const provider = optStr(r["provider"]); if (provider !== undefined) o.provider = provider;
-    const effort = optStr(r["effort"]); if (effort !== undefined) o.effort = effort;
-    const accountRef = optStr(r["accountRef"]); if (accountRef !== undefined) o.accountRef = accountRef;
+    const model = optStr(r["model"]);
+    if (model !== undefined) o.model = model;
+    const provider = optStr(r["provider"]);
+    if (provider !== undefined) o.provider = provider;
+    const effort = optStr(r["effort"]);
+    if (effort !== undefined) o.effort = effort;
+    const accountRef = optStr(r["accountRef"]);
+    if (accountRef !== undefined) o.accountRef = accountRef;
     if (flag(r["watches"])) o.watches = true;
-    const when = optStr(r["respond"]); if (when === "topics" || when === "hours") o.when = when;
-    const topics = optStr(r["topics"]); if (topics !== undefined && topics !== "") o.topics = topics;
-    const from = optStr(r["hoursFrom"]); if (from !== undefined) o.hoursFrom = from;
-    const to = optStr(r["hoursTo"]); if (to !== undefined) o.hoursTo = to;
-    const style = optStr(r["style"]); if (style === "short" || style === "full") o.style = style;
+    const when = optStr(r["respond"]);
+    if (when === "topics" || when === "hours") o.when = when;
+    const topics = optStr(r["topics"]);
+    if (topics !== undefined && topics !== "") o.topics = topics;
+    const from = optStr(r["hoursFrom"]);
+    if (from !== undefined) o.hoursFrom = from;
+    const to = optStr(r["hoursTo"]);
+    if (to !== undefined) o.hoursTo = to;
+    const style = optStr(r["style"]);
+    if (style === "short" || style === "full") o.style = style;
     if (flag(r["quiet"])) o.quiet = true;
     if (flag(r["owned"])) o.owned = true;
     return o;
   });
 }
-export function addAgent(ctx: Pick<ChatCtx, "db" | "now">, thread: string, a: { agentId: string; mode: Mode; model?: string | undefined; provider?: string | undefined; effort?: string | undefined; accountRef?: string | undefined; addedBy: string; owned?: boolean | undefined; quiet?: boolean | undefined }): void {
-  if (ctx.db.all("SELECT 1 AS x FROM chat_thread_agent WHERE thread = ? AND agentId = ? AND deleted_at IS NULL", thread, a.agentId).length > 0) return;
+export function addAgent(
+  ctx: Pick<ChatCtx, "db" | "now">,
+  thread: string,
+  a: {
+    agentId: string;
+    mode: Mode;
+    model?: string | undefined;
+    provider?: string | undefined;
+    effort?: string | undefined;
+    accountRef?: string | undefined;
+    addedBy: string;
+    owned?: boolean | undefined;
+    quiet?: boolean | undefined;
+  },
+): void {
+  if (
+    ctx.db.all(
+      "SELECT 1 AS x FROM chat_thread_agent WHERE thread = ? AND agentId = ? AND deleted_at IS NULL",
+      thread,
+      a.agentId,
+    ).length > 0
+  )
+    return;
   const now = ctx.now();
   ctx.db.run(
     `INSERT INTO chat_thread_agent (id, thread, agentId, mode, model, provider, effort, accountRef, addedBy, watches, version, updated_at, deleted_at, owned, quiet)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, NULL, ?, ?)`,
-    mintId("tha", now), thread, a.agentId, a.mode, a.model ?? null, a.provider ?? null, a.effort ?? null, a.accountRef ?? null, a.addedBy, now, a.owned === true ? 1 : null, a.quiet === true ? 1 : null,
+    mintId("tha", now),
+    thread,
+    a.agentId,
+    a.mode,
+    a.model ?? null,
+    a.provider ?? null,
+    a.effort ?? null,
+    a.accountRef ?? null,
+    a.addedBy,
+    now,
+    a.owned === true ? 1 : null,
+    a.quiet === true ? 1 : null,
   );
 }
 
 /** One agent of a thread as the contract shows it: the mode (lead or listen, as before), and how and when it answers when that was set. */
 export function agentOut(a: AgentRec): Record<string, unknown> {
   return {
-    agentId: a.agentId, mode: a.mode, ...(a.model !== undefined ? { model: a.model } : {}), ...(a.provider !== undefined ? { provider: a.provider } : {}), ...(a.effort !== undefined ? { effort: a.effort } : {}),
-    ...(a.accountRef !== undefined ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watches: a.watches } : {}),
-    ...(a.when !== undefined ? { when: a.when } : {}), ...(a.topics !== undefined ? { topics: a.topics } : {}), ...(a.hoursFrom !== undefined ? { hoursFrom: a.hoursFrom } : {}), ...(a.hoursTo !== undefined ? { hoursTo: a.hoursTo } : {}),
-    ...(a.style !== undefined ? { style: a.style } : {}), ...(a.quiet === true ? { quiet: true } : {}), ...(a.owned === true ? { owned: true } : {}),
+    agentId: a.agentId,
+    mode: a.mode,
+    ...(a.model !== undefined ? { model: a.model } : {}),
+    ...(a.provider !== undefined ? { provider: a.provider } : {}),
+    ...(a.effort !== undefined ? { effort: a.effort } : {}),
+    ...(a.accountRef !== undefined ? { accountRef: a.accountRef } : {}),
+    ...(a.watches !== undefined ? { watches: a.watches } : {}),
+    ...(a.when !== undefined ? { when: a.when } : {}),
+    ...(a.topics !== undefined ? { topics: a.topics } : {}),
+    ...(a.hoursFrom !== undefined ? { hoursFrom: a.hoursFrom } : {}),
+    ...(a.hoursTo !== undefined ? { hoursTo: a.hoursTo } : {}),
+    ...(a.style !== undefined ? { style: a.style } : {}),
+    ...(a.quiet === true ? { quiet: true } : {}),
+    ...(a.owned === true ? { owned: true } : {}),
   };
 }
 
@@ -268,28 +483,55 @@ export function agentsReplyInThreads(t: ThreadRec): boolean {
 export function threadOut(db: Db, t: ThreadRec): Record<string, unknown> {
   const mode = inheritedMode(db, t);
   const out: Record<string, unknown> = {
-    threadId: t.id, kind: t.kind, listed: t.listed, planMode: t.planMode || mode === "plan", mode,
+    threadId: t.id,
+    kind: t.kind,
+    listed: t.listed,
+    planMode: t.planMode || mode === "plan",
+    mode,
     members: membersOf(db, t.id).map(refOf),
     agents: agentsOf(db, t.id).map(agentOut),
     createdAt: t.createdAt,
   };
-  const set = (k: string, v: unknown): void => { if (v !== undefined) out[k] = v; };
+  const set = (k: string, v: unknown): void => {
+    if (v !== undefined) out[k] = v;
+  };
   if (t.kind === "channel" || t.kind === "chat") out["agentRepliesInThreads"] = agentsReplyInThreads(t);
-  set("title", t.title); set("starter", t.starter); set("channelId", t.channelId); set("parentThreadId", t.parentThreadId); set("parentMessageId", t.parentMessageId);
-  set("recordId", t.recordId); set("folderId", t.folderId); set("scopeType", t.scopeType); set("scopeId", t.scopeId); set("closedAt", t.closedAt);
-  const stat = (db.all('SELECT COUNT(*) AS n, MAX("createdAt") AS last FROM chat_message WHERE "thread" = ? AND deleted_at IS NULL', t.id)[0] ?? {}) as { n?: number; last?: number | null };
+  set("title", t.title);
+  set("starter", t.starter);
+  set("channelId", t.channelId);
+  set("parentThreadId", t.parentThreadId);
+  set("parentMessageId", t.parentMessageId);
+  set("recordId", t.recordId);
+  set("folderId", t.folderId);
+  set("scopeType", t.scopeType);
+  set("scopeId", t.scopeId);
+  set("closedAt", t.closedAt);
+  const stat = (db.all(
+    'SELECT COUNT(*) AS n, MAX("createdAt") AS last FROM chat_message WHERE "thread" = ? AND deleted_at IS NULL',
+    t.id,
+  )[0] ?? {}) as { n?: number; last?: number | null };
   out["replyCount"] = Number(stat.n ?? 0);
   if (stat.last !== null && stat.last !== undefined) out["lastMessageAt"] = Number(stat.last);
   // when a second person came in: what was said before it was said between fewer people, and an agent that reads the room for everyone leaves it out
-  const people = db.all("SELECT principal, updated_at FROM chat_thread_member WHERE thread = ? AND deleted_at IS NULL AND principal LIKE 'usr_%' ORDER BY rowid", t.id) as Row[];
-  if (people.length > 1 && people[1]!["updated_at"] !== null && people[1]!["updated_at"] !== undefined) out["sharedAt"] = Number(people[1]!["updated_at"]);
+  const people = db.all(
+    "SELECT principal, updated_at FROM chat_thread_member WHERE thread = ? AND deleted_at IS NULL AND principal LIKE 'usr_%' ORDER BY rowid",
+    t.id,
+  ) as Row[];
+  if (people.length > 1 && people[1]!["updated_at"] !== null && people[1]!["updated_at"] !== undefined)
+    out["sharedAt"] = Number(people[1]!["updated_at"]);
   // when each person joined, from the second on: what was said before a person joined is not theirs to have read, nor an agent's answer to them
-  if (people.length > 1) out["joinedAt"] = Object.fromEntries(people.slice(1).map((r) => [String(r["principal"]), Number(r["updated_at"] ?? 0)]));
+  if (people.length > 1)
+    out["joinedAt"] = Object.fromEntries(
+      people.slice(1).map((r) => [String(r["principal"]), Number(r["updated_at"] ?? 0)]),
+    );
   if (t.kind === "helper") {
     // the address bar of a helper chat: each ancestor, each part a link back
     const path: Array<{ title: string; threadId: string }> = [];
     let cur: ThreadRec | null = t;
-    for (let i = 0; cur && i < 8; i++) { path.unshift({ title: cur.title ?? "Chat", threadId: cur.id }); cur = cur.parentThreadId ? threadBy(db, cur.parentThreadId) : null; }
+    for (let i = 0; cur && i < 8; i++) {
+      path.unshift({ title: cur.title ?? "Chat", threadId: cur.id });
+      cur = cur.parentThreadId ? threadBy(db, cur.parentThreadId) : null;
+    }
     out["path"] = path;
   }
   return out;
@@ -298,19 +540,53 @@ export function threadOut(db: Db, t: ThreadRec): Record<string, unknown> {
 // ---- messages ---------------------------------------------------------------------------------------------------------------------------------------
 
 export interface MessageRec {
-  id: string; thread: string; seq: number; author: string; kind: "text" | "agent" | "system" | "quiet"; body: string; blocks: Array<Record<string, unknown>>; replyTo?: string;
-  via?: { routineOwner: string }; /** The person whose own account this turn ran on; absent when a key of the Space paid. */ paidBy?: string; depth: number; attachments: string[]; reactions: Array<{ emoji: string; by: string[] }>; pinned: boolean; editedAt?: number; createdAt: number;
+  id: string;
+  thread: string;
+  seq: number;
+  author: string;
+  kind: "text" | "agent" | "system" | "quiet";
+  body: string;
+  blocks: Array<Record<string, unknown>>;
+  replyTo?: string;
+  via?: { routineOwner: string };
+  /** The person whose own account this turn ran on; absent when a key of the Space paid. */ paidBy?: string;
+  depth: number;
+  attachments: string[];
+  reactions: Array<{ emoji: string; by: string[] }>;
+  pinned: boolean;
+  editedAt?: number;
+  createdAt: number;
 }
-const parseJson = <T>(raw: unknown, fallback: T): T => { try { return raw === null || raw === undefined ? fallback : (JSON.parse(str(raw)) as T); } catch { return fallback; } };
+const parseJson = <T>(raw: unknown, fallback: T): T => {
+  try {
+    return raw === null || raw === undefined ? fallback : (JSON.parse(str(raw)) as T);
+  } catch {
+    return fallback;
+  }
+};
 
 export function messageOf(r: Row): MessageRec {
   const o: MessageRec = {
-    id: str(r["id"]), thread: str(r["thread"]), seq: num(r["threadSeq"]), author: str(r["author"]), kind: str(r["kind"]) as MessageRec["kind"], body: str(r["body"] ?? ""),
-    blocks: parseJson(r["blocks"], []), depth: num(r["depth"] ?? 0), attachments: parseJson(r["attachments"], []), reactions: parseJson(r["reactions"], []), pinned: flag(r["pinned"]), createdAt: num(r["createdAt"]),
+    id: str(r["id"]),
+    thread: str(r["thread"]),
+    seq: num(r["threadSeq"]),
+    author: str(r["author"]),
+    kind: str(r["kind"]) as MessageRec["kind"],
+    body: str(r["body"] ?? ""),
+    blocks: parseJson(r["blocks"], []),
+    depth: num(r["depth"] ?? 0),
+    attachments: parseJson(r["attachments"], []),
+    reactions: parseJson(r["reactions"], []),
+    pinned: flag(r["pinned"]),
+    createdAt: num(r["createdAt"]),
   };
-  const replyTo = optStr(r["replyTo"]); if (replyTo !== undefined) o.replyTo = replyTo;
-  const via = parseJson<{ routineOwner?: string; paidBy?: string } | null>(r["via"], null); if (via?.routineOwner) o.via = { routineOwner: via.routineOwner }; if (via?.paidBy) o.paidBy = via.paidBy;
-  const editedAt = optNum(r["editedAt"]); if (editedAt !== undefined) o.editedAt = editedAt;
+  const replyTo = optStr(r["replyTo"]);
+  if (replyTo !== undefined) o.replyTo = replyTo;
+  const via = parseJson<{ routineOwner?: string; paidBy?: string } | null>(r["via"], null);
+  if (via?.routineOwner) o.via = { routineOwner: via.routineOwner };
+  if (via?.paidBy) o.paidBy = via.paidBy;
+  const editedAt = optNum(r["editedAt"]);
+  if (editedAt !== undefined) o.editedAt = editedAt;
   return o;
 }
 
@@ -322,23 +598,53 @@ export function messageBy(db: Db, id: string): MessageRec | null {
 /** The message row of the contract. */
 export function messageOut(m: MessageRec, enc: number): Record<string, unknown> {
   return {
-    messageId: m.id, threadId: m.thread, threadSeq: m.seq, author: refOf(m.author), kind: m.kind, body: m.body, blocks: m.blocks,
-    ...(m.replyTo !== undefined ? { replyTo: m.replyTo } : {}), ...(m.via !== undefined ? { via: m.via } : {}), ...(m.paidBy !== undefined ? { paidBy: m.paidBy } : {}), depth: m.depth, attachments: m.attachments, reactions: m.reactions,
-    pinned: m.pinned, ...(m.editedAt !== undefined ? { editedAt: m.editedAt } : {}), createdAt: m.createdAt, enc,
+    messageId: m.id,
+    threadId: m.thread,
+    threadSeq: m.seq,
+    author: refOf(m.author),
+    kind: m.kind,
+    body: m.body,
+    blocks: m.blocks,
+    ...(m.replyTo !== undefined ? { replyTo: m.replyTo } : {}),
+    ...(m.via !== undefined ? { via: m.via } : {}),
+    ...(m.paidBy !== undefined ? { paidBy: m.paidBy } : {}),
+    depth: m.depth,
+    attachments: m.attachments,
+    reactions: m.reactions,
+    pinned: m.pinned,
+    ...(m.editedAt !== undefined ? { editedAt: m.editedAt } : {}),
+    createdAt: m.createdAt,
+    enc,
   };
 }
 
 /** Resume a chat: the last `n` messages (default 50), oldest first, read off the (thread, threadSeq) index with no sort. `before` pages backwards. */
 export function lastMessages(db: Db, thread: string, n = 50, before?: number): MessageRec[] {
-  const rows = (before === undefined
-    ? db.all("SELECT * FROM chat_message WHERE thread = ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT ?", thread, n)
-    : db.all("SELECT * FROM chat_message WHERE thread = ? AND threadSeq < ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT ?", thread, before, n)) as Row[];
+  const rows = (
+    before === undefined
+      ? db.all(
+          "SELECT * FROM chat_message WHERE thread = ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT ?",
+          thread,
+          n,
+        )
+      : db.all(
+          "SELECT * FROM chat_message WHERE thread = ? AND threadSeq < ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT ?",
+          thread,
+          before,
+          n,
+        )
+  ) as Row[];
   return rows.map(messageOf).reverse();
 }
 
 /** The newest message of a thread, or null. */
 export function lastMessage(db: Db, thread: string): MessageRec | null {
-  const r = (db.all("SELECT * FROM chat_message WHERE thread = ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT 1", thread) as Row[])[0];
+  const r = (
+    db.all(
+      "SELECT * FROM chat_message WHERE thread = ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT 1",
+      thread,
+    ) as Row[]
+  )[0];
   return r ? messageOf(r) : null;
 }
 
@@ -347,7 +653,10 @@ export function nextSeq(db: Db, thread: string): number {
   const changed = db.run("UPDATE chat_thread_seq SET last = last + 1 WHERE thread = ?", thread).changes;
   if (changed === 0) {
     // First message of the thread, or a thread whose counter was never made: continue from what is stored.
-    const top = optNum((db.all("SELECT MAX(threadSeq) AS top FROM chat_message WHERE thread = ?", thread) as Row[])[0]?.["top"]) ?? 0;
+    const top =
+      optNum(
+        (db.all("SELECT MAX(threadSeq) AS top FROM chat_message WHERE thread = ?", thread) as Row[])[0]?.["top"],
+      ) ?? 0;
     db.run("INSERT INTO chat_thread_seq (thread, last) VALUES (?, ?)", thread, top + 1);
     return top + 1;
   }
@@ -355,8 +664,16 @@ export function nextSeq(db: Db, thread: string): number {
 }
 
 export interface NewMessage {
-  id?: string | undefined; author: string; kind: MessageRec["kind"]; body: string; blocks?: Array<Record<string, unknown>>; replyTo?: string | undefined;
-  via?: { routineOwner: string } | undefined; paidBy?: string | undefined; depth?: number; attachments?: string[];
+  id?: string | undefined;
+  author: string;
+  kind: MessageRec["kind"];
+  body: string;
+  blocks?: Array<Record<string, unknown>>;
+  replyTo?: string | undefined;
+  via?: { routineOwner: string } | undefined;
+  paidBy?: string | undefined;
+  depth?: number;
+  attachments?: string[];
 }
 /** Insert one message with the next sequence number. Validate everything before this call: it must not fail half way. */
 export function insertMessage(ctx: Pick<ChatCtx, "db" | "now">, thread: string, m: NewMessage): MessageRec {
@@ -366,7 +683,19 @@ export function insertMessage(ctx: Pick<ChatCtx, "db" | "now">, thread: string, 
   ctx.db.run(
     `INSERT INTO chat_message (id, thread, threadSeq, author, kind, body, blocks, replyTo, via, depth, attachments, pinned, reactions, editedAt, createdAt, version, updated_at, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '[]', NULL, ?, 0, ?, NULL)`,
-    id, thread, seq, m.author, m.kind, m.body, JSON.stringify(m.blocks ?? []), m.replyTo ?? null, m.via || m.paidBy ? JSON.stringify({ ...m.via, ...(m.paidBy ? { paidBy: m.paidBy } : {}) }) : null, m.depth ?? 0, JSON.stringify(m.attachments ?? []), now, now,
+    id,
+    thread,
+    seq,
+    m.author,
+    m.kind,
+    m.body,
+    JSON.stringify(m.blocks ?? []),
+    m.replyTo ?? null,
+    m.via || m.paidBy ? JSON.stringify({ ...m.via, ...(m.paidBy ? { paidBy: m.paidBy } : {}) }) : null,
+    m.depth ?? 0,
+    JSON.stringify(m.attachments ?? []),
+    now,
+    now,
   );
   return messageBy(ctx.db, id)!;
 }
@@ -374,14 +703,34 @@ export function insertMessage(ctx: Pick<ChatCtx, "db" | "now">, thread: string, 
 // ---- channels ---------------------------------------------------------------------------------------------------------------------------------------
 
 export interface ChannelRec {
-  id: string; mainThread: string; name: string; topic?: string; visibility: "public" | "invite"; folderId?: string; recordId?: string; archived: boolean; createdBy?: string; createdAt: number;
+  id: string;
+  mainThread: string;
+  name: string;
+  topic?: string;
+  visibility: "public" | "invite";
+  folderId?: string;
+  recordId?: string;
+  archived: boolean;
+  createdBy?: string;
+  createdAt: number;
 }
 export function channelOf(r: Row): ChannelRec {
-  const o: ChannelRec = { id: str(r["id"]), mainThread: str(r["mainThread"]), name: str(r["name"]), visibility: str(r["visibility"]) === "public" ? "public" : "invite", archived: flag(r["archived"]), createdAt: num(r["createdAt"]) };
-  const topic = optStr(r["topic"]); if (topic !== undefined) o.topic = topic;
-  const folderId = optStr(r["folderId"]); if (folderId !== undefined) o.folderId = folderId;
-  const recordId = optStr(r["recordId"]); if (recordId !== undefined) o.recordId = recordId;
-  const createdBy = optStr(r["createdBy"]); if (createdBy !== undefined) o.createdBy = createdBy;
+  const o: ChannelRec = {
+    id: str(r["id"]),
+    mainThread: str(r["mainThread"]),
+    name: str(r["name"]),
+    visibility: str(r["visibility"]) === "public" ? "public" : "invite",
+    archived: flag(r["archived"]),
+    createdAt: num(r["createdAt"]),
+  };
+  const topic = optStr(r["topic"]);
+  if (topic !== undefined) o.topic = topic;
+  const folderId = optStr(r["folderId"]);
+  if (folderId !== undefined) o.folderId = folderId;
+  const recordId = optStr(r["recordId"]);
+  if (recordId !== undefined) o.recordId = recordId;
+  const createdBy = optStr(r["createdBy"]);
+  if (createdBy !== undefined) o.createdBy = createdBy;
   return o;
 }
 export function channelBy(db: Db, id: string): ChannelRec | null {
@@ -390,22 +739,51 @@ export function channelBy(db: Db, id: string): ChannelRec | null {
 }
 /** The live channel of a record (a Project or Journey channel), or null. */
 export function channelOfRecord(db: Db, recordId: string): ChannelRec | null {
-  const r = (db.all("SELECT * FROM chat_channel WHERE recordId = ? AND archived = 0 ORDER BY createdAt LIMIT 1", recordId) as Row[])[0];
+  const r = (
+    db.all(
+      "SELECT * FROM chat_channel WHERE recordId = ? AND archived = 0 ORDER BY createdAt LIMIT 1",
+      recordId,
+    ) as Row[]
+  )[0];
   return r ? channelOf(r) : null;
 }
 /** A name compared the way people read it: case and runs of spaces do not make two channels. */
 export const nameKey = (name: string): string => name.trim().replace(/\s+/g, " ").toLowerCase();
 export function channelByName(db: Db, name: string): ChannelRec | null {
-  const r = (db.all("SELECT * FROM chat_channel WHERE nameKey = ? AND archived = 0 LIMIT 1", nameKey(name)) as Row[])[0];
+  const r = (
+    db.all("SELECT * FROM chat_channel WHERE nameKey = ? AND archived = 0 LIMIT 1", nameKey(name)) as Row[]
+  )[0];
   return r ? channelOf(r) : null;
 }
 
-export function insertChannel(ctx: Pick<ChatCtx, "db" | "now">, c: { id?: string; mainThread: string; name: string; topic?: string | undefined; visibility: "public" | "invite"; folderId?: string | undefined; recordId?: string | undefined; createdBy: string }): ChannelRec {
+export function insertChannel(
+  ctx: Pick<ChatCtx, "db" | "now">,
+  c: {
+    id?: string;
+    mainThread: string;
+    name: string;
+    topic?: string | undefined;
+    visibility: "public" | "invite";
+    folderId?: string | undefined;
+    recordId?: string | undefined;
+    createdBy: string;
+  },
+): ChannelRec {
   const now = ctx.now();
   const id = c.id ?? mintId("chn", now);
   ctx.db.run(
     `INSERT INTO chat_channel (id, mainThread, name, nameKey, topic, visibility, folderId, recordId, archived, createdBy, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
-    id, c.mainThread, c.name, nameKey(c.name), c.topic ?? null, c.visibility, c.folderId ?? null, c.recordId ?? null, c.createdBy, now, now,
+    id,
+    c.mainThread,
+    c.name,
+    nameKey(c.name),
+    c.topic ?? null,
+    c.visibility,
+    c.folderId ?? null,
+    c.recordId ?? null,
+    c.createdBy,
+    now,
+    now,
   );
   return channelBy(ctx.db, id)!;
 }
@@ -414,44 +792,126 @@ export function insertChannel(ctx: Pick<ChatCtx, "db" | "now">, c: { id?: string
 export function channelOut(db: Db, c: ChannelRec): Record<string, unknown> {
   const t = threadBy(db, c.mainThread);
   return {
-    channelId: c.id, mainThreadId: c.mainThread, name: c.name, ...(c.topic !== undefined ? { topic: c.topic } : {}), visibility: c.visibility,
-    ...(c.folderId !== undefined ? { folderId: c.folderId } : {}), ...(c.recordId !== undefined ? { recordId: c.recordId } : {}), archived: c.archived,
-    members: membersOf(db, c.mainThread).filter((p) => !p.startsWith("agt_")).map(refOf),
-    agents: t ? (threadOut(db, t)["agents"] as unknown[]) : [], unread: 0, createdAt: c.createdAt,
+    channelId: c.id,
+    mainThreadId: c.mainThread,
+    name: c.name,
+    ...(c.topic !== undefined ? { topic: c.topic } : {}),
+    visibility: c.visibility,
+    ...(c.folderId !== undefined ? { folderId: c.folderId } : {}),
+    ...(c.recordId !== undefined ? { recordId: c.recordId } : {}),
+    archived: c.archived,
+    members: membersOf(db, c.mainThread)
+      .filter((p) => !p.startsWith("agt_"))
+      .map(refOf),
+    agents: t ? (threadOut(db, t)["agents"] as unknown[]) : [],
+    unread: 0,
+    createdAt: c.createdAt,
   };
 }
 
 // ---- waiting blocks and plans -----------------------------------------------------------------------------------------------------------------------
 
-export interface BlockRec { id: string; thread: string; message: string; type: string; state: "waiting" | "done"; data: Record<string, unknown>; answer?: unknown; answeredBy?: string; answeredAt?: number; createdAt: number }
+export interface BlockRec {
+  id: string;
+  thread: string;
+  message: string;
+  type: string;
+  state: "waiting" | "done";
+  data: Record<string, unknown>;
+  answer?: unknown;
+  answeredBy?: string;
+  answeredAt?: number;
+  createdAt: number;
+}
 export function blockBy(db: Db, id: string): BlockRec | null {
   const r = (db.all("SELECT * FROM chat_block WHERE id = ?", id) as Row[])[0];
   if (!r) return null;
-  const o: BlockRec = { id: str(r["id"]), thread: str(r["thread"]), message: str(r["message"]), type: str(r["type"]), state: str(r["state"]) === "done" ? "done" : "waiting", data: parseJson(r["data"], {}), createdAt: num(r["createdAt"]) };
+  const o: BlockRec = {
+    id: str(r["id"]),
+    thread: str(r["thread"]),
+    message: str(r["message"]),
+    type: str(r["type"]),
+    state: str(r["state"]) === "done" ? "done" : "waiting",
+    data: parseJson(r["data"], {}),
+    createdAt: num(r["createdAt"]),
+  };
   if (r["answer"] !== null && r["answer"] !== undefined) o.answer = parseJson<unknown>(r["answer"], null);
-  const by = optStr(r["answeredBy"]); if (by !== undefined) o.answeredBy = by;
-  const at = optNum(r["answeredAt"]); if (at !== undefined) o.answeredAt = at;
+  const by = optStr(r["answeredBy"]);
+  if (by !== undefined) o.answeredBy = by;
+  const at = optNum(r["answeredAt"]);
+  if (at !== undefined) o.answeredAt = at;
   return o;
 }
-export function insertBlock(ctx: Pick<ChatCtx, "db" | "now">, b: { id: string; thread: string; message: string; type: string; data: Record<string, unknown> }): void {
-  ctx.db.run("INSERT INTO chat_block (id, thread, message, type, state, data, createdAt) VALUES (?, ?, ?, ?, 'waiting', ?, ?)", b.id, b.thread, b.message, b.type, JSON.stringify(b.data), ctx.now());
+export function insertBlock(
+  ctx: Pick<ChatCtx, "db" | "now">,
+  b: { id: string; thread: string; message: string; type: string; data: Record<string, unknown> },
+): void {
+  ctx.db.run(
+    "INSERT INTO chat_block (id, thread, message, type, state, data, createdAt) VALUES (?, ?, ?, ?, 'waiting', ?, ?)",
+    b.id,
+    b.thread,
+    b.message,
+    b.type,
+    JSON.stringify(b.data),
+    ctx.now(),
+  );
 }
 
-export interface PlanStep { stepId: string; text: string; state: "todo" | "doing" | "done" | "skipped"; detail?: string }
-export interface PlanRec { id: string; thread: string; block: string; title: string; state: "proposed" | "approved" | "rejected" | "done"; steps: PlanStep[]; docFileId?: string; createdAt: number }
+export interface PlanStep {
+  stepId: string;
+  text: string;
+  state: "todo" | "doing" | "done" | "skipped";
+  detail?: string;
+}
+export interface PlanRec {
+  id: string;
+  thread: string;
+  block: string;
+  title: string;
+  state: "proposed" | "approved" | "rejected" | "done";
+  steps: PlanStep[];
+  docFileId?: string;
+  createdAt: number;
+}
 export function planBy(db: Db, id: string): PlanRec | null {
   const r = (db.all("SELECT * FROM chat_plan WHERE id = ?", id) as Row[])[0];
   if (!r) return null;
-  const o: PlanRec = { id: str(r["id"]), thread: str(r["thread"]), block: str(r["block"]), title: str(r["title"]), state: str(r["state"]) as PlanRec["state"], steps: parseJson(r["steps"], []), createdAt: num(r["createdAt"]) };
-  const doc = optStr(r["docFileId"]); if (doc !== undefined) o.docFileId = doc;
+  const o: PlanRec = {
+    id: str(r["id"]),
+    thread: str(r["thread"]),
+    block: str(r["block"]),
+    title: str(r["title"]),
+    state: str(r["state"]) as PlanRec["state"],
+    steps: parseJson(r["steps"], []),
+    createdAt: num(r["createdAt"]),
+  };
+  const doc = optStr(r["docFileId"]);
+  if (doc !== undefined) o.docFileId = doc;
   return o;
 }
-export function insertPlan(ctx: Pick<ChatCtx, "db" | "now">, p: { id: string; thread: string; block: string; title: string; steps: PlanStep[]; docFileId?: string | undefined }): void {
-  ctx.db.run("INSERT INTO chat_plan (id, thread, block, title, state, steps, docFileId, createdAt) VALUES (?, ?, ?, ?, 'proposed', ?, ?, ?)", p.id, p.thread, p.block, p.title, JSON.stringify(p.steps), p.docFileId ?? null, ctx.now());
+export function insertPlan(
+  ctx: Pick<ChatCtx, "db" | "now">,
+  p: { id: string; thread: string; block: string; title: string; steps: PlanStep[]; docFileId?: string | undefined },
+): void {
+  ctx.db.run(
+    "INSERT INTO chat_plan (id, thread, block, title, state, steps, docFileId, createdAt) VALUES (?, ?, ?, ?, 'proposed', ?, ?, ?)",
+    p.id,
+    p.thread,
+    p.block,
+    p.title,
+    JSON.stringify(p.steps),
+    p.docFileId ?? null,
+    ctx.now(),
+  );
 }
 
 /** Change one block inside its message's blocks JSON (the answer, the plan state) so a replica reading only messages sees it. */
-export function patchBlockInMessage(db: Db, messageId: string, blockId: string, patch: (block: Record<string, unknown>) => Record<string, unknown>): void {
+export function patchBlockInMessage(
+  db: Db,
+  messageId: string,
+  blockId: string,
+  patch: (block: Record<string, unknown>) => Record<string, unknown>,
+): void {
   const m = messageBy(db, messageId);
   if (!m) return;
   const blocks = m.blocks.map((b) => (b["id"] === blockId ? patch(b) : b));

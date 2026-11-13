@@ -1,5 +1,10 @@
 // A schedule backlog over its cap is one Needs You task. These choices are the ones the server accepts.
-export type ScheduleChoiceKey = "run_first_n" | "run_latest_n" | "skip_backlog_and_resume" | "change_limits" | "keep_paused";
+export type ScheduleChoiceKey =
+  | "run_first_n"
+  | "run_latest_n"
+  | "skip_backlog_and_resume"
+  | "change_limits"
+  | "keep_paused";
 
 export interface ScheduleChoice {
   key: ScheduleChoiceKey;
@@ -12,7 +17,13 @@ export interface ScheduleRequest {
 }
 
 const PREFIX = "automation-schedule:";
-const KEYS = new Set<string>(["run_first_n", "run_latest_n", "skip_backlog_and_resume", "change_limits", "keep_paused"]);
+const KEYS = new Set<string>([
+  "run_first_n",
+  "run_latest_n",
+  "skip_backlog_and_resume",
+  "change_limits",
+  "keep_paused",
+]);
 
 export const SCHEDULE_CHOICES: readonly ScheduleChoice[] = [
   { key: "run_first_n", label: "Run first N" },
@@ -49,11 +60,17 @@ export function choiceStartsRuns(key: string): boolean {
   return key === "run_first_n" || key === "run_latest_n";
 }
 
-export function readChoiceResult(out: unknown): { ok: boolean; started: number; paused: boolean; error?: string } | null {
+export function readChoiceResult(
+  out: unknown,
+): { ok: boolean; started: number; paused: boolean; error?: string } | null {
   if (!out || typeof out !== "object") return null;
   const row = out as { ok?: unknown; started?: unknown; paused?: unknown; error?: unknown };
   if (typeof row.ok !== "boolean" || typeof row.paused !== "boolean" || !Array.isArray(row.started)) return null;
-  const result: { ok: boolean; started: number; paused: boolean; error?: string } = { ok: row.ok, started: row.started.length, paused: row.paused };
+  const result: { ok: boolean; started: number; paused: boolean; error?: string } = {
+    ok: row.ok,
+    started: row.started.length,
+    paused: row.paused,
+  };
   if (typeof row.error === "string" && row.error.length > 0) result.error = row.error;
   return result;
 }

@@ -4,8 +4,16 @@ import type { Platform } from "../platform/index.ts";
 
 export const EXIT = { OK: 0, FAILED: 1, USAGE: 2, NOT_RUNNING: 5 } as const;
 
-export interface FetchResponse { status: number; ok: boolean; headers: { get(name: string): string | null }; text(): Promise<string> }
-export type FetchLike = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal }) => Promise<FetchResponse>;
+export interface FetchResponse {
+  status: number;
+  ok: boolean;
+  headers: { get(name: string): string | null };
+  text(): Promise<string>;
+}
+export type FetchLike = (
+  url: string,
+  init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal },
+) => Promise<FetchResponse>;
 
 export interface CliIo {
   out(text: string): void;
@@ -30,8 +38,12 @@ export interface CliIo {
 
 export function processIo(): CliIo {
   return {
-    out: (t) => { process.stdout.write(t); },
-    err: (t) => { process.stderr.write(t); },
+    out: (t) => {
+      process.stdout.write(t);
+    },
+    err: (t) => {
+      process.stderr.write(t);
+    },
     env: process.env,
     cwd: process.cwd(),
     fetch: fetch as unknown as FetchLike,

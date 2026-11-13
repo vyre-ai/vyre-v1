@@ -1,5 +1,13 @@
 // Fake mail transport behind the Resend and Mailgun hosts mail.send uses (ARCH 8.2, 10.1).
-import { handledFetch, hostIs, recordingFetch, type FetchLike, type Handler, type ReplayTape, type SeenCall } from "./replay.ts";
+import {
+  handledFetch,
+  hostIs,
+  recordingFetch,
+  type FetchLike,
+  type Handler,
+  type ReplayTape,
+  type SeenCall,
+} from "./replay.ts";
 
 export interface MailMessage {
   from: string;
@@ -24,7 +32,9 @@ export function fakeMail(opts: { tape?: ReplayTape; fetch?: FetchLike } = {}): M
   const handlers: Handler[] = [
     {
       method: "POST",
-      match: (u) => (hostIs(u, "resend.com") && u.pathname === "/emails") || (hostIs(u, "mailgun.net") && u.pathname.endsWith("/messages")),
+      match: (u) =>
+        (hostIs(u, "resend.com") && u.pathname === "/emails") ||
+        (hostIs(u, "mailgun.net") && u.pathname.endsWith("/messages")),
       run: (_u, init) => {
         const msg = asMessage(init.body);
         n += 1;
@@ -57,7 +67,7 @@ export function fakeMail(opts: { tape?: ReplayTape; fetch?: FetchLike } = {}): M
 }
 
 function asMessage(body: string | undefined): MailMessage {
-  const parsed = body ? JSON.parse(body) as Record<string, unknown> : {};
+  const parsed = body ? (JSON.parse(body) as Record<string, unknown>) : {};
   const to = Array.isArray(parsed.to) ? parsed.to.filter((x): x is string => typeof x === "string") : [];
   const msg: MailMessage = {
     from: typeof parsed.from === "string" ? parsed.from : "",

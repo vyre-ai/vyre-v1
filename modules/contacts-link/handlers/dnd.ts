@@ -28,14 +28,20 @@ const CONTEXTS = ["audience", "journey_enrol", `import`];
 const MAX_CANDIDATES = 20_000;
 const BATCH = 200;
 
-export async function dndScreen(ctx: ContactsCtx, input: { context: string; contextId?: string; candidates: Candidate[] }): Promise<Screened> {
+export async function dndScreen(
+  ctx: ContactsCtx,
+  input: { context: string; contextId?: string; candidates: Candidate[] },
+): Promise<Screened> {
   ensure(ctx);
   if (!CONTEXTS.includes(input.context)) bad(ctx, "Context must be audience, journey_enrol or import.");
-  if (input.contextId !== undefined && (typeof input.contextId !== "string" || input.contextId.length > 200)) bad(ctx, "Context id must be text up to 200 characters.");
-  if (!Array.isArray(input.candidates) || input.candidates.length === 0 || input.candidates.length > MAX_CANDIDATES) bad(ctx, `Candidates must be a list of 1 to ${MAX_CANDIDATES}.`);
+  if (input.contextId !== undefined && (typeof input.contextId !== "string" || input.contextId.length > 200))
+    bad(ctx, "Context id must be text up to 200 characters.");
+  if (!Array.isArray(input.candidates) || input.candidates.length === 0 || input.candidates.length > MAX_CANDIDATES)
+    bad(ctx, `Candidates must be a list of 1 to ${MAX_CANDIDATES}.`);
   const refs = new Set<string>();
   for (const c of input.candidates) {
-    if (!c || typeof c.ref !== "string" || c.ref === "" || c.ref.length > 200) bad(ctx, "Every candidate needs a ref of 1 to 200 characters.");
+    if (!c || typeof c.ref !== "string" || c.ref === "" || c.ref.length > 200)
+      bad(ctx, "Every candidate needs a ref of 1 to 200 characters.");
     if (refs.has(c.ref)) bad(ctx, `The ref "${c.ref}" appears twice.`);
     refs.add(c.ref);
     if (c.contactId !== undefined && !isId("rec", c.contactId)) bad(ctx, "Contact id is not valid.");

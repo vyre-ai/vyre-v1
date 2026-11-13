@@ -10,8 +10,25 @@ test("the guide is short enough to ride in every turn's cached prefix", () => {
 });
 
 test("it covers tables, diagrams, charts, math, code, callouts, collapsibles, checklists, footnotes, images and the interactive tools", () => {
-  for (const w of ["table", "mermaid", "chart", "$$", "```", "[!NOTE]", "<details>", "- [ ]", "[^1]", "![alt]", "ask_question", "plan_propose", "vault_request", "artifact_publish"]) assert.ok(REPLY_FORMAT.includes(w), w);
-  for (const kind of ["flowchart", "sequenceDiagram", "stateDiagram", "gantt", "erDiagram", "mindmap", "pie"]) assert.ok(REPLY_FORMAT.includes(kind), kind);
+  for (const w of [
+    "table",
+    "mermaid",
+    "chart",
+    "$$",
+    "```",
+    "[!NOTE]",
+    "<details>",
+    "- [ ]",
+    "[^1]",
+    "![alt]",
+    "ask_question",
+    "plan_propose",
+    "vault_request",
+    "artifact_publish",
+  ])
+    assert.ok(REPLY_FORMAT.includes(w), w);
+  for (const kind of ["flowchart", "sequenceDiagram", "stateDiagram", "gantt", "erDiagram", "mindmap", "pie"])
+    assert.ok(REPLY_FORMAT.includes(kind), kind);
   for (const type of ["bar", "line", "area", "pie", "scatter"]) assert.ok(REPLY_FORMAT.includes(type), type);
 });
 
@@ -34,5 +51,6 @@ test("it says which ids can be linked: Vyre items, and mail and calendar ids fro
 });
 
 test("it tells agents about sections, marks and choices", () => {
-  for (const w of ["[!section]", "++underline++", "==highlight==", "```choices"]) assert.ok(REPLY_FORMAT.includes(w), w);
+  for (const w of ["[!section]", "++underline++", "==highlight==", "```choices"])
+    assert.ok(REPLY_FORMAT.includes(w), w);
 });

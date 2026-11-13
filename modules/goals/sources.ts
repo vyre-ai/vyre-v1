@@ -2,7 +2,11 @@
 // Nothing here believes an agent: a report from the lead never moves the number. The owner's own number (manual) and a checklist live on the goal and change only by the owner's press or a finished task.
 import type { Goal, GoalsCtx, Source } from "./projections.ts";
 
-export interface Reading { ok: boolean; value?: number; error?: string }
+export interface Reading {
+  ok: boolean;
+  value?: number;
+  error?: string;
+}
 
 const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 const why = (e: unknown): string => {
@@ -15,53 +19,94 @@ const why = (e: unknown): string => {
 export function numberAt(value: unknown, path: string | undefined): number | undefined {
   let cur: unknown = value;
   for (const part of (path ?? "").split(".").filter((p) => p !== "")) {
-    if (part === "length" && Array.isArray(cur)) { cur = cur.length; continue; }
-    if (Array.isArray(cur) && /^\d+$/.test(part)) { cur = cur[Number(part)]; continue; }
+    if (part === "length" && Array.isArray(cur)) {
+      cur = cur.length;
+      continue;
+    }
+    if (Array.isArray(cur) && /^\d+$/.test(part)) {
+      cur = cur[Number(part)];
+      continue;
+    }
     if (!isObj(cur)) return undefined;
     cur = cur[part];
   }
   if (typeof cur === "number" && Number.isFinite(cur)) return cur;
   if (Array.isArray(cur)) return cur.length;
-  if (typeof cur === "string") { const m = /-?\d+(?:\.\d+)?/.exec(cur.replace(/,/g, "")); return m ? Number(m[0]) : undefined; }
+  if (typeof cur === "string") {
+    const m = /-?\d+(?:\.\d+)?/.exec(cur.replace(/,/g, ""));
+    return m ? Number(m[0]) : undefined;
+  }
   return undefined;
 }
 
 async function readRecords(ctx: GoalsCtx, s: Source): Promise<Reading> {
   if (!s.type) return { ok: false, error: "the source names no record type" };
-  const out = (await ctx.call!("records.counts", { type: s.type, ...(s.filter !== undefined ? { filter: s.filter } : {}) })) as { count?: unknown };
-  return typeof out?.count === "number" ? { ok: true, value: out.count } : { ok: false, error: `${s.type} gave no count` };
+  const out = (await ctx.call!("records.counts", {
+    type: s.type,
+    ...(s.filter !== undefined ? { filter: s.filter } : {}),
+  })) as { count?: unknown };
+  return typeof out?.count === "number"
+    ? { ok: true, value: out.count }
+    : { ok: false, error: `${s.type} gave no count` };
 }
 async function readConnection(ctx: GoalsCtx, s: Source): Promise<Reading> {
-  if (!s.connector || !s.connectionId || !s.action) return { ok: false, error: "the source needs a connector, a connection and a read action" };
-  const out = (await ctx.call!("connectors.read", { key: s.connector, action: s.action, connectionId: s.connectionId, input: s.input ?? {} })) as { output?: unknown };
+  if (!s.connector || !s.connectionId || !s.action)
+    return { ok: false, error: "the source needs a connector, a connection and a read action" };
+  const out = (await ctx.call!("connectors.read", {
+    key: s.connector,
+    action: s.action,
+    connectionId: s.connectionId,
+    input: s.input ?? {},
+  })) as { output?: unknown };
   const v = numberAt(out?.output, s.path);
-  return v === undefined ? { ok: false, error: `no number at "${s.path ?? ""}" in what ${s.connector} answered` } : { ok: true, value: v };
+  return v === undefined
+    ? { ok: false, error: `no number at "${s.path ?? ""}" in what ${s.connector} answered` }
+    : { ok: true, value: v };
 }
 async function readMcp(ctx: GoalsCtx, g: Goal, s: Source): Promise<Reading> {
   if (!s.server || !s.tool) return { ok: false, error: "the source needs an MCP server and tool" };
-  const out = (await ctx.call!("engine.mcp.read", { agentId: g.leadAgentId, server: s.server, tool: s.tool, ...(s.input !== undefined ? { input: s.input } : {}) })) as { isError?: boolean; text?: string; structured?: unknown };
+  const out = (await ctx.call!("engine.mcp.read", {
+    agentId: g.leadAgentId,
+    server: s.server,
+    tool: s.tool,
+    ...(s.input !== undefined ? { input: s.input } : {}),
+  })) as { isError?: boolean; text?: string; structured?: unknown };
   if (out?.isError) return { ok: false, error: `${s.tool} answered an error: ${String(out.text ?? "").slice(0, 160)}` };
-  const v = numberAt(out?.structured ?? out?.text, out?.structured !== undefined ? s.path : undefined) ?? numberAt(out?.text, undefined);
+  const v =
+    numberAt(out?.structured ?? out?.text, out?.structured !== undefined ? s.path : undefined) ??
+    numberAt(out?.text, undefined);
   return v === undefined ? { ok: false, error: `no number in what ${s.tool} answered` } : { ok: true, value: v };
 }
 async function readAutomation(ctx: GoalsCtx, s: Source): Promise<Reading> {
   if (!s.automationId) return { ok: false, error: "the source names no automation" };
-  const list = (await ctx.call!("runs.list", { automationId: s.automationId, status: ["succeeded"], limit: 1 })) as { runs?: Array<{ runId?: string; id?: string; output?: unknown }> };
+  const list = (await ctx.call!("runs.list", { automationId: s.automationId, status: ["succeeded"], limit: 1 })) as {
+    runs?: Array<{ runId?: string; id?: string; output?: unknown }>;
+  };
   const run = list?.runs?.[0];
   if (!run) return { ok: false, error: "the automation has no successful run yet" };
   let output = run.output;
-  if (output === undefined) output = ((await ctx.call!("runs.get", { runId: run.runId ?? run.id })) as { run?: { output?: unknown } })?.run?.output;
+  if (output === undefined)
+    output = ((await ctx.call!("runs.get", { runId: run.runId ?? run.id })) as { run?: { output?: unknown } })?.run
+      ?.output;
   const v = numberAt(output, s.path);
-  return v === undefined ? { ok: false, error: `no number at "${s.path ?? ""}" in the automation's output` } : { ok: true, value: v };
+  return v === undefined
+    ? { ok: false, error: `no number at "${s.path ?? ""}" in the automation's output` }
+    : { ok: true, value: v };
 }
 
 async function readWatch(ctx: GoalsCtx, g: Goal, s: Source): Promise<Reading> {
   if (!s.watchId) return { ok: false, error: "the source names no watch" };
-  const out = (await ctx.call!("automations.watches.list", { watchId: s.watchId, person: g.owner })) as { watches?: Array<{ state?: string; value?: string; changes?: number; error?: string }> };
+  const out = (await ctx.call!("automations.watches.list", { watchId: s.watchId, person: g.owner })) as {
+    watches?: Array<{ state?: string; value?: string; changes?: number; error?: string }>;
+  };
   const w = out?.watches?.[0];
   if (!w) return { ok: false, error: "the watch is gone or is not the owner's" };
   if (s.path === "changes") return { ok: true, value: Number(w.changes ?? 0) };
-  if (w.value === undefined) return { ok: false, error: w.error ? `the watch could not read the page: ${w.error}` : "the watch has not read the page yet" };
+  if (w.value === undefined)
+    return {
+      ok: false,
+      error: w.error ? `the watch could not read the page: ${w.error}` : "the watch has not read the page yet",
+    };
   const v = numberAt(w.value, undefined);
   return v === undefined ? { ok: false, error: "no number in what the watch read" } : { ok: true, value: v };
 }
@@ -72,7 +117,10 @@ export async function readSource(ctx: GoalsCtx, g: Goal): Promise<Reading> {
   if (f.kind !== "number") return { ok: true };
   const s = f.source;
   if (!s) return { ok: false, error: "the finish line names no source" };
-  if (s.kind === "manual") return g.value === undefined ? { ok: false, error: "waiting for the owner to set the number" } : { ok: true, value: g.value };
+  if (s.kind === "manual")
+    return g.value === undefined
+      ? { ok: false, error: "waiting for the owner to set the number" }
+      : { ok: true, value: g.value };
   if (!ctx.call) return { ok: false, error: "the source cannot be reached from here" };
   try {
     if (s.kind === "records") return await readRecords(ctx, s);
@@ -81,7 +129,9 @@ export async function readSource(ctx: GoalsCtx, g: Goal): Promise<Reading> {
     if (s.kind === "automation") return await readAutomation(ctx, s);
     if (s.kind === "watch") return await readWatch(ctx, g, s);
     return { ok: false, error: `unknown source ${String((s as { kind: unknown }).kind)}` };
-  } catch (e) { return { ok: false, error: why(e) }; }
+  } catch (e) {
+    return { ok: false, error: why(e) };
+  }
 }
 
 /** The source in words, for the brief, the card and the activity line. */
@@ -92,6 +142,7 @@ export function sourceWords(s: Source | undefined): string {
   if (s.kind === "connection") return `${s.connector ?? "a connection"} (${s.action ?? "read"})`;
   if (s.kind === "mcp") return `${s.server ?? "an MCP server"} ${s.tool ?? ""}`.trim();
   if (s.kind === "automation") return "an automation's output";
-  if (s.kind === "watch") return s.path === "changes" ? "how often a watched page changes" : "a number on a watched page";
+  if (s.kind === "watch")
+    return s.path === "changes" ? "how often a watched page changes" : "a number on a watched page";
   return "a number the owner sets";
 }

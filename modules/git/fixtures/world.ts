@@ -16,8 +16,15 @@ export const MIGRATION = new URL("../migrations/0001_git_core.sql", import.meta.
 
 type Row = Record<string, unknown>;
 
-export interface Emitted { name: string; subject: string; payload: unknown }
-export interface ExecCall { argv: string[]; env: Record<string, string> }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: unknown;
+}
+export interface ExecCall {
+  argv: string[];
+  env: Record<string, string>;
+}
 
 /** ScopedDb for git_protection only; any other statement fails loudly so a handler cannot quietly use a table the migration lacks. */
 export class ProtectionDb {
@@ -152,7 +159,9 @@ export function world(): World {
     calls,
     execCalls,
     filled,
-    failNext(word, result) { failures.push({ word, result }); },
+    failNext(word, result) {
+      failures.push({ word, result });
+    },
     tree,
     write(folderId, file, text) {
       const full = path.join(tree(folderId), file);
@@ -167,7 +176,10 @@ export function world(): World {
       await real(["git", "-C", dir, "symbolic-ref", "HEAD", "refs/heads/main"]);
       return dir;
     },
-    git: (folderId, ...args) => real(["git", "-C", tree(folderId), "-c", "user.name=Test", "-c", "user.email=test@example.test", ...args], { env: { GIT_CONFIG_GLOBAL: "/dev/null" } }),
+    git: (folderId, ...args) =>
+      real(["git", "-C", tree(folderId), "-c", "user.name=Test", "-c", "user.email=test@example.test", ...args], {
+        env: { GIT_CONFIG_GLOBAL: "/dev/null" },
+      }),
     eventsNamed: (name) => events.filter((e) => e.name === name).map((e) => e.payload),
     cleanup() {
       configureGit(null);

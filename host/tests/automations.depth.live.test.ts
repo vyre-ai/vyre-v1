@@ -11,7 +11,13 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon, DaemonOptions } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const OWNER = "tok-usr_olivia";
 const NOAH = "tok-usr_noah";
 const HOUR = 3_600_000;
@@ -25,33 +31,49 @@ function seededDir(): string {
   return dir;
 }
 
-const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> => startDaemon({
-  config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
-  platform: fakePlatform({
-    os: "linux", hostname: "exec-live", free: 80e9,
-    commands: {
-      [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
-      "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
-      "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> =>
+  startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux",
+      hostname: "exec-live",
+      free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    session: (h) => {
+      const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+      const who = t === OWNER ? "usr_olivia" : t === NOAH ? "usr_noah" : null;
+      return who === null ? null : { space: "spc_core", principal: { kind: "person", id: who }, device: "exec-live" };
     },
-  }),
-  fetch: caddyFetch,
-  session: (h) => {
-    const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-    const who = t === OWNER ? "usr_olivia" : t === NOAH ? "usr_noah" : null;
-    return who === null ? null : { space: "spc_core", principal: { kind: "person", id: who }, device: "exec-live" };
-  },
-  intervals: { fast: HOUR, slow: HOUR, encryption: HOUR, commands: HOUR, hooks: HOUR, tick: HOUR, sweep: HOUR },
-  ...extra,
-});
+    intervals: { fast: HOUR, slow: HOUR, encryption: HOUR, commands: HOUR, hooks: HOUR, tick: HOUR, sweep: HOUR },
+    ...extra,
+  });
 
-interface Reply { status: number; data: Record<string, unknown>; text: string }
+interface Reply {
+  status: number;
+  data: Record<string, unknown>;
+  text: string;
+}
 
 const call = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<Reply> => {
-  const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
+  const r = await fetch(`${d.url}${p}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8_000),
+  });
   const text = await r.text();
   let json: Record<string, unknown> = {};
-  try { json = JSON.parse(text) as Record<string, unknown>; } catch { /* the body is not JSON */ }
+  try {
+    json = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    /* the body is not JSON */
+  }
   return { status: r.status, data: (json["data"] as Record<string, unknown> | undefined) ?? {}, text };
 };
 const ok = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<Record<string, unknown>> => {
@@ -60,7 +82,11 @@ const ok = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<R
   return r.data;
 };
 
-const note = (title: string) => ({ id: "note", key: "records.create", input: { type: "note_board", fields: { title } } });
+const note = (title: string) => ({
+  id: "note",
+  key: "records.create",
+  input: { type: "note_board", fields: { title } },
+});
 const definition = (title: string, allowSelfTrigger = false) => ({
   triggers: [{ key: "record_change" }],
   nodes: [note(title)],
@@ -68,7 +94,11 @@ const definition = (title: string, allowSelfTrigger = false) => ({
 });
 
 async function automation(d: Daemon, name: string, allowSelfTrigger = false): Promise<string> {
-  const made = await ok(d, "/v1/automations/create", { idempotencyKey: `depth-${name}`, name, definition: definition(name, allowSelfTrigger) });
+  const made = await ok(d, "/v1/automations/create", {
+    idempotencyKey: `depth-${name}`,
+    name,
+    definition: definition(name, allowSelfTrigger),
+  });
   const id = String((made["automation"] as { id?: string } | undefined)?.id ?? "");
   assert.match(id, /^aut_/, `automations.create: ${JSON.stringify(made)}`);
   const turned = await ok(d, "/v1/automations/set_enabled", { automationId: id, enabled: true });
@@ -81,22 +111,40 @@ const runIds = async (d: Daemon, id: string): Promise<string[]> => {
   return ((listed["runs"] as { id?: string }[] | undefined) ?? []).map((row) => String(row.id));
 };
 
-interface Fired { dropped?: string; runId?: string }
+interface Fired {
+  dropped?: string;
+  runId?: string;
+}
 
 const fire = async (d: Daemon, id: string, eventId: string, depth: number, origin?: string): Promise<Fired> => {
   const body: Record<string, unknown> = {
-    automationId: id, trigger: "record_change", eventId, idempotencyKey: eventId, payload: { recordId: "rec_abc" }, depth,
+    automationId: id,
+    trigger: "record_change",
+    eventId,
+    idempotencyKey: eventId,
+    payload: { recordId: "rec_abc" },
+    depth,
   };
   if (origin !== undefined) body["origin"] = origin;
   const data = await ok(d, "/v1/automations/fire", body);
-  return { dropped: typeof data["dropped"] === "string" ? data["dropped"] : undefined, runId: typeof data["runId"] === "string" ? data["runId"] : undefined };
+  return {
+    dropped: typeof data["dropped"] === "string" ? data["dropped"] : undefined,
+    runId: typeof data["runId"] === "string" ? data["runId"] : undefined,
+  };
 };
 
-interface DropRow { type?: string; payload?: { eventId?: string; reason?: string } }
+interface DropRow {
+  type?: string;
+  payload?: { eventId?: string; reason?: string };
+}
 
 /** events.list returns automation.trigger_dropped for this automation. The reason on that row is the audit proof. */
 async function droppedReason(d: Daemon, id: string, eventId: string): Promise<string | undefined> {
-  const r = await call(d, "/v1/events/list", { types: ["automation.trigger_dropped"], subject: { type: "automation", id }, limit: 50 });
+  const r = await call(d, "/v1/events/list", {
+    types: ["automation.trigger_dropped"],
+    subject: { type: "automation", id },
+    limit: 50,
+  });
   assert.equal(r.status, 200, r.text);
   const events = (r.data["events"] as DropRow[] | undefined) ?? [];
   return events.find((e) => e.type === "automation.trigger_dropped" && e.payload?.eventId === eventId)?.payload?.reason;
@@ -129,12 +177,21 @@ test("self-trigger and chain depth hold on the live daemon", async () => {
 
     const onceId = await automation(d, "once", true);
     const eventId = "evt_once1";
-    const body = { automationId: onceId, trigger: "record_change", eventId, idempotencyKey: eventId, payload: { recordId: "rec_once" }, depth: 0 };
+    const body = {
+      automationId: onceId,
+      trigger: "record_change",
+      eventId,
+      idempotencyKey: eventId,
+      payload: { recordId: "rec_once" },
+      depth: 0,
+    };
     const first = await ok(d, "/v1/automations/fire", body);
     const second = await ok(d, "/v1/automations/fire", body);
     const runId = String(first["runId"] ?? "");
     assert.match(runId, /^run_[a-z0-9]+$/, JSON.stringify(first));
     assert.equal(String(second["runId"] ?? ""), runId);
     assert.deepEqual(await runIds(d, onceId), [runId], "the same eventId is one run");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

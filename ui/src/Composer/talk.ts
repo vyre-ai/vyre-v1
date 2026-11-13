@@ -2,7 +2,14 @@
 // It never sends and never holds a key: it holds a short-lived token for as long as the socket takes to open. Words are never logged. Every failure is one plain line, and what is already in the field stays.
 import { TALK_SAMPLE_RATE, talkProvider } from "../../../lib/talk.ts";
 
-export interface TalkSession { provider: string; url: string; protocols: string[]; context?: string; source: "own" | "space"; expiresIn: number }
+export interface TalkSession {
+  provider: string;
+  url: string;
+  protocols: string[];
+  context?: string;
+  source: "own" | "space";
+  expiresIn: number;
+}
 export interface TalkSocket {
   binaryType?: string;
   readyState: number;
@@ -13,7 +20,9 @@ export interface TalkSocket {
   send(data: string | ArrayBuffer): void;
   close(): void;
 }
-export interface TalkMic { stop(): void }
+export interface TalkMic {
+  stop(): void;
+}
 export interface TalkDeps {
   session(): Promise<TalkSession>;
   openMic(on: (pcm: ArrayBuffer, level: number) => void): Promise<TalkMic>;
@@ -37,7 +46,10 @@ export interface TalkEvents {
   /** The server said Talk is off for this person. */
   off(line: string): void;
 }
-export interface TalkRun { stop(): void; cancel(): void }
+export interface TalkRun {
+  stop(): void;
+  cancel(): void;
+}
 
 export const LINE = {
   noMicApi: "This browser cannot reach a microphone here. Open Vyre at its https address.",
@@ -53,11 +65,17 @@ export const LINE = {
 } as const;
 
 const FINISH_MS = 2_000;
-const BACKLOG_CHUNKS = 120;   // about ten seconds held while the socket opens
+const BACKLOG_CHUNKS = 120; // about ten seconds held while the socket opens
 const OPEN = 1;
 
-type ErrorLike = { code?: string; message?: string; details?: { reason?: string }; error?: { code?: string; message?: string; details?: { reason?: string } } };
-const reasonOf = (e: unknown): string | undefined => (e as ErrorLike)?.details?.reason ?? (e as ErrorLike)?.error?.details?.reason;
+type ErrorLike = {
+  code?: string;
+  message?: string;
+  details?: { reason?: string };
+  error?: { code?: string; message?: string; details?: { reason?: string } };
+};
+const reasonOf = (e: unknown): string | undefined =>
+  (e as ErrorLike)?.details?.reason ?? (e as ErrorLike)?.error?.details?.reason;
 const codeOf = (e: unknown): string => (e as ErrorLike)?.code ?? (e as ErrorLike)?.error?.code ?? "";
 const messageOf = (e: unknown): string => (e as ErrorLike)?.message ?? (e as ErrorLike)?.error?.message ?? "";
 
@@ -88,7 +106,9 @@ export function startTalk(deps: TalkDeps, ev: TalkEvents, opts: { warm: boolean 
   const finals: string[] = [];
   let interim = "";
   let closing: string | null = null;
-  let frame: (pcm: ArrayBuffer, o?: { first?: boolean; context?: string | undefined }) => string | ArrayBuffer = (pcm) => pcm;
+  let frame: (pcm: ArrayBuffer, o?: { first?: boolean; context?: string | undefined }) => string | ArrayBuffer = (
+    pcm,
+  ) => pcm;
   let context: string | undefined;
   let framed = 0;
   /** One chunk as the provider wants it; the first one carries the context line. */
@@ -101,40 +121,62 @@ export function startTalk(deps: TalkDeps, ev: TalkEvents, opts: { warm: boolean 
     else if (backlog.length < BACKLOG_CHUNKS) backlog.push(pcm);
   };
   const quiet = (): void => {
-    mic?.stop(); mic = null;
+    mic?.stop();
+    mic = null;
     ev.level(0);
   };
   const shut = (): void => {
-    const s = socket; socket = null;
-    if (s) { s.onopen = s.onmessage = s.onerror = s.onclose = null; try { s.close(); } catch { /* it is closing */ } }
+    const s = socket;
+    socket = null;
+    if (s) {
+      s.onopen = s.onmessage = s.onerror = s.onclose = null;
+      try {
+        s.close();
+      } catch {
+        /* it is closing */
+      }
+    }
   };
   const finish = (): void => {
     if (phase === "done") return;
     phase = "done";
-    quiet(); shut();
+    quiet();
+    shut();
     ev.ended();
   };
   const fail = (line: string): void => {
     if (phase === "done") return;
     phase = "done";
-    quiet(); shut();
+    quiet();
+    shut();
     ev.failed(line);
   };
 
   const openSocket = (info: TalkSession): void => {
     const provider = talkProvider(info.provider);
-    if (!provider) { fail(LINE.generic); return; }
+    if (!provider) {
+      fail(LINE.generic);
+      return;
+    }
     closing = provider.closing;
     frame = provider.frame;
     context = info.context;
     let s: TalkSocket;
-    try { s = deps.openSocket(info.url, info.protocols); } catch { fail(LINE.down); return; }
+    try {
+      s = deps.openSocket(info.url, info.protocols);
+    } catch {
+      fail(LINE.down);
+      return;
+    }
     socket = s;
     s.binaryType = "arraybuffer";
     s.onopen = () => {
       if (phase === "done") return;
       for (const pcm of backlog.splice(0)) s.send(framePcm(pcm));
-      if (phase === "closing") { s.send(provider.closing); return; }
+      if (phase === "closing") {
+        s.send(provider.closing);
+        return;
+      }
       phase = "open";
       ev.listening();
     };
@@ -142,13 +184,24 @@ export function startTalk(deps: TalkDeps, ev: TalkEvents, opts: { warm: boolean 
       if (typeof m.data !== "string") return;
       const heard = provider.read(m.data);
       if (heard === null) return;
-      if (heard.kind === "error") { fail(deps.online() ? LINE.down : LINE.network); return; }
-      if (heard.final) { if (heard.text !== "") finals.push(heard.text); interim = ""; } else interim = heard.text;
+      if (heard.kind === "error") {
+        fail(deps.online() ? LINE.down : LINE.network);
+        return;
+      }
+      if (heard.final) {
+        if (heard.text !== "") finals.push(heard.text);
+        interim = "";
+      } else interim = heard.text;
       ev.words(joinWords(finals, interim));
     };
-    s.onerror = () => { if (phase !== "closing") fail(deps.online() ? (phase === "open" ? LINE.dropped : LINE.down) : LINE.network); };
+    s.onerror = () => {
+      if (phase !== "closing") fail(deps.online() ? (phase === "open" ? LINE.dropped : LINE.down) : LINE.network);
+    };
     s.onclose = () => {
-      if (phase === "closing") { finish(); return; }
+      if (phase === "closing") {
+        finish();
+        return;
+      }
       fail(deps.online() ? (phase === "open" ? LINE.dropped : LINE.down) : LINE.network);
     };
   };
@@ -162,21 +215,43 @@ export function startTalk(deps: TalkDeps, ev: TalkEvents, opts: { warm: boolean 
       info = await deps.session();
     } catch (e) {
       const reason = reasonOf(e);
-      micAsked?.then((m) => m.stop(), () => undefined);
+      micAsked?.then(
+        (m) => m.stop(),
+        () => undefined,
+      );
       phase = "done";
       if (reason === "no_key") ev.needsKey();
       else if (reason === "off") ev.off(messageOf(e));
       else ev.failed(sessionLine(e, deps.online()));
       return;
     }
-    if ((phase as string) === "done") { micAsked?.then((m) => m.stop(), () => undefined); return; }
+    if ((phase as string) === "done") {
+      micAsked?.then(
+        (m) => m.stop(),
+        () => undefined,
+      );
+      return;
+    }
     const asked = deps.now();
-    try { mic = await (micAsked ?? deps.openMic(onAudio)); }
-    catch (e) { fail(micLine(e, deps.shell)); return; }
-    if ((phase as string) === "done") { mic.stop(); mic = null; return; }
+    try {
+      mic = await (micAsked ?? deps.openMic(onAudio));
+    } catch (e) {
+      fail(micLine(e, deps.shell));
+      return;
+    }
+    if ((phase as string) === "done") {
+      mic.stop();
+      mic = null;
+      return;
+    }
     // the permission prompt can outlast the token; a token needs to be good only as the socket opens
     if (deps.now() - asked > (info.expiresIn - 5) * 1000) {
-      try { info = await deps.session(); } catch (e) { fail(sessionLine(e, deps.online())); return; }
+      try {
+        info = await deps.session();
+      } catch (e) {
+        fail(sessionLine(e, deps.online()));
+        return;
+      }
     }
     openSocket(info);
   };
@@ -187,14 +262,18 @@ export function startTalk(deps: TalkDeps, ev: TalkEvents, opts: { warm: boolean 
       if (phase === "done" || phase === "closing") return;
       phase = "closing";
       quiet();
-      if (socket === null) { finish(); return; }
+      if (socket === null) {
+        finish();
+        return;
+      }
       deps.later(finish, FINISH_MS);
       if (socket.readyState === OPEN && closing !== null) socket.send(closing);
     },
     cancel() {
       if (phase === "done") return;
       phase = "done";
-      quiet(); shut();
+      quiet();
+      shut();
     },
   };
 }
@@ -207,7 +286,8 @@ export function toPcm16(input: ArrayLike<number>, fromRate: number, toRate = TAL
   const n = Math.floor(input.length / ratio);
   const out = new DataView(new ArrayBuffer(n * 2));
   for (let i = 0; i < n; i++) {
-    const from = Math.floor(i * ratio), to = Math.max(from + 1, Math.floor((i + 1) * ratio));
+    const from = Math.floor(i * ratio),
+      to = Math.max(from + 1, Math.floor((i + 1) * ratio));
     let sum = 0;
     for (let j = from; j < to; j++) sum += input[j] ?? 0;
     const v = Math.max(-1, Math.min(1, sum / (to - from)));
@@ -229,7 +309,15 @@ interface WebAudio {
   resume(): Promise<void>;
   close(): Promise<void>;
   createMediaStreamSource(s: unknown): { connect(n: unknown): void; disconnect(): void };
-  createScriptProcessor(size: number, inputs: number, outputs: number): { onaudioprocess: ((e: { inputBuffer: { getChannelData(c: number): Float32Array } }) => void) | null; connect(n: unknown): void; disconnect(): void };
+  createScriptProcessor(
+    size: number,
+    inputs: number,
+    outputs: number,
+  ): {
+    onaudioprocess: ((e: { inputBuffer: { getChannelData(c: number): Float32Array } }) => void) | null;
+    connect(n: unknown): void;
+    disconnect(): void;
+  };
 }
 interface WebGlobal {
   navigator?: { mediaDevices?: { getUserMedia?: (c: unknown) => Promise<{ getTracks(): { stop(): void }[] }> } };
@@ -241,25 +329,41 @@ interface WebGlobal {
  * The microphone through the page. ScriptProcessor, not an AudioWorklet: a worklet's module has to load from a script source and the desktop shell's CSP allows only 'self', and this runs the same in Safari, Chrome and WKWebView.
  * The context is made before the first await, inside the press, so Safari lets it run; a page with no mediaDevices is an insecure address.
  */
-export async function openWebMic(on: (pcm: ArrayBuffer, level: number) => void, g: WebGlobal = globalThis as WebGlobal): Promise<TalkMic> {
+export async function openWebMic(
+  on: (pcm: ArrayBuffer, level: number) => void,
+  g: WebGlobal = globalThis as WebGlobal,
+): Promise<TalkMic> {
   const Ctx = g.AudioContext ?? g.webkitAudioContext;
   const media = g.navigator?.mediaDevices;
   if (!Ctx || !media?.getUserMedia) throw Object.assign(new Error("no microphone here"), { name: "NoMicApi" });
   const audio = new Ctx();
   let stream: { getTracks(): { stop(): void }[] };
   try {
-    stream = await media.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    stream = await media.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
     await audio.resume();
-  } catch (e) { void audio.close().catch(() => undefined); throw e; }
+  } catch (e) {
+    void audio.close().catch(() => undefined);
+    throw e;
+  }
   const source = audio.createMediaStreamSource(stream);
   const proc = audio.createScriptProcessor(4096, 1, 1);
-  proc.onaudioprocess = (e) => { const data = e.inputBuffer.getChannelData(0); on(toPcm16(data, audio.sampleRate), levelOf(data)); };
+  proc.onaudioprocess = (e) => {
+    const data = e.inputBuffer.getChannelData(0);
+    on(toPcm16(data, audio.sampleRate), levelOf(data));
+  };
   source.connect(proc);
-  proc.connect(audio.destination);   // a processor runs only when it reaches the output; it writes nothing, so nothing is heard
+  proc.connect(audio.destination); // a processor runs only when it reaches the output; it writes nothing, so nothing is heard
   return {
     stop() {
       proc.onaudioprocess = null;
-      try { source.disconnect(); proc.disconnect(); } catch { /* already gone */ }
+      try {
+        source.disconnect();
+        proc.disconnect();
+      } catch {
+        /* already gone */
+      }
       for (const t of stream.getTracks()) t.stop();
       void audio.close().catch(() => undefined);
     },

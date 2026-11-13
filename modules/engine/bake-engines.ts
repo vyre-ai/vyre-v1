@@ -7,10 +7,21 @@ import path from "node:path";
 import { ENGINE_PINS } from "./engine-pins.ts";
 import { enginePlatform, installEngine } from "./engine-install.ts";
 
-export async function bakeEngines(into: string, bin: string, o: { log?: (line: string) => void; install?: typeof installEngine; run?: (program: string) => string } = {}): Promise<Record<string, string>> {
+export async function bakeEngines(
+  into: string,
+  bin: string,
+  o: { log?: (line: string) => void; install?: typeof installEngine; run?: (program: string) => string } = {},
+): Promise<Record<string, string>> {
   const log = o.log ?? ((line: string) => process.stdout.write(`${line}\n`));
   const install = o.install ?? installEngine;
-  const run = o.run ?? ((program: string) => execFileSync(program, ["--version"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 60_000 }).trim());
+  const run =
+    o.run ??
+    ((program: string) =>
+      execFileSync(program, ["--version"], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        timeout: 60_000,
+      }).trim());
   if (enginePlatform() === null) throw new Error(`no engine builds are pinned for ${process.platform}-${process.arch}`);
   fs.mkdirSync(into, { recursive: true, mode: 0o755 });
   fs.mkdirSync(bin, { recursive: true });
@@ -28,7 +39,14 @@ export async function bakeEngines(into: string, bin: string, o: { log?: (line: s
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [into, bin] = process.argv.slice(2);
-  if (!into || !bin || !path.isAbsolute(into) || !path.isAbsolute(bin)) { process.stderr.write("usage: node modules/engine/bake-engines.ts <engines folder> <bin folder> (both absolute)\n"); process.exit(2); }
-  try { await bakeEngines(into, bin); }
-  catch (e) { process.stderr.write(`bake-engines: ${e instanceof Error ? e.message : String(e)}\n`); process.exit(1); }
+  if (!into || !bin || !path.isAbsolute(into) || !path.isAbsolute(bin)) {
+    process.stderr.write("usage: node modules/engine/bake-engines.ts <engines folder> <bin folder> (both absolute)\n");
+    process.exit(2);
+  }
+  try {
+    await bakeEngines(into, bin);
+  } catch (e) {
+    process.stderr.write(`bake-engines: ${e instanceof Error ? e.message : String(e)}\n`);
+    process.exit(1);
+  }
 }

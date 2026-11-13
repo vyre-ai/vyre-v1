@@ -31,7 +31,13 @@ export interface FilesViewerData {
 
 const Ctx = createContext<FilesViewerData | null>(null);
 
-export function FilesViewerDataProvider({ value, children }: { value: FilesViewerData; children: ReactNode }): ReactElement {
+export function FilesViewerDataProvider({
+  value,
+  children,
+}: {
+  value: FilesViewerData;
+  children: ReactNode;
+}): ReactElement {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

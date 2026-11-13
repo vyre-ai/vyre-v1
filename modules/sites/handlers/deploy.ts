@@ -193,7 +193,8 @@ export function optBool(ctx: Ctx, o: Record<string, unknown>, key: string): bool
 export function optInt(ctx: Ctx, o: Record<string, unknown>, key: string): number | undefined {
   const v = o[key];
   if (v === undefined || v === null) return undefined;
-  if (typeof v !== "number" || !Number.isInteger(v)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
+  if (typeof v !== "number" || !Number.isInteger(v))
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
   return v;
 }
 
@@ -209,7 +210,9 @@ export function hexOf(siteId: string): string {
 function cleanName(ctx: Ctx, name: string): string {
   const n = name.trim();
   if (n.length === 0 || n.length > NAME_MAX || /[\u0000-\u001f\u007f]/.test(n)) {
-    fail(ctx, "validation.bad_input", "A site name is 1 to 80 characters without control characters.", { field: "name" });
+    fail(ctx, "validation.bad_input", "A site name is 1 to 80 characters without control characters.", {
+      field: "name",
+    });
   }
   return n;
 }
@@ -217,14 +220,23 @@ function cleanName(ctx: Ctx, name: string): string {
 function cleanRepoUrl(ctx: Ctx, url: string): string {
   const u = url.trim();
   if (u.length === 0 || u.length > 500 || /\s/.test(u) || !/^(https:\/\/|ssh:\/\/|git@)/.test(u)) {
-    fail(ctx, "validation.bad_input", "The repo address must start with https://, ssh:// or git@.", { field: "repoUrl" });
+    fail(ctx, "validation.bad_input", "The repo address must start with https://, ssh:// or git@.", {
+      field: "repoUrl",
+    });
   }
   return u;
 }
 
 export function cleanBranch(ctx: Ctx, branch: string): string {
   const b = branch.trim();
-  if (b.length === 0 || b.length > BRANCH_MAX || !/^[A-Za-z0-9._/-]+$/.test(b) || b.includes("..") || b.startsWith("/") || b.endsWith("/")) {
+  if (
+    b.length === 0 ||
+    b.length > BRANCH_MAX ||
+    !/^[A-Za-z0-9._/-]+$/.test(b) ||
+    b.includes("..") ||
+    b.startsWith("/") ||
+    b.endsWith("/")
+  ) {
     fail(ctx, "validation.bad_input", "That branch name cannot be used.", { field: "branch" });
   }
   return b;
@@ -241,7 +253,12 @@ function fnv(text: string): string {
 
 /** A hostname label for a branch: lowercase, dashes, at most 24 characters plus a 4 hex tag so `a/b` and `a-b` never collide. */
 export function branchSlug(branch: string): string {
-  const base = branch.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24).replace(/-+$/g, "");
+  const base = branch
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 24)
+    .replace(/-+$/g, "");
   return `${base || "branch"}-${fnv(branch)}`;
 }
 
@@ -254,7 +271,12 @@ export function previewHost(siteId: string, branch: string, spaceDomain: string)
 }
 
 export function siteDrivers(ctx: Ctx): SiteDrivers {
-  if (!configured) fail(ctx, "validation.precondition_failed", "Sites are not connected on this server yet. Docker and Caddy are needed.");
+  if (!configured)
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "Sites are not connected on this server yet. Docker and Caddy are needed.",
+    );
   return configured;
 }
 
@@ -322,14 +344,21 @@ function depOut(r: Row): DeploymentOut {
 
 function newest(rows: Row[]): Row | undefined {
   let best: Row | undefined;
-  for (const r of rows) if (!best || num(r.at) > num(best.at) || (num(r.at) === num(best.at) && str(r.id) > str(best.id))) best = r;
+  for (const r of rows)
+    if (!best || num(r.at) > num(best.at) || (num(r.at) === num(best.at) && str(r.id) > str(best.id))) best = r;
   return best;
 }
 
 function siteOut(ctx: Ctx, r: Row): SiteOut {
   const deps = many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND removed_at IS NULL", r.id);
   const live = (env: string): Row | undefined => newest(deps.filter((d) => d.env === env && !isNull(d.url)));
-  const out: SiteOut = { siteId: str(r.id), name: str(r.name), kind: str(r.kind) as SiteKind, owner: str(r.owner), state: str(r.state) as SiteState };
+  const out: SiteOut = {
+    siteId: str(r.id),
+    name: str(r.name),
+    kind: str(r.kind) as SiteKind,
+    owner: str(r.owner),
+    state: str(r.state) as SiteState,
+  };
   if (!isNull(r.repo_folder_id)) out.repoFolderId = str(r.repo_folder_id);
   const staging = live("staging");
   if (staging) out.stagingUrl = str(staging.url);
@@ -372,7 +401,8 @@ function pageOf(ctx: Ctx, o: Record<string, unknown>): { offset: number; limit: 
   const cursor = optStr(ctx, o, "cursor");
   let offset = 0;
   if (cursor !== undefined) {
-    if (!/^[0-9]{1,9}$/.test(cursor)) fail(ctx, "validation.bad_input", "The cursor is not valid.", { field: "cursor" });
+    if (!/^[0-9]{1,9}$/.test(cursor))
+      fail(ctx, "validation.bad_input", "The cursor is not valid.", { field: "cursor" });
     offset = Number(cursor);
   }
   if (limit < 1) fail(ctx, "validation.bad_input", "The limit must be at least 1.", { field: "limit" });
@@ -390,11 +420,23 @@ function vaultUse(ctx: Ctx, handle: string): void {
 
 // ---- routes -------------------------------------------------------------------------------------------------
 
-function saveRoute(ctx: Ctx, host: string, siteId: string, deploymentId: string, env: DeployEnv, authHandle: string | null): void {
+function saveRoute(
+  ctx: Ctx,
+  host: string,
+  siteId: string,
+  deploymentId: string,
+  env: DeployEnv,
+  authHandle: string | null,
+): void {
   ctx.db.run("DELETE FROM sites_route WHERE host = ?", host);
   ctx.db.run(
     "INSERT INTO sites_route (host, site_id, deployment_id, env, auth_handle, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-    host, siteId, deploymentId, env, authHandle, ctx.now(),
+    host,
+    siteId,
+    deploymentId,
+    env,
+    authHandle,
+    ctx.now(),
   );
 }
 
@@ -410,7 +452,12 @@ export async function routeDeployment(ctx: Ctx, d: SiteDrivers, site: Row, dep: 
   let auth: { handle: string } | null = null;
   if (env !== "production") {
     const handle = isNull(site.staging_secret) ? "" : str(site.staging_secret);
-    if (!handle) fail(ctx, "validation.precondition_failed", "Staging is always behind a password. Choose a staging password first.");
+    if (!handle)
+      fail(
+        ctx,
+        "validation.precondition_failed",
+        "Staging is always behind a password. Choose a staging password first.",
+      );
     vaultUse(ctx, handle);
     await ctx.vault.fill(handle, { kind: "route_auth", ref: host });
     auth = { handle };
@@ -456,9 +503,14 @@ function cappedLevel(ctx: Ctx, type: string, id: string): Level | null {
 async function deploymentsFolder(ctx: Ctx, name: string, hex: string): Promise<string> {
   const tree = (await ctx.call("files.tree", {})) as { roots?: { key?: string; folderId?: string }[] };
   const root = (tree.roots ?? []).find((r) => r.key === "deployments");
-  if (!root || typeof root.folderId !== "string") fail(ctx, "validation.precondition_failed", "The Deployments folder is not available.");
+  if (!root || typeof root.folderId !== "string")
+    fail(ctx, "validation.precondition_failed", "The Deployments folder is not available.");
   const attempt = async (folderName: string): Promise<string> => {
-    const out = (await ctx.call("files.folder.create", { parentId: root.folderId, name: folderName, idempotencyKey: `site-folder-${hex}-${folderName.length}` })) as { folder?: { folderId?: string } };
+    const out = (await ctx.call("files.folder.create", {
+      parentId: root.folderId,
+      name: folderName,
+      idempotencyKey: `site-folder-${hex}-${folderName.length}`,
+    })) as { folder?: { folderId?: string } };
     const folderId = out.folder?.folderId;
     if (typeof folderId !== "string") fail(ctx, "internal.unexpected", "The site folder was not created.");
     return folderId;
@@ -466,7 +518,8 @@ async function deploymentsFolder(ctx: Ctx, name: string, hex: string): Promise<s
   try {
     return await attempt(name.replaceAll("/", "-"));
   } catch (e) {
-    if (e instanceof VyreErr && e.error.code === "validation.duplicate") return attempt(`${name.replaceAll("/", "-")} (${hex.slice(0, 6)})`);
+    if (e instanceof VyreErr && e.error.code === "validation.duplicate")
+      return attempt(`${name.replaceAll("/", "-")} (${hex.slice(0, 6)})`);
     throw e;
   }
 }
@@ -486,12 +539,32 @@ async function sitesCreate(ctx: Ctx, input: unknown): Promise<{ site: SiteOut }>
   const principal = `svc_site_${hex}`;
   ctx.db.run(
     "INSERT INTO sites_site (id, name, kind, owner, repo_url, repo_folder_id, template_kit, state, settings, staging_secret, service_principal, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, name, kind, ctx.principal.id, repoUrl, folderId, templateKit, "queued", "{}", null, principal, now, now, null,
+    id,
+    name,
+    kind,
+    ctx.principal.id,
+    repoUrl,
+    folderId,
+    templateKit,
+    "queued",
+    "{}",
+    null,
+    principal,
+    now,
+    now,
+    null,
   );
   const folderLevel = cappedLevel(ctx, "folder", folderId);
-  if (folderLevel) ctx.db.run("INSERT INTO sites_grant (site_id, resource, level) VALUES (?, ?, ?)", id, `folder/${folderId}`, folderLevel);
+  if (folderLevel)
+    ctx.db.run(
+      "INSERT INTO sites_grant (site_id, resource, level) VALUES (?, ?, ?)",
+      id,
+      `folder/${folderId}`,
+      folderLevel,
+    );
   const siteLevel = cappedLevel(ctx, "site", id);
-  if (siteLevel) ctx.db.run("INSERT INTO sites_grant (site_id, resource, level) VALUES (?, ?, ?)", id, `site/${id}`, siteLevel);
+  if (siteLevel)
+    ctx.db.run("INSERT INTO sites_grant (site_id, resource, level) VALUES (?, ?, ?)", id, `site/${id}`, siteLevel);
   noteActivity(ctx, id, "site.created");
   ctx.emit("site.created", `site/${id}`, { siteId: id, name });
   return { site: siteOut(ctx, mustSite(ctx, id)) };
@@ -516,10 +589,20 @@ async function sitesList(ctx: Ctx, input: unknown): Promise<{ sites: SiteOut[]; 
   if (folderId !== undefined) rows = rows.filter((r) => r.repo_folder_id === folderId);
   if (section === "personal") rows = rows.filter((r) => r.owner === ctx.principal.id);
   if (section === "shared") rows = rows.filter((r) => r.owner !== ctx.principal.id);
-  rows = rows.filter((r) => ctx.authorize({ perm: null, level: "view" }, { type: "site", id: str(r.id) }).effect === "allow");
-  rows.sort((a, b) => (activity.get(str(b.id)) ?? num(b.created_at)) - (activity.get(str(a.id)) ?? num(a.created_at)) || str(a.name).localeCompare(str(b.name)) || str(a.id).localeCompare(str(b.id)));
+  rows = rows.filter(
+    (r) => ctx.authorize({ perm: null, level: "view" }, { type: "site", id: str(r.id) }).effect === "allow",
+  );
+  rows.sort(
+    (a, b) =>
+      (activity.get(str(b.id)) ?? num(b.created_at)) - (activity.get(str(a.id)) ?? num(a.created_at)) ||
+      str(a.name).localeCompare(str(b.name)) ||
+      str(a.id).localeCompare(str(b.id)),
+  );
   const slice = rows.slice(offset, offset + limit);
-  const out: { sites: SiteOut[]; next?: string; total: number } = { sites: slice.map((r) => siteOut(ctx, r)), total: rows.length };
+  const out: { sites: SiteOut[]; next?: string; total: number } = {
+    sites: slice.map((r) => siteOut(ctx, r)),
+    total: rows.length,
+  };
   if (offset + limit < rows.length) out.next = String(offset + limit);
   return out;
 }
@@ -532,16 +615,24 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: SiteOut }>
   let settings = siteSettings(site);
   const patch = o.settings;
   if (patch !== undefined && patch !== null) {
-    if (typeof patch !== "object" || Array.isArray(patch)) fail(ctx, "validation.bad_input", "Settings must be an object.", { field: "settings" });
+    if (typeof patch !== "object" || Array.isArray(patch))
+      fail(ctx, "validation.bad_input", "Settings must be an object.", { field: "settings" });
     const merged: Record<string, unknown> = { ...settings, ...(patch as Record<string, unknown>) };
     const branch = merged.defaultBranch;
     if (branch !== undefined && (typeof branch !== "string" || !/^[A-Za-z0-9._/-]{1,100}$/.test(branch))) {
       fail(ctx, "validation.bad_input", "The default branch name cannot be used.", { field: "settings.defaultBranch" });
     }
-    if (JSON.stringify(merged).length > SETTINGS_MAX) fail(ctx, "validation.too_large", "The settings are too large.", { field: "settings" });
+    if (JSON.stringify(merged).length > SETTINGS_MAX)
+      fail(ctx, "validation.too_large", "The settings are too large.", { field: "settings" });
     settings = merged;
   }
-  ctx.db.run("UPDATE sites_site SET name = ?, settings = ?, updated_at = ? WHERE id = ?", name, JSON.stringify(settings), ctx.now(), site.id);
+  ctx.db.run(
+    "UPDATE sites_site SET name = ?, settings = ?, updated_at = ? WHERE id = ?",
+    name,
+    JSON.stringify(settings),
+    ctx.now(),
+    site.id,
+  );
   return { site: siteOut(ctx, mustSite(ctx, str(site.id))) };
 }
 
@@ -561,8 +652,22 @@ async function sitesDelete(ctx: Ctx, input: unknown): Promise<{ deleted: boolean
   ctx.db.run("DELETE FROM sites_domain WHERE site_id = ?", site.id);
   ctx.db.run("DELETE FROM sites_env WHERE site_id = ?", site.id);
   const now = ctx.now();
-  ctx.db.run("UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, removed_at = ?, updated_at = ? WHERE site_id = ?", "stopped", null, null, now, now, site.id);
-  ctx.db.run("UPDATE sites_site SET state = ?, deleted_at = ?, updated_at = ? WHERE id = ?", "stopped", now, now, site.id);
+  ctx.db.run(
+    "UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, removed_at = ?, updated_at = ? WHERE site_id = ?",
+    "stopped",
+    null,
+    null,
+    now,
+    now,
+    site.id,
+  );
+  ctx.db.run(
+    "UPDATE sites_site SET state = ?, deleted_at = ?, updated_at = ? WHERE id = ?",
+    "stopped",
+    now,
+    now,
+    site.id,
+  );
   return { deleted: true };
 }
 
@@ -570,7 +675,13 @@ async function sitesDelete(ctx: Ctx, input: unknown): Promise<{ deleted: boolean
 
 /** Remove the previews a merged pull request marked. Called at the start of every write that touches deployments. */
 export async function sweepMergedPreviews(ctx: Ctx, siteId: string): Promise<number> {
-  const rows = many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND merge_pending = ? AND removed_at IS NULL", siteId, "preview", 1);
+  const rows = many(
+    ctx,
+    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND merge_pending = ? AND removed_at IS NULL",
+    siteId,
+    "preview",
+    1,
+  );
   if (rows.length === 0) return 0;
   const d = siteDrivers(ctx);
   for (const row of rows) await removePreview(ctx, d, row);
@@ -583,7 +694,14 @@ async function removePreview(ctx: Ctx, d: SiteDrivers, row: Row): Promise<void> 
   const now = ctx.now();
   ctx.db.run(
     "UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, upstream = ?, removed_at = ?, merge_pending = ?, updated_at = ? WHERE id = ?",
-    "stopped", null, null, null, now, 0, now, row.id,
+    "stopped",
+    null,
+    null,
+    null,
+    now,
+    0,
+    now,
+    row.id,
   );
   const siteId = str(row.site_id);
   const branch = str(row.branch);
@@ -593,7 +711,13 @@ async function removePreview(ctx: Ctx, d: SiteDrivers, row: Row): Promise<void> 
 
 /** Branch merged outside a pull request event (a direct push to the default branch also ends a branch preview). */
 export async function handleBranchMerged(ctx: Ctx, siteId: string, branch: string): Promise<number> {
-  const rows = many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND branch = ? AND removed_at IS NULL", siteId, "preview", branch);
+  const rows = many(
+    ctx,
+    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND branch = ? AND removed_at IS NULL",
+    siteId,
+    "preview",
+    branch,
+  );
   if (rows.length === 0) return 0;
   const d = siteDrivers(ctx);
   for (const row of rows) await removePreview(ctx, d, row);
@@ -612,7 +736,12 @@ async function startAndRoute(ctx: Ctx, d: SiteDrivers, site: Row, dep: Row): Pro
   const image = isNull(dep.image) ? "" : str(dep.image);
   if (!image) fail(ctx, "validation.precondition_failed", "That deployment has no build to run. Build the site first.");
   const secret = isNull(site.staging_secret) ? "" : str(site.staging_secret);
-  if (env !== "production" && !secret) fail(ctx, "validation.precondition_failed", "Staging is always behind a password. Choose a staging password first.");
+  if (env !== "production" && !secret)
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "Staging is always behind a password. Choose a staging password first.",
+    );
   if (secret) vaultUse(ctx, secret);
 
   const envRows = many(ctx, "SELECT * FROM sites_env WHERE site_id = ?", siteId);
@@ -625,33 +754,63 @@ async function startAndRoute(ctx: Ctx, d: SiteDrivers, site: Row, dep: Row): Pro
     envRefs.push({ name: str(e.name), ref });
   }
 
-  const host = env === "preview" ? previewHost(siteId, str(dep.branch), d.spaceDomain) : stagingHost(siteId, d.spaceDomain);
+  const host =
+    env === "preview" ? previewHost(siteId, str(dep.branch), d.spaceDomain) : stagingHost(siteId, d.spaceDomain);
   let containerId = "";
   try {
     const started = await d.runtime.start({
-      siteId, deploymentId: depId, env, image, network: NETWORK, name: `site-${hexOf(siteId)}-${hexOf(depId).slice(0, 12)}`,
-      envRefs, servicePrincipal: str(site.service_principal),
+      siteId,
+      deploymentId: depId,
+      env,
+      image,
+      network: NETWORK,
+      name: `site-${hexOf(siteId)}-${hexOf(depId).slice(0, 12)}`,
+      envRefs,
+      servicePrincipal: str(site.service_principal),
     });
     containerId = started.containerId;
     const staged: Row = { ...dep, host, upstream: started.upstream };
     await routeDeployment(ctx, d, site, staged);
     // the route now points at the new container: stop what ran before on this address
-    const previous = many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND removed_at IS NULL", siteId, env)
-      .filter((p) => p.id !== depId && !isNull(p.container_id) && (env === "staging" || p.branch === dep.branch));
+    const previous = many(
+      ctx,
+      "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND removed_at IS NULL",
+      siteId,
+      env,
+    ).filter((p) => p.id !== depId && !isNull(p.container_id) && (env === "staging" || p.branch === dep.branch));
     const now = ctx.now();
     if (!isNull(dep.container_id)) await stopContainer(ctx, d, str(dep.container_id));
     for (const p of previous) {
       await stopContainer(ctx, d, str(p.container_id));
-      ctx.db.run("UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, upstream = ?, updated_at = ? WHERE id = ?", "stopped", null, null, null, now, p.id);
+      ctx.db.run(
+        "UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, upstream = ?, updated_at = ? WHERE id = ?",
+        "stopped",
+        null,
+        null,
+        null,
+        now,
+        p.id,
+      );
     }
     ctx.db.run(
       "UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, host = ?, upstream = ?, updated_at = ? WHERE id = ?",
-      "ready", `https://${host}`, containerId, host, started.upstream, now, depId,
+      "ready",
+      `https://${host}`,
+      containerId,
+      host,
+      started.upstream,
+      now,
+      depId,
     );
-    for (const e of envRows) ctx.db.run("UPDATE sites_env SET injected = ? WHERE site_id = ? AND name = ?", 1, siteId, e.name);
+    for (const e of envRows)
+      ctx.db.run("UPDATE sites_env SET injected = ? WHERE site_id = ? AND name = ?", 1, siteId, e.name);
     setSiteState(ctx, siteId, "ready");
     noteActivity(ctx, siteId, "site.deployed");
-    ctx.emit("site.deployed", `site/${siteId}`, { siteId, deploymentId: depId, env: env === "preview" ? "preview" : "staging" });
+    ctx.emit("site.deployed", `site/${siteId}`, {
+      siteId,
+      deploymentId: depId,
+      env: env === "preview" ? "preview" : "staging",
+    });
   } catch (e) {
     if (e instanceof VyreErr) {
       if (containerId) await stopContainer(ctx, d, containerId);
@@ -659,7 +818,15 @@ async function startAndRoute(ctx: Ctx, d: SiteDrivers, site: Row, dep: Row): Pro
     }
     if (containerId) await stopContainer(ctx, d, containerId);
     const reason = (e instanceof Error ? e.message : String(e)).slice(0, 300) || "The deployment failed.";
-    ctx.db.run("UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, log = ?, updated_at = ? WHERE id = ?", "failed", null, null, logLine(dep, reason), ctx.now(), depId);
+    ctx.db.run(
+      "UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, log = ?, updated_at = ? WHERE id = ?",
+      "failed",
+      null,
+      null,
+      logLine(dep, reason),
+      ctx.now(),
+      depId,
+    );
     setSiteState(ctx, siteId, "failed");
     noteActivity(ctx, siteId, "site.build_failed");
     ctx.emit("site.build_failed", `site/${siteId}`, { siteId, deploymentId: depId, reason });
@@ -668,30 +835,74 @@ async function startAndRoute(ctx: Ctx, d: SiteDrivers, site: Row, dep: Row): Pro
 }
 
 /** Build a branch. The default branch builds a staging deployment; any other branch builds (and starts) its one preview. */
-async function buildBranch(ctx: Ctx, site: Row, branchIn: string | undefined, forcePreview: boolean): Promise<{ dep: Row; env: DeployEnv }> {
+async function buildBranch(
+  ctx: Ctx,
+  site: Row,
+  branchIn: string | undefined,
+  forcePreview: boolean,
+): Promise<{ dep: Row; env: DeployEnv }> {
   const d = siteDrivers(ctx);
   const siteId = str(site.id);
   await sweepMergedPreviews(ctx, siteId);
   const defaultBranch = defaultBranchOf(site);
   const branch = branchIn === undefined ? defaultBranch : cleanBranch(ctx, branchIn);
-  if (forcePreview && branch === defaultBranch) fail(ctx, "validation.bad_input", "The default branch is built as staging, not as a preview.", { field: "branch" });
+  if (forcePreview && branch === defaultBranch)
+    fail(ctx, "validation.bad_input", "The default branch is built as staging, not as a preview.", { field: "branch" });
   const env: DeployEnv = forcePreview || branch !== defaultBranch ? "preview" : "staging";
   const now = ctx.now();
 
   let depId: string;
-  const existing = env === "preview" ? one(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND branch = ?", siteId, "preview", branch) : undefined;
+  const existing =
+    env === "preview"
+      ? one(
+          ctx,
+          "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND branch = ?",
+          siteId,
+          "preview",
+          branch,
+        )
+      : undefined;
   if (existing) {
     depId = str(existing.id);
     if (!isNull(existing.container_id)) await stopContainer(ctx, d, str(existing.container_id));
     ctx.db.run(
       "UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, upstream = ?, image = ?, commit_sha = ?, log = ?, removed_at = ?, merge_pending = ?, at = ?, updated_at = ?, created_by = ? WHERE id = ?",
-      "building", null, null, null, null, null, "[]", null, 0, now, now, ctx.principal.id, depId,
+      "building",
+      null,
+      null,
+      null,
+      null,
+      null,
+      "[]",
+      null,
+      0,
+      now,
+      now,
+      ctx.principal.id,
+      depId,
     );
   } else {
     depId = nid(ctx, "dpl");
     ctx.db.run(
       "INSERT INTO sites_deployment (id, site_id, env, state, url, branch, commit_sha, image, container_id, host, upstream, pr_number, log, created_by, at, updated_at, removed_at, merge_pending) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      depId, siteId, env, "building", null, branch, null, null, null, null, null, null, "[]", ctx.principal.id, now, now, null, 0,
+      depId,
+      siteId,
+      env,
+      "building",
+      null,
+      branch,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "[]",
+      ctx.principal.id,
+      now,
+      now,
+      null,
+      0,
     );
   }
   setSiteState(ctx, siteId, "building");
@@ -699,8 +910,12 @@ async function buildBranch(ctx: Ctx, site: Row, branchIn: string | undefined, fo
   let result: BuildResult;
   try {
     result = await d.runtime.build({
-      siteId, deploymentId: depId, kind: str(site.kind) as SiteKind, repoUrl: isNull(site.repo_url) ? null : str(site.repo_url),
-      folderId: isNull(site.repo_folder_id) ? null : str(site.repo_folder_id), branch,
+      siteId,
+      deploymentId: depId,
+      kind: str(site.kind) as SiteKind,
+      repoUrl: isNull(site.repo_url) ? null : str(site.repo_url),
+      folderId: isNull(site.repo_folder_id) ? null : str(site.repo_folder_id),
+      branch,
     });
   } catch (e) {
     result = { ok: false, log: [e instanceof Error ? e.message : String(e)] };
@@ -708,7 +923,13 @@ async function buildBranch(ctx: Ctx, site: Row, branchIn: string | undefined, fo
   const log = JSON.stringify(clipLines(result.log));
   if (!result.ok || !result.image) {
     const reason = (result.log[result.log.length - 1] ?? "The build failed.").slice(0, 300);
-    ctx.db.run("UPDATE sites_deployment SET state = ?, log = ?, updated_at = ? WHERE id = ?", "failed", log, ctx.now(), depId);
+    ctx.db.run(
+      "UPDATE sites_deployment SET state = ?, log = ?, updated_at = ? WHERE id = ?",
+      "failed",
+      log,
+      ctx.now(),
+      depId,
+    );
     setSiteState(ctx, siteId, "failed");
     noteActivity(ctx, siteId, "site.build_failed");
     ctx.emit("site.build_failed", `site/${siteId}`, { siteId, deploymentId: depId, reason });
@@ -716,14 +937,24 @@ async function buildBranch(ctx: Ctx, site: Row, branchIn: string | undefined, fo
   }
   ctx.db.run(
     "UPDATE sites_deployment SET state = ?, image = ?, commit_sha = ?, pr_number = ?, log = ?, updated_at = ? WHERE id = ?",
-    "ready", result.image, result.commit ?? null, result.pullRequest ?? null, log, ctx.now(), depId,
+    "ready",
+    result.image,
+    result.commit ?? null,
+    result.pullRequest ?? null,
+    log,
+    ctx.now(),
+    depId,
   );
   setSiteState(ctx, siteId, "ready");
 
   if (env === "preview") {
     let dep = mustDeployment(ctx, siteId, depId);
     if (isNull(site.staging_secret)) {
-      ctx.db.run("UPDATE sites_deployment SET log = ? WHERE id = ?", logLine(dep, "Preview not started: choose a staging password to serve previews."), depId);
+      ctx.db.run(
+        "UPDATE sites_deployment SET log = ? WHERE id = ?",
+        logLine(dep, "Preview not started: choose a staging password to serve previews."),
+        depId,
+      );
       return { dep: mustDeployment(ctx, siteId, depId), env };
     }
     dep = await startAndRoute(ctx, d, site, dep);
@@ -755,10 +986,19 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: Depl
   let dep: Row | undefined;
   if (wanted !== undefined) {
     dep = mustDeployment(ctx, str(site.id), wanted);
-    if (dep.env === "production") fail(ctx, "validation.precondition_failed", "A production deployment is changed with Promote, not Deploy.");
-    if (!isNull(dep.removed_at)) fail(ctx, "validation.precondition_failed", "That preview was removed. Rebuild it first.");
+    if (dep.env === "production")
+      fail(ctx, "validation.precondition_failed", "A production deployment is changed with Promote, not Deploy.");
+    if (!isNull(dep.removed_at))
+      fail(ctx, "validation.precondition_failed", "That preview was removed. Rebuild it first.");
   } else {
-    dep = newest(many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND removed_at IS NULL", site.id, "staging").filter((r) => !isNull(r.image)));
+    dep = newest(
+      many(
+        ctx,
+        "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND removed_at IS NULL",
+        site.id,
+        "staging",
+      ).filter((r) => !isNull(r.image)),
+    );
   }
   if (!dep || isNull(dep.image) || (dep.state !== "ready" && dep.state !== "stopped")) {
     fail(ctx, "validation.precondition_failed", "Nothing is built yet. Build the site first.");
@@ -767,14 +1007,20 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: Depl
   return { deployment: depOut(out) };
 }
 
-async function sitesDeployments(ctx: Ctx, input: unknown): Promise<{ deployments: DeploymentOut[]; next?: string; total: number }> {
+async function sitesDeployments(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ deployments: DeploymentOut[]; next?: string; total: number }> {
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   const { offset, limit } = pageOf(ctx, o);
   const rows = many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND removed_at IS NULL", site.id)
     .filter((r) => !flag(r.merge_pending))
     .sort((a, b) => num(b.at) - num(a.at) || str(b.id).localeCompare(str(a.id)));
-  const out: { deployments: DeploymentOut[]; next?: string; total: number } = { deployments: rows.slice(offset, offset + limit).map(depOut), total: rows.length };
+  const out: { deployments: DeploymentOut[]; next?: string; total: number } = {
+    deployments: rows.slice(offset, offset + limit).map(depOut),
+    total: rows.length,
+  };
   if (offset + limit < rows.length) out.next = String(offset + limit);
   return out;
 }
@@ -782,7 +1028,12 @@ async function sitesDeployments(ctx: Ctx, input: unknown): Promise<{ deployments
 async function sitesPreviews(ctx: Ctx, input: unknown): Promise<{ previews: DeploymentOut[] }> {
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
-  const rows = many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND removed_at IS NULL", site.id, "preview")
+  const rows = many(
+    ctx,
+    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND removed_at IS NULL",
+    site.id,
+    "preview",
+  )
     .filter((r) => !flag(r.merge_pending))
     .sort((a, b) => num(b.at) - num(a.at) || str(b.id).localeCompare(str(a.id)));
   return { previews: rows.map(depOut) };
@@ -799,7 +1050,13 @@ async function sitesPreviewRemove(ctx: Ctx, input: unknown): Promise<{ removed: 
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   const branch = cleanBranch(ctx, reqStr(ctx, o, "branch"));
-  const row = one(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND branch = ? AND removed_at IS NULL", site.id, "preview", branch);
+  const row = one(
+    ctx,
+    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND branch = ? AND removed_at IS NULL",
+    site.id,
+    "preview",
+    branch,
+  );
   if (!row) return { removed: false };
   await removePreview(ctx, siteDrivers(ctx), row);
   return { removed: true };
@@ -815,15 +1072,24 @@ async function sitesEnvSet(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   const entries = o.entries;
   if (!Array.isArray(entries)) fail(ctx, "validation.bad_input", "The entries are not valid.", { field: "entries" });
-  if (entries.length > 200) fail(ctx, "validation.too_large", "A site takes at most 200 environment names.", { field: "entries" });
+  if (entries.length > 200)
+    fail(ctx, "validation.too_large", "A site takes at most 200 environment names.", { field: "entries" });
   const seen = new Set<string>();
   const next: { name: string; handle: string }[] = [];
   for (const e of entries) {
     const row = rec(ctx, e);
     const name = reqStr(ctx, row, "name");
     const handle = reqStr(ctx, row, "vaultHandle");
-    if (!ENV_NAME.test(name)) fail(ctx, "validation.bad_input", "An environment name uses letters, digits and underscores.", { field: "entries.name", name });
-    if (!HANDLE.test(handle)) fail(ctx, "validation.bad_input", "A Vault key is written as #Name or #Name.field.", { field: "entries.vaultHandle", name });
+    if (!ENV_NAME.test(name))
+      fail(ctx, "validation.bad_input", "An environment name uses letters, digits and underscores.", {
+        field: "entries.name",
+        name,
+      });
+    if (!HANDLE.test(handle))
+      fail(ctx, "validation.bad_input", "A Vault key is written as #Name or #Name.field.", {
+        field: "entries.vaultHandle",
+        name,
+      });
     if (seen.has(name)) fail(ctx, "validation.duplicate", "An environment name is listed twice.", { name });
     seen.add(name);
     next.push({ name, handle });
@@ -835,29 +1101,44 @@ async function sitesEnvSet(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
   for (const e of next) {
     const prev = before.get(e.name);
     const unchanged = prev !== undefined && prev.vault_handle === e.handle;
-    ctx.db.run("INSERT INTO sites_env (site_id, name, vault_handle, injected) VALUES (?, ?, ?, ?)", site.id, e.name, e.handle, unchanged && flag(prev.injected) ? 1 : 0);
+    ctx.db.run(
+      "INSERT INTO sites_env (site_id, name, vault_handle, injected) VALUES (?, ?, ?, ?)",
+      site.id,
+      e.name,
+      e.handle,
+      unchanged && flag(prev.injected) ? 1 : 0,
+    );
   }
   ctx.db.run("UPDATE sites_site SET updated_at = ? WHERE id = ?", ctx.now(), site.id);
   return { ok: true };
 }
 
-async function sitesEnvList(ctx: Ctx, input: unknown): Promise<{ entries: { name: string; vaultName: string; injected: boolean }[] }> {
+async function sitesEnvList(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ entries: { name: string; vaultName: string; injected: boolean }[] }> {
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
-  const rows = many(ctx, "SELECT * FROM sites_env WHERE site_id = ?", site.id).sort((a, b) => str(a.name).localeCompare(str(b.name)));
-  return { entries: rows.map((r) => ({ name: str(r.name), vaultName: str(r.vault_handle), injected: flag(r.injected) })) };
+  const rows = many(ctx, "SELECT * FROM sites_env WHERE site_id = ?", site.id).sort((a, b) =>
+    str(a.name).localeCompare(str(b.name)),
+  );
+  return {
+    entries: rows.map((r) => ({ name: str(r.name), vaultName: str(r.vault_handle), injected: flag(r.injected) })),
+  };
 }
 
 async function sitesStagingPasswordSet(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   const handle = reqStr(ctx, o, "vaultHandle");
-  if (!HANDLE.test(handle)) fail(ctx, "validation.bad_input", "A Vault key is written as #Name or #Name.field.", { field: "vaultHandle" });
+  if (!HANDLE.test(handle))
+    fail(ctx, "validation.bad_input", "A Vault key is written as #Name or #Name.field.", { field: "vaultHandle" });
   vaultUse(ctx, handle);
   ctx.db.run("UPDATE sites_site SET staging_secret = ?, updated_at = ? WHERE id = ?", handle, ctx.now(), site.id);
   // previews share the key: every live staging and preview address switches to it
-  const live = many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND removed_at IS NULL", site.id)
-    .filter((r) => r.env !== "production" && !isNull(r.container_id) && !isNull(r.upstream) && !isNull(r.host));
+  const live = many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND removed_at IS NULL", site.id).filter(
+    (r) => r.env !== "production" && !isNull(r.container_id) && !isNull(r.upstream) && !isNull(r.host),
+  );
   if (live.length > 0) {
     const d = siteDrivers(ctx);
     const fresh = mustSite(ctx, str(site.id));
@@ -866,32 +1147,48 @@ async function sitesStagingPasswordSet(ctx: Ctx, input: unknown): Promise<{ ok: 
   return { ok: true };
 }
 
-async function sitesServiceIdentity(ctx: Ctx, input: unknown): Promise<{ principal: string; grants: { resource: string; level: string }[] }> {
+async function sitesServiceIdentity(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ principal: string; grants: { resource: string; level: string }[] }> {
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
-  const stored = many(ctx, "SELECT * FROM sites_grant WHERE site_id = ?", site.id).sort((a, b) => str(a.resource).localeCompare(str(b.resource)));
+  const stored = many(ctx, "SELECT * FROM sites_grant WHERE site_id = ?", site.id).sort((a, b) =>
+    str(a.resource).localeCompare(str(b.resource)),
+  );
   // sites_grant is what the owner could do when the site was made. A site never holds more than its owner holds now: each grant is checked against the owner's access at this call, so a revoke, a demotion or
   // an offboarding of the owner takes the site's access away on the next ask (P-SEC_10). A check that cannot be made leaves the site with nothing.
   const grants: Row[] = [];
   for (const g of stored) {
     const [type, ...rest] = str(g.resource).split("/");
     try {
-      const answer = (await ctx.call("access.check", { principal: { kind: "person", id: str(site.owner) }, action: { level: str(g.level) }, resource: { type, id: rest.join("/") } })) as { decision?: { effect?: string } } | null;
+      const answer = (await ctx.call("access.check", {
+        principal: { kind: "person", id: str(site.owner) },
+        action: { level: str(g.level) },
+        resource: { type, id: rest.join("/") },
+      })) as { decision?: { effect?: string } } | null;
       if (answer?.decision?.effect === "allow") grants.push(g);
-    } catch { /* fail closed: no answer, no grant */ }
+    } catch {
+      /* fail closed: no answer, no grant */
+    }
   }
-  return { principal: str(site.service_principal), grants: grants.map((g) => ({ resource: str(g.resource), level: str(g.level) })) };
+  return {
+    principal: str(site.service_principal),
+    grants: grants.map((g) => ({ resource: str(g.resource), level: str(g.level) })),
+  };
 }
 
 async function sitesLogs(ctx: Ctx, input: unknown): Promise<{ lines: string[] }> {
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   const tail = optInt(ctx, o, "tail") ?? 200;
-  if (tail < 1 || tail > 1000) fail(ctx, "validation.bad_input", "Tail is between 1 and 1000 lines.", { field: "tail" });
+  if (tail < 1 || tail > 1000)
+    fail(ctx, "validation.bad_input", "Tail is between 1 and 1000 lines.", { field: "tail" });
   const wanted = optStr(ctx, o, "deploymentId");
-  const dep = wanted !== undefined
-    ? mustDeployment(ctx, str(site.id), wanted)
-    : newest(many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ?", site.id));
+  const dep =
+    wanted !== undefined
+      ? mustDeployment(ctx, str(site.id), wanted)
+      : newest(many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ?", site.id));
   if (!dep) return { lines: [] };
   const stored = parseLines(dep.log);
   let running: string[] = [];

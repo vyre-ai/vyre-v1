@@ -18,7 +18,10 @@
 export const FALLBACK_WINDOWS: ReadonlyArray<readonly [RegExp, number]> = [
   [/\[1m\]|[-_]1m\b|\b1m\b/i, 1_000_000],
   // Claude: the 4.5 generation and older are 200k, whatever the family word
-  [/(opus|sonnet|haiku)[-_ ]?4[-_.]?5\b|claude-3|claude-(opus|sonnet|haiku)-4(-\d{8}|\s|$)|claude-2|claude-instant/i, 200_000],
+  [
+    /(opus|sonnet|haiku)[-_ ]?4[-_.]?5\b|claude-3|claude-(opus|sonnet|haiku)-4(-\d{8}|\s|$)|claude-2|claude-instant/i,
+    200_000,
+  ],
   [/claude|fable|mythos|opus|sonnet|haiku/i, 1_000_000],
   [/gpt-?6/i, 1_050_000],
   [/gemini/i, 1_000_000],
@@ -35,12 +38,19 @@ export const WINDOWS = FALLBACK_WINDOWS;
 export const DEFAULT_WINDOW = 128_000;
 
 export type WindowSource = "reported" | "table" | "default";
-export interface WindowInfo { tokens: number; source: WindowSource }
+export interface WindowInfo {
+  tokens: number;
+  source: WindowSource;
+}
 
-const reported = new Map<string, number>();       // `${provider}/${model}` and `/${model}`
-const lastByProvider = new Map<string, number>();  // the window of the model a provider last said it ran
+const reported = new Map<string, number>(); // `${provider}/${model}` and `/${model}`
+const lastByProvider = new Map<string, number>(); // the window of the model a provider last said it ran
 
-const norm = (m: string): string => m.trim().toLowerCase().replace(/^models\//, "");
+const norm = (m: string): string =>
+  m
+    .trim()
+    .toLowerCase()
+    .replace(/^models\//, "");
 const sane = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n >= 4_000 && n <= 100_000_000;
 
 /** A provider or engine said this model's window. Later reports replace earlier ones. */
@@ -56,7 +66,10 @@ export function reportWindow(model: string | null | undefined, tokens: unknown, 
 }
 
 /** Forget every reported window (tests). */
-export function clearWindows(): void { reported.clear(); lastByProvider.clear(); }
+export function clearWindows(): void {
+  reported.clear();
+  lastByProvider.clear();
+}
 
 export function windowInfo(model: string | null | undefined, provider?: string | null): WindowInfo {
   const m = model ? norm(model) : "";
@@ -71,7 +84,8 @@ export function windowInfo(model: string | null | undefined, provider?: string |
   const hay = `${m} ${provider && provider !== "claude" ? provider : ""}`;
   for (const [re, n] of FALLBACK_WINDOWS) if (re.test(hay)) return { tokens: n, source: "table" };
   // no model named: the newest family of the engine's own vendor
-  if (m === "" && (provider === "claude" || provider === "claude-code" || provider === "anthropic")) return { tokens: 1_000_000, source: "table" };
+  if (m === "" && (provider === "claude" || provider === "claude-code" || provider === "anthropic"))
+    return { tokens: 1_000_000, source: "table" };
   return { tokens: DEFAULT_WINDOW, source: "default" };
 }
 
@@ -81,5 +95,7 @@ export function windowFor(model: string | null | undefined, provider?: string | 
 
 /** "1M context", "258k context": how a window reads in a picker. */
 export function windowLabel(tokens: number): string {
-  return tokens >= 1_000_000 ? `${Math.round((tokens / 1_000_000) * 100) / 100}M context` : `${Math.round(tokens / 1000)}k context`;
+  return tokens >= 1_000_000
+    ? `${Math.round((tokens / 1_000_000) * 100) / 100}M context`
+    : `${Math.round(tokens / 1000)}k context`;
 }

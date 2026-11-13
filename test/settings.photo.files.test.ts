@@ -24,5 +24,9 @@ test("a new member with an empty Personal folder uploads a photo", async () => {
   const tree = (await rt.call("files.tree", {})) as { roots: { key: string; folderId?: string }[] };
   const home = tree.roots.find((r) => r.key === "personal")!.folderId!;
   const kept = (await rt.call("files.list", { folderId: home })) as { files: { fileId: string; name: string }[] };
-  assert.deepEqual(kept.files.map((f) => f.name), ["me.png"], "it is kept in the Personal folder");
+  assert.deepEqual(
+    kept.files.map((f) => f.name),
+    ["me.png"],
+    "it is kept in the Personal folder",
+  );
 });

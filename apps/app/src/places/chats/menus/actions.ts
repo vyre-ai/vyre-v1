@@ -34,33 +34,76 @@ export interface MenuApi {
 export function createMenuApi(data: Pick<ChatsSidebarData, "call">): MenuApi {
   return {
     async mutes() {
-      const out = (await data.call("notifications.mute.list", {})) as { mutes?: { target: { kind: string; id: string }; until: number }[] } | null;
+      const out = (await data.call("notifications.mute.list", {})) as {
+        mutes?: { target: { kind: string; id: string }; until: number }[];
+      } | null;
       return new Set((out?.mutes ?? []).map((m) => `${m.target.kind}:${m.target.id}`));
     },
-    async setMute(kind, id, on, minutes) { await data.call(on ? "notifications.mute.set" : "notifications.mute.clear", { target: { kind, id }, ...(on && minutes !== undefined ? { minutes } : {}) }); },
-    async projects() {
-      const out = (await data.call("projects.list", {})) as { projects?: { projectId: string; title: string; archivedAt?: number }[] } | null;
-      return (out?.projects ?? []).filter((p) => p.archivedAt === undefined).map((p) => ({ projectId: p.projectId, title: p.title }));
+    async setMute(kind, id, on, minutes) {
+      await data.call(on ? "notifications.mute.set" : "notifications.mute.clear", {
+        target: { kind, id },
+        ...(on && minutes !== undefined ? { minutes } : {}),
+      });
     },
-    async moveToProject(threadId, projectId) { await data.call("threads.move", { threadId, projectId }); },
-    async addAgentToChat(threadId, agentId) { await data.call("threads.add_agent", { threadId, agentId }); },
-    async addPersonToChat(threadId, personId) { await data.call("threads.members.add", { threadId, personId }); },
-    async poke(threadId, agentId) { await data.call("threads.poke", { threadId, agentId }); },
+    async projects() {
+      const out = (await data.call("projects.list", {})) as {
+        projects?: { projectId: string; title: string; archivedAt?: number }[];
+      } | null;
+      return (out?.projects ?? [])
+        .filter((p) => p.archivedAt === undefined)
+        .map((p) => ({ projectId: p.projectId, title: p.title }));
+    },
+    async moveToProject(threadId, projectId) {
+      await data.call("threads.move", { threadId, projectId });
+    },
+    async addAgentToChat(threadId, agentId) {
+      await data.call("threads.add_agent", { threadId, agentId });
+    },
+    async addPersonToChat(threadId, personId) {
+      await data.call("threads.members.add", { threadId, personId });
+    },
+    async poke(threadId, agentId) {
+      await data.call("threads.poke", { threadId, agentId });
+    },
     async stars() {
-      const out = (await data.call("stars.list", {})) as { stars?: { resource: { type: string; id: string } }[] } | null;
+      const out = (await data.call("stars.list", {})) as {
+        stars?: { resource: { type: string; id: string } }[];
+      } | null;
       return new Set((out?.stars ?? []).map((s) => `${s.resource.type}:${s.resource.id}`));
     },
     async computers() {
-      const out = (await data.call("computers.list", {})) as { computers?: { computerId: string; agentId: string; state: string }[] } | null;
-      return new Map((out?.computers ?? []).map((c) => [c.agentId, { computerId: c.computerId, asleep: c.state === "asleep" }] as const));
+      const out = (await data.call("computers.list", {})) as {
+        computers?: { computerId: string; agentId: string; state: string }[];
+      } | null;
+      return new Map(
+        (out?.computers ?? []).map(
+          (c) => [c.agentId, { computerId: c.computerId, asleep: c.state === "asleep" }] as const,
+        ),
+      );
     },
-    async wake(computerId) { await data.call("computers.wake", { computerId }); },
-    async sleep(computerId) { await data.call("computers.sleep", { computerId }); },
-    async pause(agentId) { await data.call("agents.pause", { agentId }); },
-    async resume(agentId) { await data.call("agents.resume", { agentId }); },
-    async deleteAgent(agentId) { await data.call("agents.delete", { agentId }); },
-    async renameThread(threadId, title) { await data.call("threads.update", { threadId, title }); },
-    async leaveChannel(channelId) { await data.call("channels.leave", { channelId }); },
-    async archiveChannel(channelId) { await data.call("channels.archive", { channelId }); },
+    async wake(computerId) {
+      await data.call("computers.wake", { computerId });
+    },
+    async sleep(computerId) {
+      await data.call("computers.sleep", { computerId });
+    },
+    async pause(agentId) {
+      await data.call("agents.pause", { agentId });
+    },
+    async resume(agentId) {
+      await data.call("agents.resume", { agentId });
+    },
+    async deleteAgent(agentId) {
+      await data.call("agents.delete", { agentId });
+    },
+    async renameThread(threadId, title) {
+      await data.call("threads.update", { threadId, title });
+    },
+    async leaveChannel(channelId) {
+      await data.call("channels.leave", { channelId });
+    },
+    async archiveChannel(channelId) {
+      await data.call("channels.archive", { channelId });
+    },
   };
 }

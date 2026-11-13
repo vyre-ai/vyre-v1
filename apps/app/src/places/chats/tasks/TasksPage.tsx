@@ -26,10 +26,36 @@ import { QuickField } from "./QuickField.tsx";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import type { ActEnv } from "./actions.ts";
 import { taskRowEntries } from "./row-menu.ts";
-import { bulkAssign, bulkDelete, bulkDue, bulkLabel, bulkMove, bulkPriority, bulkStatus, dueEntries, failure, keepQuiet, letGo, priorityEntries, setStatus, snoozeQuiet } from "./actions.ts";
+import {
+  bulkAssign,
+  bulkDelete,
+  bulkDue,
+  bulkLabel,
+  bulkMove,
+  bulkPriority,
+  bulkStatus,
+  dueEntries,
+  failure,
+  keepQuiet,
+  letGo,
+  priorityEntries,
+  setStatus,
+  snoozeQuiet,
+} from "./actions.ts";
 import { Board } from "./Board.tsx";
 import { buildEntries, DAY, filterRows, GROUPS, heightOf, holderOf, isFiltered, NO_FILTER, SORTS } from "./model.ts";
-import type { Entry, Filter, GroupKey, IndexOut, NeedItem, ScopeKind, SortKey, TaskRow, ViewKind, Who } from "./model.ts";
+import type {
+  Entry,
+  Filter,
+  GroupKey,
+  IndexOut,
+  NeedItem,
+  ScopeKind,
+  SortKey,
+  TaskRow,
+  ViewKind,
+  Who,
+} from "./model.ts";
 import { faceKind, NeedLine, rowStyles, TaskLine, TextMenu } from "./parts.tsx";
 import type { RowEnv } from "./parts.tsx";
 import { parseQuick } from "./quick.ts";
@@ -51,7 +77,12 @@ type ProjectRow = { projectId: string; recordId: string; title: string };
 type ViewRow = CapMap["views.list"]["out"]["views"][number];
 type Scope = { kind: ScopeKind } | { kind: "snoozed" } | { kind: "project"; recordId: string; title: string };
 
-const VIEWS = [{ id: "list", label: "List" }, { id: "board", label: "Board" }, { id: "timeline", label: "Timeline" }, { id: "calendar", label: "Month" }] as const;
+const VIEWS = [
+  { id: "list", label: "List" },
+  { id: "board", label: "Board" },
+  { id: "timeline", label: "Timeline" },
+  { id: "calendar", label: "Month" },
+] as const;
 const newKey = (): string => `task_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 9)}`;
 const NO_ROWS: readonly TaskRow[] = [];
 const NO_NEEDS: readonly NeedItem[] = [];
@@ -90,211 +121,618 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
   const heldGuest = useRef<string | null>(null);
 
   const say = useCallback((text: string, undo?: () => void): void => setLine(undo ? { text, undo } : { text }), []);
-  useEffect(() => { if (!line) return undefined; const t = setTimeout(() => setLine(null), line.undo ? 8000 : 4000); return () => clearTimeout(t); }, [line]);
+  useEffect(() => {
+    if (!line) return undefined;
+    const t = setTimeout(() => setLine(null), line.undo ? 8000 : 4000);
+    return () => clearTimeout(t);
+  }, [line]);
 
   /* ---------- the list, from this device, read again when a task changed ---------- */
-  const key = useMemo((): ScopeKey => (scope.kind === "project" ? { scope: "everyone" as const, recordId: scope.recordId } : scope.kind === "snoozed" ? { scope: "mine" as const, snoozed: true } : { scope: scope.kind }), [scope]);
+  const key = useMemo(
+    (): ScopeKey =>
+      scope.kind === "project"
+        ? { scope: "everyone" as const, recordId: scope.recordId }
+        : scope.kind === "snoozed"
+          ? { scope: "mine" as const, snoozed: true }
+          : { scope: scope.kind },
+    [scope],
+  );
   const store = useMemo(() => storeFor(rt, rt.call, key), [rt, key]);
   const snap = useSyncExternalStore(store.subscribe, store.get, store.get);
   const rev = useLive<{ rev: string }>(rt.screens, TASKS_SCREEN, "rev", {});
   const revValue = rev.status === "ready" ? rev.data.rev : undefined;
-  useEffect(() => { store.refresh(revValue); }, [store, revValue]);
-  useEffect(() => { setDoneRows(null); setSelected(new Set()); setCursor(-1); }, [store]);
+  useEffect(() => {
+    store.refresh(revValue);
+  }, [store, revValue]);
+  useEffect(() => {
+    setDoneRows(null);
+    setSelected(new Set());
+    setCursor(-1);
+  }, [store]);
   const needsQ = useLive<NeedsOut>(rt.screens, TASKS_SCREEN, "needs", { limit: 200 });
   const needs = needsQ.status === "ready" ? needsQ.data.items : NO_NEEDS;
   const who = useTaskPeople(rt);
-  const list = who.list as ReadonlyArray<{ id: string; name: string; kind: string; username?: string; guest?: boolean }>;
+  const list = who.list as ReadonlyArray<{
+    id: string;
+    name: string;
+    kind: string;
+    username?: string;
+    guest?: boolean;
+  }>;
   const [projects, setProjects] = useState<readonly ProjectRow[]>([]);
   const [savedViews, setSavedViews] = useState<readonly ViewRow[]>([]);
-  const readViews = useCallback((): void => { void rt.call("views.list", { type: "task" }).then((o) => setSavedViews((o as CapMap["views.list"]["out"]).views), () => setSavedViews([])); }, [rt]);
-  useEffect(() => { void rt.call("projects.list", {}).then((o) => setProjects((o as { projects: ProjectRow[] }).projects), () => setProjects([])); readViews(); }, [rt, readViews]);
+  const readViews = useCallback((): void => {
+    void rt.call("views.list", { type: "task" }).then(
+      (o) => setSavedViews((o as CapMap["views.list"]["out"]).views),
+      () => setSavedViews([]),
+    );
+  }, [rt]);
+  useEffect(() => {
+    void rt.call("projects.list", {}).then(
+      (o) => setProjects((o as { projects: ProjectRow[] }).projects),
+      () => setProjects([]),
+    );
+    readViews();
+  }, [rt, readViews]);
   const projectName = useMemo(() => new Map(projects.map((p) => [p.recordId, p.title] as const)), [projects]);
   const keys = useMemo(() => new Map(snap.rows.map((r) => [r.id, r.key] as const)), [snap.rows]);
   const nameOf = who.nameOf;
   const clock = rt.clock();
-  const dayOfNow = Math.floor(clock.now / 60_000);   // the list is ordered by the minute: a repaint does not reorder it under the pointer
+  const dayOfNow = Math.floor(clock.now / 60_000); // the list is ordered by the minute: a repaint does not reorder it under the pointer
   const now = dayOfNow * 60_000;
 
-  const act: ActEnv = useMemo(() => ({ call: rt.call, say, store, newKey, now: () => rt.clock().now, offsetMin: rt.clock().offsetMin }), [rt, say, store]);
+  const act: ActEnv = useMemo(
+    () => ({ call: rt.call, say, store, newKey, now: () => rt.clock().now, offsetMin: rt.clock().offsetMin }),
+    [rt, say, store],
+  );
 
   /* ---------- status: one path from every door ---------- */
   // the moves this person can make from their seat, in the words of the move; one that needs words (a summary, fixes, a reason) opens the task, where they are typed
-  const runMove = useCallback((row: TaskRow, m: Move): void => {
-    if (m.ask) { openTask(row.id); return; }
-    if (m.cap === "tasks.transition" && m.to) { void setStatus(act, row, m.to); return; }
-    void rt.call(m.cap, { taskId: row.id, ...m.input }).then(() => { say(`${m.label}: ${row.title}`); store.refresh(); }, (e: unknown) => say(failure(e, "That could not be done.")));
-  }, [act, openTask, rt, say, store]);
-  const statusMenu = useCallback((row: TaskRow, at: { x: number; y: number }): void => {
-    const items: MenuEntry[] = [];
-    if (canTake(row)) items.push({ label: "Take it", onSelect: () => void rt.call("tasks.take", { taskId: row.id }).then(() => { say(`Taken: ${row.title}`); store.refresh(); }, (e: unknown) => say(failure(e, "It could not be taken."))) });
-    for (const m of movesFor(row, rt.me.id)) items.push({ label: m.label, ...(m.to ? { leading: <StatusDot state={m.to} size={14} /> } : {}), ...(m.danger ? { danger: true } : {}), onSelect: () => runMove(row, m) });
-    if (items.length === 0) items.push({ head: `${TASK_STATES.find((s) => s.key === row.state)?.title ?? row.state}. Nothing here is yours to move.` });
-    menu.show(items, at.x, at.y, "other", { label: "Status" });
-  }, [menu, rt, runMove, say, store]);
+  const runMove = useCallback(
+    (row: TaskRow, m: Move): void => {
+      if (m.ask) {
+        openTask(row.id);
+        return;
+      }
+      if (m.cap === "tasks.transition" && m.to) {
+        void setStatus(act, row, m.to);
+        return;
+      }
+      void rt.call(m.cap, { taskId: row.id, ...m.input }).then(
+        () => {
+          say(`${m.label}: ${row.title}`);
+          store.refresh();
+        },
+        (e: unknown) => say(failure(e, "That could not be done.")),
+      );
+    },
+    [act, openTask, rt, say, store],
+  );
+  const statusMenu = useCallback(
+    (row: TaskRow, at: { x: number; y: number }): void => {
+      const items: MenuEntry[] = [];
+      if (canTake(row))
+        items.push({
+          label: "Take it",
+          onSelect: () =>
+            void rt.call("tasks.take", { taskId: row.id }).then(
+              () => {
+                say(`Taken: ${row.title}`);
+                store.refresh();
+              },
+              (e: unknown) => say(failure(e, "It could not be taken.")),
+            ),
+        });
+      for (const m of movesFor(row, rt.me.id))
+        items.push({
+          label: m.label,
+          ...(m.to ? { leading: <StatusDot state={m.to} size={14} /> } : {}),
+          ...(m.danger ? { danger: true } : {}),
+          onSelect: () => runMove(row, m),
+        });
+      if (items.length === 0)
+        items.push({
+          head: `${TASK_STATES.find((s) => s.key === row.state)?.title ?? row.state}. Nothing here is yours to move.`,
+        });
+      menu.show(items, at.x, at.y, "other", { label: "Status" });
+    },
+    [menu, rt, runMove, say, store],
+  );
 
   // people, agents, then teams and roles: a team task waits for whoever takes it
-  const assignMenu = useCallback((ids: readonly string[], at: { x: number; y: number }): void => {
-    const entries: MenuEntry[] = [];
-    let teamsHead = false;
-    for (const p of who.seats) {
-      if ((p.kind === "group" || p.kind === "role") && !teamsHead) { entries.push({ head: "Teams and roles" }); teamsHead = true; }
-      entries.push({ label: p.name, leading: <Avatar name={p.name} seedId={p.id} kind={faceKind({ kind: p.kind, id: p.id })} size={16} />, onSelect: () => giveWithCare(menu.show, p, at, () => void bulkAssign(act, ids, { kind: p.kind, id: p.id }, p.id === rt.me.id ? "you" : p.name)) });
-    }
-    menu.show(entries, at.x, at.y, "other", { label: "Assign" }, { search: "Find someone" });
-  }, [act, who.seats, menu, rt.me.id]);
+  const assignMenu = useCallback(
+    (ids: readonly string[], at: { x: number; y: number }): void => {
+      const entries: MenuEntry[] = [];
+      let teamsHead = false;
+      for (const p of who.seats) {
+        if ((p.kind === "group" || p.kind === "role") && !teamsHead) {
+          entries.push({ head: "Teams and roles" });
+          teamsHead = true;
+        }
+        entries.push({
+          label: p.name,
+          leading: <Avatar name={p.name} seedId={p.id} kind={faceKind({ kind: p.kind, id: p.id })} size={16} />,
+          onSelect: () =>
+            giveWithCare(
+              menu.show,
+              p,
+              at,
+              () => void bulkAssign(act, ids, { kind: p.kind, id: p.id }, p.id === rt.me.id ? "you" : p.name),
+            ),
+        });
+      }
+      menu.show(entries, at.x, at.y, "other", { label: "Assign" }, { search: "Find someone" });
+    },
+    [act, who.seats, menu, rt.me.id],
+  );
 
-  const labelsIn = useMemo(() => { const s = new Set<string>(); for (const r of snap.rows) for (const l of r.labels) s.add(l); return [...s].sort(); }, [snap.rows]);
-  const labelMenu = useCallback((ids: readonly string[], at: { x: number; y: number }): void => {
-    const on = (l: string): boolean => ids.every((id) => store.byId(id)?.labels.includes(l));
-    menu.show(labelsIn.length === 0 ? [{ head: "No labels yet. Add one with #word when you make a task." }] : labelsIn.map((l) => ({ label: `#${l}`, checked: on(l), onSelect: () => void bulkLabel(act, ids, l, !on(l)) })), at.x, at.y, "other", { label: "Labels" });
-  }, [act, labelsIn, menu, store]);
-  const moveMenu = useCallback((ids: readonly string[], at: { x: number; y: number }): void => {
-    menu.show(projects.length === 0 ? [{ head: "No projects yet." }] : projects.map((p) => ({ label: p.title, onSelect: () => void bulkMove(act, ids, p.recordId, p.title) })), at.x, at.y, "other", { label: "Move to a project" });
-  }, [act, menu, projects]);
-  const dueMenu = useCallback((ids: readonly string[], at: { x: number; y: number }): void => menu.show(dueEntries(act, (when, words) => void bulkDue(act, ids, when, words)), at.x, at.y, "other", { label: "Due" }), [act, menu]);
+  const labelsIn = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of snap.rows) for (const l of r.labels) s.add(l);
+    return [...s].sort();
+  }, [snap.rows]);
+  const labelMenu = useCallback(
+    (ids: readonly string[], at: { x: number; y: number }): void => {
+      const on = (l: string): boolean => ids.every((id) => store.byId(id)?.labels.includes(l));
+      menu.show(
+        labelsIn.length === 0
+          ? [{ head: "No labels yet. Add one with #word when you make a task." }]
+          : labelsIn.map((l) => ({
+              label: `#${l}`,
+              checked: on(l),
+              onSelect: () => void bulkLabel(act, ids, l, !on(l)),
+            })),
+        at.x,
+        at.y,
+        "other",
+        { label: "Labels" },
+      );
+    },
+    [act, labelsIn, menu, store],
+  );
+  const moveMenu = useCallback(
+    (ids: readonly string[], at: { x: number; y: number }): void => {
+      menu.show(
+        projects.length === 0
+          ? [{ head: "No projects yet." }]
+          : projects.map((p) => ({ label: p.title, onSelect: () => void bulkMove(act, ids, p.recordId, p.title) })),
+        at.x,
+        at.y,
+        "other",
+        { label: "Move to a project" },
+      );
+    },
+    [act, menu, projects],
+  );
+  const dueMenu = useCallback(
+    (ids: readonly string[], at: { x: number; y: number }): void =>
+      menu.show(
+        dueEntries(act, (when, words) => void bulkDue(act, ids, when, words)),
+        at.x,
+        at.y,
+        "other",
+        { label: "Due" },
+      ),
+    [act, menu],
+  );
 
-  const pick = useCallback((id: string, _range: boolean): void => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; }), []);
+  const pick = useCallback(
+    (id: string, _range: boolean): void =>
+      setSelected((s) => {
+        const n = new Set(s);
+        if (n.has(id)) n.delete(id);
+        else n.add(id);
+        return n;
+      }),
+    [],
+  );
 
-  const rowMenu = useCallback((row: TaskRow, at: { x: number; y: number }): void => {
-    const ids = selected.has(row.id) ? [...selected] : [row.id];
-    const items = taskRowEntries({ done: row.state === "done", selected: selected.has(row.id) }, {
-      open: () => openTask(row.id),
-      toggleSelect: () => pick(row.id, false),
-      markDone: () => void bulkStatus(act, ids, "done"),
-      reopen: () => void bulkStatus(act, ids, "todo"),
-      status: () => statusMenu(row, at),
-      assign: () => assignMenu(ids, at),
-      due: () => dueMenu(ids, at),
-      priority: () => menu.show(priorityEntries(row.priority, (k, w) => void bulkPriority(act, ids, k, w)), at.x, at.y, "other", { label: "Priority" }),
-      labels: () => labelMenu(ids, at),
-      moveToProject: () => moveMenu(ids, at),
-      follow: () => void rt.call("tasks.get", { taskId: row.id }).then((o) => { const th = (o as CapMap["tasks.get"]["out"]).task.threadId; if (!th) { openTask(row.id); return; } return rt.call("threads.follow", { threadId: th, mode: "follow" }).then(() => say("Following. Its replies reach you.")); }).catch((e: unknown) => say(failure(e, "It could not be followed."))),
-      copyLink: () => { const l = (globalThis as { location?: { origin?: string; pathname?: string } }).location; const c = (globalThis as { navigator?: { clipboard?: { writeText(x: string): unknown } } }).navigator?.clipboard; if (c) void c.writeText(`${l?.origin ?? ""}${l?.pathname ?? ""}#screen=tasks.page&taskId=${row.id}`); say("Link copied"); },
-      snooze: () => menu.show(dueEntries(act, (when, words) => { if (when !== null) void snoozeQuiet(act, ids, when, words); }).filter((e) => !("label" in e && e.label === "No date")), at.x, at.y, "other", { label: "Snooze until" }),
-      duplicate: () => void rt.call("tasks.create", { title: `${row.title} (copy)`, assigned: row.assigned, labels: row.labels, ...(row.due !== undefined ? { due: row.due } : {}), ...(row.priority ? { priority: row.priority } : {}), ...(row.recordId ? { recordId: row.recordId } : {}), idempotencyKey: newKey() }).then(() => say("Duplicated"), (e: unknown) => say(failure(e, "It could not be copied."))),
-      remove: () => void bulkDelete(act, ids),
-    });
-    menu.show(items, at.x, at.y, "context", { label: row.title });
-  }, [act, assignMenu, dueMenu, labelMenu, menu, moveMenu, openTask, pick, rt, say, selected, statusMenu]);
+  const rowMenu = useCallback(
+    (row: TaskRow, at: { x: number; y: number }): void => {
+      const ids = selected.has(row.id) ? [...selected] : [row.id];
+      const items = taskRowEntries(
+        { done: row.state === "done", selected: selected.has(row.id) },
+        {
+          open: () => openTask(row.id),
+          toggleSelect: () => pick(row.id, false),
+          markDone: () => void bulkStatus(act, ids, "done"),
+          reopen: () => void bulkStatus(act, ids, "todo"),
+          status: () => statusMenu(row, at),
+          assign: () => assignMenu(ids, at),
+          due: () => dueMenu(ids, at),
+          priority: () =>
+            menu.show(
+              priorityEntries(row.priority, (k, w) => void bulkPriority(act, ids, k, w)),
+              at.x,
+              at.y,
+              "other",
+              { label: "Priority" },
+            ),
+          labels: () => labelMenu(ids, at),
+          moveToProject: () => moveMenu(ids, at),
+          follow: () =>
+            void rt
+              .call("tasks.get", { taskId: row.id })
+              .then((o) => {
+                const th = (o as CapMap["tasks.get"]["out"]).task.threadId;
+                if (!th) {
+                  openTask(row.id);
+                  return;
+                }
+                return rt
+                  .call("threads.follow", { threadId: th, mode: "follow" })
+                  .then(() => say("Following. Its replies reach you."));
+              })
+              .catch((e: unknown) => say(failure(e, "It could not be followed."))),
+          copyLink: () => {
+            const l = (globalThis as { location?: { origin?: string; pathname?: string } }).location;
+            const c = (globalThis as { navigator?: { clipboard?: { writeText(x: string): unknown } } }).navigator
+              ?.clipboard;
+            if (c) void c.writeText(`${l?.origin ?? ""}${l?.pathname ?? ""}#screen=tasks.page&taskId=${row.id}`);
+            say("Link copied");
+          },
+          snooze: () =>
+            menu.show(
+              dueEntries(act, (when, words) => {
+                if (when !== null) void snoozeQuiet(act, ids, when, words);
+              }).filter((e) => !("label" in e && e.label === "No date")),
+              at.x,
+              at.y,
+              "other",
+              { label: "Snooze until" },
+            ),
+          duplicate: () =>
+            void rt
+              .call("tasks.create", {
+                title: `${row.title} (copy)`,
+                assigned: row.assigned,
+                labels: row.labels,
+                ...(row.due !== undefined ? { due: row.due } : {}),
+                ...(row.priority ? { priority: row.priority } : {}),
+                ...(row.recordId ? { recordId: row.recordId } : {}),
+                idempotencyKey: newKey(),
+              })
+              .then(
+                () => say("Duplicated"),
+                (e: unknown) => say(failure(e, "It could not be copied.")),
+              ),
+          remove: () => void bulkDelete(act, ids),
+        },
+      );
+      menu.show(items, at.x, at.y, "context", { label: row.title });
+    },
+    [act, assignMenu, dueMenu, labelMenu, menu, moveMenu, openTask, pick, rt, say, selected, statusMenu],
+  );
 
-  const actNeed = useCallback((item: NeedItem, key: string): void => {
-    if (key === "take") { void rt.call("tasks.take", { taskId: item.task.id }).then(() => { say(`Taken: ${item.task.title}`); store.refresh(); }, (e: unknown) => say(failure(e, "It could not be taken."))); return; }
-    void rt.call("tasks.act", { taskId: item.task.id, action: key }).then(() => say(`Approved: ${item.task.title}`), (e: unknown) => say(failure(e, "That could not be done.")));
-  }, [rt, say, store]);
+  const actNeed = useCallback(
+    (item: NeedItem, key: string): void => {
+      if (key === "take") {
+        void rt.call("tasks.take", { taskId: item.task.id }).then(
+          () => {
+            say(`Taken: ${item.task.title}`);
+            store.refresh();
+          },
+          (e: unknown) => say(failure(e, "It could not be taken.")),
+        );
+        return;
+      }
+      void rt.call("tasks.act", { taskId: item.task.id, action: key }).then(
+        () => say(`Approved: ${item.task.title}`),
+        (e: unknown) => say(failure(e, "That could not be done.")),
+      );
+    },
+    [rt, say, store],
+  );
   // a Needs you row has the menu every row has: open, the moves that are yours, take
-  const needMenu = useCallback((item: NeedItem, at: { x: number; y: number }): void => {
-    const row = item.task as unknown as TaskRow;
-    const items: MenuEntry[] = [{ label: "Open", onSelect: () => openTask(row.id) }, { separator: true }];
-    if (canTake(row)) items.push({ label: "Take it", onSelect: () => actNeed(item, "take") });
-    for (const m of movesFor(item.task, rt.me.id)) items.push({ label: m.label, ...(m.danger ? { danger: true } : {}), onSelect: () => runMove(row, m) });
-    menu.show(items, at.x, at.y, "context", { label: item.task.title });
-  }, [actNeed, menu, openTask, rt.me.id, runMove]);
+  const needMenu = useCallback(
+    (item: NeedItem, at: { x: number; y: number }): void => {
+      const row = item.task as unknown as TaskRow;
+      const items: MenuEntry[] = [{ label: "Open", onSelect: () => openTask(row.id) }, { separator: true }];
+      if (canTake(row)) items.push({ label: "Take it", onSelect: () => actNeed(item, "take") });
+      for (const m of movesFor(item.task, rt.me.id))
+        items.push({ label: m.label, ...(m.danger ? { danger: true } : {}), onSelect: () => runMove(row, m) });
+      menu.show(items, at.x, at.y, "context", { label: item.task.title });
+    },
+    [actNeed, menu, openTask, rt.me.id, runMove],
+  );
 
-  const openProfile = useCallback((who: Who): void => { if (who.kind === "agent") openAgent(who.id); else rt.open({ subject: { type: "contact", id: who.id } }); }, [openAgent, rt]);
+  const openProfile = useCallback(
+    (who: Who): void => {
+      if (who.kind === "agent") openAgent(who.id);
+      else rt.open({ subject: { type: "contact", id: who.id } });
+    },
+    [openAgent, rt],
+  );
 
-  const env: RowEnv = useMemo(() => ({
-    now, offsetMin: clock.offsetMin, me: rt.me.id, turns: rt.turns, nameOf, project: (id) => projectName.get(id), keyOf: (id) => keys.get(id),
-    open: openTask, openProfile, status: statusMenu, menu: rowMenu, pick, act: actNeed, needMenu,
-  }), [now, clock.offsetMin, rt.me.id, rt.turns, nameOf, projectName, keys, openTask, openProfile, statusMenu, rowMenu, pick, actNeed, needMenu]);
+  const env: RowEnv = useMemo(
+    () => ({
+      now,
+      offsetMin: clock.offsetMin,
+      me: rt.me.id,
+      turns: rt.turns,
+      nameOf,
+      project: (id) => projectName.get(id),
+      keyOf: (id) => keys.get(id),
+      open: openTask,
+      openProfile,
+      status: statusMenu,
+      menu: rowMenu,
+      pick,
+      act: actNeed,
+      needMenu,
+    }),
+    [
+      now,
+      clock.offsetMin,
+      rt.me.id,
+      rt.turns,
+      nameOf,
+      projectName,
+      keys,
+      openTask,
+      openProfile,
+      statusMenu,
+      rowMenu,
+      pick,
+      actNeed,
+      needMenu,
+    ],
+  );
 
   /* ---------- search: words in the brief, notes and summary, across every task this person sees ---------- */
   const [found, setFound] = useState<{ q: string; rows: readonly TaskRow[] } | null>(null);
   const query = filter.query.trim();
   useEffect(() => {
-    if (query.length < 2) { setFound(null); return undefined; }
+    if (query.length < 2) {
+      setFound(null);
+      return undefined;
+    }
     let live = true;
-    const t = setTimeout(() => { void rt.call("tasks.index", { scope: "everyone", q: query }).then((o) => { if (live) setFound({ q: query, rows: (o as IndexOut).rows }); }, () => undefined); }, 200);
-    return () => { live = false; clearTimeout(t); };
+    const t = setTimeout(() => {
+      void rt.call("tasks.index", { scope: "everyone", q: query }).then(
+        (o) => {
+          if (live) setFound({ q: query, rows: (o as IndexOut).rows });
+        },
+        () => undefined,
+      );
+    }, 200);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
   }, [query, rt, snap.rev]);
   const searching2 = found !== null && found.q === query;
   const shownRows = searching2 ? found.rows : snap.rows;
-  const shownFilter = useMemo(() => (searching2 ? { ...filter, found: new Set(found.rows.map((r) => r.id)) } : filter), [filter, found, searching2]);
+  const shownFilter = useMemo(
+    () => (searching2 ? { ...filter, found: new Set(found.rows.map((r) => r.id)) } : filter),
+    [filter, found, searching2],
+  );
 
   /* ---------- what is drawn ---------- */
   const scopeKind = scope.kind;
-  const entries = useMemo(() => buildEntries({
-    rows: shownRows, needs, me: rt.me.id, now, offsetMin: clock.offsetMin, scope: searching2 ? "everyone" : scopeKind, group, sort, filter: shownFilter, doneRows, doneCount: snap.doneThisWeek, quietOff: false,
-    names: { name: nameOf, project: (id) => projectName.get(id) },
-  }), [shownRows, snap.doneThisWeek, needs, rt.me.id, now, clock.offsetMin, scopeKind, searching2, group, sort, shownFilter, doneRows, nameOf, projectName]);
-  const taskIndex = useMemo(() => { const out: number[] = []; for (const [i, e] of entries.entries()) if (e.kind === "task") out.push(i); return out; }, [entries]);
-  const currentRow = useMemo((): TaskRow | undefined => { const e = entries[taskIndex[cursor] ?? -1]; return e?.kind === "task" ? e.row : undefined; }, [entries, taskIndex, cursor]);
+  const entries = useMemo(
+    () =>
+      buildEntries({
+        rows: shownRows,
+        needs,
+        me: rt.me.id,
+        now,
+        offsetMin: clock.offsetMin,
+        scope: searching2 ? "everyone" : scopeKind,
+        group,
+        sort,
+        filter: shownFilter,
+        doneRows,
+        doneCount: snap.doneThisWeek,
+        quietOff: false,
+        names: { name: nameOf, project: (id) => projectName.get(id) },
+      }),
+    [
+      shownRows,
+      snap.doneThisWeek,
+      needs,
+      rt.me.id,
+      now,
+      clock.offsetMin,
+      scopeKind,
+      searching2,
+      group,
+      sort,
+      shownFilter,
+      doneRows,
+      nameOf,
+      projectName,
+    ],
+  );
+  const taskIndex = useMemo(() => {
+    const out: number[] = [];
+    for (const [i, e] of entries.entries()) if (e.kind === "task") out.push(i);
+    return out;
+  }, [entries]);
+  const currentRow = useMemo((): TaskRow | undefined => {
+    const e = entries[taskIndex[cursor] ?? -1];
+    return e?.kind === "task" ? e.row : undefined;
+  }, [entries, taskIndex, cursor]);
 
   // the board's last column: what finished, read again whenever a task changed
   const [boardDone, setBoardDone] = useState<readonly TaskRow[]>(NO_ROWS);
   useEffect(() => {
     if (view !== "board") return;
-    void rt.call("tasks.index", { scope: key.scope, ...(key.recordId ? { recordId: key.recordId } : {}), done: true }).then((o) => setBoardDone((o as IndexOut).rows), (e: unknown) => say(failure(e, "Couldn't read what is done.")));
+    void rt
+      .call("tasks.index", { scope: key.scope, ...(key.recordId ? { recordId: key.recordId } : {}), done: true })
+      .then(
+        (o) => setBoardDone((o as IndexOut).rows),
+        (e: unknown) => say(failure(e, "Couldn't read what is done.")),
+      );
   }, [view, key, rt, say, snap.rev]);
 
   const toggleDone = useCallback((): void => {
-    if (doneRows) { setDoneRows(null); return; }
-    void rt.call("tasks.index", { scope: key.scope, ...(key.recordId ? { recordId: key.recordId } : {}), done: true }).then((o) => setDoneRows((o as IndexOut).rows), (e: unknown) => say(failure(e, "Couldn't read what is done.")));
+    if (doneRows) {
+      setDoneRows(null);
+      return;
+    }
+    void rt
+      .call("tasks.index", { scope: key.scope, ...(key.recordId ? { recordId: key.recordId } : {}), done: true })
+      .then(
+        (o) => setDoneRows((o as IndexOut).rows),
+        (e: unknown) => say(failure(e, "Couldn't read what is done.")),
+      );
   }, [doneRows, key, rt, say]);
 
   const addTask = useCallback((): void => {
     const q = parseQuick(quick, list.filter(offered) as readonly QuickPerson[], rt.clock().now, rt.clock().offsetMin);
     const files = quickFiles;
     // a file dropped with no words names the task after itself
-    const title = q.title !== "" ? q.title : files[0]?.name ?? "";
+    const title = q.title !== "" ? q.title : (files[0]?.name ?? "");
     if (title === "") return;
-    const assigned: Who = q.assignee ? { kind: q.assignee.kind as Who["kind"], id: q.assignee.id } : { kind: "person", id: rt.me.id };
+    const assigned: Who = q.assignee
+      ? { kind: q.assignee.kind as Who["kind"], id: q.assignee.id }
+      : { kind: "person", id: rt.me.id };
     // a guest sees the task, its thread and its files: say so once, and the same line sent again goes ahead
     const guest = q.assignee ? list.find((p) => p.id === q.assignee!.id) : undefined;
-    if (guest?.guest === true && heldGuest.current !== quick) { heldGuest.current = quick; say(`${guestNote(guest.name)} Press Enter again to add it.`); return; }
+    if (guest?.guest === true && heldGuest.current !== quick) {
+      heldGuest.current = quick;
+      say(`${guestNote(guest.name)} Press Enter again to add it.`);
+      return;
+    }
     heldGuest.current = null;
     setQuick("");
     setQuickFiles([]);
     const key = newKey();
-    const stored = files.length > 0 ? uploadAttachments(uploadDeps(rt), files.map((f) => ({ name: f.name, file: f, ...(f.type ? { mime: f.type } : {}) })), `task-files:${key}`) : Promise.resolve([]);
-    void stored.then((fileIds) => rt.call("tasks.create", { title, assigned, labels: q.labels, ...(q.due !== undefined ? { due: q.due } : {}), ...(q.priority ? { priority: q.priority } : {}), ...(scope.kind === "project" ? { recordId: scope.recordId } : {}), ...(fileIds.length > 0 ? { fileIds } : {}), idempotencyKey: key })).then(
-      () => store.refresh(),
-      (e: unknown) => { setQuick(quick); setQuickFiles(files); say(failure(e, "The task could not be made.")); },
-    );
+    const stored =
+      files.length > 0
+        ? uploadAttachments(
+            uploadDeps(rt),
+            files.map((f) => ({ name: f.name, file: f, ...(f.type ? { mime: f.type } : {}) })),
+            `task-files:${key}`,
+          )
+        : Promise.resolve([]);
+    void stored
+      .then((fileIds) =>
+        rt.call("tasks.create", {
+          title,
+          assigned,
+          labels: q.labels,
+          ...(q.due !== undefined ? { due: q.due } : {}),
+          ...(q.priority ? { priority: q.priority } : {}),
+          ...(scope.kind === "project" ? { recordId: scope.recordId } : {}),
+          ...(fileIds.length > 0 ? { fileIds } : {}),
+          idempotencyKey: key,
+        }),
+      )
+      .then(
+        () => store.refresh(),
+        (e: unknown) => {
+          setQuick(quick);
+          setQuickFiles(files);
+          say(failure(e, "The task could not be made."));
+        },
+      );
   }, [list, quick, quickFiles, rt, say, scope, store]);
 
   // the Ask line under the list: words open a chat with the assistant; with files, the chat is started here so the files go with the first message
-  const askAssistant = useCallback((p: ComposerSend): Promise<void> | void => {
-    if (p.files.length === 0) { openChat(p.text); return; }
-    const text = p.text.trim();
-    const key = newKey();
-    // a failed start gives the draft back with the reason (the composer keeps what was written)
-    return realAssistant(rt.assistant.id, (cap, input) => rt.call(cap as never, input as never)).then((agentId) => {
-      if (agentId === null) throw new Error("no assistant yet");
-      return rt.call("chat.start", { kind: "chat", agentIds: [agentId], title: (text || p.files[0]!.name).split(/\s+/).slice(0, 6).join(" "), idempotencyKey: key });
-    }).then(async (out) => {
-      const id = (out as CapMap["chat.start"]["out"]).thread.threadId;
-      await postWithFiles(uploadDeps(rt), id, text, p.files, `tasks-ask:${key}`);
-      rt.open({ subject: { type: "thread", id } });
-    }).catch((e: unknown) => { throw new Error(failure(e, "Could not start the chat with those files.")); });
-  }, [openChat, rt]);
+  const askAssistant = useCallback(
+    (p: ComposerSend): Promise<void> | void => {
+      if (p.files.length === 0) {
+        openChat(p.text);
+        return;
+      }
+      const text = p.text.trim();
+      const key = newKey();
+      // a failed start gives the draft back with the reason (the composer keeps what was written)
+      return realAssistant(rt.assistant.id, (cap, input) => rt.call(cap as never, input as never))
+        .then((agentId) => {
+          if (agentId === null) throw new Error("no assistant yet");
+          return rt.call("chat.start", {
+            kind: "chat",
+            agentIds: [agentId],
+            title: (text || p.files[0]!.name).split(/\s+/).slice(0, 6).join(" "),
+            idempotencyKey: key,
+          });
+        })
+        .then(async (out) => {
+          const id = (out as CapMap["chat.start"]["out"]).thread.threadId;
+          await postWithFiles(uploadDeps(rt), id, text, p.files, `tasks-ask:${key}`);
+          rt.open({ subject: { type: "thread", id } });
+        })
+        .catch((e: unknown) => {
+          throw new Error(failure(e, "Could not start the chat with those files."));
+        });
+    },
+    [openChat, rt],
+  );
 
   /* ---------- keys ---------- */
   useEffect(() => {
     if (Platform.OS !== "web") return undefined;
-    const g = globalThis as unknown as { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void };
+    const g = globalThis as unknown as {
+      addEventListener(t: string, f: (e: KeyboardEvent) => void): void;
+      removeEventListener(t: string, f: (e: KeyboardEvent) => void): void;
+    };
     const onKey = (e: KeyboardEvent): void => {
-      const target = e.target as { tagName?: string; isContentEditable?: boolean; getAttribute?(n: string): string | null } | null;
-      if (target?.getAttribute?.("data-tkcard") != null) return;   // a Board card or Timeline row keeps its own keys (roving.ts)
-      if (e.metaKey || e.ctrlKey || e.altKey || target?.isContentEditable === true || /INPUT|TEXTAREA/.test(target?.tagName ?? "")) return;
-      const at = (): { x: number; y: number } => { const d = (globalThis as unknown as { document: Document }).document.querySelector(`[data-tk="${currentRow?.id ?? ""}"]`)?.getBoundingClientRect(); return { x: d?.left ?? 240, y: (d?.bottom ?? 160) + 4 }; };
+      const target = e.target as {
+        tagName?: string;
+        isContentEditable?: boolean;
+        getAttribute?(n: string): string | null;
+      } | null;
+      if (target?.getAttribute?.("data-tkcard") != null) return; // a Board card or Timeline row keeps its own keys (roving.ts)
+      if (
+        e.metaKey ||
+        e.ctrlKey ||
+        e.altKey ||
+        target?.isContentEditable === true ||
+        /INPUT|TEXTAREA/.test(target?.tagName ?? "")
+      )
+        return;
+      const at = (): { x: number; y: number } => {
+        const d = (globalThis as unknown as { document: Document }).document
+          .querySelector(`[data-tk="${currentRow?.id ?? ""}"]`)
+          ?.getBoundingClientRect();
+        return { x: d?.left ?? 240, y: (d?.bottom ?? 160) + 4 };
+      };
       const ids = selected.size > 0 ? [...selected] : currentRow ? [currentRow.id] : [];
-      if (e.key === "j" || e.key === "ArrowDown") { e.preventDefault(); setCursor((c) => Math.min(taskIndex.length - 1, c + 1)); }
-      else if (e.key === "k" || e.key === "ArrowUp") { e.preventDefault(); setCursor((c) => Math.max(0, c - 1)); }
-      else if (e.key === "Enter" && currentRow) openTask(currentRow.id);
+      if (e.key === "j" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setCursor((c) => Math.min(taskIndex.length - 1, c + 1));
+      } else if (e.key === "k" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setCursor((c) => Math.max(0, c - 1));
+      } else if (e.key === "Enter" && currentRow) openTask(currentRow.id);
       else if (e.key === "x" && currentRow) pick(currentRow.id, false);
-      else if (e.key === "c") { e.preventDefault(); setView("list"); addRef.current?.focus(); }
-      else if (e.key === "/") { e.preventDefault(); setSearching(true); searchRef.current?.focus(); }
-      else if (e.key === "s" && currentRow) statusMenu(currentRow, at());
+      else if (e.key === "c") {
+        e.preventDefault();
+        setView("list");
+        addRef.current?.focus();
+      } else if (e.key === "/") {
+        e.preventDefault();
+        setSearching(true);
+        searchRef.current?.focus();
+      } else if (e.key === "s" && currentRow) statusMenu(currentRow, at());
       else if (e.key === "a" && ids.length > 0) assignMenu(ids, at());
       else if (e.key === "Escape") setSelected(new Set());
-      else if (/^[1-6]$/.test(e.key) && ids.length > 0) { e.preventDefault(); void bulkStatus(act, ids, TASK_STATES[Number(e.key) - 1]!.key); }
+      else if (/^[1-6]$/.test(e.key) && ids.length > 0) {
+        e.preventDefault();
+        void bulkStatus(act, ids, TASK_STATES[Number(e.key) - 1]!.key);
+      }
     };
     g.addEventListener("keydown", onKey);
     return () => g.removeEventListener("keydown", onKey);
   }, [act, assignMenu, currentRow, openTask, pick, selected, statusMenu, taskIndex.length]);
 
   /* ---------- the bar ---------- */
-  const scopeTitle = savedName ?? (scope.kind === "mine" ? "Mine" : scope.kind === "given" ? "Given by you" : scope.kind === "everyone" ? "Everyone" : scope.kind === "snoozed" ? "Snoozed" : "title" in scope ? scope.title : "Tasks");
+  const scopeTitle =
+    savedName ??
+    (scope.kind === "mine"
+      ? "Mine"
+      : scope.kind === "given"
+        ? "Given by you"
+        : scope.kind === "everyone"
+          ? "Everyone"
+          : scope.kind === "snoozed"
+            ? "Snoozed"
+            : "title" in scope
+              ? scope.title
+              : "Tasks");
   const applySaved = (v: ViewRow): void => {
     const c = (v.config ?? {}) as { scope?: Scope; view?: ViewKind; sort?: SortKey; filter?: Filter };
     if (c.scope) setScope(c.scope);
@@ -305,27 +743,80 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
     setSavedName(v.title);
   };
   const scopeMenu = (at: { x: number; y: number }): void => {
-    const choose = (s: Scope): void => { setScope(s); setSavedName(null); };
+    const choose = (s: Scope): void => {
+      setScope(s);
+      setSavedName(null);
+    };
     const items: MenuEntry[] = [
       { label: "Mine", checked: scope.kind === "mine", onSelect: () => choose({ kind: "mine" }) },
       { label: "Given by you", checked: scope.kind === "given", onSelect: () => choose({ kind: "given" }) },
       { label: "Everyone", checked: scope.kind === "everyone", onSelect: () => choose({ kind: "everyone" }) },
       { label: "Snoozed", checked: scope.kind === "snoozed", onSelect: () => choose({ kind: "snoozed" }) },
     ];
-    if (projects.length > 0) { items.push({ head: "Projects" }); for (const p of projects.slice(0, 30)) items.push({ label: p.title, checked: scope.kind === "project" && scope.recordId === p.recordId, onSelect: () => choose({ kind: "project", recordId: p.recordId, title: p.title }) }); }
-    if (savedViews.length > 0) { items.push({ head: "Saved views" }); for (const v of savedViews) items.push({ label: v.title, checked: savedName === v.title, onSelect: () => applySaved(v) }); }
+    if (projects.length > 0) {
+      items.push({ head: "Projects" });
+      for (const p of projects.slice(0, 30))
+        items.push({
+          label: p.title,
+          checked: scope.kind === "project" && scope.recordId === p.recordId,
+          onSelect: () => choose({ kind: "project", recordId: p.recordId, title: p.title }),
+        });
+    }
+    if (savedViews.length > 0) {
+      items.push({ head: "Saved views" });
+      for (const v of savedViews)
+        items.push({ label: v.title, checked: savedName === v.title, onSelect: () => applySaved(v) });
+    }
     items.push({ separator: true }, { label: "Save this view…", onSelect: () => setSaving("") });
     const current = savedViews.find((v) => v.title === savedName);
     if (current) {
-      items.push({ label: current.shared ? "Make personal" : "Share with everyone", onSelect: () => void rt.call("views.publish", { viewId: current.viewId, shared: !current.shared }).then(() => { readViews(); say(current.shared ? "Only you see this view now" : "Everyone can use this view"); }, (e: unknown) => say(failure(e, "That could not be changed."))) });
-      items.push({ label: "Delete this view", danger: true, onSelect: () => void rt.call("views.delete", { viewId: current.viewId }).then(() => { setSavedName(null); readViews(); say("View deleted"); }, (e: unknown) => say(failure(e, "It could not be deleted."))) });
+      items.push({
+        label: current.shared ? "Make personal" : "Share with everyone",
+        onSelect: () =>
+          void rt.call("views.publish", { viewId: current.viewId, shared: !current.shared }).then(
+            () => {
+              readViews();
+              say(current.shared ? "Only you see this view now" : "Everyone can use this view");
+            },
+            (e: unknown) => say(failure(e, "That could not be changed.")),
+          ),
+      });
+      items.push({
+        label: "Delete this view",
+        danger: true,
+        onSelect: () =>
+          void rt.call("views.delete", { viewId: current.viewId }).then(
+            () => {
+              setSavedName(null);
+              readViews();
+              say("View deleted");
+            },
+            (e: unknown) => say(failure(e, "It could not be deleted.")),
+          ),
+      });
     }
     menu.show(items, at.x, at.y, "other", { label: "Show" }, { width: 240 });
   };
   const saveView = (title: string): void => {
     setSaving(null);
     if (title.trim() === "") return;
-    void rt.call("views.save", { type: "task", kind: view, title: title.trim(), group, config: { scope, view, sort, filter }, idempotencyKey: newKey() }).then(() => { setSavedName(title.trim()); readViews(); say("View saved"); }, (e: unknown) => say(failure(e, "The view could not be saved.")));
+    void rt
+      .call("views.save", {
+        type: "task",
+        kind: view,
+        title: title.trim(),
+        group,
+        config: { scope, view, sort, filter },
+        idempotencyKey: newKey(),
+      })
+      .then(
+        () => {
+          setSavedName(title.trim());
+          readViews();
+          say("View saved");
+        },
+        (e: unknown) => say(failure(e, "The view could not be saved.")),
+      );
   };
   const arrange = (at: { x: number; y: number }): void => {
     const items: MenuEntry[] = [];
@@ -337,55 +828,305 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
       for (const s of SORTS) items.push({ label: s.title, checked: sort === s.key, onSelect: () => setSort(s.key) });
     }
     items.push({ head: "Show only" });
-    items.push({ label: "Waiting on something", checked: filter.waiting, onSelect: () => setFilter((f) => ({ ...f, waiting: !f.waiting })) });
-    for (const l of labelsIn.slice(0, 12)) items.push({ label: `#${l}`, checked: filter.label === l, onSelect: () => setFilter((f) => ({ ...f, label: f.label === l ? null : l })) });
+    items.push({
+      label: "Waiting on something",
+      checked: filter.waiting,
+      onSelect: () => setFilter((f) => ({ ...f, waiting: !f.waiting })),
+    });
+    for (const l of labelsIn.slice(0, 12))
+      items.push({
+        label: `#${l}`,
+        checked: filter.label === l,
+        onSelect: () => setFilter((f) => ({ ...f, label: f.label === l ? null : l })),
+      });
     const holders = new Map<string, string>();
-    for (const r of snap.rows) { const h = holderOf(r); if (h && holders.size < 12) holders.set(h.id, nameOf(h.id)); }
-    for (const [id, n] of holders) items.push({ label: n, checked: filter.person === id, onSelect: () => setFilter((f) => ({ ...f, person: f.person === id ? null : id })) });
+    for (const r of snap.rows) {
+      const h = holderOf(r);
+      if (h && holders.size < 12) holders.set(h.id, nameOf(h.id));
+    }
+    for (const [id, n] of holders)
+      items.push({
+        label: n,
+        checked: filter.person === id,
+        onSelect: () => setFilter((f) => ({ ...f, person: f.person === id ? null : id })),
+      });
     menu.show(items, at.x, at.y, "other", { label: "Arrange" }, { width: 240 });
   };
 
-  const renderItem = useCallback((e: Entry): ReactElement => {
-    switch (e.kind) {
-      case "head": return <View style={st.wrap}><View style={st.head}><Text style={rowStyles.headText}>{e.title}</Text><Text style={rowStyles.headCount}>{e.count}</Text></View></View>;
-      case "need": return <NeedLine item={e.item} env={env} />;
-      case "task": { const cur = e.row.id === currentRow?.id; return <TaskLine row={e.row} env={env} selected={selected.has(e.row.id)} current={cur} />; }
-      case "quiet": return <QuietLine rows={e.rows} open={quietOpen} onToggle={() => setQuietOpen((o) => !o)} assistant={rt.assistant} act={act} />;
-      case "add": return <View style={st.wrap}><DropZone testID="task-quick-drop" onFiles={(f) => setQuickFiles((cur) => [...cur, ...f])} style={QUICK_DROP} radius={8}><View style={st.addRow}><View style={st.addDot} /><QuickField ref={addRef} testID="task-quick-add" label="Add a task" placeholder="Add a task: Call Omar friday @sara #portal" value={quick} onChangeText={setQuick} onSubmit={addTask} people={list.filter(offered) as readonly QuickPerson[]} style={rowStyles.add} /><HeldFiles testID="task-quick-files" files={quickFiles} onRemove={(i) => setQuickFiles((cur) => cur.filter((_, j) => j !== i))} /></View></DropZone></View>;
-      case "done": return <View style={st.wrap}><Pressable accessibilityRole="button" accessibilityLabel={`${e.count} done this week`} accessibilityState={{ expanded: e.open }} testID="tasks-done" onPress={toggleDone} style={st.done}><Text style={st.doneText}>{e.open ? "Hide what is done" : `${e.count} done this week`}</Text></Pressable></View>;
-      case "empty": return <View style={st.wrap}><Text style={st.empty}>{e.text}</Text></View>;
-    }
-  }, [act, addTask, currentRow?.id, env, quick, quickFiles, quietOpen, rt.assistant, selected, toggleDone]);
+  const renderItem = useCallback(
+    (e: Entry): ReactElement => {
+      switch (e.kind) {
+        case "head":
+          return (
+            <View style={st.wrap}>
+              <View style={st.head}>
+                <Text style={rowStyles.headText}>{e.title}</Text>
+                <Text style={rowStyles.headCount}>{e.count}</Text>
+              </View>
+            </View>
+          );
+        case "need":
+          return <NeedLine item={e.item} env={env} />;
+        case "task": {
+          const cur = e.row.id === currentRow?.id;
+          return <TaskLine row={e.row} env={env} selected={selected.has(e.row.id)} current={cur} />;
+        }
+        case "quiet":
+          return (
+            <QuietLine
+              rows={e.rows}
+              open={quietOpen}
+              onToggle={() => setQuietOpen((o) => !o)}
+              assistant={rt.assistant}
+              act={act}
+            />
+          );
+        case "add":
+          return (
+            <View style={st.wrap}>
+              <DropZone
+                testID="task-quick-drop"
+                onFiles={(f) => setQuickFiles((cur) => [...cur, ...f])}
+                style={QUICK_DROP}
+                radius={8}
+              >
+                <View style={st.addRow}>
+                  <View style={st.addDot} />
+                  <QuickField
+                    ref={addRef}
+                    testID="task-quick-add"
+                    label="Add a task"
+                    placeholder="Add a task: Call Omar friday @sara #portal"
+                    value={quick}
+                    onChangeText={setQuick}
+                    onSubmit={addTask}
+                    people={list.filter(offered) as readonly QuickPerson[]}
+                    style={rowStyles.add}
+                  />
+                  <HeldFiles
+                    testID="task-quick-files"
+                    files={quickFiles}
+                    onRemove={(i) => setQuickFiles((cur) => cur.filter((_, j) => j !== i))}
+                  />
+                </View>
+              </DropZone>
+            </View>
+          );
+        case "done":
+          return (
+            <View style={st.wrap}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${e.count} done this week`}
+                accessibilityState={{ expanded: e.open }}
+                testID="tasks-done"
+                onPress={toggleDone}
+                style={st.done}
+              >
+                <Text style={st.doneText}>{e.open ? "Hide what is done" : `${e.count} done this week`}</Text>
+              </Pressable>
+            </View>
+          );
+        case "empty":
+          return (
+            <View style={st.wrap}>
+              <Text style={st.empty}>{e.text}</Text>
+            </View>
+          );
+      }
+    },
+    [act, addTask, currentRow?.id, env, quick, quickFiles, quietOpen, rt.assistant, selected, toggleDone],
+  );
 
-  const body = snap.status === "failed" && snap.rows.length === 0 ? <States kind="error" message="Couldn't load your tasks" cause={snap.error ?? ""} retryable onRetry={() => store.refresh()} />
-    : view === "board" ? <Board rows={workOnly(sortedBy(snap.rows, filter))} doneRows={sortedBy(boardDone, filter)} env={env} onDrop={(row, to) => void setStatus(act, row, to)} {...(window ? { window } : {})} />
-    : view === "timeline" ? <Timeline rows={workOnly(sortedBy(snap.rows, filter))} env={env} {...(window ? { window } : {})} />
-    : view === "calendar" ? <CalendarView rows={sortedBy(snap.rows, filter)} env={env} />
-    : <View testID="tasks-list" style={{ flex: 1, minHeight: 0 }}>
-      {/* ui-rows-lint: not a list (the items are heads, TaskLine and NeedLine rows; each has a status control, a selection box and its own presses) */}
-      <VirtualList data={entries} rowHeight="measure" heightOf={heightOf} keyOf={(e) => e.key} renderItem={renderItem} reveal={taskIndex[cursor] ?? -1} {...(window ? { window } : {})} />
-    </View>;
+  const body =
+    snap.status === "failed" && snap.rows.length === 0 ? (
+      <States
+        kind="error"
+        message="Couldn't load your tasks"
+        cause={snap.error ?? ""}
+        retryable
+        onRetry={() => store.refresh()}
+      />
+    ) : view === "board" ? (
+      <Board
+        rows={workOnly(sortedBy(snap.rows, filter))}
+        doneRows={sortedBy(boardDone, filter)}
+        env={env}
+        onDrop={(row, to) => void setStatus(act, row, to)}
+        {...(window ? { window } : {})}
+      />
+    ) : view === "timeline" ? (
+      <Timeline rows={workOnly(sortedBy(snap.rows, filter))} env={env} {...(window ? { window } : {})} />
+    ) : view === "calendar" ? (
+      <CalendarView rows={sortedBy(snap.rows, filter)} env={env} />
+    ) : (
+      <View testID="tasks-list" style={{ flex: 1, minHeight: 0 }}>
+        {/* ui-rows-lint: not a list (the items are heads, TaskLine and NeedLine rows; each has a status control, a selection box and its own presses) */}
+        <VirtualList
+          data={entries}
+          rowHeight="measure"
+          heightOf={heightOf}
+          keyOf={(e) => e.key}
+          renderItem={renderItem}
+          reveal={taskIndex[cursor] ?? -1}
+          {...(window ? { window } : {})}
+        />
+      </View>
+    );
 
-  return <View testID="tasks-page" style={st.root}>
-    <View style={[st.bar, view === "list" && st.barList]}>
-      <Text accessibilityRole="header" style={st.h1}>Tasks</Text>
-      <View style={{ flex: 1 }} />
-      {searching || filter.query !== "" ? <TextInput ref={searchRef} autoFocus testID="tasks-search" accessibilityLabel="Search tasks" placeholder="Search" placeholderTextColor="var(--ink-3)" value={filter.query} onChangeText={(q) => setFilter((f) => ({ ...f, query: q }))} onBlur={() => setSearching(false)} style={st.search} /> : <Pressable accessibilityRole="button" accessibilityLabel="Search tasks (/)" testID="tasks-search-open" onPress={() => setSearching(true)} style={st.icon}><Glyph name="search" size={14} /></Pressable>}
-      <TextMenu label={view === "list" ? `${narrow ? "" : "Group: "}${GROUPS.find((g) => g.key === group)?.title ?? "Smart"}` : "Show"} onPress={arrange} testID="tasks-arrange" />
-      <TextMenu label={scopeTitle} onPress={scopeMenu} testID="tasks-scope" />
-      {/* on a phone the four views are a menu, not hidden */}
-      {narrow ? <TextMenu label={VIEWS.find((v) => v.id === view)?.label ?? "List"} testID="tasks-view-menu" onPress={(at) => menu.show(VIEWS.map((v) => ({ label: v.label, checked: v.id === view, onSelect: () => setView(v.id) })), at.x, at.y, "other", { label: "View" })} /> : <Segmented label="View" options={VIEWS} value={view} onChange={(v) => setView(v)} testID="tasks-view" />}
+  return (
+    <View testID="tasks-page" style={st.root}>
+      <View style={[st.bar, view === "list" && st.barList]}>
+        <Text accessibilityRole="header" style={st.h1}>
+          Tasks
+        </Text>
+        <View style={{ flex: 1 }} />
+        {searching || filter.query !== "" ? (
+          <TextInput
+            ref={searchRef}
+            autoFocus
+            testID="tasks-search"
+            accessibilityLabel="Search tasks"
+            placeholder="Search"
+            placeholderTextColor="var(--ink-3)"
+            value={filter.query}
+            onChangeText={(q) => setFilter((f) => ({ ...f, query: q }))}
+            onBlur={() => setSearching(false)}
+            style={st.search}
+          />
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Search tasks (/)"
+            testID="tasks-search-open"
+            onPress={() => setSearching(true)}
+            style={st.icon}
+          >
+            <Glyph name="search" size={14} />
+          </Pressable>
+        )}
+        <TextMenu
+          label={
+            view === "list"
+              ? `${narrow ? "" : "Group: "}${GROUPS.find((g) => g.key === group)?.title ?? "Smart"}`
+              : "Show"
+          }
+          onPress={arrange}
+          testID="tasks-arrange"
+        />
+        <TextMenu label={scopeTitle} onPress={scopeMenu} testID="tasks-scope" />
+        {/* on a phone the four views are a menu, not hidden */}
+        {narrow ? (
+          <TextMenu
+            label={VIEWS.find((v) => v.id === view)?.label ?? "List"}
+            testID="tasks-view-menu"
+            onPress={(at) =>
+              menu.show(
+                VIEWS.map((v) => ({ label: v.label, checked: v.id === view, onSelect: () => setView(v.id) })),
+                at.x,
+                at.y,
+                "other",
+                { label: "View" },
+              )
+            }
+          />
+        ) : (
+          <Segmented label="View" options={VIEWS} value={view} onChange={(v) => setView(v)} testID="tasks-view" />
+        )}
+      </View>
+      {isFiltered(filter) ? (
+        <View style={st.showing}>
+          <Text
+            style={st.showingText}
+          >{`Showing ${filter.query ? `"${filter.query}"` : filter.waiting ? "what is waiting" : filter.label ? `#${filter.label}` : filter.person ? nameOf(filter.person) : "a filter"}`}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Show all" onPress={() => setFilter(NO_FILTER)}>
+            <Text style={st.showAll}>Show all</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {saving !== null ? (
+        <View style={st.showing}>
+          <TextInput
+            autoFocus
+            testID="tasks-save-name"
+            accessibilityLabel="Name this view"
+            placeholder="Name this view"
+            placeholderTextColor="var(--ink-3)"
+            value={saving}
+            onChangeText={setSaving}
+            onSubmitEditing={() => saveView(saving)}
+            onBlur={() => setSaving(null)}
+            style={st.search}
+          />
+        </View>
+      ) : null}
+      {scope.kind === "mine" && !isFiltered(filter) ? (
+        <AwayLine
+          call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
+          assistant={rt.assistant}
+          openTask={openTask}
+        />
+      ) : null}
+      <View style={{ flex: 1, minHeight: 0 }}>
+        {body}
+        {selected.size > 0 ? (
+          <BulkBar
+            ids={[...selected]}
+            act={act}
+            onStatus={(at) => {
+              const ids = [...selected];
+              const items: MenuEntry[] = [];
+              for (const s of TASK_STATES)
+                items.push({
+                  label: s.title,
+                  leading: <StatusDot state={s.key as TaskState} size={14} />,
+                  onSelect: () => void bulkStatus(act, ids, s.key).then(() => setSelected(new Set())),
+                });
+              menu.show(items, at.x, at.y, "other", { label: "Status" });
+            }}
+            onAssign={(at) => assignMenu([...selected], at)}
+            onDue={(at) => dueMenu([...selected], at)}
+            onLabels={(at) => labelMenu([...selected], at)}
+            onMove={(at) => moveMenu([...selected], at)}
+            onDelete={() => {
+              void bulkDelete(act, [...selected]);
+              setSelected(new Set());
+            }}
+            onClear={() => setSelected(new Set())}
+          />
+        ) : null}
+      </View>
+      {line ? (
+        <View accessibilityLiveRegion="polite" testID="tasks-line" style={st.lineBox}>
+          <Text style={st.lineText}>{line.text}</Text>
+          {line.undo ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Undo"
+              testID="tasks-undo"
+              onPress={() => {
+                line.undo?.();
+                setLine(null);
+              }}
+            >
+              <Text style={st.undo}>Undo</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      <View style={st.composer}>
+        <Composer
+          testID="tasks-composer"
+          whoWillAnswer={rt.assistant.name}
+          placeholder={`Ask ${rt.assistant.name}, or type /`}
+          hideWho
+          symbols={["slash"]}
+          onSubmit={askAssistant}
+        />
+      </View>
+      {menu.element}
     </View>
-    {isFiltered(filter) ? <View style={st.showing}><Text style={st.showingText}>{`Showing ${filter.query ? `"${filter.query}"` : filter.waiting ? "what is waiting" : filter.label ? `#${filter.label}` : filter.person ? nameOf(filter.person) : "a filter"}`}</Text><Pressable accessibilityRole="button" accessibilityLabel="Show all" onPress={() => setFilter(NO_FILTER)}><Text style={st.showAll}>Show all</Text></Pressable></View> : null}
-    {saving !== null ? <View style={st.showing}><TextInput autoFocus testID="tasks-save-name" accessibilityLabel="Name this view" placeholder="Name this view" placeholderTextColor="var(--ink-3)" value={saving} onChangeText={setSaving} onSubmitEditing={() => saveView(saving)} onBlur={() => setSaving(null)} style={st.search} /></View> : null}
-    {scope.kind === "mine" && !isFiltered(filter) ? <AwayLine call={rt.call as (cap: string, input: unknown) => Promise<unknown>} assistant={rt.assistant} openTask={openTask} /> : null}
-    <View style={{ flex: 1, minHeight: 0 }}>{body}
-    {selected.size > 0 ? <BulkBar ids={[...selected]} act={act} onStatus={(at) => { const ids = [...selected]; const items: MenuEntry[] = []; for (const s of TASK_STATES) items.push({ label: s.title, leading: <StatusDot state={s.key as TaskState} size={14} />, onSelect: () => void bulkStatus(act, ids, s.key).then(() => setSelected(new Set())) }); menu.show(items, at.x, at.y, "other", { label: "Status" }); }} onAssign={(at) => assignMenu([...selected], at)} onDue={(at) => dueMenu([...selected], at)} onLabels={(at) => labelMenu([...selected], at)} onMove={(at) => moveMenu([...selected], at)} onDelete={() => { void bulkDelete(act, [...selected]); setSelected(new Set()); }} onClear={() => setSelected(new Set())} /> : null}
-    </View>
-    {line ? <View accessibilityLiveRegion="polite" testID="tasks-line" style={st.lineBox}><Text style={st.lineText}>{line.text}</Text>{line.undo ? <Pressable accessibilityRole="button" accessibilityLabel="Undo" testID="tasks-undo" onPress={() => { line.undo?.(); setLine(null); }}><Text style={st.undo}>Undo</Text></Pressable> : null}</View> : null}
-    <View style={st.composer}><Composer testID="tasks-composer" whoWillAnswer={rt.assistant.name} placeholder={`Ask ${rt.assistant.name}, or type /`} hideWho symbols={["slash"]} onSubmit={askAssistant} /></View>
-    {menu.element}
-  </View>;
+  );
 }
 
 /** The board and the dated views show every open row the filter lets through. */
@@ -393,38 +1134,119 @@ const sortedBy = (rows: readonly TaskRow[], f: Filter): readonly TaskRow[] => fi
 /** A request is answered, not dragged through statuses: boards and timelines hold work. */
 const workOnly = (rows: readonly TaskRow[]): readonly TaskRow[] => rows.filter((r) => r.kind === "work");
 
-function BulkBar({ ids, onStatus, onAssign, onDue, onLabels, onMove, onDelete, onClear }: { ids: readonly string[]; act: ActEnv; onStatus(at: { x: number; y: number }): void; onAssign(at: { x: number; y: number }): void; onDue(at: { x: number; y: number }): void; onLabels(at: { x: number; y: number }): void; onMove(at: { x: number; y: number }): void; onDelete(): void; onClear(): void }): ReactElement {
-  return <View testID="tasks-bulk" accessibilityRole="toolbar" style={st.bulk}>
-    <Text style={st.bulkCount}>{`${ids.length} selected`}</Text>
-    <TextMenu label="Status" onPress={onStatus} testID="bulk-status" />
-    <TextMenu label="Assign" onPress={onAssign} testID="bulk-assign" />
-    <TextMenu label="Due" onPress={onDue} testID="bulk-due" />
-    <TextMenu label="Labels" onPress={onLabels} testID="bulk-labels" />
-    <TextMenu label="Move" onPress={onMove} testID="bulk-move" />
-    <Pressable accessibilityRole="button" accessibilityLabel="Delete" testID="bulk-delete" onPress={onDelete} style={st.bulkBtn}><Text style={st.bulkDanger}>Delete</Text></Pressable>
-    <Pressable accessibilityRole="button" accessibilityLabel="Clear the selection" testID="bulk-clear" onPress={onClear} style={st.bulkBtn}><Text style={st.bulkText}>Clear</Text></Pressable>
-  </View>;
+function BulkBar({
+  ids,
+  onStatus,
+  onAssign,
+  onDue,
+  onLabels,
+  onMove,
+  onDelete,
+  onClear,
+}: {
+  ids: readonly string[];
+  act: ActEnv;
+  onStatus(at: { x: number; y: number }): void;
+  onAssign(at: { x: number; y: number }): void;
+  onDue(at: { x: number; y: number }): void;
+  onLabels(at: { x: number; y: number }): void;
+  onMove(at: { x: number; y: number }): void;
+  onDelete(): void;
+  onClear(): void;
+}): ReactElement {
+  return (
+    <View testID="tasks-bulk" accessibilityRole="toolbar" style={st.bulk}>
+      <Text style={st.bulkCount}>{`${ids.length} selected`}</Text>
+      <TextMenu label="Status" onPress={onStatus} testID="bulk-status" />
+      <TextMenu label="Assign" onPress={onAssign} testID="bulk-assign" />
+      <TextMenu label="Due" onPress={onDue} testID="bulk-due" />
+      <TextMenu label="Labels" onPress={onLabels} testID="bulk-labels" />
+      <TextMenu label="Move" onPress={onMove} testID="bulk-move" />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Delete"
+        testID="bulk-delete"
+        onPress={onDelete}
+        style={st.bulkBtn}
+      >
+        <Text style={st.bulkDanger}>Delete</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Clear the selection"
+        testID="bulk-clear"
+        onPress={onClear}
+        style={st.bulkBtn}
+      >
+        <Text style={st.bulkText}>Clear</Text>
+      </Pressable>
+    </View>
+  );
 }
 
 /** Things do not pile up: the tasks nobody has moved fold into one line from Assistant, with keep, snooze and let go, for all of them or one at a time. */
-function QuietLine({ rows, open, onToggle, assistant, act }: { rows: readonly TaskRow[]; open: boolean; onToggle(): void; assistant: { id: string; name: string }; act: ActEnv }): ReactElement {
+function QuietLine({
+  rows,
+  open,
+  onToggle,
+  assistant,
+  act,
+}: {
+  rows: readonly TaskRow[];
+  open: boolean;
+  onToggle(): void;
+  assistant: { id: string; name: string };
+  act: ActEnv;
+}): ReactElement {
   const ids = rows.map((r) => r.id);
   const month = (): number => act.now() + 30 * DAY;
-  return <View style={st.wrap}><View testID="tasks-quiet" style={st.quiet}>
-    <Avatar name={assistant.name} seedId={assistant.id} kind="assistant" size={22} />
-    <View style={{ flex: 1, minWidth: 0 }}>
-      <Text numberOfLines={1} style={st.quietTitle}>{`${rows.length} ${rows.length === 1 ? "task has" : "tasks have"} not moved in weeks`}</Text>
-      <Text numberOfLines={1} style={st.quietSub}>{open ? rows.slice(0, 3).map((r) => r.title).join(", ") : "Keep them, snooze them, or let them go"}</Text>
+  return (
+    <View style={st.wrap}>
+      <View testID="tasks-quiet" style={st.quiet}>
+        <Avatar name={assistant.name} seedId={assistant.id} kind="assistant" size={22} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text
+            numberOfLines={1}
+            style={st.quietTitle}
+          >{`${rows.length} ${rows.length === 1 ? "task has" : "tasks have"} not moved in weeks`}</Text>
+          <Text numberOfLines={1} style={st.quietSub}>
+            {open
+              ? rows
+                  .slice(0, 3)
+                  .map((r) => r.title)
+                  .join(", ")
+              : "Keep them, snooze them, or let them go"}
+          </Text>
+        </View>
+        {open ? (
+          <>
+            <QuietBtn label="Keep" testID="quiet-keep" onPress={() => void keepQuiet(act, ids)} />
+            <QuietBtn
+              label="Snooze a month"
+              testID="quiet-snooze"
+              onPress={() => void snoozeQuiet(act, ids, month(), "for a month")}
+            />
+            <QuietBtn label="Let go" testID="quiet-letgo" onPress={() => void letGo(act, ids)} />
+          </>
+        ) : (
+          <QuietBtn label="Go through them" testID="quiet-open" onPress={onToggle} />
+        )}
+      </View>
     </View>
-    {open ? <>
-      <QuietBtn label="Keep" testID="quiet-keep" onPress={() => void keepQuiet(act, ids)} />
-      <QuietBtn label="Snooze a month" testID="quiet-snooze" onPress={() => void snoozeQuiet(act, ids, month(), "for a month")} />
-      <QuietBtn label="Let go" testID="quiet-letgo" onPress={() => void letGo(act, ids)} />
-    </> : <QuietBtn label="Go through them" testID="quiet-open" onPress={onToggle} />}
-  </View></View>;
+  );
 }
 function QuietBtn({ label, onPress, testID }: { label: string; onPress(): void; testID: string }): ReactElement {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [st.quietBtn, hovered === true && st.quietOver]}><Text style={st.quietBtnText}>{label}</Text></Pressable>;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      testID={testID}
+      onPress={onPress}
+      style={({ hovered }: { hovered?: boolean }) => [st.quietBtn, hovered === true && st.quietOver]}
+    >
+      <Text style={st.quietBtnText}>{label}</Text>
+    </Pressable>
+  );
 }
 
 const QUICK_DROP = { minWidth: 0 };
@@ -435,24 +1257,72 @@ const st = StyleSheet.create({
   barList: { width: "100%", maxWidth: 700, alignSelf: "center", paddingHorizontal: 26 },
   h1: { fontSize: 28, fontWeight: "600", letterSpacing: -0.5, lineHeight: 34, color: "var(--ink)" as string },
   icon: { width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 9 },
-  search: { width: 180, height: 28, paddingHorizontal: 9, borderRadius: 9, fontSize: 13, color: "var(--ink)" as string, backgroundColor: "var(--sunk)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
-  showing: { flexDirection: "row", alignItems: "center", gap: 10, width: "100%", maxWidth: 700, alignSelf: "center", paddingHorizontal: 26, height: 28 },
+  search: {
+    width: 180,
+    height: 28,
+    paddingHorizontal: 9,
+    borderRadius: 9,
+    fontSize: 13,
+    color: "var(--ink)" as string,
+    backgroundColor: "var(--sunk)" as string,
+    outlineStyle: "none",
+    outlineWidth: 0,
+  } as object,
+  showing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    width: "100%",
+    maxWidth: 700,
+    alignSelf: "center",
+    paddingHorizontal: 26,
+    height: 28,
+  },
   showingText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   showAll: { fontSize: 12.5, color: "var(--accent)" as string },
   wrap: { width: "100%", maxWidth: 700, alignSelf: "center", paddingHorizontal: 16 },
   head: { flexDirection: "row", alignItems: "flex-end", height: 44, paddingBottom: 8, paddingLeft: 10 },
   addRow: { flexDirection: "row", alignItems: "center", gap: 12, height: 44, paddingLeft: 26, paddingRight: 10 },
-  addDot: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderStyle: "dashed", borderColor: "var(--line-2)" as string },
+  addDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "var(--line-2)" as string,
+  },
   done: { height: 36, justifyContent: "center", paddingLeft: 26 },
   doneText: { fontSize: 13, color: "var(--ink-3)" as string },
   empty: { paddingTop: 30, textAlign: "center", fontSize: 13.5, color: "var(--ink-3)" as string },
-  quiet: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 10, minHeight: 58, paddingHorizontal: 14, borderRadius: 16, backgroundColor: "var(--sunk)" as string },
+  quiet: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 10,
+    minHeight: 58,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: "var(--sunk)" as string,
+  },
   quietTitle: { fontSize: 14, color: "var(--ink)" as string },
   quietSub: { fontSize: 12.5, color: "var(--ink-3)" as string },
   quietBtn: { height: 30, justifyContent: "center", paddingHorizontal: 11, borderRadius: 9 },
   quietOver: { backgroundColor: "var(--hover)" as string },
   quietBtnText: { fontSize: 13, color: "var(--ink)" as string },
-  bulk: { position: "absolute", bottom: 10, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 2, paddingVertical: 5, paddingLeft: 14, paddingRight: 7, borderRadius: 14, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" } as object,
+  bulk: {
+    position: "absolute",
+    bottom: 10,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingVertical: 5,
+    paddingLeft: 14,
+    paddingRight: 7,
+    borderRadius: 14,
+    backgroundColor: "var(--raised)" as string,
+    boxShadow: "var(--sh-pop)",
+  } as object,
   bulkCount: { marginRight: 8, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   bulkBtn: { height: 28, justifyContent: "center", paddingHorizontal: 9, borderRadius: 9 },
   bulkText: { fontSize: 13, color: "var(--ink-3)" as string },

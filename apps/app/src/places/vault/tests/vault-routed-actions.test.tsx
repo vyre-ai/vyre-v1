@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createSampleVault } from "../layout/sample.ts";
-import { declineVaultRequest, exportVaultFolder, fulfilVaultRequest, requestFields, revokeVaultExport } from "../layout/routed-actions.ts";
+import {
+  declineVaultRequest,
+  exportVaultFolder,
+  fulfilVaultRequest,
+  requestFields,
+  revokeVaultExport,
+} from "../layout/routed-actions.ts";
 
 test("a waiting Vault request can be fulfilled with an existing item", async () => {
   const s = createSampleVault();

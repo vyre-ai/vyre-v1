@@ -18,12 +18,22 @@ import { base64url, fromBase64url, concat, utf8, equal } from "./bytes.js";
 import { resolveTicket } from "./client.js";
 import { WORDS } from "./words.js";
 
-const TAG = { key: "vyre-setup-key", hello: "vyre-setup-hello", read: "vyre-setup-read", words: "vyre-setup-words",
-  loc: "vyre-pair-loc", sec: "vyre-pair-sec", mac: "vyre-pair-mac", enc: "vyre-pair-enc",
-  mbxw: "vyre-setup-mbx-w", mbxenc: "vyre-setup-mbx-enc", mbxmac: "vyre-setup-mbx-mac" };
+const TAG = {
+  key: "vyre-setup-key",
+  hello: "vyre-setup-hello",
+  read: "vyre-setup-read",
+  words: "vyre-setup-words",
+  loc: "vyre-pair-loc",
+  sec: "vyre-pair-sec",
+  mac: "vyre-pair-mac",
+  enc: "vyre-pair-enc",
+  mbxw: "vyre-setup-mbx-w",
+  mbxenc: "vyre-setup-mbx-enc",
+  mbxmac: "vyre-setup-mbx-mac",
+};
 export const SETUP_CODE_LEN = 43;
 const fail = (code, message) => Object.assign(new Error(message), { code });
-const getSubtle = o => (o && o.subtle) || globalThis.crypto?.subtle;
+const getSubtle = (o) => (o && o.subtle) || globalThis.crypto?.subtle;
 
 /** @param {SubtleCrypto} subtle @param {Uint8Array} bytes */
 const sha256 = async (subtle, bytes) => new Uint8Array(await subtle.digest("SHA-256", bytes));
@@ -35,7 +45,9 @@ const sha256 = async (subtle, bytes) => new Uint8Array(await subtle.digest("SHA-
  */
 export async function createSetupKey(o) {
   const subtle = getSubtle(o);
-  const kp = /** @type {CryptoKeyPair} */ (await subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]));
+  const kp = /** @type {CryptoKeyPair} */ (
+    await subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign"])
+  );
   return { privateKey: kp.privateKey, spki: new Uint8Array(await subtle.exportKey("spki", kp.publicKey)) };
 }
 
@@ -55,7 +67,11 @@ export async function setupCode(secret, spki, o) {
 export function parseSetupCode(code) {
   if (typeof code !== "string" || code.length !== SETUP_CODE_LEN || !/^[A-Za-z0-9_-]+$/.test(code)) return null;
   let b;
-  try { b = fromBase64url(code); } catch { return null; }
+  try {
+    b = fromBase64url(code);
+  } catch {
+    return null;
+  }
   if (b.length !== 32 || base64url(b) !== code) return null;
   return { secret: b.slice(0, 16), fp: b.slice(16) };
 }
@@ -68,9 +84,16 @@ export function parseSetupCode(code) {
  */
 export async function setupDerive(secret, o) {
   const subtle = getSubtle(o);
-  const d = which => sha256(subtle, concat(utf8(`${TAG[which]}\n`), secret));
-  return { loc: await d("loc"), sec: await d("sec"), mac: await d("mac"), enc: await d("enc"),
-    mbxw: await d("mbxw"), mbxenc: await d("mbxenc"), mbxmac: await d("mbxmac") };
+  const d = (which) => sha256(subtle, concat(utf8(`${TAG[which]}\n`), secret));
+  return {
+    loc: await d("loc"),
+    sec: await d("sec"),
+    mac: await d("mac"),
+    enc: await d("enc"),
+    mbxw: await d("mbxw"),
+    mbxenc: await d("mbxenc"),
+    mbxmac: await d("mbxmac"),
+  };
 }
 
 /**
@@ -104,7 +127,7 @@ export async function setupWords(boxStatic, secret, o) {
   const h = await sha256(subtle, concat(utf8(`${TAG.words}\n`), boxStatic, secret));
   let bits = 0;
   for (let i = 0; i < 6; i++) bits = bits * 256 + h[i];
-  return [0, 1, 2, 3].map(i => WORDS[Math.floor(bits / 2 ** (37 - 11 * i)) % 2048]);
+  return [0, 1, 2, 3].map((i) => WORDS[Math.floor(bits / 2 ** (37 - 11 * i)) % 2048]);
 }
 
 /** What the mailbox reader signs: the page key over "vyre-setup-read\nloc\nts\nafter". @param {string} loc @param {number} ts @param {number} after */
@@ -113,10 +136,14 @@ const readMessage = (loc, ts, after) => utf8(`${TAG.read}\n${loc}\n${ts}\n${afte
 // A line is base64url(iv16 || AES-256-CTR ciphertext || HMAC-SHA256 32) with the HMAC over
 // seq (u32 big-endian) || iv || ciphertext (core/relay/wire.js mbxSeal). CTR counts the whole
 // 128-bit block from the IV, as openssl enc does, hence length 128.
-const seqBytes = seq => { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, seq); return b; };
+const seqBytes = (seq) => {
+  const b = new Uint8Array(4);
+  new DataView(b.buffer).setUint32(0, seq);
+  return b;
+};
 const UNSAFE = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]/g;
 /** Plain text and nothing else: no control characters, no bidi or zero-width marks, one line's worth. @param {string} s */
-export const plainText = s => String(s).replace(UNSAFE, "").slice(0, 1024);
+export const plainText = (s) => String(s).replace(UNSAFE, "").slice(0, 1024);
 
 /**
  * Open line number `seq`, or null when any byte is wrong or it belongs at another position.
@@ -125,14 +152,24 @@ export const plainText = s => String(s).replace(UNSAFE, "").slice(0, 1024);
 export async function openMailboxLine(keys, seq, line, o) {
   const subtle = getSubtle(o);
   let b;
-  try { b = fromBase64url(String(line)); } catch { return null; }
+  try {
+    b = fromBase64url(String(line));
+  } catch {
+    return null;
+  }
   if (b.length < 48) return null;
-  const iv = b.slice(0, 16), ct = b.slice(16, -32), mac = b.slice(-32);
+  const iv = b.slice(0, 16),
+    ct = b.slice(16, -32),
+    mac = b.slice(-32);
   const hk = await subtle.importKey("raw", keys.mbxmac, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const want = new Uint8Array(await subtle.sign("HMAC", hk, concat(seqBytes(seq), iv, ct)));
   if (!equal(mac, want)) return null;
   const ck = await subtle.importKey("raw", keys.mbxenc, { name: "AES-CTR" }, false, ["decrypt"]);
-  return plainText(new TextDecoder().decode(new Uint8Array(await subtle.decrypt({ name: "AES-CTR", counter: iv, length: 128 }, ck, ct))));
+  return plainText(
+    new TextDecoder().decode(
+      new Uint8Array(await subtle.decrypt({ name: "AES-CTR", counter: iv, length: 128 }, ck, ct)),
+    ),
+  );
 }
 
 /**
@@ -153,7 +190,9 @@ export async function mailboxReader(o) {
   const now = o.now || Date.now;
   let seq = 0;
   return {
-    get seq() { return seq; },
+    get seq() {
+      return seq;
+    },
     /**
      * One long poll. Resolves with the plain-text lines that arrived (possibly none, after `wait`
      * seconds with nothing new).
@@ -161,9 +200,15 @@ export async function mailboxReader(o) {
      */
     async next(wait = o.wait ?? 20) {
       const ts = now();
-      const sig = new Uint8Array(await subtle.sign({ name: "ECDSA", hash: "SHA-256" }, o.key.privateKey, readMessage(loc, ts, seq)));
+      const sig = new Uint8Array(
+        await subtle.sign({ name: "ECDSA", hash: "SHA-256" }, o.key.privateKey, readMessage(loc, ts, seq)),
+      );
       const res = await fetchFn(`${base}/v1/setup/mbx?loc=${loc}&after=${seq}&wait=${wait}`, {
-        headers: { "x-vyre-setup-key": base64url(o.key.spki), "x-vyre-setup-ts": String(ts), "x-vyre-setup-sig": base64url(sig) },
+        headers: {
+          "x-vyre-setup-key": base64url(o.key.spki),
+          "x-vyre-setup-ts": String(ts),
+          "x-vyre-setup-sig": base64url(sig),
+        },
       });
       if (res.status === 409) throw fail("contested", "two servers used this code; start again");
       if (res.status === 401) throw fail("unauthorized", "the relay would not give this page the progress lines");
@@ -172,7 +217,8 @@ export async function mailboxReader(o) {
       const body = /** @type {any} */ (await res.json());
       const out = [];
       for (const item of Array.isArray(body.lines) ? body.lines : []) {
-        if (!item || item.i !== seq) throw fail("out_of_order", "the relay's progress lines are out of order; start again");
+        if (!item || item.i !== seq)
+          throw fail("out_of_order", "the relay's progress lines are out of order; start again");
         const text = await openMailboxLine(keys, seq, String(item.line), o);
         if (text === null) throw fail("bad_line", "a progress line did not check out; start again");
         out.push(text);

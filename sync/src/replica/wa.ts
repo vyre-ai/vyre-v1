@@ -4,7 +4,16 @@
 import { asRow, asValue, isDuplicateColumn } from "./sql.ts";
 import { openReplica } from "./store.ts";
 import { ReplicaError } from "./types.ts";
-import type { HideRow, OpenReplicaOptions, RebuildTarget, ReplicaStore, SqlDriver, SqlRow, SqlStatement, SqlValue } from "./types.ts";
+import type {
+  HideRow,
+  OpenReplicaOptions,
+  RebuildTarget,
+  ReplicaStore,
+  SqlDriver,
+  SqlRow,
+  SqlStatement,
+  SqlValue,
+} from "./types.ts";
 
 const SQLITE_ROW = 100;
 
@@ -208,7 +217,10 @@ export function createWaDriver(db: WaDatabase): SqlDriver {
   };
 }
 
-type WaOpen = Omit<OpenReplicaOptions, "driver" | "storedRegistryHash" | "rebuildTargets" | "hideRows" | "starredKeys" | "followsKeys">;
+type WaOpen = Omit<
+  OpenReplicaOptions,
+  "driver" | "storedRegistryHash" | "rebuildTargets" | "hideRows" | "starredKeys" | "followsKeys"
+>;
 
 function intOf(v: SqlValue | undefined): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -251,7 +263,8 @@ export async function openWaReplica(db: WaDatabase, opts: WaOpen): Promise<Repli
   } else {
     for (const r of await optionalRows(db, "SELECT entity, id, seq FROM hide_seq")) {
       const seq = intOf(r.seq);
-      if (typeof r.entity === "string" && typeof r.id === "string" && seq !== null) hideRows.push({ entity: r.entity, id: r.id, seq });
+      if (typeof r.entity === "string" && typeof r.id === "string" && seq !== null)
+        hideRows.push({ entity: r.entity, id: r.id, seq });
     }
   }
   // replica_keep survives a schema rebuild, so its flags are read in both cases.

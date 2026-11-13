@@ -27,7 +27,9 @@ test("the own form and the public form open with the person key, and only with i
   assert.throws(() => k.open(own, "vyre:memory:v1|usr_omar"));
   assert.throws(() => k.open(pub, "vyre:memory:v1|usr_omar"));
   const parts = own.split(".");
-  parts[4] = Buffer.from(Buffer.from(parts[4]!, "base64url").map((b, i) => (i === 0 ? b ^ 1 : b))).toString("base64url");
+  parts[4] = Buffer.from(Buffer.from(parts[4]!, "base64url").map((b, i) => (i === 0 ? b ^ 1 : b))).toString(
+    "base64url",
+  );
   assert.throws(() => k.open(parts.join("."), AAD));
 });
 

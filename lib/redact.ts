@@ -13,9 +13,25 @@ export const isAgentAccess = (v: unknown): v is AgentAccess => v === "on" || v =
  * Who counts as an agent for the read gate: an agent, an outside actor (an API caller may be an AI), or any call an agent's machinery makes, whoever it runs as: the engine reading context as the
  * person, the agent's computer, the MCP door (a setup-grant call reruns as the person and keeps origin mcp), and the email and form helpers. A person's own screens are none of these.
  */
-export const AGENT_ORIGINS: ReadonlySet<string> = new Set(["agent", "mcp", "engine", "computers", "email-ask", "forms-ask"]);
-export function agentBound(c: { principal: { kind: string }; origin?: string | undefined; forAgent?: string | undefined }): boolean {
-  return c.principal.kind === "agent" || c.principal.kind === "actor" || (c.origin !== undefined && AGENT_ORIGINS.has(c.origin)) || (typeof c.forAgent === "string" && c.forAgent !== "");
+export const AGENT_ORIGINS: ReadonlySet<string> = new Set([
+  "agent",
+  "mcp",
+  "engine",
+  "computers",
+  "email-ask",
+  "forms-ask",
+]);
+export function agentBound(c: {
+  principal: { kind: string };
+  origin?: string | undefined;
+  forAgent?: string | undefined;
+}): boolean {
+  return (
+    c.principal.kind === "agent" ||
+    c.principal.kind === "actor" ||
+    (c.origin !== undefined && AGENT_ORIGINS.has(c.origin)) ||
+    (typeof c.forAgent === "string" && c.forAgent !== "")
+  );
 }
 
 /**
@@ -74,17 +90,37 @@ export function renderForAgent(text: string, marks: readonly Mark[], opts: { hig
   const hl = opts.highlights === false ? [] : spansOf(text, marks, "highlight");
   if (!red.length && !hl.length) return text;
   const cuts = new Set<number>([0, text.length]);
-  for (const [s, e] of [...red, ...hl]) { cuts.add(s); cuts.add(e); }
+  for (const [s, e] of [...red, ...hl]) {
+    cuts.add(s);
+    cuts.add(e);
+  }
   const pts = [...cuts].sort((a, b) => a - b);
-  let out = "", inHl = false, lastRed = false;
+  let out = "",
+    inHl = false,
+    lastRed = false;
   for (let i = 0; i + 1 < pts.length; i++) {
-    const a = pts[i]!, b = pts[i + 1]!;
+    const a = pts[i]!,
+      b = pts[i + 1]!;
     if (a === b) continue;
-    const r = inside(red, a, b), h = inside(hl, a, b);
-    if (h && !inHl) { out += "=="; inHl = true; lastRed = false; }
-    if (!h && inHl) { out += "=="; inHl = false; lastRed = false; }
-    if (r) { if (!lastRed) out += REDACTED; lastRed = true; }
-    else { out += text.slice(a, b); lastRed = false; }
+    const r = inside(red, a, b),
+      h = inside(hl, a, b);
+    if (h && !inHl) {
+      out += "==";
+      inHl = true;
+      lastRed = false;
+    }
+    if (!h && inHl) {
+      out += "==";
+      inHl = false;
+      lastRed = false;
+    }
+    if (r) {
+      if (!lastRed) out += REDACTED;
+      lastRed = true;
+    } else {
+      out += text.slice(a, b);
+      lastRed = false;
+    }
   }
   if (inHl) out += "==";
   return out;
@@ -94,7 +130,8 @@ export function renderForAgent(text: string, marks: readonly Mark[], opts: { hig
 export function scrubAll(s: string, texts: readonly string[]): string {
   if (!s || !texts.length) return s;
   let out = s;
-  for (const t of [...new Set(texts.filter((x) => x && x.length > 0))].sort((a, b) => b.length - a.length)) out = out.split(t).join(REDACTED);
+  for (const t of [...new Set(texts.filter((x) => x && x.length > 0))].sort((a, b) => b.length - a.length))
+    out = out.split(t).join(REDACTED);
   return out;
 }
 
@@ -104,35 +141,63 @@ export function scrubDeep<T>(v: T, texts: readonly string[]): T {
   const walk = (x: unknown): unknown => {
     if (typeof x === "string") return scrubAll(x, texts);
     if (Array.isArray(x)) return x.map(walk);
-    if (x && typeof x === "object") { const o: Record<string, unknown> = {}; for (const [k, y] of Object.entries(x as Record<string, unknown>)) o[k] = walk(y); return o; }
+    if (x && typeof x === "object") {
+      const o: Record<string, unknown> = {};
+      for (const [k, y] of Object.entries(x as Record<string, unknown>)) o[k] = walk(y);
+      return o;
+    }
     return x;
   };
   return walk(v) as T;
 }
 
 /** The redacted texts of a mark list, for scrubAll: spans, and the words under boxes and ranges. */
-export const redactedTexts = (marks: readonly Mark[]): string[] => marks.filter((m) => m.kind === "redact" && m.shape !== "name" && m.text).map((m) => m.text!);
+export const redactedTexts = (marks: readonly Mark[]): string[] =>
+  marks.filter((m) => m.kind === "redact" && m.shape !== "name" && m.text).map((m) => m.text!);
 
 /** A file or folder name as an agent reads it: each hidden piece is [REDACTED]. */
 export function agentName(name: string, marks: readonly Mark[]): string {
-  return scrubAll(name, marks.filter((m) => m.kind === "redact" && m.shape === "name" && m.text).map((m) => m.text!));
+  return scrubAll(
+    name,
+    marks.filter((m) => m.kind === "redact" && m.shape === "name" && m.text).map((m) => m.text!),
+  );
 }
 
 // ---- detectors: pattern rules on the server, no model ----
 
 export type DetectKind = "name" | "ssn" | "dob" | "account" | "phone" | "email" | "address";
-export interface Suggestion { kind: DetectKind; label: string; text: string; count: number }
+export interface Suggestion {
+  kind: DetectKind;
+  label: string;
+  text: string;
+  count: number;
+}
 
 const MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December";
 /** A date of birth: a date whose year is before 2010 (a date of an event this year is not one). */
-const DOB = new RegExp(`\\b(?:\\d{1,2}/\\d{1,2}/(?:19\\d{2}|200\\d)|(?:19\\d{2}|200\\d)-\\d{2}-\\d{2}|(?:${MONTHS}) \\d{1,2}, (?:19\\d{2}|200\\d))\\b`, "g");
+const DOB = new RegExp(
+  `\\b(?:\\d{1,2}/\\d{1,2}/(?:19\\d{2}|200\\d)|(?:19\\d{2}|200\\d)-\\d{2}-\\d{2}|(?:${MONTHS}) \\d{1,2}, (?:19\\d{2}|200\\d))\\b`,
+  "g",
+);
 const RULES: { kind: DetectKind; label: string; re: RegExp }[] = [
   { kind: "ssn", label: "SSN", re: /\b\d{3}-\d{2}-\d{4}\b/g },
   { kind: "dob", label: "Date of birth", re: DOB },
-  { kind: "account", label: "Account or case number", re: /\b(?:[A-Z]{2,4}-\d{4,5}-\d{3,6}|\d{4}-\d{4}-\d{4}(?:-\d{4})?|\d{2}-\d{7})\b/g },
-  { kind: "phone", label: "Phone", re: /\(\d{3}\) \d{3}-\d{4}|\b\d{3}[ .-]\d{3}[ .-]\d{4}\b|\+\d{1,3} \d{2,4} \d{3,4} \d{3,4}\b/g },
+  {
+    kind: "account",
+    label: "Account or case number",
+    re: /\b(?:[A-Z]{2,4}-\d{4,5}-\d{3,6}|\d{4}-\d{4}-\d{4}(?:-\d{4})?|\d{2}-\d{7})\b/g,
+  },
+  {
+    kind: "phone",
+    label: "Phone",
+    re: /\(\d{3}\) \d{3}-\d{4}|\b\d{3}[ .-]\d{3}[ .-]\d{4}\b|\+\d{1,3} \d{2,4} \d{3,4} \d{3,4}\b/g,
+  },
   { kind: "email", label: "Email", re: /\b[\w.+-]+@[\w-]+(?:\.[a-z]{2,})+\b/g },
-  { kind: "address", label: "Address", re: /\b\d{1,5} [A-Z][a-z]+(?: [A-Z][a-z]+)? (?:Street|St|Avenue|Ave|Boulevard|Blvd|Road|Rd|Lane|Ln|Drive|Dr|Court|Ct|Way)\b(?:,? (?:Apt|Apartment|Suite|Unit|#) ?\w+)?/g },
+  {
+    kind: "address",
+    label: "Address",
+    re: /\b\d{1,5} [A-Z][a-z]+(?: [A-Z][a-z]+)? (?:Street|St|Avenue|Ave|Boulevard|Blvd|Road|Rd|Lane|Ln|Drive|Dr|Court|Ct|Way)\b(?:,? (?:Apt|Apartment|Suite|Unit|#) ?\w+)?/g,
+  },
 ];
 
 /**
@@ -140,7 +205,8 @@ const RULES: { kind: DetectKind; label: string; re: RegExp }[] = [
  * with how often it appears; `skip` (already redacted, or skipped) is left out. Patterns only: no AI reads the file to make these.
  */
 export function detect(text: string, opts: { names?: readonly string[]; skip?: readonly string[] } = {}): Suggestion[] {
-  const out: Suggestion[] = [], skip = new Set(opts.skip ?? []);
+  const out: Suggestion[] = [],
+    skip = new Set(opts.skip ?? []);
   const add = (kind: DetectKind, label: string, t: string): void => {
     const v = t.trim();
     if (v.length < 3 || skip.has(v) || out.some((o) => o.text === v)) return;
@@ -150,7 +216,11 @@ export function detect(text: string, opts: { names?: readonly string[]; skip?: r
   const names = opts.names ?? [];
   for (const n of names) if (n.trim().includes(" ") || n.trim().length >= 4) add("name", "Name", n);
   for (const d of builtFromNames(text, names)) add(d.kind, d.label, d.text);
-  for (const r of RULES) { r.re.lastIndex = 0; let m: RegExpExecArray | null; while ((m = r.re.exec(text))) add(r.kind, r.label, m[0]); }
+  for (const r of RULES) {
+    r.re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = r.re.exec(text))) add(r.kind, r.label, m[0]);
+  }
   return out;
 }
 
@@ -163,14 +233,20 @@ const EMAIL = /^[\w.+-]+@[\w-]+(?:\.[a-z]{2,})+$/i;
  * name and leaving these gives the name away, so they are suggested for review with the name. A piece is a word of a name of three letters or more; a bare piece, or a piece with only 's after
  * it, is the name itself (the name rule covers it), and a piece inside an ordinary word only counts when the word is joined by an identifier mark or a digit.
  */
-export function builtFromNames(text: string, names: readonly string[]): { kind: DetectKind; label: string; text: string }[] {
-  const pieces = [...new Set(names.flatMap((n) => n.toLowerCase().split(/[^\p{L}]+/u)).filter((p) => [...p].length >= 3))];
+export function builtFromNames(
+  text: string,
+  names: readonly string[],
+): { kind: DetectKind; label: string; text: string }[] {
+  const pieces = [
+    ...new Set(names.flatMap((n) => n.toLowerCase().split(/[^\p{L}]+/u)).filter((p) => [...p].length >= 3)),
+  ];
   if (pieces.length === 0) return [];
   const out: { kind: DetectKind; label: string; text: string }[] = [];
   IDENT.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = IDENT.exec(text))) {
-    const t = m[0], low = t.toLowerCase();
+    const t = m[0],
+      low = t.toLowerCase();
     if (pieces.includes(low) || pieces.some((p) => low === `${p}'s`)) continue;
     const joined = /[._+@/:\d-]/.test(t);
     const hit = pieces.some((p) => low.includes(p) && (joined || [...p].length >= 4));
@@ -178,15 +254,21 @@ export function builtFromNames(text: string, names: readonly string[]): { kind: 
     // a capitalised word that merely starts or ends with a name piece (Riverside) is a word, not an identifier
     if (!joined && /^\p{Lu}\p{Ll}+$/u.test(t)) continue;
     if (out.some((o) => o.text === t)) continue;
-    out.push(EMAIL.test(t) ? { kind: "email", label: "Email with a name in it", text: t } : { kind: "name", label: "Built from a name", text: t });
+    out.push(
+      EMAIL.test(t)
+        ? { kind: "email", label: "Email with a name in it", text: t }
+        : { kind: "name", label: "Built from a name", text: t },
+    );
   }
   // another full name that shares a word with one (Marco Rivera beside a redacted Elena Rivera) gives the family name away
   const known = new Set(names.map((n) => n.trim().toLowerCase()));
   FULL_NAME.lastIndex = 0;
   while ((m = FULL_NAME.exec(text))) {
-    const t = m[0].replace(/^(?:Dr|Mr|Mrs|Ms)\. /, ""), words = t.toLowerCase().split(" ");
-    if ([...known].some((k) => t.toLowerCase().includes(k)) || out.some((o) => o.text === t)) continue;   // the name itself, or a run of words around it (Signed Elena Rivera)
-    if (words.some((w) => [...w].length >= 4 && pieces.includes(w))) out.push({ kind: "name", label: "Shares a name", text: t });
+    const t = m[0].replace(/^(?:Dr|Mr|Mrs|Ms)\. /, ""),
+      words = t.toLowerCase().split(" ");
+    if ([...known].some((k) => t.toLowerCase().includes(k)) || out.some((o) => o.text === t)) continue; // the name itself, or a run of words around it (Signed Elena Rivera)
+    if (words.some((w) => [...w].length >= 4 && pieces.includes(w)))
+      out.push({ kind: "name", label: "Shares a name", text: t });
   }
   return out;
 }
@@ -196,37 +278,77 @@ const FULL_NAME = /\b(?:(?:Dr|Mr|Mrs|Ms)\. )?\p{Lu}\p{Ll}+(?: \p{Lu}\p{Ll}+){1,2
 /** What a detector would call a span a person picked: the label the hover card shows. Agents never see it. */
 export function classify(t: string, names: readonly string[] = []): string {
   if (names.includes(t.trim())) return "Name";
-  for (const r of RULES) { r.re.lastIndex = 0; const m = r.re.exec(t); if (m && m[0].length === t.trim().length) return r.label; }
+  for (const r of RULES) {
+    r.re.lastIndex = 0;
+    const m = r.re.exec(t);
+    if (m && m[0].length === t.trim().length) return r.label;
+  }
   return "Text";
 }
 
 // ---- re-anchoring on a new version ----
 
-const commonSuffix = (a: string, b: string): number => { let n = 0; while (n < a.length && n < b.length && a[a.length - 1 - n] === b[b.length - 1 - n]) n++; return n; };
-const commonPrefix = (a: string, b: string): number => { let n = 0; while (n < a.length && n < b.length && a[n] === b[n]) n++; return n; };
+const commonSuffix = (a: string, b: string): number => {
+  let n = 0;
+  while (n < a.length && n < b.length && a[a.length - 1 - n] === b[b.length - 1 - n]) n++;
+  return n;
+};
+const commonPrefix = (a: string, b: string): number => {
+  let n = 0;
+  while (n < a.length && n < b.length && a[n] === b[n]) n++;
+  return n;
+};
 const CONTEXT = 32;
 
 /**
  * Carry marks from one version's text to the next. A mark whose text is still there is placed (a chosen match moves to the match whose surroundings fit best); a mark whose text is gone, or a box
  * with no words under it (its place on a new picture cannot be known), is unplaced. Unplaced redactions send the file back to Needs review: agents wait until a person places or drops them.
  */
-export function reanchor(oldText: string, newText: string, marks: readonly Mark[]): { placed: Mark[]; unplaced: Mark[] } {
-  const placed: Mark[] = [], unplaced: Mark[] = [];
+export function reanchor(
+  oldText: string,
+  newText: string,
+  marks: readonly Mark[],
+): { placed: Mark[]; unplaced: Mark[] } {
+  const placed: Mark[] = [],
+    unplaced: Mark[] = [];
   for (const m of marks) {
-    if (m.shape === "name") { placed.push(m); continue; }
-    if (!m.text) { (m.kind === "redact" ? unplaced : placed).push(m); continue; }
+    if (m.shape === "name") {
+      placed.push(m);
+      continue;
+    }
+    if (!m.text) {
+      (m.kind === "redact" ? unplaced : placed).push(m);
+      continue;
+    }
     const now = occurrences(newText, m.text);
-    if (!now.length) { unplaced.push(m); continue; }
+    if (!now.length) {
+      unplaced.push(m);
+      continue;
+    }
     const k = m.occurrence;
-    if (k === null || k === undefined) { placed.push(m); continue; }
+    if (k === null || k === undefined) {
+      placed.push(m);
+      continue;
+    }
     const before = occurrences(oldText, m.text);
     const at = before[Math.min(Math.max(k, 0), Math.max(before.length - 1, 0))];
-    if (at === undefined) { placed.push({ ...m, occurrence: null }); continue; }
-    const left = oldText.slice(Math.max(0, at - CONTEXT), at), right = oldText.slice(at + m.text.length, at + m.text.length + CONTEXT);
-    let best = 0, score = -1;
+    if (at === undefined) {
+      placed.push({ ...m, occurrence: null });
+      continue;
+    }
+    const left = oldText.slice(Math.max(0, at - CONTEXT), at),
+      right = oldText.slice(at + m.text.length, at + m.text.length + CONTEXT);
+    let best = 0,
+      score = -1;
     now.forEach((p, j) => {
-      const s = commonSuffix(left, newText.slice(Math.max(0, p - CONTEXT), p)) + commonPrefix(right, newText.slice(p + m.text!.length, p + m.text!.length + CONTEXT)) - Math.abs(j - k) * 0.01;
-      if (s > score) { score = s; best = j; }
+      const s =
+        commonSuffix(left, newText.slice(Math.max(0, p - CONTEXT), p)) +
+        commonPrefix(right, newText.slice(p + m.text!.length, p + m.text!.length + CONTEXT)) -
+        Math.abs(j - k) * 0.01;
+      if (s > score) {
+        score = s;
+        best = j;
+      }
     });
     placed.push({ ...m, occurrence: best });
   }
@@ -237,7 +359,17 @@ export function reanchor(oldText: string, newText: string, marks: readonly Mark[
 export function secretForms(value: string, users: readonly string[] = []): string[] {
   if (!value) return [];
   const b64 = (x: string): string => Buffer.from(x, "utf8").toString("base64");
-  const out = new Set<string>([value, b64(value), b64(value).replace(/=+$/, ""), Buffer.from(value, "utf8").toString("base64url"), encodeURIComponent(value)]);
-  for (const u of users) { const b = b64(`${u}:${value}`); out.add(b); out.add(b.replace(/=+$/, "")); }
+  const out = new Set<string>([
+    value,
+    b64(value),
+    b64(value).replace(/=+$/, ""),
+    Buffer.from(value, "utf8").toString("base64url"),
+    encodeURIComponent(value),
+  ]);
+  for (const u of users) {
+    const b = b64(`${u}:${value}`);
+    out.add(b);
+    out.add(b.replace(/=+$/, ""));
+  }
   return [...out].filter((x) => x.length >= 4);
 }

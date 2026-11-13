@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { typeNamed } from "../impl.ts";
 
 const t = (name: string) => ({ name, fields: [] }) as never;
-const names = (list: string[], asked: string): string | undefined => (typeNamed(list.map(t), asked) as { name?: string } | undefined)?.name;
+const names = (list: string[], asked: string): string | undefined =>
+  (typeNamed(list.map(t), asked) as { name?: string } | undefined)?.name;
 
 test("an exact name wins; the other spelling finds the one type that is meant", () => {
   assert.equal(names(["deal", "contact"], "deal"), "deal");

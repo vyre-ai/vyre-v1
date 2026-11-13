@@ -1,13 +1,40 @@
 // The work baton on the task page (lane W2): the stepper and who holds it, whose turn it is, the cards, and the buttons for the person whose turn it is.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { briefOf, deliverableOf, fixesFromText, fixesOf, isBaton, myMove, nowStep, stepsOf, wantedFields } from "./baton.ts";
+import {
+  briefOf,
+  deliverableOf,
+  fixesFromText,
+  fixesOf,
+  isBaton,
+  myMove,
+  nowStep,
+  stepsOf,
+  wantedFields,
+} from "./baton.ts";
 import type { TaskView } from "./model.ts";
 
 const agent = (id: string) => ({ kind: "agent" as const, id });
 const person = (id: string) => ({ kind: "person" as const, id });
 const work = (over: Partial<TaskView> = {}): TaskView => ({
-  id: "tsk_w1", title: "Draft the letter", kind: "work", state: "todo", blocked: false, assigned: agent("agt_doer"), reviewer: agent("agt_check"), approver: person("usr_boss"), actions: [], followers: [], workingNotes: { brief: "## Goal\nDraft the engagement letter.\n\n## Rules\nBe brief.", done_means: JSON.stringify(["Names the client"]) }, fileIds: [], dependsOn: [], updatedAt: 1, ...over,
+  id: "tsk_w1",
+  title: "Draft the letter",
+  kind: "work",
+  state: "todo",
+  blocked: false,
+  assigned: agent("agt_doer"),
+  reviewer: agent("agt_check"),
+  approver: person("usr_boss"),
+  actions: [],
+  followers: [],
+  workingNotes: {
+    brief: "## Goal\nDraft the engagement letter.\n\n## Rules\nBe brief.",
+    done_means: JSON.stringify(["Names the client"]),
+  },
+  fileIds: [],
+  dependsOn: [],
+  updatedAt: 1,
+  ...over,
 });
 
 test("the stepper has Do, Review, Approve and Done, lights the holder, and ticks what is past", () => {
@@ -16,7 +43,11 @@ test("the stepper has Do, Review, Approve and Done, lights the holder, and ticks
   assert.deepEqual(at("in_review"), ["assigned:past", "review:now", "approve:next", "done:next"]);
   assert.deepEqual(at("awaiting_approval"), ["assigned:past", "review:past", "approve:now", "done:next"]);
   assert.deepEqual(at("done"), ["assigned:past", "review:past", "approve:past", "done:past"]);
-  assert.deepEqual(stepsOf(work({ reviewer: undefined, approver: undefined })).map((x) => x.key), ["assigned", "done"], "no seat, no step");
+  assert.deepEqual(
+    stepsOf(work({ reviewer: undefined, approver: undefined })).map((x) => x.key),
+    ["assigned", "done"],
+    "no seat, no step",
+  );
   assert.equal(nowStep(work({ state: "canceled" })), null);
 });
 
@@ -33,20 +64,48 @@ test("the move is the seat whose turn it is, when it is the viewer's, and a bloc
   assert.equal(myMove(work({ state: "awaiting_approval" }), "usr_me"), null);
   assert.equal(myMove(work({ state: "awaiting_approval", blocked: true }), "usr_boss"), null);
   assert.equal(myMove(work({ state: "done" }), "usr_boss"), null);
-  assert.equal(myMove(work({ assigned: { kind: "group", id: "grp_desk" } }), "usr_me"), null, "a group seat is theirs once they take it");
+  assert.equal(
+    myMove(work({ assigned: { kind: "group", id: "grp_desk" } }), "usr_me"),
+    null,
+    "a group seat is theirs once they take it",
+  );
   assert.equal(myMove(work({ assigned: { kind: "group", id: "grp_desk" }, takenBy: "usr_me" }), "usr_me"), "work");
 });
 
 test("the deliverable, the fixes, the brief and the wanted fields come out of the notes", () => {
-  const t = work({ workingNotes: { brief: "B", done_means: "[\"x\"]", summary: "Drafted it", outputs: JSON.stringify({ letter: "Dear Ms Ortiz", n: 2 }), fixes: JSON.stringify(["Use her full name", " "]), output_schema: JSON.stringify({ required: ["letter"], properties: { letter: { type: "string" }, n: { type: "integer" } } }) } });
-  assert.deepEqual(deliverableOf(t), { summary: "Drafted it", fields: [{ name: "letter", value: "Dear Ms Ortiz" }, { name: "n", value: "2" }] });
+  const t = work({
+    workingNotes: {
+      brief: "B",
+      done_means: '["x"]',
+      summary: "Drafted it",
+      outputs: JSON.stringify({ letter: "Dear Ms Ortiz", n: 2 }),
+      fixes: JSON.stringify(["Use her full name", " "]),
+      output_schema: JSON.stringify({
+        required: ["letter"],
+        properties: { letter: { type: "string" }, n: { type: "integer" } },
+      }),
+    },
+  });
+  assert.deepEqual(deliverableOf(t), {
+    summary: "Drafted it",
+    fields: [
+      { name: "letter", value: "Dear Ms Ortiz" },
+      { name: "n", value: "2" },
+    ],
+  });
   assert.deepEqual(fixesOf(t), ["Use her full name"]);
   assert.deepEqual(briefOf(t), { text: "B", doneMeans: ["x"] });
-  assert.deepEqual(wantedFields(t), [{ name: "letter", required: true, type: "string" }, { name: "n", required: false, type: "integer" }]);
+  assert.deepEqual(wantedFields(t), [
+    { name: "letter", required: true, type: "string" },
+    { name: "n", required: false, type: "integer" },
+  ]);
   assert.equal(deliverableOf(work()), null);
 });
 
 test("fixes typed one per line become the list the tool takes", () => {
-  assert.deepEqual(fixesFromText("1. Use her full name\n- Cut paragraph two\n\n  3) Check the fee "), ["Use her full name", "Cut paragraph two", "Check the fee"]);
+  assert.deepEqual(fixesFromText("1. Use her full name\n- Cut paragraph two\n\n  3) Check the fee "), [
+    "Use her full name",
+    "Cut paragraph two",
+    "Check the fee",
+  ]);
 });
-

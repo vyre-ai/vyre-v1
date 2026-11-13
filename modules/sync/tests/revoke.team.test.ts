@@ -17,20 +17,39 @@ const admin = { trace: { traceId: TRACE }, principal: ADA };
 
 function scene() {
   const rig = pushRig();
-  const push = createPushHandlers({ deviceRevoked: (person, device) => deviceRevokedOf(rig, person, device), ...rig.deps });
+  const push = createPushHandlers({
+    deviceRevoked: (person, device) => deviceRevokedOf(rig, person, device),
+    ...rig.deps,
+  });
   const purge = createPurgeHandlers(purgeDepsOf(rig.s, { purge: () => 0 }));
   return { rig, push, purge };
 }
 // the same read the module's own push wiring uses (modules/sync/impl.ts)
-const deviceRevokedOf = (rig: ReturnType<typeof pushRig>, person: string, device: string): boolean => deviceRevoked(rig.s.host.tx, person, device);
+const deviceRevokedOf = (rig: ReturnType<typeof pushRig>, person: string, device: string): boolean =>
+  deviceRevoked(rig.s.host.tx, person, device);
 
 const pullCtx = (device: string) => ({ ...pushCtx(ADA, device), deviceClass: "desktop" as const });
 test("a revoked device's pull answers purge and sends no rows, whatever epoch it presents; the person's other device keeps pulling", async () => {
   const { rig, purge } = scene();
-  rig.seed("contact", "c1", { name: "Ann", email: "a@example.com", phone: "+1", region: "eu", stage: "lead", owner: ADA });
+  rig.seed("contact", "c1", {
+    name: "Ann",
+    email: "a@example.com",
+    phone: "+1",
+    region: "eu",
+    stage: "lead",
+    owner: ADA,
+  });
   const pull = rig.s.handlers["sync.pull"];
-  assert.equal((await pull(pullCtx("dev_phone"), { cursor: 0, epoch: 0 })).changes.length, 1, "before the revoke the phone pulls");
-  const bump = await purge["sync.epoch.bump"](admin, { personId: ADA, reason: "device_revoked", deviceId: "dev_phone" });
+  assert.equal(
+    (await pull(pullCtx("dev_phone"), { cursor: 0, epoch: 0 })).changes.length,
+    1,
+    "before the revoke the phone pulls",
+  );
+  const bump = await purge["sync.epoch.bump"](admin, {
+    personId: ADA,
+    reason: "device_revoked",
+    deviceId: "dev_phone",
+  });
   assert.equal(bump.epoch, 1);
   for (const presented of [0, 1, 2, 99]) {
     const r = await pull(pullCtx("dev_phone"), { cursor: 0, epoch: presented });
@@ -44,33 +63,68 @@ test("a revoked device's pull answers purge and sends no rows, whatever epoch it
 
 test("a revoked device cannot start or page a snapshot; the other device can", async () => {
   const { rig, purge } = scene();
-  rig.seed("contact", "c1", { name: "Ann", email: "a@example.com", phone: "+1", region: "eu", stage: "lead", owner: ADA });
+  rig.seed("contact", "c1", {
+    name: "Ann",
+    email: "a@example.com",
+    phone: "+1",
+    region: "eu",
+    stage: "lead",
+    owner: ADA,
+  });
   const h = rig.s.handlers;
   const begin = await h["sync.snapshot.begin"](pullCtx("dev_phone"), { deviceClass: "desktop" });
   assert.ok(begin.plan.length > 0, "before the revoke the phone can start one");
   await purge["sync.epoch.bump"](admin, { personId: ADA, reason: "device_revoked", deviceId: "dev_phone" });
-  await assert.rejects(() => h["sync.snapshot.begin"](pullCtx("dev_phone"), { deviceClass: "desktop" }), (e: unknown) => code(e) === "auth.device_revoked");
-  await assert.rejects(() => h["sync.snapshot.page"](pullCtx("dev_phone"), { entity: begin.plan[0]!.entity, asOf: begin.asOfSeq }), (e: unknown) => code(e) === "auth.device_revoked", "a snapshot begun earlier cannot be paged either");
+  await assert.rejects(
+    () => h["sync.snapshot.begin"](pullCtx("dev_phone"), { deviceClass: "desktop" }),
+    (e: unknown) => code(e) === "auth.device_revoked",
+  );
+  await assert.rejects(
+    () => h["sync.snapshot.page"](pullCtx("dev_phone"), { entity: begin.plan[0]!.entity, asOf: begin.asOfSeq }),
+    (e: unknown) => code(e) === "auth.device_revoked",
+    "a snapshot begun earlier cannot be paged either",
+  );
   const other = await h["sync.snapshot.begin"](pullCtx("dev_laptop"), { deviceClass: "desktop" });
   assert.ok(other.plan.length > 0);
-  const page = await h["sync.snapshot.page"](pullCtx("dev_laptop"), { entity: other.plan[0]!.entity, asOf: other.asOfSeq });
+  const page = await h["sync.snapshot.page"](pullCtx("dev_laptop"), {
+    entity: other.plan[0]!.entity,
+    asOf: other.asOfSeq,
+  });
   assert.ok(page.rows.length > 0, "the other device gets its page");
 });
 
 test("a revoked device's push applies nothing, whatever epoch it presents; the other device's push applies", async () => {
   const { rig, push, purge } = scene();
-  const seq = rig.seed("contact", "c1", { name: "Ann", email: "a@example.com", phone: "+1", region: "eu", stage: "lead", owner: ADA });
+  const seq = rig.seed("contact", "c1", {
+    name: "Ann",
+    email: "a@example.com",
+    phone: "+1",
+    region: "eu",
+    stage: "lead",
+    owner: ADA,
+  });
   await purge["sync.epoch.bump"](admin, { personId: ADA, reason: "device_revoked", deviceId: "dev_phone" });
-  const op = (id: string, device: string) => patchOp({ id, fields: { stage: "won" }, base: { stage: seq }, hlc: hl(NOW - 1000, 0, device) });
+  const op = (id: string, device: string) =>
+    patchOp({ id, fields: { stage: "won" }, base: { stage: seq }, hlc: hl(NOW - 1000, 0, device) });
   for (const presented of [0, 1, 50]) {
     await assert.rejects(
-      () => push["sync.push"](pullCtx("dev_phone"), JSON.parse(JSON.stringify({ deviceId: "dev_phone", epoch: presented, ops: [op(`op_p${presented}`, "dev_phone")] })) as never),
-      (e: unknown) => code(e) === "auth.device_revoked", `epoch ${presented} is refused`,
+      () =>
+        push["sync.push"](
+          pullCtx("dev_phone"),
+          JSON.parse(
+            JSON.stringify({ deviceId: "dev_phone", epoch: presented, ops: [op(`op_p${presented}`, "dev_phone")] }),
+          ) as never,
+        ),
+      (e: unknown) => code(e) === "auth.device_revoked",
+      `epoch ${presented} is refused`,
     );
   }
   assert.equal(rig.value("contact", "c1", "stage"), "lead", "nothing the revoked device sent was applied");
   assert.equal(rig.calls.length, 0, "no capability ran for it");
-  const ok = await push["sync.push"](pullCtx("dev_laptop"), JSON.parse(JSON.stringify({ deviceId: "dev_laptop", epoch: 0, ops: [op("op_laptop", "dev_laptop")] })) as never);
+  const ok = await push["sync.push"](
+    pullCtx("dev_laptop"),
+    JSON.parse(JSON.stringify({ deviceId: "dev_laptop", epoch: 0, ops: [op("op_laptop", "dev_laptop")] })) as never,
+  );
   assert.equal(ok.applied.length, 1, "the other device pushes as before");
   assert.equal(rig.value("contact", "c1", "stage"), "won");
 });
@@ -86,10 +140,26 @@ test("a revoked device's hello learns nothing: it is told to purge and the socke
   link.client.onFrame(() => {});
   const session = rig.hub.accept(link.server, { person: ADA, device: "dev_phone", deviceClass: "desktop" });
   // whatever epoch it claims
-  for (const epoch of [0, 1, 99]) link.client.send({ t: "hello", hello: { deviceId: "dev_phone", deviceClass: "desktop", appVersion: "1.0.0", registryHash: "h1", cursor: 0, epoch, replica: { entities: {} } } });
+  for (const epoch of [0, 1, 99])
+    link.client.send({
+      t: "hello",
+      hello: {
+        deviceId: "dev_phone",
+        deviceClass: "desktop",
+        appVersion: "1.0.0",
+        registryHash: "h1",
+        cursor: 0,
+        epoch,
+        replica: { entities: {} },
+      },
+    });
   await settle();
   const frames = link.sent.server.map((x) => JSON.parse(x) as { t: string; epoch?: number });
-  assert.deepEqual(frames.map((f) => f.t), ["purge"], "only a purge frame: no hello_ok, no head, no clock, no entity list, no rows");
+  assert.deepEqual(
+    frames.map((f) => f.t),
+    ["purge"],
+    "only a purge frame: no hello_ok, no head, no clock, no entity list, no rows",
+  );
   assert.equal(frames[0]!.epoch, 1);
   assert.deepEqual(closed, ["auth.device_revoked"]);
   assert.equal(session.mode(), "purge");
@@ -102,7 +172,11 @@ test("a revoked device's hello learns nothing: it is told to purge and the socke
   await settle();
   assert.deepEqual(phone.st.ids, [], "the revoked device is sent no rows");
   assert.notEqual(phone.conn.status(), "live");
-  assert.deepEqual(laptop.st.ids.map((x) => x.split("@")[0]), ["c1"], "the other device is live and has its row");
+  assert.deepEqual(
+    laptop.st.ids.map((x) => x.split("@")[0]),
+    ["c1"],
+    "the other device is live and has its row",
+  );
   assert.equal(laptop.conn.status(), "live");
   phone.conn.stop();
   laptop.conn.stop();

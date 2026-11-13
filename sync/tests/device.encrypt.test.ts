@@ -8,8 +8,22 @@ import os from "node:os";
 import path from "node:path";
 import { formatHlc } from "../../lib/hlc.ts";
 import {
-  RECORDED_OUTCOME, REPLICA_KEY_BYTES, createReplicaKeyVault, createSealCodec, createSyncDriver, deriveReplicaKey, deviceClassOf, memoryKeyBox,
-  openCipherOpfs, openDeviceReplica, openSqlCipher, rekeyCipherOpfs, rekeySqlCipher, selectEngine, slotOf, unlockSqlCipher,
+  RECORDED_OUTCOME,
+  REPLICA_KEY_BYTES,
+  createReplicaKeyVault,
+  createSealCodec,
+  createSyncDriver,
+  deriveReplicaKey,
+  deviceClassOf,
+  memoryKeyBox,
+  openCipherOpfs,
+  openDeviceReplica,
+  openSqlCipher,
+  rekeyCipherOpfs,
+  rekeySqlCipher,
+  selectEngine,
+  slotOf,
+  unlockSqlCipher,
 } from "../src/device/index.ts";
 import type { SpikeOutcome } from "../src/device/index.ts";
 import { createFakeMc, createFakeSqlCipher } from "../src/device/testing.ts";
@@ -21,7 +35,15 @@ const dir = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-device-"))
 const bytes = (n: number, fill: number): Uint8Array => new Uint8Array(n).fill(fill);
 const code = (e: unknown): string => (e instanceof ReplicaError ? e.code : "other");
 const refuses = async (f: () => unknown | Promise<unknown>, want: string): Promise<void> => {
-  await assert.rejects(async () => { await f(); }, (e: unknown) => { assert.equal(code(e), want, e instanceof Error ? e.message : String(e)); return true; });
+  await assert.rejects(
+    async () => {
+      await f();
+    },
+    (e: unknown) => {
+      assert.equal(code(e), want, e instanceof Error ? e.message : String(e));
+      return true;
+    },
+  );
 };
 
 test("replicaKey is HKDF(personKey, replica || spaceId || deviceId) and differs per part", async () => {
@@ -96,7 +118,13 @@ test("rewrap makes a new wrapping key; the old one no longer opens the blobs", a
   assert.equal((newWrap as { extractable: boolean }).extractable, false);
   const newBlob = (await box.get("replica:s:a")) as { iv: Uint8Array; ct: Uint8Array };
   assert.notDeepEqual(newBlob.ct, oldBlob.ct);
-  await assert.rejects(crypto.subtle.decrypt({ name: "AES-GCM", iv: newBlob.iv, additionalData: new TextEncoder().encode("vyre.replica.wrap\0s:a") }, oldWrap, newBlob.ct));
+  await assert.rejects(
+    crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: newBlob.iv, additionalData: new TextEncoder().encode("vyre.replica.wrap\0s:a") },
+      oldWrap,
+      newBlob.ct,
+    ),
+  );
 });
 
 test("rotating a replica key re-encrypts first and stores the new key only after that succeeds", async () => {
@@ -104,11 +132,18 @@ test("rotating a replica key re-encrypts first and stores the new key only after
   const oldKey = bytes(32, 5);
   const newKey = bytes(32, 6);
   await vault.store("s:d", oldKey);
-  await assert.rejects(vault.rotate("s:d", newKey, async () => { throw new Error("disk full"); }), /disk full/);
+  await assert.rejects(
+    vault.rotate("s:d", newKey, async () => {
+      throw new Error("disk full");
+    }),
+    /disk full/,
+  );
   assert.deepEqual(await vault.load("s:d"), oldKey, "a failed rekey leaves the old key stored");
 
   let seen: [Uint8Array, Uint8Array] | null = null;
-  await vault.rotate("s:d", newKey, async (o, n) => { seen = [new Uint8Array(o), new Uint8Array(n)]; });
+  await vault.rotate("s:d", newKey, async (o, n) => {
+    seen = [new Uint8Array(o), new Uint8Array(n)];
+  });
   assert.deepEqual(seen, [oldKey, newKey]);
   assert.deepEqual(await vault.load("s:d"), newKey);
   await refuses(() => vault.rotate("s:none", newKey, async () => {}), "no_key");
@@ -144,7 +179,11 @@ test("SQLCipher: a wrong key, no key and a build without SQLCipher cannot read; 
   await refuses(() => openSqlCipher({ open: fake.open, file: "r.db", key: bytes(32, 0xb2) }), "wrong_key");
   await refuses(() => openSqlCipher({ open: fake.open, file: "r.db", key: bytes(16, 0xa1) }), "bad_key");
   const keyless = fake.open("r.db");
-  assert.throws(() => keyless.prepareSync("SELECT v FROM t"), /not a database/, "a connection that never sent a key cannot read");
+  assert.throws(
+    () => keyless.prepareSync("SELECT v FROM t"),
+    /not a database/,
+    "a connection that never sent a key cannot read",
+  );
   keyless.closeSync();
 
   fake.withoutCipher = true;
@@ -170,7 +209,13 @@ test("sqlite3mc on OPFS opens through the wrapper VFS; wrong key, no key and a s
   d.exec("CREATE TABLE t (id TEXT PRIMARY KEY, v TEXT)");
   d.prepare("INSERT INTO t VALUES (?, ?)").run(["a", "secret"]);
   d.prepare("INSERT INTO t VALUES (?, ?)").run(["b", "other"]);
-  assert.deepEqual(d.prepare("SELECT id FROM t ORDER BY id").all([]).map((r) => r.id), ["a", "b"]);
+  assert.deepEqual(
+    d
+      .prepare("SELECT id FROM t ORDER BY id")
+      .all([])
+      .map((r) => r.id),
+    ["a", "b"],
+  );
   d.close();
 
   open(key).close();
@@ -178,7 +223,11 @@ test("sqlite3mc on OPFS opens through the wrapper VFS; wrong key, no key and a s
   await refuses(() => open(bytes(32, 0x22)), "wrong_key");
   await refuses(() => open(bytes(5, 1)), "bad_key");
   await refuses(() => openCipherOpfs({ mod: fake.mod, vfs: "opfs-sahpool", file: "../escape.db", key }), "bad_name");
-  assert.throws(() => new fake.mod.oo1.DB("file:/w.db?vfs=opfs-sahpool"), /cipher VFS/, "the stock VFS cannot open a keyed file");
+  assert.throws(
+    () => new fake.mod.oo1.DB("file:/w.db?vfs=opfs-sahpool"),
+    /cipher VFS/,
+    "the stock VFS cannot open a keyed file",
+  );
 
   const next = bytes(32, 0x33);
   const live = open(key);
@@ -191,7 +240,11 @@ test("sqlite3mc on OPFS opens through the wrapper VFS; wrong key, no key and a s
 });
 
 test("engine choice follows the recorded spike outcomes and falls back per REPORT.md", () => {
-  assert.deepEqual(selectEngine("ios"), { engine: "sqlcipher-expo", fallback: false, reason: selectEngine("ios").reason });
+  assert.deepEqual(selectEngine("ios"), {
+    engine: "sqlcipher-expo",
+    fallback: false,
+    reason: selectEngine("ios").reason,
+  });
   assert.equal(selectEngine("android").engine, "sqlcipher-expo");
   assert.equal(selectEngine("web").engine, "sqlite3mc-opfs");
   assert.equal(selectEngine("web").fallback, false);
@@ -237,7 +290,14 @@ test("a device opens its replica: first sign-in makes and wraps the key, later o
   const fake = createFakeSqlCipher(dir());
   const vault = createReplicaKeyVault(memoryKeyBox());
   const base = {
-    target: "ios" as const, spaceId: "spc_1", deviceId: "dev_1", vault, openers: { sqlcipher: { open: fake.open } }, registryHash: "hash-1", personId: "prs_me", clock: () => NOW,
+    target: "ios" as const,
+    spaceId: "spc_1",
+    deviceId: "dev_1",
+    vault,
+    openers: { sqlcipher: { open: fake.open } },
+    registryHash: "hash-1",
+    personId: "prs_me",
+    clock: () => NOW,
   };
   await refuses(() => openDeviceReplica(base), "no_key");
 
@@ -245,7 +305,17 @@ test("a device opens its replica: first sign-in makes and wraps the key, later o
   assert.equal(first.keyCreated, true);
   assert.equal(first.choice.engine, "sqlcipher-expo");
   assert.equal(first.store.deviceClass, "phone");
-  assert.equal(first.store.write({ entity: "calendar", id: "cld_1", fields: { title: "Standup" }, hlc: hlc(1), actor: "usr_ada", origin: "mirror" }).applied, true);
+  assert.equal(
+    first.store.write({
+      entity: "calendar",
+      id: "cld_1",
+      fields: { title: "Standup" },
+      hlc: hlc(1),
+      actor: "usr_ada",
+      origin: "mirror",
+    }).applied,
+    true,
+  );
   await first.store.flush();
   await first.store.close();
   assert.ok(await vault.has(slotOf("spc_1", "dev_1")));
@@ -269,14 +339,59 @@ test("replica profiles hold on the encrypted engines: a phone refuses Restricted
   const fakeMc = createFakeMc(d);
   const person = bytes(32, 4);
   const openers = { sqlcipher: { open: fakeSql.open }, sqlite3mc: { mod: fakeMc.mod, vfs: "opfs-sahpool" } };
-  const phone = await openDeviceReplica({ target: "android", spaceId: "spc", deviceId: "p", file: "phone.db", vault: createReplicaKeyVault(memoryKeyBox()), personKey: person, openers, registryHash: "h", phoneCeiling: "internal", personId: "prs_me", clock: () => NOW });
-  const web = await openDeviceReplica({ target: "web", spaceId: "spc", deviceId: "w", file: "web.db", vault: createReplicaKeyVault(memoryKeyBox()), personKey: person, openers, registryHash: "h", personId: "prs_me", clock: () => NOW });
-  const mac = await openDeviceReplica({ target: "desktop-mac", spaceId: "spc2", deviceId: "m", file: "mac.db", vault: createReplicaKeyVault(memoryKeyBox()), personKey: person, openers, registryHash: "h", personId: "prs_me", clock: () => NOW });
+  const phone = await openDeviceReplica({
+    target: "android",
+    spaceId: "spc",
+    deviceId: "p",
+    file: "phone.db",
+    vault: createReplicaKeyVault(memoryKeyBox()),
+    personKey: person,
+    openers,
+    registryHash: "h",
+    phoneCeiling: "internal",
+    personId: "prs_me",
+    clock: () => NOW,
+  });
+  const web = await openDeviceReplica({
+    target: "web",
+    spaceId: "spc",
+    deviceId: "w",
+    file: "web.db",
+    vault: createReplicaKeyVault(memoryKeyBox()),
+    personKey: person,
+    openers,
+    registryHash: "h",
+    personId: "prs_me",
+    clock: () => NOW,
+  });
+  const mac = await openDeviceReplica({
+    target: "desktop-mac",
+    spaceId: "spc2",
+    deviceId: "m",
+    file: "mac.db",
+    vault: createReplicaKeyVault(memoryKeyBox()),
+    personKey: person,
+    openers,
+    registryHash: "h",
+    personId: "prs_me",
+    clock: () => NOW,
+  });
   try {
     assert.equal(web.choice.engine, "sqlite3mc-opfs");
     assert.equal(mac.choice.engine, "sqlite3mc-opfs");
-    assert.deepEqual([phone.store.deviceClass, web.store.deviceClass, mac.store.deviceClass], ["phone", "web", "desktop"]);
-    const w = (id: string, label: "internal" | "confidential" | "restricted") => ({ entity: "calendar", id, fields: { title: id }, hlc: hlc(5), actor: "usr_ada", origin: "mirror" as const, label });
+    assert.deepEqual(
+      [phone.store.deviceClass, web.store.deviceClass, mac.store.deviceClass],
+      ["phone", "web", "desktop"],
+    );
+    const w = (id: string, label: "internal" | "confidential" | "restricted") => ({
+      entity: "calendar",
+      id,
+      fields: { title: id },
+      hlc: hlc(5),
+      actor: "usr_ada",
+      origin: "mirror" as const,
+      label,
+    });
     assert.equal(phone.store.write(w("cld_i", "internal")).applied, true);
     assert.equal(phone.store.write(w("cld_c", "confidential")).reason, "above_label");
     assert.equal(phone.store.write(w("cld_r", "restricted")).reason, "restricted");
@@ -296,7 +411,32 @@ test("replica profiles hold on the encrypted engines: a phone refuses Restricted
 test("a fallback engine with no wiring says so instead of opening a plaintext store", async () => {
   const vault = createReplicaKeyVault(memoryKeyBox());
   const outcome: SpikeOutcome = { ...RECORDED_OUTCOME, webCipherOpfs: "fail" };
-  await refuses(() => openDeviceReplica({ target: "web", spaceId: "s", deviceId: "d", vault, personKey: bytes(32, 1), openers: {}, registryHash: "h", outcome }), "engine_missing");
-  await refuses(() => openDeviceReplica({ target: "ios", spaceId: "s", deviceId: "d", vault, personKey: bytes(32, 1), openers: {}, registryHash: "h" }), "engine_missing");
+  await refuses(
+    () =>
+      openDeviceReplica({
+        target: "web",
+        spaceId: "s",
+        deviceId: "d",
+        vault,
+        personKey: bytes(32, 1),
+        openers: {},
+        registryHash: "h",
+        outcome,
+      }),
+    "engine_missing",
+  );
+  await refuses(
+    () =>
+      openDeviceReplica({
+        target: "ios",
+        spaceId: "s",
+        deviceId: "d",
+        vault,
+        personKey: bytes(32, 1),
+        openers: {},
+        registryHash: "h",
+      }),
+    "engine_missing",
+  );
   assert.equal(typeof createSyncDriver, "function");
 });

@@ -40,7 +40,11 @@ function attr(html: string, name: string): string {
 }
 
 function styleMap(html: string): Record<string, string> {
-  const raw = attr(html, "style").replaceAll("&quot;", '"').replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
+  const raw = attr(html, "style")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
   const out: Record<string, string> = {};
   for (const part of raw.split(";")) {
     const cut = part.indexOf(":");
@@ -113,7 +117,8 @@ test("token table is System plus the fifteen skins, as plain data (no promise)",
   assert.equal(table.system?.light["--accent"], documentTokens.light["--accent"]);
   assert.equal(table.system?.dark["--win"], documentTokens.dark["--win"]);
   for (const skin of skins) {
-    for (const mode of MODES) for (const name of TOKEN_NAMES) assert.ok(table[skin.id]?.[mode][name], `${skin.id} ${mode} ${name}`);
+    for (const mode of MODES)
+      for (const name of TOKEN_NAMES) assert.ok(table[skin.id]?.[mode][name], `${skin.id} ${mode} ${name}`);
   }
 });
 
@@ -173,8 +178,14 @@ test("the frame check fails on any wrong theme, skin, token, space or extra fram
   assert.equal(wrongTheme(html + html, light, "home", 1280), "frames");
   const darkHover = skinById("paper")?.dark["--hover"] ?? "";
   assert.notEqual(darkHover, light.tokens["--hover"]);
-  assert.equal(wrongTheme(html.replace(`--hover:${light.tokens["--hover"]}`, `--hover:${darkHover}`), light, "home", 1280), "--hover");
-  assert.equal(wrongTheme(html.replace("color-scheme:light", "color-scheme:dark"), light, "home", 1280), "color-scheme");
+  assert.equal(
+    wrongTheme(html.replace(`--hover:${light.tokens["--hover"]}`, `--hover:${darkHover}`), light, "home", 1280),
+    "--hover",
+  );
+  assert.equal(
+    wrongTheme(html.replace("color-scheme:light", "color-scheme:dark"), light, "home", 1280),
+    "color-scheme",
+  );
 });
 
 test("Home at 1280 and 390 for Northwind (System) and Harbor Studio (Linen): right skin, mode and tokens", () => {
@@ -204,7 +215,13 @@ test("the head script paints what resolveTheme resolves, for stored, default, em
   const hbStore = withOpenSpace({ ...chosen("hb", "obsidian", "light"), spaceSkin: seedSpaceSkin() }, "hb");
   const hbDefault: AppearanceStore = { ...emptyStore(PERSON, "hb"), spaceSkin: seedSpaceSkin() };
   const hostile = chosen("nw", "constructor", "dark");
-  const cases: { name: string; raw: string | null; dark: boolean; store: AppearanceStore | null; storage?: "ok" | "throw" | "no-media" }[] = [
+  const cases: {
+    name: string;
+    raw: string | null;
+    dark: boolean;
+    store: AppearanceStore | null;
+    storage?: "ok" | "throw" | "no-media";
+  }[] = [
     { name: "empty, device dark", raw: null, dark: true, store: null },
     { name: "empty, device light", raw: null, dark: false, store: null },
     { name: "corrupt", raw: "{", dark: true, store: null },
@@ -223,7 +240,8 @@ test("the head script paints what resolveTheme resolves, for stored, default, em
     assert.equal(doc.attrs["data-theme"], applied.mode, c.name);
     assert.equal(doc.attrs["data-skin"], applied.skin, c.name);
     assert.equal(doc.props["color-scheme"], applied.mode, c.name);
-    for (const [name, value] of Object.entries(applied.tokens)) assert.equal(doc.props[name], value, `${c.name} ${name}`);
+    for (const [name, value] of Object.entries(applied.tokens))
+      assert.equal(doc.props[name], value, `${c.name} ${name}`);
     assert.equal(doc.attrs["data-space"], c.store ? c.store.spaceId : undefined, c.name);
   }
 });
@@ -231,11 +249,12 @@ test("the head script paints what resolveTheme resolves, for stored, default, em
 test("the head script is synchronous, inline and first in head", () => {
   const script = headScript();
   assert.equal(HEAD_SCRIPT, script);
-  for (const banned of ["await", "fetch(", "import(", "setTimeout", "requestAnimationFrame", "Promise"]) assert.equal(script.includes(banned), false, banned);
+  for (const banned of ["await", "fetch(", "import(", "setTimeout", "requestAnimationFrame", "Promise"])
+    assert.equal(script.includes(banned), false, banned);
   const page = `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/a.css"></head><body></body></html>`;
   const doc = webDocument(page);
   const boot = doc.indexOf('data-theme-boot="true"');
-  assert.ok(boot > doc.indexOf("<head") && boot < doc.indexOf('<meta charset'), "first child of head");
+  assert.ok(boot > doc.indexOf("<head") && boot < doc.indexOf("<meta charset"), "first child of head");
   assert.ok(boot < doc.indexOf("<link"), "before any stylesheet");
   const tagStart = doc.lastIndexOf("<script", boot);
   const tag = doc.slice(tagStart, doc.indexOf(">", tagStart));
@@ -262,7 +281,11 @@ test("applyToRoot clears tokens a smaller set does not define", () => {
   const full = resolveTheme(toInput(chosen("nw", "graphite", "auto"), false));
   applyToRoot(full, rec.root);
   assert.ok(rec.props["--me"] && rec.props["--press"]);
-  const smaller = { ...full, skin: "system", tokens: Object.fromEntries(Object.entries(full.tokens).filter(([k]) => k !== "--me" && k !== "--press")) };
+  const smaller = {
+    ...full,
+    skin: "system",
+    tokens: Object.fromEntries(Object.entries(full.tokens).filter(([k]) => k !== "--me" && k !== "--press")),
+  };
   applyToRoot(smaller, rec.root);
   assert.equal(rec.props["--me"], undefined);
   assert.equal(rec.props["--press"], undefined);
@@ -273,8 +296,16 @@ test("applyToRoot clears tokens a smaller set does not define", () => {
 test("store round trip, and malformed stores are rejected", () => {
   const store = { ...chosen("hb", "moss", "dark"), spaceSkin: seedSpaceSkin() };
   assert.deepEqual(readStore(writeStore(store)), store);
-  for (const raw of [null, "", "[]", "{}", "null", '{"personId":1}', JSON.stringify({ ...store, spaces: { hb: { skin: "moss", mode: "neon" } } }), JSON.stringify({ ...store, spaceSkin: { hb: 3 } })]) {
+  for (const raw of [
+    null,
+    "",
+    "[]",
+    "{}",
+    "null",
+    '{"personId":1}',
+    JSON.stringify({ ...store, spaces: { hb: { skin: "moss", mode: "neon" } } }),
+    JSON.stringify({ ...store, spaceSkin: { hb: 3 } }),
+  ]) {
     assert.equal(readStore(raw), null, String(raw));
   }
 });
-

@@ -1,6 +1,21 @@
 // One handler per journeys capability (16). Design, start, stages and limits live in stages.ts; the migration and its preview in migrate.ts.
 import { migrate, previewMigrate } from "./migrate.ts";
-import { advance, checkLimits, create, design, get, list, moveStage, remove, rename, rulesSet, stageCounts, start, tasksOf, versions } from "./stages.ts";
+import {
+  advance,
+  checkLimits,
+  create,
+  design,
+  get,
+  list,
+  moveStage,
+  remove,
+  rename,
+  rulesSet,
+  stageCounts,
+  start,
+  tasksOf,
+  versions,
+} from "./stages.ts";
 
 export const handlers = {
   "journeys.advance": advance,

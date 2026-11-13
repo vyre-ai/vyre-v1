@@ -6,8 +6,12 @@ import { preAuthSession } from "../../../host/src/daemon/preauth.ts";
 import { mayHandle } from "../projections.ts";
 import type { GateCtx, Hold } from "../projections.ts";
 
-const hold = { principal: { kind: "person", id: "usr_a" }, approver: { kind: "person", id: "usr_b" }, taskId: "tsk_1" } as unknown as Hold;
-const ctxOf = (principal: { kind: string; id: string }): GateCtx => ({ principal } as unknown as GateCtx);
+const hold = {
+  principal: { kind: "person", id: "usr_a" },
+  approver: { kind: "person", id: "usr_b" },
+  taskId: "tsk_1",
+} as unknown as Hold;
+const ctxOf = (principal: { kind: string; id: string }): GateCtx => ({ principal }) as unknown as GateCtx;
 
 test("a held call is handled by a service, and not by a signed-out caller of either kind", () => {
   assert.equal(mayHandle(ctxOf({ kind: "service", id: "svc_host" }), hold), true, "the control: a service is trusted");

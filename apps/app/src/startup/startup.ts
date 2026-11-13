@@ -52,7 +52,8 @@ export function startup<Row>(deps: StartupDeps<Row>): { place: PlaceId; rows: Ro
   const state = deps.ui.read();
   const place = resolveLastPlace(state.lastPlace);
   const prepared = new Map<string, PreparedStatement<Row>>();
-  for (const sql of new Set([...Object.values(FIRST_LIST_SQL), FALLBACK_SQL])) prepared.set(sql, deps.replica.prepare<Row>(sql));
+  for (const sql of new Set([...Object.values(FIRST_LIST_SQL), FALLBACK_SQL]))
+    prepared.set(sql, deps.replica.prepare<Row>(sql));
   const stmt = prepared.get(FIRST_LIST_SQL[place] ?? FALLBACK_SQL)!;
   const rows = stmt.all();
   deps.render({ place, rail: state.railOrder, rows });

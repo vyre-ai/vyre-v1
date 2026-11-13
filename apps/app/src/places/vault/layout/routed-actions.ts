@@ -6,11 +6,18 @@ export type RequestFulfilment =
   | { fields: { key: string; value: string }[]; folderId?: string | undefined };
 
 /** Credential bytes are opaque. Whitespace is significant and must survive the UI boundary unchanged. */
-export function requestFields(keys: readonly string[], draft: Readonly<Record<string, string>>): { key: string; value: string }[] {
+export function requestFields(
+  keys: readonly string[],
+  draft: Readonly<Record<string, string>>,
+): { key: string; value: string }[] {
   return keys.map((key) => ({ key, value: draft[key] ?? "" }));
 }
 
-export async function fulfilVaultRequest(data: VaultData, requestId: string, fulfilment: RequestFulfilment): Promise<void> {
+export async function fulfilVaultRequest(
+  data: VaultData,
+  requestId: string,
+  fulfilment: RequestFulfilment,
+): Promise<void> {
   await data.call("vault.requests.fulfil", { requestId, ...fulfilment });
 }
 
@@ -23,6 +30,14 @@ export async function revokeVaultExport(data: VaultData, exportId: string): Prom
 }
 
 /** A .env download link for a folder that lasts as long as the person chose (the Space's policy sets the longest). */
-export async function exportVaultFolder(data: VaultData, folderId: string, expiresIn: Expiry, key: string): Promise<{ pullUrl: string; expiresAt: number }> {
-  return await data.call("vault.export_env", { folderId, expiresIn, idempotencyKey: key }) as { pullUrl: string; expiresAt: number };
+export async function exportVaultFolder(
+  data: VaultData,
+  folderId: string,
+  expiresIn: Expiry,
+  key: string,
+): Promise<{ pullUrl: string; expiresAt: number }> {
+  return (await data.call("vault.export_env", { folderId, expiresIn, idempotencyKey: key })) as {
+    pullUrl: string;
+    expiresAt: number;
+  };
 }

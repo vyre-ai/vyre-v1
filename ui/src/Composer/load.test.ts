@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import * as module from "./load.ts";
 
 test("the deferred module shares one in-flight load and retries after a transient rejection", async () => {
-  const create = (module as typeof module & { createRetryableLoader?: <T>(importer: () => Promise<T>) => { load: () => Promise<T> } }).createRetryableLoader;
+  const create = (
+    module as typeof module & { createRetryableLoader?: <T>(importer: () => Promise<T>) => { load: () => Promise<T> } }
+  ).createRetryableLoader;
   assert.equal(typeof create, "function", "the Composer loader needs a reusable retryable state machine");
   if (!create) return;
 
@@ -12,7 +14,9 @@ test("the deferred module shares one in-flight load and retries after a transien
   const loader = create(() => {
     attempts += 1;
     if (attempts === 1) return Promise.reject(new Error("chunk network error"));
-    return new Promise<string>((resolve) => { accept = resolve; });
+    return new Promise<string>((resolve) => {
+      accept = resolve;
+    });
   });
 
   await assert.rejects(loader.load(), /chunk network error/);

@@ -5,7 +5,17 @@ import { AcceptInvite } from "./AcceptInvite.tsx";
 import { SignIn } from "./SignIn.tsx";
 import { Welcome } from "./Welcome.tsx";
 import { JoinFrame } from "./kit.tsx";
-import { RUN_STEPS, createSpaceResolutionGate, fullName, initialState, normalizeSpaceAddress, reduce, refreshJoinInvite, resolveSpaceInvite, signInValid } from "./logic.ts";
+import {
+  RUN_STEPS,
+  createSpaceResolutionGate,
+  fullName,
+  initialState,
+  normalizeSpaceAddress,
+  reduce,
+  refreshJoinInvite,
+  resolveSpaceInvite,
+  signInValid,
+} from "./logic.ts";
 import type { Action, ConnectIntent, FlowState, JoinInvite } from "./logic.ts";
 import { MANY_TRIES, TOO_MANY, isMiss, signInLine } from "./failure.ts";
 import { makeRecoveryCode } from "./recovery-code.ts";
@@ -49,7 +59,12 @@ export interface JoinFlowProps {
 
 export { makeRecoveryCode };
 
-type Browser = { navigator?: { clipboard?: { writeText(t: string): unknown } }; document?: { createElement(t: string): Record<string, unknown> & { click(): void } }; URL?: { createObjectURL(b: unknown): string }; Blob?: new (p: string[], o: { type: string }) => unknown };
+type Browser = {
+  navigator?: { clipboard?: { writeText(t: string): unknown } };
+  document?: { createElement(t: string): Record<string, unknown> & { click(): void } };
+  URL?: { createObjectURL(b: unknown): string };
+  Blob?: new (p: string[], o: { type: string }) => unknown;
+};
 function copyText(text: string): void {
   const g = globalThis as Browser;
   void g.navigator?.clipboard?.writeText(text);
@@ -63,7 +78,8 @@ function saveText(name: string, text: string): void {
   a.click();
 }
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-const messageOf = (e: unknown): string => (e instanceof Error && e.message ? e.message : "Could not finish. Check the connection and try again.");
+const messageOf = (e: unknown): string =>
+  e instanceof Error && e.message ? e.message : "Could not finish. Check the connection and try again.";
 
 export function JoinFlow(props: JoinFlowProps) {
   // A different host starts a new credential flow; same-host name discovery preserves it.
@@ -78,11 +94,17 @@ function JoinFlowForHost(props: JoinFlowProps) {
   const spaceRequests = useRef(createSpaceResolutionGate());
   const resolvingSpace = useRef(false);
   const rules = useMemo(() => ({ isTaken: props.isTaken ?? ((): boolean => false) }), [props.isTaken]);
-  const [state, dispatch] = useReducer((s: FlowState, a: Action) => reduce(s, a, rules), undefined, () => initialState(invite, props.initial));
+  const [state, dispatch] = useReducer(
+    (s: FlowState, a: Action) => reduce(s, a, rules),
+    undefined,
+    () => initialState(invite, props.initial),
+  );
 
   // Discovery can finish while the person types or submits. Refresh only Space metadata;
   // the reducer and in-flight sign-in state keep the entered credentials and current stage.
-  useEffect(() => { setInvite((current) => refreshJoinInvite(current, props.invite)); }, [props.invite]);
+  useEffect(() => {
+    setInvite((current) => refreshJoinInvite(current, props.invite));
+  }, [props.invite]);
 
   useEffect(() => () => spaceRequests.current.dispose(), []);
 
@@ -93,10 +115,26 @@ function JoinFlowForHost(props: JoinFlowProps) {
     let failed = false;
     const total = RUN_STEPS(invite.space).length;
     const values: JoinValues = {
-      username: state.user, displayName: fullName(state), password: state.pw, deviceName: state.device,
-      ...(state.rec ? { recoveryCode: state.code } : {}), ai: { choice: state.ai, providerKey: state.aiProvider, ...(state.ai === "key" ? { key: state.key } : {}) },
+      username: state.user,
+      displayName: fullName(state),
+      password: state.pw,
+      deviceName: state.device,
+      ...(state.rec ? { recoveryCode: state.code } : {}),
+      ai: { choice: state.ai, providerKey: state.aiProvider, ...(state.ai === "key" ? { key: state.key } : {}) },
     };
-    const joined = props.onJoin ? props.onJoin(values).catch((e: unknown) => { failed = true; if (!off) dispatch({ t: "failed", message: messageOf(e), ...((e as { step?: FlowState["step"] }).step === undefined ? {} : { step: (e as { step: FlowState["step"] }).step }) }); }) : Promise.resolve();
+    const joined = props.onJoin
+      ? props.onJoin(values).catch((e: unknown) => {
+          failed = true;
+          if (!off)
+            dispatch({
+              t: "failed",
+              message: messageOf(e),
+              ...((e as { step?: FlowState["step"] }).step === undefined
+                ? {}
+                : { step: (e as { step: FlowState["step"] }).step }),
+            });
+        })
+      : Promise.resolve();
     void (async () => {
       for (let i = 0; i < total - 1; i++) {
         await sleep(900);
@@ -109,18 +147,28 @@ function JoinFlowForHost(props: JoinFlowProps) {
       await sleep(700);
       if (!off) dispatch({ t: "run_done" });
     })();
-    return () => { off = true; };
+    return () => {
+      off = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the run starts once per entry into the stage
   }, [state.stage]);
 
   // Escape goes back or closes the sheet
   useEffect(() => {
-    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: { key: string; preventDefault(): void }) => void): void; removeEventListener(t: string, f: (e: { key: string; preventDefault(): void }) => void): void } }).document;
+    const doc = (
+      globalThis as {
+        document?: {
+          addEventListener(t: string, f: (e: { key: string; preventDefault(): void }) => void): void;
+          removeEventListener(t: string, f: (e: { key: string; preventDefault(): void }) => void): void;
+        };
+      }
+    ).document;
     if (!doc) return;
     const on = (e: { key: string; preventDefault(): void }): void => {
       if (e.key !== "Escape") return;
       e.preventDefault();
-      if (!state.sheet && state.stage === "signin" && state.si === "pw" && props.onBackFromSignIn) props.onBackFromSignIn();
+      if (!state.sheet && state.stage === "signin" && state.si === "pw" && props.onBackFromSignIn)
+        props.onBackFromSignIn();
       else dispatch(state.sheet ? { t: "recovery_close" } : { t: "back" });
     };
     doc.addEventListener("keydown", on);
@@ -133,19 +181,37 @@ function JoinFlowForHost(props: JoinFlowProps) {
     signInInFlight.current = true;
     setSigningIn(true);
     try {
-      const r = await props.onSignIn({ username: state.siUser, password: state.siPw, ...(state.si === "totp" ? { code: state.siCode } : {}) });
+      const r = await props.onSignIn({
+        username: state.siUser,
+        password: state.siPw,
+        ...(state.si === "totp" ? { code: state.siCode } : {}),
+      });
       if (r === "second_factor_required" && state.si === "pw") dispatch({ t: "next" });
       else dispatch({ t: "set", patch: { stage: "done", error: "" } });
     } catch (e) {
       misses.current = isMiss(e) ? misses.current + 1 : misses.current;
-      dispatch({ t: "set", patch: { error: misses.current >= MANY_TRIES ? TOO_MANY : signInLine(e), ...(state.si === "pw" ? { siPw: "" } : { siCode: "" }) } });
-    } finally { signInInFlight.current = false; setSigningIn(false); }
+      dispatch({
+        t: "set",
+        patch: {
+          error: misses.current >= MANY_TRIES ? TOO_MANY : signInLine(e),
+          ...(state.si === "pw" ? { siPw: "" } : { siCode: "" }),
+        },
+      });
+    } finally {
+      signInInFlight.current = false;
+      setSigningIn(false);
+    }
   };
 
   const resolveSpace = async (intent: ConnectIntent): Promise<void> => {
     if (resolvingSpace.current || state.spaceResolving) return;
-    if (!normalizeSpaceAddress(state.spaceAddress)) return dispatch({ t: "space_failed", message: "Enter a valid HTTPS Space address, or a local development address." });
-    if (!props.onResolveSpace) return dispatch({ t: "space_failed", message: "This Space cannot be verified yet. Try again shortly." });
+    if (!normalizeSpaceAddress(state.spaceAddress))
+      return dispatch({
+        t: "space_failed",
+        message: "Enter a valid HTTPS Space address, or a local development address.",
+      });
+    if (!props.onResolveSpace)
+      return dispatch({ t: "space_failed", message: "This Space cannot be verified yet. Try again shortly." });
     const request = spaceRequests.current.begin();
     resolvingSpace.current = true;
     dispatch({ t: "space_resolving", intent });
@@ -170,16 +236,47 @@ function JoinFlowForHost(props: JoinFlowProps) {
     dispatch({ t: "set", patch: { spaceAddress, spaceResolving: false, spaceError: "" } });
   };
 
-  const page = state.stage === "connect"
-    ? <Welcome address={state.spaceAddress} busy={state.spaceResolving} error={state.spaceError} onAddressChange={changeSpaceAddress} onSignIn={() => void resolveSpace("signin")} onGetStarted={() => void resolveSpace("onboarding")} />
-    : state.stage === "signin"
-    ? <SignIn invite={invite} state={state} dispatch={dispatch} busy={signingIn} onSubmit={() => void signIn()} {...(props.onSso?{onSso:props.onSso}:{})} {...(props.onGithub?{onGithub:props.onGithub}:{})} {...(props.onRecoveryCode?{onRecoveryCode:props.onRecoveryCode}:{})} {...(props.onBackFromSignIn ? {onBack:props.onBackFromSignIn} : {})} />
-    : (
+  const page =
+    state.stage === "connect" ? (
+      <Welcome
+        address={state.spaceAddress}
+        busy={state.spaceResolving}
+        error={state.spaceError}
+        onAddressChange={changeSpaceAddress}
+        onSignIn={() => void resolveSpace("signin")}
+        onGetStarted={() => void resolveSpace("onboarding")}
+      />
+    ) : state.stage === "signin" ? (
+      <SignIn
+        invite={invite}
+        state={state}
+        dispatch={dispatch}
+        busy={signingIn}
+        onSubmit={() => void signIn()}
+        {...(props.onSso ? { onSso: props.onSso } : {})}
+        {...(props.onGithub ? { onGithub: props.onGithub } : {})}
+        {...(props.onRecoveryCode ? { onRecoveryCode: props.onRecoveryCode } : {})}
+        {...(props.onBackFromSignIn ? { onBack: props.onBackFromSignIn } : {})}
+      />
+    ) : (
       <AcceptInvite
-        invite={invite} state={state} dispatch={dispatch} rules={rules} {...(props.expired===undefined?{}:{expired:props.expired})}
-        {...(props.onOpenApp?{onOpenApp:props.onOpenApp}:{})} {...(props.onDownload?{onDownload:props.onDownload}:{})} {...(props.onPickPhoto?{onPickPhoto:props.onPickPhoto}:{})}
-        onCopyCode={props.onCopyCode ?? copyText} onSaveCode={props.onSaveCode ?? ((c) => saveText(`${invite.host}-recovery-code.txt`, `${invite.space} recovery code\n${c}\n`))}
-        newCode={props.newCode ?? makeRecoveryCode} {...(props.onEmail?{onEmail:props.onEmail}:{})} {...(props.onOpen?{onOpen:props.onOpen}:{})} {...(props.onHaveAccount?{onHaveAccount:props.onHaveAccount}:{})}
+        invite={invite}
+        state={state}
+        dispatch={dispatch}
+        rules={rules}
+        {...(props.expired === undefined ? {} : { expired: props.expired })}
+        {...(props.onOpenApp ? { onOpenApp: props.onOpenApp } : {})}
+        {...(props.onDownload ? { onDownload: props.onDownload } : {})}
+        {...(props.onPickPhoto ? { onPickPhoto: props.onPickPhoto } : {})}
+        onCopyCode={props.onCopyCode ?? copyText}
+        onSaveCode={
+          props.onSaveCode ??
+          ((c) => saveText(`${invite.host}-recovery-code.txt`, `${invite.space} recovery code\n${c}\n`))
+        }
+        newCode={props.newCode ?? makeRecoveryCode}
+        {...(props.onEmail ? { onEmail: props.onEmail } : {})}
+        {...(props.onOpen ? { onOpen: props.onOpen } : {})}
+        {...(props.onHaveAccount ? { onHaveAccount: props.onHaveAccount } : {})}
       />
     );
   return <JoinFrame>{page}</JoinFrame>;

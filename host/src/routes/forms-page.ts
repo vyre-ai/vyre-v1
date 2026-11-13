@@ -23,7 +23,16 @@ export interface PublicFormView {
   slug: string;
   kind: "public" | "one_use" | "booking" | "survey";
   name: string;
-  fields: { field: string; hidden: boolean; prefillKey?: string; step: number; title?: string; type?: string; required?: boolean; choices?: { key: string; title: string }[] }[];
+  fields: {
+    field: string;
+    hidden: boolean;
+    prefillKey?: string;
+    step: number;
+    title?: string;
+    type?: string;
+    required?: boolean;
+    choices?: { key: string; title: string }[];
+  }[];
   theme?: Record<string, unknown>;
   css?: string;
   /** the author's HTML template and script (lib/form-source.ts), checked again here before they are served */
@@ -42,11 +51,19 @@ function typeAllowed(types: readonly string[], mime: string, name: string): bool
   if (types.length === 0) return true;
   const m = mime.toLowerCase();
   const n = name.toLowerCase();
-  return types.some((t) => (t.startsWith(".") ? n.endsWith(t) : t.endsWith("/*") ? m.startsWith(t.slice(0, -1)) : m === t));
+  return types.some((t) =>
+    t.startsWith(".") ? n.endsWith(t) : t.endsWith("/*") ? m.startsWith(t.slice(0, -1)) : m === t,
+  );
 }
 
-export interface PageCaller { kind: "actor"; id: string }
-export interface LinkQuestions { fields: { field: string; step?: number }[]; partial?: { answers: Record<string, unknown>; step?: number } }
+export interface PageCaller {
+  kind: "actor";
+  id: string;
+}
+export interface LinkQuestions {
+  fields: { field: string; step?: number }[];
+  partial?: { answers: Record<string, unknown>; step?: number };
+}
 export interface CaptchaWidget {
   /** the provider's public site key */
   siteKey: string;
@@ -62,12 +79,22 @@ export interface FormsPageDeps {
   /** One-use forms: what a link still asks. Null when the link is not valid. */
   link?(slug: string, token: string, caller: PageCaller): Promise<LinkQuestions | null>;
   /** Store an uploaded file for a form; the policy was already applied to the size and declared type. Returns the file's id. */
-  upload?(slug: string, file: { name: string; type: string; bytes: Uint8Array; folderId: string }, caller: PageCaller, token?: string): Promise<string>;
+  upload?(
+    slug: string,
+    file: { name: string; type: string; bytes: Uint8Array; folderId: string },
+    caller: PageCaller,
+    token?: string,
+  ): Promise<string>;
   /**
    * Run a public capability for a signed-out visitor: the pipeline has no session to authorize, so the host calls it as itself and names the visitor in `visitor` (the route sets it from the
    * socket address and clears whatever the client sent). Throws the pipeline's error as is.
    */
-  call?(cap: "forms.submit" | "bookings.book" | "bookings.availability", input: Record<string, unknown>, caller: PageCaller, trace?: { traceId: string; spanId: string }): Promise<unknown>;
+  call?(
+    cap: "forms.submit" | "bookings.book" | "bookings.availability",
+    input: Record<string, unknown>,
+    caller: PageCaller,
+    trace?: { traceId: string; spanId: string },
+  ): Promise<unknown>;
   captcha?: CaptchaWidget;
   /** Page views per source address per minute; default 120. */
   perMinute?: number;
@@ -81,8 +108,13 @@ export interface FormsPageDeps {
 const TRACE = "0".repeat(32);
 const PAGE = /^\/(f|book)\/([a-z0-9][a-z0-9-]{0,63})\/?$/;
 /** The public capabilities that have no signed-in caller: POST /f/submit, POST /book/create and GET /book/availability. The route answers them (deps.call) so a visitor needs no session. */
-const CAPS: Record<string, { method: "GET" | "POST"; cap: "forms.submit" | "bookings.book" | "bookings.availability" }> = {
-  "/f/submit": { method: "POST", cap: "forms.submit" }, "/book/create": { method: "POST", cap: "bookings.book" }, "/book/availability": { method: "GET", cap: "bookings.availability" },
+const CAPS: Record<
+  string,
+  { method: "GET" | "POST"; cap: "forms.submit" | "bookings.book" | "bookings.availability" }
+> = {
+  "/f/submit": { method: "POST", cap: "forms.submit" },
+  "/book/create": { method: "POST", cap: "bookings.book" },
+  "/book/availability": { method: "GET", cap: "bookings.availability" },
 };
 const BODY_CAP = 256 * 1024;
 const DEFAULT_SUBMITS_PER_MINUTE = 20;
@@ -93,12 +125,23 @@ const DEFAULT_PER_MINUTE = 120;
 const DEFAULT_UPLOADS_PER_MINUTE = 10;
 const UPLOAD_CAP = 25 * 1024 * 1024;
 
-const esc = (s: string): string => s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+const esc = (s: string): string =>
+  s
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 /** JSON inside a script tag: no `<` can close the tag, and the two line separators stay escaped. */
-const jsonIn = (v: unknown): string => JSON.stringify(v).replaceAll("<", "\\u003c").replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029");
+const jsonIn = (v: unknown): string =>
+  JSON.stringify(v).replaceAll("<", "\\u003c").replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029");
 
 function humanize(field: string): string {
-  const words = field.replace(/[_.-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").trim().toLowerCase();
+  const words = field
+    .replace(/[_.-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .trim()
+    .toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
@@ -107,7 +150,8 @@ function inputType(field: string): { tag: "input" | "textarea"; type: string; au
   if (f === "email" || f.endsWith("_email")) return { tag: "input", type: "email", autocomplete: "email" };
   if (/(^|_)(phone|mobile|tel)(_|$)/.test(f)) return { tag: "input", type: "tel", autocomplete: "tel" };
   if (/(^|_)date(_|$)|_at$|^dob$/.test(f)) return { tag: "input", type: "date" };
-  if (/(^|_)(message|notes?|description|comments?|details|summary)(_|$)/.test(f)) return { tag: "textarea", type: "text" };
+  if (/(^|_)(message|notes?|description|comments?|details|summary)(_|$)/.test(f))
+    return { tag: "textarea", type: "text" };
   if (f === "name" || f === "full_name") return { tag: "input", type: "text", autocomplete: "name" };
   return { tag: "input", type: "text" };
 }
@@ -116,16 +160,25 @@ function inputType(field: string): { tag: "input" | "textarea"; type: string; au
 
 /** A theme value goes into a CSS custom property, so it may not carry anything that could end the declaration or load something. */
 const SAFE_VALUE = /^[#\w\s.,%()'"/-]{1,80}$/;
-const safeCss = (v: unknown): string | undefined => (typeof v === "string" && SAFE_VALUE.test(v) && !/url\s*\(|expression|@import/i.test(v) ? v.trim() : undefined);
-const safeImage = (v: unknown): string | undefined => (typeof v === "string" && /^(https:\/\/|\/)[^\s"'<>()\\]{1,500}$/.test(v) && !v.startsWith("//") ? v : undefined);
+const safeCss = (v: unknown): string | undefined =>
+  typeof v === "string" && SAFE_VALUE.test(v) && !/url\s*\(|expression|@import/i.test(v) ? v.trim() : undefined;
+const safeImage = (v: unknown): string | undefined =>
+  typeof v === "string" && /^(https:\/\/|\/)[^\s"'<>()\\]{1,500}$/.test(v) && !v.startsWith("//") ? v : undefined;
 
 function themeVars(theme: Record<string, unknown> | undefined): string {
   const t = theme ?? {};
   const pairs: [string, string | undefined][] = [
-    ["--vf-accent", safeCss(t.accent)], ["--vf-bg", safeCss(t.background)], ["--vf-text", safeCss(t.text)],
-    ["--vf-font", safeCss(t.font)], ["--vf-radius", safeCss(t.radius)], ["--vf-width", safeCss(t.maxWidth)],
+    ["--vf-accent", safeCss(t.accent)],
+    ["--vf-bg", safeCss(t.background)],
+    ["--vf-text", safeCss(t.text)],
+    ["--vf-font", safeCss(t.font)],
+    ["--vf-radius", safeCss(t.radius)],
+    ["--vf-width", safeCss(t.maxWidth)],
   ];
-  return pairs.filter((p): p is [string, string] => p[1] !== undefined).map(([k, v]) => `${k}:${v}`).join(";");
+  return pairs
+    .filter((p): p is [string, string] => p[1] !== undefined)
+    .map(([k, v]) => `${k}:${v}`)
+    .join(";");
 }
 
 const BASE_CSS = `
@@ -357,33 +410,81 @@ const SCRIPT = String.raw`
 
 // ---- rendering ---------------------------------------------------------------------------------------------------
 
-export interface RenderOpts { view: PublicFormView; page: "form" | "booking"; nonce: string; /** the page's own address on the public path: its calls go there */ base?: string | undefined; captcha?: CaptchaWidget | undefined; uploads: boolean; link?: LinkQuestions | null; token?: string | undefined }
+export interface RenderOpts {
+  view: PublicFormView;
+  page: "form" | "booking";
+  nonce: string;
+  /** the page's own address on the public path: its calls go there */ base?: string | undefined;
+  captcha?: CaptchaWidget | undefined;
+  uploads: boolean;
+  link?: LinkQuestions | null;
+  token?: string | undefined;
+}
 
 function fieldHtml(view: PublicFormView, f: PublicFormView["fields"][number], uploads: boolean): string {
   const name = esc(f.field);
   const prefill = f.prefillKey ? ` data-prefill="${esc(f.prefillKey)}"` : "";
-  if (f.hidden) return `<div class="vf-field" data-for="${name}" hidden><input type="hidden" data-field="${name}"${prefill}></div>`;
-  const required = f.required ? ' data-always-required required' : '';
-  const label = `<label for="vf-${name}">${esc(f.title ?? humanize(f.field))} <span class="vf-req"${f.required ? '' : ' hidden'}>(required)</span></label>`;
+  if (f.hidden)
+    return `<div class="vf-field" data-for="${name}" hidden><input type="hidden" data-field="${name}"${prefill}></div>`;
+  const required = f.required ? " data-always-required required" : "";
+  const label = `<label for="vf-${name}">${esc(f.title ?? humanize(f.field))} <span class="vf-req"${f.required ? "" : " hidden"}>(required)</span></label>`;
   const wrap = (control: string): string => `<div class="vf-field" data-for="${name}">${label}${control}</div>`;
-  if ((f.type === 'relation' || f.type === 'person') && !(f.choices?.length)) return wrap('<p role="note">This question requires publisher-approved record choices. Ask the form owner for help.</p>');
-  if (f.type === 'choice' || f.type === 'status' || f.type === 'multichoice' || f.type === 'relation' || f.type === 'person') {
-    const multiple = f.type === 'multichoice' || f.type === 'relation';   // a relation can relate several records: pick any of the published ones
-    return wrap(`<select id="vf-${name}" data-field="${name}"${multiple ? ' multiple' : ''}${required}${prefill}>${multiple ? '' : '<option value="">Choose an option</option>'}${(f.choices ?? []).map((choice) => `<option value="${esc(choice.key)}">${esc(choice.title)}</option>`).join('')}</select>`);
+  if ((f.type === "relation" || f.type === "person") && !f.choices?.length)
+    return wrap(
+      '<p role="note">This question requires publisher-approved record choices. Ask the form owner for help.</p>',
+    );
+  if (
+    f.type === "choice" ||
+    f.type === "status" ||
+    f.type === "multichoice" ||
+    f.type === "relation" ||
+    f.type === "person"
+  ) {
+    const multiple = f.type === "multichoice" || f.type === "relation"; // a relation can relate several records: pick any of the published ones
+    return wrap(
+      `<select id="vf-${name}" data-field="${name}"${multiple ? " multiple" : ""}${required}${prefill}>${multiple ? "" : '<option value="">Choose an option</option>'}${(f.choices ?? []).map((choice) => `<option value="${esc(choice.key)}">${esc(choice.title)}</option>`).join("")}</select>`,
+    );
   }
-  if (f.type === 'boolean' || f.type === 'bool' || f.type === 'checkbox') return wrap(`<select id="vf-${name}" data-field="${name}"${required}${prefill}><option value="">Choose an answer</option><option value="true">Yes</option><option value="false">No</option></select>`);
-  const typed = ({ number: 'number', integer: 'number', currency: 'number', percent: 'number', rating: 'number', date: 'date', datetime: 'datetime-local', email: 'email', phone: 'tel', url: 'url' } as Record<string, string>)[f.type ?? ''];
-  if (typed) return wrap(`<input id="vf-${name}" type="${typed}" data-field="${name}"${required}${typed === 'number' ? (f.type === 'integer' || f.type === 'rating' ? ' step="1"' : ' step="any"') : ''}${f.type === 'rating' ? ' min="1" max="5"' : ''}${prefill}>`);
+  if (f.type === "boolean" || f.type === "bool" || f.type === "checkbox")
+    return wrap(
+      `<select id="vf-${name}" data-field="${name}"${required}${prefill}><option value="">Choose an answer</option><option value="true">Yes</option><option value="false">No</option></select>`,
+    );
+  const typed = (
+    {
+      number: "number",
+      integer: "number",
+      currency: "number",
+      percent: "number",
+      rating: "number",
+      date: "date",
+      datetime: "datetime-local",
+      email: "email",
+      phone: "tel",
+      url: "url",
+    } as Record<string, string>
+  )[f.type ?? ""];
+  if (typed)
+    return wrap(
+      `<input id="vf-${name}" type="${typed}" data-field="${name}"${required}${typed === "number" ? (f.type === "integer" || f.type === "rating" ? ' step="1"' : ' step="any"') : ""}${f.type === "rating" ? ' min="1" max="5"' : ""}${prefill}>`,
+    );
   if (uploads && view.upload?.folderId !== undefined && view.upload.fields.includes(f.field)) {
     const accept = view.upload.types.length > 0 ? ` accept="${esc(view.upload.types.join(","))}"` : "";
     return `<div class="vf-field" data-for="${name}">${label}<input id="vf-${name}" type="file" data-field="${name}"${required}${accept}${prefill}><span class="vf-hint"></span></div>`;
   }
-  if ((f.type === "file" || f.type === "files") && (!uploads || !view.upload?.folderId || !view.upload.fields.includes(f.field))) return wrap("<p>File uploads are not configured for this form. Ask the form owner for help.</p>");
-  const t = f.type === "longtext" || f.type === "richtext" || f.type === "markdown" ? { tag: "textarea", type: "text", autocomplete: undefined } : inputType(f.field);
+  if (
+    (f.type === "file" || f.type === "files") &&
+    (!uploads || !view.upload?.folderId || !view.upload.fields.includes(f.field))
+  )
+    return wrap("<p>File uploads are not configured for this form. Ask the form owner for help.</p>");
+  const t =
+    f.type === "longtext" || f.type === "richtext" || f.type === "markdown"
+      ? { tag: "textarea", type: "text", autocomplete: undefined }
+      : inputType(f.field);
   const auto = t.autocomplete ? ` autocomplete="${t.autocomplete}"` : "";
-  const control = t.tag === "textarea"
-    ? `<textarea id="vf-${name}" data-field="${name}" maxlength="10000"${required}${prefill}></textarea>`
-    : `<input id="vf-${name}" type="${t.type}" data-field="${name}" maxlength="10000"${required}${auto}${prefill}>`;
+  const control =
+    t.tag === "textarea"
+      ? `<textarea id="vf-${name}" data-field="${name}" maxlength="10000"${required}${prefill}></textarea>`
+      : `<input id="vf-${name}" type="${t.type}" data-field="${name}" maxlength="10000"${required}${auto}${prefill}>`;
   return `<div class="vf-field" data-for="${name}">${label}${control}</div>`;
 }
 
@@ -403,19 +504,31 @@ export function renderFormPage(o: RenderOpts): string {
   const authored = template && template.ok ? template : null;
   const body = authored
     ? `<fieldset data-step="0" style="border:0;margin:0;padding:0">${authoredBody(view, fields, authored.pieces, o.uploads)}</fieldset>`
-    : groups.map((g, i) => `<fieldset data-step="${i}" style="border:0;margin:0;padding:0"${i === 0 ? "" : " hidden"}>${g.map((f) => fieldHtml(view, f, o.uploads)).join("")}</fieldset>`).join("");
+    : groups
+        .map(
+          (g, i) =>
+            `<fieldset data-step="${i}" style="border:0;margin:0;padding:0"${i === 0 ? "" : " hidden"}>${g.map((f) => fieldHtml(view, f, o.uploads)).join("")}</fieldset>`,
+        )
+        .join("");
   const cap = o.captcha && view.captcha ? o.captcha : undefined;
-  const data = { ...(o.base ? { base: o.base } : {}),
-    slug: view.slug, kind: view.kind, captcha: view.captcha,
-    ...(view.logic ? { logic: view.logic } : {}), ...(view.thankYou ? { thankYou: view.thankYou } : {}), ...(view.upload ? { upload: { maxBytes: view.upload.maxBytes, types: view.upload.types } } : {}),
-    ...(o.token ? { token: o.token } : {}), ...(link?.partial ? { partial: link.partial.answers, partialStep: link.partial.step ?? 0 } : {}),
+  const data = {
+    ...(o.base ? { base: o.base } : {}),
+    slug: view.slug,
+    kind: view.kind,
+    captcha: view.captcha,
+    ...(view.logic ? { logic: view.logic } : {}),
+    ...(view.thankYou ? { thankYou: view.thankYou } : {}),
+    ...(view.upload ? { upload: { maxBytes: view.upload.maxBytes, types: view.upload.types } } : {}),
+    ...(o.token ? { token: o.token } : {}),
+    ...(link?.partial ? { partial: link.partial.answers, partialStep: link.partial.step ?? 0 } : {}),
   };
   const vars = themeVars(view.theme);
   const cover = safeImage(view.theme?.cover);
   const custom = (view.css ?? "").replaceAll("<", "\\3c ");
   const booking = o.page === "booking";
   const consent = view.consentText
-    ? `<div class="vf-consent"><input id="vf-consent" type="checkbox" data-always-required required><label for="vf-consent" style="font-weight:400;margin:0">${esc(view.consentText)}</label></div>` : "";
+    ? `<div class="vf-consent"><input id="vf-consent" type="checkbox" data-always-required required><label for="vf-consent" style="font-weight:400;margin:0">${esc(view.consentText)}</label></div>`
+    : "";
   return `<!doctype html>
 <html lang="en"${vars ? " data-themed" : ""}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>${esc(view.name)}</title>
@@ -444,16 +557,26 @@ ${authoredJs(view) ? `<script nonce="${nonce}">${authoredJs(view)}</script>` : "
 `;
 }
 
-
 /** The author's pieces with the form's inputs in place. Links that open a new tab get rel="noopener noreferrer". */
-function authoredBody(view: PublicFormView, fields: PublicFormView["fields"], pieces: readonly ({ type: "html"; html: string } | { type: "field"; name: string })[], uploads: boolean): string {
+function authoredBody(
+  view: PublicFormView,
+  fields: PublicFormView["fields"],
+  pieces: readonly ({ type: "html"; html: string } | { type: "field"; name: string })[],
+  uploads: boolean,
+): string {
   const byName = new Map(fields.map((f) => [f.field, f]));
   const placed = new Set<string>();
   let out = "";
   for (const p of pieces) {
-    if (p.type === "html") { out += p.html.replace(/(<a\b[^>]*?)target="_blank"/g, '$1target="_blank" rel="noopener noreferrer"'); continue; }
+    if (p.type === "html") {
+      out += p.html.replace(/(<a\b[^>]*?)target="_blank"/g, '$1target="_blank" rel="noopener noreferrer"');
+      continue;
+    }
     const f = byName.get(p.name);
-    if (f) { placed.add(p.name); out += fieldHtml(view, f, uploads); }   // a name that is no longer a question (Build removed it) is simply not drawn
+    if (f) {
+      placed.add(p.name);
+      out += fieldHtml(view, f, uploads);
+    } // a name that is no longer a question (Build removed it) is simply not drawn
   }
   for (const f of fields) if (!placed.has(f.field)) out += fieldHtml(view, f, uploads);
   return out;
@@ -471,12 +594,22 @@ function policyHeader(nonce: string, cap?: CaptchaWidget, sandboxed = false, con
   return [
     // A form with its author's own JavaScript runs in an opaque origin: it cannot read this Space's storage or tokens when a signed-in member opens the page, and it reaches only the public form addresses (which allow any origin)
     ...(sandboxed ? ["sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"] : []),
-    "default-src 'none'", `script-src 'nonce-${nonce}'${origin ? ` ${origin}` : ""}`, "style-src 'unsafe-inline'", "img-src 'self' https: data:", "font-src data:",
-    `connect-src ${connect}`, `frame-src ${origin || "'none'"}`, "form-action 'none'", "base-uri 'none'", "frame-ancestors *",
+    "default-src 'none'",
+    `script-src 'nonce-${nonce}'${origin ? ` ${origin}` : ""}`,
+    "style-src 'unsafe-inline'",
+    "img-src 'self' https: data:",
+    "font-src data:",
+    `connect-src ${connect}`,
+    `frame-src ${origin || "'none'"}`,
+    "form-action 'none'",
+    "base-uri 'none'",
+    "frame-ancestors *",
   ].join("; ");
 }
 
-export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
+export function createFormsPageRoute(deps: FormsPageDeps): {
+  handle(req: http.IncomingMessage, res: http.ServerResponse): boolean;
+} {
   const perMinute = deps.perMinute ?? DEFAULT_PER_MINUTE;
   const uploadsPerMinute = deps.uploadsPerMinute ?? DEFAULT_UPLOADS_PER_MINUTE;
   const submitsPerMinute = deps.submitsPerMinute ?? DEFAULT_SUBMITS_PER_MINUTE;
@@ -489,16 +622,30 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
     const limit = bucket === "page" ? perMinute : bucket === "upload" ? uploadsPerMinute : submitsPerMinute;
     const key = `${bucket}:${source}`;
     const mine = (hits.get(key) ?? []).filter((at) => at > t - 60_000);
-    if (mine.length >= limit) { hits.set(key, mine); return Math.max(1, Math.ceil(((mine[0] as number) + 60_000 - t) / 1000)); }
+    if (mine.length >= limit) {
+      hits.set(key, mine);
+      return Math.max(1, Math.ceil(((mine[0] as number) + 60_000 - t) / 1000));
+    }
     mine.push(t);
     hits.set(key, mine);
     if (hits.size > 10_000) for (const [k, v] of hits) if (!v.some((at) => at > t - 60_000)) hits.delete(k);
     return 0;
   }
 
-  function reply(res: http.ServerResponse, code: ErrorCode, status: number, message?: string, extra: Record<string, string> = {}): void {
+  function reply(
+    res: http.ServerResponse,
+    code: ErrorCode,
+    status: number,
+    message?: string,
+    extra: Record<string, string> = {},
+  ): void {
     const body = JSON.stringify({ error: makeError(code, TRACE, message ? { message } : {}) });
-    res.writeHead(status, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(body), "cache-control": "no-store", ...extra });
+    res.writeHead(status, {
+      "content-type": "application/json; charset=utf-8",
+      "content-length": Buffer.byteLength(body),
+      "cache-control": "no-store",
+      ...extra,
+    });
     res.end(body);
   }
 
@@ -510,16 +657,27 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
     return { caller: { kind: "actor", id: `act_anon_${sha256Hex(source).slice(0, 16)}` }, source };
   }
 
-  async function page(req: http.IncomingMessage, res: http.ServerResponse, method: string, kind: "f" | "book", slug: string, query: URLSearchParams): Promise<void> {
+  async function page(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    method: string,
+    kind: "f" | "book",
+    slug: string,
+    query: URLSearchParams,
+  ): Promise<void> {
     const { caller, source } = callerOf(req);
     const wait = allowed(source);
-    if (wait > 0) return reply(res, "rate_limit.exceeded", 429, "Too many page views just now. Try again in a minute.", { "retry-after": String(wait) });
+    if (wait > 0)
+      return reply(res, "rate_limit.exceeded", 429, "Too many page views just now. Try again in a minute.", {
+        "retry-after": String(wait),
+      });
     const view = await deps.read(slug, kind === "f" ? "form" : "booking", caller);
     if (!view) return reply(res, "validation.not_found", 404, "That form is not open.");
     let link: LinkQuestions | null = null;
     const token = query.get("t") ?? undefined;
     if (view.kind === "one_use" || token !== undefined) {
-      if (token === undefined || !deps.link) return reply(res, "auth.invalid_code", 403, "This form opens only from the link that was sent to you.");
+      if (token === undefined || !deps.link)
+        return reply(res, "auth.invalid_code", 403, "This form opens only from the link that was sent to you.");
       link = await deps.link(slug, token, caller);
       if (!link) return reply(res, "auth.invalid_code", 403, "This link is not valid any more. Ask for a new one.");
     }
@@ -527,85 +685,169 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
     // the public path sets this itself (host/src/routes/public-path.ts): the page's own address, which is where its calls go, and the origin they may reach from an opaque page
     const base = typeof req.headers["x-vyre-public-base"] === "string" ? req.headers["x-vyre-public-base"] : undefined;
     const origin = typeof req.headers["x-vyre-public-origin"] === "string" ? req.headers["x-vyre-public-origin"] : "";
-    const html = renderFormPage({ view, page: kind === "f" ? "form" : "booking", nonce, captcha: deps.captcha, uploads: deps.upload !== undefined, link, token, ...(base ? { base } : {}) });
+    const html = renderFormPage({
+      view,
+      page: kind === "f" ? "form" : "booking",
+      nonce,
+      captcha: deps.captcha,
+      uploads: deps.upload !== undefined,
+      link,
+      token,
+      ...(base ? { base } : {}),
+    });
     res.writeHead(200, {
-      "content-type": "text/html; charset=utf-8", "content-length": Buffer.byteLength(html), "cache-control": "no-store", "x-content-type-options": "nosniff",
-      "content-security-policy": policyHeader(nonce, view.captcha ? deps.captcha : undefined, authoredJs(view) !== "", base && origin ? `'self' ${origin}` : "'self'"), "referrer-policy": "strict-origin-when-cross-origin",
+      "content-type": "text/html; charset=utf-8",
+      "content-length": Buffer.byteLength(html),
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+      "content-security-policy": policyHeader(
+        nonce,
+        view.captcha ? deps.captcha : undefined,
+        authoredJs(view) !== "",
+        base && origin ? `'self' ${origin}` : "'self'",
+      ),
+      "referrer-policy": "strict-origin-when-cross-origin",
     });
     res.end(method === "HEAD" ? undefined : html);
   }
 
   /** A public capability for a visitor with no session (POST /f/submit, POST /book/create, GET /book/availability). */
-  async function publicCall(req: http.IncomingMessage, res: http.ServerResponse, url: URL, def: (typeof CAPS)[string]): Promise<void> {
+  async function publicCall(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    url: URL,
+    def: (typeof CAPS)[string],
+  ): Promise<void> {
     const { caller, source } = callerOf(req);
     const wait = allowed(source, "submit");
-    if (wait > 0) return reply(res, "rate_limit.exceeded", 429, "Too many submissions just now. Try again in a minute.", { "retry-after": String(wait) });
+    if (wait > 0)
+      return reply(res, "rate_limit.exceeded", 429, "Too many submissions just now. Try again in a minute.", {
+        "retry-after": String(wait),
+      });
     let input: Record<string, unknown> = {};
     if (def.method === "GET") {
       const q = url.searchParams;
-      input = { slug: q.get("slug") ?? "", tz: q.get("tz") ?? "", from: Number(q.get("from")), to: Number(q.get("to")) };
+      input = {
+        slug: q.get("slug") ?? "",
+        tz: q.get("tz") ?? "",
+        from: Number(q.get("from")),
+        to: Number(q.get("to")),
+      };
     } else {
-      if (Number(req.headers["content-length"] ?? "0") > BODY_CAP) return reply(res, "validation.too_large", 413, "That is too large to send.", { connection: "close" });
+      if (Number(req.headers["content-length"] ?? "0") > BODY_CAP)
+        return reply(res, "validation.too_large", 413, "That is too large to send.", { connection: "close" });
       const chunks: Buffer[] = [];
       let size = 0;
       for await (const c of req) {
         size += (c as Buffer).length;
-        if (size > BODY_CAP) { reply(res, "validation.too_large", 413, "That is too large to send.", { connection: "close" }); req.destroy(); return; }
+        if (size > BODY_CAP) {
+          reply(res, "validation.too_large", 413, "That is too large to send.", { connection: "close" });
+          req.destroy();
+          return;
+        }
         chunks.push(c as Buffer);
       }
       try {
         const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
         if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
         input = parsed as Record<string, unknown>;
-      } catch { return reply(res, "validation.bad_input", 400, "The request body is not JSON."); }
+      } catch {
+        return reply(res, "validation.bad_input", 400, "The request body is not JSON.");
+      }
     }
     // who the visitor is comes from the socket, never from what the client sent
     delete input["visitor"];
     if (def.cap === "forms.submit") input["visitor"] = caller.id;
-    if (def.method === "POST" && typeof input["idempotencyKey"] !== "string") input["idempotencyKey"] = globalThis.crypto.randomUUID();
+    if (def.method === "POST" && typeof input["idempotencyKey"] !== "string")
+      input["idempotencyKey"] = globalThis.crypto.randomUUID();
     // the trace id comes from a signed-out visitor, so it is untrusted: only "<32 lowercase hex>-<16 lowercase hex>" with neither part all zeros is kept; anything else gets a fresh id from the
     // pipeline and the rejected value is never echoed back
     const sent = /^([0-9a-f]{32})-([0-9a-f]{16})$/.exec(String(req.headers["x-vyre-trace"] ?? ""));
-    const trace = sent && !/^0+$/.test(sent[1] as string) && !/^0+$/.test(sent[2] as string) ? { traceId: sent[1] as string, spanId: sent[2] as string } : undefined;
+    const trace =
+      sent && !/^0+$/.test(sent[1] as string) && !/^0+$/.test(sent[2] as string)
+        ? { traceId: sent[1] as string, spanId: sent[2] as string }
+        : undefined;
     try {
       const data = await deps.call!(def.cap, input, caller, trace);
       const body = JSON.stringify({ data });
-      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(body), "cache-control": "no-store", ...(trace ? { "x-vyre-trace": `${trace.traceId}-${trace.spanId}` } : {}) });
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": Buffer.byteLength(body),
+        "cache-control": "no-store",
+        ...(trace ? { "x-vyre-trace": `${trace.traceId}-${trace.spanId}` } : {}),
+      });
       res.end(body);
     } catch (e) {
       const err = (e as { error?: { code?: string } }).error;
       if (err?.code === undefined || !isKnownCode(err.code)) throw e;
       const body = JSON.stringify({ error: err });
-      res.writeHead(httpOf(err.code), { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(body), "cache-control": "no-store" });
+      res.writeHead(httpOf(err.code), {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": Buffer.byteLength(body),
+        "cache-control": "no-store",
+      });
       res.end(body);
     }
   }
 
-  async function upload(req: http.IncomingMessage, res: http.ServerResponse, slug: string, token: string | undefined): Promise<void> {
+  async function upload(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    slug: string,
+    token: string | undefined,
+  ): Promise<void> {
     const { caller, source } = callerOf(req);
     const wait = Math.max(allowed(source), allowed(source, "upload"));
-    if (wait > 0) return reply(res, "rate_limit.exceeded", 429, "Too many uploads just now. Try again in a minute.", { "retry-after": String(wait) });
+    if (wait > 0)
+      return reply(res, "rate_limit.exceeded", 429, "Too many uploads just now. Try again in a minute.", {
+        "retry-after": String(wait),
+      });
     const view = await deps.read(slug, "form", caller);
-    if (!view || !deps.upload || !view.upload?.folderId) return reply(res, "validation.not_found", 404, "That form is not open.");
+    if (!view || !deps.upload || !view.upload?.folderId)
+      return reply(res, "validation.not_found", 404, "That form is not open.");
     const policy = view.upload;
     const cap = Math.min(policy?.maxBytes ?? UPLOAD_CAP, UPLOAD_CAP);
     const declared = Number(req.headers["content-length"] ?? "NaN");
-    if (Number.isFinite(declared) && declared > cap) return reply(res, "validation.too_large", 413, `That file is over the ${Math.floor(cap / 1024)} KB limit.`);
+    if (Number.isFinite(declared) && declared > cap)
+      return reply(res, "validation.too_large", 413, `That file is over the ${Math.floor(cap / 1024)} KB limit.`);
     let name = "upload";
-    try { name = decodeURIComponent(String(req.headers["x-file-name"] ?? "upload")).replace(/[\\/\0]/g, "_").slice(0, 200) || "upload"; } catch { /* keep the default */ }
-    const type = String(req.headers["content-type"] ?? "application/octet-stream").split(";")[0]?.trim().toLowerCase() ?? "application/octet-stream";
-    if (policy && !typeAllowed(policy.types, type, name)) return reply(res, "validation.bad_input", 415, "That kind of file is not accepted here.");
+    try {
+      name =
+        decodeURIComponent(String(req.headers["x-file-name"] ?? "upload"))
+          .replace(/[\\/\0]/g, "_")
+          .slice(0, 200) || "upload";
+    } catch {
+      /* keep the default */
+    }
+    const type =
+      String(req.headers["content-type"] ?? "application/octet-stream")
+        .split(";")[0]
+        ?.trim()
+        .toLowerCase() ?? "application/octet-stream";
+    if (policy && !typeAllowed(policy.types, type, name))
+      return reply(res, "validation.bad_input", 415, "That kind of file is not accepted here.");
     const chunks: Buffer[] = [];
     let size = 0;
     for await (const c of req) {
       size += (c as Buffer).length;
-      if (size > cap) { reply(res, "validation.too_large", 413, `That file is over the ${Math.floor(cap / 1024)} KB limit.`, { connection: "close" }); req.destroy(); return; }
+      if (size > cap) {
+        reply(res, "validation.too_large", 413, `That file is over the ${Math.floor(cap / 1024)} KB limit.`, {
+          connection: "close",
+        });
+        req.destroy();
+        return;
+      }
       chunks.push(c as Buffer);
     }
     if (size === 0) return reply(res, "validation.bad_input", 400, "That file is empty.");
     let fileId: string;
     try {
-      fileId = await deps.upload(slug, { name, type, bytes: new Uint8Array(Buffer.concat(chunks)), folderId: view.upload.folderId }, caller, token);
+      fileId = await deps.upload(
+        slug,
+        { name, type, bytes: new Uint8Array(Buffer.concat(chunks)), folderId: view.upload.folderId },
+        caller,
+        token,
+      );
     } catch (e) {
       // the forms module's own refusals (this form takes no more files today) keep their code and status
       const err = (e as { error?: { code?: string; message?: string } }).error;
@@ -613,7 +855,11 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
       throw e;
     }
     const body = JSON.stringify({ data: { fileId } });
-    res.writeHead(200, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(body), "cache-control": "no-store" });
+    res.writeHead(200, {
+      "content-type": "application/json; charset=utf-8",
+      "content-length": Buffer.byteLength(body),
+      "cache-control": "no-store",
+    });
     res.end(body);
   }
 
@@ -622,7 +868,12 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
     res.setHeader("access-control-allow-origin", "*");
     res.setHeader("access-control-expose-headers", "x-vyre-trace, retry-after");
     if ((req.method ?? "").toUpperCase() !== "OPTIONS") return false;
-    res.writeHead(204, { "access-control-allow-methods": `${methods}, OPTIONS`, "access-control-allow-headers": "content-type, x-file-name, x-vyre-trace", "access-control-max-age": "600", "content-length": "0" });
+    res.writeHead(204, {
+      "access-control-allow-methods": `${methods}, OPTIONS`,
+      "access-control-allow-headers": "content-type, x-file-name, x-vyre-trace",
+      "access-control-max-age": "600",
+      "content-length": "0",
+    });
     res.end();
     return true;
   }
@@ -635,17 +886,29 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
       if (cap && deps.call && cors(req, res, cap.method)) return true;
       if (!cap && UPLOAD.test(url.pathname) && cors(req, res, "POST")) return true;
       if (cap && deps.call) {
-        if (method !== cap.method) { reply(res, "validation.bad_input", 405, `This address takes ${cap.method}.`, { allow: cap.method }); return true; }
-        void publicCall(req, res, url, cap).catch(() => { if (!res.headersSent) reply(res, "internal.unexpected", 500); else res.end(); });
+        if (method !== cap.method) {
+          reply(res, "validation.bad_input", 405, `This address takes ${cap.method}.`, { allow: cap.method });
+          return true;
+        }
+        void publicCall(req, res, url, cap).catch(() => {
+          if (!res.headersSent) reply(res, "internal.unexpected", 500);
+          else res.end();
+        });
         return true;
       }
       const up = UPLOAD.exec(url.pathname);
       const m = PAGE.exec(url.pathname);
       if (!up && !m) return false;
       if (m && RESERVED.has(m[2] as string)) return false;
-      const fail500 = (): void => { if (!res.headersSent) reply(res, "internal.unexpected", 500); else res.end(); };
+      const fail500 = (): void => {
+        if (!res.headersSent) reply(res, "internal.unexpected", 500);
+        else res.end();
+      };
       if (up) {
-        if (method !== "POST") { reply(res, "validation.bad_input", 405, "Files are sent with POST.", { allow: "POST" }); return true; }
+        if (method !== "POST") {
+          reply(res, "validation.bad_input", 405, "Files are sent with POST.", { allow: "POST" });
+          return true;
+        }
         void upload(req, res, up[1] as string, url.searchParams.get("t") ?? undefined).catch(fail500);
         return true;
       }
@@ -654,7 +917,14 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
         reply(res, "validation.bad_input", 405, "This address is read with GET.", { allow: "GET, HEAD" });
         return true;
       }
-      void page(req, res, method, (m as RegExpExecArray)[1] as "f" | "book", (m as RegExpExecArray)[2] as string, url.searchParams).catch(fail500);
+      void page(
+        req,
+        res,
+        method,
+        (m as RegExpExecArray)[1] as "f" | "book",
+        (m as RegExpExecArray)[2] as string,
+        url.searchParams,
+      ).catch(fail500);
       return true;
     },
   };

@@ -8,10 +8,17 @@ import { configureBackup, handlers } from "../modules/backup/handlers/index.ts";
 
 afterEach(() => configureBackup(null));
 
-const hostSeam = (owner) => createBackupHost({
-  root: "/nonexistent", space: "spc_core", log: { currentHead: async () => ({ seq: 0, hash: "" }), read: async () => [] },
-  owner, system: async () => ({}), vault: { secret: async () => "", signRs256: async () => "" }, blobs: { put: async () => "blb_x" }, fetch: async () => ({ status: 500, text: async () => "", arrayBuffer: async () => new ArrayBuffer(0) }),
-});
+const hostSeam = (owner) =>
+  createBackupHost({
+    root: "/nonexistent",
+    space: "spc_core",
+    log: { currentHead: async () => ({ seq: 0, hash: "" }), read: async () => [] },
+    owner,
+    system: async () => ({}),
+    vault: { secret: async () => "", signRs256: async () => "" },
+    blobs: { put: async () => "blb_x" },
+    fetch: async () => ({ status: 500, text: async () => "", arrayBuffer: async () => new ArrayBuffer(0) }),
+  });
 const sourceWith = (w, owner) => Object.create(w.space, { owner: { value: hostSeam(owner).source.owner } });
 const exportStart = (ctx) => handlers["backup.export_start"](ctx, {});
 
@@ -31,6 +38,9 @@ test("with no owner, backup.export_start refuses and saves nothing", async () =>
   const w = world();
   configureBackup({ ...w.drivers, source: sourceWith(w, () => null) });
   assert.equal(await hostSeam(() => null).source.owner(), "", "no owner is the empty string");
-  await assert.rejects(() => exportStart(w.ctx), (e) => e.error?.code === "permission.no_grant");
+  await assert.rejects(
+    () => exportStart(w.ctx),
+    (e) => e.error?.code === "permission.no_grant",
+  );
   assert.deepEqual(w.saved, []);
 });

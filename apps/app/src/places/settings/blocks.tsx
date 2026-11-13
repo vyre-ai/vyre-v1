@@ -9,7 +9,17 @@ import { SettingRowFor } from "./rows.tsx";
 import { Section } from "./ui.tsx";
 
 /** The rows of the registry that belong to a page, grouped under their headings. `found` is the key the search is pointing at. */
-export function RegistrySections({ page, rows, found, skip = [] }: { page: YouPage; rows: readonly SettingRow[]; found?: string | null; skip?: readonly string[] }): ReactElement {
+export function RegistrySections({
+  page,
+  rows,
+  found,
+  skip = [],
+}: {
+  page: YouPage;
+  rows: readonly SettingRow[];
+  found?: string | null;
+  skip?: readonly string[];
+}): ReactElement {
   const parts: ReactElement[] = [];
   const personal = useIsPersonal();
   for (const sec of sectionsFor(page, rows)) {
@@ -17,7 +27,11 @@ export function RegistrySections({ page, rows, found, skip = [] }: { page: YouPa
     if (list.length === 0) continue;
     const items: ReactElement[] = [];
     list.forEach((r, i) => items.push(<SettingRowFor key={r.key} row={r} first={i === 0} found={found === r.key} />));
-    parts.push(<Section key={sec.title} title={sec.title}>{items}</Section>);
+    parts.push(
+      <Section key={sec.title} title={sec.title}>
+        {items}
+      </Section>,
+    );
   }
   return <>{parts}</>;
 }
@@ -26,11 +40,22 @@ export function RegistrySections({ page, rows, found, skip = [] }: { page: YouPa
 export function useRead<T>(cap: string, input: unknown = {}): T | null {
   const data = useSettingsData();
   const key = JSON.stringify(input);
-  const [out, setOut] = useState<T | null>(() => (data.peek?.(cap, JSON.parse(key) as unknown) as T | undefined) ?? null);
+  const [out, setOut] = useState<T | null>(
+    () => (data.peek?.(cap, JSON.parse(key) as unknown) as T | undefined) ?? null,
+  );
   useEffect(() => {
     let live = true;
-    void data.call(cap, JSON.parse(key) as unknown).then((v) => { if (live) setOut(v as T); }).catch(() => { if (live) setOut(null); });
-    return () => { live = false; };
+    void data
+      .call(cap, JSON.parse(key) as unknown)
+      .then((v) => {
+        if (live) setOut(v as T);
+      })
+      .catch(() => {
+        if (live) setOut(null);
+      });
+    return () => {
+      live = false;
+    };
   }, [data, cap, key]);
   return out;
 }
@@ -39,7 +64,15 @@ export function Bar({ ratio, tone = "accent" }: { ratio: number; tone?: "accent"
   const pct = Math.max(0, Math.min(1, ratio));
   return (
     <View style={s.track} aria-hidden>
-      <View style={[s.fill, { width: `${Math.round(pct * 100)}%` as unknown as number, backgroundColor: (tone === "warn" ? "var(--warn)" : "var(--accent)") as string }]} />
+      <View
+        style={[
+          s.fill,
+          {
+            width: `${Math.round(pct * 100)}%` as unknown as number,
+            backgroundColor: (tone === "warn" ? "var(--warn)" : "var(--accent)") as string,
+          },
+        ]}
+      />
     </View>
   );
 }

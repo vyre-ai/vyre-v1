@@ -3,7 +3,10 @@
 import type { MembersCtx } from "../projections.ts";
 import { me, policyDrop, policyGet, policyPut, raise } from "../projections.ts";
 
-interface GithubApp { clientId: string; secretHandle: string }
+interface GithubApp {
+  clientId: string;
+  secretHandle: string;
+}
 const KEY = "github_app";
 const CLIENT_ID = /^[A-Za-z0-9._-]{8,80}$/;
 
@@ -11,19 +14,25 @@ function answer(ctx: MembersCtx) {
   const saved = policyGet<GithubApp>(ctx, KEY);
   const env = ctx.githubApp?.envClientId() ?? null;
   const callbackUrl = ctx.githubApp?.callbackUrl() ?? "";
-  const q = new URLSearchParams({ "oauth_application[name]": "Vyre sign-in", "oauth_application[url]": callbackUrl.replace(/\/auth\/github\/callback$/, ""), "oauth_application[callback_url]": callbackUrl });
+  const q = new URLSearchParams({
+    "oauth_application[name]": "Vyre sign-in",
+    "oauth_application[url]": callbackUrl.replace(/\/auth\/github\/callback$/, ""),
+    "oauth_application[callback_url]": callbackUrl,
+  });
   return {
     github: {
-      ...(env ?? saved?.clientId ? { clientId: (env ?? saved!.clientId) } : {}),
+      ...((env ?? saved?.clientId) ? { clientId: env ?? saved!.clientId } : {}),
       secretSet: env !== null || !!saved?.secretHandle,
-      source: env !== null ? "env" as const : saved ? "space" as const : "none" as const,
+      source: env !== null ? ("env" as const) : saved ? ("space" as const) : ("none" as const),
       callbackUrl,
       createUrl: `https://github.com/settings/applications/new?${q}`,
     },
   };
 }
 
-export async function githubGet(ctx: MembersCtx, _input: Record<string, never>) { return answer(ctx); }
+export async function githubGet(ctx: MembersCtx, _input: Record<string, never>) {
+  return answer(ctx);
+}
 
 export async function githubSet(ctx: MembersCtx, input: { clientId: string; clientSecret?: string }) {
   const tid = ctx.trace.traceId;
@@ -32,19 +41,32 @@ export async function githubSet(ctx: MembersCtx, input: { clientId: string; clie
   const clientId = input.clientId.trim();
   if (!CLIENT_ID.test(clientId)) raise(tid, "validation.bad_input", "That does not look like a GitHub client id.");
   const secret = input.clientSecret?.trim();
-  if (secret !== undefined && (secret.length < 20 || secret.length > 200 || /\s/.test(secret))) raise(tid, "validation.bad_input", "That does not look like a GitHub client secret.");
+  if (secret !== undefined && (secret.length < 20 || secret.length > 200 || /\s/.test(secret)))
+    raise(tid, "validation.bad_input", "That does not look like a GitHub client secret.");
   const prev = policyGet<GithubApp>(ctx, KEY);
-  if (!secret && !prev?.secretHandle) raise(tid, "validation.bad_input", "Paste the client secret too; it is kept in the Vault and not shown again.");
+  if (!secret && !prev?.secretHandle)
+    raise(tid, "validation.bad_input", "Paste the client secret too; it is kept in the Vault and not shown again.");
   const secretHandle = secret ? await ctx.githubApp.storeSecret(secret) : prev!.secretHandle;
   policyPut(ctx, KEY, { clientId, secretHandle } satisfies GithubApp);
-  ctx.emit("policy.changed", "sign_in.github_app", { key: "sign_in.github_app", scope: "space", kind: "sign_in", by: who.id });
+  ctx.emit("policy.changed", "sign_in.github_app", {
+    key: "sign_in.github_app",
+    scope: "space",
+    kind: "sign_in",
+    by: who.id,
+  });
   await ctx.githubApp.reload();
   return answer(ctx);
 }
 
 export async function githubClear(ctx: MembersCtx, _input: Record<string, never>) {
   const who = me(ctx);
-  if (policyDrop(ctx, KEY)) ctx.emit("policy.changed", "sign_in.github_app", { key: "sign_in.github_app", scope: "space", kind: "sign_in", by: who.id });
+  if (policyDrop(ctx, KEY))
+    ctx.emit("policy.changed", "sign_in.github_app", {
+      key: "sign_in.github_app",
+      scope: "space",
+      kind: "sign_in",
+      by: who.id,
+    });
   await ctx.githubApp?.reload();
   return answer(ctx);
 }

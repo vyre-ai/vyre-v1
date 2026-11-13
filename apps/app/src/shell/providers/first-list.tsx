@@ -11,28 +11,60 @@ import { VirtualList } from "../../../../../ui/src/VirtualList/index.tsx";
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 
-export interface FirstList { screen: string; query: string; state?: Record<string, unknown>; title: string; empty: string; icon: "inbox" | "files" | "records" | "chat" | "search" | "done" }
+export interface FirstList {
+  screen: string;
+  query: string;
+  state?: Record<string, unknown>;
+  title: string;
+  empty: string;
+  icon: "inbox" | "files" | "records" | "chat" | "search" | "done";
+}
 
 /** The main list of each place, by the place's id in the app routes (src/startup/places.ts). Each is a live query of a generated screen. */
 export const FIRST_LISTS: Readonly<Record<string, FirstList>> = {
   chat: { screen: "chats.sidebar", query: "recent", title: "Chats", empty: "No chats yet.", icon: "chat" },
   mail: { screen: "inbox.contact-list", query: "rows", title: "Inbox", empty: "Nothing in your inbox.", icon: "inbox" },
-  records: { screen: "records.saved-views", query: "views", title: "Records", empty: "No saved views yet.", icon: "records" },
+  records: {
+    screen: "records.saved-views",
+    query: "views",
+    title: "Records",
+    empty: "No saved views yet.",
+    icon: "records",
+  },
   files: { screen: "files.list", query: "items", title: "Files", empty: "No files here yet.", icon: "files" },
   sites: { screen: "apps.sites", query: "sites", title: "Apps", empty: "No sites or apps yet.", icon: "search" },
-  automations: { screen: "automations.sidebar", query: "automations", title: "Automations", empty: "No automations yet.", icon: "done" },
-  vault: { screen: "vault.layout", query: "items", title: "Vault", empty: "Nothing in your Vault yet.", icon: "search" },
+  automations: {
+    screen: "automations.sidebar",
+    query: "automations",
+    title: "Automations",
+    empty: "No automations yet.",
+    icon: "done",
+  },
+  vault: {
+    screen: "vault.layout",
+    query: "items",
+    title: "Vault",
+    empty: "Nothing in your Vault yet.",
+    icon: "search",
+  },
   settings: { screen: "settings.page", query: "pages", title: "Settings", empty: "No settings pages.", icon: "search" },
 };
 
-export interface ListItem { key: string; title: string; note?: string }
+export interface ListItem {
+  key: string;
+  title: string;
+  note?: string;
+}
 
 const KEYS = ["id", "threadId", "viewId", "fileId", "siteId", "key", "address"] as const;
 const TITLES = ["title", "name", "displayName", "label"] as const;
 const NOTES = ["lastPreview", "kind", "group", "status"] as const;
 
 const text = (o: Record<string, unknown>, keys: readonly string[]): string | undefined => {
-  for (const k of keys) { const v = o[k]; if (typeof v === "string" && v.length > 0) return v; }
+  for (const k of keys) {
+    const v = o[k];
+    if (typeof v === "string" && v.length > 0) return v;
+  }
   return undefined;
 };
 
@@ -61,15 +93,30 @@ const NEVER: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot:
 
 /** The face before a row: a person for chats and mail, the app's own mark for the Vault and Apps, the shared letter tile for anything else. */
 function lead(place: string, title: string): ReactElement {
-  if (place === "chat" || place === "mail") return <View style={styles.badge}><Avatar name={title} kind="person" size={20} /></View>;
-  return <View style={styles.badge}><AppIcon brand={place === "vault" || place === "sites" ? brandForName(title) ?? title : title} name={title} size={20} /></View>;
+  if (place === "chat" || place === "mail")
+    return (
+      <View style={styles.badge}>
+        <Avatar name={title} kind="person" size={20} />
+      </View>
+    );
+  return (
+    <View style={styles.badge}>
+      <AppIcon
+        brand={place === "vault" || place === "sites" ? (brandForName(title) ?? title) : title}
+        name={title}
+        size={20}
+      />
+    </View>
+  );
 }
 
 /** The frame before data arrives: the page title and rows of the real height. */
 export function FirstListLoading({ title }: { title: string }): ReactElement {
   return (
     <View style={styles.page} testID="place-loading">
-      <Text accessibilityRole="header" aria-level={1} style={styles.h1}>{title}</Text>
+      <Text accessibilityRole="header" aria-level={1} style={styles.h1}>
+        {title}
+      </Text>
       <View testID="place-loading" accessibilityLabel="Loading" style={{ minHeight: 8 * 44 }} />
     </View>
   );
@@ -78,7 +125,10 @@ export function FirstListLoading({ title }: { title: string }): ReactElement {
 export default function FirstListPlace({ place }: { place: string }): ReactElement {
   const rt = useOptionalShellRuntime();
   const cfg = FIRST_LISTS[place];
-  const q = useMemo<LiveQuery<unknown>>(() => (rt && cfg ? rt.screens.query(cfg.screen, cfg.query, cfg.state ?? {}) : (NEVER as LiveQuery<unknown>)), [rt, cfg]);
+  const q = useMemo<LiveQuery<unknown>>(
+    () => (rt && cfg ? rt.screens.query(cfg.screen, cfg.query, cfg.state ?? {}) : (NEVER as LiveQuery<unknown>)),
+    [rt, cfg],
+  );
   const snap = useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot) as QueryState<unknown>;
   const online = useSyncExternalStore(
     rt ? rt.connection.subscribe : NEVER.subscribe,
@@ -93,18 +143,35 @@ export default function FirstListPlace({ place }: { place: string }): ReactEleme
     const e = failed as { code?: string; message?: string; traceId?: string };
     return (
       <View style={styles.page} testID={`place-${place}-failed`}>
-        <Text accessibilityRole="header" aria-level={1} style={styles.h1}>{title}</Text>
-        {e.code === "internal.unavailable"
-          ? <States kind="empty" title="This is not in this version yet." icon={cfg?.icon ?? "search"} />
-          : <States kind="error" message={`Couldn't load ${title}`} {...(e.message ? { cause: e.message } : {})} {...(e.traceId ? { traceId: e.traceId } : {})} retryable onRetry={() => (rt?.screens as { invalidate?: () => void } | undefined)?.invalidate?.()} />}
+        <Text accessibilityRole="header" aria-level={1} style={styles.h1}>
+          {title}
+        </Text>
+        {e.code === "internal.unavailable" ? (
+          <States kind="empty" title="This is not in this version yet." icon={cfg?.icon ?? "search"} />
+        ) : (
+          <States
+            kind="error"
+            message={`Couldn't load ${title}`}
+            {...(e.message ? { cause: e.message } : {})}
+            {...(e.traceId ? { traceId: e.traceId } : {})}
+            retryable
+            onRetry={() => (rt?.screens as { invalidate?: () => void } | undefined)?.invalidate?.()}
+          />
+        )}
       </View>
     );
   }
   if (!rt || snap.status !== "ready") return <FirstListLoading title={title} />;
   return (
     <View style={styles.page} testID={`place-${place}`}>
-      <Text accessibilityRole="header" aria-level={1} style={styles.h1}>{title}</Text>
-      {online ? null : <Text style={styles.offline} accessibilityRole="status" testID="place-offline">Offline, showing your saved copy</Text>}
+      <Text accessibilityRole="header" aria-level={1} style={styles.h1}>
+        {title}
+      </Text>
+      {online ? null : (
+        <Text style={styles.offline} accessibilityRole="status" testID="place-offline">
+          Offline, showing your saved copy
+        </Text>
+      )}
       {items.length === 0 ? (
         <States kind="empty" title={cfg?.empty ?? "Nothing here yet."} icon={cfg?.icon ?? "inbox"} />
       ) : (
@@ -129,7 +196,15 @@ export default function FirstListPlace({ place }: { place: string }): ReactEleme
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: "var(--win)" as string, paddingTop: 34, paddingHorizontal: 28 },
-  h1: { margin: 0, marginBottom: 16, fontSize: 28, lineHeight: 34, fontWeight: "600", letterSpacing: -0.6, color: "var(--ink)" as string },
+  h1: {
+    margin: 0,
+    marginBottom: 16,
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: "600",
+    letterSpacing: -0.6,
+    color: "var(--ink)" as string,
+  },
   offline: { marginBottom: 8, fontSize: 12.5, color: "var(--ink-3)" as string },
   badge: { width: 20, height: 20, marginRight: 8 },
 });

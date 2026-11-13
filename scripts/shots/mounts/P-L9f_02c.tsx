@@ -35,20 +35,61 @@ export default function Mount(): ReactNode {
   const [side, setSide] = useState(true);
   const autoId = view === "waiting" ? "aut_invoice" : "aut_lead";
   const runId = view === "waiting" ? "ri1" : "rl1";
-  const states = useMemo(() => runStates(runs.replica.rows("steps").filter((s) => s["runId"] === runId).map((s) => ({ nodeId: String(s["step"]), status: String(s["state"]) }))), [runs, runId]);
-  const history = <RunHistory subject={{ type: "automation", id: autoId }} currentVersion={view === "waiting" ? 4 : 5} selectedRunId={runId} />;
-  const canvas = <AutomationCanvas automationId={autoId} initialTab="runs" tabBodies={{ runs: history }} run={{ id: runId, label: "this run", states }} paneOpen={side} onTogglePane={() => setSide(!side)} />;
+  const states = useMemo(
+    () =>
+      runStates(
+        runs.replica
+          .rows("steps")
+          .filter((s) => s["runId"] === runId)
+          .map((s) => ({ nodeId: String(s["step"]), status: String(s["state"]) })),
+      ),
+    [runs, runId],
+  );
+  const history = (
+    <RunHistory
+      subject={{ type: "automation", id: autoId }}
+      currentVersion={view === "waiting" ? 4 : 5}
+      selectedRunId={runId}
+    />
+  );
+  const canvas = (
+    <AutomationCanvas
+      automationId={autoId}
+      initialTab="runs"
+      tabBodies={{ runs: history }}
+      run={{ id: runId, label: "this run", states }}
+      paneOpen={side}
+      onTogglePane={() => setSide(!side)}
+    />
+  );
   const chat = <RunChat runId={runId} />;
   return (
     <AutomationsDataProvider value={config.data}>
       <RunsDataProvider value={runs.data}>
         <View style={{ height, flexDirection: "row", backgroundColor: "var(--win)" as string }}>
-          {phone ? (q.get("pane") === "run" ? chat : canvas) : (
+          {phone ? (
+            q.get("pane") === "run" ? (
+              chat
+            ) : (
+              canvas
+            )
+          ) : (
             <>
-              <AutomationsSidebar selectedId={autoId} initialTab="automations" shared={config.shared} reasons={config.space.reasons} />
+              <AutomationsSidebar
+                selectedId={autoId}
+                initialTab="automations"
+                shared={config.shared}
+                reasons={config.space.reasons}
+              />
               <View style={{ flex: 1, minWidth: 0 }}>{canvas}</View>
               {side ? (
-                <SidePane paneKey="mount-P-L9f_02c" toggle={{ open: side, onPress: () => setSide(!side) }} tabs={PANE_TABS} activeTab="run" onSelectTab={() => undefined}>
+                <SidePane
+                  paneKey="mount-P-L9f_02c"
+                  toggle={{ open: side, onPress: () => setSide(!side) }}
+                  tabs={PANE_TABS}
+                  activeTab="run"
+                  onSelectTab={() => undefined}
+                >
                   {chat}
                 </SidePane>
               ) : null}

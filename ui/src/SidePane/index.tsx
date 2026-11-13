@@ -10,7 +10,16 @@ import type { ViewStyle } from "react-native";
 import { MenuIcon } from "../Menu/index.tsx";
 import { TabStrip } from "../TabStrip/index.tsx";
 import type { TabMenuExtra } from "../TabStrip/index.tsx";
-import { RAIL_OVERLAY, SHEET, SHEET_GAP, intoSheet, sq, useRailOverlay, useSheetHost, usePanelPresence } from "./host.tsx";
+import {
+  RAIL_OVERLAY,
+  SHEET,
+  SHEET_GAP,
+  intoSheet,
+  sq,
+  useRailOverlay,
+  useSheetHost,
+  usePanelPresence,
+} from "./host.tsx";
 import { ResizeHandle, useResizable } from "./resize.tsx";
 import { PANE_HEADER_ORDER, SIDE_PANE_MAX, SIDE_PANE_MIN, paneToggleLabel, sidePaneMax, sidePaneMin } from "./props.ts";
 import type { PaneProps, PaneTab, SidePaneProps } from "./props.ts";
@@ -89,14 +98,25 @@ function browserStorage(): WidthStorage | null {
 export const paneWidths: PaneWidthStore = createPaneWidthStore(browserStorage());
 
 /** Keeps a width between the floor and the cap (a fraction of the window). The floor wins in a narrow window; an unknown window (0) applies only the floor. */
-export function clampPaneWidth(width: number, windowWidth: number, min = SIDE_PANE_MIN, maxFraction = SIDE_PANE_MAX): number {
+export function clampPaneWidth(
+  width: number,
+  windowWidth: number,
+  min = SIDE_PANE_MIN,
+  maxFraction = SIDE_PANE_MAX,
+): number {
   if (!(windowWidth > 0)) return Math.round(Math.max(min, width));
   const cap = Math.max(min, windowWidth * maxFraction);
   return Math.round(Math.min(Math.max(min, width), cap));
 }
 
 /** Arrow keys grow (left) or shrink (right) the pane by a step; Home resets. Returns null for any other key. */
-export function widthForKey(current: number, key: string, windowWidth: number, min = SIDE_PANE_MIN, maxFraction = SIDE_PANE_MAX): number | "reset" | null {
+export function widthForKey(
+  current: number,
+  key: string,
+  windowWidth: number,
+  min = SIDE_PANE_MIN,
+  maxFraction = SIDE_PANE_MAX,
+): number | "reset" | null {
   if (key === "ArrowLeft") return clampPaneWidth(current + 24, windowWidth, min, maxFraction);
   if (key === "ArrowRight") return clampPaneWidth(current - 24, windowWidth, min, maxFraction);
   if (key === "Home") return "reset";
@@ -133,7 +153,15 @@ export interface SidePaneViewProps extends SidePaneProps, Omit<PaneViewProps, ke
 }
 
 /** The one pane toggle. Draws the pane glyph; the label flips between Hide and Show. */
-export function PaneToggleButton({ open, onPress, hidden = false }: { open: boolean; onPress?: () => void; hidden?: boolean }): ReactElement {
+export function PaneToggleButton({
+  open,
+  onPress,
+  hidden = false,
+}: {
+  open: boolean;
+  onPress?: () => void;
+  hidden?: boolean;
+}): ReactElement {
   const [over, setOver] = useState(false);
   const label = paneToggleLabel(open);
   return (
@@ -158,25 +186,28 @@ export function PaneToggleButton({ open, onPress, hidden = false }: { open: bool
 function PaneHeader(props: PaneViewProps & { innerToggleHidden: boolean }): ReactElement {
   const { toggle, title, tabs, activeTab } = props;
   const list: PaneTab[] = tabs === undefined ? [] : tabs.slice();
-  const strip = list.length > 0 ? (
-    <TabStrip
-      tabs={list}
-      active={activeTab ?? list[0]?.key ?? ""}
-      label={title}
-      noOptions
-      {...(props.tight === true ? { tight: true } : {})}
-      {...(props.onSelectTab === undefined ? {} : { onSelect: props.onSelectTab })}
-      {...(props.onCloseTab === undefined ? {} : { onClose: props.onCloseTab })}
-      {...(props.onReorderTabs === undefined ? {} : { onReorder: props.onReorderTabs })}
-      {...(props.tabMenu === undefined ? {} : { menu: props.tabMenu })}
-      {...(props.onPlus === undefined ? {} : { onPlus: props.onPlus })}
-      {...(props.plusTitle === undefined ? {} : { plusTitle: props.plusTitle })}
-    />
-  ) : (
-    <View style={styles.titleBox}>
-      <Text numberOfLines={1} style={styles.title}>{title ?? ""}</Text>
-    </View>
-  );
+  const strip =
+    list.length > 0 ? (
+      <TabStrip
+        tabs={list}
+        active={activeTab ?? list[0]?.key ?? ""}
+        label={title}
+        noOptions
+        {...(props.tight === true ? { tight: true } : {})}
+        {...(props.onSelectTab === undefined ? {} : { onSelect: props.onSelectTab })}
+        {...(props.onCloseTab === undefined ? {} : { onClose: props.onCloseTab })}
+        {...(props.onReorderTabs === undefined ? {} : { onReorder: props.onReorderTabs })}
+        {...(props.tabMenu === undefined ? {} : { menu: props.tabMenu })}
+        {...(props.onPlus === undefined ? {} : { onPlus: props.onPlus })}
+        {...(props.plusTitle === undefined ? {} : { plusTitle: props.plusTitle })}
+      />
+    ) : (
+      <View style={styles.titleBox}>
+        <Text numberOfLines={1} style={styles.title}>
+          {title ?? ""}
+        </Text>
+      </View>
+    );
   // PANE_HEADER_ORDER is ["toggle", "tabs"]: the toggle is the first child, the far left.
   const order: readonly string[] = PANE_HEADER_ORDER;
   const parts: ReactNode[] = [];
@@ -184,18 +215,28 @@ function PaneHeader(props: PaneViewProps & { innerToggleHidden: boolean }): Reac
     if (slot === "toggle") {
       parts.push(
         <View key="toggle" style={[styles.toggleCell, props.innerToggleHidden ? HIDE : null]}>
-          <PaneToggleButton open={toggle.open} hidden={props.innerToggleHidden} {...(toggle.onPress === undefined ? {} : { onPress: toggle.onPress })} />
+          <PaneToggleButton
+            open={toggle.open}
+            hidden={props.innerToggleHidden}
+            {...(toggle.onPress === undefined ? {} : { onPress: toggle.onPress })}
+          />
         </View>,
       );
     } else {
-      parts.push(<View key="tabs" style={styles.tabsSlot}>{strip}</View>);
+      parts.push(
+        <View key="tabs" style={styles.tabsSlot}>
+          {strip}
+        </View>,
+      );
     }
   }
   return (
     <View
       style={styles.header}
       testID="pane-header"
-      {...webProps({ dataSet: { paneHeader: "true", toggleCount: "1", innerToggle: props.innerToggleHidden ? "hidden" : "shown" } })}
+      {...webProps({
+        dataSet: { paneHeader: "true", toggleCount: "1", innerToggle: props.innerToggleHidden ? "hidden" : "shown" },
+      })}
     >
       {parts}
     </View>
@@ -205,7 +246,12 @@ function PaneHeader(props: PaneViewProps & { innerToggleHidden: boolean }): Reac
 /** A pane inside the main view. Its toggle sits at the far left of its header and hides while the side pane is open. */
 export function Pane(props: PaneViewProps): ReactElement {
   return (
-    <View style={styles.pane} testID="pane" role="region" aria-label={props.title ?? paneToggleLabel(props.toggle.open)}>
+    <View
+      style={styles.pane}
+      testID="pane"
+      role="region"
+      aria-label={props.title ?? paneToggleLabel(props.toggle.open)}
+    >
       <PaneHeader {...props} innerToggleHidden={props.toggle.open} />
       <View style={styles.body}>{props.children}</View>
     </View>
@@ -223,22 +269,51 @@ export function SidePane(props: SidePaneViewProps): ReactElement | null {
   const first = props.defaultWidth ?? DEFAULT_PANE_WIDTH;
   // in the shell the layout model owns the width, the mode and which pane is up; outside it the pane keeps its own width
   const here = usePanelPresence("pane", paneKey, host !== null && toggle.open, toggle.onPress);
-  const r = useResizable({ ...(host !== null ? { kind: "pane" as const } : {}), paneKey, defaultWidth: first, grow: "left", min, maxFraction, ...(onWidthChange === undefined ? {} : { onWidthChange }) });
+  const r = useResizable({
+    ...(host !== null ? { kind: "pane" as const } : {}),
+    paneKey,
+    defaultWidth: first,
+    grow: "left",
+    min,
+    maxFraction,
+    ...(onWidthChange === undefined ? {} : { onWidthChange }),
+  });
   const width = r.width;
   if (!toggle.open) return null;
   if (host !== null && !here) return null;
 
   const edge = <ResizeHandle r={r} at="left" label="Resize the side pane" testID="side-pane-resize" />;
-  const inner = <><PaneHeader {...props} innerToggleHidden={false} /><View style={styles.body}>{props.children}</View></>;
-  const a11y = { testID: "side-pane", role: "complementary" as const, "aria-label": props.title ?? paneKey, ...webProps({ dataSet: { paneKey, min: String(min), max: String(maxFraction) } }) };
+  const inner = (
+    <>
+      <PaneHeader {...props} innerToggleHidden={false} />
+      <View style={styles.body}>{props.children}</View>
+    </>
+  );
+  const a11y = {
+    testID: "side-pane",
+    role: "complementary" as const,
+    "aria-label": props.title ?? paneKey,
+    ...webProps({ dataSet: { paneKey, min: String(min), max: String(maxFraction) } }),
+  };
   if (host !== null) {
     // the right rail: a sheet of its own beside the main view, full height, the edge outside its clip; in an overlay mode it floats over main
-    return <>{intoSheet(host.right, (
-      <View style={[styles.onSheet, { width, marginLeft: SHEET_GAP }, overlay ? RAIL_OVERLAY : null]} {...a11y} {...webProps({ dataSet: { paneKey, min: String(min), max: String(maxFraction), panelIn: "1" } })}>
-        <View style={SHEET} {...sq("sheet")}>{inner}</View>
-        {overlay ? null : edge}
-      </View>
-    ))}</>;
+    return (
+      <>
+        {intoSheet(
+          host.right,
+          <View
+            style={[styles.onSheet, { width, marginLeft: SHEET_GAP }, overlay ? RAIL_OVERLAY : null]}
+            {...a11y}
+            {...webProps({ dataSet: { paneKey, min: String(min), max: String(maxFraction), panelIn: "1" } })}
+          >
+            <View style={SHEET} {...sq("sheet")}>
+              {inner}
+            </View>
+            {overlay ? null : edge}
+          </View>,
+        )}
+      </>
+    );
   }
   return (
     <View style={[styles.side, { width }]} {...a11y}>
@@ -253,14 +328,43 @@ const HOVER = { backgroundColor: "var(--hover)" };
 const HIDE = { display: "none" } as unknown as ViewStyle;
 
 const styles = StyleSheet.create({
-  header: { height: PANE_HEADER_HEIGHT, flexDirection: "row", alignItems: "center", backgroundColor: "var(--side)" as string },
+  header: {
+    height: PANE_HEADER_HEIGHT,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "var(--side)" as string,
+  },
   toggleCell: { height: PANE_HEADER_HEIGHT, justifyContent: "center", paddingTop: 6 },
-  toggle: { width: 28, height: 28, marginLeft: 6, marginRight: 2, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  toggle: {
+    width: 28,
+    height: 28,
+    marginLeft: 6,
+    marginRight: 2,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   tabsSlot: { flex: 1, minWidth: 0 },
   titleBox: { height: PANE_HEADER_HEIGHT, justifyContent: "center", paddingHorizontal: 8 },
   title: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "500" },
-  pane: { flex: 1, minWidth: 0, minHeight: 0, backgroundColor: "var(--side)" as string, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, overflow: "hidden" },
+  pane: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 0,
+    backgroundColor: "var(--side)" as string,
+    borderLeftWidth: 1,
+    borderLeftColor: "var(--line)" as string,
+    overflow: "hidden",
+  },
   onSheet: { position: "relative", height: "100%", minWidth: 0, flexShrink: 0 },
-  side: { height: "100%", minWidth: 0, minHeight: 0, backgroundColor: "var(--side)" as string, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, overflow: "visible" },
+  side: {
+    height: "100%",
+    minWidth: 0,
+    minHeight: 0,
+    backgroundColor: "var(--side)" as string,
+    borderLeftWidth: 1,
+    borderLeftColor: "var(--line)" as string,
+    overflow: "visible",
+  },
   body: { flex: 1, minHeight: 0 },
 });

@@ -40,7 +40,8 @@ export * from "./logic.ts";
 
 /* ---------- icons (svg strings the shared Menu icon slot draws) ---------- */
 
-const SVG_OPEN = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">';
+const SVG_OPEN =
+  '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">';
 export const ASK_ICONS = {
   spark: `${SVG_OPEN}<path d="M8 2v3M8 11v3M2 8h3M11 8h3M4 4l2 2M10 10l2 2M12 4l-2 2M6 10l-2 2"/></svg>`,
   chat: `${SVG_OPEN}<path d="M3 4.5A2 2 0 015 2.5h6a2 2 0 012 2v4.5a2 2 0 01-2 2H7l-3 2.5V11a2 2 0 01-1-1.7z"/></svg>`,
@@ -101,23 +102,53 @@ const HUES = [250, 160, 28, 205, 330, 95, 12, 280] as const;
 
 /** The default avatar: the Vyre mark for the assistant, a letter tile with a stable hue for every other agent. */
 export function AskFace({ agent, size = 20 }: { agent: AskAgent; size?: number }): ReactElement {
-  const box = { width: size, height: size, borderRadius: Math.round(size * 0.3), alignItems: "center", justifyContent: "center" } as const;
+  const box = {
+    width: size,
+    height: size,
+    borderRadius: Math.round(size * 0.3),
+    alignItems: "center",
+    justifyContent: "center",
+  } as const;
   if (agent.assistant === true || agent.name === "Assistant") {
     const mark = Math.round(size * 0.78);
     return (
       <View aria-hidden testID={`ask-face-${agent.id}`} style={[box, styles.assistantTile]}>
-        {Platform.OS === "web"
-          ? createElement("svg", { width: mark, height: mark, viewBox: "0 0 24 24", "aria-hidden": true, style: { color: "var(--ink)" } },
-            createElement("path", { d: "M5.2 6.4l6.3 11.2 4.9-8.6", fill: "none", stroke: "currentColor", strokeWidth: 3.1, strokeLinecap: "round", strokeLinejoin: "round" }),
-            createElement("circle", { cx: 18.6, cy: 5.6, r: 2.7, fill: "var(--beacon, #8B7CF6)" }))
-          : <Text style={{ color: "var(--ink)" as string, fontSize: Math.round(size * 0.5), fontWeight: "700" }}>V</Text>}
+        {Platform.OS === "web" ? (
+          createElement(
+            "svg",
+            { width: mark, height: mark, viewBox: "0 0 24 24", "aria-hidden": true, style: { color: "var(--ink)" } },
+            createElement("path", {
+              d: "M5.2 6.4l6.3 11.2 4.9-8.6",
+              fill: "none",
+              stroke: "currentColor",
+              strokeWidth: 3.1,
+              strokeLinecap: "round",
+              strokeLinejoin: "round",
+            }),
+            createElement("circle", { cx: 18.6, cy: 5.6, r: 2.7, fill: "var(--beacon, #8B7CF6)" }),
+          )
+        ) : (
+          <Text style={{ color: "var(--ink)" as string, fontSize: Math.round(size * 0.5), fontWeight: "700" }}>V</Text>
+        )}
       </View>
     );
   }
   const hue = HUES[hash(agent.name) % HUES.length] ?? 250;
   return (
-    <View aria-hidden testID={`ask-face-${agent.id}`} style={[box, { backgroundColor: `hsl(${hue} 45% 88%)` as string }]}>
-      <Text style={{ color: `hsl(${hue} 38% 32%)` as string, fontSize: Math.max(9, Math.round(size * 0.48)), fontWeight: "600" }}>{agent.name.slice(0, 1).toUpperCase()}</Text>
+    <View
+      aria-hidden
+      testID={`ask-face-${agent.id}`}
+      style={[box, { backgroundColor: `hsl(${hue} 45% 88%)` as string }]}
+    >
+      <Text
+        style={{
+          color: `hsl(${hue} 38% 32%)` as string,
+          fontSize: Math.max(9, Math.round(size * 0.48)),
+          fontWeight: "600",
+        }}
+      >
+        {agent.name.slice(0, 1).toUpperCase()}
+      </Text>
     </View>
   );
 }
@@ -156,7 +187,9 @@ function onShortcut(event: KeyEventLike): void {
 
 function listen(): void {
   if (listening || Platform.OS !== "web") return;
-  const host = globalThis as { addEventListener?: (type: string, fn: (event: KeyEventLike) => void, capture: boolean) => void };
+  const host = globalThis as {
+    addEventListener?: (type: string, fn: (event: KeyEventLike) => void, capture: boolean) => void;
+  };
   if (typeof host.addEventListener !== "function") return;
   host.addEventListener("keydown", onShortcut, true);
   listening = true;
@@ -185,7 +218,12 @@ export function AskPicker(props: PickerProps): ReactElement {
   const window = useWindowDimensions();
   // the list's natural height is measured, so the panel is as tall as its rows up to the cap, and flips above the button when the room below is short
   const [listH, setListH] = useState(200);
-  const placed = placePicker(anchor, listH + PANEL_CHROME, { w: window.width, h: window.height }, { width: PANEL_W, maxHeight: PANEL_MAX_H });
+  const placed = placePicker(
+    anchor,
+    listH + PANEL_CHROME,
+    { w: window.width, h: window.height },
+    { width: PANEL_W, maxHeight: PANEL_MAX_H },
+  );
   const { left, top } = placed;
 
   const onKeyDown = (event: KeyEventLike): void => {
@@ -218,7 +256,11 @@ export function AskPicker(props: PickerProps): ReactElement {
   const rows: ReactNode[] = [];
   entries.forEach((entry, index) => {
     if (entry.kind === "head") {
-      rows.push(<Text key={`h${index}`} style={styles.head} role="heading" aria-level={3}>{entry.label}</Text>);
+      rows.push(
+        <Text key={`h${index}`} style={styles.head} role="heading" aria-level={3}>
+          {entry.label}
+        </Text>,
+      );
       return;
     }
     const agent = entry.agent;
@@ -240,30 +282,40 @@ export function AskPicker(props: PickerProps): ReactElement {
 
   return (
     <MenuPortal>
-    <View style={styles.layer} testID="ask-layer" pointerEvents="box-none">
-      <Pressable
-        accessibilityLabel="Close"
-        style={styles.backdrop}
-        onPress={onClose}
-        {...menuTrigger(() => onClose())}
-        {...webProps({ tabIndex: -1 })}
-      />
-      <View role="dialog" aria-label="Choose the agent" testID="ask-picker" style={[styles.panel, { left, top, width: PANEL_W, maxHeight: placed.height }]} {...webProps({ onKeyDown })}>
-        <TextInput
-          autoFocus
-          accessibilityLabel="Find an agent"
-          placeholder="Find an agent"
-          placeholderTextColor="var(--ink-4)"
-          value={query}
-          onChangeText={onQuery}
-          testID="ask-find"
-          style={styles.find}
+      <View style={styles.layer} testID="ask-layer" pointerEvents="box-none">
+        <Pressable
+          accessibilityLabel="Close"
+          style={styles.backdrop}
+          onPress={onClose}
+          {...menuTrigger(() => onClose())}
+          {...webProps({ tabIndex: -1 })}
         />
-        <ScrollView style={[styles.list, { maxHeight: Math.max(40, placed.height - PANEL_CHROME) }]} onContentSizeChange={(_w, h) => setListH(h)} keyboardShouldPersistTaps="handled">
-          {rows.length > 0 ? rows : <Text style={styles.none}>No agent matches.</Text>}
-        </ScrollView>
+        <View
+          role="dialog"
+          aria-label="Choose the agent"
+          testID="ask-picker"
+          style={[styles.panel, { left, top, width: PANEL_W, maxHeight: placed.height }]}
+          {...webProps({ onKeyDown })}
+        >
+          <TextInput
+            autoFocus
+            accessibilityLabel="Find an agent"
+            placeholder="Find an agent"
+            placeholderTextColor="var(--ink-4)"
+            value={query}
+            onChangeText={onQuery}
+            testID="ask-find"
+            style={styles.find}
+          />
+          <ScrollView
+            style={[styles.list, { maxHeight: Math.max(40, placed.height - PANEL_CHROME) }]}
+            onContentSizeChange={(_w, h) => setListH(h)}
+            keyboardShouldPersistTaps="handled"
+          >
+            {rows.length > 0 ? rows : <Text style={styles.none}>No agent matches.</Text>}
+          </ScrollView>
+        </View>
       </View>
-    </View>
     </MenuPortal>
   );
 }
@@ -271,12 +323,25 @@ export function AskPicker(props: PickerProps): ReactElement {
 /* ---------- the control ---------- */
 
 export function AskButton(props: AskButtonProps): ReactElement | null {
-  const { place, context, suggested, onAsk, onPick, onOpenAgent, renderFace, compact = false, startOpen = false, testID = "ask" } = props;
+  const {
+    place,
+    context,
+    suggested,
+    onAsk,
+    onPick,
+    onOpenAgent,
+    renderFace,
+    compact = false,
+    startOpen = false,
+    testID = "ask",
+  } = props;
   const agents = useMemo(() => withRealAssistant(props.agents), [props.agents]);
   const storage = useMemo<AskStorage>(() => props.storage ?? layeredStorage(webStorage()), [props.storage]);
   const [version, setVersion] = useState(0);
   // startOpen draws the picker from the first render (at the window's corner); the effect below then measures the button and moves it
-  const [picker, setPicker] = useState<{ anchor: Rect } | null>(startOpen ? { anchor: { x: 0, y: 0, w: 0, h: 0 } } : null);
+  const [picker, setPicker] = useState<{ anchor: Rect } | null>(
+    startOpen ? { anchor: { x: 0, y: 0, w: 0, h: 0 } } : null,
+  );
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(-1);
   const [mainOver, setMainOver] = useState(false);
@@ -285,12 +350,22 @@ export function AskButton(props: AskButtonProps): ReactElement | null {
   const wrap = useRef<View | null>(null);
   const { element: menuElement, show: showMenu } = useMenu();
 
-  const input = useMemo(() => ({ agents, place, context, suggested, storage }), [agents, place, context, suggested, storage]);
+  const input = useMemo(
+    () => ({ agents, place, context, suggested, storage }),
+    [agents, place, context, suggested, storage],
+  );
   // version: a pick changes the stored key, so the resolution is read again
   const current = useMemo(() => resolveAgent(input), [input, version]);
-  const suggestedAgent = useMemo(() => (suggested === undefined ? null : agents.find((a) => a.id === suggested) ?? null), [agents, suggested]);
+  const suggestedAgent = useMemo(
+    () => (suggested === undefined ? null : (agents.find((a) => a.id === suggested) ?? null)),
+    [agents, suggested],
+  );
   const modes = useMemo(() => modesFor(props.modes, context.access), [props.modes, context.access]);
-  const face = useCallback((agent: AskAgent, size: number): ReactNode => (renderFace === undefined ? <AskFace agent={agent} size={size} /> : renderFace(agent, size)), [renderFace]);
+  const face = useCallback(
+    (agent: AskAgent, size: number): ReactNode =>
+      renderFace === undefined ? <AskFace agent={agent} size={size} /> : renderFace(agent, size),
+    [renderFace],
+  );
 
   const entries = useMemo(
     () => pickerEntries({ agents, current, suggested: suggestedAgent, recents: readRecents(storage), query }),
@@ -318,30 +393,36 @@ export function AskButton(props: AskButtonProps): ReactElement | null {
   }, [entries]);
 
   /** The new thread: one press for chat only, a small choice menu when Do it is offered as well. */
-  const start = useCallback((agent: AskAgent) => {
-    pushRecent(storage, agent.id);
-    if (offersChoice(modes)) {
-      withAnchor((rect) => {
-        const items: MenuEntry[] = [
-          { head: `Ask ${agent.name}` },
-          { label: "Do it", icon: ASK_ICONS.spark, onSelect: () => onAsk(agent, "do", context) },
-          { label: "Chat about it", icon: ASK_ICONS.chat, onSelect: () => onAsk(agent, "chat", context) },
-        ];
-        showMenu(items, rect.x, rect.y + rect.h + 4, "other", { label: `Ask ${agent.name}` });
-      });
-      return;
-    }
-    const mode: AskMode = modes[0] ?? "chat";
-    onAsk(agent, mode, context);
-  }, [storage, modes, withAnchor, showMenu, onAsk, context]);
+  const start = useCallback(
+    (agent: AskAgent) => {
+      pushRecent(storage, agent.id);
+      if (offersChoice(modes)) {
+        withAnchor((rect) => {
+          const items: MenuEntry[] = [
+            { head: `Ask ${agent.name}` },
+            { label: "Do it", icon: ASK_ICONS.spark, onSelect: () => onAsk(agent, "do", context) },
+            { label: "Chat about it", icon: ASK_ICONS.chat, onSelect: () => onAsk(agent, "chat", context) },
+          ];
+          showMenu(items, rect.x, rect.y + rect.h + 4, "other", { label: `Ask ${agent.name}` });
+        });
+        return;
+      }
+      const mode: AskMode = modes[0] ?? "chat";
+      onAsk(agent, mode, context);
+    },
+    [storage, modes, withAnchor, showMenu, onAsk, context],
+  );
 
-  const choose = useCallback((agent: AskAgent) => {
-    rememberPick(storage, place, context, agent);
-    setVersion((v) => v + 1);
-    closePicker();
-    if (onPick) onPick(agent);
-    start(agent);
-  }, [storage, place, context, closePicker, onPick, start]);
+  const choose = useCallback(
+    (agent: AskAgent) => {
+      rememberPick(storage, place, context, agent);
+      setVersion((v) => v + 1);
+      closePicker();
+      if (onPick) onPick(agent);
+      start(agent);
+    },
+    [storage, place, context, closePicker, onPick, start],
+  );
 
   const press = useCallback(() => {
     if (current === null) return;
@@ -352,14 +433,19 @@ export function AskButton(props: AskButtonProps): ReactElement | null {
     start(current);
   }, [current, input, openPicker, start]);
 
-  const openMenu = useCallback((x: number, y: number) => {
-    if (current === null) return;
-    const items: MenuEntry[] = [
-      { label: "Change Agent…", icon: ASK_ICONS.swap, onSelect: () => setTimeout(openPicker, 0) },
-      ...(onOpenAgent === undefined ? [] : [{ label: `Open ${current.name}'s Page`, icon: ASK_ICONS.open, onSelect: () => onOpenAgent(current) }]),
-    ];
-    showMenu(items, x, y, "context", { label: "Ask" });
-  }, [current, onOpenAgent, openPicker, showMenu]);
+  const openMenu = useCallback(
+    (x: number, y: number) => {
+      if (current === null) return;
+      const items: MenuEntry[] = [
+        { label: "Change Agent…", icon: ASK_ICONS.swap, onSelect: () => setTimeout(openPicker, 0) },
+        ...(onOpenAgent === undefined
+          ? []
+          : [{ label: `Open ${current.name}'s Page`, icon: ASK_ICONS.open, onSelect: () => onOpenAgent(current) }]),
+      ];
+      showMenu(items, x, y, "context", { label: "Ask" });
+    },
+    [current, onOpenAgent, openPicker, showMenu],
+  );
 
   // Cmd-J opens the nearest visible Ask: the picker when it only chats, the Do it or Chat choice otherwise.
   useEffect(() => {
@@ -398,7 +484,12 @@ export function AskButton(props: AskButtonProps): ReactElement | null {
           onHoverOut={() => setMainOver(false)}
           onFocus={() => setFocus("main")}
           onBlur={() => setFocus(null)}
-          style={[styles.main, compact && styles.mainCompact, mainOver && { backgroundColor: wash }, focus === "main" && styles.focus]}
+          style={[
+            styles.main,
+            compact && styles.mainCompact,
+            mainOver && { backgroundColor: wash },
+            focus === "main" && styles.focus,
+          ]}
           {...menuTrigger(openMenu)}
           {...webProps({ title: `${label}  ⌘J` })}
         >
@@ -441,25 +532,62 @@ export function AskButton(props: AskButtonProps): ReactElement | null {
   );
 }
 
-const CHEVRON = '<svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5l3 3 3-3"/></svg>';
+const CHEVRON =
+  '<svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5l3 3 3-3"/></svg>';
 
 /* ---------- styles ---------- */
 
 const styles = StyleSheet.create({
   host: { flexShrink: 0, alignSelf: "center" },
-  split: { flexDirection: "row", height: 30, borderRadius: 8, backgroundColor: "var(--accent-wash)" as string, overflow: "hidden" },
+  split: {
+    flexDirection: "row",
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: "var(--accent-wash)" as string,
+    overflow: "hidden",
+  },
   main: { flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 5, paddingRight: 11 },
   mainCompact: { paddingRight: 5 },
-  chev: { alignItems: "center", justifyContent: "center", paddingHorizontal: 7, borderLeftWidth: 1, borderLeftColor: "var(--accent-line)" as string },
+  chev: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 7,
+    borderLeftWidth: 1,
+    borderLeftColor: "var(--accent-line)" as string,
+  },
   ask: { color: "var(--accent)" as string, fontSize: 12.5, fontWeight: "600", lineHeight: 16 },
   focus: { outlineWidth: 2, outlineStyle: "solid", outlineColor: "var(--accent-line)" as string, outlineOffset: -2 },
   assistantTile: { backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   layer: { position: FIXED, left: 0, top: 0, right: 0, bottom: 0, zIndex: 2147482000 },
   backdrop: { position: FIXED, left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "transparent" },
-  panel: { position: FIXED, padding: 5, borderRadius: 10, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" as string, maxHeight: PANEL_MAX_H },
-  find: { height: 28, marginBottom: 4, paddingHorizontal: 9, borderRadius: 6, backgroundColor: "var(--hover)" as string, color: "var(--ink)" as string, fontSize: 13, borderWidth: 0, outlineWidth: 0 },
+  panel: {
+    position: FIXED,
+    padding: 5,
+    borderRadius: 10,
+    backgroundColor: "var(--raised)" as string,
+    boxShadow: "var(--sh-pop)" as string,
+    maxHeight: PANEL_MAX_H,
+  },
+  find: {
+    height: 28,
+    marginBottom: 4,
+    paddingHorizontal: 9,
+    borderRadius: 6,
+    backgroundColor: "var(--hover)" as string,
+    color: "var(--ink)" as string,
+    fontSize: 13,
+    borderWidth: 0,
+    outlineWidth: 0,
+  },
   list: { flexGrow: 0 },
-  head: { paddingTop: 6, paddingBottom: 4, paddingHorizontal: 9, fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
+  head: {
+    paddingTop: 6,
+    paddingBottom: 4,
+    paddingHorizontal: 9,
+    fontSize: 11.5,
+    fontWeight: "600",
+    color: "var(--ink-3)" as string,
+  },
   faceSlot: { width: 22, height: 22, marginRight: 9, alignItems: "center", justifyContent: "center" },
   none: { paddingVertical: 10, paddingHorizontal: 9, fontSize: 12.5, color: "var(--ink-3)" as string },
 });

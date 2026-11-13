@@ -14,8 +14,21 @@ const call = async (hn: Harness, cap: string, input: unknown, ctx: Harness["ctx"
   assert.deepEqual(contractErrors(cap, "out", out), [], `${cap} output`);
   return out;
 };
-const rejects = async (f: () => unknown): Promise<string> => { try { await f(); } catch (e) { return codeOf(e); } return "no error"; };
-const rules = (r: Partial<{ allow: string[]; ask: string[]; deny: string[]; folders: string[] }>) => ({ allow: [], ask: [], deny: [], folders: [], ...r });
+const rejects = async (f: () => unknown): Promise<string> => {
+  try {
+    await f();
+  } catch (e) {
+    return codeOf(e);
+  }
+  return "no error";
+};
+const rules = (r: Partial<{ allow: string[]; ask: string[]; deny: string[]; folders: string[] }>) => ({
+  allow: [],
+  ask: [],
+  deny: [],
+  folders: [],
+  ...r,
+});
 
 test("an entry matches a command exactly, as a whole-word prefix, or as a * pattern over the whole command", () => {
   assert.equal(entryMatches("npm test", "npm test"), true);
@@ -33,12 +46,22 @@ test("an entry matches a command exactly, as a whole-word prefix, or as a * patt
 });
 
 test("a command line is judged part by part: pipes, lists, && and newlines cannot smuggle one command behind another", () => {
-  assert.deepEqual(segmentsOf("ls -la | grep x && rm -rf build; echo done\nwhoami"), ["ls -la", "grep x", "rm -rf build", "echo done", "whoami"]);
+  assert.deepEqual(segmentsOf("ls -la | grep x && rm -rf build; echo done\nwhoami"), [
+    "ls -la",
+    "grep x",
+    "rm -rf build",
+    "echo done",
+    "whoami",
+  ]);
   assert.deepEqual(segmentsOf("  "), []);
   const r = rules({ allow: ["ls", "grep", "echo"], deny: ["rm -rf *"] });
   assert.deepEqual(judge(r, "ls -la | grep x"), { verdict: "allow" });
   assert.deepEqual(judge(r, "ls && rm -rf /"), { verdict: "deny", entry: "rm -rf *" });
-  assert.deepEqual(judge(r, "ls && whoami"), { verdict: "none" }, "one part is not covered, so the line is not allowed");
+  assert.deepEqual(
+    judge(r, "ls && whoami"),
+    { verdict: "none" },
+    "one part is not covered, so the line is not allowed",
+  );
   assert.deepEqual(judge(r, ""), { verdict: "none" });
 });
 
@@ -54,10 +77,24 @@ test("rules.get and rules.set: per person, tidied, with the stricter list winnin
   reset();
   const hn = harness();
   assert.deepEqual((await call(hn, "terminal.rules.get", {})).rules, rules({}));
-  const set = await call(hn, "terminal.rules.set", { rules: rules({ allow: ["ls", " ls ", "npm test", "rm -rf build"], ask: ["npm publish", "rm -rf build"], deny: ["rm -rf /", "npm publish", ""], folders: ["fld_work", "fld_work"] }) });
-  assert.deepEqual(set.rules, { allow: ["ls", "npm test"], ask: ["rm -rf build"], deny: ["rm -rf /", "npm publish"], folders: ["fld_work"] }, "blank and repeated entries go, and an entry on a stricter list leaves the weaker one");
+  const set = await call(hn, "terminal.rules.set", {
+    rules: rules({
+      allow: ["ls", " ls ", "npm test", "rm -rf build"],
+      ask: ["npm publish", "rm -rf build"],
+      deny: ["rm -rf /", "npm publish", ""],
+      folders: ["fld_work", "fld_work"],
+    }),
+  });
+  assert.deepEqual(
+    set.rules,
+    { allow: ["ls", "npm test"], ask: ["rm -rf build"], deny: ["rm -rf /", "npm publish"], folders: ["fld_work"] },
+    "blank and repeated entries go, and an entry on a stricter list leaves the weaker one",
+  );
   assert.deepEqual((await call(hn, "terminal.rules.get", {})).rules, set.rules, "what was saved is what is read");
-  assert.deepEqual(hn.named("terminal.rules_changed").map((e) => e.payload), [{ personId: "usr_dana" }]);
+  assert.deepEqual(
+    hn.named("terminal.rules_changed").map((e) => e.payload),
+    [{ personId: "usr_dana" }],
+  );
   assert.deepEqual(assertEventsConform(hn), []);
   // Another person starts clean and is not touched.
   const ravi = hn.as({ kind: "person", id: "usr_ravi" });
@@ -67,9 +104,25 @@ test("rules.get and rules.set: per person, tidied, with the stricter list winnin
   // An agent acting for Dana changes Dana's rules, not its own; and since 12 Nov (lead's decision) only to make them stricter: a looser change needs Dana herself.
   const agent = hn.as({ kind: "agent", id: "agt_intake" }, "usr_dana");
   const before = rulesOf(hn.db, "usr_dana");
-  await call(hn, "terminal.rules.set", { rules: { ...before, allow: before.allow.slice(1), ask: [...before.ask, "git push"], deny: [...before.deny, "curl"] } }, agent);
+  await call(
+    hn,
+    "terminal.rules.set",
+    {
+      rules: {
+        ...before,
+        allow: before.allow.slice(1),
+        ask: [...before.ask, "git push"],
+        deny: [...before.deny, "curl"],
+      },
+    },
+    agent,
+  );
   const after = rulesOf(hn.db, "usr_dana");
-  assert.deepEqual([after.allow, after.ask.includes("git push"), after.deny.includes("curl")], [before.allow.slice(1), true, true], "stricter: an allow entry gone, an ask and a deny entry added");
+  assert.deepEqual(
+    [after.allow, after.ask.includes("git push"), after.deny.includes("curl")],
+    [before.allow.slice(1), true, true],
+    "stricter: an allow entry gone, an ask and a deny entry added",
+  );
   assert.deepEqual(rulesOf(hn.db, "agt_intake").allow, []);
 });
 
@@ -87,9 +140,17 @@ test("an agent cannot loosen the rules of the person it acts for: a new allow en
     ["a new folder", { ...base, folders: ["fld_abc"] }],
   ] as const) {
     let err: unknown;
-    try { await h["terminal.rules.set"]!(agent, { rules: next }); } catch (e) { err = e; }
+    try {
+      await h["terminal.rules.set"]!(agent, { rules: next });
+    } catch (e) {
+      err = e;
+    }
     assert.equal(codeOf(err), "permission.role_lacks_permission", what);
-    assert.match((err as { error: { message: string } }).error.message, /only make your terminal rules stricter[\s\S]*Terminal rules/, what);
+    assert.match(
+      (err as { error: { message: string } }).error.message,
+      /only make your terminal rules stricter[\s\S]*Terminal rules/,
+      what,
+    );
     assert.deepEqual(rulesOf(hn.db, "usr_dana"), base, `${what}: nothing changed`);
   }
   // an ask entry moved to deny is stricter
@@ -103,9 +164,15 @@ test("an agent cannot loosen the rules of the person it acts for: a new allow en
 test("rules.set refuses an entry that is too long or more than 200 rules in all", async () => {
   reset();
   const hn = harness();
-  assert.equal(await rejects(() => h["terminal.rules.set"]!(hn.ctx, { rules: rules({ allow: ["x".repeat(201)] }) })), "validation.bad_input");
+  assert.equal(
+    await rejects(() => h["terminal.rules.set"]!(hn.ctx, { rules: rules({ allow: ["x".repeat(201)] }) })),
+    "validation.bad_input",
+  );
   const many = Array.from({ length: 201 }, (_, i) => `cmd${i}`);
-  assert.equal(await rejects(() => h["terminal.rules.set"]!(hn.ctx, { rules: rules({ allow: many }) })), "validation.bad_input");
+  assert.equal(
+    await rejects(() => h["terminal.rules.set"]!(hn.ctx, { rules: rules({ allow: many }) })),
+    "validation.bad_input",
+  );
   const ok = Array.from({ length: 200 }, (_, i) => `cmd${i}`);
   assert.equal((await call(hn, "terminal.rules.set", { rules: rules({ allow: ok }) })).rules.allow.length, 200);
 });
@@ -113,21 +180,47 @@ test("rules.set refuses an entry that is too long or more than 200 rules in all"
 test("a deny rule stops a command in the module itself, whoever sends it; allow and ask entries do not stop it here", async () => {
   reset();
   const hn = harness();
-  const host = fakeHost({ "rm -rf build": { exitCode: 0, output: "" }, "npm publish": { exitCode: 0, output: "published" }, ls: { exitCode: 0, output: "a" } });
+  const host = fakeHost({
+    "rm -rf build": { exitCode: 0, output: "" },
+    "npm publish": { exitCode: 0, output: "published" },
+    ls: { exitCode: 0, output: "a" },
+  });
   bindHost(host.host);
   await call(hn, "terminal.rules.set", { rules: rules({ deny: ["rm -rf *"], ask: ["npm publish"], allow: ["ls"] }) });
-  const t = (await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: "i1" })).terminal;
+  const t = (await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: "i1" }))
+    .terminal;
   const agent = hn.as({ kind: "agent", id: "agt_intake" }, "usr_dana");
-  assert.equal(await rejects(() => h["terminal.run"]!(agent, { command: "rm -rf build", terminalId: t.terminalId })), "permission.role_lacks_permission");
-  assert.equal(await rejects(() => h["terminal.run"]!(agent, { command: "ls && rm -rf build", terminalId: t.terminalId })), "permission.role_lacks_permission");
-  assert.equal(await rejects(() => h["terminal.run"]!(hn.ctx, { command: "rm -rf build", terminalId: t.terminalId })), "permission.role_lacks_permission", "a person's own API call too");
+  assert.equal(
+    await rejects(() => h["terminal.run"]!(agent, { command: "rm -rf build", terminalId: t.terminalId })),
+    "permission.role_lacks_permission",
+  );
+  assert.equal(
+    await rejects(() => h["terminal.run"]!(agent, { command: "ls && rm -rf build", terminalId: t.terminalId })),
+    "permission.role_lacks_permission",
+  );
+  assert.equal(
+    await rejects(() => h["terminal.run"]!(hn.ctx, { command: "rm -rf build", terminalId: t.terminalId })),
+    "permission.role_lacks_permission",
+    "a person's own API call too",
+  );
   assert.equal(host.count("run"), 0);
   assert.equal(hn.rows("SELECT * FROM terminal_commands").length, 0);
-  assert.equal((await call(hn, "terminal.run", { command: "npm publish", terminalId: t.terminalId, idempotencyKey: "i2" }, agent)).output, "published");
-  assert.equal((await call(hn, "terminal.run", { command: "ls", terminalId: t.terminalId, idempotencyKey: "i3" }, agent)).output, "a");
+  assert.equal(
+    (await call(hn, "terminal.run", { command: "npm publish", terminalId: t.terminalId, idempotencyKey: "i2" }, agent))
+      .output,
+    "published",
+  );
+  assert.equal(
+    (await call(hn, "terminal.run", { command: "ls", terminalId: t.terminalId, idempotencyKey: "i3" }, agent)).output,
+    "a",
+  );
   // The wall is the acting person's: another person's session is not bound by Dana's rules.
   const ravi = hn.as({ kind: "person", id: "usr_ravi" });
-  assert.equal((await call(hn, "terminal.run", { command: "rm -rf build", terminalId: t.terminalId, idempotencyKey: "i4" }, ravi)).exitCode, 0);
+  assert.equal(
+    (await call(hn, "terminal.run", { command: "rm -rf build", terminalId: t.terminalId, idempotencyKey: "i4" }, ravi))
+      .exitCode,
+    0,
+  );
 });
 
 test("S4: an Automation or any other service acting for a person may only tighten that person's rules too", async () => {
@@ -135,8 +228,16 @@ test("S4: an Automation or any other service acting for a person may only tighte
   const hn = harness();
   await call(hn, "terminal.rules.set", { rules: rules({ allow: ["ls"], deny: ["rm -rf"] }) });
   const automation = hn.as({ kind: "service", id: "svc_aut_nightly" }, "usr_dana");
-  assert.equal(await rejects(() => h["terminal.rules.set"]!(automation, { rules: rules({ allow: ["ls", "curl"], deny: ["rm -rf"] }) })), "permission.role_lacks_permission");
-  assert.equal(await rejects(() => h["terminal.rules.set"]!(automation, { rules: rules({ allow: ["ls"] }) })), "permission.role_lacks_permission");
+  assert.equal(
+    await rejects(() =>
+      h["terminal.rules.set"]!(automation, { rules: rules({ allow: ["ls", "curl"], deny: ["rm -rf"] }) }),
+    ),
+    "permission.role_lacks_permission",
+  );
+  assert.equal(
+    await rejects(() => h["terminal.rules.set"]!(automation, { rules: rules({ allow: ["ls"] }) })),
+    "permission.role_lacks_permission",
+  );
   await call(hn, "terminal.rules.set", { rules: rules({ allow: ["ls"], deny: ["rm -rf", "curl"] }) }, automation);
   assert.deepEqual(rulesOf(hn.db, "usr_dana").deny, ["rm -rf", "curl"], "a stricter change goes through");
 });

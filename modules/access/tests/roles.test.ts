@@ -7,7 +7,8 @@ import { handlers } from "../impl.ts";
 import { harness } from "../fixtures/db.ts";
 import { BUILT_IN_ROLES, EVERYONE_GROUP } from "../fixtures/seed.ts";
 import { putPrincipal, rolesApply, rolesAssign, rolesCreate, rolesPreview } from "../handlers/roles.ts";
-import { catalogueSource, dropStore, parseCatalogue, storeOf } from "../projections.ts";
+import { PERMISSIONS } from "../../../manifests/permissions.ts";
+import { catalogue, dropStore, parseCatalogue, storeOf } from "../projections.ts";
 
 function codeOf(e: unknown): string | undefined {
   if (!e || typeof e !== "object" || !("error" in e)) return undefined;
@@ -23,15 +24,54 @@ test("access handlers and the migration tables are wired", () => {
   assert.equal(EVERYONE_GROUP, "grp_everyone");
   const sql = readFileSync(new URL("../migrations/0001_access_core.sql", import.meta.url), "utf8");
   for (const table of [
-    "access_roles", "access_groups", "access_principals", "access_grants", "access_meta",
-    "access_assignments", "access_resources", "access_policies", "access_actors", "access_fields", "access_acl",
+    "access_roles",
+    "access_groups",
+    "access_principals",
+    "access_grants",
+    "access_meta",
+    "access_assignments",
+    "access_resources",
+    "access_policies",
+    "access_actors",
+    "access_fields",
+    "access_acl",
   ]) {
     assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS "${table}"`));
   }
 });
 
+test("the catalogue is the generated registry's permissions, equal to the manifest, read from no source text", () => {
+  // the generated list adds the module that owns each key and sorts by key; the rest is the manifest's
+  const plain = (defs: readonly (typeof PERMISSIONS)[number][]) =>
+    defs
+      .map(({ key, area, title, risk, defaults, appliesTo }) => ({ key, area, title, risk, defaults, appliesTo }))
+      .sort((a, b) => a.key.localeCompare(b.key));
+  assert.deepEqual(plain(catalogue()), plain(PERMISSIONS));
+  assert.ok(PERMISSIONS.length >= 50, String(PERMISSIONS.length));
+  assert.equal(new Set(PERMISSIONS.map((p) => p.key)).size, PERMISSIONS.length, "keys are unique");
+  const src = readFileSync(new URL("../projections.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(
+    src,
+    /readFileSync/,
+    "a commented-out perm( call must not be a permission: nothing parses the text",
+  );
+  const owner = parseCatalogue().get("owner")!;
+  assert.deepEqual(owner, PERMISSIONS.map((p) => p.key).sort(), "the owner holds every key");
+  assert.deepEqual(parseCatalogue().get("guest"), [], "a guest holds none");
+  // each other role holds exactly the keys whose defaults name it, in key order, computed here without the reader
+  for (const role of ["admin", "developer", "member"] as const)
+    assert.deepEqual(
+      parseCatalogue().get(role),
+      PERMISSIONS.filter((p) => p.defaults[role] === true)
+        .map((p) => p.key)
+        .sort(),
+      role,
+    );
+  assert.throws(() => parseCatalogue(PERMISSIONS.slice(0, 3)), /catalogue has 3 permissions/);
+});
+
 test("built-in role defaults equal the catalogue", () => {
-  const parsed = parseCatalogue(catalogueSource());
+  const parsed = parseCatalogue();
   const h = harness();
   const store = storeOf(h.ctx);
   for (const name of ["owner", "admin", "developer", "member", "guest"] as const) {

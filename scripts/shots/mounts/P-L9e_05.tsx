@@ -5,7 +5,11 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
-import { createSampleFiles, harbor as filesHarbor, northwind as filesNorthwind } from "../../../apps/app/src/places/files/list/sample.ts";
+import {
+  createSampleFiles,
+  harbor as filesHarbor,
+  northwind as filesNorthwind,
+} from "../../../apps/app/src/places/files/list/sample.ts";
 import { FilesDataProvider, FilesStateProvider, FilesTree } from "../../../apps/app/src/places/files/tree/index.ts";
 import { MemoryDataProvider, MemoryGraph, MemoryProposed } from "../../../apps/app/src/places/files/memory/index.ts";
 import { createSampleMemory, harbor, northwind } from "../../../apps/app/src/places/files/memory/sample.ts";
@@ -30,12 +34,24 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
     <FilesDataProvider value={files.data}>
       <FilesStateProvider initial={{ where: { kind: "folder", id: null } }}>
         <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          {phone ? null : <View style={{ width: 240 }}><FilesTree /></View>}
+          {phone ? null : (
+            <View style={{ width: 240 }}>
+              <FilesTree />
+            </View>
+          )}
           <MemoryDataProvider value={sample.data}>
             <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-              {q.get("part") === "proposed"
-                ? <MemoryProposed {...(agent ? { agentId: agent } : {})} />
-                : <MemoryGraph {...(agent ? { agentId: agent } : {})} scope={q.get("scope") === "space" ? "space" : "agent"} selected={q.get("select")} step={q.get("step") ? Number(q.get("step")) : 30} find={q.get("find") ?? ""} />}
+              {q.get("part") === "proposed" ? (
+                <MemoryProposed {...(agent ? { agentId: agent } : {})} />
+              ) : (
+                <MemoryGraph
+                  {...(agent ? { agentId: agent } : {})}
+                  scope={q.get("scope") === "space" ? "space" : "agent"}
+                  selected={q.get("select")}
+                  step={q.get("step") ? Number(q.get("step")) : 30}
+                  find={q.get("find") ?? ""}
+                />
+              )}
             </View>
           </MemoryDataProvider>
         </View>
@@ -46,6 +62,8 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
 
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  useEffect(() => {
+    setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""));
+  }, []);
   return q ? <Page q={q} /> : null;
 }

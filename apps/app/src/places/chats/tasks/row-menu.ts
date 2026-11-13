@@ -2,7 +2,10 @@
 // the row is part of a selection every change acts on the whole selection (the page passes the ids), and Open and Select are about the row alone.
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 
-export interface TaskRowFacts { done: boolean; selected: boolean }
+export interface TaskRowFacts {
+  done: boolean;
+  selected: boolean;
+}
 export interface TaskRowDo {
   open(): void;
   toggleSelect(): void;

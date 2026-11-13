@@ -16,13 +16,18 @@ function runner(h: Harness): { started: string[] } {
   h.callee("automations.fire", (input) => {
     const key = h.calls[h.calls.length - 1]!.opts?.idempotencyKey ?? "";
     let id = byKey.get(key);
-    if (!id) { id = runId(started.length + 1); byKey.set(key, id); started.push(id); }
+    if (!id) {
+      id = runId(started.length + 1);
+      byKey.set(key, id);
+      started.push(id);
+    }
     void input;
     return { runId: id };
   });
   return { started };
 }
-const every = (over: Record<string, unknown> = {}): Record<string, unknown> => newSchedule({ when: { cron: "0 9 * * *", tz: "UTC" }, ...over });
+const every = (over: Record<string, unknown> = {}): Record<string, unknown> =>
+  newSchedule({ when: { cron: "0 9 * * *", tz: "UTC" }, ...over });
 
 test("schedule: a cron schedule gets its next fire time, an event, and is read back by get and list", async () => {
   const h = harness();
@@ -56,7 +61,11 @@ test("schedule: a one-shot time, the same idempotency key returns the same sched
 test("schedule: refuses a bad cron, a bad zone, a bad capability name and a schedule that never fires", async () => {
   const h = harness();
   const bad = async (over: Record<string, unknown>, reason: string): Promise<void> => {
-    await assert.rejects(h.call("scheduler.schedule", newSchedule(over), alice), (e) => { assert.equal(codeOf(e), "validation.bad_input"); assert.equal(reasonOf(e), reason); return true; });
+    await assert.rejects(h.call("scheduler.schedule", newSchedule(over), alice), (e) => {
+      assert.equal(codeOf(e), "validation.bad_input");
+      assert.equal(reasonOf(e), reason);
+      return true;
+    });
   };
   await bad({ when: { cron: "61 * * * *", tz: "UTC" } }, "bad_cron");
   await bad({ when: { cron: "* * * *", tz: "UTC" } }, "bad_cron");
@@ -69,8 +78,20 @@ test("schedule: refuses a bad cron, a bad zone, a bad capability name and a sche
 test("schedule: runs as the caller, or as someone the caller acts for; a person cannot schedule as another person", async () => {
   const h = harness();
   const agent = { id: "agt_bot", kind: "agent" as const, actingFor: alice.id };
-  assert.equal((await h.call("scheduler.get", { scheduleId: (await h.call("scheduler.schedule", newSchedule(), agent)).scheduleId }, alice)).schedule.principal, alice.id);
-  await assert.rejects(h.call("scheduler.schedule", newSchedule({ principal: bob.id }), alice), (e) => codeOf(e) === "permission.not_found");
+  assert.equal(
+    (
+      await h.call(
+        "scheduler.get",
+        { scheduleId: (await h.call("scheduler.schedule", newSchedule(), agent)).scheduleId },
+        alice,
+      )
+    ).schedule.principal,
+    alice.id,
+  );
+  await assert.rejects(
+    h.call("scheduler.schedule", newSchedule({ principal: bob.id }), alice),
+    (e) => codeOf(e) === "permission.not_found",
+  );
   const asHost = await h.call("scheduler.schedule", newSchedule({ principal: bob.id }), host);
   assert.equal((await h.call("scheduler.get", { scheduleId: asHost.scheduleId }, bob)).schedule.principal, bob.id);
 });
@@ -83,8 +104,14 @@ test("list: filters by owner and active; each person sees their own, the host se
   await h.call("scheduler.pause", { scheduleId: b.scheduleId, reason: "Journey paused" }, alice);
   assert.equal((await h.call("scheduler.list", {}, alice)).total, 2);
   assert.equal((await h.call("scheduler.list", {}, host)).total, 3);
-  assert.deepEqual((await h.call("scheduler.list", { owner }, alice)).schedules.map((s: any) => s.id), [a.scheduleId]);   // eslint-disable-line @typescript-eslint/no-explicit-any
-  assert.deepEqual((await h.call("scheduler.list", { active: false }, alice)).schedules.map((s: any) => s.id), [b.scheduleId]);   // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.deepEqual(
+    (await h.call("scheduler.list", { owner }, alice)).schedules.map((s: any) => s.id),
+    [a.scheduleId],
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.deepEqual(
+    (await h.call("scheduler.list", { active: false }, alice)).schedules.map((s: any) => s.id),
+    [b.scheduleId],
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
   const pages = await h.call("scheduler.list", { limit: 1 }, host);
   assert.equal(pages.schedules.length, 1);
   assert.equal(pages.next, "1");
@@ -94,16 +121,25 @@ test("list: filters by owner and active; each person sees their own, the host se
 test("get, cancel, pause and reschedule are hidden from someone who is not the principal", async () => {
   const h = harness();
   const { scheduleId } = await h.call("scheduler.schedule", newSchedule(), alice);
-  for (const [cap, input] of [["scheduler.get", { scheduleId }], ["scheduler.cancel", { scheduleId }], ["scheduler.pause", { scheduleId, reason: "x" }], ["scheduler.reschedule", { scheduleId, ifMissed: "skip" }], ["scheduler.run_now", { scheduleId }]] as const) {
+  for (const [cap, input] of [
+    ["scheduler.get", { scheduleId }],
+    ["scheduler.cancel", { scheduleId }],
+    ["scheduler.pause", { scheduleId, reason: "x" }],
+    ["scheduler.reschedule", { scheduleId, ifMissed: "skip" }],
+    ["scheduler.run_now", { scheduleId }],
+  ] as const) {
     await assert.rejects(h.call(cap, input, bob), (e) => codeOf(e) === "permission.not_found", cap);
   }
-  await assert.rejects(h.call("scheduler.get", { scheduleId: "sch_" + "0".repeat(32) }, alice), (e) => codeOf(e) === "validation.not_found");
+  await assert.rejects(
+    h.call("scheduler.get", { scheduleId: "sch_" + "0".repeat(32) }, alice),
+    (e) => codeOf(e) === "validation.not_found",
+  );
 });
 
 test("pause stops it firing and shows the reason; resume goes on from now without making up what passed", async () => {
   const h = harness();
   runner(h);
-  const { scheduleId } = await h.call("scheduler.schedule", every(), alice);   // 09:00 UTC daily
+  const { scheduleId } = await h.call("scheduler.schedule", every(), alice); // 09:00 UTC daily
   const paused = (await h.call("scheduler.pause", { scheduleId, reason: "Vendor outage" }, alice)).schedule;
   assert.equal(paused.active, false);
   assert.equal(paused.pausedReason, "Vendor outage");
@@ -111,7 +147,11 @@ test("pause stops it firing and shows the reason; resume goes on from now withou
   const before = h.allEvents.length;
   await h.call("scheduler.pause", { scheduleId, reason: "again" }, alice);
   assert.equal(h.allEvents.length, before, "pausing twice is one pause");
-  assert.deepEqual(await h.call("scheduler.fire", { scheduleId, scheduledFor: utc(2025, 10, 10, 9) }, host), {}, "a paused schedule does not fire");
+  assert.deepEqual(
+    await h.call("scheduler.fire", { scheduleId, scheduledFor: utc(2025, 10, 10, 9) }, host),
+    {},
+    "a paused schedule does not fire",
+  );
   h.setNow(utc(2025, 10, 12, 10));
   const resumed = (await h.call("scheduler.resume", { scheduleId }, alice)).schedule;
   assert.equal(resumed.active, true);
@@ -123,11 +163,20 @@ test("pause stops it firing and shows the reason; resume goes on from now withou
 test("reschedule changes the time and the if-missed rule", async () => {
   const h = harness();
   const { scheduleId } = await h.call("scheduler.schedule", every(), alice);
-  const r = (await h.call("scheduler.reschedule", { scheduleId, when: { cron: "30 18 * * *", tz: "UTC" }, ifMissed: "skip" }, alice)).schedule;
+  const r = (
+    await h.call(
+      "scheduler.reschedule",
+      { scheduleId, when: { cron: "30 18 * * *", tz: "UTC" }, ifMissed: "skip" },
+      alice,
+    )
+  ).schedule;
   assert.equal(r.ifMissed, "skip");
   assert.equal(r.nextAt, utc(2025, 10, 9, 18, 30));
   assert.deepEqual(r.when, { cron: "30 18 * * *", tz: "UTC" });
-  await assert.rejects(h.call("scheduler.reschedule", { scheduleId, when: { cron: "nope", tz: "UTC" } }, alice), (e) => reasonOf(e) === "bad_cron");
+  await assert.rejects(
+    h.call("scheduler.reschedule", { scheduleId, when: { cron: "nope", tz: "UTC" } }, alice),
+    (e) => reasonOf(e) === "bad_cron",
+  );
 });
 
 test("cancel removes it from lists and gets, emits once and never fires", async () => {
@@ -146,13 +195,21 @@ test("cancel removes it from lists and gets, emits once and never fires", async 
 test("fire: makes the call with the schedule's input and a key per time, records the Run, moves to the next time", async () => {
   const h = harness();
   const { started } = runner(h);
-  const { scheduleId } = await h.call("scheduler.schedule", every({ input: { automationId: "aut_a1b2c3", note: "daily" } }), alice);
+  const { scheduleId } = await h.call(
+    "scheduler.schedule",
+    every({ input: { automationId: "aut_a1b2c3", note: "daily" } }),
+    alice,
+  );
   const t = utc(2025, 10, 10, 9);
   h.setNow(t + 5_000);
   const out = await h.call("scheduler.fire", { scheduleId, scheduledFor: t }, host);
   assert.deepEqual(out, { runId: started[0] });
   // a schedule a person made runs with that person's own standing (asCaller): the capability it calls does not take it for module code
-  assert.deepEqual(h.calls.at(-1), { cap: "automations.fire", input: { automationId: "aut_a1b2c3", note: "daily", idempotencyKey: `sch:${scheduleId}:${t}` }, opts: { idempotencyKey: `sch:${scheduleId}:${t}`, asCaller: true } });
+  assert.deepEqual(h.calls.at(-1), {
+    cap: "automations.fire",
+    input: { automationId: "aut_a1b2c3", note: "daily", idempotencyKey: `sch:${scheduleId}:${t}` },
+    opts: { idempotencyKey: `sch:${scheduleId}:${t}`, asCaller: true },
+  });
   const fired = h.allEvents.at(-1)!;
   assert.equal(fired.name, "schedule.fired");
   assert.deepEqual(fired.payload, { scheduleId, owner, runId: started[0], scheduledFor: t, late: false });
@@ -182,9 +239,15 @@ test("fire: only the principal or the host may fire; a call that fails leaves th
   const { scheduleId } = await h.call("scheduler.schedule", every(), alice);
   const t = utc(2025, 10, 10, 9);
   h.setNow(t);
-  await assert.rejects(h.call("scheduler.fire", { scheduleId, scheduledFor: t }, bob), (e) => codeOf(e) === "permission.not_found");
+  await assert.rejects(
+    h.call("scheduler.fire", { scheduleId, scheduledFor: t }, bob),
+    (e) => codeOf(e) === "permission.not_found",
+  );
   let down = true;
-  h.callee("automations.fire", () => { if (down) throw Object.assign(new Error("down"), { error: { code: "provider.unavailable" } }); return { runId: runId(1) }; });
+  h.callee("automations.fire", () => {
+    if (down) throw Object.assign(new Error("down"), { error: { code: "provider.unavailable" } });
+    return { runId: runId(1) };
+  });
   await assert.rejects(h.call("scheduler.fire", { scheduleId, scheduledFor: t }, alice));
   assert.equal(h.allEvents.length, 1, "only schedule.created: nothing fired");
   assert.equal(dueSchedules(h.db, h.now()).length, 1, "still due");
@@ -211,8 +274,13 @@ test("a one-shot ends after its fire", async () => {
 test("tick: fires what is due, oldest first, and one failing call does not stop the others", async () => {
   const h = harness();
   const order: string[] = [];
-  h.callee("automations.fire", (i) => { order.push(i.automationId); if (i.automationId === "aut_bad") throw new Error("boom"); return { runId: runId(order.length) }; });
-  const mk = (id: string, when: Record<string, unknown>) => h.call("scheduler.schedule", newSchedule({ input: { automationId: id }, when }), alice);
+  h.callee("automations.fire", (i) => {
+    order.push(i.automationId);
+    if (i.automationId === "aut_bad") throw new Error("boom");
+    return { runId: runId(order.length) };
+  });
+  const mk = (id: string, when: Record<string, unknown>) =>
+    h.call("scheduler.schedule", newSchedule({ input: { automationId: id }, when }), alice);
   const late = await mk("aut_late", { at: NOW + 20 * MINUTE });
   const bad = await mk("aut_bad", { at: NOW + 10 * MINUTE });
   const early = await mk("aut_early", { at: NOW + 5 * MINUTE });
@@ -221,7 +289,10 @@ test("tick: fires what is due, oldest first, and one failing call does not stop 
   const r = await h.consumer(host, (ctx) => tick(ctx));
   assert.deepEqual(order, ["aut_early", "aut_bad", "aut_late"]);
   assert.deepEqual(r.fired, [early.scheduleId, late.scheduleId]);
-  assert.deepEqual(r.failed.map((f) => f.scheduleId), [bad.scheduleId]);
+  assert.deepEqual(
+    r.failed.map((f) => f.scheduleId),
+    [bad.scheduleId],
+  );
 });
 
 test("run_now fires once now without moving the cron", async () => {
@@ -245,15 +316,29 @@ test("run_now fires once now without moving the cron", async () => {
 test("catch_up: a schedule missed while the server was down runs once on restart, however many times it was missed", async () => {
   const h = harness();
   const { started } = runner(h);
-  const { scheduleId } = await h.call("scheduler.schedule", newSchedule({ when: { cron: "*/10 * * * *", tz: "UTC" } }), alice);   // 09:00, 09:10, ...
+  const { scheduleId } = await h.call(
+    "scheduler.schedule",
+    newSchedule({ when: { cron: "*/10 * * * *", tz: "UTC" } }),
+    alice,
+  ); // 09:00, 09:10, ...
   const since = h.now();
-  h.advance(42 * MINUTE);   // 09:35:20: the times 09:00, 09:10, 09:20, 09:30 passed
+  h.advance(42 * MINUTE); // 09:35:20: the times 09:00, 09:10, 09:20, 09:30 passed
   const r = await h.call("scheduler.catch_up", { since }, host);
   assert.deepEqual(r, { ranOnce: 1, skipped: 0 });
   assert.equal(started.length, 1);
-  assert.equal(h.calls.at(-1)!.opts!.idempotencyKey, `sch:${scheduleId}:${utc(2025, 10, 9, 9, 30)}`, "it runs for the latest missed time");
+  assert.equal(
+    h.calls.at(-1)!.opts!.idempotencyKey,
+    `sch:${scheduleId}:${utc(2025, 10, 9, 9, 30)}`,
+    "it runs for the latest missed time",
+  );
   assert.deepEqual(names(h).slice(-2), ["schedule.missed", "schedule.fired"]);
-  assert.deepEqual(h.allEvents.at(-2)!.payload, { scheduleId, owner, scheduledFor: utc(2025, 10, 9, 9, 30), handling: "ran_once", note: "3 earlier times were skipped too." });
+  assert.deepEqual(h.allEvents.at(-2)!.payload, {
+    scheduleId,
+    owner,
+    scheduledFor: utc(2025, 10, 9, 9, 30),
+    handling: "ran_once",
+    note: "3 earlier times were skipped too.",
+  });
   assert.equal(h.allEvents.at(-1)!.payload.late, true);
   assert.equal((await h.call("scheduler.get", { scheduleId }, alice)).schedule.nextAt, utc(2025, 10, 9, 9, 40));
   // the tick after it finds nothing more to do, and a second catch_up changes nothing
@@ -265,15 +350,22 @@ test("catch_up: a schedule missed while the server was down runs once on restart
 test("catch_up: missed by more than the window it is skipped with a note for the owner's digest; the window is a setting", async () => {
   const h = harness();
   const { started } = runner(h);
-  const { scheduleId } = await h.call("scheduler.schedule", every(), alice);   // 09:00 UTC
+  const { scheduleId } = await h.call("scheduler.schedule", every(), alice); // 09:00 UTC
   const since = h.now();
-  h.setNow(utc(2025, 10, 9, 12, 3));      // 3 hours after 09:00
+  h.setNow(utc(2025, 10, 9, 12, 3)); // 3 hours after 09:00
   assert.deepEqual(await h.call("scheduler.catch_up", { since }, host), { ranOnce: 0, skipped: 1 });
   assert.equal(started.length, 0);
   const miss = (await h.call("scheduler.missed", { since }, alice)).missed;
   assert.deepEqual(miss, [{ scheduleId, owner, scheduledFor: utc(2025, 10, 9, 9), handling: "skipped" }]);
-  assert.match(h.allEvents.at(-1)!.payload.note as string, /Skipped: it was due 183 minutes ago, longer than the 60 minute window/);
-  assert.equal((await h.call("scheduler.get", { scheduleId }, alice)).schedule.nextAt, utc(2025, 10, 10, 9), "the schedule goes on");
+  assert.match(
+    h.allEvents.at(-1)!.payload.note as string,
+    /Skipped: it was due 183 minutes ago, longer than the 60 minute window/,
+  );
+  assert.equal(
+    (await h.call("scheduler.get", { scheduleId }, alice)).schedule.nextAt,
+    utc(2025, 10, 10, 9),
+    "the schedule goes on",
+  );
 
   const h2 = harness();
   const r2 = runner(h2);
@@ -302,21 +394,32 @@ test("catch_up: a window of 0 never runs a missed time; the rule 'skip' never ru
   assert.deepEqual(await h2.call("scheduler.catch_up", { since: since2 }, host), { ranOnce: 0, skipped: 1 });
   assert.match(h2.allEvents.at(-1)!.payload.note as string, /Skipped by its if-missed rule/);
   assert.equal(r2.started.length + started.length, 0);
-  assert.equal((await h2.call("scheduler.get", { scheduleId: s.scheduleId }, alice)).schedule.nextAt, utc(2025, 10, 10, 9));
+  assert.equal(
+    (await h2.call("scheduler.get", { scheduleId: s.scheduleId }, alice)).schedule.nextAt,
+    utc(2025, 10, 10, 9),
+  );
 });
 
 test("catch_up: a one-shot that was missed runs once inside the window or is skipped, and ends either way; paused schedules are left alone", async () => {
   const h = harness();
   const { started } = runner(h);
   const near = await h.call("scheduler.schedule", newSchedule({ when: { at: NOW + 10 * MINUTE } }), alice);
-  const far = await h.call("scheduler.schedule", newSchedule({ when: { at: NOW + 20 * MINUTE }, input: { automationId: "aut_far" } }), alice);
+  const far = await h.call(
+    "scheduler.schedule",
+    newSchedule({ when: { at: NOW + 20 * MINUTE }, input: { automationId: "aut_far" } }),
+    alice,
+  );
   const asleep = await h.call("scheduler.schedule", newSchedule({ when: { at: NOW + 30 * MINUTE } }), alice);
   await h.call("scheduler.pause", { scheduleId: asleep.scheduleId, reason: "On hold" }, alice);
   const since = h.now();
-  h.setNow(NOW + 20 * MINUTE + 61 * MINUTE + 1);   // `near` is 71 minutes late, `far` just over an hour
+  h.setNow(NOW + 20 * MINUTE + 61 * MINUTE + 1); // `near` is 71 minutes late, `far` just over an hour
   assert.deepEqual(await h.call("scheduler.catch_up", { since }, host), { ranOnce: 0, skipped: 2 });
-  for (const id of [near.scheduleId, far.scheduleId]) assert.equal((await h.call("scheduler.get", { scheduleId: id }, alice)).schedule.active, false);
-  assert.equal((await h.call("scheduler.get", { scheduleId: asleep.scheduleId }, alice)).schedule.pausedReason, "On hold");
+  for (const id of [near.scheduleId, far.scheduleId])
+    assert.equal((await h.call("scheduler.get", { scheduleId: id }, alice)).schedule.active, false);
+  assert.equal(
+    (await h.call("scheduler.get", { scheduleId: asleep.scheduleId }, alice)).schedule.pausedReason,
+    "On hold",
+  );
   assert.equal(started.length, 0);
 
   const h2 = harness();
@@ -335,14 +438,18 @@ test("catch_up: a time that was already fired is not run again; times before `si
   const { scheduleId } = await h.call("scheduler.schedule", every(), alice);
   const t = utc(2025, 10, 9, 9);
   h.setNow(t + 30 * MINUTE);
-  await h.call("scheduler.fire", { scheduleId, scheduledFor: t }, host);   // fired by the tick, then the next row is 10 Oct
+  await h.call("scheduler.fire", { scheduleId, scheduledFor: t }, host); // fired by the tick, then the next row is 10 Oct
   assert.deepEqual(await h.call("scheduler.catch_up", { since: NOW }, host), { ranOnce: 0, skipped: 0 });
   assert.equal(started.length, 1);
   const h2 = harness();
   runner(h2);
   await h2.call("scheduler.schedule", every(), alice);
   h2.setNow(utc(2025, 10, 9, 9, 20));
-  assert.deepEqual(await h2.call("scheduler.catch_up", { since: utc(2025, 10, 9, 9, 10) }, host), { ranOnce: 0, skipped: 0 }, "everything missed is before since");
+  assert.deepEqual(
+    await h2.call("scheduler.catch_up", { since: utc(2025, 10, 9, 9, 10) }, host),
+    { ranOnce: 0, skipped: 0 },
+    "everything missed is before since",
+  );
 });
 
 test("missed lists what catch_up did, for the owner and the host only", async () => {
@@ -361,7 +468,12 @@ test("missed lists what catch_up did, for the owner and the host only", async ()
 
 test("status: healthy when nothing is late, degraded then down as the tick falls behind; counts due schedules and open waits", async () => {
   const h = harness();
-  assert.deepEqual(await h.call("scheduler.status", {}, host), { state: "healthy", tickLagMs: 0, dueNow: 0, openWaits: 0 });
+  assert.deepEqual(await h.call("scheduler.status", {}, host), {
+    state: "healthy",
+    tickLagMs: 0,
+    dueNow: 0,
+    openWaits: 0,
+  });
   await h.call("scheduler.schedule", newSchedule({ when: { at: NOW + MINUTE } }), alice);
   h.advance(MINUTE + 30_000);
   const a = await h.call("scheduler.status", {}, host);
@@ -378,8 +490,20 @@ test("fire: a schedule a person made calls its capability with that person's sta
   const h = harness();
   runner(h);
   const t = utc(2025, 10, 10, 9);
-  const mine = (await h.call("scheduler.schedule", every({ input: { automationId: "aut_a1b2c3" }, idempotencyKey: "k-mine" }), alice)).scheduleId;
-  const vyre = (await h.call("scheduler.schedule", every({ input: { automationId: "aut_a1b2c3" }, principal: alice.id, idempotencyKey: "k-vyre" }), host)).scheduleId;
+  const mine = (
+    await h.call(
+      "scheduler.schedule",
+      every({ input: { automationId: "aut_a1b2c3" }, idempotencyKey: "k-mine" }),
+      alice,
+    )
+  ).scheduleId;
+  const vyre = (
+    await h.call(
+      "scheduler.schedule",
+      every({ input: { automationId: "aut_a1b2c3" }, principal: alice.id, idempotencyKey: "k-vyre" }),
+      host,
+    )
+  ).scheduleId;
   h.setNow(t + 1_000);
   await h.call("scheduler.fire", { scheduleId: mine, scheduledFor: t }, host);
   assert.equal(h.calls.at(-1)!.opts?.asCaller, true);

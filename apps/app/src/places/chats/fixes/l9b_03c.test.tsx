@@ -9,7 +9,8 @@ import type { Agent, NeedsItem } from "../sidebar/model.ts";
 import { createSampleSidebar, harbor, northwind } from "../sidebar/sample.ts";
 import type { SampleSidebar } from "../sidebar/sample.ts";
 
-const html = (s: SampleSidebar): string => renderToStaticMarkup(<ChatsSidebar data={s.data} window={{ start: 0, end: 500 }} />).replaceAll("<!-- -->", "");
+const html = (s: SampleSidebar): string =>
+  renderToStaticMarkup(<ChatsSidebar data={s.data} window={{ start: 0, end: 500 }} />).replaceAll("<!-- -->", "");
 const at = (s: string, needle: string): number => {
   const i = s.indexOf(needle);
   assert.ok(i >= 0, `expected ${needle}`);
@@ -36,15 +37,27 @@ test("every agent that raised a request wears the amber ring; the others do not"
 });
 
 test("the waiting set covers requests beyond the top three", () => {
-  const mk = (by: string): NeedsItem => ({ reason: "ready", task: { id: by, createdBy: by, actions: [] } } as unknown as NeedsItem);
+  const mk = (by: string): NeedsItem =>
+    ({ reason: "ready", task: { id: by, createdBy: by, actions: [] } }) as unknown as NeedsItem;
   assert.deepEqual([...waitingAgents([mk("a"), mk("b"), mk("a")])].sort(), ["a", "b"]);
-  const agent = (id: string): Agent => ({ agentId: id, name: id } as Agent);
+  const agent = (id: string): Agent => ({ agentId: id, name: id }) as Agent;
   const e = buildEntries({
-    faces: [agent("a"), agent("b")], workingAgents: new Set(), waitingAgents: new Set(["b"]),
-    groups: groupRecent({ starred: [], today: [], yesterday: [], earlier: [], nextUnread: null }, [], (id) => id), channels: [], filter: "all", closed: new Set(),
+    faces: [agent("a"), agent("b")],
+    workingAgents: new Set(),
+    waitingAgents: new Set(["b"]),
+    groups: groupRecent({ starred: [], today: [], yesterday: [], earlier: [], nextUnread: null }, [], (id) => id),
+    channels: [],
+    filter: "all",
+    closed: new Set(),
   });
   const faces = e.filter((x) => x.type === "face") as Extract<(typeof e)[number], { type: "face" }>[];
-  assert.deepEqual(faces.map((f) => [f.agent.agentId, f.waiting]), [["a", false], ["b", true]]);
+  assert.deepEqual(
+    faces.map((f) => [f.agent.agentId, f.waiting]),
+    [
+      ["a", false],
+      ["b", true],
+    ],
+  );
 });
 
 test("channels with nothing new sit dim; the one with unread keeps its count", () => {
@@ -56,7 +69,10 @@ test("channels with nothing new sit dim; the one with unread keeps its count", (
 
 test("the sidebar lists no extra project", () => {
   const out = html(createSampleSidebar());
-  assert.ok(has(out, "pruitt-matter") && !has(out, "atp-q4"), "atp-q4 is a project nobody follows, so the sidebar leaves it out as the prototype does");
+  assert.ok(
+    has(out, "pruitt-matter") && !has(out, "atp-q4"),
+    "atp-q4 is a project nobody follows, so the sidebar leaves it out as the prototype does",
+  );
 });
 
 test("agents and people wear real faces, the assistant the Vyre mark", () => {
@@ -74,7 +90,9 @@ test("Harbor Studio, from the shared fixtures: its two requests, Scheduler and P
   assert.equal(northwind.name, "Northwind");
 });
 
-function has(s: string, needle: string): boolean { return s.includes(needle); }
+function has(s: string, needle: string): boolean {
+  return s.includes(needle);
+}
 
 test("unread channels have a bold title (Row emphasis); read ones do not; a chat says unread with its dot", () => {
   const out = html(createSampleSidebar());

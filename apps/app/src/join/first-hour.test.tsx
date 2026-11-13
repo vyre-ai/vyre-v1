@@ -12,10 +12,19 @@ test("the recovery code is explained: what it does, that it is shown once, where
   assert.match(RECOVERY_WHAT, /forget your password/);
   assert.match(RECOVERY_WHAT, /Anyone who has it/);
   // every place a code is shown carries it
-  for (const f of ["../claim/ClaimOwner.tsx", "./AcceptInvite.tsx"]) assert.match(fs.readFileSync(new URL(f, import.meta.url), "utf8"), /sub=\{RECOVERY_WHAT\}/, f);
+  for (const f of ["../claim/ClaimOwner.tsx", "./AcceptInvite.tsx"])
+    assert.match(fs.readFileSync(new URL(f, import.meta.url), "utf8"), /sub=\{RECOVERY_WHAT\}/, f);
 });
 
 test("the forgot-password form says the saved code keeps working after it is used", () => {
-  const out = renderToStaticMarkup(<RecoveryAccount space="Northwind" address="https://box.example" onBack={() => undefined} onAdminReset={() => undefined} onRecover={async () => undefined} />);
+  const out = renderToStaticMarkup(
+    <RecoveryAccount
+      space="Northwind"
+      address="https://box.example"
+      onBack={() => undefined}
+      onAdminReset={() => undefined}
+      onRecover={async () => undefined}
+    />,
+  );
   assert.match(out, /It keeps working after you use it/);
 });

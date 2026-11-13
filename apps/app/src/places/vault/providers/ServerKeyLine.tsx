@@ -15,18 +15,34 @@ export function ServerKeyLine(): ReactElement | null {
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     let live = true;
-    void port?.state().then((s) => { if (live) setState(s); }, () => undefined);
-    return () => { live = false; };
+    void port?.state().then(
+      (s) => {
+        if (live) setState(s);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
   }, [port]);
   if (!port || !state || (!state.remembered && !state.forgotten)) return null;
   const flip = async (): Promise<void> => {
     setBusy(true);
-    try { if (await port.keep(state.forgotten)) setState(await port.state()); } finally { setBusy(false); }
+    try {
+      if (await port.keep(state.forgotten)) setState(await port.state());
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <View style={s.row} testID="vault-server-key">
       <Text style={s.note}>{state.forgotten ? FORGOTTEN_LINE : KEPT_LINE}</Text>
-      <Pressable accessibilityRole="button" disabled={busy} onPress={() => void flip()} testID={state.forgotten ? "vault-server-key-keep" : "vault-server-key-forget"}>
+      <Pressable
+        accessibilityRole="button"
+        disabled={busy}
+        onPress={() => void flip()}
+        testID={state.forgotten ? "vault-server-key-keep" : "vault-server-key-forget"}
+      >
         <Text style={s.link}>{state.forgotten ? "Keep on this server" : "Forget on this server"}</Text>
       </Pressable>
     </View>

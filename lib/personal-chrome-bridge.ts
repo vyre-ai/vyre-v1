@@ -19,10 +19,22 @@ export function createBridgePort(d: BridgePortDeps): { port: PersonalChrome; onE
     async available({ space, person }) {
       const open = d.bridge.opened;
       if (d.bridge.connected === 0 || !open || open.mode !== "personal" || !open.spaces.includes(space)) return false;
-      try { const w = await d.whoami(); return w.person === person && w.spaceId === space; } catch { return false; }
+      try {
+        const w = await d.whoami();
+        return w.person === person && w.spaceId === space;
+      } catch {
+        return false;
+      }
     },
     async call({ tool, args, agent, space, thread, timeoutMs }) {
-      return (await d.bridge.callTool({ tool, input: args, agent: { id: agent.id, name: await d.agentName(agent.id) }, space, ...(thread ? { thread } : {}), timeoutMs })) as Record<string, unknown>;
+      return (await d.bridge.callTool({
+        tool,
+        input: args,
+        agent: { id: agent.id, name: await d.agentName(agent.id) },
+        space,
+        ...(thread ? { thread } : {}),
+        timeoutMs,
+      })) as Record<string, unknown>;
     },
     async held(id) {
       for (let i = 0; i < 20 && !held.has(id); i++) await new Promise((r) => setTimeout(r, 50));
@@ -30,20 +42,38 @@ export function createBridgePort(d: BridgePortDeps): { port: PersonalChrome; onE
     },
     frame: (agentId) => frames.get(agentId) ?? null,
     plan: (agentId) => plans.get(agentId) ?? null,
-    drop: (id) => { d.bridge.dropHeld(id); held.delete(id); },
-    takeOver: (agentId) => { d.bridge.takeOver(agentId); },
-    watch: (agentId) => { d.bridge.watch(agentId); },
+    drop: (id) => {
+      d.bridge.dropHeld(id);
+      held.delete(id);
+    },
+    takeOver: (agentId) => {
+      d.bridge.takeOver(agentId);
+    },
+    watch: (agentId) => {
+      d.bridge.watch(agentId);
+    },
   };
   return {
     port,
     onEvent(e) {
       if (e.event === "held" && typeof e["id"] === "string") {
         const card = (e["card"] && typeof e["card"] === "object" ? e["card"] : {}) as Record<string, string>;
-        held.set(e["id"], { site: String(card["site"] ?? ""), kind: String(e["kind"] ?? ""), summary: String(e["summary"] ?? ""), card });
+        held.set(e["id"], {
+          site: String(card["site"] ?? ""),
+          kind: String(e["kind"] ?? ""),
+          summary: String(e["summary"] ?? ""),
+          card,
+        });
         if (held.size > 100) held.delete(held.keys().next().value as string);
       }
-      if (e.event === "plan" && typeof e["agent"] === "string" && Array.isArray(e["steps"])) plans.set(e["agent"], { goal: String(e["goal"] ?? ""), steps: (e["steps"] as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 20), done: Number(e["done"]) || 0 });
-      if (e.event === "frame" && typeof e["agent"] === "string" && typeof e["thumb"] === "string") frames.set(e["agent"], { site: String(e["site"] ?? ""), thumb: e["thumb"] });
+      if (e.event === "plan" && typeof e["agent"] === "string" && Array.isArray(e["steps"]))
+        plans.set(e["agent"], {
+          goal: String(e["goal"] ?? ""),
+          steps: (e["steps"] as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 20),
+          done: Number(e["done"]) || 0,
+        });
+      if (e.event === "frame" && typeof e["agent"] === "string" && typeof e["thumb"] === "string")
+        frames.set(e["agent"], { site: String(e["site"] ?? ""), thumb: e["thumb"] });
     },
   };
 }

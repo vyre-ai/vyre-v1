@@ -29,7 +29,8 @@ function webProps(props: Record<string, unknown>): Record<string, unknown> {
 const GLYPHS: Record<string, string> = {
   card: '<rect x="2" y="3.5" width="12" height="9" rx="1.8"/><path d="M2 6.8h12M4.5 10h2.5"/>',
   login: '<circle cx="8" cy="8" r="5.8"/><path d="M2.2 8h11.6M8 2.2c2 2 2 9.6 0 11.6M8 2.2c-2 2-2 9.6 0 11.6"/>',
-  blank: '<path d="M6 3C4.3 3 4.5 4.5 4.5 6S4 7.8 3 8c1 .2 1.5.5 1.5 2s-.2 3 1.5 3M10 3c1.7 0 1.5 1.5 1.5 3s.5 1.8 1.5 2c-1 .2-1.5.5-1.5 2s.2 3-1.5 3"/>',
+  blank:
+    '<path d="M6 3C4.3 3 4.5 4.5 4.5 6S4 7.8 3 8c1 .2 1.5.5 1.5 2s-.2 3 1.5 3M10 3c1.7 0 1.5 1.5 1.5 3s.5 1.8 1.5 2c-1 .2-1.5.5-1.5 2s.2 3-1.5 3"/>',
 };
 
 /** The mark's edge inside the tile: bigger on small tiles so it stays readable (as the prototype). */
@@ -44,11 +45,28 @@ export function letterOf(brand: string, name?: string): string {
 }
 
 function tileStyle(size: number): ViewStyle {
-  const ring = web ? ({ boxShadow: "inset 0 0 0 1px var(--line)" } as ViewStyle) : { borderWidth: StyleSheet.hairlineWidth, borderColor: "var(--line)" as string };
-  return { width: size, height: size, borderRadius: "28%" as unknown as number, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0, ...ring };
+  const ring = web
+    ? ({ boxShadow: "inset 0 0 0 1px var(--line)" } as ViewStyle)
+    : { borderWidth: StyleSheet.hairlineWidth, borderColor: "var(--line)" as string };
+  return {
+    width: size,
+    height: size,
+    borderRadius: "28%" as unknown as number,
+    backgroundColor: "var(--sunk)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    flexShrink: 0,
+    ...ring,
+  };
 }
 
-export const AppIcon = memo(function AppIcon({ brand, size = APP_ICON_DEFAULT_SIZE, name, testID }: AppIconProps): ReactElement {
+export const AppIcon = memo(function AppIcon({
+  brand,
+  size = APP_ICON_DEFAULT_SIZE,
+  name,
+  testID,
+}: AppIconProps): ReactElement {
   const label = name ?? brand;
   const id = testID ?? `appicon-${brand}`;
   // a brand's icon file that does not load (missing, blocked, a bad answer) shows the lettered tile instead of a broken image
@@ -57,11 +75,30 @@ export const AppIcon = memo(function AppIcon({ brand, size = APP_ICON_DEFAULT_SI
   if (glyph) {
     const s = Math.round(size * 0.55);
     return (
-      <View testID={id} accessible={false} accessibilityLabel={label} style={tileStyle(size)} {...webProps({ dataSet: { appicon: brand } })}>
+      <View
+        testID={id}
+        accessible={false}
+        accessibilityLabel={label}
+        style={tileStyle(size)}
+        {...webProps({ dataSet: { appicon: brand } })}
+      >
         {web ? (
-          createElement("svg", { viewBox: "0 0 16 16", width: s, height: s, "aria-hidden": true, fill: "none", stroke: "var(--ink-2)", strokeWidth: 1.3, strokeLinecap: "round", strokeLinejoin: "round", dangerouslySetInnerHTML: { __html: glyph } })
+          createElement("svg", {
+            viewBox: "0 0 16 16",
+            width: s,
+            height: s,
+            "aria-hidden": true,
+            fill: "none",
+            stroke: "var(--ink-2)",
+            strokeWidth: 1.3,
+            strokeLinecap: "round",
+            strokeLinejoin: "round",
+            dangerouslySetInnerHTML: { __html: glyph },
+          })
         ) : (
-          <Text style={[styles.letter, { fontSize: Math.round(size * 0.46) }]}>{brand === "card" ? "C" : brand === "login" ? "W" : "{}"}</Text>
+          <Text style={[styles.letter, { fontSize: Math.round(size * 0.46) }]}>
+            {brand === "card" ? "C" : brand === "login" ? "W" : "{}"}
+          </Text>
         )}
       </View>
     );
@@ -74,14 +111,43 @@ export const AppIcon = memo(function AppIcon({ brand, size = APP_ICON_DEFAULT_SI
     const ext = TOOL_FILES[file];
     const s = Math.round(size * (ext === "png" ? 0.86 : 0.62));
     return (
-      <View testID={id} accessible={false} accessibilityLabel={label} style={[tileStyle(size), { backgroundColor: "#fff" }]} {...webProps({ dataSet: { appicon: file } })}>
-        {web ? createElement("img", { src: `/tools/${file}.${ext}`, alt: "", width: s, height: s, draggable: false, style: { display: "block", objectFit: "contain" }, onError: () => setBroken(true), ref: (el: { complete?: boolean; naturalWidth?: number } | null) => { if (el && el.complete === true && el.naturalWidth === 0) setBroken(true); } }) : <Text style={[styles.letter, { fontSize: Math.round(size * 0.46), color: "#333" }]}>{letterOf(brand, name)}</Text>}
+      <View
+        testID={id}
+        accessible={false}
+        accessibilityLabel={label}
+        style={[tileStyle(size), { backgroundColor: "#fff" }]}
+        {...webProps({ dataSet: { appicon: file } })}
+      >
+        {web ? (
+          createElement("img", {
+            src: `/tools/${file}.${ext}`,
+            alt: "",
+            width: s,
+            height: s,
+            draggable: false,
+            style: { display: "block", objectFit: "contain" },
+            onError: () => setBroken(true),
+            ref: (el: { complete?: boolean; naturalWidth?: number } | null) => {
+              if (el && el.complete === true && el.naturalWidth === 0) setBroken(true);
+            },
+          })
+        ) : (
+          <Text style={[styles.letter, { fontSize: Math.round(size * 0.46), color: "#333" }]}>
+            {letterOf(brand, name)}
+          </Text>
+        )}
       </View>
     );
   }
   if (!mark) {
     return (
-      <View testID={id} accessible={false} accessibilityLabel={label} style={tileStyle(size)} {...webProps({ dataSet: { appicon: "letter" } })}>
+      <View
+        testID={id}
+        accessible={false}
+        accessibilityLabel={label}
+        style={tileStyle(size)}
+        {...webProps({ dataSet: { appicon: "letter" } })}
+      >
         <Text style={[styles.letter, { fontSize: Math.round(size * 0.46) }]}>{letterOf(brand, name)}</Text>
       </View>
     );
@@ -89,9 +155,23 @@ export const AppIcon = memo(function AppIcon({ brand, size = APP_ICON_DEFAULT_SI
   const color = mark.c ?? "var(--ink)";
   const s = markSize(size);
   return (
-    <View testID={id} accessible={false} accessibilityLabel={label} style={tileStyle(size)} {...webProps({ dataSet: { appicon: key } })}>
+    <View
+      testID={id}
+      accessible={false}
+      accessibilityLabel={label}
+      style={tileStyle(size)}
+      {...webProps({ dataSet: { appicon: key } })}
+    >
       {web ? (
-        createElement("svg", { viewBox: "0 0 24 24", width: s, height: s, "aria-hidden": true, fill: "currentColor", style: { color, display: "block" }, dangerouslySetInnerHTML: { __html: mark.svg ?? `<path d="${mark.p ?? ""}"/>` } })
+        createElement("svg", {
+          viewBox: "0 0 24 24",
+          width: s,
+          height: s,
+          "aria-hidden": true,
+          fill: "currentColor",
+          style: { color, display: "block" },
+          dangerouslySetInnerHTML: { __html: mark.svg ?? `<path d="${mark.p ?? ""}"/>` },
+        })
       ) : (
         <Text style={[styles.letter, { fontSize: Math.round(size * 0.46), color }]}>{letterOf(brand, name)}</Text>
       )}

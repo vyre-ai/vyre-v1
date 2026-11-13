@@ -5,7 +5,18 @@ import type { Exec, ExecResult } from "../impl.ts";
 export type ScriptResult = { out: string; code: number } | { hang: true };
 export type Script = ScriptResult | ((command: string, env: Record<string, string>) => ScriptResult);
 
-interface Sess { name: string; cols: number; rows: number; cwd: string; lines: string[]; typed: string; hung: boolean; env: Record<string, string>; up?: number; opts: Map<string, string> }
+interface Sess {
+  name: string;
+  cols: number;
+  rows: number;
+  cwd: string;
+  lines: string[];
+  typed: string;
+  hung: boolean;
+  env: Record<string, string>;
+  up?: number;
+  opts: Map<string, string>;
+}
 
 export interface FakeTmuxOptions {
   scripts?: Record<string, Script>;
@@ -17,7 +28,8 @@ export interface FakeTmuxOptions {
   historyLimit?: number;
 }
 
-const RUN = /^ printf '%s\\n' '(__VYRE_BEG_[0-9a-f]+__)'; (?:cd '((?:[^']|'\\'')*)' && )?([\s\S]*); __vyre_rc=\$\?; '[^']*' set-option -q -t '[^']*' (@vyre_rc_[0-9a-f]+) "\$__vyre_rc" 2>\/dev\/null; printf '\\n%s:%d\\n' '(__VYRE_END_[0-9a-f]+__)' "\$__vyre_rc"; unset __vyre_rc$/;
+const RUN =
+  /^ printf '%s\\n' '(__VYRE_BEG_[0-9a-f]+__)'; (?:cd '((?:[^']|'\\'')*)' && )?([\s\S]*); __vyre_rc=\$\?; '[^']*' set-option -q -t '[^']*' (@vyre_rc_[0-9a-f]+) "\$__vyre_rc" 2>\/dev\/null; printf '\\n%s:%d\\n' '(__VYRE_END_[0-9a-f]+__)' "\$__vyre_rc"; unset __vyre_rc$/;
 
 /** Read one shell word starting at `at`: single quotes, a backslash-escaped character, and unquoted text up to a space. Returns the word's value and where it ended. */
 function word(text: string, at: number): { value: string; end: number } {
@@ -25,9 +37,17 @@ function word(text: string, at: number): { value: string; end: number } {
   let value = "";
   while (i < text.length && text[i] !== " " && text[i] !== ";") {
     const c = text[i] as string;
-    if (c === "'") { const close = text.indexOf("'", i + 1); value += text.slice(i + 1, close); i = close + 1; }
-    else if (c === "\\") { value += text[i + 1] ?? ""; i += 2; }
-    else { value += c; i += 1; }
+    if (c === "'") {
+      const close = text.indexOf("'", i + 1);
+      value += text.slice(i + 1, close);
+      i = close + 1;
+    } else if (c === "\\") {
+      value += text[i + 1] ?? "";
+      i += 2;
+    } else {
+      value += c;
+      i += 1;
+    }
   }
   return { value, end: i };
 }
@@ -43,7 +63,8 @@ function exportsOf(script: string): Record<string, string> {
   return env;
 }
 
-const FETCH = /^\( \{ set \+xv; \} 2>\/dev\/null; __vyre_env="\$\('[^']*' save-buffer -b '([^']+)' - 2>\/dev\/null\)"; [\s\S]*?unset __vyre_env; /;
+const FETCH =
+  /^\( \{ set \+xv; \} 2>\/dev\/null; __vyre_env="\$\('[^']*' save-buffer -b '([^']+)' - 2>\/dev\/null\)"; [\s\S]*?unset __vyre_env; /;
 
 /** The command inside `{ cmd\n}`, or inside the subshell that fetches its variables from a buffer, with those variables (the buffer is deleted as the real line does). */
 function unwrap(body: string, buffers: Map<string, string>): { command: string; env: Record<string, string> } {
@@ -71,7 +92,10 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
   const controls = new Map<string, Array<(line: string) => void>>();
   const installed = o.installed !== false;
 
-  const escape = (text: string): string => Array.from(new TextEncoder().encode(text), (b) => (b < 32 || b === 92 || b > 126 ? `\\${b.toString(8).padStart(3, "0")}` : String.fromCharCode(b))).join("");
+  const escape = (text: string): string =>
+    Array.from(new TextEncoder().encode(text), (b) =>
+      b < 32 || b === 92 || b > 126 ? `\\${b.toString(8).padStart(3, "0")}` : String.fromCharCode(b),
+    ).join("");
   const limit = o.historyLimit ?? 20_000;
   const print = (s: Sess, text: string): void => {
     s.lines.push(...text.split("\n"));
@@ -99,7 +123,10 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
     const m = RUN.exec(line);
     if (!m) {
       const r = result(line.trim(), {});
-      if ("hang" in r) { s.hung = true; return; }
+      if ("hang" in r) {
+        s.hung = true;
+        return;
+      }
       print(s, r.out);
       return;
     }
@@ -107,7 +134,10 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
     const { command, env } = unwrap(body as string, buffers);
     print(s, beg as string);
     const r = result(command.trim(), env);
-    if ("hang" in r) { s.hung = true; return; }
+    if ("hang" in r) {
+      s.hung = true;
+      return;
+    }
     if (r.out !== "") print(s, r.out);
     s.opts.set(rcOption as string, String(r.code));
     // a program that drew over the marker's row (tput, a progress bar): the screen shows no end line, only the stored code says it ended
@@ -118,7 +148,10 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
 
   const ok = (stdout = ""): ExecResult => ({ code: 0, stdout, stderr: "" });
   const bad = (stderr: string): ExecResult => ({ code: 1, stdout: "", stderr });
-  const flag = (argv: readonly string[], f: string): string | undefined => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
+  const flag = (argv: readonly string[], f: string): string | undefined => {
+    const i = argv.indexOf(f);
+    return i >= 0 ? argv[i + 1] : undefined;
+  };
 
   const exec: Exec = async (argv, x) => {
     // commands joined with ";" run one after another, their output together
@@ -126,7 +159,10 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
       const out: string[] = [];
       let part: string[] = [];
       for (const a of [...argv.slice(1), ";"]) {
-        if (a !== ";") { part.push(a); continue; }
+        if (a !== ";") {
+          part.push(a);
+          continue;
+        }
         const r = await one(["tmux", ...part]);
         if (r.code !== 0) return r;
         out.push(r.stdout);
@@ -150,12 +186,28 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
     if (sub === "new-session") {
       const name = flag(argv, "-s") as string;
       if (sessions.has(name)) return bad(`duplicate session: ${name}`);
-      sessions.set(name, { name, cols: Number(flag(argv, "-x")), rows: Number(flag(argv, "-y")), cwd: flag(argv, "-c") ?? "/home/agent", lines: [], typed: "", hung: false, env: {}, opts: new Map() });
+      sessions.set(name, {
+        name,
+        cols: Number(flag(argv, "-x")),
+        rows: Number(flag(argv, "-y")),
+        cwd: flag(argv, "-c") ?? "/home/agent",
+        lines: [],
+        typed: "",
+        hung: false,
+        env: {},
+        opts: new Map(),
+      });
       return ok();
     }
     if (sub === "list-buffers") return ok([...buffers.keys()].map((b) => `${b}\n`).join(""));
-    if (sub === "load-buffer") { buffers.set(flag(argv, "-b") as string, x?.stdin ?? ""); return ok(); }
-    if (sub === "delete-buffer") { const b = flag(argv, "-b") as string; return buffers.delete(b) ? ok() : bad(`no buffer ${b}`); }
+    if (sub === "load-buffer") {
+      buffers.set(flag(argv, "-b") as string, x?.stdin ?? "");
+      return ok();
+    }
+    if (sub === "delete-buffer") {
+      const b = flag(argv, "-b") as string;
+      return buffers.delete(b) ? ok() : bad(`no buffer ${b}`);
+    }
     if (sub === "list-sessions") return ok([...sessions.keys()].join("\n") + (sessions.size ? "\n" : ""));
     const name = flag(argv, "-t") as string | undefined;
     const s = name === undefined ? undefined : sessions.get(name);
@@ -164,20 +216,34 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
     switch (sub) {
       case "display-message": {
         const fmt = argv[argv.length - 1];
-        if (fmt === "#{history_size} #{cursor_y} #{history_limit}") { const g = grid(s); return ok(`${g.h} ${g.cy} ${limit}\n`); }
+        if (fmt === "#{history_size} #{cursor_y} #{history_limit}") {
+          const g = grid(s);
+          return ok(`${g.h} ${g.cy} ${limit}\n`);
+        }
         if (fmt === "#{pane_pid} #{pane_dead} #{pane_in_mode}") return ok(`${pidOf(s.name)} 0 0\n`);
         // a user option in a format: its value, or nothing when unset
         const opt = /^(.*)#\{(@[A-Za-z0-9_]+)\}$/.exec(fmt ?? "");
         if (opt) return ok(`${opt[1]}${s.opts.get(opt[2] as string) ?? ""}\n`);
-        if (fmt === "#{pane_pid} #{pane_dead} #{pane_in_mode} #{cursor_y} #{pane_current_command}") return ok(`${pidOf(s.name)} 0 0 0 ${s.hung ? "sleep" : "bash"}\n`);
-        return ok(`${fmt === "#{pane_current_path}" ? s.cwd : fmt === "#{pane_current_command}" ? (s.hung ? "sleep" : "bash") : ""}\n`);
+        if (fmt === "#{pane_pid} #{pane_dead} #{pane_in_mode} #{cursor_y} #{pane_current_command}")
+          return ok(`${pidOf(s.name)} 0 0 0 ${s.hung ? "sleep" : "bash"}\n`);
+        return ok(
+          `${fmt === "#{pane_current_path}" ? s.cwd : fmt === "#{pane_current_command}" ? (s.hung ? "sleep" : "bash") : ""}\n`,
+        );
       }
       case "send-keys": {
         // as tmux: an argument that ends in ";" loses that character, or the backslash before it
-        if (argv.includes("-l")) { const a = argv[argv.length - 1] as string; s.typed += a.endsWith("\\;") ? `${a.slice(0, -2)};` : a.endsWith(";") ? a.slice(0, -1) : a; return ok(); }
+        if (argv.includes("-l")) {
+          const a = argv[argv.length - 1] as string;
+          s.typed += a.endsWith("\\;") ? `${a.slice(0, -2)};` : a.endsWith(";") ? a.slice(0, -1) : a;
+          return ok();
+        }
         const key = argv[argv.length - 1];
         if (key === "Enter") submit(s);
-        else if (key === "C-c") { s.hung = false; s.typed = ""; print(s, "^C"); }
+        else if (key === "C-c") {
+          s.hung = false;
+          s.typed = "";
+          print(s, "^C");
+        }
         return ok();
       }
       case "capture-pane": {
@@ -193,12 +259,19 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
       case "set-option": {
         const key = argv.find((a) => a.startsWith("@"));
         if (key === undefined) return ok();
-        if (argv.includes("-u")) s.opts.delete(key); else s.opts.set(key, argv[argv.indexOf(key) + 1] ?? "");
+        if (argv.includes("-u")) s.opts.delete(key);
+        else s.opts.set(key, argv[argv.indexOf(key) + 1] ?? "");
         return ok();
       }
-      case "resize-window": s.cols = Number(flag(argv, "-x")); s.rows = Number(flag(argv, "-y")); return ok();
-      case "kill-session": sessions.delete(s.name); return ok();
-      default: return bad(`unknown command: ${String(sub)}`);
+      case "resize-window":
+        s.cols = Number(flag(argv, "-x"));
+        s.rows = Number(flag(argv, "-y"));
+        return ok();
+      case "kill-session":
+        sessions.delete(s.name);
+        return ok();
+      default:
+        return bad(`unknown command: ${String(sub)}`);
     }
   };
 
@@ -206,14 +279,29 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
     const list = controls.get(session) ?? [];
     list.push(onLine);
     controls.set(session, list);
-    return () => { controls.set(session, (controls.get(session) ?? []).filter((x) => x !== onLine)); };
+    return () => {
+      controls.set(
+        session,
+        (controls.get(session) ?? []).filter((x) => x !== onLine),
+      );
+    };
   };
 
   return {
-    exec, control, calls, sessions, scripts, buffers,
+    exec,
+    control,
+    calls,
+    sessions,
+    scripts,
+    buffers,
     /** Print as if the program in the session wrote it. */
-    write(session: string, text: string) { const s = sessions.get(session); if (s) print(s, text); },
-    screen(session: string): string { return (sessions.get(session)?.lines ?? []).join("\n"); },
+    write(session: string, text: string) {
+      const s = sessions.get(session);
+      if (s) print(s, text);
+    },
+    screen(session: string): string {
+      return (sessions.get(session)?.lines ?? []).join("\n");
+    },
   };
 }
 

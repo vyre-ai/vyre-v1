@@ -5,7 +5,10 @@ import { Platform, Pressable, StyleSheet, Text } from "react-native";
 import { each } from "./model.ts";
 
 const PATHS = {
-  graph: ["M3.5 4.5a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0zM9.5 11.5a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0zM9.5 3.5a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0z", "M5.8 5.4l4 5M6.6 4.3h2.9"],
+  graph: [
+    "M3.5 4.5a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0zM9.5 11.5a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0zM9.5 3.5a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0z",
+    "M5.8 5.4l4 5M6.6 4.3h2.9",
+  ],
   chevd: ["M3.5 6l4.5 4.5L12.5 6"],
   chev: ["M6 3.5L10.5 8 6 12.5"],
   find: ["M11.5 7a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z", "M10.5 10.5L14 14"],
@@ -21,7 +24,11 @@ const PATHS = {
   lock: ["M4.5 7.5h7a1 1 0 011 1v4a1 1 0 01-1 1h-7a1 1 0 01-1-1v-4a1 1 0 011-1z", "M5.5 7.5V5.5a2.5 2.5 0 015 0v2"],
   bulb: ["M8 2.5a3.8 3.8 0 00-2.2 6.9c.4.4.7.9.7 1.4v.2h3v-.2c0-.5.3-1 .7-1.4A3.8 3.8 0 008 2.5z", "M6.5 13h3"],
   person: ["M8 8a2.7 2.7 0 100-5.4A2.7 2.7 0 008 8z", "M2.8 13.5c.5-2.4 2.6-3.6 5.2-3.6s4.7 1.2 5.2 3.6"],
-  users: ["M6 7.6a2.3 2.3 0 100-4.6 2.3 2.3 0 000 4.6z", "M1.8 13c.4-2 2-3 4.2-3s3.8 1 4.2 3", "M10.6 7.2a2 2 0 100-4M12 10.2c1.3.3 2.2 1.1 2.4 2.6"],
+  users: [
+    "M6 7.6a2.3 2.3 0 100-4.6 2.3 2.3 0 000 4.6z",
+    "M1.8 13c.4-2 2-3 4.2-3s3.8 1 4.2 3",
+    "M10.6 7.2a2 2 0 100-4M12 10.2c1.3.3 2.2 1.1 2.4 2.6",
+  ],
   folder: ["M2.5 4.5a1 1 0 011-1H6l1.4 1.6h5.1a1 1 0 011 1v6.4a1 1 0 01-1 1h-9a1 1 0 01-1-1z"],
   hash: ["M6.2 2.8L5 13.2M11 2.8L9.8 13.2M3 6h10.5M2.5 10h10.5"],
   history: ["M2.8 8a5.2 5.2 0 105.2-5.2A5.3 5.3 0 004.2 4.5L2.8 6", "M2.8 3v3h3", "M8 5.2V8l2 1.3"],
@@ -40,11 +47,36 @@ const PATHS = {
 } as const;
 export type IconName = keyof typeof PATHS;
 
-export function Icon({ name, size = 15, color = "var(--ink-3)", width = 1.4 }: { name: IconName; size?: number; color?: string; width?: number }): ReactElement | null {
+export function Icon({
+  name,
+  size = 15,
+  color = "var(--ink-3)",
+  width = 1.4,
+}: {
+  name: IconName;
+  size?: number;
+  color?: string;
+  width?: number;
+}): ReactElement | null {
   if (Platform.OS !== "web") return null;
   return createElement(
     "svg",
-    { viewBox: "0 0 16 16", width: size, height: size, "aria-hidden": true, style: { display: "block", flex: "none", width: size, stroke: color, strokeWidth: width, strokeLinecap: "round", strokeLinejoin: "round", fill: "none" } },
+    {
+      viewBox: "0 0 16 16",
+      width: size,
+      height: size,
+      "aria-hidden": true,
+      style: {
+        display: "block",
+        flex: "none",
+        width: size,
+        stroke: color,
+        strokeWidth: width,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        fill: "none",
+      },
+    },
     ...each(PATHS[name], (d) => createElement("path", { key: d, d })),
   );
 }
@@ -56,19 +88,40 @@ export function Icon({ name, size = 15, color = "var(--ink-3)", width = 1.4 }: {
 export function pointOf(e: unknown): { x: number; y: number } {
   const ev = e as { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: Anchor; target?: Anchor };
   const ok = (v: number | undefined): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
-  const x = ok(ev.nativeEvent?.pageX), y = ok(ev.nativeEvent?.pageY);
+  const x = ok(ev.nativeEvent?.pageX),
+    y = ok(ev.nativeEvent?.pageY);
   if (x !== 0 || y !== 0) return { x, y };
   const box = (ev.currentTarget ?? ev.target)?.getBoundingClientRect?.();
   return box ? { x: box.left, y: box.bottom } : { x, y };
 }
-interface Anchor { getBoundingClientRect?: () => { left: number; bottom: number } }
+interface Anchor {
+  getBoundingClientRect?: () => { left: number; bottom: number };
+}
 
 /** A quiet header button: an icon and a word, lit when something is applied. It hands its press point to `onPress`, so a menu can open under it. */
-export function QuietButton({ icon, label, lit = false, testID, onPress }: { icon: IconName; label: string; lit?: boolean; testID: string; onPress: (x: number, y: number) => void }): ReactElement {
+export function QuietButton({
+  icon,
+  label,
+  lit = false,
+  testID,
+  onPress,
+}: {
+  icon: IconName;
+  label: string;
+  lit?: boolean;
+  testID: string;
+  onPress: (x: number, y: number) => void;
+}): ReactElement {
   return (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: lit }} testID={testID}
-      onPress={(e) => { const p = pointOf(e); onPress(p.x, p.y); }}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: lit }}
+      testID={testID}
+      onPress={(e) => {
+        const p = pointOf(e);
+        onPress(p.x, p.y);
+      }}
       style={({ hovered }: { hovered?: boolean }) => [q.btn, hovered === true && q.over]}
     >
       <Icon name={icon} size={14} color={lit ? "var(--accent)" : "var(--ink-2)"} />

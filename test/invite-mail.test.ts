@@ -10,9 +10,22 @@ const LINK = "https://acme.vyre.run/join#c=ABCD-EFGH&k=AAAAAAAAAAAAAAAAAAAAAAAAA
 
 test("an emailed invite leaves through mail.send from the inviter's own mailbox, with the link in the body", async () => {
   const r = rig();
-  const call = async (cap: string, input: unknown): Promise<unknown> => { assert.equal(cap, "mail.send"); return send(r.ctx, input as never); };
-  const drafts = draftInvites([{ email: "erin@example.test", link: LINK }], new Map([["erin@example.test", "Erin Hale"]]), "Olive Owner", "Acme");
-  const out = await sendDrafts(call as never, { mailboxId: "mbx_maya", address: "maya@vyre.test" }, drafts, "invite-mail-1");
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    assert.equal(cap, "mail.send");
+    return send(r.ctx, input as never);
+  };
+  const drafts = draftInvites(
+    [{ email: "erin@example.test", link: LINK }],
+    new Map([["erin@example.test", "Erin Hale"]]),
+    "Olive Owner",
+    "Acme",
+  );
+  const out = await sendDrafts(
+    call as never,
+    { mailboxId: "mbx_maya", address: "maya@vyre.test" },
+    drafts,
+    "invite-mail-1",
+  );
   assert.deepEqual(out, [{ to: "erin@example.test", status: "sent" }]);
   const sent = r.sent();
   assert.equal(sent.length, 1, "one message reached the sink");

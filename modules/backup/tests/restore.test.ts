@@ -32,12 +32,17 @@ async function ready(): Promise<World> {
 }
 
 const failed = async (p: Promise<unknown>): Promise<VyreErr> => {
-  try { await p; } catch (e) { assert.ok(e instanceof VyreErr, "a typed error"); return e; }
+  try {
+    await p;
+  } catch (e) {
+    assert.ok(e instanceof VyreErr, "a typed error");
+    return e;
+  }
   throw new Error("expected the call to fail");
 };
 const backupNow = async (w: World, at: number): Promise<string> => {
   w.setNow(at);
-  return (await call("backup.run", w.ctx, {}) as { backupId: string }).backupId;
+  return ((await call("backup.run", w.ctx, {})) as { backupId: string }).backupId;
 };
 
 afterEach(() => configureBackup(null));
@@ -50,15 +55,25 @@ test("restore brings the Space back to the backup and the hash chain verifies", 
   w.space.blobs.set("fil_2", "added later");
   w.events.length = 0;
 
-  const out = await call("backup.restore", w.ctx, { backupId: id, confirm: true }) as { runId: string };
+  const out = (await call("backup.restore", w.ctx, { backupId: id, confirm: true })) as { runId: string };
   assert.equal(out.runId, "run_testrun1");
   const now = await w.space.snapshot();
   assert.equal(now.headHash, atBackup.headHash);
   assert.equal(now.toSeq, 2);
-  assert.deepEqual(now.entries.map((e) => e.path), atBackup.entries.map((e) => e.path));
+  assert.deepEqual(
+    now.entries.map((e) => e.path),
+    atBackup.entries.map((e) => e.path),
+  );
   for (const [i, e] of now.entries.entries()) assert.deepEqual(e.bytes, atBackup.entries[i]!.bytes);
-  assert.deepEqual(w.space.restores.map((r) => r.mode), ["live"]);
-  assert.deepEqual(w.events.map((e) => e.name), ["backup.completed", "backup.restored"], "the safety backup is reported, then the restore");
+  assert.deepEqual(
+    w.space.restores.map((r) => r.mode),
+    ["live"],
+  );
+  assert.deepEqual(
+    w.events.map((e) => e.name),
+    ["backup.completed", "backup.restored"],
+    "the safety backup is reported, then the restore",
+  );
 });
 
 test("a restore takes a fresh backup first, so it can be undone", async () => {
@@ -68,7 +83,10 @@ test("a restore takes a fresh backup first, so it can be undone", async () => {
   w.setNow(NOW + 5000);
   await call("backup.restore", w.ctx, { backupId: id, confirm: true });
   const rows = w.raw.rows("backup_item").sort((a, b) => Number(a["at"]) - Number(b["at"]));
-  assert.deepEqual(rows.map((r) => r["kind"]), ["manual", "manual"]);
+  assert.deepEqual(
+    rows.map((r) => r["kind"]),
+    ["manual", "manual"],
+  );
   assert.equal(rows[1]!["seq"], 3, "the safety backup holds the Space as it was before the restore");
   // restoring the safety backup brings Cy back
   await call("backup.restore", w.ctx, { backupId: String(rows[1]!["backup_id"]), confirm: true });
@@ -91,7 +109,10 @@ test("erased data does not come back: the tombstone is replayed before the Space
   assert.deepEqual(w.space.payloads("contact/ada"), [null], "Ada stays erased after the restore");
   assert.deepEqual(w.space.payloads("contact/bob"), ["Bob Barker, bob@example.com"], "everyone else comes back");
   const replayed = w.space.restores.at(-1)!;
-  assert.deepEqual(replayed.tombstones.map((t) => t.subject), ["contact/ada"]);
+  assert.deepEqual(
+    replayed.tombstones.map((t) => t.subject),
+    ["contact/ada"],
+  );
   const restored = w.events.find((e) => e.name === "backup.restored")!;
   assert.deepEqual(restored.payload, { backupId: id, tombstonesReplayed: 1 });
   // the tombstone list on the target survives, and the safety backup (taken after the erase) has no trace of her
@@ -110,8 +131,15 @@ test("a tombstone known only to the target's list is replayed too", async () => 
   w.space.tombstoneList = [];
   await writeTombstones(w.ctx, w.target, tomb, true);
   await call("backup.restore", w.ctx, { backupId: id, confirm: true });
-  assert.deepEqual(w.space.restores.at(-1)!.tombstones.map((t) => t.subject), ["contact/bob"]);
-  assert.deepEqual(w.space.payloads("contact/bob"), [null], "Bob was in the archive and is erased again before the Space opens");
+  assert.deepEqual(
+    w.space.restores.at(-1)!.tombstones.map((t) => t.subject),
+    ["contact/bob"],
+  );
+  assert.deepEqual(
+    w.space.payloads("contact/bob"),
+    [null],
+    "Bob was in the archive and is erased again before the Space opens",
+  );
   assert.deepEqual(w.space.payloads("contact/ada"), ["Ada Lovelace, ada@example.com"]);
 });
 
@@ -121,7 +149,12 @@ test("restore_preview shows the range, the tombstones to replay and the time the
   await w.space.append("contact/cy", "Cy Young");
   await w.space.append("contact/di", "Di Prince");
   w.space.erase("contact/ada", NOW + 1);
-  const out = await call("backup.restore_preview", w.ctx, { backupId: id }) as { fromSeq: number; toSeq: number; tombstones: number; downtimeSeconds: number };
+  const out = (await call("backup.restore_preview", w.ctx, { backupId: id })) as {
+    fromSeq: number;
+    toSeq: number;
+    tombstones: number;
+    downtimeSeconds: number;
+  };
   assert.deepEqual([out.fromSeq, out.toSeq, out.tombstones], [2, 4, 1]);
   assert.equal(out.downtimeSeconds, 6);
   const err = await failed(call("backup.restore_preview", w.ctx, { backupId: "bkp_nope" }));
@@ -131,8 +164,14 @@ test("restore_preview shows the range, the tombstones to replay and the time the
 test("restore needs the confirmation and a backup that exists", async () => {
   const w = await ready();
   const id = await backupNow(w, NOW);
-  assert.equal((await failed(call("backup.restore", w.ctx, { backupId: id, confirm: false }))).error.code, "validation.bad_input");
-  assert.equal((await failed(call("backup.restore", w.ctx, { backupId: "bkp_nope", confirm: true }))).error.code, "validation.not_found");
+  assert.equal(
+    (await failed(call("backup.restore", w.ctx, { backupId: id, confirm: false }))).error.code,
+    "validation.bad_input",
+  );
+  assert.equal(
+    (await failed(call("backup.restore", w.ctx, { backupId: "bkp_nope", confirm: true }))).error.code,
+    "validation.not_found",
+  );
   assert.deepEqual(w.space.restores, []);
 });
 
@@ -153,7 +192,10 @@ test("a damaged archive stops the restore before anything is touched", async () 
   assert.equal(w.raw.rows("backup_item").length, 1, "no safety backup was taken for a restore that could not start");
   // the file gone from the target is reported the same way
   w.target.objects.delete(key);
-  assert.equal((await failed(call("backup.restore", w.ctx, { backupId: id, confirm: true }))).error.code, "validation.not_found");
+  assert.equal(
+    (await failed(call("backup.restore", w.ctx, { backupId: id, confirm: true }))).error.code,
+    "validation.not_found",
+  );
 });
 
 test("if the safety backup cannot be taken the restore does not start", async () => {
@@ -182,11 +224,17 @@ test("verify restores into a scratch directory, checks the chain and marks the b
   const w = await ready();
   const id = await backupNow(w, NOW);
   w.events.length = 0;
-  const out = await call("backup.verify", w.ctx, { backupId: id }) as { ok: boolean; checkedEvents: number };
+  const out = (await call("backup.verify", w.ctx, { backupId: id })) as { ok: boolean; checkedEvents: number };
   assert.deepEqual(out, { ok: true, checkedEvents: 2 });
-  assert.deepEqual(w.space.restores.map((r) => r.mode), ["scratch"]);
-  assert.deepEqual(w.events.map((e) => e.name), ["backup.verified"]);
-  const list = await call("backup.list", w.ctx, {}) as { backups: { verified: boolean }[] };
+  assert.deepEqual(
+    w.space.restores.map((r) => r.mode),
+    ["scratch"],
+  );
+  assert.deepEqual(
+    w.events.map((e) => e.name),
+    ["backup.verified"],
+  );
+  const list = (await call("backup.list", w.ctx, {})) as { backups: { verified: boolean }[] };
   assert.equal(list.backups[0]!.verified, true);
   assert.equal((await w.space.snapshot()).toSeq, 2, "the live Space was not touched");
 });
@@ -197,7 +245,7 @@ test("verify reports a chain that does not hold and does not mark the backup", a
   w.events.length = 0;
   const real = w.space.restore.bind(w.space);
   w.space.restore = async (snap, tombs, mode) => ({ ...(await real(snap, tombs, mode)), chainOk: false });
-  const out = await call("backup.verify", w.ctx, { backupId: id }) as { ok: boolean };
+  const out = (await call("backup.verify", w.ctx, { backupId: id })) as { ok: boolean };
   assert.equal(out.ok, false);
   assert.deepEqual(w.events, []);
   assert.equal(w.raw.rows("backup_item")[0]!["verified"], 0);
@@ -233,7 +281,9 @@ const unzipNames = (z: Uint8Array): string[] => {
   let at = view.getUint32(end + 16, true);
   const names: string[] = [];
   for (let i = 0; i < count; i++) {
-    const nlen = view.getUint16(at + 28, true), xlen = view.getUint16(at + 30, true), clen = view.getUint16(at + 32, true);
+    const nlen = view.getUint16(at + 28, true),
+      xlen = view.getUint16(at + 30, true),
+      clen = view.getUint16(at + 32, true);
     names.push(dec.decode(z.subarray(at + 46, at + 46 + nlen)));
     at += 46 + nlen + xlen + clen;
   }
@@ -255,18 +305,36 @@ test("the export zip contains no secrets", async () => {
   );
   w.events.length = 0;
 
-  const out = await call("backup.export_start", w.ctx, {}) as { runId: string };
+  const out = (await call("backup.export_start", w.ctx, {})) as { runId: string };
   assert.equal(out.runId, "run_testrun1");
   assert.equal(w.saved.length, 1);
   const zip = w.saved[0]!;
   assert.match(zip.name, /^vyre-export-\d{4}-\d{2}-\d{2}\.zip$/);
   const text = dec.decode(zip.bytes);
-  for (const secret of ["key-9f8e7d6c5b4a39281706", "correct-horse-battery-staple", "MAILGUN_KEY", "DB_PASSWORD", "API=1", "my own notes", "dm-with-ada"]) assert.ok(!text.includes(secret), `${secret} is not in the zip`);
+  for (const secret of [
+    "key-9f8e7d6c5b4a39281706",
+    "correct-horse-battery-staple",
+    "MAILGUN_KEY",
+    "DB_PASSWORD",
+    "API=1",
+    "my own notes",
+    "dm-with-ada",
+  ])
+    assert.ok(!text.includes(secret), `${secret} is not in the zip`);
   const names = unzipNames(zip.bytes);
-  assert.deepEqual(names.sort(), ["README.txt", "files/notes.txt", "files/fil_1", "records/evt_1.json", "records/evt_2.json"].sort());
-  assert.ok(text.includes("Ada Lovelace") && text.includes("engagement letter") && text.includes("quarterly plan"), "everything that is the owner's is there");
+  assert.deepEqual(
+    names.sort(),
+    ["README.txt", "files/notes.txt", "files/fil_1", "records/evt_1.json", "records/evt_2.json"].sort(),
+  );
+  assert.ok(
+    text.includes("Ada Lovelace") && text.includes("engagement letter") && text.includes("quarterly plan"),
+    "everything that is the owner's is there",
+  );
   const row = w.raw.rows("backup_export")[0]!;
-  assert.deepEqual([row["state"], row["file_id"], row["by_principal"], row["entries"], row["skipped"]], ["done", zip.fileId, "usr_owner", 4, 7]);
+  assert.deepEqual(
+    [row["state"], row["file_id"], row["by_principal"], row["entries"], row["skipped"]],
+    ["done", zip.fileId, "usr_owner", 4, 7],
+  );
   assert.deepEqual(w.events, [], "the audit entry comes from the pipeline (audit: always)");
 });
 

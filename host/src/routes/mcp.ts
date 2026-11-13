@@ -3,9 +3,22 @@
 import type http from "node:http";
 
 export interface McpRuntime {
-  handle(req: { method: string; headers: Record<string, string | undefined>; body: string; origin?: string }): Promise<{ status: number; headers: Record<string, string>; body: string }>;
+  handle(req: {
+    method: string;
+    headers: Record<string, string | undefined>;
+    body: string;
+    origin?: string;
+  }): Promise<{ status: number; headers: Record<string, string>; body: string }>;
   /** The sign-in addresses (/oauth/*, /.well-known/oauth-*): null for any other path. */
-  oauth(req: { method: string; path: string; search: string; headers: Record<string, string | undefined>; body: string; origin: string | null; visitor: string }): Promise<{ status: number; headers: Record<string, string>; body: string } | null>;
+  oauth(req: {
+    method: string;
+    path: string;
+    search: string;
+    headers: Record<string, string | undefined>;
+    body: string;
+    origin: string | null;
+    visitor: string;
+  }): Promise<{ status: number; headers: Record<string, string>; body: string } | null>;
 }
 
 const MAX_BODY = 1024 * 1024;
@@ -17,7 +30,9 @@ export interface McpRouteDeps {
   origin(req: http.IncomingMessage): string | null;
 }
 
-export function createMcpRoute(deps: McpRouteDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
+export function createMcpRoute(deps: McpRouteDeps): {
+  handle(req: http.IncomingMessage, res: http.ServerResponse): boolean;
+} {
   return {
     handle(req, res) {
       const url = new URL(req.url ?? "/", "http://localhost");
@@ -42,18 +57,40 @@ export function createMcpRoute(deps: McpRouteDeps): { handle(req: http.IncomingM
           res.end(JSON.stringify({ error: "MCP is not available" }));
           return;
         }
-        const headers = Object.fromEntries(Object.entries(req.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : v]));
+        const headers = Object.fromEntries(
+          Object.entries(req.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : v]),
+        );
         const body = Buffer.concat(chunks).toString("utf8");
         const origin = deps.origin(req);
         if (signIn) {
-          const visitor = typeof headers["x-vyre-visitor"] === "string" && headers["x-vyre-visitor"] !== "" ? headers["x-vyre-visitor"] : req.socket.remoteAddress ?? "";
-          const out = await live.oauth({ method: req.method ?? "GET", path: url.pathname, search: url.search, headers, body, origin, visitor });
-          if (!out) { res.writeHead(404, { "content-type": "application/json", "cache-control": "no-store" }); res.end(JSON.stringify({ error: "not found" })); return; }
+          const visitor =
+            typeof headers["x-vyre-visitor"] === "string" && headers["x-vyre-visitor"] !== ""
+              ? headers["x-vyre-visitor"]
+              : (req.socket.remoteAddress ?? "");
+          const out = await live.oauth({
+            method: req.method ?? "GET",
+            path: url.pathname,
+            search: url.search,
+            headers,
+            body,
+            origin,
+            visitor,
+          });
+          if (!out) {
+            res.writeHead(404, { "content-type": "application/json", "cache-control": "no-store" });
+            res.end(JSON.stringify({ error: "not found" }));
+            return;
+          }
           res.writeHead(out.status, { "cache-control": "no-store", ...out.headers });
           res.end(out.body);
           return;
         }
-        const out = await live.handle({ method: req.method ?? "GET", headers, body, ...(origin === null ? {} : { origin }) });
+        const out = await live.handle({
+          method: req.method ?? "GET",
+          headers,
+          body,
+          ...(origin === null ? {} : { origin }),
+        });
         res.writeHead(out.status, { ...out.headers, "cache-control": "no-store" });
         res.end(out.body);
       })().catch(() => {

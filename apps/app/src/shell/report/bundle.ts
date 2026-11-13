@@ -15,14 +15,20 @@ const SECRET_PATTERNS: readonly RegExp[] = [
   /\b[A-Fa-f0-9]{40,}\b/g,
 ];
 
-export interface Scrubbed { text: string; removed: number }
+export interface Scrubbed {
+  text: string;
+  removed: number;
+}
 
 /** Removes anything that looks like a credential from free text. Counted so the sheet can say how much was left out. */
 export function scrubText(input: string): Scrubbed {
   let removed = 0;
   let text = input;
   for (const re of SECRET_PATTERNS) {
-    text = text.replace(re, () => { removed += 1; return "[removed]"; });
+    text = text.replace(re, () => {
+      removed += 1;
+      return "[removed]";
+    });
   }
   return { text, removed };
 }
@@ -36,21 +42,34 @@ export interface Capture {
   clientLogFileId?: string;
 }
 
-export interface Built { bundle: Bundle; redactions: number }
+export interface Built {
+  bundle: Bundle;
+  redactions: number;
+}
 
 /** Builds the bundle. `traceIds` is at most the last 20; errors keep their code and time, and their message unless it carries a Restricted value. */
 export function buildBundle(c: Capture): Built {
   let redactions = 0;
   const errors: NonNullable<Bundle["errors"]> = [];
   for (const e of c.snapshot.errors.slice(-50)) {
-    errors.push(redactError(e, (n) => { redactions += n; }));
+    errors.push(
+      redactError(e, (n) => {
+        redactions += n;
+      }),
+    );
   }
   const note = c.note?.trim() ? scrubText(c.note.trim().slice(0, 500)) : null;
   if (note) redactions += note.removed;
   const bundle: Bundle = {
-    context: { place: c.context.place, ...(c.context.itemId ? { itemId: c.context.itemId } : {}), ...(c.context.hash ? { hash: c.context.hash } : {}) },
+    context: {
+      place: c.context.place,
+      ...(c.context.itemId ? { itemId: c.context.itemId } : {}),
+      ...(c.context.hash ? { hash: c.context.hash } : {}),
+    },
     traceIds: c.snapshot.traceIds.slice(-20),
-    events: c.snapshot.events.slice(-50).map((e) => ({ type: e.type, at: e.at, ...(e.traceId ? { traceId: e.traceId } : {}) })),
+    events: c.snapshot.events
+      .slice(-50)
+      .map((e) => ({ type: e.type, at: e.at, ...(e.traceId ? { traceId: e.traceId } : {}) })),
     versions: { ...c.versions },
     ...(c.screenshotFileId ? { screenshotFileId: c.screenshotFileId } : {}),
     ...(errors.length ? { errors } : {}),
@@ -62,7 +81,10 @@ export function buildBundle(c: Capture): Built {
 
 function redactError(e: CapturedError, count: (n: number) => void): NonNullable<Bundle["errors"]>[number] {
   const base = { code: e.code, at: e.at, ...(e.traceId ? { traceId: e.traceId } : {}) };
-  if (e.restricted) { count(1); return { ...base, message: `[Restricted: ${e.code}]` }; }
+  if (e.restricted) {
+    count(1);
+    return { ...base, message: `[Restricted: ${e.code}]` };
+  }
   const s = scrubText(e.message);
   count(s.removed);
   return { ...base, message: s.text };
