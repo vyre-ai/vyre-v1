@@ -4,7 +4,7 @@
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { messageSummary } from "../builder/compose.ts";
 import { LOOP_CHILD, PARALLEL_JOIN, parallelLaneMark } from "../chrome.ts";
-import { NOT_SET_UP, missingFor, triggerMissing, triggerSummary } from "./form-model.ts";
+import { NOT_SET_UP, missingFor, specOf, triggerMissing, triggerSummary } from "./form-model.ts";
 import type { RefNames } from "./form-model.ts";
 import { deviceTimeZone } from "./schedule.ts";
 
@@ -772,6 +772,12 @@ const REQUIRED: Readonly<Record<string, readonly { field: string; label: string 
   ],
 };
 
+/** A trigger input a person has to fill in, by its label on the form, never its key. */
+const triggerFieldWords = (trigger: string, field: string): string => {
+  const label = specOf(trigger).fields.find((f) => f.name === field)?.label;
+  return label !== undefined && label.trim() !== "" ? `the ${label.toLowerCase()}` : "a detail";
+};
+
 const blank = (v: unknown): boolean => v === undefined || v === null || (typeof v === "string" && v.trim() === "");
 
 /**
@@ -801,7 +807,7 @@ export function check(def: Definition, kind: "personal" | "space" = "space", o: 
       out.push({
         nodeId: "trigger",
         severity: "warning",
-        message: `${title} needs ${miss.map((m) => (m === "type" ? "a record type" : m === "fileId" ? "a spreadsheet" : m)).join(" and ")}`,
+        message: `${title} needs ${miss.map((m) => (m === "type" ? "a record type" : m === "fileId" ? "a spreadsheet" : triggerFieldWords(t.key, m))).join(" and ")}`,
       });
   }
   if (def.nodes.length === 0) out.push({ severity: "warning", message: "Add a first step" });

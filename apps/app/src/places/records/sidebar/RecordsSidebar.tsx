@@ -31,6 +31,7 @@ function SideRow({
   trailing,
   onPress,
   tile,
+  note,
 }: {
   id: string;
   title: string;
@@ -39,11 +40,13 @@ function SideRow({
   trailing?: ReactElement | null;
   onPress: () => void;
   tile?: ReactElement | null;
+  note?: string | undefined;
 }): ReactElement {
   return (
     <Row
       id={`nav:${id}`}
       title={title}
+      {...(note ? { note } : {})}
       selected={selected}
       leading={<View style={styles.glyph}>{tile ?? <Glyph name={glyph} size={16} />}</View>}
       trailing={<View style={styles.trail}>{trailing ?? null}</View>}
@@ -397,6 +400,7 @@ function Sidebar({
         key="bring"
         id="manage:bring"
         title="Bring in from your CRM"
+        note={data.nav.bringInNote}
         glyph="sync"
         selected={false}
         onPress={() => {
