@@ -64,7 +64,8 @@ export function LiveScreen({
   const [stream, setStream] = useState<{ transport: "webrtc" | "mjpeg"; url: string; ticket: string } | null>(null);
   // A stream ticket opens one stream, once. When the picture stream fails (a dropped connection, a ticket already spent) the screen asks for a NEW ticket, never the same address again, a few times; then it
   // leaves the stand-in showing rather than asking for ever.
-  const [tries, setTries] = useState(0);
+  const [round, setRound] = useState(0);
+  const tries = useRef(0);
   const box = useRef({ width: 0, height: 0 });
   const node = useRef<unknown>(null);
   const deps: PopupDeps = useMemo(() => ({ call, note: note ?? (() => undefined) }), [call, note]);
@@ -74,7 +75,7 @@ export function LiveScreen({
   useEffect(() => {
     if (!reachable) {
       setStream(null);
-      setTries(0);
+      tries.current = 0;
       return;
     }
     let live = true;
@@ -84,7 +85,7 @@ export function LiveScreen({
     return () => {
       live = false;
     };
-  }, [reachable, deps, computerId, tries]);
+  }, [reachable, deps, computerId, round]);
 
   useEffect(() => {
     if (!keys || !control) return;
@@ -176,9 +177,15 @@ export function LiveScreen({
           accessibilityLabel="Live view"
           source={{ uri: streamSrc(stream.url, stream.ticket, spaceUrl) }}
           resizeMode="contain"
+          onLoad={() => {
+            tries.current = 0; // a stream that played earns its retries back
+          }}
           onError={() => {
             setStream(null);
-            setTries((n) => (n < MOST_STREAM_TRIES ? n + 1 : n));
+            if (tries.current < MOST_STREAM_TRIES) {
+              tries.current += 1;
+              setRound((n) => n + 1);
+            }
           }}
           style={st.stream}
         />

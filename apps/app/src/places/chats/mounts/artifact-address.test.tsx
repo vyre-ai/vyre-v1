@@ -13,3 +13,10 @@ test("the artifact host's code is framed with ?embed=1 and opened in a browser a
 test("the link to copy is the plain /a/<id> on the app, never a one-time code or a keyed address", () => {
   assert.equal(plainLink("https://mla.vyre.run/", "sit_1"), "https://mla.vyre.run/a/sit_1");
 });
+
+test("the desktop app's own page of the host is marked app=1 (no link back to Vyre there); a browser tab is not", () => {
+  const code = "a".repeat(48);
+  const open = { path: `/x/${code}`, url: `https://a.team.example.com/x/${code}` };
+  assert.equal(artifactAddress(open, undefined, false, true), `https://a.team.example.com/x/${code}?app=1`);
+  assert.equal(artifactAddress(open, undefined, false, false), `https://a.team.example.com/x/${code}`);
+});

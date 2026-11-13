@@ -10,7 +10,16 @@ import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 
 const CODE = "a".repeat(48);
 const MARKED = '<!doctype html><meta name="vyre-artifact-host" content="1"><title>This link has ended</title>';
-const RELAY_404 = "<!doctype html><title>Not found</title><p>No Space of that name is connected.</p>";
+// the relay edge's real answer for a name no Space holds: a bare 404 with no access-control-allow-origin, so a browser REFUSES to read it from the app's origin
+import RELAY_EDGE from "../../../../tests/fixtures/relay-edge-unclaimed-404.json" with { type: "json" };
+/** A fetch as the browser does it for an answer with these headers: a cross-origin read of an answer without access-control-allow-origin is REFUSED (the fetch rejects), it does not hand back the body. */
+const asBrowser =
+  (r: { headers: Record<string, string>; body: string }): Answer =>
+  async (_u, i) => {
+    if (i?.mode === "cors" && !r.headers["access-control-allow-origin"]) throw new TypeError("Failed to fetch");
+    return text(r.body);
+  };
+const relayEdge: Answer = asBrowser(RELAY_EDGE);
 
 const READY = { status: "ready", data: [] }; // one snapshot object for good
 function runtime(url: string): ShellRuntime {
@@ -66,21 +75,25 @@ test("the host check: the marked page is the host; a relay's 404, silence and a 
     "the dead code, on the host's own origin, never the real code",
   );
   assert.equal(
-    await artifactHostAnswers(addr, async () => text(RELAY_404)),
+    await artifactHostAnswers(addr, relayEdge),
     false,
-    "the relay's own page is not this host",
+    "the relay edge's real 404 (no access-control-allow-origin, so the browser refuses the read) is not this host",
   );
   assert.equal(
     await artifactHostAnswers(addr, async () => Promise.reject(new TypeError("Failed to fetch"))),
     false,
     "no record, no certificate: nothing answers either way",
   );
-  // an older server does not allow the read: a name that answers without it is let through as before
+  // an answer the app cannot read is never taken for success, whatever the host form (an older server that does not allow the read shows the failed state until it updates)
+  for (const form of ["https://mla-a.vyre.run", "https://a.mla.vyre.run", "https://a.team.example.com"])
+    assert.equal(await artifactHostAnswers(`${form}/x/${CODE}`, relayEdge), false, form);
   assert.equal(
-    await artifactHostAnswers(addr, async (_u, i) =>
-      i?.mode === "cors" ? Promise.reject(new TypeError("blocked")) : text(""),
+    await artifactHostAnswers(
+      addr,
+      asBrowser({ headers: { "access-control-allow-origin": "*" }, body: "<p>some page</p>" }),
     ),
-    true,
+    false,
+    "readable but not marked",
   );
   assert.equal(
     await artifactHostAnswers(addr, () => new Promise(() => undefined), 20),
@@ -122,7 +135,7 @@ test("a name the relay answers with its own 404 is the same failed state; the ho
   try {
     let phase: "relay" | "host" = "relay";
     await withFetch(
-      async () => text(phase === "relay" ? RELAY_404 : MARKED),
+      (u, i) => (phase === "relay" ? relayEdge(u, i) : Promise.resolve(text(MARKED))),
       async () => {
         const root = await mount(createRoot, view(`https://mla-a.vyre.run/x/${CODE}`));
         await flush();
@@ -206,7 +219,11 @@ test("desktop app: Share steps the native page aside and it comes back as it was
         await flush();
         await flush();
         assert.equal(n, 1, "no new code: the same page comes back as it was");
-        assert.equal(sitesGets, before, "closing without sharing reads nothing again (a share does: apps/app/tests/artifact-share.live.test.ts)");
+        assert.equal(
+          sitesGets,
+          before,
+          "closing without sharing reads nothing again (a share does: apps/app/tests/artifact-share.live.test.ts)",
+        );
       },
     );
   } finally {

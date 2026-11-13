@@ -90,10 +90,10 @@ export function ArtifactView({
   const nameOf = useMemo(() => nameLookup(rt), [rt]);
   const desktop = available();
   const open = useCallback(
-    (embed: boolean): Promise<string> =>
+    (embed: boolean, native = false): Promise<string> =>
       Promise.resolve(
         rt.call("sites.artifact_open", { artifactId, idempotencyKey: `open-${artifactId}-${rt.clock().now}-${++seq}` }),
-      ).then((o) => artifactAddress(o as { path: string; url?: string }, rt.baseUrl, embed)),
+      ).then((o) => artifactAddress(o as { path: string; url?: string }, rt.baseUrl, embed, native)),
     [rt, artifactId],
   );
   /** The artifact's row (its name and the line under it): read again whenever something about it may have changed (a share). */
@@ -115,7 +115,7 @@ export function ArtifactView({
     setSrc(null);
     setDenied(false);
     loadSite(() => live);
-    void open(!desktop)
+    void open(!desktop, desktop)
       .then(async (u) => {
         // a frame says nothing across origins, so the app asks the artifact host itself before it frames anything: a host that does not answer is an error here, never a white rectangle
         if (!(await artifactHostAnswers(u))) throw new HostSilent(u);
@@ -147,6 +147,7 @@ export function ArtifactView({
   }, [src, loaded, failed]);
   // The desktop app's page is a native view. While a menu or the Share sheet is open it steps off-screen and comes back as it was (its place and state kept); only when the shell no longer has it
   // (the view was closed, the app restarted) does it come back at a NEW one-time address, asked for then: the first address was spent by the first load ("This link has ended", 13 Nov 2026).
+  const goneTimes = useRef(0);
   const [sure, setSure] = useState(false);
   const cover = coveredBy({ sharing, menu: element !== null, sure });
   const name = site?.name ?? "Artifact";
@@ -283,7 +284,10 @@ export function ArtifactView({
               message="This page could not be loaded from the Space"
               cause={failed}
               retryable
-              onRetry={() => setAttempt((n) => n + 1)}
+              onRetry={() => {
+                goneTimes.current = 0;
+                setAttempt((n) => n + 1);
+              }}
             />
           </View>
         ) : (
@@ -295,7 +299,13 @@ export function ArtifactView({
                 covered={cover}
                 onError={(m) => setFailed(m)}
                 onPlaced={() => setLoaded(true)}
-                onGone={() => setAttempt((n) => n + 1)}
+                onGone={() => {
+                  // the shell lost the page: a new address, a few times; a shell that keeps losing it is told so, not fed tickets for ever
+                  goneTimes.current += 1;
+                  if (goneTimes.current > 3)
+                    setFailed("This page keeps closing on this computer. Try again in a moment.");
+                  else setAttempt((n) => n + 1);
+                }}
               />
             ) : null}
             {frameFor(src, desktop) === "iframe"

@@ -12,6 +12,14 @@ import path from "node:path";
 import { claimOnEdge, dismissOnboarding, edge, startDaemon, stopper } from "./real-app-harness.test.ts";
 import { guardCrashes } from "./crash-guard.ts";
 
+const EDGE = JSON.parse(
+  fs.readFileSync(new URL("./fixtures/relay-edge-unclaimed-404.json", import.meta.url), "utf8"),
+) as {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+};
+
 type Mode = "up" | "relay404" | "dropped";
 
 test("artifact tab: the artifact host answering shows the page; a host that answers 404 with nothing, or drops the connection, shows the failed state with Retry, and Retry finds it once it answers", async (t) => {
@@ -56,8 +64,9 @@ test("artifact tab: the artifact host answering shows the page; a host that answ
         return;
       }
       if (mode === "relay404") {
-        res.writeHead(404, { "access-control-allow-origin": "*", "content-length": "0" });
-        res.end();
+        // byte for byte the relay edge's answer for a name no Space holds, recorded from the real edge: a bare 404 and NO access-control-allow-origin
+        res.writeHead(EDGE.status, EDGE.headers);
+        res.end(EDGE.body);
         return;
       }
       pass(new URL(daemonUrl));

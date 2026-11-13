@@ -44,7 +44,8 @@ export function createArtifactHostRoute(d: ArtifactHostDeps): {
     return typeof o === "string" && d.appOrigins().includes(o) ? o : undefined;
   };
   const framed = (req: http.IncomingMessage): boolean =>
-    req.headers["sec-fetch-dest"] === "iframe" || new URL(req.url ?? "/", "http://x").searchParams.get("embed") === "1";
+    req.headers["sec-fetch-dest"] === "iframe" ||
+    ["embed", "app"].some((k) => new URL(req.url ?? "/", "http://x").searchParams.get(k) === "1");
   const sayPage = (
     res: http.ServerResponse,
     status: number,

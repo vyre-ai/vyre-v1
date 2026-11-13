@@ -14,6 +14,7 @@ static SHOWING: Mutex<Option<String>> = Mutex::new(None);
 
 /// Where the page waits while a menu or the Share sheet is open: far outside the window, at its own size. The page is kept (its place and state stay), not closed and made again, and not drawn over the sheet.
 /// A hide of the webview itself is not used: this stays on calls the shell already makes (set_position, set_size), so the behaviour does not depend on the Tauri version.
+pub const RECT_LIMIT: f64 = 20_000.0;
 pub const OFFSCREEN: f64 = -30_000.0;
 
 /// What a request to show the page at an address does, from what is there now. Pure, so it is tested without a window.
@@ -89,7 +90,7 @@ pub fn same_origin(a: &tauri::Url, b: &tauri::Url) -> bool {
 
 /// A rectangle from the page: finite and inside sane bounds, in logical pixels.
 pub fn rect_ok(x: f64, y: f64, w: f64, h: f64) -> bool {
-    [x, y, w, h].iter().all(|v| v.is_finite()) && (0.0..=20_000.0).contains(&x) && (0.0..=20_000.0).contains(&y) && (1.0..=20_000.0).contains(&w) && (1.0..=20_000.0).contains(&h)
+    [x, y, w, h].iter().all(|v| v.is_finite()) && (0.0..=RECT_LIMIT).contains(&x) && (0.0..=RECT_LIMIT).contains(&y) && (1.0..=RECT_LIMIT).contains(&w) && (1.0..=RECT_LIMIT).contains(&h)
 }
 
 fn view_of(window: &Window) -> Option<Webview> {
@@ -215,11 +216,7 @@ mod tests {
         assert_eq!(show_plan(true, Some(a), a), ShowPlan::Move, "off-screen or shown, the same page is moved, never loaded again");
         assert_eq!(show_plan(true, Some(a), "https://a.team.example.com/x/bbbb"), ShowPlan::Replace);
         assert_eq!(show_plan(true, None, a), ShowPlan::Replace);
-        assert!(OFFSCREEN < -rect_limit(), "off-screen is beyond anything the page may place");
-    }
-
-    fn rect_limit() -> f64 {
-        20_000.0
+        assert!(OFFSCREEN < -RECT_LIMIT, "off-screen is beyond anything the page may place");
     }
 
     #[test]

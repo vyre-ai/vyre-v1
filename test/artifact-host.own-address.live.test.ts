@@ -39,7 +39,7 @@ function ask(
 
 interface Net {
   /** what the artifact host name does: reaches this server, fails the way an unrouted name does (no certificate), or answers as some other server */
-  mode: "reaches" | "unreachable" | "other";
+  mode: "reaches" | "unreachable" | "other" | "stalls";
   asked: string[];
 }
 /** The outside world as the daemon sees it: the Caddy admin stand-in everywhere, and the artifact host's name either reaching the daemon (as DNS, Caddy and a certificate would) or not. */
@@ -55,6 +55,8 @@ function world(net: Net, daemonUrl: () => string): FetchFn {
       };
     }
     net.asked.push(u.pathname);
+    if (net.mode === "stalls")
+      return { ok: true, status: 200, headers: { get: () => null }, text: () => new Promise<string>(() => undefined) };
     if (net.mode === "unreachable") throw new Error("tls: no certificate for this name");
     if (net.mode === "other")
       return {
@@ -208,6 +210,31 @@ test(
         "the relay carries only the artifact host's /x and /sit_ paths, so no check goes out for it",
       );
       assert.equal((await finding(d))?.state, "healthy");
+    } finally {
+      await d.stop();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "a host that sends headers and then stalls does not wedge the server: the open answers plainly within the limit, and finds the host once it answers",
+  { timeout: 120_000 },
+  async () => {
+    const net: Net = { mode: "stalls", asked: [] };
+    const { d, dir } = await start(net);
+    try {
+      const id = await publish(d, "od-1");
+      const t0 = Date.now();
+      const r = await api(d, d.token, "sites.artifact_open", { artifactId: id, idempotencyKey: "od-open-1" });
+      assert.notEqual(r.status, 200);
+      assert.match(JSON.stringify(r.data), /not answering/i);
+      assert.ok(Date.now() - t0 < 15_000, "not held for ever behind the stalled read");
+      assert.equal((await finding(d))?.state, "degraded", "Health answers too");
+      net.mode = "reaches";
+      clock.t += 120_000;
+      const open = await ok(d, d.token, "sites.artifact_open", { artifactId: id, idempotencyKey: "od-open-2" });
+      assert.equal(new URL(open.url).host, ART);
     } finally {
       await d.stop();
       fs.rmSync(dir, { recursive: true, force: true });

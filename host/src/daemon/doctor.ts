@@ -12,6 +12,7 @@ import type { FetchFn, ProbeResult } from "../platform/probes.ts";
 import { alive, pathsFor, readInfo } from "./config.ts";
 import { NEXT, OK } from "./doctor-next.ts";
 import { openDb } from "./sqlite.ts";
+import { askArtifactHost } from "./artifact-check.ts";
 import { artifactHostOf, artifactMarkerOf } from "./public-origin.ts";
 
 export interface Finding {
@@ -307,13 +308,8 @@ async function artifactAddressFinding(domain: string, spaceId: string, f: FetchF
   const next = `Add the DNS record ${record}, then run vyre-server doctor again. The server's own check passes within a minute of it and artifact pages open.`;
   if (!f) return { key, state: "degraded", detail: `Could not check ${host}: no HTTP client.`, next };
   try {
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 5000);
-    timer.unref();
-    const r = await f(`https://${host}/.well-known/vyre-artifact-host`, { signal: ctl.signal }).finally(() =>
-      clearTimeout(timer),
-    );
-    const body = (await r.text()).trim();
+    const r = await askArtifactHost(f, host, "/.well-known/vyre-artifact-host");
+    const body = r.body;
     if (r.ok && body === artifactMarkerOf(spaceId))
       return { key, state: "healthy", detail: `${host} reaches this Space.`, next: OK };
     return {

@@ -216,6 +216,7 @@ test("a spent one-time link inside the app's frame has no 'Open Vyre' link (it w
     const spent = "/x/" + "b".repeat(48);
     assert.match(await (await s.get(spent)).text(), /Open Vyre/);
     assert.doesNotMatch(await (await s.get(`${spent}?embed=1`)).text(), /Open Vyre|href=/);
+    assert.doesNotMatch(await (await s.get(`${spent}?app=1`)).text(), /Open Vyre|href=/, "the desktop app's own page");
     const dead = await s.get(spent, { "sec-fetch-dest": "iframe" });
     assert.equal(dead.status, 404);
     assert.doesNotMatch(await dead.text(), /Open Vyre/);

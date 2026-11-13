@@ -335,6 +335,7 @@ import { coreOf, createSyncEngine } from "./syncengine.ts";
 import { collectProjections, createProjectionRunner } from "./projections.ts";
 import type { ProjectionRunner } from "./projections.ts";
 import { managedNetworkPort } from "./network-driver.ts";
+import { askArtifactHost, validArtifactHost } from "./artifact-check.ts";
 import { artifactHostOf as deriveArtifactHost, artifactMarkerOf, publicOriginOf } from "./public-origin.ts";
 import { pollCommands } from "./commands.ts";
 import { createPhonePort } from "./phone.ts";
@@ -926,7 +927,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   type ArtifactHostState = { host: string; ok: boolean; at: number; why: string };
   let artifactHostState: ArtifactHostState | null = null;
   let artifactHostRun: Promise<void> | null = null;
-  const ARTIFACT_HOST_OK_MS = 10 * 60_000;
+  const ARTIFACT_HOST_OK_MS = 3 * 60_000;
   const ARTIFACT_HOST_RETRY_MS = 10_000;
   const artifactMarker = (): string => artifactMarkerOf(space ?? "-").slice("vyre-artifact-host ".length);
   const checkArtifactHost = (atStart = false): Promise<void> => {
@@ -944,14 +945,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       } else {
         try {
           if (!fetchFn) throw new Error("no HTTP client");
-          const ctl = new AbortController();
-          const timer = setTimeout(() => ctl.abort(), 5000);
-          timer.unref();
-          const r = await fetchFn(`https://${host}${HOST_CHECK_PATH}`, { signal: ctl.signal }).finally(() =>
-            clearTimeout(timer),
-          );
-          const body = (await r.text()).trim();
-          ok = r.ok && body === `vyre-artifact-host ${artifactMarker()}`;
+          const r = await askArtifactHost(fetchFn, host, HOST_CHECK_PATH);
+          ok = r.ok && r.body === `vyre-artifact-host ${artifactMarker()}`;
           why = ok ? "" : r.ok ? "another server answered" : `answered ${r.status}`;
         } catch (e) {
           why = (e instanceof Error ? e.message : String(e)).slice(0, 120);
@@ -974,7 +969,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     artifactHostRun = run;
     return run;
   };
-  /** The artifact host to hand out: the configured one, once it has answered with this Space's marker. A failed answer is asked again after 10 seconds (at the next open or the slow timer), a good one after 10 minutes. */
+  /** The artifact host to hand out: the configured one, once it has answered with this Space's marker. A failed answer is asked again after 10 seconds (at the next open or the slow timer), a good one after 3 minutes. */
   const artifactHostWorking = async (): Promise<string | null> => {
     const host = artifactHostOf();
     if (!host) return null;
@@ -6564,7 +6559,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         const art = artifactHostOf();
         // a host set by hand (VYRE_ARTIFACT_HOST) gets its route too, whatever it is under: the person chose it, and without a route it can never answer
         const setByHand = (o.artifactHost ?? (process.env["VYRE_ARTIFACT_HOST"] || null)) !== null;
-        if (art && art !== host && !/^a\.localhost(:\d+)?$/.test(art) && (setByHand || art.endsWith(`.${host}`)))
+        if (
+          art &&
+          art !== host &&
+          validArtifactHost(art) &&
+          !/^a\.localhost(:\d+)?$/.test(art) &&
+          (setByHand || art.endsWith(`.${host}`))
+        )
           await network.ensureIngress(art, { replace });
         if (wrote)
           sink.log({
