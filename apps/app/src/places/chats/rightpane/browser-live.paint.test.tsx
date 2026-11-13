@@ -25,7 +25,7 @@ function rig(opts: { fail?: (n: number) => boolean } = {}) {
     decode: (jpeg) => { const n = new Uint8Array(jpeg)[0]!; return new Promise((resolve, reject) => { waits.set(n, () => (opts.fail?.(n) ? reject(new Error("bad jpeg")) : resolve({ n, width: 1280, height: 800 } as never))); }); },
     drawn: (s) => sizes.push([s.width, s.height]),
   });
-  return { paint, drawn, sizes, waits, clears: () => clears };
+  return { paint, drawn, sizes, waits, target: () => canvas, clears: () => clears };
 }
 
 test("frames are drawn in order, each over the last, and the canvas is sized once for the page", async () => {
@@ -53,4 +53,24 @@ test("a frame that cannot be read is skipped and the last good picture stays", a
   r.paint(frame(3)); r.waits.get(3)!(); await flush();
   assert.deepEqual(r.drawn, [1, 3]);
   assert.equal(r.clears(), 2, "nothing cleared the picture");
+});
+
+test("a burst of frames (a slow link delivers them together) decodes the first and the newest, never a backlog", async () => {
+  const r = rig();
+  for (let n = 1; n <= 40; n++) r.paint(frame(n));
+  r.waits.get(1)!(); await flush();
+  r.waits.get(40)!(); await flush();
+  assert.deepEqual(r.drawn, [1, 40]);
+  assert.equal(r.waits.size, 2, "the 38 in between were never decoded");
+});
+
+test("a reconnect (a new painter on the same canvas) keeps the last picture and does not clear it", async () => {
+  const r = rig();
+  r.paint(frame(1)); r.waits.get(1)!(); await flush();
+  const before = r.clears();
+  // the socket closed and opened again: a new painter, frames start from the same page size
+  const again = framePainter({ target: r.target, decode: (j) => new Promise((res) => { const n = new Uint8Array(j)[0]!; r.waits.set(n + 100, () => res({ n: n + 100, width: 1280, height: 800 } as never)); }), drawn: () => undefined });
+  again(frame(2)); r.waits.get(102)!(); await flush();
+  assert.deepEqual(r.drawn, [1, 102]);
+  assert.equal(r.clears(), before, "same page size: nothing cleared between the old connection and the new");
 });

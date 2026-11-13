@@ -2,7 +2,7 @@
 // The links that open Chats: a link with `with` and `about` is an Ask about an object, `with` alone is a chat with that agent, and a thread id is that thread.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { START, askAbout, fromHash, linkedTo, openKeyOf, step } from "./route.ts";
+import { SCREEN, START, askAbout, fromHash, linkedTo, openKeyOf, step } from "./route.ts";
 
 test("with and about make an Ask about the object, and bring names the chat whose summary comes along", () => {
   const s = fromHash("#screen=chats.conversation&with=agt_billing&about=record%3Arec_a1&bring=thr_old");
@@ -135,4 +135,22 @@ test("every layer link opens over the page that is open, and none of them drops 
     assert.deepEqual(next.route, chat.route, `${hash} keeps the chat`);
     assert.equal(next.pane, true, `${hash} keeps the pane`);
   }
+});
+
+// The guard for the class: whatever screen a link names, if it is a layer or a terminal it is shown over the open page. Every screen of the route table is tried with every id a link can carry, so a
+// layer added to SCREEN later cannot bring back the loss (Attach sent the chat to the landing page, 13 Nov 2026).
+test("every screen in the route table that is a layer or a terminal keeps the page that is open", () => {
+  const chat = step(START, { t: "chat", threadId: "c1", pane: true });
+  const ids = "&computerId=cmp_1&terminalId=ter_1&recordingId=rec_1&channelId=chn_1&agentId=agt_1&threadId=c9";
+  let overlays = 0;
+  for (const screen of Object.values(SCREEN)) {
+    const hash = `screen=${screen}${ids}`;
+    const named = fromHash(hash);
+    if (named.layer === null && named.terminalId === null) continue;
+    overlays++;
+    const next = linkedTo(chat, hash);
+    assert.deepEqual(next.route, chat.route, `${screen} keeps the chat`);
+    assert.ok(next.layer !== null || next.terminalId !== null, `${screen} shows what it names`);
+  }
+  assert.ok(overlays >= 7, `the table has its overlays (${overlays})`);
 });
