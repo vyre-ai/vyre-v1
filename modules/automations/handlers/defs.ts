@@ -41,6 +41,7 @@ import { publishAllowed } from "../connector-breadth.ts";
 import { storedLevel } from "../connector-level.ts";
 import { admit, contractOf } from "../val.ts";
 import { containsSecret } from "../trust.ts";
+import { missingMessage } from "../../../lib/words/step-missing.ts";
 import type { Alerts, AutoCtx, Automation, Db, Definition, Grant, Node, Policy } from "../projections.ts";
 
 type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -230,7 +231,7 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     if (!s) continue;
     const have = { ...(n.ai ?? {}), ...n.input } as Record<string, unknown>;
     for (const k of requiredOf(s.input))
-      if (!present(have[k])) out.push(issue("error", `${s.title} needs ${k}.`, n.id));
+      if (!present(have[k])) out.push(issue("error", missingMessage(s.title, n.key, k), n.id));
     if (n.key === "send_email" && !present(have["mailboxId"]))
       out.push(issue("error", "Send an email needs a mailbox.", n.id));
     if (n.key === "send_sms" && !present(have["numberId"]))

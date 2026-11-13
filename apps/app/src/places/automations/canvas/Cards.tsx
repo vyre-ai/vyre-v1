@@ -7,6 +7,7 @@ import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { Glyph } from "./icons.tsx";
 import { StepLogo } from "./StepLogo.tsx";
 import { cardLabel, moreLabel, runStateText, triggerLabel } from "../a11y.ts";
+import { chipText } from "./chip-words.ts";
 import { NOT_SET_UP } from "./form-model.ts";
 import { CARD_H, CARD_W, TRIG_HEAD, TRIG_ROW, messages, triggerMeta } from "./model.ts";
 import type { CardNode, DefTrigger, IconKey, Issue, RunState } from "./model.ts";
@@ -70,7 +71,7 @@ export function StepCard({
         title: card.title,
         sub: card.sub,
         issues: card.issues.length,
-        chip: card.chip,
+        chip: card.chip ? chipText(card.chip, card.issues, card.state) : null,
         state: card.state,
       })}
       accessibilityState={{ selected }}
@@ -140,7 +141,7 @@ export function StepCard({
             card.chip === "tested" && c.statusOk,
           ]}
         >
-          <Text style={c.statusText}>{card.chip}</Text>
+          <Text style={c.statusText}>{chipText(card.chip, card.issues, card.state)}</Text>
         </View>
       ) : null}
       {runWord ? (
