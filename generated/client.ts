@@ -2641,6 +2641,10 @@ export function createClient(transport: Transport) {
       forget: call("state.forget", 1),
       gain: call("state.gain", 1),
       get: call("state.get", 1),
+      layout: {
+        get: call("state.layout.get", 1),
+        set: call("state.layout.set", 1),
+      },
       list: call("state.list", 1),
       lose: call("state.lose", 1),
       merge: call("state.merge", 1),

@@ -48,6 +48,7 @@ type Out = {
       follow: ("following" | "left") | null;
       alert: boolean;
       muted: number | null;
+      pin: number | null;
     }>;
 };
 ```
@@ -79,6 +80,7 @@ type Out = {
         "done": 1760000000000,
         "follow": "following",
         "muted": 1760000000000,
+        "pin": 1,
         "readUpto": 1,
         "starred": 1760000000000,
         "thing": {

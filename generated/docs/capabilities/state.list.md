@@ -1,6 +1,6 @@
 # state.list
 
-My things by what I did with them: starred, following, done, unread or muted
+My things by what I did with them: starred, following, done, unread, muted, pinned (in my own order) or any (everything I have set on anything: one read paints a whole screen). Each row carries the thing's whole state
 
 | | |
 |---|---|
@@ -25,7 +25,7 @@ My things by what I did with them: starred, following, done, unread or muted
 
 ```ts
 type In = {
-  flag: "starred" | "following" | "done" | "unread" | "muted";
+  flag: "starred" | "following" | "done" | "unread" | "muted" | "pinned" | "any";
   type?: string;
   scope?: string;
   cursor?: string;
@@ -45,6 +45,20 @@ type Out = {
       title: string;
       at: number;
       unread: number;
+      state: {
+        thing: {
+          type: string;
+          id: string;
+        };
+        readUpto: number;
+        unread: number;
+        done: number | null;
+        starred: number | null;
+        follow: ("following" | "left") | null;
+        alert: boolean;
+        muted: number | null;
+        pin: number | null;
+      };
     }>;
   next?: string;
 };
@@ -74,6 +88,20 @@ type Out = {
     "rows": [
       {
         "at": 1760000000000,
+        "state": {
+          "alert": true,
+          "done": 1760000000000,
+          "follow": "following",
+          "muted": 1760000000000,
+          "pin": 1,
+          "readUpto": 1,
+          "starred": 1760000000000,
+          "thing": {
+            "id": "cnv_a1b2c3",
+            "type": "conversation"
+          },
+          "unread": 1
+        },
         "thing": {
           "id": "cnv_a1b2c3",
           "type": "conversation"

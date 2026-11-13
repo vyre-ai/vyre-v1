@@ -10,6 +10,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "state.forget": Handler<"state.forget", X>;
   "state.gain": Handler<"state.gain", X>;
   "state.get": Handler<"state.get", X>;
+  "state.layout.get": Handler<"state.layout.get", X>;
+  "state.layout.set": Handler<"state.layout.set", X>;
   "state.list": Handler<"state.list", X>;
   "state.lose": Handler<"state.lose", X>;
   "state.merge": Handler<"state.merge", X>;

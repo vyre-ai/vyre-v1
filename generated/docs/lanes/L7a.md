@@ -377,7 +377,7 @@ Events:
 
 ### state
 
-Capabilities to implement: 13. Events to emit: 1. Contract tests that must go green: `generated/tests/state/`.
+Capabilities to implement: 15. Events to emit: 3. Contract tests that must go green: `generated/tests/state/`.
 
 Capabilities:
 - state.arrive (write, grant only, level member)
@@ -385,6 +385,8 @@ Capabilities:
 - state.forget (write, grant only, level member)
 - state.gain (write, grant only, level member)
 - state.get (read, grant only, level member)
+- state.layout.get (read, grant only, level member)
+- state.layout.set (write, grant only, level member)
 - state.list (read, grant only, level member)
 - state.lose (write, grant only, level member)
 - state.merge (write, grant only, level member)
@@ -396,6 +398,8 @@ Capabilities:
 
 Events:
 - state.changed
+- state.layout_changed
+- state.scope_read
 
 ### talk
 

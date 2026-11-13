@@ -2641,6 +2641,10 @@ export function stubs(ctx: CallCtx) {
       forget: call("state.forget"),
       gain: call("state.gain"),
       get: call("state.get"),
+      layout: {
+        get: call("state.layout.get"),
+        set: call("state.layout.set"),
+      },
       list: call("state.list"),
       lose: call("state.lose"),
       merge: call("state.merge"),

@@ -34818,6 +34818,42 @@ const routes6: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/state/layout/get",
+    "cap": "state.layout.get",
+    "v": 1,
+    "module": "state",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/state/layout/set",
+    "cap": "state.layout.set",
+    "v": 1,
+    "module": "state",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/state/list",
     "cap": "state.list",
     "v": 1,
@@ -38654,7 +38690,10 @@ const routes6: Route[] = [
     "offline": "patch",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/twilio/a2p/attach_number",
@@ -38690,10 +38729,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/twilio/a2p/create_campaign",

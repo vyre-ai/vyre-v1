@@ -58787,9 +58787,60 @@
     },
     {
       "blocks": [],
+      "cap": "state.layout.get",
+      "deferred": true,
+      "description": "How I arranged my screens: my layout values (all, or the named keys). A small value for each registered key, mine alone",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "name": "state_layout_get",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "state.layout.set",
+      "deferred": true,
+      "description": "Set one layout value, or clear it with null. Only registered keys, each with a small size limit; it is never a place for content",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "key": {
+            "examples": [
+              "chats.sidebar.folds"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "description": "Any JSON value"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "type": "object"
+      },
+      "name": "state_layout_set",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "state.list",
       "deferred": true,
-      "description": "My things by what I did with them: starred, following, done, unread or muted",
+      "description": "My things by what I did with them: starred, following, done, unread, muted, pinned (in my own order) or any (everything I have set on anything: one read paints a whole screen). Each row carries the thing's whole state",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58802,7 +58853,9 @@
               "following",
               "done",
               "unread",
-              "muted"
+              "muted",
+              "pinned",
+              "any"
             ],
             "type": "string"
           },
@@ -58922,7 +58975,7 @@
       "blocks": [],
       "cap": "state.set",
       "deferred": true,
-      "description": "Mark a thing done or open again, star it, follow or leave it, set Alert me on replies, or mute it. Give at least one",
+      "description": "Mark a thing done or open again, star it, follow or leave it, set Alert me on replies, mute it, or pin it (`pin: {}` puts it last among my pins of this kind, `{ after: null }` first, `{ after: thing }` right below that pin; `pin: null` takes it off). Give at least one",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58962,6 +59015,46 @@
                 "required": [
                   "until"
                 ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pin": {
+            "anyOf": [
+              {
+                "properties": {
+                  "after": {
+                    "anyOf": [
+                      {
+                        "properties": {
+                          "id": {
+                            "examples": [
+                              "cnv_a1b2c3"
+                            ],
+                            "type": "string"
+                          },
+                          "type": {
+                            "examples": [
+                              "conversation"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "id"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
                 "type": "object"
               },
               {

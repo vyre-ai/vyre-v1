@@ -1,6 +1,6 @@
 # state.set
 
-Mark a thing done or open again, star it, follow or leave it, set Alert me on replies, or mute it. Give at least one
+Mark a thing done or open again, star it, follow or leave it, set Alert me on replies, mute it, or pin it (`pin: {}` puts it last among my pins of this kind, `{ after: null }` first, `{ after: thing }` right below that pin; `pin: null` takes it off). Give at least one
 
 | | |
 |---|---|
@@ -36,6 +36,12 @@ type In = {
   mute?: {
     until: number;
   } | null;
+  pin?: ({
+    after?: {
+      type: string;
+      id: string;
+    } | null;
+  }) | null;
 };
 ```
 
@@ -55,6 +61,7 @@ type Out = {
     follow: ("following" | "left") | null;
     alert: boolean;
     muted: number | null;
+    pin: number | null;
   };
 };
 ```
@@ -79,6 +86,12 @@ type Out = {
     "mute": {
       "until": 1760000000000
     },
+    "pin": {
+      "after": {
+        "id": "cnv_a1b2c3",
+        "type": "conversation"
+      }
+    },
     "star": true,
     "thing": {
       "id": "cnv_a1b2c3",
@@ -91,6 +104,7 @@ type Out = {
       "done": 1760000000000,
       "follow": "following",
       "muted": 1760000000000,
+      "pin": 1,
       "readUpto": 1,
       "starred": 1760000000000,
       "thing": {

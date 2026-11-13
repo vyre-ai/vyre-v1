@@ -19,7 +19,7 @@ Mark everything in one badge read, or only what arrived before a time
 | HTTP | POST /v1/state/read_scope |
 | MCP tool | state_read_scope (meta, deferred) |
 | CLI | none |
-| Emits | state.changed |
+| Emits | state.scope_read |
 
 ## Input
 

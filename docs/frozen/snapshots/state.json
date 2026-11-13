@@ -1,21 +1,25 @@
 {
   "module": "state",
   "capabilities": {
-    "state.arrive@1": "49e12374b4c7a9920550e702d15b1613195545ce1ce7fc4cac0557ad7bb3ff34",
+    "state.arrive@1": "84e09aa85afd1d6947e3969119b5f9db852b694bc500fc617b4557b682b54591",
     "state.counts@1": "9d83a24a7d96e9aa6e4d4d696cf573b7bf0754bebdc71dbc653ebafa28414400",
-    "state.forget@1": "f2b23bd52812d5fce154d23d8bc2aa130fa1b1673bc4430f8e02336a6b026880",
-    "state.gain@1": "61ab424b50425acee9b38bf6b50ac835f947cab0e0524a325e4254265c76ca98",
-    "state.get@1": "fc2321d9bd34d9f4186a37e62b294027a1cd31fe9a341a087baa57c14f4fb2a8",
-    "state.list@1": "f028e295761522dcbefca7607651ce029a6a0a056e2624e066cdde44cfbe6435",
-    "state.lose@1": "446cb8261f1abb227c9f47cd26b3365cc62d0c97e4c8c4db1b9789dd0931fae0",
-    "state.merge@1": "04b386ff68901e50fec528d3eec689850cfe41bbb97e33129da28510e9cb7c02",
+    "state.forget@1": "4b494c0c1adb5a93570293ce35d24b97d8c3b9a633c01091e833f7dcadb8ad57",
+    "state.gain@1": "9ceb67f2b4f2c24d6201fd3bc34de9de2ddf8a62cae3b93abf43e350ce08425c",
+    "state.get@1": "2b8ba3cfad32fa297a11261355b1e3b972d38e560aeea52214a22d9a74f69ee8",
+    "state.layout.get@1": "7b56e8aff8b1bfb8b99f132a5b8f57b64af21a4ec059c4095d3d4ed16cc7eb7b",
+    "state.layout.set@1": "521895197b711491f8e1aba8602e84cc83a2c65cb6be4e90c3ee8f3e5d09a41c",
+    "state.list@1": "ab6caf702c2343b0e94c1928e5a0d8dc195582d083e7fa98a2e20e3055139294",
+    "state.lose@1": "0397ecce2fb2b1d7201f6504a2ba6d387a4f9c7324977242b3ee03404084a031",
+    "state.merge@1": "8bb64e31f6b32ae46ce40d667e6c66cf4df725e0c392dc2cb20ec4e4569c2de1",
     "state.read@1": "1949e095c87f24b3e928ec60d8bc9908a663045c160eea7dcc1588af814f9d99",
-    "state.read_scope@1": "d6652db277a6a2774d378da6700f0c2d7206643783a4c2aa8321bdfb79c6bc97",
-    "state.retract@1": "8ea07c279153eb1aab38f6dd86f181d90d044d1c373bd5f54965090511e2b2af",
-    "state.set@1": "652876e360a451ffd054887f73df7dd9664661eacbeedfe663708d796fc10f2c",
-    "state.verify@1": "61d41118000edff7fb90176ef540129bd7c7fc23b7ab961fae6e98183236828d"
+    "state.read_scope@1": "0d713628350a400345e476dfb6517ce30e63cdacf7d73b34b6418a9905152532",
+    "state.retract@1": "5ad472651320e29b71d72e375d90228fde857467f478968abd8fc1f709c8b383",
+    "state.set@1": "9ee3019a079118fd175e7ed45c55098c163942042a7e57985a460425ad9cc407",
+    "state.verify@1": "ad23e87a7a54eb77b7d386034ac85d50c4caccf868a77afd95f8182a50ea6c48"
   },
   "events": {
-    "state.changed": "6a7d377ba2475bffd364acf2b2c1c3be71387d32cce0faf263a1a2dd960e8faf"
+    "state.changed": "14872f11a8c5144ec66eee44173c74eb3f4ed08248c8e904d4342ec26cbd2895",
+    "state.layout_changed": "0d73b8aa7efa96d8f81405191cb6e2abfa6b930002ef5083ea25b09b2a1c624a",
+    "state.scope_read": "7cf21ffae9c43ded95b1adcceab97b1796f860a225af8e5668135a63cd9a713a"
   }
 }

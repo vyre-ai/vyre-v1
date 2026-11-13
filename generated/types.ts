@@ -36819,10 +36819,34 @@ export type StateGetOut = {
       follow: ("following" | "left") | null;
       alert: boolean;
       muted: number | null;
+      pin: number | null;
     }>;
 };
+export type StateLayoutGetIn = {
+  keys?: Array<string>;
+};
+export type StateLayoutGetOut = {
+  values: Array<{
+      key: string;
+      value: unknown;
+      version: number;
+      at: number;
+    }>;
+};
+export type StateLayoutSetIn = {
+  key: string;
+  value: unknown;
+};
+export type StateLayoutSetOut = {
+  value: {
+    key: string;
+    value: unknown;
+    version: number;
+    at: number;
+  };
+};
 export type StateListIn = {
-  flag: "starred" | "following" | "done" | "unread" | "muted";
+  flag: "starred" | "following" | "done" | "unread" | "muted" | "pinned" | "any";
   type?: string;
   scope?: string;
   cursor?: string;
@@ -36837,6 +36861,20 @@ export type StateListOut = {
       title: string;
       at: number;
       unread: number;
+      state: {
+        thing: {
+          type: string;
+          id: string;
+        };
+        readUpto: number;
+        unread: number;
+        done: number | null;
+        starred: number | null;
+        follow: ("following" | "left") | null;
+        alert: boolean;
+        muted: number | null;
+        pin: number | null;
+      };
     }>;
   next?: string;
 };
@@ -36900,6 +36938,12 @@ export type StateSetIn = {
   mute?: {
     until: number;
   } | null;
+  pin?: ({
+    after?: {
+      type: string;
+      id: string;
+    } | null;
+  }) | null;
 };
 export type StateSetOut = {
   state: {
@@ -36914,6 +36958,7 @@ export type StateSetOut = {
     follow: ("following" | "left") | null;
     alert: boolean;
     muted: number | null;
+    pin: number | null;
   };
 };
 export type StateVerifyIn = {
@@ -47051,6 +47096,8 @@ export interface CapMap {
   "state.forget": { in: StateForgetIn; out: StateForgetOut };
   "state.gain": { in: StateGainIn; out: StateGainOut };
   "state.get": { in: StateGetIn; out: StateGetOut };
+  "state.layout.get": { in: StateLayoutGetIn; out: StateLayoutGetOut };
+  "state.layout.set": { in: StateLayoutSetIn; out: StateLayoutSetOut };
   "state.list": { in: StateListIn; out: StateListOut };
   "state.lose": { in: StateLoseIn; out: StateLoseOut };
   "state.merge": { in: StateMergeIn; out: StateMergeOut };
@@ -50866,7 +50913,46 @@ export type StateChangedPayload = {
     type: string;
     id: string;
   };
-  changed: Array<"read" | "done" | "star" | "follow" | "mute">;
+  changed: Array<"read" | "done" | "star" | "follow" | "mute" | "pin">;
+  now: number;
+  by: string;
+  state: {
+    thing: {
+      type: string;
+      id: string;
+    };
+    readUpto: number;
+    unread: number;
+    done: number | null;
+    starred: number | null;
+    follow: ("following" | "left") | null;
+    alert: boolean;
+    muted: number | null;
+    pin: number | null;
+  };
+  count: {
+    scope: string;
+    things: number;
+    entries: number;
+  };
+};
+export type StateLayoutChangedPayload = {
+  person: string;
+  key: string;
+  value: unknown;
+  version: number;
+  now: number;
+  by: string;
+};
+export type StateScopeReadPayload = {
+  person: string;
+  scope: string;
+  marked: number;
+  count: {
+    scope: string;
+    things: number;
+    entries: number;
+  };
   now: number;
   by: string;
 };
@@ -52272,6 +52358,8 @@ export interface EventMap {
   "star.added": StarAddedPayload;
   "star.removed": StarRemovedPayload;
   "state.changed": StateChangedPayload;
+  "state.layout_changed": StateLayoutChangedPayload;
+  "state.scope_read": StateScopeReadPayload;
   "stripe.event_received": StripeEventReceivedPayload;
   "subscription.canceled": SubscriptionCanceledPayload;
   "subscription.created": SubscriptionCreatedPayload;
