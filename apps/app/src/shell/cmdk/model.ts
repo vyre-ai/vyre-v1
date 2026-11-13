@@ -166,7 +166,7 @@ const readable = (snippet: string | undefined): string | undefined => {
 export type LinkedHit = Hit & { of?: string };
 
 /**
- * One row per thing. The same title twice in a group is one row that keeps the first hit and takes a snippet from the later one when it has none (a chat's title, then a message hit of that chat).
+ * One row per thing: the same id twice is one row that keeps the first hit and takes a snippet from the later one when it has none. Things that only share a title are separate rows.
  * A hit that says it is another hit's own (a project's own channel) goes when that other hit is in the list, decided by ids, never by what the two are called: a channel that only shares a project's name stays.
  * No row is titled by an id, and no snippet carries one.
  */
@@ -179,7 +179,7 @@ export function oneEach(hits: readonly Hit[]): Hit[] {
     const t = { ...h, title: isRawId(title) ? "Untitled" : title } as LinkedHit;
     if (snippet !== undefined) t.snippet = snippet;
     else delete t.snippet;
-    const k = `${t.kind}:${t.title.trim().toLowerCase()}:${t.of ?? ""}`,
+    const k = `${t.kind}:${t.id}`,
       seen = at.get(k);
     if (seen === undefined) {
       at.set(k, out.length);
@@ -190,17 +190,11 @@ export function oneEach(hits: readonly Hit[]): Hit[] {
     if (mine.snippet === undefined && t.snippet !== undefined) out[seen] = { ...mine, snippet: t.snippet };
   }
   const present = new Set(out.map((h) => keyOf(h)));
-  const name = (h: Hit): string => h.title.trim().toLowerCase();
-  // a channel's own thread is found as a chat too: the channel row is the one that stays, and takes the snippet
-  const chan = new Map(out.filter((h) => h.kind === "channel").map((h) => [name(h), h] as const));
   return out
     .filter((h) => {
+      // only a hit that says it IS another hit's own (by id) goes; two things that share a title are two rows, told apart by their second line
       const of = (h as LinkedHit).of;
-      if (of !== undefined && present.has(of)) return false;
-      const c = h.kind === "chat" ? chan.get(name(h)) : undefined;
-      if (!c) return true;
-      if (c.snippet === undefined && h.snippet !== undefined) out[out.indexOf(c)] = { ...c, snippet: h.snippet };
-      return false;
+      return !(of !== undefined && present.has(of));
     })
     .filter((h, i, all) => all.findIndex((x) => x.kind === h.kind && x.id === h.id) === i);
 }

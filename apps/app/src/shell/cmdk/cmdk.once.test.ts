@@ -139,3 +139,40 @@ test("the device lists only chats and channels as chats: an Ask pane opened on a
   );
   assert.deepEqual(labels(hits), ["chat:Launch plan", "channel:launch-week"]);
 });
+
+test("things are the same only when they are the same thing: the same id is one row, the same title is not", () => {
+  // two untitled records (their titles were ids): two rows, each Untitled, not one
+  const rows = shown([
+    hit("record", "rec_aaaaaaaa01", "rec_01a1d27b165742ddb20032cbd182aaf9"),
+    hit("record", "rec_aaaaaaaa02", "rec_01a1d27b165742ddb20032cbd182aaf8"),
+  ]);
+  assert.deepEqual(labels(rows), ["record:Untitled", "record:Untitled"]);
+  assert.deepEqual(
+    rows.map((h) => h.id),
+    ["rec_aaaaaaaa01", "rec_aaaaaaaa02"],
+  );
+  // a chat that shares a channel's name is its own row
+  assert.deepEqual(
+    labels(
+      shown([hit("channel", "chn_dddddddd01", "launch-week"), hit("chat", "thr_aaaaaaaa01", "launch-week")]),
+    ).sort(),
+    ["channel:launch-week", "chat:launch-week"],
+  );
+  // two tasks, two chats and two records with the same title are two rows each
+  const same = shown([
+    hit("task", "tsk_bbbbbbbb01", "Call Maya"),
+    hit("task", "tsk_bbbbbbbb02", "Call Maya"),
+    hit("chat", "thr_aaaaaaaa01", "Standup"),
+    hit("chat", "thr_aaaaaaaa02", "Standup"),
+    hit("record", "rec_cccccccc01", "Acme"),
+    hit("record", "rec_cccccccc02", "Acme"),
+  ]);
+  assert.equal(same.length, 6);
+  // the same id twice (a chat, then a message hit of it) is one row that keeps the snippet
+  const twice = shown([
+    hit("chat", "thr_aaaaaaaa03", "Standup"),
+    hit("chat", "thr_aaaaaaaa03", "Standup", { snippet: "we start at ten" }),
+  ]);
+  assert.equal(twice.length, 1);
+  assert.equal(twice[0]!.snippet, "we start at ten");
+});

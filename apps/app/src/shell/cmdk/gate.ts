@@ -293,6 +293,9 @@ export function reachable(
   );
 }
 
+/** How long the command bar waits for the reads that say which chat is a task's own, before it shows the rows it has. */
+export const TASK_READ_WAIT_MS = 300;
+
 export function createGateSearch(d: GateSearchDeps): CmdKData {
   const { runtime: rt, nav, state } = d;
   /** the task's own thread ids -> `task:<id>`, learned from the tasks a search returned (tasks.get), so the task's own chat is one row with the task. */
@@ -328,19 +331,28 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
       const out = (await rt.call("search.query", { q: text, ...(types ? { types: [...types] } : {}), limit: 20 })) as {
         hits: Hit[];
       };
-      await Promise.all(
-        out.hits
-          .filter((h) => h.kind === "task")
-          .slice(0, 8)
-          .map((h) =>
-            Promise.resolve(rt.call("tasks.get", { taskId: h.id }))
-              .then((r) => {
-                const t = (r as { task?: { workerThread?: string; threadId?: string } }).task;
-                for (const th of [t?.workerThread, t?.threadId]) if (th) taskChats.set(th, `task:${h.id}`);
-              })
-              .catch(() => undefined),
-          ),
-      );
+      // the task reads run beside the search and are waited for only briefly: a slow or failed one never delays the rows, the link just lands on the next search
+      let stop: ReturnType<typeof setTimeout> | undefined;
+      const patience = new Promise<void>((done) => {
+        stop = setTimeout(done, TASK_READ_WAIT_MS);
+      });
+      await Promise.race([
+        patience,
+        Promise.all(
+          out.hits
+            .filter((h) => h.kind === "task")
+            .slice(0, 8)
+            .map((h) =>
+              Promise.resolve(rt.call("tasks.get", { taskId: h.id }))
+                .then((r) => {
+                  const t = (r as { task?: { workerThread?: string; threadId?: string } }).task;
+                  for (const th of [t?.workerThread, t?.threadId]) if (th) taskChats.set(th, `task:${h.id}`);
+                })
+                .catch(() => undefined),
+            ),
+        ),
+      ]);
+      clearTimeout(stop);
       return mine(linkedTo(rt, out.hits, taskChats));
     },
     recent: () => mine(d.recent()),
