@@ -144,3 +144,9 @@ Signed: lead, 12 Nov 2026
 The description of the optional `blocked` line on `automations.vault_usage` steps now reads "a host not allowed for it" instead of "a host no longer allowed for it". The line itself (key-run.ts) is now one neutral sentence for a host that was removed and one never approved: "#Key is not allowed to go to <host>. Allow it on the key's page, or change this step." Description only: no field, type or error changes.
 
 Signed: lead, 12 Nov 2026
+
+## 13 Nov 2026: mounts.get, mounts.list and mounts.update gain two optional output fields (lane f-drive)
+
+The mount row these three capabilities return gains `skippedCount` (an integer, at least 1) and `skipped` (a list of up to 200 `{ name, reason }`), present only when the last pass could not bring some items in (a name Files cannot hold is now shown under a safe name; an item that still cannot be brought in is skipped, counted and listed with its reason, and the mount stays healthy). Optional output fields only: no input, version or existing field changed. The migration `modules/mounts/migrations/0004_mounts_skipped.sql` is a new additive column. The hashes of the three capabilities in `docs/frozen/snapshots/mounts.json` were written again with `node tools/gen/src/cli.ts --snapshots`.
+
+Signed: (lead, to sign at the merge)
