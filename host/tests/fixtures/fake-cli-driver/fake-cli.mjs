@@ -53,7 +53,9 @@ async function sha12(text) {
   return Buffer.from(d).toString("hex").slice(0, 12);
 }
 
+let lastReply = "";
 function reply(parts) {
+  lastReply = parts.join("");
   init();
   out({ type: "stream_event", event: { type: "message_start", message: { id: `m_${Date.now()}` } } });
   for (const text of parts) out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } } });
@@ -138,14 +140,16 @@ async function sendMail(prompt) {
 /** The turn context an engine puts in front of the message is system context a real model reads and does not act on as a command: this fake picks its scenario from the words after it. */
 const withoutContext = (p) => p.replace(/^<vyre-context>[\s\S]*?<\/vyre-context>\s*/, "");
 
-async function callTool(prompt) {
-  const m = /^\s*tool\s+(\S+)\s*(.*)$/s.exec(prompt);
+async function callTool(prompt, search = false) {
+  const m = /^\s*tool(?:find)?\s+(\S+)\s*(.*)$/s.exec(prompt);
   if (!m) { reply(["mcp error: say which tool"]); return; }
   let args = {};
   try { args = m[2].trim() === "" ? {} : JSON.parse(m[2]); } catch { reply(["mcp error: the arguments are not JSON"]); return; }
   let mcp;
   try {
     mcp = await mcpOpen();
+    // a tool that is not in the first list is found with tool_search first, as a CLI engine's model does
+    if (search) await mcp.call("tool_search", { query: m[1] });
     const r = await mcp.call(m[1], args);
     if (r?.error) { reply([`mcp error: ${r.error.message ?? "the call failed"}`]); return; }
     const text = (r?.result?.content ?? []).map((c) => c.text ?? "").join("\n");
@@ -338,6 +342,18 @@ async function run(raw) {
   // a "tool" line is the person's message, which comes last and may follow context or memory the engine put in front of it
   const toolLine = prompt.split("\n").reverse().find((l) => /^tool\s+\S+/.test(l));
   if (toolLine) { await callTool(toolLine); return; }
+  // "toolfind <name> <json>": the same, after tool_search found the tool (a goal tool is not in the first list)
+  // (a poke's line reads "<person> poked <agent>: toolfind ...", so the words may follow a prefix)
+  const findLine = prompt.split("\n").reverse().find((l) => /(^|:\s)toolfind\s+\S+/.test(l));
+  if (findLine) { await callTool(findLine.slice(findLine.indexOf("toolfind")), true); return; }
+  // a goal's wake-up (its context names the goal and why the lead was woken): the lead tries the owner's control, as a model might, so a test can prove nobody asked
+  const woken = /goalId (gol_[a-z0-9]+)/.exec(raw);
+  if (woken && /You were woken because/.test(raw)) {
+    await callTool(`toolfind goals_extend ${JSON.stringify({ goalId: woken[1], deadline: Date.now() + 30 * 86_400_000 })}`, true);
+    // the lead's text is not posted in the goal chat, so what the tool said is also left in the folder it works in, for a test to read
+    try { fs.appendFileSync(path.join(process.cwd(), "fake-wake-result.txt"), `${lastReply}\n`); } catch { /* a folder that cannot be written is the test's to notice */ }
+    return;
+  }
   if (prompt.split("\n").some((l) => l.trim() === "skillscheck")) { reply([skillsCheck()]); return; }
   const first = prompt.trim().split(/\s+/)[0];
   // a side question (/btw): its first message carries "The question: ..."; the answer streams a few words
