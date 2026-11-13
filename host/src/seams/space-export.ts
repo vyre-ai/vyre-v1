@@ -327,15 +327,18 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
     const currentChunks: Uint8Array[] = [];
     let currentOffset = 0;
     do {
-      const current = await read("files.read", { fileId: id, as: "base64", offset: currentOffset, length: CHUNK }).catch(
-        (e: unknown) => {
-          const code =
-            (e as { error?: { code?: string }; code?: string } | null)?.error?.code ??
-            (e as { code?: string } | null)?.code;
-          if (file.size === 0 && PROVIDER_DOWN.test(String(code))) return { base64: "", size: 0, version: file.version };
-          throw e;
-        },
-      );
+      const current = await read("files.read", {
+        fileId: id,
+        as: "base64",
+        offset: currentOffset,
+        length: CHUNK,
+      }).catch((e: unknown) => {
+        const code =
+          (e as { error?: { code?: string }; code?: string } | null)?.error?.code ??
+          (e as { code?: string } | null)?.code;
+        if (file.size === 0 && PROVIDER_DOWN.test(String(code))) return { base64: "", size: 0, version: file.version };
+        throw e;
+      });
       if (typeof current.base64 !== "string" || current.version !== file.version || current.size !== file.size)
         throw new SpaceExportError(`Current file bytes changed during export: ${id}.`);
       const chunk = new Uint8Array(Buffer.from(current.base64, "base64"));
