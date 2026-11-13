@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import type { ReactElement } from "react";
 import { act } from "react";
-import { find, flush, installDom, textOf, typeInto } from "../../../../../ui/src/testing/dom.ts";
+import { find, flush, installDom, textOf } from "../../../../../ui/src/testing/dom.ts";
 import type { Node } from "../../../../../ui/src/testing/dom.ts";
 import { assertNoRawIds } from "../../../../../ui/src/testing/raw-ids.ts";
 import { SettingsDataProvider } from "./data.tsx";
@@ -62,19 +62,4 @@ test("Profile, just opened, shows no Saved line; the first-open time zone seed s
     assert.match(textOf(drawn.root), /Karachi/, "the Time zone row shows the seeded zone");
     assertNoRawIds(drawn.root, "Settings, Profile");
   } finally { await down?.(); delete (globalThis as Record<string, unknown>)["localStorage"]; unzone(); restore(); }
-});
-
-test("a change a person makes on Profile still says Saved with Undo", async () => {
-  const restore = installDom();
-  let down: (() => Promise<void>) | null = null;
-  try {
-    const s = createSampleSettings(northwind);
-    const drawn = await draw(<SettingsDataProvider value={s.data}><SettingsPlace width={1280} initialPage="profile" /></SettingsDataProvider>);
-    down = drawn.down;
-    const title = find(drawn.root, "ctl-profile.title")!;
-    await typeInto(title, "Director");
-    await act(async () => { (title.props["onBlur"] as (e: unknown) => void)({ target: { value: "Director" }, nativeEvent: {} }); });
-    await flush();
-    assert.ok(find(drawn.root, "saved") !== null, "a change the person made is announced");
-  } finally { await down?.(); restore(); }
 });

@@ -42,7 +42,8 @@ test("kinds: no id, no repeat, no unasked notice", async (t) => {
     await page.getByTestId("settings").waitFor({ timeout: 30_000 }).catch(() => undefined);
     await page.getByText("Profile", { exact: true }).first().click({ timeout: 20_000 }).catch(() => undefined);
     await page.getByTestId("profile-card").waitFor({ timeout: 30_000 });
-    await page.waitForTimeout(1500);
+    // the seed wrote the computer's zone and the row shows it (waited on, not slept on); only then can a Saved line be said to be absent
+    await page.waitForFunction(() => document.body.innerText.includes("Karachi"), undefined, { timeout: 20_000 });
     assert.equal(await page.getByTestId("saved").count(), 0, "no Saved line on a Profile nobody changed");
     assert.equal(await page.getByTestId("undo").count(), 0, "no Undo either");
     // the seed did run (the computer's zone is now the person's), and it said nothing
@@ -61,7 +62,6 @@ test("kinds: no id, no repeat, no unasked notice", async (t) => {
     await page.getByTestId("head-projects").waitFor({ timeout: 20_000 });
     await page.getByTestId(`row-pj:${pid}`).click();
     await page.getByTestId("project-page").waitFor({ timeout: 25_000 });
-    await page.waitForTimeout(1200);
     await page.getByTestId("tab-overview").click({ force: true, timeout: 10_000 });
     await page.getByTestId("project-overview").waitFor({ timeout: 20_000 });
     await page.getByTestId("live-people").waitFor({ timeout: 20_000 });
@@ -76,9 +76,10 @@ test("kinds: no id, no repeat, no unasked notice", async (t) => {
     await page.keyboard.press("Control+K");
     await page.getByTestId("cmdk-input").waitFor({ timeout: 10_000 });
     await page.getByTestId("cmdk-input").type("launch", { delay: 30 });
-    await page.waitForTimeout(2000);
+    await page.waitForFunction(() => { const t = document.querySelector("[data-testid=cmdk-list]")?.textContent ?? ""; return t.includes("Spring launch") && t.includes("launch-week"); }, undefined, { timeout: 20_000 });
     const rows = (await page.getByTestId("cmdk-list").innerText()).split("\n").map((x) => x.trim()).filter(Boolean);
     const titles = rows.filter((r) => /^(Spring launch|launch-week|#launch-week)$/i.test(r));
+    assert.ok(titles.length >= 2, `the list has the project and the channel: ${JSON.stringify(rows)}`);
     assert.deepEqual([...new Set(titles)], titles, `no row twice: ${JSON.stringify(rows)}`);
     await guard.check("the command bar, launch");
     await page.screenshot({ path: path.join(shots, "command-bar-launch.png") });
