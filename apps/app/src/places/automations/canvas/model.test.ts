@@ -362,6 +362,8 @@ test("no card's second line is template code: a {{ }} reference reads as the chi
   // the whole layout: every card of a definition built from those steps
   const def: Definition = { triggers: [{ key: "record_change" }], start: ["a"], nodes: nodes.map((n, i) => ({ ...n, next: i + 1 < nodes.length ? [nodes[i + 1]!.id] : [] })) };
   for (const c of layout(def).cards) assert.ok(!c.sub.includes("{{") && !/\bid\b/i.test(c.sub), `card ${c.id}: "${c.sub}"`);
+  // acronyms keep their capitals; the word id is never shown
+  assert.equal(subtitleOf({ id: "s5", key: "post_message", input: { text: "{{ trigger.callbackURL }} {{ trigger.AIModel }} {{ steps.find.out.userID }}" }, next: [] }, { step: name }), "text \u2039Trigger \u00b7 Callback URL\u203a \u2039Trigger \u00b7 AI model\u203a \u2039Find the lead \u00b7 User\u203a");
   // a reference with no friendly name falls back to the field's words, never "id"
   assert.equal(subtitleOf({ id: "s4", key: "post_message", input: { text: "{{ trigger.invoiceId }} {{ steps.find.out.id }}" }, next: [] }, { step: name }), "text \u2039Trigger \u00b7 Invoice\u203a \u2039Find the lead \u00b7 Reference\u203a");
 });

@@ -279,10 +279,11 @@ const FRIENDLY_FIELD: Readonly<Record<string, string>> = { recordId: "The record
 /** A field's name as a person reads it: its words, and never the word "id" (contactId is Contact). A field that is only "id" is named Reference. */
 function fieldWords(path: string): string {
   const last = path.split(".").pop() ?? path;
-  const words = last.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const kept = words.length > 1 && words[words.length - 1] === "id" ? words.slice(0, -1) : words[0] === "id" && words.length === 1 ? ["reference"] : words;
-  const text = kept.join(" ");
-  return text.replace(/^\w/, (c) => c.toUpperCase());
+  // words split at camelCase and underscores; an acronym (URL, AI) keeps its capitals, any other word is lower case, and the word "id" is never shown
+  const words = last.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2").replace(/[_-]+/g, " ").trim().split(/\s+/).filter(Boolean)
+    .map((w) => (/^[A-Z0-9]{2,}$/.test(w) && w.toLowerCase() !== "id" ? w : w.toLowerCase()));
+  const kept = words.length > 1 && words[words.length - 1] === "id" ? words.slice(0, -1) : words.length === 1 && words[0] === "id" ? ["reference"] : words;
+  return kept.join(" ").replace(/^\w/, (c) => c.toUpperCase());
 }
 
 /** What a chip says: where the data comes from, a dot, and which part of it (Trigger, Trigger \u00b7 Name, Find rows \u00b7 Count). Fields people know by a plain name read as that name ("The record that started this"); no field is called an id. */

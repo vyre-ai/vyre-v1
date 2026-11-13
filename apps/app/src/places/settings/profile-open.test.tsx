@@ -59,6 +59,7 @@ test("Profile, just opened, shows no Saved line; the first-open time zone seed s
     assert.deepEqual((seeded[0]!.input as { value?: string }).value, "Asia/Karachi");
     for (const id of NOTICE_IDS) assert.ok(find(drawn.root, id) === null, `no "${id}" notice on a page nobody has changed`);   // not assert.equal: a failing one would print the whole tree
     assert.doesNotMatch(textOf(drawn.root), /Saved|Undo/);
+    assert.match(textOf(drawn.root), /Karachi/, "the Time zone row shows the seeded zone");
     assertNoRawIds(drawn.root, "Settings, Profile");
   } finally { await down?.(); delete (globalThis as Record<string, unknown>)["localStorage"]; unzone(); restore(); }
 });
