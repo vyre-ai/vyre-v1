@@ -45,19 +45,29 @@ test("a model's first artifact_publish, with no key, publishes on the real handl
       invoke: async (cap, input, seed) => {
         const traceId = seed.trace?.traceId ?? "trace";
         const problems = validateInput(cap, 1, input);
-        if (problems.length) throw new HostError(makeError("validation.bad_input", traceId, { details: { errors: problems, cap } }));
+        if (problems.length)
+          throw new HostError(makeError("validation.bad_input", traceId, { details: { errors: problems, cap } }));
         seen.push(input);
         return { status: "ok", output: await h[cap]!(ctx, input), traceId };
       },
     });
     s.preload("thr_1", ["artifact_publish"]);
     const out = await s.call(
-      { space: "spc_1", agentId: "agt_dex", asker: "usr_dana", thread: { threadId: "thr_1", kind: "chat", planMode: false }, turnId: "trn_1", callId: "toolu_1" },
+      {
+        space: "spc_1",
+        agentId: "agt_dex",
+        asker: "usr_dana",
+        thread: { threadId: "thr_1", kind: "chat", planMode: false },
+        turnId: "trn_1",
+        callId: "toolu_1",
+      },
       "artifact_publish",
       { title: "Q3 plan", html: "<h1>Q3 plan</h1>" },
     );
     assert.equal(out.kind, "result", JSON.stringify(out.kind === "error" ? out.result.content : ""));
-    const data = (out.kind === "result" ? out.result.content : {}) as { data?: { artifactId?: string; updated?: boolean } };
+    const data = (out.kind === "result" ? out.result.content : {}) as {
+      data?: { artifactId?: string; updated?: boolean };
+    };
     assert.match(data.data?.artifactId ?? "", /^sit_/);
     assert.equal(data.data?.updated, false);
     assert.deepEqual(put, ["index.html"]);
