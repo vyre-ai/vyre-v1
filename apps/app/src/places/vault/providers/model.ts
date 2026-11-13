@@ -102,3 +102,10 @@ export function normalizeAddress(raw: string): string | null {
   const withScheme = /^https?:\/\//i.test(t) ? t : `http://${t}`;
   return /^https?:\/\/[^\s/]+(:\d+)?(\/\S*)?$/i.test(withScheme) ? withScheme : null;
 }
+
+/** The Space-use switch, in words that are true for this account. A personal sign-in runs the owner's own goals and Automations when it is on; it never pays for another person's chat. */
+export function spaceUseWords(p: Pick<Provider, "connection">): { title: string; note: string } {
+  return p.connection === "subscription"
+    ? { title: "The Space can use this sign-in", note: "Your own goals and Automations can run on it. It does not pay for other people's chats: add an API key to share with the Space." }
+    : { title: "The Space can use this key", note: "Automations and agents without a key of their own run on it." };
+}

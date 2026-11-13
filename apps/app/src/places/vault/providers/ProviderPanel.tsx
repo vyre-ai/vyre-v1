@@ -13,7 +13,7 @@ import { Info } from "../../../../../../ui/src/Tip/index.tsx";
 import { SignInPanel } from "../../../ai-signin/SignInPanel.tsx";
 import { startFlow } from "../../../ai-signin/flow.ts";
 import type { Flow } from "../../../ai-signin/flow.ts";
-import { canShare, cliDriverOf, countWords, howConnected, needsWords, rightNow, scopeWords, testWords, usageWords, userKind } from "./model.ts";
+import { canShare, cliDriverOf, countWords, howConnected, needsWords, rightNow, scopeWords, spaceUseWords, testWords, usageWords, userKind } from "./model.ts";
 
 export interface ProviderPanelProps {
   provider: Provider;
@@ -100,7 +100,7 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
 
         {canShare(provider) ? (
           <Pressable accessibilityRole="switch" accessibilityState={{ checked: spaceMay }} aria-checked={spaceMay} testID="provider-space" onPress={() => void toggleSpace()} style={s.switchRow}>
-            <View style={{ flex: 1 }}><Text style={s.switchTitle}>The Space can use this key</Text><Text style={s.switchNote}>Automations and agents without a key of their own run on it.</Text></View>
+            <View style={{ flex: 1 }}><Text style={s.switchTitle}>{spaceUseWords(provider).title}</Text><Text style={s.switchNote}>{spaceUseWords(provider).note}</Text></View>
             <View style={[s.track, spaceMay && s.trackOn]}><View style={[s.knob, spaceMay && s.knobOn]} /></View>
           </Pressable>
         ) : <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 12 }} testID="provider-private"><Glyph name="lock" size={12} color="var(--ink-3)" /><Text style={s.note}>Mine</Text><Info help="Only you can use this sign-in" /></View>}
