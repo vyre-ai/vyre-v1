@@ -63,6 +63,8 @@ import { CatchUpLine } from "./catch-up.tsx";
 import { AsideList } from "./Aside.tsx";
 import type { AsideItem } from "./Aside.tsx";
 import { commandItems, lastActionable, runSlash } from "./commands.ts";
+import { cardLines } from "./command-result.ts";
+import type { CommandResult } from "./command-result.ts";
 import type { CommandEnv } from "./commands.ts";
 import { parseSlash } from "../../../../../../lib/chat-commands.ts";
 import { agentForPerson } from "../../../../../../lib/words/agent-name.ts";
@@ -751,23 +753,39 @@ function ConversationView(): ReactElement {
     );
   };
 
+  /** Where a command's result goes, by its kind (command-result.ts). */
+  const showResult = (r: CommandResult): void => {
+    if (r.kind === "notice") {
+      setLine(r.text);
+      const { undo: back, failed } = r;
+      const again = back ?? failed?.retry;
+      setUndo(
+        again
+          ? () => () => void Promise.resolve(again()).catch(fail(back ? "Could not undo that." : "Could not do that."))
+          : null,
+      );
+    } else if (r.kind === "card") {
+      if (r.card.kind === "aside") {
+        const question = r.card.question;
+        void act
+          .startAside(data, thread.threadId, question, data.newKey())
+          .then((a) => setAsides((cur) => [...cur, { id: a.asideThreadId, question }]), fail("Could not ask that."));
+      } else say(cardLines(r.card, data.clock().now).join("\n"));
+    } else if (r.kind === "menu") {
+      if (lead) modelMenu(8, 120);
+      else add.open({ threadId: data.threadId, name: thread.title ?? "" });
+    }
+  };
+
   const commandEnv = (): CommandEnv => ({
     data,
     thread,
     rows: win.rows,
-    say,
+    show: showResult,
     newKey: data.newKey,
     openFind: () => setFinding(true),
     openSearch: (q) => data.nav.openSearch?.(q),
-    openModel: () => {
-      if (lead) modelMenu(8, 120);
-      else add.open({ threadId: data.threadId, name: thread.title ?? "" });
-    },
     openAdd: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
-    aside: (question) =>
-      void act
-        .startAside(data, thread.threadId, question, data.newKey())
-        .then((r) => setAsides((cur) => [...cur, { id: r.asideThreadId, question }]), fail("Could not ask that.")),
     send: (text) =>
       submit({ text, chips: [], files: [], folder: null, links: [], refs: [], mode: "queue", answers: "" }, "queue"),
   });

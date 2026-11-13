@@ -1,0 +1,1 @@
+- Slash commands now know what they hand back (a line, a card or a menu): "/usage" and "/permissions" give their answer as data with plain names and times, "Plan mode" and "Pin" can be undone, and a command that fails offers to run again.
