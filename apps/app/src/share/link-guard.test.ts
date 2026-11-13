@@ -1,3 +1,5 @@
+// TRIPWIRE, not a guarantee: it matches shapes of lines near a page origin. It misses a split `const o = location.origin` and `location.host`. The stronger form (no file under apps/app/src or ui/src reads `location` at all
+// except a short reviewed list) is OWED.
 // Every link a person can copy is made from the Space's own address by the one maker (rows.ts itemLink / messageLink). A link built from the page's origin is dead in the desktop app, where the page is
 // tauri://localhost (13 Nov 2026: Share, Copy link). This fails on any other file that builds an address of a thing from `location.origin`.
 import test from "node:test";

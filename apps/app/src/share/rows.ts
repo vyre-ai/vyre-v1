@@ -1,4 +1,5 @@
 // The rows and the directory the one Access sheet takes, from the access data every place reads (access.shares_of, the Space directory).
+import { targetOfOpen } from "../shell/reach/open-link.ts";
 import { setSpaceLinkTools } from "../../../../ui/src/link-origin.ts";
 import { notices } from "../shell/noticeslot/model.ts";
 import type { CapMap } from "../../../../generated/types.ts";
@@ -80,7 +81,11 @@ let spaceAddress: string | null = null;
 /** The Space this session is open on: set when the session opens, so a link is made from the Space's own address and not from the page the app runs in (the desktop app runs in tauri://localhost). */
 export function setLinkOrigin(address: string | null): void {
   spaceAddress = address;
-  setSpaceLinkTools({ origin: linkOrigin(), artifactLink: (id) => itemLink("site", id), copy: (l) => void copyLinkText(l) });
+  setSpaceLinkTools({
+    origin: linkOrigin(),
+    artifactLink: (id) => itemLink("site", id),
+    copy: (l) => void copyLinkText(l),
+  });
 }
 
 const isLocalHost = (host: string): boolean =>
@@ -123,18 +128,21 @@ export const NO_CALLBACK_WORDS =
   "This Space has no public address yet, so a sign-in cannot come back to it. Set one under Console, Network, then try again.";
 
 /**
- * The address a sign-in (an OAuth redirect) comes back to: the Space's public address, else a web page's own origin at a local address (it comes back to the same computer). "" in the desktop app on a Space with
- * no public address, where the page's origin is tauri://localhost and nothing can come back to it: the caller says NO_CALLBACK_WORDS and sends nothing. Never built from location.origin by a caller.
+ * The address a sign-in (an OAuth redirect) comes back to. On the web it is the page's own origin, exactly what rc.26 sent (a provider's registered redirect is an exact string, so it must not change by which address
+ * the Space is also known by). In the desktop app, whose page is tauri://localhost and cannot be returned to, it is the Space's public address; "" when that is none: the caller says NO_CALLBACK_WORDS and sends nothing.
+ * Never built from location.origin by a caller.
  */
-export const callbackOrigin = (): string => linkOrigin() || localWebOrigin();
+export const callbackOrigin = (): string => localWebOrigin() || linkOrigin();
 
 /** The in-app form, for a Space with no public address on the desktop app: the app's own resolver opens it when pasted in the new tab or the command bar (apps/app/src/shell/reach/space-link.ts). */
 const inAppLink = (kind: string, id: string): string =>
-  spaceAddress === null || webOrigin(spaceAddress) === null
+  // only a kind the app's own resolver (shell/reach/open-link.ts targetOfOpen) opens: a link that opens nothing is never handed out
+  spaceAddress === null || webOrigin(spaceAddress) === null || targetOfOpen({ kind, id }) === null
     ? ""
     : `vyre://open?address=${encodeURIComponent(spaceAddress)}&kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id)}`;
 
-const kindOf = (type: string): string => (type === "vault_item" || type === "vault_folder" ? "vault" : type === "site" ? "artifact" : type);
+const kindOf = (type: string): string =>
+  type === "vault_item" || type === "vault_folder" ? "vault" : type === "site" ? "artifact" : type;
 
 /**
  * The item's own link: on the Space's public address, /open/<kind>/<id> (an artifact keeps /a/<id>); it opens the app when installed and the web app otherwise, after sign-in, through the same access check
