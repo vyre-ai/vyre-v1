@@ -233,6 +233,15 @@ export default defineManifest({
       label: "check",
       cli: "vyre runs get",
     }),
+    read(
+      "runs.states",
+      "System: the status of many Runs at once (up to 200); a Run that is not there is left out of the answer. For the host's sweeps, so a pass over open fires costs one call, not one per fire",
+      {
+        in: { runIds: t.arr(id.run) },
+        out: { states: t.arr(t.obj({ runId: id.run, status: t.str() })) },
+        errors: ["permission.no_grant", "validation.bad_input"],
+      },
+    ),
     read("runs.steps", "The durable step log of a Run", {
       in: { ...target, ...pageIn },
       out: { steps: t.arr(stepRow), ...pageOut },

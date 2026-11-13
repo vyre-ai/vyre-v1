@@ -33203,6 +33203,15 @@ export type RunsStartIn = {
 export type RunsStartOut = {
   runId: string;
 };
+export type RunsStatesIn = {
+  runIds: Array<string>;
+};
+export type RunsStatesOut = {
+  states: Array<{
+      runId: string;
+      status: string;
+    }>;
+};
 export type RunsStatusIn = Record<string, unknown>;
 export type RunsStatusOut = {
   state: "healthy" | "degraded" | "down";
@@ -46737,6 +46746,7 @@ export interface CapMap {
   "runs.resume": { in: RunsResumeIn; out: RunsResumeOut };
   "runs.retry": { in: RunsRetryIn; out: RunsRetryOut };
   "runs.start": { in: RunsStartIn; out: RunsStartOut };
+  "runs.states": { in: RunsStatesIn; out: RunsStatesOut };
   "runs.status": { in: RunsStatusIn; out: RunsStatusOut };
   "runs.step_io": { in: RunsStepIoIn; out: RunsStepIoOut };
   "runs.steps": { in: RunsStepsIn; out: RunsStepsOut };

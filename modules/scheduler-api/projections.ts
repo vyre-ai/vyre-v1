@@ -476,24 +476,39 @@ export function openRunFires(
 }
 /** How many open fires the sweep reads at a time: all of them are visited, oldest first, a slice after a slice. */
 export const SWEEP_SLICE = 200;
-/** Closes a fire the sweep found over: the Run ended, failed, was stopped or is gone. Only a running or waiting fire closes. */
+/**
+ * Closes a fire the sweep found over, if it is still as the sweep read it: running or waiting, with the same Run (or none) and the same grace time. A report that landed between the read and this write
+ * (the fire just got its Run) makes this do nothing, and the next pass looks again.
+ */
 export function closeFire(
   db: Db,
-  scheduleId: string,
-  dueKey: string,
+  seen: { scheduleId: string; dueKey: string; runId?: string; graceUntil: number },
   state: "done" | "failed" | "stopped",
   note: string,
   now: number,
 ): boolean {
   return (
     db.run(
-      "UPDATE scheduler_api_fires SET state = ?, skip_reason = ?, ended_at = ? WHERE schedule_id = ? AND due_key = ? AND state IN ('running', 'waiting')",
+      `UPDATE scheduler_api_fires SET state = ?, skip_reason = ?, ended_at = ?
+         WHERE schedule_id = ? AND due_key = ? AND state IN ('running', 'waiting')
+           AND COALESCE(run_id, '') = ? AND COALESCE(lease_until, 0) = ?`,
       state,
       note,
       now,
-      scheduleId,
-      dueKey,
+      seen.scheduleId,
+      seen.dueKey,
+      seen.runId ?? "",
+      seen.graceUntil,
     ).changes === 1
+  );
+}
+/** A note on a fire that is still open (the last reason its target did not run): kept for the words when it finally fails. */
+export function noteFire(db: Db, scheduleId: string, dueKey: string, note: string): void {
+  db.run(
+    "UPDATE scheduler_api_fires SET skip_reason = ? WHERE schedule_id = ? AND due_key = ? AND state = 'claimed'",
+    note,
+    scheduleId,
+    dueKey,
   );
 }
 /** Due fires in a stable order: by due time, then the order they were made (rowid). Whoever works through them (the engine consumer) gets "first A then B" whatever the ids are. */

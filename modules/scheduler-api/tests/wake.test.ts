@@ -481,11 +481,12 @@ test("the sweep closes a fire stuck in running by its Run's real state, and neve
   const h = harness({
     now: Date.UTC(2026, 0, 5, 9, 1),
     calls: {
-      "runs.get": (i) => {
-        const st = runs[i.runId as string];
-        if (st === null) throw Object.assign(new Error("gone"), { error: { code: "validation.not_found" } });
-        if (st === undefined) throw Object.assign(new Error("down"), { error: { code: "internal.unavailable" } });
-        return { run: { status: st } };
+      "runs.states": (i) => {
+        // what the real runs module answers: the Runs it has; a Run that is not there is left out
+        const out = [];
+        for (const id of i.runIds as string[])
+          if (runs[id] !== null && runs[id] !== undefined) out.push({ runId: id, status: runs[id] });
+        return { states: out };
       },
     },
   });
@@ -497,7 +498,6 @@ test("the sweep closes a fire stuck in running by its Run's real state, and neve
     ["gone", null],
     ["going", "running"],
     ["waiting", "waiting"],
-    ["down", undefined],
   ] as const) {
     const made = await h.call(
       "scheduler.schedule",
@@ -522,20 +522,15 @@ test("the sweep closes a fire stuck in running by its Run's real state, and neve
   const fires = () => h.db.all("SELECT COUNT(*) AS n FROM scheduler_api_fires")[0] as { n: number };
   const before = fires().n;
   const swept = await h.consumer(host, async (ctx) => (await import("../impl.ts")).sweepFires(ctx));
-  assert.equal(
-    swept.closed,
-    4,
-    "ended, failed, stopped and gone close; going, waiting and an unreachable runs module stay",
-  );
+  assert.equal(swept.closed, 4, "ended, failed, stopped and gone close; going and waiting stay");
   const stateOf = (name: string) => state(h, ids[name]!)["state"];
-  assert.deepEqual(["done", "failed", "stopped", "gone", "going", "waiting", "down"].map(stateOf), [
+  assert.deepEqual(["done", "failed", "stopped", "gone", "going", "waiting"].map(stateOf), [
     "done",
     "failed",
     "stopped",
     "failed",
     "running",
     "waiting",
-    "running",
   ]);
   assert.equal(fires().n, before, "no fire was made and no Run was started");
   // a fire with no Run at all is closed once it has said running for longer than two leases
@@ -629,7 +624,11 @@ test("the tick path claims a due fire, calls the routine's capability with the f
     if (answer === "throw") throw new Error("runs module down");
     return answer;
   });
-  const made = await h.call("scheduler.schedule", wake({ owner: { kind: "agent_routine", id: "rtn_x" } }), host);
+  const made = await h.call(
+    "scheduler.schedule",
+    wake({ owner: { kind: "agent_routine", id: "rtn_x" }, maxAttempts: 3 }),
+    host,
+  );
   h.setNow(Date.UTC(2026, 0, 5, 9, 5, 30));
   await h.consumer(host, async (ctx) => tickWakes(ctx));
   const key = String(Date.UTC(2026, 0, 5, 9, 5));
@@ -702,7 +701,10 @@ test("closeFire closes only a running or waiting fire; an ended fire keeps its s
   const f = await dueFire(h);
   const c = await claim(h, f, "host_a");
   await h.call("scheduler.report", { fireId: f.id, attempt: c.attempt, state: "done", note: "as it was" }, host);
-  assert.equal(closeFire(h.db, f.scheduleId, f.key, "failed", "later", h.now()), false);
+  assert.equal(
+    closeFire(h.db, { scheduleId: f.scheduleId, dueKey: f.key, graceUntil: 0 }, "failed", "later", h.now()),
+    false,
+  );
   assert.deepEqual(
     {
       ...(h.db.all(
@@ -774,12 +776,14 @@ test("a stale fire is made in ONE insert, state and reasons together; an on-time
 
 test("the sweep visits every open fire, a slice at a time, so a long wait cannot starve a newer fire", async () => {
   const seen: string[] = [];
+  let calls = 0;
   const h = harness({
     now: Date.UTC(2026, 0, 5, 9, 1),
     calls: {
-      "runs.get": (i) => {
-        seen.push(i.runId as string);
-        return { run: { status: "succeeded" } };
+      "runs.states": (i) => {
+        calls += 1;
+        for (const id of i.runIds as string[]) seen.push(id);
+        return { states: (i.runIds as string[]).map((runId) => ({ runId, status: "succeeded" })) };
       },
     },
   });
@@ -797,5 +801,267 @@ test("the sweep visits every open fire, a slice at a time, so a long wait cannot
   const out = await h.consumer(host, async (ctx) => (await import("../impl.ts")).sweepFires(ctx));
   assert.equal(out.closed, 450);
   assert.equal(seen.length, 450);
+  assert.equal(calls, 3, "450 open fires cost three calls to the runs module, not 450");
   assert.equal(seen[0], `run_${"1".padStart(32, "0")}`, "oldest first");
+});
+
+// ---- the fourth look ----
+
+const doorCall = (h: ReturnType<typeof harness>, cap: string, input: unknown, who: typeof alice, door: string) =>
+  h.call(cap, input, who, undefined, door);
+
+test("the sweep closes by compare-and-set: a report that lands between its read and its write is not undone", async () => {
+  let landed = false;
+  const h = harness({ now: Date.UTC(2026, 0, 5, 9, 1) });
+  const a = await dueFire(h, { owner: { kind: "agent_routine", id: "rtn_a" } });
+  const b = await h.call("scheduler.schedule", wake({ owner: { kind: "agent_routine", id: "rtn_b" } }), host);
+  h.setNow(h.now() + 5 * MINUTE);
+  await h.consumer(host, async (ctx) => tickWakes(ctx));
+  const keyB = String(Date.UTC(2026, 0, 5, 9, 15));
+  const runA = `run_${"a".repeat(32)}`;
+  const runB = `run_${"b".repeat(32)}`;
+  h.callee("runs.states", async () => {
+    if (!landed) {
+      landed = true;
+      // B, which said running with no Run and whose grace has run out, gets its Run now: after the sweep read it, before it writes
+      const c = await h.call("scheduler.claim", { scheduleId: b.scheduleId, dueKey: keyB, host: "h" }, host);
+      await h.call(
+        "scheduler.report",
+        { fireId: fireIdOf(b.scheduleId, keyB), attempt: c.attempt, state: "running" },
+        host,
+      );
+    }
+    return { states: [{ runId: runA, status: "running" }] };
+  });
+  const ca = await claim(h, a, "host_a");
+  await h.call("scheduler.report", { fireId: a.id, attempt: ca.attempt, state: "running", runId: runA }, host);
+  // B says running with no Run, and the grace is over
+  h.callee("runs.states", async () => ({ states: [] }));
+  const cb = await h.call("scheduler.claim", { scheduleId: b.scheduleId, dueKey: keyB, host: "h" }, host);
+  await h.call(
+    "scheduler.report",
+    { fireId: fireIdOf(b.scheduleId, keyB), attempt: cb.attempt, state: "running" },
+    host,
+  );
+  h.advance(10 * MINUTE);
+  landed = false;
+  h.callee("runs.states", async () => {
+    if (!landed) {
+      landed = true;
+      await h.call(
+        "scheduler.report",
+        { fireId: fireIdOf(b.scheduleId, keyB), attempt: cb.attempt, state: "running", runId: runB },
+        host,
+      );
+    }
+    return { states: [{ runId: runA, status: "running" }] };
+  });
+  const out = await h.consumer(host, async (ctx) => (await import("../impl.ts")).sweepFires(ctx));
+  assert.equal(out.closed, 0, "nothing closed: B has its Run now");
+  assert.deepEqual(
+    { ...state(h, { scheduleId: b.scheduleId, key: keyB }) },
+    { state: "running", attempt: 1, run_id: runB },
+  );
+  void runB;
+});
+
+const ROWS: [string, (id: string) => unknown][] = [
+  ["scheduler.get", (id) => ({ scheduleId: id })],
+  ["scheduler.reschedule", (id) => ({ scheduleId: id, when: { cron: "0 8 * * *", tz: "UTC" } })],
+  ["scheduler.pause", (id) => ({ scheduleId: id, reason: "x" })],
+  ["scheduler.resume", (id) => ({ scheduleId: id })],
+  ["scheduler.run_now", (id) => ({ scheduleId: id })],
+  ["scheduler.fire", (id) => ({ scheduleId: id, scheduledFor: Date.UTC(2026, 0, 5, 9, 5) })],
+  ["scheduler.cancel", (id) => ({ scheduleId: id })],
+];
+const outsideAgent = { id: `agt_${"o".repeat(32)}`, kind: "agent" as const };
+const outcome = async (
+  h: ReturnType<typeof harness>,
+  cap: string,
+  input: unknown,
+  who: { id: string; kind?: "person" | "agent" | "actor" | "service" },
+  door?: string,
+) =>
+  h.call(cap, input, who, undefined, door).then(
+    () => "ok",
+    (e) => codeOf(e) ?? "error",
+  );
+
+test("every capability that takes a wake id, on a routine wake: only the host and the agents doors may; run now and fire answer nobody", async () => {
+  const h = harness({ now: Date.UTC(2026, 0, 5, 9, 1) });
+  const r = (await h.call("scheduler.schedule", wake(), alice, undefined, "agents.routine.save")).scheduleId as string;
+  h.setNow(Date.UTC(2026, 0, 5, 9, 11));
+  for (const who of [alice, bob, outsideAgent, tenant])
+    for (const [cap, input] of ROWS)
+      assert.equal(await outcome(h, cap, input(r), who), "permission.no_grant", `${who.id.slice(0, 7)} ${cap}`);
+  assert.equal(
+    await outcome(h, "scheduler.claim", { scheduleId: r, dueKey: "1", host: "h" }, alice),
+    "permission.no_grant",
+  );
+  // the doors, as the person the door has already checked
+  for (const door of ["agents.routine.save", "agents.routine.delete", "agents.routine.delegate"])
+    for (const [cap, input] of ROWS.filter(
+      ([c]) => c !== "scheduler.cancel" && c !== "scheduler.run_now" && c !== "scheduler.fire",
+    ))
+      assert.equal(await outcome(h, cap, input(r), alice, door), "ok", `${door} ${cap}`);
+  for (const [cap, input] of ROWS.filter(([c]) => c === "scheduler.run_now" || c === "scheduler.fire")) {
+    assert.equal(await outcome(h, cap, input(r), alice, "agents.routine.save"), "permission.no_grant", `door ${cap}`);
+    assert.equal(
+      await outcome(h, cap, input(r), host),
+      "permission.no_grant",
+      `host ${cap}: a routine starts only from its schedule or its own Run now`,
+    );
+  }
+  assert.equal(
+    await outcome(h, "scheduler.cancel", { scheduleId: r }, alice, "agents.routine.delete"),
+    "ok",
+    "the delete door cancels",
+  );
+  assert.equal(await outcome(h, "scheduler.catch_up", { since: 0 }, host), "ok");
+  assert.equal(
+    h.calls.filter((c) => c.cap === "agents.routine.fire").length,
+    0,
+    "nothing started the routine directly",
+  );
+});
+
+test("every capability that takes a wake id, on a plain call wake: its person and the host as before, nobody else", async () => {
+  const h = harness({ now: Date.UTC(2026, 0, 5, 9, 1) });
+  h.callee("automations.fire", () => ({ runId: `run_${"5".repeat(32)}` }));
+  const c = (await h.call("scheduler.schedule", newSchedule({ when: { cron: "0 9 * * *", tz: "UTC" } }), alice))
+    .scheduleId as string;
+  for (const who of [bob, outsideAgent, tenant])
+    for (const [cap, input] of ROWS)
+      assert.equal(await outcome(h, cap, input(c), who), "permission.not_found", `${who.id.slice(0, 7)} ${cap}`);
+  for (const [cap, input] of ROWS.filter(([x]) => x !== "scheduler.cancel"))
+    assert.equal(await outcome(h, cap, input(c), alice), "ok", `alice ${cap}`);
+  assert.equal(await outcome(h, "scheduler.cancel", { scheduleId: c }, alice), "ok");
+});
+
+test("a routine handed to someone else is the new owner's through the door at once, and the old owner has no way in", async () => {
+  const h = harness({ now: Date.UTC(2026, 0, 5, 9, 1) });
+  const r = (await h.call("scheduler.schedule", wake(), alice, undefined, "agents.routine.save")).scheduleId as string;
+  // delegate: the agents door has checked Bob may now edit it; the wake needs no change of principal
+  assert.equal(await outcome(h, "scheduler.pause", { scheduleId: r, reason: "x" }, bob, "agents.routine.save"), "ok");
+  assert.equal(await outcome(h, "scheduler.resume", { scheduleId: r }, bob, "agents.routine.save"), "ok");
+  assert.equal(
+    await outcome(
+      h,
+      "scheduler.reschedule",
+      { scheduleId: r, when: { cron: "0 7 * * *", tz: "UTC" } },
+      bob,
+      "agents.routine.save",
+    ),
+    "ok",
+  );
+  assert.equal(await outcome(h, "scheduler.cancel", { scheduleId: r }, bob, "agents.routine.delete"), "ok");
+  // Alice, directly: nothing
+  const r2 = (
+    await h.call(
+      "scheduler.schedule",
+      wake({ owner: { kind: "agent_routine", id: "rtn_two" } }),
+      alice,
+      undefined,
+      "agents.routine.save",
+    )
+  ).scheduleId as string;
+  for (const [cap, input] of ROWS)
+    assert.equal(await outcome(h, cap, input(r2), alice), "permission.no_grant", `alice direct ${cap}`);
+  // and a person listing schedules never sees a wake of another kind
+  assert.equal((await h.call("scheduler.list", {}, alice)).schedules.length, 0);
+  assert.equal((await h.call("scheduler.list", {}, host)).schedules.length >= 1, true);
+});
+
+test("a permission failure comes before the idempotency lookup: a caller who may not make a wake cannot learn that its key exists", async () => {
+  const h = harness();
+  const made = await h.call("scheduler.schedule", wake({ idempotencyKey: "routine-wake:rtn_x" }), host);
+  assert.ok(made.scheduleId);
+  assert.equal(
+    await h.call("scheduler.schedule", wake({ idempotencyKey: "routine-wake:rtn_x" }), alice).catch((e) => codeOf(e)),
+    "permission.no_grant",
+  );
+  assert.equal(
+    (await h.call("scheduler.schedule", wake({ idempotencyKey: "routine-wake:rtn_x" }), host)).scheduleId,
+    made.scheduleId,
+    "the host gets the same schedule back",
+  );
+});
+
+test("a target that keeps failing is asked up to maxAttempts times, then the fire ends failed with its last reason in words", async () => {
+  const h = harness({ now: Date.UTC(2026, 0, 5, 9, 1) });
+  h.callee("agents.routine.fire", () => {
+    throw new Error("The runs module is not answering");
+  });
+  const made = await h.call(
+    "scheduler.schedule",
+    wake({ owner: { kind: "agent_routine", id: "rtn_f" }, maxAttempts: 2 }),
+    host,
+  );
+  h.setNow(Date.UTC(2026, 0, 5, 9, 5, 30));
+  await h.consumer(host, async (ctx) => tickWakes(ctx));
+  const key = String(Date.UTC(2026, 0, 5, 9, 5));
+  const pass = () => h.consumer(host, async (ctx) => fireWakes(ctx));
+  assert.equal((await pass()).failed, 1);
+  h.advance(3 * MINUTE);
+  assert.equal((await pass()).failed, 1);
+  h.advance(3 * MINUTE);
+  assert.equal((await pass()).failed, 1, "the third claim is over the limit: not asked again");
+  assert.equal(h.calls.filter((x) => x.cap === "agents.routine.fire").length, 2, "asked twice, never a third time");
+  const row = h.db.all(
+    "SELECT state, skip_reason FROM scheduler_api_fires WHERE schedule_id = ? AND due_key = ?",
+    made.scheduleId,
+    key,
+  )[0] as Record<string, unknown>;
+  assert.deepEqual(
+    { ...row },
+    { state: "failed", skip_reason: "Gave up after 2 tries: The runs module is not answering" },
+  );
+  h.advance(10 * MINUTE);
+  assert.deepEqual(await pass(), { started: 0, skipped: 0, failed: 0 }, "an ended fire is left alone");
+});
+
+test("when the runs module cannot be asked, no fire that has a Run is closed", async () => {
+  const h = harness({ now: Date.UTC(2026, 0, 5, 9, 1) });
+  h.callee("runs.states", () => {
+    throw Object.assign(new Error("down"), { error: { code: "internal.unavailable" } });
+  });
+  const f = await dueFire(h);
+  const c = await claim(h, f, "host_a");
+  await h.call(
+    "scheduler.report",
+    { fireId: f.id, attempt: c.attempt, state: "running", runId: `run_${"9".repeat(32)}` },
+    host,
+  );
+  const out = await h.consumer(host, async (ctx) => (await import("../impl.ts")).sweepFires(ctx));
+  assert.equal(out.closed, 0);
+  assert.equal(state(h, f)["state"], "running");
+});
+
+test("catch_up never replays a wake of another kind: a due routine wake is left to its own rule", async () => {
+  const h = harness({ now: Date.UTC(2026, 0, 5, 9, 1) });
+  const made = await h.call("scheduler.schedule", wake({ owner: { kind: "agent_routine", id: "rtn_cu" } }), host);
+  const before = (await h.call("scheduler.get", { scheduleId: made.scheduleId }, host)).schedule.nextAt;
+  h.setNow(Date.UTC(2026, 0, 5, 10, 0));
+  const out = await h.call("scheduler.catch_up", { since: 0 }, host);
+  assert.deepEqual(out, { ranOnce: 0, skipped: 0 });
+  assert.equal(h.calls.filter((c) => c.cap === "agents.routine.fire").length, 0, "nothing called the routine");
+  assert.equal(
+    (await h.call("scheduler.get", { scheduleId: made.scheduleId }, host)).schedule.nextAt,
+    before,
+    "the wake did not move",
+  );
+  assert.equal(h.db.all("SELECT 1 FROM scheduler_api_fires").length, 0);
+});
+
+test("each of the three doors may change a wake; any other nested call may not", async () => {
+  const h = harness({ now: Date.UTC(2026, 0, 5, 9, 1) });
+  const r = (await h.call("scheduler.schedule", wake(), alice, undefined, "agents.routine.save")).scheduleId as string;
+  for (const door of ["agents.routine.save", "agents.routine.delete", "agents.routine.delegate"])
+    assert.equal(await outcome(h, "scheduler.pause", { scheduleId: r, reason: "x" }, alice, door), "ok", door);
+  for (const door of ["agents.routine.run_now", "agents.update", "tasks.create", "scheduler.schedule"])
+    assert.equal(
+      await outcome(h, "scheduler.pause", { scheduleId: r, reason: "x" }, alice, door),
+      "permission.no_grant",
+      door,
+    );
 });

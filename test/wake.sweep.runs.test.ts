@@ -27,7 +27,7 @@ test("a purged Run closes its fire, a finished one closes it done, a live one le
 
   const h = schedHarness({
     now: Date.UTC(2026, 0, 5, 9, 1),
-    calls: { "runs.get": (i, who) => runs.call("runs.get", i, who) },
+    calls: { "runs.states": (i, who) => runs.call("runs.states", i, who) },
   });
   const ids: Record<string, string> = {};
   const key = String(Date.UTC(2026, 0, 5, 9, 5));
@@ -73,7 +73,7 @@ test("a caller that is not the host never closes a fire by a not-found: it may s
   const h = schedHarness({
     now: Date.UTC(2026, 0, 5, 9, 1),
     calls: {
-      "runs.get": () => {
+      "runs.states": () => {
         throw Object.assign(new Error("not available"), { error: { code: "permission.not_found" } });
       },
     },

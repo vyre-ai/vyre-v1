@@ -2375,6 +2375,7 @@ export function createClient(transport: Transport) {
       resume: call("runs.resume", 1),
       retry: call("runs.retry", 1),
       start: call("runs.start", 1),
+      states: call("runs.states", 1),
       status: call("runs.status", 1),
       step_io: call("runs.step_io", 1),
       steps: call("runs.steps", 1),

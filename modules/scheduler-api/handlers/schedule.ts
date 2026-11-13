@@ -17,6 +17,7 @@ import {
   idemFind,
   claimFire,
   closeFire,
+  noteFire,
   createFire,
   LEASE_MS,
   WAKE_CAP,
@@ -81,26 +82,25 @@ function seeSchedule(ctx: SchedCtx, id: string): Schedule {
   if (!s) raise(ctx, "validation.not_found", "That schedule does not exist.", { reason: "no_such_schedule" });
   return s;
 }
+/**
+ * Who may see and change one schedule. A plain call: the person whose principal it is, or the server. A wake of another kind has no person's standing of its own (the routine row is where standing lives):
+ * only the host, or a nested call from the agents module's own door, after that door has checked the person may edit THAT routine. So a routine handed to someone else is the new owner's through the door
+ * at once, and the old owner has no way in, whatever principal the wake was made with.
+ */
 function manageSchedule(ctx: SchedCtx, id: string): Schedule {
   const s = seeSchedule(ctx, id);
-  if (!mayManage(ctx, s)) raise(ctx, "permission.not_found", "That schedule is not available.");
+  if (s.kind === "call") {
+    if (!mayManage(ctx, s)) raise(ctx, "permission.not_found", "That schedule is not available.");
+  } else if (!mayMakeWake(ctx)) raise(ctx, "permission.no_grant", "Only the server changes that kind of schedule.");
   return s;
 }
-/** Changing a wake of another kind (its time, pause, resume, cancel) is the server's or the agents module's own door's, like making one. */
-function manageWake(ctx: SchedCtx, id: string): Schedule {
-  const s = manageSchedule(ctx, id);
-  if (s.kind !== "call" && !mayMakeWake(ctx))
-    raise(ctx, "permission.no_grant", "Only the server changes that kind of schedule.");
-  return s;
+/** A wake of another kind starts only from the tick path (a Run now goes through the agents door and makes a fire of its own): these capabilities refuse it, for everyone. */
+function plainCallOnly(ctx: SchedCtx, s: Schedule): void {
+  if (s.kind !== "call")
+    raise(ctx, "permission.no_grant", "A routine runs from its schedule, or from Run now on the routine.");
 }
-
 export async function schedule(ctx: SchedCtx, input: In): Promise<unknown> {
   const key = input.idempotencyKey as string | undefined;
-  if (key) {
-    const have = idemFind(ctx.db, key);
-    const row = have ? findSchedule(ctx.db, have) : undefined;
-    if (row) return clean({ scheduleId: row.id, nextAt: row.nextAt });
-  }
   if (!CAP.test(input.cap))
     raise(ctx, "validation.bad_input", "That is not a capability name.", { reason: "bad_cap", cap: input.cap });
   const kind = (input.kind as Schedule["kind"] | undefined) ?? "call";
@@ -116,8 +116,16 @@ export async function schedule(ctx: SchedCtx, input: In): Promise<unknown> {
   }
   if (input.nextAt !== undefined && !isTrustedService(ctx.principal))
     raise(ctx, "permission.no_grant", "Only the server sets a first time.");
-  const when = checkWhen(ctx, input.when);
   const principal = (input.principal as string | undefined) ?? me(ctx);
+  if (!isService(ctx) && principal !== ctx.principal.id && principal !== ctx.actingFor)
+    raise(ctx, "permission.not_found", "A schedule can only run as you or as someone you act for.");
+  // after every permission check, so a caller who may not make this schedule cannot learn that a key exists
+  if (key) {
+    const have = idemFind(ctx.db, key);
+    const row = have ? findSchedule(ctx.db, have) : undefined;
+    if (row) return clean({ scheduleId: row.id, nextAt: row.nextAt });
+  }
+  const when = checkWhen(ctx, input.when);
   if (!isService(ctx) && principal !== ctx.principal.id && principal !== ctx.actingFor)
     raise(ctx, "permission.not_found", "A schedule can only run as you or as someone you act for.");
   const now = ctx.now();
@@ -160,7 +168,7 @@ export async function schedule(ctx: SchedCtx, input: In): Promise<unknown> {
 }
 
 export async function reschedule(ctx: SchedCtx, input: In): Promise<unknown> {
-  const s = manageWake(ctx, input.scheduleId);
+  const s = manageSchedule(ctx, input.scheduleId);
   if (input.when) {
     s.when = checkWhen(ctx, input.when);
     if (s.active) {
@@ -176,7 +184,7 @@ export async function reschedule(ctx: SchedCtx, input: In): Promise<unknown> {
 }
 
 export async function cancel(ctx: SchedCtx, input: In): Promise<unknown> {
-  const s = manageWake(ctx, input.scheduleId);
+  const s = manageSchedule(ctx, input.scheduleId);
   s.active = false;
   s.canceledAt = ctx.now();
   delete s.nextAt;
@@ -186,7 +194,7 @@ export async function cancel(ctx: SchedCtx, input: In): Promise<unknown> {
 }
 
 export async function pause(ctx: SchedCtx, input: In): Promise<unknown> {
-  const s = manageWake(ctx, input.scheduleId);
+  const s = manageSchedule(ctx, input.scheduleId);
   if (!s.active && s.pausedReason !== undefined) return { schedule: scheduleOut(s) }; // already paused
   s.active = false;
   s.pausedReason = input.reason;
@@ -196,7 +204,7 @@ export async function pause(ctx: SchedCtx, input: In): Promise<unknown> {
 }
 
 export async function resume(ctx: SchedCtx, input: In): Promise<unknown> {
-  const s = manageWake(ctx, input.scheduleId);
+  const s = manageSchedule(ctx, input.scheduleId);
   if (s.pausedReason === undefined) return { schedule: scheduleOut(s) }; // not paused
   delete s.pausedReason;
   s.active = true;
@@ -213,7 +221,7 @@ export async function resume(ctx: SchedCtx, input: In): Promise<unknown> {
 
 export async function list(ctx: SchedCtx, input: In): Promise<unknown> {
   let rows = allSchedules(ctx.db);
-  if (!isService(ctx)) rows = rows.filter((s) => mayManage(ctx, s));
+  if (!isService(ctx)) rows = rows.filter((s) => (s.kind === "call" ? mayManage(ctx, s) : mayMakeWake(ctx)));
   if (input.owner) rows = rows.filter((s) => s.owner.kind === input.owner.kind && s.owner.id === input.owner.id);
   if (typeof input.active === "boolean") rows = rows.filter((s) => s.active === input.active);
   const p = page(rows, input.cursor, input.limit);
@@ -268,6 +276,7 @@ async function callIt(ctx: SchedCtx, s: Schedule, scheduledFor: number, key: str
 
 export async function fire(ctx: SchedCtx, input: In): Promise<unknown> {
   const s = manageSchedule(ctx, input.scheduleId);
+  plainCallOnly(ctx, s);
   const scheduledFor = input.scheduledFor as number;
   const done = fireRow(ctx.db, s.id, scheduledFor);
   if (done) return clean({ runId: done.runId }); // the same time never fires twice
@@ -293,6 +302,7 @@ function advance(s: Schedule, after: number): void {
 
 export async function runNow(ctx: SchedCtx, input: In): Promise<unknown> {
   const s = manageSchedule(ctx, input.scheduleId);
+  plainCallOnly(ctx, s);
   const now = ctx.now();
   const runId = (await callIt(ctx, s, now, `sch-now:${s.id}:${ctx.trace.traceId}`)) ?? ctx.run;
   if (!runId)
@@ -326,6 +336,7 @@ export async function catchUp(ctx: SchedCtx, input: In): Promise<unknown> {
   let ranOnce = 0;
   let skipped = 0;
   for (const s of dueSchedules(ctx.db, now)) {
+    if (s.kind !== "call") continue; // a wake has its own rule for a stretch it missed (makeDue): never replayed through here
     const miss = missedTimes(s, now, input.since as number);
     const moveOn = (): void => {
       if ("at" in s.when) {
@@ -481,25 +492,32 @@ function makeDue(ctx: SchedCtx, s: Schedule): void {
  * Run for the same key cannot come from here.
  */
 export async function sweepFires(ctx: SchedCtx): Promise<{ closed: number }> {
-  if (!ctx.call || !isService(ctx)) return { closed: 0 }; // only the host sees every Run, so only for the host does "not found" mean gone
+  if (!ctx.call || !isService(ctx)) return { closed: 0 }; // only the host sees every Run, so only for the host does "not there" mean gone
   const now = ctx.now();
   let closed = 0;
-  // every open fire is visited, a slice at a time, oldest first, remembering where the slice stopped: long waits cannot fill a window and starve newer fires
+  // every open fire is visited, a slice at a time, oldest first, remembering where the slice stopped: long waits cannot fill a window and starve newer fires.
+  // One runs.states call answers a whole slice (at 500 open fires: 3 calls a pass instead of 500).
   for (let after = 0; ; ) {
     const slice = openRunFires(ctx.db, after);
     if (slice.length === 0) break;
     after = slice[slice.length - 1]!.rowid;
+    const ids = [...new Set(slice.flatMap((f) => (f.runId !== undefined ? [f.runId] : [])))];
+    let states: Map<string, string> | undefined;
+    if (ids.length > 0) {
+      try {
+        const got = (await ctx.call("runs.states", { runIds: ids })) as {
+          states?: { runId: string; status: string }[];
+        } | null;
+        states = new Map((got?.states ?? []).map((x) => [x.runId, x.status]));
+      } catch {
+        states = undefined; // the runs module is down: leave every fire with a Run for the next pass
+      }
+    }
     for (const f of slice) {
       let status: string | undefined;
       if (f.runId !== undefined) {
-        try {
-          status = ((await ctx.call("runs.get", { runId: f.runId })) as { run?: { status?: string } } | null)?.run
-            ?.status;
-        } catch (e) {
-          const code = (e as { error?: { code?: string } } | null)?.error?.code;
-          status = code === "permission.not_found" || code === "validation.not_found" ? "gone" : undefined; // anything else (the runs module down): leave it for the next pass
-        }
-        if (status === undefined) continue;
+        if (states === undefined) continue;
+        status = states.get(f.runId) ?? "gone"; // a Run the host cannot find is gone: the host sees every Run
       } else if (now > f.graceUntil) status = "gone";
       else continue;
       const end =
@@ -510,10 +528,8 @@ export async function sweepFires(ctx: SchedCtx): Promise<{ closed: number }> {
             : status === "failed" || status === "gone"
               ? "failed"
               : undefined;
-      if (
-        end &&
-        closeFire(ctx.db, f.scheduleId, f.dueKey, end, status === "gone" ? "Its Run is gone" : `Its Run ${status}`, now)
-      )
+      // compare-and-set: a report that landed since the read changes what this closes (nothing), and the next pass looks again
+      if (end && closeFire(ctx.db, f, end, status === "gone" ? "Its Run is gone" : `Its Run ${status}`, now))
         closed += 1;
     }
   }
@@ -550,6 +566,28 @@ export async function fireWakes(
     if (!s || s.kind === "call") continue;
     const won = claimFire(ctx.db, f.scheduleId, f.dueKey, host, ctx.now());
     if (!won) continue;
+    if (won.attempt > s.maxAttempts) {
+      // a target that keeps failing is not asked for ever: after the limit the fire ends failed, with the last reason kept as its words (the owner is told by the target's own module)
+      const last = (
+        ctx.db.all(
+          "SELECT skip_reason FROM scheduler_api_fires WHERE schedule_id = ? AND due_key = ?",
+          f.scheduleId,
+          f.dueKey,
+        )[0] as { skip_reason?: string } | undefined
+      )?.skip_reason;
+      reportFire(
+        ctx.db,
+        f.scheduleId,
+        f.dueKey,
+        won.attempt,
+        "failed",
+        undefined,
+        `Gave up after ${s.maxAttempts} ${s.maxAttempts === 1 ? "try" : "tries"}${last ? `: ${last}` : ""}`,
+        ctx.now(),
+      );
+      out.failed += 1;
+      continue;
+    }
     try {
       const r = (await ctx.call(
         WAKE_CAP[s.kind]!,
@@ -578,6 +616,12 @@ export async function fireWakes(
       }
     } catch (e) {
       out.failed += 1;
+      noteFire(
+        ctx.db,
+        f.scheduleId,
+        f.dueKey,
+        (e as { message?: string } | null)?.message?.slice(0, 200) ?? "It did not start",
+      );
       ctx.log?.warn("a wake's capability did not run; its fire is tried again after the lease", {
         scheduleId: f.scheduleId,
         error: (e as { message?: string } | null)?.message,

@@ -21,6 +21,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "runs.resume": async (ctx) => { throw new VyreErr(notImplemented("runs.resume", ctx.trace)); },
   "runs.retry": async (ctx) => { throw new VyreErr(notImplemented("runs.retry", ctx.trace)); },
   "runs.start": async (ctx) => { throw new VyreErr(notImplemented("runs.start", ctx.trace)); },
+  "runs.states": async (ctx) => { throw new VyreErr(notImplemented("runs.states", ctx.trace)); },
   "runs.status": async (ctx) => { throw new VyreErr(notImplemented("runs.status", ctx.trace)); },
   "runs.step_io": async (ctx) => { throw new VyreErr(notImplemented("runs.step_io", ctx.trace)); },
   "runs.steps": async (ctx) => { throw new VyreErr(notImplemented("runs.steps", ctx.trace)); },

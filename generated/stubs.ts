@@ -2375,6 +2375,7 @@ export function stubs(ctx: CallCtx) {
       resume: call("runs.resume"),
       retry: call("runs.retry"),
       start: call("runs.start"),
+      states: call("runs.states"),
       status: call("runs.status"),
       step_io: call("runs.step_io"),
       steps: call("runs.steps"),
