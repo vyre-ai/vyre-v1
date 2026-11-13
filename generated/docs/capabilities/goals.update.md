@@ -1,6 +1,6 @@
 # goals.update
 
-Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)
+Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (the owner, or an agent acting for the owner in a turn the owner began with their own message; the change is logged with that message)
 
 | | |
 |---|---|

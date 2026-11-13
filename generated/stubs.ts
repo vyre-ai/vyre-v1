@@ -938,6 +938,7 @@ export function stubs(ctx: CallCtx) {
       time_convert: call("engine.time_convert"),
       turn: {
         append: call("engine.turn.append"),
+        asked_by: call("engine.turn.asked_by"),
         enqueue: call("engine.turn.enqueue"),
         fallback: call("engine.turn.fallback"),
         finish: call("engine.turn.finish"),

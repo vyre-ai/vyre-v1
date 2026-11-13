@@ -1076,6 +1076,14 @@ export function createBridge(o: BridgeOptions): Bridge {
     const authorId = str(a.id) || got.message.author.id;
     const note = await pointers(reader(ctx, readAs, threadId), got.message);
     let grantArgs: Record<string, unknown> | undefined;
+    // kept for engine.turn.asked_by: a turn is asked by a person only through a message they typed (the same flag the Gate reads below), never a poke or a line posted in their name
+    if (a.kind === "person" && p["typed"] === true)
+      ctx.db.run(
+        "INSERT OR IGNORE INTO engine_typed_message (message_id, thread_id, at) VALUES (?, ?, ?)",
+        messageId,
+        threadId,
+        ctx.now(),
+      );
     // The only door for "asked this turn": the words a person typed, read here before the turn starts. Never the pointers, never an agent's post, never a line the server posted in a person's name.
     if (a.kind === "person" && p["typed"] === true) {
       try {

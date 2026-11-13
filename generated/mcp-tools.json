@@ -25597,7 +25597,7 @@
       "blocks": [],
       "cap": "goals.confirm",
       "deferred": false,
-      "description": "Start a drafted goal: the owner presses Start on its card, or an agent acting for the owner starts it with messageId, the message in which the owner asked for it, in the goal chat and under 15 minutes old. An agent start grants no permission. The standing permissions it names hold from this press",
+      "description": "Start a drafted goal: the owner presses Start, or an agent acting for the owner starts it in a turn the owner began with their own message (the server checks; messageId is no longer read). An agent start grants no permission. The standing permissions it names hold from this press",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -26199,7 +26199,7 @@
       "blocks": [],
       "cap": "goals.extend",
       "deferred": false,
-      "description": "Move the deadline of a goal; a missed goal starts again",
+      "description": "Move the deadline of a goal; a missed goal starts again (the owner, or an agent acting for the owner in a turn the owner began with their own message)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -26421,7 +26421,7 @@
       "blocks": [],
       "cap": "goals.pause",
       "deferred": false,
-      "description": "Pause a goal: no wake-ups and none of its tasks wake their agents until it is resumed",
+      "description": "Pause a goal: no wake-ups and none of its tasks wake their agents until it is resumed (the owner, or an agent in a turn the owner began with their own message)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -26765,7 +26765,7 @@
       "blocks": [],
       "cap": "goals.stop",
       "deferred": false,
-      "description": "Stop a goal for good: its open tasks are withdrawn and its permissions end",
+      "description": "Stop a goal for good: its open tasks are withdrawn and its permissions end (the owner, or an agent in a turn the owner began with their own message)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -26794,7 +26794,7 @@
       "blocks": [],
       "cap": "goals.update",
       "deferred": false,
-      "description": "Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)",
+      "description": "Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (the owner, or an agent acting for the owner in a turn the owner began with their own message; the change is logged with that message)",
       "effects": "write",
       "inputSchema": {
         "properties": {
