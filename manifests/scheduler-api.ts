@@ -210,11 +210,15 @@ export default defineManifest({
       {
         in: {
           fireId: t.str(),
+          attempt: t.int({
+            minimum: 1,
+            description: "The attempt the claim gave: a report from a claim that was taken over changes nothing",
+          }),
           state: t.enm("running", "waiting", "done", "failed", "stopped"),
           runId: t.opt(id.run),
           note: t.opt(t.str()),
         },
-        out: { ok: t.bool() },
+        out: { ok: t.bool(), superseded: t.opt(t.bool()) },
         idem: "natural",
         errors: ["validation.not_found", "permission.no_grant"],
       },

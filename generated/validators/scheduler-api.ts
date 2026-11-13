@@ -447,8 +447,10 @@ const b5569: string[] = []; lf(x5569, p, b5569, L0); if (b5569.length) e.push(..
 if (g5569 === "object") {
 if (g5569 === 'object') { const o5569 = x5569 as Record<string, unknown>;
 if (!("fireId" in o5569)) e.push(p + "/fireId" + ': required');
+if (!("attempt" in o5569)) e.push(p + "/attempt" + ': required');
 if (!("state" in o5569)) e.push(p + "/state" + ': required');
 if ("fireId" in o5569) lf(o5569["fireId"], p + "/fireId", e, L1);
+if ("attempt" in o5569) lf(o5569["attempt"], p + "/attempt", e, L12);
 if ("state" in o5569) lf(o5569["state"], p + "/state", e, L917);
 if ("runId" in o5569) lf(o5569["runId"], p + "/runId", e, L34);
 if ("note" in o5569) lf(o5569["note"], p + "/note", e, L1);
@@ -466,6 +468,7 @@ if (g5570 === "object") {
 if (g5570 === 'object') { const o5570 = x5570 as Record<string, unknown>;
 if (!("ok" in o5570)) e.push(p + "/ok" + ': required');
 if ("ok" in o5570) lf(o5570["ok"], p + "/ok", e, L3);
+if ("superseded" in o5570) lf(o5570["superseded"], p + "/superseded", e, L3);
 }
 }
 }

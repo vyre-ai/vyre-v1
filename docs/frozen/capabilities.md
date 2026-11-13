@@ -182,3 +182,11 @@ Additive; nothing calls it yet. Migration `modules/scheduler-api/migrations/0003
 The count test in `modules/scheduler-api/tests/live.test.ts` moved from 19 to 21 capabilities. Snapshot: docs/frozen/snapshots/scheduler-api.json.
 
 Signed: (not yet signed; for the lead to sign, 13 Nov 2026)
+
+## 14 Nov 2026: scheduler.report carries the attempt; a missed stretch is one fire; a stuck fire is swept (lane b-clock, P1 step 3a, after the review)
+
+`scheduler.report@1` gains the required input `attempt` (what `scheduler.claim` answered) and the optional output `superseded`: a report from a claim that was taken over changes nothing and answers `{ ok: false, superseded: true }`. Nothing calls either yet, so no caller migrates. The periodic pass `scheduler.wakes` now makes one fire for a stretch the server was off (keyed on the first missed time, with `reasons {"missed": n}`, the wake going on from now; an if-missed rule of `skip` makes it `skipped`), as the routine tick always did (recorded on rc.26), and closes a fire stuck in running or waiting by its Run's real state (`runs.get`). Fires due at one instant, and wakes due at one instant, come out in the order they were made, never by id. Snapshot: docs/frozen/snapshots/scheduler-api.json.
+
+What a person notices after the update, in plain words (all decided by the lead, 13 Nov 2026): a repeating task held by someone in a time zone with daylight saving now keeps its wall-clock time across a clock change (it used to drift by an hour); a deadline typed in an hour that does not exist lands when the gap ends; a fixed offset such as "+05:00" is read as a time zone again.
+
+Signed: (not yet signed; for the lead to sign, 14 Nov 2026)

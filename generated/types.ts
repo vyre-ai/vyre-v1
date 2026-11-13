@@ -33477,12 +33477,14 @@ export type SchedulerPauseOut = {
 };
 export type SchedulerReportIn = {
   fireId: string;
+  attempt: number;
   state: "running" | "waiting" | "done" | "failed" | "stopped";
   runId?: string;
   note?: string;
 };
 export type SchedulerReportOut = {
   ok: boolean;
+  superseded?: boolean;
 };
 export type SchedulerRescheduleIn = {
   scheduleId: string;

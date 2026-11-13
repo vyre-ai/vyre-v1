@@ -1,3 +1,4 @@
+- A repeating task held by someone in a time zone with daylight saving now keeps its time of day across a clock change: a task due at 09:00 that repeats stays at 09:00, where it used to move by an hour for the next one. Tasks that repeat now are not rescheduled; only the next occurrence made after an update follows the new rule.
 - A schedule set for a time that daylight saving skips (02:30 on the night clocks go forward) now runs when the gap ends instead of missing that day. This covers Automation schedules, goal check-ins and quiet hours.
 - A time that happens twice when clocks go back runs once, at its first pass, in every time zone (London and Sydney used to run at the second).
 - A repeating task keeps its time of day across a daylight saving change: 09:00 stays 09:00 for the person who holds it.

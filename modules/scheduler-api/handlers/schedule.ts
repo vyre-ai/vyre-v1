@@ -16,7 +16,10 @@ import {
   fireRow,
   idemFind,
   claimFire,
+  closeFire,
   createFire,
+  LEASE_MS,
+  openRunFires,
   fireIdOf,
   fireState,
   idemSave,
@@ -424,10 +427,76 @@ export async function tick(
  * (agent.routine_run_started, goal.woken) is the engine's to say when it claims the fire; here nothing has started yet.
  */
 function makeDue(ctx: SchedCtx, s: Schedule): void {
+  const now = ctx.now();
   const at = s.nextAt!;
-  createFire(ctx.db, s.id, String(at), at, ctx.now());
-  advance(s, at);
+  // A server that was off across several times makes ONE fire for the stretch, keyed on the first missed time (the key a routine's Run has always had), with the count noted: never a burst. The wake
+  // goes on from now. An if-missed rule of `skip` makes that one fire `skipped` instead: nothing starts. This is what the routine tick always did, and Automations' missed-ticks rule says the same.
+  let missed = 0;
+  for (
+    let t: number | undefined = at;
+    t !== undefined && t <= now && missed < MAX_MISSED_STEPS;
+    t = nextFire(s.when, t)
+  )
+    missed += 1;
+  const stale = missed > 1;
+  const made = createFire(ctx.db, s.id, String(at), at, now);
+  if (made && stale) {
+    ctx.db.run(
+      "UPDATE scheduler_api_fires SET reasons = ? WHERE schedule_id = ? AND due_key = ?",
+      JSON.stringify({ missed: missed - 1 }),
+      s.id,
+      String(at),
+    );
+    if (s.ifMissed === "skip")
+      ctx.db.run(
+        "UPDATE scheduler_api_fires SET state = 'skipped', skip_reason = ?, ended_at = ? WHERE schedule_id = ? AND due_key = ? AND state = 'due'",
+        `The server was off across ${missed} times; the if-missed rule is skip`,
+        now,
+        s.id,
+        String(at),
+      );
+  }
+  advance(s, Math.max(at, now));
   saveSchedule(ctx.db, s);
+}
+
+/**
+ * The sweep (P1 "a fire stuck in running"): a fire that says running or waiting is asked of its Run. A Run that ended, failed, was stopped or is gone closes it; a Run that is still going keeps it open.
+ * A fire with no Run at all that has said running for longer than two leases is closed as failed: the engine that held it is gone, and the wake must not be blocked for ever. Never starts anything: a second
+ * Run for the same key cannot come from here.
+ */
+export async function sweepFires(ctx: SchedCtx): Promise<{ closed: number }> {
+  if (!ctx.call) return { closed: 0 };
+  const now = ctx.now();
+  let closed = 0;
+  for (const f of openRunFires(ctx.db)) {
+    let status: string | undefined;
+    if (f.runId !== undefined) {
+      try {
+        status = ((await ctx.call("runs.get", { runId: f.runId })) as { run?: { status?: string } } | null)?.run
+          ?.status;
+      } catch (e) {
+        status =
+          (e as { error?: { code?: string } } | null)?.error?.code === "validation.not_found" ? "gone" : undefined; // anything else (the runs module down): leave it for the next pass
+      }
+      if (status === undefined) continue;
+    } else if (now - f.since > 2 * LEASE_MS) status = "gone";
+    else continue;
+    const end =
+      status === "succeeded"
+        ? "done"
+        : status === "stopped"
+          ? "stopped"
+          : status === "failed" || status === "gone"
+            ? "failed"
+            : undefined;
+    if (
+      end &&
+      closeFire(ctx.db, f.scheduleId, f.dueKey, end, status === "gone" ? "Its Run is gone" : `Its Run ${status}`, now)
+    )
+      closed += 1;
+  }
+  return { closed };
 }
 
 /**
@@ -470,5 +539,5 @@ export async function report(ctx: SchedCtx, input: In): Promise<unknown> {
   const id = splitFireId(input.fireId);
   if (!id || fireState(ctx.db, id.scheduleId, id.dueKey) === undefined)
     raise(ctx, "validation.not_found", "That fire does not exist.", { reason: "no_such_fire" });
-  return { ok: reportFire(ctx.db, id.scheduleId, id.dueKey, input.state, input.runId, input.note, ctx.now()) };
+  return reportFire(ctx.db, id.scheduleId, id.dueKey, input.attempt, input.state, input.runId, input.note, ctx.now());
 }

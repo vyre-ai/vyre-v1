@@ -26,6 +26,7 @@ System: the engine says how a claimed fire is going: running, waiting for a pers
 ```ts
 type In = {
   fireId: string;
+  attempt: number;
   state: "running" | "waiting" | "done" | "failed" | "stopped";
   runId?: string;
   note?: string;
@@ -37,6 +38,7 @@ type In = {
 ```ts
 type Out = {
   ok: boolean;
+  superseded?: boolean;
 };
 ```
 
@@ -54,13 +56,15 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "attempt": 1,
     "fireId": "example",
     "note": "example",
     "runId": "run_a1b2c3",
     "state": "running"
   },
   "output": {
-    "ok": true
+    "ok": true,
+    "superseded": true
   }
 }
 ```

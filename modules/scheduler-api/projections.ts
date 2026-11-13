@@ -409,19 +409,63 @@ export function reportFire(
   db: Db,
   scheduleId: string,
   dueKey: string,
+  attempt: number,
   state: "running" | "waiting" | "done" | "failed" | "stopped",
   runId: string | undefined,
   note: string | undefined,
   now: number,
-): boolean {
-  return (
+): { ok: boolean; superseded?: true } {
+  const moved =
     db.run(
       `UPDATE scheduler_api_fires SET state = ?, run_id = COALESCE(?, run_id), skip_reason = COALESCE(?, skip_reason), ended_at = ?
-         WHERE schedule_id = ? AND due_key = ? AND state IN ('claimed', 'running', 'waiting')`,
+         WHERE schedule_id = ? AND due_key = ? AND attempt = ? AND state IN ('claimed', 'running', 'waiting')`,
       state,
       nul(runId),
       nul(note),
       (ENDED as readonly string[]).includes(state) ? now : null,
+      scheduleId,
+      dueKey,
+      attempt,
+    ).changes === 1;
+  if (moved) return { ok: true };
+  // the fence: a claim that was taken over reports to a fire that is now another claimer's; it is told so and nothing moves
+  const have = (
+    db.all("SELECT attempt FROM scheduler_api_fires WHERE schedule_id = ? AND due_key = ?", scheduleId, dueKey) as Raw[]
+  )[0];
+  const held = num(have?.attempt) ?? 0; // 0: never claimed, so nothing was taken over
+  return held > 0 && held !== attempt ? { ok: false, superseded: true } : { ok: false };
+}
+/** Fires that say running or waiting. The sweep asks each one's Run how it really is. */
+export function openRunFires(
+  db: Db,
+): { scheduleId: string; dueKey: string; runId?: string; state: FireState; since: number }[] {
+  return (
+    db.all(
+      "SELECT schedule_id, due_key, run_id, state, fired_at FROM scheduler_api_fires WHERE state IN ('running', 'waiting') ORDER BY scheduled_for ASC, rowid ASC LIMIT 200",
+    ) as Raw[]
+  ).map((r) => ({
+    scheduleId: r.schedule_id as string,
+    dueKey: r.due_key as string,
+    ...(str(r.run_id) !== undefined ? { runId: str(r.run_id) as string } : {}),
+    state: r.state as FireState,
+    since: num(r.fired_at) ?? 0,
+  }));
+}
+/** Closes a fire the sweep found over: the Run ended, failed, was stopped or is gone. Only a running or waiting fire closes. */
+export function closeFire(
+  db: Db,
+  scheduleId: string,
+  dueKey: string,
+  state: "done" | "failed" | "stopped",
+  note: string,
+  now: number,
+): boolean {
+  return (
+    db.run(
+      "UPDATE scheduler_api_fires SET state = ?, skip_reason = ?, ended_at = ? WHERE schedule_id = ? AND due_key = ? AND state IN ('running', 'waiting')",
+      state,
+      note,
+      now,
       scheduleId,
       dueKey,
     ).changes === 1
