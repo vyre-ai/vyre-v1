@@ -91,3 +91,23 @@ test("a read that has not answered, or failed, is not patched and undo does noth
   early();
   late();
 });
+
+test("an undo from before a real answer does not take back a change made after it", async () => {
+  const { hooks, q } = await watching(() => ({ on: false, n: 0 }));
+  const old = hooks.patch("things.get", { id: "t1" }, (d) => ({ ...(d as object), on: true }));
+  hooks.invalidate();
+  await settle();
+  hooks.patch("things.get", { id: "t1" }, (d) => ({ ...(d as object), n: 1 }));
+  old();
+  assert.deepEqual(q.getSnapshot(), { status: "ready", data: { on: false, n: 1 } }, "only the newer change is on screen");
+});
+
+test("a real answer clears every change shown before it: a later change starts from the real answer", async () => {
+  const { hooks, q } = await watching(() => ({ on: false, n: 0 }));
+  hooks.patch("things.get", { id: "t1" }, (d) => ({ ...(d as object), on: true }));
+  hooks.invalidate();
+  await settle();
+  const later = hooks.patch("things.get", { id: "t1" }, (d) => ({ ...(d as object), n: 1 }));
+  later();
+  assert.deepEqual(q.getSnapshot(), { status: "ready", data: { on: false, n: 0 } }, "the old change did not come back");
+});
