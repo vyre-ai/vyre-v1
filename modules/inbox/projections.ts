@@ -31,6 +31,12 @@ export interface InboxCtx {
     action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
     resource: { type: string; id: string | null },
   ): { effect: "allow" | "deny" | "hold"; reason: string; decisionId: string };
+  /** each person on their own grants, never the caller's (the host's ctx.mayAll); a hand-built test ctx may omit it */
+  mayAll?(
+    people: readonly string[],
+    action: { perm: string | null; level: "view" },
+    resource: { type: string; id: string | null },
+  ): boolean;
   log: {
     info(msg: string, attrs?: Record<string, unknown>): void;
     warn(msg: string, attrs?: Record<string, unknown>): void;
@@ -117,7 +123,7 @@ export const kindOfAddress = (a: string): "email" | "phone" | "handle" =>
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_inbox.sql", "0002_inbox_private.sql", "0004_inbox_party.sql"]
+const migrationSql = ["0001_inbox.sql", "0002_inbox_private.sql", "0004_inbox_party.sql", "0005_inbox_state.sql"]
   .map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8"))
   .join("\n");
 

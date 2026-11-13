@@ -29,6 +29,8 @@ export interface EmitOpts {
   vis?: EventEnvelope["vis"];
   cause?: string;
   afterFailure?: boolean;
+  /** The person this event is made for, when the server itself makes it (a mute that ended, a sweep): only the host service may set it, and that person then reads the event as their own. */
+  onBehalf?: string;
 }
 /**
  * approvalToken: the Gate's token for a held act; the host lets the call through the hold it names, once (gate.release resume path).
