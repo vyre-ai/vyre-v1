@@ -33,8 +33,12 @@ function ruleWords(name: string, rule: string, prop: Prop | undefined): string {
       ? `${name} must be one of ${prop.enum.map((e) => JSON.stringify(e)).join(", ")}`
       : `${name} is not one of the allowed choices`;
   if (rule === "pattern") {
+    const pat = prop?.pattern ?? "";
     const ex = prop?.examples?.[0];
-    return `${name} is not the shape of an id of its kind${typeof ex === "string" ? ` (it looks like ${ex})` : ""}; use the id exactly as a tool returned it`;
+    if (/^\^https\?:\/\//.test(pat)) return `${name} must start with http:// or https://`;
+    if (/^\^[a-z]{2,6}_/.test(pat))
+      return `${name} is not an id of its kind${typeof ex === "string" ? ` (like ${ex})` : ""}; use the id exactly as a tool returned it`;
+    return `${name} is not in the format this tool asks for`;
   }
   if (rule === "too short") return `${name} is empty or too short`;
   if (rule === "too long") return `${name} is too long`;
@@ -87,5 +91,5 @@ export function rejectWords(
     if (said.size === 4) break;
   }
   if (said.size === 0) return "This call was not accepted. Check it against the tool's description and try once more.";
-  return `${t.name} was not run: ${[...said].join("; ")}. A minimal call: ${minimalCall(t, example)}`;
+  return `${t.name} was not run: ${[...said].join("; ")}. ${example === undefined ? "The shape of a call (replace each <...> with the real value)" : "A call that works"}: ${minimalCall(t, example)}`;
 }

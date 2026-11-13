@@ -8,7 +8,7 @@ import { modelError } from "./model-error.ts";
 import { PROBE_MESSAGE, probeIn } from "../../../lib/probe.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { limited, shapeOutput } from "./compact.ts";
-import { canonical, fillKey, shortHash } from "./fill.ts";
+import { fillKey } from "./fill.ts";
 import { rejectWords } from "./reject.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
@@ -91,21 +91,6 @@ export function createToolSession(deps: CallDeps): ToolSession {
   /** The searches each turn has made, so the same one is not run twice. */
   const searchedIn = new Map<string, Set<string>>();
   const newTrace = deps.traceId ?? ((): string => hex(16));
-  /** How many times this same call (tool and input) has been made in each turn: the key of a call with no id of its own. */
-  const sameCalls = new Map<string, Map<string, number>>();
-  const countSame = (ctx: ToolCtx, tool: string, input: unknown): number => {
-    const turn = ctx.turnId ?? ctx.trace?.traceId ?? "none";
-    let m = sameCalls.get(turn);
-    if (!m) {
-      m = new Map();
-      sameCalls.set(turn, m);
-      if (sameCalls.size > 200) sameCalls.delete(sameCalls.keys().next().value as string);
-    }
-    const key = `${tool}:${shortHash(canonical(input))}`;
-    const n = m.get(key) ?? 0;
-    m.set(key, n + 1);
-    return n;
-  };
   const loadedSet = (threadId: string): Set<string> => {
     let s = loadedBy.get(threadId);
     if (!s) {
@@ -329,7 +314,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
         t.cap,
         isDynamic && deps.dynamic
           ? deps.dynamic.input(ctx, t, input)
-          : fillKey(t, limited(t.cap, unstringified(t.inputSchema, input)), ctx, countSame(ctx, t.name, input)),
+          : fillKey(t, limited(t.cap, unstringified(t.inputSchema, input)), ctx),
         seed,
       );
       if (res.status === "held") {

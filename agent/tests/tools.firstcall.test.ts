@@ -86,3 +86,51 @@ test("every tool that needs a key has the layer fill it: no tool is left with th
   const keyed = loaded.catalog.all.filter((t) => t.keyed === true);
   assert.ok(keyed.length >= 269);
 });
+
+test("rule K: with no turn id, or no call id, the key is random: the same tool and input twice makes two things, in one session and in two", async () => {
+  for (const make of [() => session(), () => session()]) {
+    const { s, sent } = make();
+    const bare = { ...c(), turnId: undefined } as ToolCtx;
+    delete (bare as { turnId?: string }).turnId;
+    await s.call(bare, "artifact_publish", { title: "Weekly report", html: PAGE });
+    await s.call(bare, "artifact_publish", { title: "Weekly report", html: PAGE });
+    await s.call(c(), "artifact_publish", { title: "Weekly report", html: PAGE }); // a turn id but no call id
+    const keys = sent.map((x) => keyOf(x));
+    assert.equal(sent.length, 3, "three handler runs");
+    assert.equal(new Set(keys).size, 3);
+    assert.ok(
+      keys.every((k) => /^ag:r:[0-9a-f-]{36}$/.test(k ?? "")),
+      String(keys),
+    );
+  }
+  const a = session();
+  const b = session();
+  const bare = { ...c() } as ToolCtx;
+  delete (bare as { turnId?: string }).turnId;
+  await a.s.call(bare, "artifact_publish", { title: "Weekly report", html: PAGE });
+  await b.s.call(bare, "artifact_publish", { title: "Weekly report", html: PAGE });
+  assert.notEqual(keyOf(a.sent[0]), keyOf(b.sent[0]));
+});
+
+test("a pattern rule says what the pattern wants: a web address must start with http:// or https://", async () => {
+  const { s } = session();
+  s.preload("thr_1", ["chrome_open"]);
+  const out = await s.call(c(), "chrome_open", { url: "acme.test/plan" });
+  assert.equal(out.kind, "error");
+  assert.match(
+    JSON.stringify(out.kind === "error" ? out.result.content : ""),
+    /url must start with http:\/\/ or https:\/\//,
+  );
+});
+
+test("a template is called a template, and a worked example is called one that works", async () => {
+  const { s } = session();
+  const art = await s.call(c(), "artifact_publish", { html: "<p>x words here</p>" });
+  assert.match(JSON.stringify(art.kind === "error" ? art.result.content : ""), /A call that works/);
+  s.preload("thr_1", ["files_create"]);
+  const f = await s.call(c(), "files_create", {});
+  assert.match(
+    JSON.stringify(f.kind === "error" ? f.result.content : ""),
+    /The shape of a call \(replace each <\.\.\.>/,
+  );
+});
