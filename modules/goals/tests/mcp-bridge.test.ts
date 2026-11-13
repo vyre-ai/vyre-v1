@@ -56,7 +56,8 @@ function rig() {
   return { fake, f };
 }
 
-async function session(b: { socket: string }, requests: unknown[]): Promise<any[]> {
+/** One connection: `requests` go out together; `later` goes out only once every reply to them is in (a call that needs a tool found by tool_search must not race the search). */
+async function session(b: { socket: string }, requests: unknown[], later: unknown[] = []): Promise<any[]> {
   // eslint-disable-line @typescript-eslint/no-explicit-any
   const c = net.connect(b.socket);
   const got: string[] = [];
@@ -69,7 +70,9 @@ async function session(b: { socket: string }, requests: unknown[]): Promise<any[
       while ((i = buf.indexOf("\n")) >= 0) {
         got.push(buf.slice(0, i));
         buf = buf.slice(i + 1);
-        if (got.length === requests.length) ok();
+        if (got.length === requests.length && later.length > 0)
+          c.write(later.map((x) => JSON.stringify(x)).join("\n") + "\n");
+        if (got.length === requests.length + later.length) ok();
       }
     });
     c.on("close", () => ok());
@@ -93,14 +96,23 @@ for (const cli of ["Claude Code", "Codex"]) {
         method,
         ...(params === undefined ? {} : { params }),
       });
-      const replies = await session(b, [
-        rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: cli, version: "1" } }),
-        ...TOOLS.map((t) => rpc("tools/call", { name: "tool_search", arguments: { query: t } })),
-        rpc("tools/call", {
-          name: "goals_checkin_post",
-          arguments: { goalId: "gol_a1b2c3", summary: "212, behind pace by 30." },
-        }),
-      ]);
+      const replies = await session(
+        b,
+        [
+          rpc("initialize", {
+            protocolVersion: "2025-06-18",
+            capabilities: {},
+            clientInfo: { name: cli, version: "1" },
+          }),
+          ...TOOLS.map((t) => rpc("tools/call", { name: "tool_search", arguments: { query: t } })),
+        ],
+        [
+          rpc("tools/call", {
+            name: "goals_checkin_post",
+            arguments: { goalId: "gol_a1b2c3", summary: "212, behind pace by 30." },
+          }),
+        ],
+      );
       assert.equal(replies.length, TOOLS.length + 2, JSON.stringify(replies).slice(0, 400));
       // the bridge posts each line as it comes, so replies can arrive in any order: match them by id
       const byId = new Map(replies.map((r) => [r.id, r]));
