@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../kernel/src/authorize/index.ts";
 import { createInvoke, indexCapabilities, noteCallSecret, resetUnexpectedLog, unexpectedWords } from "../src/invoke.ts";
+import { callSecretsOf } from "../src/call-secrets.ts";
 import type { CtxSeed, InvokeDeps } from "../src/invoke.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 
@@ -109,4 +110,10 @@ test("a call that names a Vault handle logs its error's class and frames only, w
   assert.equal(seen[0]!.message, "Error: (message withheld: this call used a Vault value)");
   assert.ok(!JSON.stringify(seen).includes("zq81") && !JSON.stringify(rows).includes("zq81"));
   assert.match(seen[0]!.stack, /invoke\.unexpected-log\.test\.ts/, "the frames are kept");
+});
+
+test("the values a call resolved are forgotten when the call ends", async () => {
+  let traceOf = "";
+  await boom((traceId: string) => { traceOf = traceId; noteCallSecret(traceId, "forget-me-value-123"); return new Error("x"); });
+  assert.deepEqual(callSecretsOf(traceOf), []);
 });

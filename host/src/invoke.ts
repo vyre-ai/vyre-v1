@@ -19,6 +19,8 @@ import { BindingError, OUTSIDE_AGENT_LINE, SELF_BINDING_LINE, isSelfBound, resol
 import { auditTargets } from "./routes/audit-targets.ts";
 import type { AuditTarget } from "./routes/audit-targets.ts";
 import { redact } from "../../lib/hooks.ts";
+import { callSecretsOf, forgetCallSecrets, noteCallSecret } from "./call-secrets.ts";
+export { noteCallSecret };
 import { codeForReason, fail, HostError, toVyreError } from "./routes/errors.ts";
 import type { ResourceRegistrar } from "./gateway/resources.ts";
 import type { PrincipalRegistrar } from "./gateway/principals.ts";
@@ -332,16 +334,6 @@ function writeUnexpected(a: { cap: string; traceId: string; message: string; sta
     process.stderr.write(`vyred: handler threw ${JSON.stringify({ ...a, ...(was && was.hidden > 0 ? { repeated: was.hidden } : {}) })}\n`);
   } catch { /* logging never throws into a call */ }
 }
-/**
- * The Vault values a call resolved, by trace id, so that an error thrown inside that call is scrubbed of them when it is logged. A seam that hands a value to a call (the Vault's read, a terminal or browser
- * channel) calls this with the plain value; nested calls share the trace id. Bounded: it forgets everything past 2,000 traces.
- */
-const callSecrets = new Map<string, Set<string>>();
-export function noteCallSecret(traceId: string, value: string): void {
-  if (value.length < 4) return;
-  if (callSecrets.size > 2000) callSecrets.clear();
-  (callSecrets.get(traceId) ?? callSecrets.set(traceId, new Set()).get(traceId)!).add(value);
-}
 /** Does this call name a Vault value (a #Handle.field reference) or belong to the Vault: its errors are logged without their words. */
 export const usesVault = (cap: string, input: unknown): boolean => {
   if (cap.startsWith("vault.")) return true;
@@ -428,6 +420,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       const result = key !== undefined && deps.idem ? await deps.idem.once(seed.principal.id, c.name, key, input, run, c.name.startsWith("memory.") ? withoutPersonalWords : undefined) : await run();
       if (seed.approval && rawKey && result.status === "ok") await deps.idem?.settle?.(seed.principal.id, c.name, rawKey, input, result);
       span(result.status === "held" ? "held" : "ok");
+      if (depth === 0) forgetCallSecrets(traceId);
       return { ...result, traceId };
     } catch (e) {
       if ((e as { code?: unknown } | null)?.code === "idem_conflict") e = fail("validation.precondition_failed", traceId, { message: "That key was already used with different input.", details: { reason: "idempotency_conflict", cap: capName } });
@@ -436,13 +429,14 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       span(error.code.startsWith("permission.") ? "denied" : "error", error.code);
       if (unexpected) {
         // the caller only ever sees "Something went wrong on our side"; the server keeps what really happened, always (the logs.db row can be counted away as a repeat or trimmed, so it is also written to the server's own output)
-        const said = unexpectedWords(e, [...(deps.secrets?.() ?? []), ...(callSecrets.get(traceId) ?? [])], { withhold: usesVault(capName, input) });
+        const said = unexpectedWords(e, [...(deps.secrets?.() ?? []), ...callSecretsOf(traceId)], { withhold: usesVault(capName, input) });
         // the row keeps the scrubbed head of the stack (five lines): the sink drops a message key as content, and the stack text is scrubbed the same way as the line
         log.error("handler threw", { cap: capName, traceId, stack: said.head });
         try { (deps.onUnexpected ?? writeUnexpected)({ cap: capName, traceId, message: said.message, stack: said.stack }); } catch { /* never throws into the call */ }
       }
       // who was refused: without the caller and the person it acted for, a refusal in the log cannot be traced to a session
       log.info("invoke", { cap: capName, traceId, status: error.code, actor: seed.principal.id, ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}) });
+      if ((seed.depth ?? 0) === 0) forgetCallSecrets(traceId);
       throw new HostError(error);
     }
   };

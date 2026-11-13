@@ -9,6 +9,7 @@
 // Errors are only ones the capabilities declare: a person at the controls, a held item and a bad argument are validation.bad_input; Esc, a computer still starting and a silent agentd are provider.unavailable.
 // Handles are never resolved here: "agent computer logins stay on that computer" (ARCH 6.11), agentd substitutes them at the last moment and scrubs its own output. This module scrubs again.
 import { retargetRead } from "../../../../host/src/seams/answer-reads.ts";
+import { noteCallSecret } from "../../../../host/src/call-secrets.ts";
 import { actorOf, addStep, agentFolder, boundFill, clean, hostFor, nodeOf, ensure, mintId, needComputer, needTeam, filledTabsOf, givenCount, handedSince, markFilledTab, raise, rememberSecrets, tabsOpen, rowsOf, setComputer } from "../../projections.ts";
 import { personalChrome } from "../../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from "../../projections.ts";
@@ -442,6 +443,7 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
   if (!isRecord(raw)) raise(ctx, "provider.unavailable", "The computer answered with something that is not an object.");
   const { used, frame, caption, ...rest } = raw;
   rememberSecrets(c.computerId, secretsOf(used), { handedOut: false });
+  for (const x of secretsOf(used)) noteCallSecret(ctx.trace.traceId, x.value);   // an error later in this call is logged without them
   if (spec.name.startsWith("chrome_")) await markAfter(c.computerId, list, given, args["tabId"], secretsOf(used).map((x) => x.value));
   if (spec.name === "chrome_tabs" && tabsIn(rest).length > 0) tabsOpen(c.computerId, tabsIn(rest).map((t) => t.tabId));
   const out = scrubDeep(c.computerId, rest) as ToolAnswer;
@@ -545,6 +547,7 @@ async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof space
   reopened = answerFrom(profileId, start);
   if (spec.name === "chrome_snapshot") snapshotFrom(profileId, start);
   rememberSecrets(profileId, secretsOf(used), { handedOut: false });
+  for (const x of secretsOf(used)) noteCallSecret(ctx.trace.traceId, x.value);   // an error later in this call is logged without them
   // the tab a value went into, by a tool or by Vyre for Chrome while this call ran, is never pictured while it is open
   await markAfter(profileId, list, given, args["tabId"] ?? (spec.name === "chrome_open" ? rest["tabId"] : undefined), secretsOf(used).map((x) => x.value));
   if (spec.name === "chrome_tabs" && tabsIn(rest).length > 0) tabsOpen(profileId, tabsIn(rest).map((t) => t.tabId));

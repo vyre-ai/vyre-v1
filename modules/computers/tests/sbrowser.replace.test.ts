@@ -102,7 +102,7 @@ test("a stop that fails and a remove refused with 409 (the old container still r
   // the remove refuses the first time because the container still runs
   const real = e.api.containerRemove.bind(e.api);
   let refused = false;
-  e.api.containerRemove = async (n: string, ...rest: never[]) => { if (!refused) { refused = true; throw FAILS["409 running"](); } return real(n, ...rest); };
+  e.api.containerRemove = async (n: string) => { if (!refused) { refused = true; throw FAILS["409 running"](); } return real(n); };
   const sb = make(e);
   const err = await one(sb).then(() => null, (x: unknown) => x);
   assert.ok(err instanceof ToolError && err.code === "unavailable", `a typed error: ${String((err as Error)?.message)}`);
@@ -118,7 +118,7 @@ test("a create refused with 409 while the old container is still there does not 
   // the old container survives the remove (something else holds the name)
   const realRemove = e.api.containerRemove.bind(e.api);
   let keep = true;
-  e.api.containerRemove = async (n: string, ...rest: never[]) => { if (keep) { keep = false; return; } return realRemove(n, ...rest); };
+  e.api.containerRemove = async (n: string) => { if (keep) { keep = false; return; } return realRemove(n); };
   const sb = make(e);
   const err = await one(sb).then(() => null, (x: unknown) => x);
   assert.ok(err instanceof ToolError, `a typed error, not an answer from the old browser: ${String((err as Error)?.message)}`);
