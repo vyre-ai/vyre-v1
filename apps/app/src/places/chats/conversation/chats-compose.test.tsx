@@ -1183,9 +1183,15 @@ test("/usage hands back a usage card of data: names a person would say, no ids, 
   await runSlash("/usage", r.env);
   const res = r.results.at(-1)!;
   assert.equal(res.kind, "card");
-  const card = (res as Extract<CommandResult, { kind: "card" }>).card;
-  assert.equal(card.kind, "usage");
-  if (card.kind !== "usage") return;
+  const spec = (res as Extract<CommandResult, { kind: "card" }>).card;
+  assert.equal(spec.kind, "usage");
+  if (spec.kind !== "usage") return;
+  assert.equal(
+    r.calls.filter((c) => c.cap === "engine.my_ai").length,
+    0,
+    "the card opens first and reads its own data",
+  );
+  const card = await spec.read();
   assert.equal(card.chat.model, "Sonnet 5.5");
   assert.equal(card.chat.paidBy, "Your Claude sign-in");
   assert.deepEqual(card.chat.context, { used: 31_000, window: 1_000_000 });
@@ -1237,14 +1243,15 @@ test("/permissions hands back the rules as data; the rule's id travels with it a
   assert.equal(res.kind, "card");
   assert.equal(res.card.kind, "permissions");
   if (res.card.kind !== "permissions") return;
+  const card = await res.card.read();
   assert.deepEqual(
-    res.card.rules.map((x) => [x.id, x.text, x.restorable]),
+    card.rules.map((x) => [x.id, x.text, x.restorable]),
     [
       ["rul_1", "Always allow Run tests in the project folder", false], // no expiry on record: it cannot be given back exactly,
       ["rul_2", "An automation may act to whoever its step reaches", false],
     ],
   );
-  assert.ok(!res.card.rules.some((x) => /rul_|aut_/.test(x.text)));
+  assert.ok(!card.rules.some((x) => /rul_|aut_/.test(x.text)));
 });
 
 test("taking a permission back says so with an Undo that gives it again through gate.allow.set; an automation's permission has no Undo", async () => {

@@ -4,6 +4,8 @@ export interface MyAi {
   accounts: Array<{
     name: string;
     provider: string;
+    /** The account's handle in the Vault (engine.my_ai returns it; it is never shown). */
+    ref?: string;
     /** "subscription" for a sign-in; another value for a key. */
     kind?: string;
     usable: boolean;

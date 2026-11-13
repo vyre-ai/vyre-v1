@@ -64,6 +64,8 @@ export type AccountLimits =
   | { state: "silent" };
 
 export interface UsageAccount {
+  /** The account's handle for Settings (never drawn). */
+  ref?: string;
   /** The name a person gave it, or "<Provider> sign-in" when the given name is an address or initials. */
   name: string;
   usable: boolean;
@@ -121,9 +123,22 @@ export interface AsideCard {
 
 export type CommandCard = UsageCard | PermissionsCard | AsideCard;
 
+/**
+ * What a card is asked to draw. It opens at once and reads its own data, so the card can show loading (the mark after 300 ms), a failure with Retry, an empty answer, or the answer.
+ * /btw keeps its own question: its answer streams in the card the aside draws.
+ */
+export type CardSpec =
+  | { kind: "usage"; read(): Promise<UsageCard> }
+  | {
+      kind: "permissions";
+      read(): Promise<PermissionsCard>;
+      takeBack(id: string): Promise<{ text: string; undo?: () => Promise<void> }>;
+    }
+  | AsideCard;
+
 export interface CardResult {
   kind: "card";
-  card: CommandCard;
+  card: CardSpec;
 }
 export interface MenuResult {
   kind: "menu";
@@ -213,6 +228,7 @@ export function usageCard(o: MyAi, titles?: ReadonlyMap<string, string>): UsageC
           : { state: "silent" };
     const isRunning = run?.account?.name !== undefined && run.account.name === a.name;
     return {
+      ...(a.ref !== undefined ? { ref: a.ref } : {}),
       name: accountName(a),
       usable: a.usable,
       ...(a.usable ? {} : { why: whyWords(a.why) }),

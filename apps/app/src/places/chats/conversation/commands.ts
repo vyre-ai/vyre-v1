@@ -5,7 +5,7 @@ import type { MyAi } from "../../../../../../lib/usage-text.ts";
 import type { ListItem } from "../../../../../../ui/src/Composer/index.tsx";
 import * as act from "./actions.ts";
 import { notice, opens, usageCard } from "./command-result.ts";
-import type { CommandResult } from "./command-result.ts";
+import type { CommandResult, NoticeResult } from "./command-result.ts";
 import { compactChat, setChatMode } from "./brain.tsx";
 import type { ConversationData, PluginCommand } from "./data.tsx";
 import { mentionsIn } from "./model.ts";
@@ -80,6 +80,22 @@ function failure(id: string, e: unknown, retry: () => Promise<void>): CommandRes
   return { kind: "notice", text, failed: { retry } };
 }
 
+/** A rule taken back: the line says so, and Undo gives it again only where that is exact (actions.canGiveBack). */
+async function takeBackNotice(data: ConversationData, rule: Parameters<typeof act.takeBack>[1]): Promise<NoticeResult> {
+  const now = data.clock().now;
+  const undoable = act.canGiveBack(rule, now);
+  await act.takeBack(data, rule);
+  return notice(`Took back: ${act.permissionText(rule)}`, {
+    ...(undoable
+      ? {
+          undo: async () => {
+            await act.giveBack(data, rule, data.clock().now);
+          },
+        }
+      : {}),
+  });
+}
+
 /** The newest message a person wrote or read that a command can act on. */
 export function lastActionable(rows: readonly Message[]): Message | undefined {
   return [...rows].reverse().find((m) => (m.kind === "text" || m.kind === "agent") && m.body.trim() !== "");
@@ -108,33 +124,38 @@ async function run(
       });
     }
     case "permissions": {
-      const rules = await act.readPermissions(data);
-      // "/permissions remove 2" still works: it takes the rule back, with an Undo where the rule can be given again
+      // "/permissions remove 2" still works as typed: it takes the rule back, with an Undo where the rule can be given again
       const pick = /^remove\s+(\d+)$/i.exec(arg.trim());
       if (pick) {
+        const rules = await act.readPermissions(data);
         const rule = rules[Number(pick[1]) - 1];
         if (!rule) return notice(`There is no rule ${pick[1]}. Say /permissions to see the list.`);
-        await act.takeBack(data, rule);
-        return notice(`Took back: ${act.permissionText(rule)}`, {
-          ...(act.canGiveBack(rule, data.clock().now)
-            ? {
-                undo: async () => {
-                  await act.giveBack(data, rule, data.clock().now);
-                },
-              }
-            : {}),
-        });
+        return takeBackNotice(data, rule);
       }
+      let rules: Awaited<ReturnType<typeof act.readPermissions>> = [];
       return {
         kind: "card",
         card: {
           kind: "permissions",
-          rules: rules.map((r) => ({
-            id: r.id,
-            text: act.permissionText(r),
-            ...(r.expiresAt !== undefined ? { until: r.expiresAt } : {}),
-            restorable: act.canGiveBack(r, data.clock().now),
-          })),
+          read: async () => {
+            rules = await act.readPermissions(data);
+            const now = data.clock().now;
+            return {
+              kind: "permissions",
+              rules: rules.map((r) => ({
+                id: r.id,
+                text: act.permissionText(r),
+                ...(r.expiresAt !== undefined ? { until: r.expiresAt } : {}),
+                restorable: act.canGiveBack(r, now),
+              })),
+            };
+          },
+          takeBack: async (id) => {
+            const rule = rules.find((r) => r.id === id);
+            if (!rule) throw new Error("That permission is already gone.");
+            const n = await takeBackNotice(data, rule);
+            return { text: n.text, ...(n.undo ? { undo: async () => void (await n.undo!()) } : {}) };
+          },
         },
       };
     }
@@ -143,11 +164,19 @@ async function run(
     case "usage": {
       // the words come from engine.my_ai (the one place that knows), never from the model
       const lead = thread.agents.find((a) => a.mode === "lead");
-      const out = (await data.call("engine.my_ai", {
-        threadId: thread.threadId,
-        ...(lead ? { agentId: lead.agentId } : {}),
-      })) as MyAi;
-      return { kind: "card", card: usageCard(out) };
+      return {
+        kind: "card",
+        card: {
+          kind: "usage",
+          read: async () =>
+            usageCard(
+              (await data.call("engine.my_ai", {
+                threadId: thread.threadId,
+                ...(lead ? { agentId: lead.agentId } : {}),
+              })) as MyAi,
+            ),
+        },
+      };
     }
     case "compact": {
       // the server says it in the chat in one line; only a server without engine.compact leaves it to this line

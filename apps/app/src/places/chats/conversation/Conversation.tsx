@@ -63,11 +63,11 @@ import { CatchUpLine } from "./catch-up.tsx";
 import { AsideList } from "./Aside.tsx";
 import type { AsideItem } from "./Aside.tsx";
 import { commandItems, lastActionable, runSlash } from "./commands.ts";
-import { cardLines } from "./command-result.ts";
+import type { CardSpec, CommandResult } from "./command-result.ts";
+import { CommandCard } from "./CommandCard.tsx";
 import { ACTION_NOTICE_MS, notices } from "../../../shell/noticeslot/model.ts";
 import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import { useNoticeLive } from "../../../shell/noticeslot/use-notice.ts";
-import type { CommandResult } from "./command-result.ts";
 import type { CommandEnv } from "./commands.ts";
 import { parseSlash } from "../../../../../../lib/chat-commands.ts";
 import { agentForPerson } from "../../../../../../lib/words/agent-name.ts";
@@ -190,6 +190,16 @@ function useReplies(threadId: string): Map<string, ReplySummary> {
 
 /** `compact` is for a conversation inside another screen (the onboarding Assistant): just the messages and the composer, no title bar with members, search and side-panel buttons. */
 const CompactContext = createContext(false);
+/** A press in the composer (or its menus) or on the notice does not close the card: the person is about to type, or press Undo. */
+function insideComposer(target: unknown): boolean {
+  const t = target as { closest?: (q: string) => unknown } | null;
+  return (
+    t?.closest?.(
+      '[data-testid="composer"],[data-testid="composer-panel"],[data-testid="notice-slot"],[role="menu"],[data-testid="notice-popover"]',
+    ) != null
+  );
+}
+
 const NO_IDS: readonly string[] = [];
 /** The mute lines a teammate has been shown, by message (lane l-agentdm): kept on this device so the line does not come back once seen. */
 const MUTE_SEEN = "vyre.agentdm.mute-seen.v1";
@@ -503,6 +513,9 @@ function ConversationView(): ReactElement {
   );
 
   /** One quiet line in the title bar's notice slot (it clears itself after 6 seconds), with one action where there is one (Undo, Retry). A new line replaces the last. Nothing stays above the composer. */
+  /** The Command card (/usage, /permissions): one at a time, never stored, closed by Escape, its close control, a press outside or the next send. */
+  const [card, setCard] = useState<{ n: number; spec: Exclude<CardSpec, { kind: "aside" }> } | null>(null);
+  const cardN = useRef(1);
   /** /model: raised to open the composer's own model menu. */
   const [panelAt, setPanelAt] = useState(0);
   const saidRef = useRef<string | null>(null);
@@ -793,7 +806,7 @@ function ConversationView(): ReactElement {
         void act
           .startAside(data, thread.threadId, question, data.newKey())
           .then((a) => setAsides((cur) => [...cur, { id: a.asideThreadId, question }]), fail("Could not ask that."));
-      } else say(cardLines(r.card, data.clock().now).join("\n"));
+      } else setCard({ n: cardN.current++, spec: r.card });
     } else if (r.kind === "menu") {
       if (lead) setPanelAt((n) => n + 1);
       else add.open({ threadId: data.threadId, name: thread.title ?? "" });
@@ -815,6 +828,7 @@ function ConversationView(): ReactElement {
 
   const submit = (payload: ComposerSend, kind: SendKind): void => {
     // a slash command is not a message: it runs, and nothing is posted (a name that is not a command is an ordinary message)
+    setCard(null); // the next send closes the card; a new command opens its own
     if (payload.files.length === 0 && parseSlash(payload.text, pluginNames(data.pluginCommands?.())) !== null) {
       unsay();
       setTyped("");
@@ -1900,6 +1914,39 @@ function ConversationView(): ReactElement {
         ) : null}
 
         {data.waitingLine ?? null}
+        {card ? (
+          <CommandCard
+            key={card.n}
+            spec={card.spec}
+            onClose={() => setCard(null)}
+            onPressOutside={(t) => {
+              if (!insideComposer(t)) setCard(null);
+            }}
+            notify={(text, back) =>
+              speak(
+                text,
+                back
+                  ? {
+                      label: "Undo",
+                      run: () => {
+                        unsay();
+                        back();
+                      },
+                    }
+                  : undefined,
+              )
+            }
+            onSettings={(ref) => {
+              setCard(null);
+              if (ref !== undefined && data.nav.openAiAccount) data.nav.openAiAccount(ref);
+              else data.nav.openAiSetup?.();
+            }}
+            onConnect={() => {
+              setCard(null);
+              data.nav.openAiSetup?.();
+            }}
+          />
+        ) : null}
         <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
         <QueueWaiting ids={queuedIdsNow} call={data.call} threadId={thread.threadId}>
           {(waiting) =>
