@@ -2,3 +2,8 @@
 - If a new chat cannot be made, your message stays on screen with Retry and Discard. Retry sends the same message again and never makes a second chat or a second copy of the message.
 - A chat opened from an Ask, a task or a project with a first message of its own now opens on that message at once, in the same way.
 - If Vyre ever stops working after it has started, the page now says so ("Vyre stopped working", with Retry) instead of saying it could not start.
+- The agent's first words now appear in a new chat the moment they reach your computer, before the chat has finished loading, instead of seconds later on a slow connection.
+- Opening a chat sends far fewer requests at once: the same read is no longer sent three or four times, and the chat's own messages go first, so they show sooner.
+- "Continue in a chat" from the search bar now opens the chat on your question and the answer at once.
+- The Chat button on an agent's page opens a new chat with that agent already picked and ready to type. The chat is made when you send, so closing it leaves no empty chat behind.
+- "Reply in Thread" opens the replies beside the chat after one request, not two.

@@ -14,7 +14,7 @@ export type Route =
   /** `focus`: a message to open on and mark (a link from memory `...&m=<messageId>`, a search result or the link a fork starts with). */
   | { view: "chat"; threadId: string | null; focus?: string; /** counts each time the same message is asked for again, so it is marked again */ focusN?: number }
   /** The first screen: a new chat, with what needs you and what is running under the composer. */
-  | { view: "new" }
+  | { view: "new"; /** a new chat that starts with this agent (the agent page's Chat button): nothing is made until he sends */ with?: { agentId: string; name: string } }
   /** Tasks and one task's page: the routes the Tasks lane fills. */
   | { view: "tasks" }
   | { view: "task"; taskId: string }
@@ -41,7 +41,7 @@ export type Route =
   /** An imported coding session: its saved transcript, read-only, with Continue here. */
   | { view: "imported"; conversationId: string }
   /** An Ask about an object with an agent: resolved to the person's Ask thread on it (the newest one, else a new one), which then opens as a chat. With no object it is the person's chat with that agent. */
-  | { view: "ask"; agentId: string; scopeType: string; scopeId: string; bringFrom: string | null; draft?: string; first?: string };
+  | { view: "ask"; agentId: string; scopeType: string; scopeId: string; bringFrom: string | null; draft?: string; first?: string; /** the chat's name, when it is not the first words */ heading?: string };
 
 export type Layer =
   | { kind: "computer"; computerId: string; chat: boolean }
@@ -68,7 +68,7 @@ export type Act =
   | { t: "chat"; threadId: string; pane?: boolean; focus?: string; /** the inline thread to open beside the chat */ side?: string }
   /** Close the thread beside the chat (Escape, its close button). */
   | { t: "side-close" }
-  | { t: "new" }
+  | { t: "new"; with?: { agentId: string; name: string } }
   | { t: "tasks" }
   | { t: "task"; taskId: string }
   | { t: "goal"; goalId: string }
@@ -82,7 +82,7 @@ export type Act =
   | { t: "search-close" }
   | { t: "helper"; threadId: string }
   | { t: "imported"; conversationId: string }
-  | { t: "ask"; agentId: string; scopeType: string; scopeId: string; bringFrom?: string; draft?: string; first?: string }
+  | { t: "ask"; agentId: string; scopeType: string; scopeId: string; bringFrom?: string; draft?: string; first?: string; heading?: string }
   | { t: "needs"; taskId?: string }
   | { t: "tasks" }
   | { t: "task"; taskId: string }
@@ -110,7 +110,7 @@ export function step(s: Shown, a: Act): Shown {
       };
     }
     case "side-close": return { ...s, side: null };
-    case "new": return { ...s, route: { view: "new" }, layer: null };
+    case "new": return { ...s, route: { view: "new", ...(a.with ? { with: a.with } : {}) }, layer: null };
     case "goal": return { ...s, route: { view: "goal", goalId: a.goalId }, pane: false, terminalId: null, layer: null };
     case "project": return { ...s, route: { view: "project", projectId: a.projectId, tab: a.tab ?? null }, pane: false, terminalId: null, layer: null };
     case "artifacts": return { ...s, route: { view: "artifacts" }, layer: null };
@@ -121,7 +121,7 @@ export function step(s: Shown, a: Act): Shown {
     case "search-close": { const from = s.route.view === "search" ? s.route.from : null; return { ...s, route: from === null ? { view: "new" } : { view: "chat", threadId: from }, layer: null }; }
     case "helper": return { ...s, route: { view: "helper", threadId: a.threadId }, layer: null };
     case "imported": return { ...s, route: { view: "imported", conversationId: a.conversationId }, layer: null };
-    case "ask": return { ...s, route: { view: "ask", agentId: a.agentId, scopeType: a.scopeType, scopeId: a.scopeId, bringFrom: a.bringFrom ?? null, ...(a.draft ? { draft: a.draft } : {}), ...(a.first ? { first: a.first } : {}) }, layer: null };
+    case "ask": return { ...s, route: { view: "ask", agentId: a.agentId, scopeType: a.scopeType, scopeId: a.scopeId, bringFrom: a.bringFrom ?? null, ...(a.draft ? { draft: a.draft } : {}), ...(a.first ? { first: a.first } : {}), ...(a.heading ? { heading: a.heading } : {}) }, layer: null };
     // one Tasks door: a Needs you link opens Tasks, or the task it names (the old Needs you page is gone)
     case "needs": return a.taskId ? step(s, { t: "task", taskId: a.taskId }) : step(s, { t: "tasks" });
     case "tasks": return { ...s, route: { view: "tasks" }, pane: false, terminalId: null, layer: null };
@@ -233,7 +233,7 @@ export function fromHash(hash: string): Shown {
     case SCREEN.conversation: case SCREEN.ask: {
       const about = askAbout(arg("about"));
       if (arg("threadId") !== "") return step(START, { t: "chat", threadId: arg("threadId"), ...(arg("m") === "" ? {} : { focus: arg("m") }), ...(arg("side") === "" ? {} : { side: arg("side") }) });
-      if (about !== null && arg("with") !== "") return step(START, { t: "ask", agentId: arg("with"), scopeType: about.type, scopeId: about.id, ...(arg("bring") === "" ? {} : { bringFrom: arg("bring") }), ...(arg("draft") === "" ? {} : { draft: arg("draft") }), ...(arg("first") === "" ? {} : { first: arg("first") }) });
+      if (about !== null && arg("with") !== "") return step(START, { t: "ask", agentId: arg("with"), scopeType: about.type, scopeId: about.id, ...(arg("bring") === "" ? {} : { bringFrom: arg("bring") }), ...(arg("draft") === "" ? {} : { draft: arg("draft") }), ...(arg("first") === "" ? {} : { first: arg("first") }), ...(arg("heading") === "" ? {} : { heading: arg("heading") }) });
       // `with` alone is a chat with that agent: the open chat it leads, else a new one.
       return arg("with") === "" ? START : step(START, { t: "ask", agentId: arg("with"), scopeType: "", scopeId: "", ...(arg("first") === "" ? {} : { first: arg("first") }) });
     }

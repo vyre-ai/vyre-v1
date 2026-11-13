@@ -205,18 +205,18 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     if (asking === null) return undefined;
     let live = true;
     const who = asking.agentId === "assistant" ? rt.assistant.id : asking.agentId;
-    const found = asking.scopeType === "" ? (asking.first ? chatOpening(rt, who, asking.first) : chatWith(rt, who)) : askWith(rt, who, asking.scopeType, asking.scopeId, asking.bringFrom, asking.first);
+    const found = asking.scopeType === "" ? (asking.first ? chatOpening(rt, who, asking.first, asking.heading) : chatWith(rt, who)) : askWith(rt, who, asking.scopeType, asking.scopeId, asking.bringFrom, asking.first);
     void found.then((id) => {
       if (!live) return;
       if (id) { if (asking.draft) fill.set(asking.draft); act({ t: "chat", threadId: id, pane: true }); }
       else { setLine("Could not open the Ask. You may not see that yet."); act({ t: "agent", agentId: who, tab: "chats" }); }
     });
     return () => { live = false; };
-  }, [asking?.agentId, asking?.scopeType, asking?.scopeId, asking?.bringFrom, asking?.draft, asking?.first, rt, act, fill]);
+  }, [asking?.agentId, asking?.scopeType, asking?.scopeId, asking?.bringFrom, asking?.draft, asking?.first, asking?.heading, rt, act, fill]);
   const titleTab = useRef(onTitle);
   titleTab.current = onTitle;
   // before the first paint of the opening message, so the tab is named in the same frame
-  useLayoutEffect(() => { if (asking?.first) titleTab.current?.(firstWords(asking.first)); }, [asking?.first]);
+  useLayoutEffect(() => { if (asking?.first) titleTab.current?.(asking.heading ?? firstWords(asking.first)); }, [asking?.first, asking?.heading]);
   const go = useMemo<Go>(() => createGo(rt, act, nameOf, setLine), [rt, act, nameOf]);
   // right tabs: what was opened from a chat, closable, after the pane's own. Pressing any face or name opens that profile here, person or agent.
   const [rightTabs, setRightTabs] = useState<readonly ProfileTab[]>([]);
@@ -421,10 +421,10 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   else if (route.view === "artifact") main = <ArtifactView key={route.artifactId} rt={rt} artifactId={route.artifactId} share={route.share === true} back={() => act({ t: "artifacts" })} gone={() => act({ t: "artifacts" })} />;
   else if (route.view === "notes") main = <NotesPage rt={rt} nameOf={nameOf} noteId={route.noteId ?? null} {...(route.take ? { takeNonce: route.take } : {})} {...(notesInitial ? { initial: notesInitial } : {})} />;
   else if (route.view === "new") {
-    main = <Landing rt={rt} nameOf={nameOf} kindOf={(id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person")} openChat={go.chat} openTasks={() => act({ t: "tasks" })} openNeed={(id) => go.needs(id)} openProfile={profile} fill={(t) => fill.set(t)} newKey={newKey} say={setLine} {...(onTitle ? { title: onTitle } : {})} {...(stacked ? { list: <ChatsSidebar data={side} open={openKey} {...(window ? { window } : {})} /> } : {})} />;
+    main = <Landing key={route.with?.agentId ?? "new"} {...(route.with ? { startWith: { id: route.with.agentId, name: route.with.name } } : {})} rt={rt} nameOf={nameOf} kindOf={(id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person")} openChat={go.chat} openTasks={() => act({ t: "tasks" })} openNeed={(id) => go.needs(id)} openProfile={profile} fill={(t) => fill.set(t)} newKey={newKey} say={setLine} {...(onTitle ? { title: onTitle } : {})} {...(stacked ? { list: <ChatsSidebar data={side} open={openKey} {...(window ? { window } : {})} /> } : {})} />;
   }
   // an Ask or a chat that opens with the person's own first message (Home's Ask, a task, a project, an agent): his words and the working mark are on screen while the thread is found or made
-  else if (asking !== null && asking.first) main = <PendingChat title={firstWords(asking.first)} text={asking.first} files={[]} lead={asking.agentId === "assistant" ? rt.assistant.name : nameOf(asking.agentId)} phase="sending" />;
+  else if (asking !== null && asking.first) main = <PendingChat title={asking.heading ?? firstWords(asking.first)} text={asking.first} files={[]} lead={asking.agentId === "assistant" ? rt.assistant.name : nameOf(asking.agentId)} phase="sending" />;
   else if (conv) {
     const work = thread.status === "ready" ? workOf(thread.data.thread) : null;
     const live = { ...conv, tail: <ChatWork rt={rt} threadId={conv.threadId} nameOf={nameOf} openTask={openSideTask} openProfile={(who) => { if (who.kind === "agent") go.agent(who.id); else rt.open({ subject: { type: "contact", id: who.id } }); }} /> };

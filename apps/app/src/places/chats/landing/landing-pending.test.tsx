@@ -53,11 +53,11 @@ function world() {
   return { rt, calls, held, starts: () => calls.filter((c) => c.cap === "chat.start") };
 }
 
-function mount(w: ReturnType<typeof world>, opened: string[], titles: string[]) {
+function mount(w: ReturnType<typeof world>, opened: string[], titles: string[], startWith?: { id: string; name: string }) {
   let n = 0;
   return (
     <ResumeContext.Provider value={{ done: 8, total: 8, open: noop, pill: null }}>
-      <Landing rt={w.rt} nameOf={(id) => id} kindOf={() => "agent"} openChat={(id) => void opened.push(id)} openTasks={noop} openNeed={noop} openProfile={noop} fill={noop} newKey={() => `key_${++n}`} say={noop} title={(t) => void titles.push(t)} />
+      <Landing rt={w.rt} nameOf={(id) => id} kindOf={() => "agent"} openChat={(id) => void opened.push(id)} openTasks={noop} openNeed={noop} openProfile={noop} fill={noop} newKey={() => `key_${++n}`} say={noop} title={(t) => void titles.push(t)} {...(startWith ? { startWith } : {})} />
     </ResumeContext.Provider>
   );
 }
@@ -136,5 +136,22 @@ test("a slash command still waits for its chat (it has no message to show), and 
     w.held[0]!.reject(new Error("502"));
     for (let i = 0; i < 10 && find(root, "composer-send-error") === null; i++) await flush();
     assert.ok(find(root, "composer-send-error"), "the composer says it could not start");
+  } finally { off(); }
+});
+
+test("a new chat started from an agent's page has that agent picked, and nothing is made until he sends", async () => {
+  const off = installDom();
+  try {
+    const w = world();
+    const opened: string[] = []; const titles: string[] = [];
+    const r = createRoot();
+    await act(async () => { r.render(mount(w, opened, titles, { id: "agt_intake", name: "Intake" })); });
+    await flush();
+    const root = r.container as unknown as Node;
+    assert.equal(w.starts().length, 0, "no chat exists before he sends");
+    assert.ok(find(root, "with-agt_intake"), "the agent is picked in With");
+    await send(root, "Book the Rivera call");
+    assert.deepEqual(w.starts()[0]!.input["agentIds"], ["agt_intake"]);
+    assert.deepEqual(titles, ["Book the Rivera call"]);
   } finally { off(); }
 });

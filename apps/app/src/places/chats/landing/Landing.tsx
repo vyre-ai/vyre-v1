@@ -45,6 +45,8 @@ export interface LandingProps {
   fill(text: string): void;
   newKey(): string;
   say(text: string): void;
+  /** A new chat that starts with this agent already picked, the composer ready to type (the agent page's Chat button). */
+  startWith?: { id: string; name: string };
   /** Names the tab for the chat that is starting, before the chat has an id. */
   title?(title: string): void;
   /** The phone has no sidebar sheet: its list of chats sits under the first screen. */
@@ -54,12 +56,12 @@ export interface LandingProps {
 const isAssistant = (rt: ShellRuntime, id: string): boolean => id === rt.assistant.id;
 
 /** A first message on its way: what the key press captured, so a Retry sends the same thing under the same key. */
-interface Sent { key: string; text: string; files: ComposerSend["files"]; title: string; lead: WithEntry; picked: readonly WithEntry[]; choice: NewChoice; held: readonly AccessPick[]; phase: "sending" | "failed"; note?: string }
+interface Sent { key: string; text: string; files: ComposerSend["files"]; title: string; lead: WithEntry; picked: readonly WithEntry[]; choice: NewChoice; held: readonly AccessPick[]; phase: "sending" | "failed"; note?: string; since: number }
 
 export function Landing(p: LandingProps): ReactElement {
   const { rt } = p;
   const you: WithEntry = useMemo(() => ({ id: rt.assistant.id, name: rt.assistant.name, kind: "assistant" }), [rt.assistant.id, rt.assistant.name]);
-  const [picked, setPicked] = useState<readonly WithEntry[]>([you]);
+  const [picked, setPicked] = useState<readonly WithEntry[]>(() => (p.startWith && p.startWith.id !== rt.assistant.id ? [{ id: p.startWith.id, name: p.startWith.name, kind: "agent" }] : [you]));
   // the Assistant is made a moment after the account: when the real one arrives, the one picked is it, not the placeholder the page mounted with
   useEffect(() => { setPicked((cur) => (cur.some((c) => c.kind === "assistant" && (c.id !== you.id || c.name !== you.name)) ? cur.map((c) => (c.kind === "assistant" ? you : c)) : cur)); }, [you]);
   const [choice, setChoice] = useState<NewChoice>({ mode: "auto" });
@@ -122,7 +124,7 @@ export function Landing(p: LandingProps): ReactElement {
     const files = payload.files;
     const slash = text.startsWith("/") && files.length === 0;
     const title = firstWords(text, files[0]?.name);
-    const s: Sent = { key: p.newKey(), text, files, title, lead: picked.find((w) => w.kind !== "person") ?? you, picked, choice, held, phase: "sending" };
+    const s: Sent = { key: p.newKey(), text, files, title, lead: picked.find((w) => w.kind !== "person") ?? you, picked, choice, held, phase: "sending", since: Date.now() };
     // a slash command and a send with nothing in it have no message to show: they wait for the chat, and the composer says if it could not start
     if (slash || title === "") return begin(s, slash);
     p.title?.(title);
@@ -150,7 +152,7 @@ export function Landing(p: LandingProps): ReactElement {
   const strip = newChatStrip(lead, choice, accounts ?? []);
 
   if (sent !== null) {
-    return <PendingChat title={sent.title} text={sent.text} files={sent.files.map((f) => f.name)} lead={sent.lead.name} phase={sent.phase} {...(sent.note ? { note: sent.note } : {})} onRetry={retry} onDiscard={() => setSent(null)} />;
+    return <PendingChat title={sent.title} text={sent.text} files={sent.files.map((f) => f.name)} lead={sent.lead.name} phase={sent.phase} {...(rt.turns ? { live: { turns: rt.turns, asker: rt.me.id, since: sent.since } } : {})} {...(sent.note ? { note: sent.note } : {})} onRetry={retry} onDiscard={() => setSent(null)} />;
   }
   return (
     <ScrollView testID="chats-landing" style={st.root} contentContainerStyle={st.content} keyboardShouldPersistTaps="handled">
@@ -160,7 +162,7 @@ export function Landing(p: LandingProps): ReactElement {
           <Text accessibilityRole="header" aria-level={1} testID="landing-title" style={st.title}>What are we working on?</Text>
         </View>
         <View style={st.composer}><Composer
-          testID="composer" label="Start a new chat" whoWillAnswer={`${lead.name} will answer`} placeholder="Describe it, or type /"
+          testID="composer" label="Start a new chat" {...(p.startWith ? { autoFocus: true } : {})} whoWillAnswer={`${lead.name} will answer`} placeholder="Describe it, or type /"
           agents={[strip]} lead={lead.name} mode={choice.mode} onMode={(mode: ChatMode) => setChoice((c) => ({ ...c, mode }))}
           lists={{ commands: commandItems(undefined) }} agentChat
           renderPanel={(agent, close, narrow) => <NewChatBrain data={data} agent={agent} accounts={accounts} choice={choice} onChoice={setChoice} close={close} narrow={narrow} />}

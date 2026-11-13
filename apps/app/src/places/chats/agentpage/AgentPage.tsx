@@ -118,7 +118,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   const name = agent.name;
   const paused = agent.status === "paused";
 
-  const chat = (): void => { void startChat(deps, agentId, name).then((id) => { if (id !== null) data.nav.openChat(id); }); };
+  const chat = (): void => { if (data.nav.startChat) { data.nav.startChat(agentId, name); return; } void startChat(deps, agentId, name).then((id) => { if (id !== null) data.nav.openChat(id); }); };
   const remove = (): void => { void removeOutside(deps, agentId, name, () => data.nav.closePage()); };
   const moreMenu = (x: number, y: number): void => {
     menu.show([

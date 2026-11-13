@@ -25,6 +25,9 @@ export interface GateNav {
   setOnline(online: boolean, waiting: number): void;
 }
 
+/** The most words of a question and its answer that go into the link the chat opens from. */
+const CARRIED_MAX = 3000;
+
 export interface GateSearchDeps {
   runtime: ShellRuntime;
   nav: GateNav;
@@ -224,8 +227,12 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     },
     // Continue in a chat: a real chat with the assistant that starts from the question and the answer, opened where the person is
     continueInChat: ({ question, answer }) => {
+      const first = `${question}\n\nWhat the Space says:\n${answer}`;
+      const heading = question.length > 80 ? `${question.slice(0, 77)}...` : question;
+      // the chat opens at once on the person's own words (the question and the answer he is carrying on from) and is made behind them; a very long answer cannot ride in a link, so that one waits for its chat as before
+      if (first.length <= CARRIED_MAX) { rt.open({ screen: "chats.ask", args: { with: "assistant", first, heading } }); return; }
       const key = `askchat_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-      void Promise.resolve(rt.call("chat.start", { kind: "chat", agentIds: [rt.assistant.id], title: question.length > 80 ? `${question.slice(0, 77)}...` : question, first: `${question}\n\nWhat the Space says:\n${answer}`, idempotencyKey: key }))
+      void Promise.resolve(rt.call("chat.start", { kind: "chat", agentIds: [rt.assistant.id], title: heading, first, idempotencyKey: key }))
         .then((out) => { const id = (out as { thread?: { threadId?: string } } | null)?.thread?.threadId; if (id) rt.open({ subject: { type: "thread", id } }); else nav.flash("Could not open a chat"); }, () => nav.flash("Could not open a chat"));
     },
     recordOpened: (hit) => { if (shellHitTarget(hit, state)) return; void rt.call("search.recent.record", { kind: hit.kind, itemId: hit.id }).catch(() => undefined); },
