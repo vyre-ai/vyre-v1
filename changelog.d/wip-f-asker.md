@@ -1,1 +1,3 @@
 - An agent that leads or helps with a goal no longer shows that goal to a person who may not see it: asked by someone else in a chat, it says there is no such goal.
+- An agent in a chat, an agent that started a Run or created an Automation, and an agent that owns a Vault item now show those things only to the people they belong to, not to whoever happens to ask the agent. Changesets in a folder you cannot view no longer show in lists or reads.
+- The "The Space can use this sign-in" note says what is true for a personal sign-in. A reply that could not start for lack of an AI account now says "ask an admin to add a Space AI key", or offers "Set a Space AI key" to an admin.
