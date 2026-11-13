@@ -55,15 +55,19 @@ export const RowWrapContext = createContext(false);
 const h = createElement;
 
 type Measured = { scrollWidth: number; clientWidth: number; scrollHeight: number; clientHeight: number };
-type RowEl = { setAttribute(n: string, v: string): void; removeAttribute(n: string): void; querySelectorAll(q: string): ArrayLike<Measured> };
+type RowEl = { querySelectorAll(q: string): ArrayLike<Measured> };
+/** Is any text inside this row cut off, with dots or by a line clamp? */
+export function isCut(row: RowEl | null | undefined): boolean {
+  return row ? Array.from(row.querySelectorAll("span,div")).some((n) => n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1) : false;
+}
 /**
- * A row that cuts its text with dots gives the whole text in the app's one tooltip (the title attribute) when the pointer or the keyboard focus reaches it, and only then: a row whose text fits has no tooltip
- * repeating what is on the screen. A row that was given its own `hint` keeps that.
+ * A row that cuts its text with dots gives the whole text in the app's one tooltip (the title attribute, as ui/Tooltip and ui/Tip do) when the pointer or the keyboard focus reaches it, and only then: a row whose text
+ * fits has no tooltip repeating what is on the screen. The tooltip is React state, so a redraw of the row never drops it. (The browser draws a title tooltip for the pointer only; it does not show on keyboard focus.)
  */
-export function tipIfCut(row: RowEl | null | undefined, full: string): void {
-  if (!row) return;
-  const cut = Array.from(row.querySelectorAll("span,div")).some((n) => n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1);
-  if (cut) row.setAttribute("title", full); else row.removeAttribute("title");
+export function useCutTip(full: string): { title: string | undefined; onMouseEnter(e: { currentTarget?: unknown }): void; onFocus(e: { currentTarget?: unknown }): void } {
+  const [cut, setCut] = useState(false);
+  const check = (e: { currentTarget?: unknown }): void => setCut(isCut(e.currentTarget as RowEl | null));
+  return { title: cut ? full : undefined, onMouseEnter: check, onFocus: check };
 }
 
 function WebRow({ inert = false, hint, locked = false, id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "accent", tall = false, emphasis = false, note, selected = false, hovered = false, accentLit = false, leading, trailing, onPress, domProps }: RowProps): ReactElement {
@@ -75,13 +79,14 @@ function WebRow({ inert = false, hint, locked = false, id, title, titleSuffix, t
   const wrapTitle = useContext(RowWrapContext);
   const titleBase = wrapTitle ? TITLE_WRAP_S : TITLE_S;
   const full = [titleSuffix ? `${title} ${titleSuffix}` : title, [noteLead, note].filter((x) => x).join(" \u00b7 ")].filter((x) => x !== "").join("\n");
-  const mine = hint === undefined ? (name: "onMouseEnter" | "onFocus") => (e: { currentTarget?: unknown }): void => { tipIfCut(e.currentTarget as RowEl | null, full); (dom[name] as ((e: unknown) => void) | undefined)?.(e); } : null;
+  const tip = useCutTip(full);
+  const mine = hint === undefined ? (name: "onMouseEnter" | "onFocus") => (e: { currentTarget?: unknown }): void => { tip[name](e); (dom[name] as ((e: unknown) => void) | undefined)?.(e); } : null;
   const titleEl = h("span", { style: { ...(emphasis ? { ...titleBase, ...BOLD } : titleBase), ...inkOn } }, title);
   return h(
     "div",
     {
       // a row nothing presses (no onPress, no list that handles it through domProps) is not a button: it is not announced or focused as one
-      ...((onPress && !inert) || domProps !== undefined ? { role: "button", tabIndex: 0, "aria-selected": selected } : { role: "listitem" }), "aria-label": title, "data-testid": tid(""), className: inert ? "vyre-row-plain" : "vyre-row", ...(hint !== undefined ? { title: hint } : {}),
+      ...((onPress && !inert) || domProps !== undefined ? { role: "button", tabIndex: 0, "aria-selected": selected } : { role: "listitem" }), "aria-label": title, "data-testid": tid(""), className: inert ? "vyre-row-plain" : "vyre-row", ...(hint !== undefined ? { title: hint } : tip.title !== undefined ? { title: tip.title } : {}),
       style: { ...ROW_S, minHeight: rowHeight(note, tall), ...(onPress && !inert ? { cursor: "pointer" } : inert ? { cursor: "default" } : null), ...(selected ? SELECTED : filled ? HOVER_ACCENT : hovered ? HOVER : null), ...extra },
       ...(onPress && !inert ? {
         onClick: (e: unknown) => onPress(e as never),

@@ -281,6 +281,10 @@ export function FilesTab({ o }: { o: Overview }): ReactElement {
   );
 }
 
+/** The list under "This project has one chat" is the threads started under that chat's messages. The app calls those threads (the Thread sheet, "Reply in thread", "Agents reply in threads"), never a second set of chats. */
+export const THREADS_HEAD = "Threads";
+export const NO_THREADS = "No threads yet.";
+
 export function ChatTab({ o, channelName, now, projectId }: { o: Overview; channelName: string; now: number; projectId?: string }): ReactElement {
   const d = useProjectPageData();
   const rows: ReactElement[] = [];
@@ -294,7 +298,7 @@ export function ChatTab({ o, channelName, now, projectId }: { o: Overview; chann
     <ScrollView style={s.scroll} contentContainerStyle={s.scrollIn} testID="project-chat">
       <Text style={s.lead} testID="project-chat-is-channel">{`This project has one chat. It is the channel ${channelName}, so everything said here is said there.`}</Text>
       <Pressable accessibilityRole="button" testID="project-open-channel" onPress={() => d.nav.openChannel(o.project.channelId)} style={s.open}><Text style={s.openText}>{`Open ${channelName} in Chats`}</Text></Pressable>
-      <Section title="Threads" count={o.recentThreads.length} id="project-threads">{rows.length ? rows : <Text style={s.dim}>No threads yet.</Text>}</Section>
+      <Section title={THREADS_HEAD} count={o.recentThreads.length} id="project-threads">{rows.length ? rows : <Text style={s.dim}>{NO_THREADS}</Text>}</Section>
       {projectId ? <ImportedHistory projectId={projectId} /> : null}
     </ScrollView>
   );

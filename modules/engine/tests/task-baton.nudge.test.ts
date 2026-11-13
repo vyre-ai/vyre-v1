@@ -136,6 +136,10 @@ test("after nudgeMinutes without a hand-over the task goes to the person who ask
   assert.deepEqual(made.assigned, { kind: "person", id: OWNER });
   assert.equal(made.parentTaskId, "tsk_t1");
   assert.match(String(made.title), /An agent stopped on "Draft the letter"/);
+  // the summary names the button the person presses, in its own label; that press closes this task and the baton wakes the stopped agent (task-baton: an unblock task done wakes its parent)
+  const button = "Done, continue";   // the label is pinned to the real button in modules/tasks/tests/unblock-button-label.test.ts
+  assert.ok(String(made.summary).includes(`press "${button}" to start it again`), String(made.summary));
+  assert.doesNotMatch(String(made.summary), /mark this done|wake|turn/i);
   assert.ok(s.sent.some((c) => c.cap === "chat.post" && /went to a person/.test(String(c.input.body))));
   assert.deepEqual(await sweepBaton(s.h.ctx, s.host, s.engine), [], "only once");
 });

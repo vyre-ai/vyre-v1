@@ -177,3 +177,11 @@ test("project dates read in the Space's zone: a task due at 10 PM Pacific on the
   assert.equal(dateWords(due, "America/Los_Angeles"), "Nov 5");
   assert.equal(dateWords(due), "Nov 6");
 });
+
+test("the project Chat tab names its list with the app's own word for replies under a message: thread (K14, 13 Nov)", async () => {
+  const { THREADS_HEAD, NO_THREADS } = await import("../projectpage/ProjectPage.tsx");
+  const { THREAD_TITLE, SWITCH_TITLE } = await import("../../chats/thread-replies/model.ts");
+  assert.equal(THREADS_HEAD, `${THREAD_TITLE}s`, "the sheet is called Thread, so the list is Threads");
+  assert.ok(SWITCH_TITLE.includes("threads") && NO_THREADS.includes("threads"), "the chat menu says threads too");
+  assert.doesNotMatch(`${THREADS_HEAD} ${NO_THREADS}`, /\bchats?\b/i, "and it never says chat for them: the project has one chat");
+});

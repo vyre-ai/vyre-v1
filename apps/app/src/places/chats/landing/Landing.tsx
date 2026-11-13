@@ -12,7 +12,7 @@ import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/
 import type { AccessPick } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
 import { sq } from "../../../../../../ui/src/SidePane/host.tsx";
-import { tipIfCut } from "../../../../../../ui/src/Row/index.tsx";
+import { useCutTip } from "../../../../../../ui/src/Row/index.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useResume } from "../../../onboarding/resume-context.ts";
@@ -176,9 +176,6 @@ export function Landing(p: LandingProps): ReactElement {
 }
 
 /** One thing that needs you: who asks, what, and the one action. Open waits on hover. */
-/** The row's text is cut to one line: hovering or focusing it gives the whole of it in the app's one tooltip (ui/Row's tipIfCut), and opening the row shows it in full in Needs you. */
-const tipCut = (sub: string, title: string) => (e: { currentTarget?: unknown }): void => tipIfCut(e.currentTarget as Parameters<typeof tipIfCut>[0], `${title}\n${sub}`);
-
 function NeedRow({ item, rt, nameOf, kindOf, openNeed, openProfile, say }: { item: NeedItem } & LandingProps): ReactElement {
   const row = needsRow(item, nameOf);
   const [over, setOver] = useState(false);
@@ -188,12 +185,14 @@ function NeedRow({ item, rt, nameOf, kindOf, openNeed, openProfile, say }: { ite
   };
   const kind = kindOf(row.requester);
   const sub = needsLine(row, nameOf);
+  // the row's text is cut to one line: hovering or focusing it gives the whole of it in the app's one tooltip, and opening the row shows it in full in Needs you
+  const cut = useCutTip(`${row.title}\n${sub}`);
   return (
     <View testID={`landing-need-${row.id}`} style={[st.need, over && st.hover]} {...sq("row")} {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }}>
       <Pressable role="button" aria-label={`${nameOf(row.requester)}'s profile`} testID={`landing-face-${row.id}`} onPress={() => openProfile(row.requester)}>
         <Avatar {...avatarOf({ id: row.requester, name: nameOf(row.requester), kind })} size={28} state="waiting" />
       </Pressable>
-      <Pressable role="button" aria-label={row.title} onPress={() => openNeed(row.id)} style={st.needText} {...{ onMouseEnter: tipCut(sub, row.title), onFocus: tipCut(sub, row.title) }}>
+      <Pressable role="button" aria-label={row.title} onPress={() => openNeed(row.id)} style={st.needText} {...{ onMouseEnter: cut.onMouseEnter, onFocus: cut.onFocus }} {...(cut.title !== undefined ? ({ title: cut.title } as object) : {})}>
         <Text numberOfLines={1} style={st.needTitle}>{row.title}</Text>
         <Text numberOfLines={1} style={st.needSub}>{sub}</Text>
       </Pressable>
