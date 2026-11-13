@@ -1318,6 +1318,14 @@ test("only a message chat marked typed is kept as one the person typed: a poke, 
   assert.deepEqual(typed, ["msg_typed_one"]);
 });
 
+test("the typed-message rows are bounded: a new typed message drops the rows older than a week", async () => {
+  const s = setup({ script: reply("Done.") });
+  s.h.ctx.db.run("INSERT INTO engine_typed_message (message_id, thread_id, at) VALUES (?, ?, ?)", "msg_old", T, 1);
+  await s.say("Please move the deadline", [], "msg_typed_two", { typed: true });
+  const kept = s.h.rows("SELECT message_id FROM engine_typed_message").map((r) => r["message_id"]);
+  assert.deepEqual(kept, ["msg_typed_two"]);
+});
+
 test("two people's turns of two agents in one chat do not overlap, and each reply speaks for the person whose turn it was", async () => {
   let release!: () => void;
   const held = new Promise<void>((r) => (release = r));

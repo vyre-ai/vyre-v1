@@ -56,6 +56,8 @@ export function serverCause(message: string): "sandbox" | "image" | undefined {
 
 export const BRIDGE_PREFIX = "msg_brg";
 const HISTORY = 50;
+/** How long a typed-message row is kept: it is read only for a turn running or queued now. */
+const TYPED_KEEP_MS = 7 * 24 * 3600 * 1000;
 const brgId = (): string => BRIDGE_PREFIX + mintId("b").slice(2);
 
 export interface PostBlock {
@@ -1092,6 +1094,12 @@ export function createBridge(o: BridgeOptions): Bridge {
         messageId,
         threadId,
         ctx.now(),
+      );
+    // bounded: a typed row is only ever read for a turn that is running or queued now, so rows older than a week are dropped, at most 200 at a time with each new one
+    if (a.kind === "person" && p["typed"] === true)
+      ctx.db.run(
+        "DELETE FROM engine_typed_message WHERE message_id IN (SELECT message_id FROM engine_typed_message WHERE at < ? LIMIT 200)",
+        ctx.now() - TYPED_KEEP_MS,
       );
     // The only door for "asked this turn": the words a person typed, read here before the turn starts. Never the pointers, never an agent's post, never a line the server posted in a person's name.
     if (a.kind === "person" && p["typed"] === true) {
