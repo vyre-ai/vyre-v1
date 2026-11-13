@@ -27,19 +27,33 @@ const BOOT_FILE = ((): string => {
   return f;
 })();
 const SAME_ENGINE = `Ubuntu|${SAME_BOOT}`;
+// The tests never reach the host's Docker (13 Nov 2026: backup_data walks every Docker volume of the computer it runs on, so on a runner or a lane box with many leftover volumes the same tests took 10 s each
+// and the file passed the fast runner's 30 s cap only when the computer was tidy). A `docker` that answers nothing and succeeds goes first in PATH; a test that needs Docker's answers defines its own `docker`.
+const FAKE_BIN = ((): string => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-test-bin-"));
+  fs.writeFileSync(path.join(d, "docker"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  return d;
+})();
+/** A test's own PATH entries first (its fake apt, gpg, dig), then the fake docker, then the computer's own PATH (which a test's entry usually ends with: it is taken off and put back after the fake). */
+const pathWith = (own?: string): string => {
+  const host = process.env.PATH ?? "";
+  const mine =
+    own === undefined ? "" : (own.endsWith(host) ? own.slice(0, own.length - host.length) : own).replace(/:$/, "");
+  return [mine, FAKE_BIN, host].filter(Boolean).join(":");
+};
 type Out = { status: number | null; stdout: string; stderr: string };
 /** Runs a snippet of sh with a script's functions loaded and nothing else executed. */
 function sh(script: string, body: string, env: Record<string, string> = {}): Out {
   const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], {
     encoding: "utf8",
     env: {
-      PATH: process.env.PATH ?? "",
       VYRE_SOURCE_ONLY: "1",
       VYRE_TEST_MODE: "1",
       VYRE_TEST_ENGINE: SAME_ENGINE,
       VYRE_TEST_BOOT_ID_FILE: BOOT_FILE,
       VYRE_TEST_OS: "Linux",
       ...env,
+      PATH: pathWith(env["PATH"]),
     },
   });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
@@ -258,7 +272,7 @@ test("an update killed mid-way rolls back and starts the server again", async ()
     const script = `. "${SERVER}"\ntrap cleanup EXIT\nfetch_release(){ REL_VERSION=1.1.0; }; unpack_release(){ :; }; docker(){ return 0; }; backup_data(){ BACKUP_FILE=f; }; cur_version(){ printf 1.0.0; }; dc(){ echo "$*" >>"${dir}/dc.log"; }; wait_healthy(){ touch "${dir}/waiting"; n=0; while [ $n -lt 30 ]; do sleep 1; n=$((n+1)); done; }; cmd_update --yes --version 1.1.0 --feed-base https://x.example/`;
     const child = spawn("sh", ["-c", script], {
       env: {
-        PATH: process.env.PATH ?? "",
+        PATH: `${FAKE_BIN}:${process.env.PATH ?? ""}`,
         VYRE_SOURCE_ONLY: "1",
         VYRE_TEST_MODE: "1",
         VYRE_TEST_ENGINE: SAME_ENGINE,
@@ -472,6 +486,37 @@ test("restore puts the old data back when the server is not healthy on the resto
     assert.equal(valueIn(path.join(dir, "data", "space", "events.db")), "KEEP");
     assert.equal(read(path.join(dir, "data", "caddy", "cert.pem")), "KEEP");
     assert.deepEqual(fs.readdirSync(path.join(dir, "data")).sort(), ["caddy", "space"]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// 13 Nov 2026 (install.backup.test.ts overran the fast runner's 30 s on CI): a backup of the test's own folder must not ask the computer's Docker anything.
+test("the backup tests never call the host's Docker", () => {
+  const dir = tmp();
+  try {
+    const host = path.join(dir, "host-bin");
+    fs.mkdirSync(host);
+    fs.writeFileSync(path.join(host, "docker"), `#!/bin/sh\necho "$*" >>"${dir}/host-docker.log"\nexit 0\n`, {
+      mode: 0o755,
+    });
+    fs.mkdirSync(path.join(dir, "data", "space"), { recursive: true });
+    spawnSync("node", [
+      "--no-warnings",
+      "-e",
+      `const {DatabaseSync}=require("node:sqlite");new DatabaseSync(process.argv[1]).exec("CREATE TABLE t(x)")`,
+      path.join(dir, "data", "space", "events.db"),
+    ]);
+    const was = process.env.PATH;
+    process.env.PATH = `${host}:${was ?? ""}`; // the computer's own PATH, with a docker that records being asked
+    let r: Out;
+    try {
+      r = sh(SERVER, `DATA_DIR="${dir}/data"; backup_data x`, { VYRE_DIR: dir });
+    } finally {
+      process.env.PATH = was;
+    }
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(fs.existsSync(path.join(dir, "host-docker.log")), false, "the host's docker was not called");
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
