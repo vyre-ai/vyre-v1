@@ -6,6 +6,7 @@
 // DECISION: Promote keeps the id, history and versions, makes the Automation a Space one owned by the named person and run as its own Service principal. The access it was
 // confirmed with is stored (automations_access) with the vault names it may use (automations_vault); subscription keys must be replaced by shared API keys first.
 import { isTrustedService } from "../../../lib/trust.ts";
+import { ownerAsked } from "../../../lib/owner-asked.ts";
 import { registry } from "../../../generated/registry.ts";
 import {
   allAutomations, clean, defaultAlerts, emitAuto, findGroup, getAutomation, isOwner, listGroups, listVersions, markDeleted, markRestored, me, newId, newSecret, out, page,
@@ -844,8 +845,18 @@ export async function webhookGet(ctx: AutoCtx, input: In): Promise<unknown> {
   }
   return { url: webhookUrl(ctx, a.id, secret), method: "POST" };
 }
+/**
+ * What hands out a secret or moves an Automation to the Space is not an agent's to do on its own: an agent acting for the owner does it only in a turn the owner started with their own
+ * message (lib/owner-asked.ts, read by the server). The owner's own press, and the server, are not agents and pass.
+ */
+async function mustBeAskedIfAgent(ctx: AutoCtx, a: Automation): Promise<void> {
+  if (ctx.principal.kind !== "agent") return;
+  if (await ownerAsked(ctx as never, a.ownerId)) return;
+  raise(ctx, "validation.precondition_failed", "An agent can do that only in a turn the owner started with their own message.", { reason: "owner_asked_only" });
+}
 export async function webhookRotate(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
+  await mustBeAskedIfAgent(ctx, a);
   needWebhookTrigger(ctx, a);
   const secret = newSecret();
   ctx.db.run("INSERT OR REPLACE INTO automations_webhooks (automation_id, secret, rotated_at) VALUES (?, ?, ?)", a.id, secret, ctx.now());
@@ -941,6 +952,7 @@ export async function previewPromote(ctx: AutoCtx, input: In): Promise<unknown> 
 
 export async function promote(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
+  await mustBeAskedIfAgent(ctx, a);
   const wasRunsAs = a.runsAs;
   if (a.kind === "space") raise(ctx, "validation.precondition_failed", "That automation is already a Space automation.", { reason: "already_space" });
   const diff = await accessDiff(ctx, a);
