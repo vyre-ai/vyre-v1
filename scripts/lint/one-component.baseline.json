@@ -202,9 +202,6 @@
   "apps/app/src/shell/connect/sheets.tsx": {
     "declared": 1
   },
-  "ui/src/AccessSheet/parts.tsx": {
-    "declared": 1
-  },
   "ui/src/EmailBuilder/index.tsx": {
     "declared": 1
   },
