@@ -54,7 +54,8 @@ jobs:
   gates:
     # P-CI_03: ownership, boundaries, lint and typecheck run on every push, so evidence that claims them is verified here.
     runs-on: [self-hosted, linux, v1]
-    timeout-minutes: 5
+    # 15, not 5: on a branch that changes every source file (the one-time format, a mass rename) the Prettier and per-package typecheck steps alone pass five minutes; a normal branch still finishes in about one
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -108,7 +109,7 @@ jobs:
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
           git diff --name-only --no-renames --diff-filter=d "$base"...HEAD | grep -E '\.(ts|tsx|mts|mjs|js|cjs|css)$' > prettier-files.txt || true
-          if [ -s prettier-files.txt ]; then xargs -d '\n' npx --yes prettier@3.6.2 --check < prettier-files.txt; else echo "no source files changed"; fi
+          if [ -s prettier-files.txt ]; then npx --yes prettier@3.6.2 --version > /dev/null; xargs -d '\n' -P 4 -n 300 npx --yes prettier@3.6.2 --check < prettier-files.txt; else echo "no source files changed"; fi   # four at a time, 300 files each; xargs exits 123 if any batch fails
       - name: make-emits (enforced); a capability that makes a resource must emit an event whose subject is that type
         run: node scripts/lint/make-emits.ts --enforce
       - name: idem-calls (report mode until main reports 0 missing); ctx.call to a capability with idempotency key must pass idempotencyKey
