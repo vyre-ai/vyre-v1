@@ -3,13 +3,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../kernel/src/authorize/index.ts";
-import { createInvoke, indexCapabilities, resetUnexpectedLog, unexpectedWords } from "../src/invoke.ts";
+import { createInvoke, indexCapabilities, noteCallSecret, resetUnexpectedLog, unexpectedWords } from "../src/invoke.ts";
 import type { CtxSeed, InvokeDeps } from "../src/invoke.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 
 const cap = { v: 1, name: "example.boom", summary: "s", input: { type: "object" }, output: { type: "object" }, errors: [], resource: { type: "space" }, permission: null, level: "view", risk: "low", effects: "read", emits: [], idempotency: "natural", surfaces: {}, examples: [] } as unknown as CapabilityDef;
 
-async function boom(thrown: unknown) {
+async function boom(thrown: unknown | ((traceId: string) => unknown), input: unknown = {}) {
   const s = new AccessSnapshot();
   s.putPrincipal({ id: "usr_dana", kind: "person", status: "active", name: "Dana" });
   s.putResource({ id: "spc_1", type: "space", parent_id: null, label: 0, owner_id: "usr_dana", holds: 0 });
@@ -17,13 +17,13 @@ async function boom(thrown: unknown) {
   const rows: Array<{ msg: string; attrs?: Record<string, unknown> }> = [];
   const deps: InvokeDeps = {
     caps: indexCapabilities([cap]), validateInput: () => [], authorize: (r) => authorize(s, r),
-    handler: () => async () => { throw thrown; },
+    handler: () => async (ctx) => { throw typeof thrown === "function" ? (thrown as (t: string) => unknown)(ctx.trace.traceId) : thrown; },
     commit: async (b) => b.events.map((e, i) => ({ ...e, seq: i + 1 })), publish: () => {}, now: () => 1_000,
     secrets: () => ["plain-secret-value"], onUnexpected: (a) => seen.push(a),
     log: { debug() {}, info() {}, warn() {}, error: (msg, attrs) => rows.push({ msg, ...(attrs ? { attrs } : {}) }) },
   };
   const seed: CtxSeed = { space: "spc_1", principal: { kind: "person", id: "usr_dana" } };
-  const err = await createInvoke(deps)("example.boom", {}, seed).then(() => null, (e: { error?: { code: string; message: string; traceId: string } }) => e);
+  const err = await createInvoke(deps)("example.boom", input, seed).then(() => null, (e: { error?: { code: string; message: string; traceId: string } }) => e);
   return { err, seen, rows };
 }
 
@@ -93,4 +93,20 @@ test("the same capability and message is written once a minute, then counted", a
     assert.equal(lines.length, 2);
     assert.match(lines[1]!, /"repeated":29/, "the next line carries the count");
   } finally { process.stderr.write = was; }
+});
+
+test("an error thrown inside a call that resolved a Vault value never carries the value to the line or the row", async () => {
+  const value = "hunter2-vault-value-9981";
+  const { seen, rows } = await boom((traceId) => { noteCallSecret(traceId, value); return new Error(`login failed for ${value} at https://example.com`); });
+  assert.equal(seen.length, 1);
+  assert.ok(!JSON.stringify(seen[0]).includes(value), "the line does not carry it");
+  assert.ok(!JSON.stringify(rows).includes(value), "nor does the row");
+  assert.match(seen[0]!.message, /login failed for \[hidden\]/);
+});
+
+test("a call that names a Vault handle logs its error's class and frames only, whatever the message says", async () => {
+  const { seen, rows } = await boom(new Error("the value was zq81-not-noted-anywhere"), { value: "#Acme_Portal.password" });
+  assert.equal(seen[0]!.message, "Error: (message withheld: this call used a Vault value)");
+  assert.ok(!JSON.stringify(seen).includes("zq81") && !JSON.stringify(rows).includes("zq81"));
+  assert.match(seen[0]!.stack, /invoke\.unexpected-log\.test\.ts/, "the frames are kept");
 });

@@ -299,7 +299,7 @@ export function personalMatrix(o: {
 }
 
 /** What an unexpected error says, with every known secret and every key-shaped value (lib/hooks.ts redact) taken out. It never throws: a value that cannot be read says so. */
-export function unexpectedWords(e: unknown, secrets: readonly string[]): { message: string; stack: string; head: string } {
+export function unexpectedWords(e: unknown, secrets: readonly string[], o: { withhold?: boolean } = {}): { message: string; stack: string; head: string } {
   try {
     const clean = (t: string): string => {
       let out = t;
@@ -309,6 +309,11 @@ export function unexpectedWords(e: unknown, secrets: readonly string[]): { messa
     const message = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
     const lines = (e instanceof Error && typeof e.stack === "string" ? e.stack : message).split("\n");
     const frames = lines.filter((l) => /^\s+at /.test(l));
+    // a call that used a Vault value: what the error says may quote it, so only its class and the frames (file and line) are kept
+    if (o.withhold) {
+      const said = `${e instanceof Error ? e.name : "Error"}: (message withheld: this call used a Vault value)`;
+      return { message: said, stack: clean(frames.slice(0, 8).join("\n")), head: [said, ...frames.slice(0, 4)].map(clean).join("\n") };
+    }
     // `stack`: the frames (eight); `head`: what the logs.db row keeps, the same scrubbed text cut to five lines
     return { message: clean(message).slice(0, 1000), stack: clean(frames.slice(0, 8).join("\n")), head: clean(lines.slice(0, 5).join("\n")) };
   } catch { return { message: "an error that could not be read", stack: "", head: "" }; }
@@ -327,6 +332,21 @@ function writeUnexpected(a: { cap: string; traceId: string; message: string; sta
     process.stderr.write(`vyred: handler threw ${JSON.stringify({ ...a, ...(was && was.hidden > 0 ? { repeated: was.hidden } : {}) })}\n`);
   } catch { /* logging never throws into a call */ }
 }
+/**
+ * The Vault values a call resolved, by trace id, so that an error thrown inside that call is scrubbed of them when it is logged. A seam that hands a value to a call (the Vault's read, a terminal or browser
+ * channel) calls this with the plain value; nested calls share the trace id. Bounded: it forgets everything past 2,000 traces.
+ */
+const callSecrets = new Map<string, Set<string>>();
+export function noteCallSecret(traceId: string, value: string): void {
+  if (value.length < 4) return;
+  if (callSecrets.size > 2000) callSecrets.clear();
+  (callSecrets.get(traceId) ?? callSecrets.set(traceId, new Set()).get(traceId)!).add(value);
+}
+/** Does this call name a Vault value (a #Handle.field reference) or belong to the Vault: its errors are logged without their words. */
+export const usesVault = (cap: string, input: unknown): boolean => {
+  if (cap.startsWith("vault.")) return true;
+  try { return /#[A-Za-z0-9_]+\.[A-Za-z0-9_]+/.test(JSON.stringify(input) ?? ""); } catch { return false; }
+};
 /** Tests: forget what was written. */
 export const resetUnexpectedLog = (): void => written.clear();
 
@@ -416,7 +436,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       span(error.code.startsWith("permission.") ? "denied" : "error", error.code);
       if (unexpected) {
         // the caller only ever sees "Something went wrong on our side"; the server keeps what really happened, always (the logs.db row can be counted away as a repeat or trimmed, so it is also written to the server's own output)
-        const said = unexpectedWords(e, deps.secrets?.() ?? []);
+        const said = unexpectedWords(e, [...(deps.secrets?.() ?? []), ...(callSecrets.get(traceId) ?? [])], { withhold: usesVault(capName, input) });
         // the row keeps the scrubbed head of the stack (five lines): the sink drops a message key as content, and the stack text is scrubbed the same way as the line
         log.error("handler threw", { cap: capName, traceId, stack: said.head });
         try { (deps.onUnexpected ?? writeUnexpected)({ cap: capName, traceId, message: said.message, stack: said.stack }); } catch { /* never throws into the call */ }
