@@ -15,6 +15,8 @@ export function tipPlace(
 
 export interface TipEl {
   title?: string;
+  isConnected?: boolean;
+  getAttribute?(k: string): string | null;
   dataset: Record<string, string | undefined>;
   scrollWidth?: number;
   clientWidth?: number;
@@ -33,8 +35,10 @@ interface TipLabel {
   setAttribute(k: string, v: string): void;
 }
 export interface TipEnv {
+  /** Where the tip is drawn: the app's one overlay layer, so it sits above every dialog, sheet and menu. Absent: the body. */
+  layer?: () => { appendChild(n: never): void } | null;
   document: { createElement(t: string): TipLabel; body: { appendChild(n: never): void } };
-  innerWidth?: number;
+  innerWidth?: number | undefined;
   addEventListener(t: string, f: (e: never) => void, o?: unknown): void;
 }
 
@@ -47,14 +51,17 @@ const isCut = (n: TipEl): boolean => {
 };
 
 /** The one tooltip. `show` and `hide` are for a list whose cursor is a row (aria-activedescendant): it asks for the tip itself. */
-export function createTips(g: TipEnv): { show(el: TipEl, text: string): void; hide(): void } {
+export function createTips(g: TipEnv): { show(el: TipEl, text: string): void; hide(): void; hideFor(el: TipEl): void } {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let cur: TipEl | null = null;
   let label: TipLabel | null = null;
   let described: TipEl | null = null;
+  let watcher: ReturnType<typeof setInterval> | null = null;
   const hide = (): void => {
     if (timer) clearTimeout(timer);
     timer = null;
+    if (watcher) clearInterval(watcher);
+    watcher = null;
     cur = null;
     if (label) label.style["display"] = "none";
     if (described) described.removeAttribute("aria-describedby");
@@ -68,9 +75,9 @@ export function createTips(g: TipEnv): { show(el: TipEl, text: string): void; hi
       label.setAttribute("data-testid", "tip");
       label.setAttribute(
         "style",
-        "position:fixed;z-index:80;display:none;background:var(--ink);color:var(--win);font-size:12px;line-height:16px;padding:4px 8px;border-radius:7px;pointer-events:none;white-space:pre;max-width:320px",
+        "position:fixed;z-index:2147483647;display:none;background:var(--ink);color:var(--win);font-size:12px;line-height:16px;padding:4px 8px;border-radius:7px;pointer-events:none;white-space:pre;max-width:320px",
       );
-      g.document.body.appendChild(label as never);
+      (g.layer?.() ?? g.document.body).appendChild(label as never);
     }
     label.textContent = text;
     label.style["display"] = "block";
@@ -82,13 +89,21 @@ export function createTips(g: TipEnv): { show(el: TipEl, text: string): void; hi
     );
     label.style["left"] = `${at.left}px`;
     label.style["top"] = `${at.top}px`;
-    // a screen reader reads the label as the element's description
+    // a screen reader reads the label as the element's description, and an element that only had a title keeps its name
     n.setAttribute?.("aria-describedby", "vyre-tip");
     described = n;
+    // the element leaves the page (a row deleted, a route change) while its tip is up: the tip goes with it
+    if (watcher) clearInterval(watcher);
+    watcher = setInterval(() => {
+      if (n.isConnected === false) hide();
+    }, 120);
+    (watcher as { unref?: () => void }).unref?.();
   };
   const arm = (n: TipEl): void => {
     if (n.title) {
       n.dataset["tt"] = n.title;
+      // the title was the accessible name of an icon-only button: it moves to aria-label, never leaves the element without one
+      if (!n.getAttribute?.("aria-label")) n.setAttribute?.("aria-label", n.title);
       n.removeAttribute("title");
     }
     if (n === cur) return;
@@ -130,18 +145,36 @@ export function createTips(g: TipEnv): { show(el: TipEl, text: string): void; hi
       put(n, text);
     },
     hide,
+    hideFor(n) {
+      if (cur === n || described === n) hide();
+    },
   };
 }
 
 let tips: ReturnType<typeof createTips> | null = null;
+let overlayRoot: (() => unknown) | null = null;
 
 /** Installs the one tooltip once. Web only; a page without a document does nothing. */
 export function installTips(): void {
   const g = globalThis as unknown as Partial<TipEnv>;
   if (tips || !g.document || !g.addEventListener) return;
-  tips = createTips(g as TipEnv);
+  const win = g as { addEventListener: TipEnv["addEventListener"]; innerWidth?: number };
+  tips = createTips({
+    document: g.document,
+    get innerWidth() {
+      return win.innerWidth;
+    },
+    addEventListener: (t, f, o) => win.addEventListener(t, f, o),
+    layer: () => (overlayRoot ? (overlayRoot() as unknown as { appendChild(n: never): void } | null) : null),
+  });
+  // the overlay layer is loaded when the first tip is installed (kept out of the static imports so this file stays plain TypeScript)
+  void import("../Overlay/index.tsx").then((m) => {
+    overlayRoot = m.ensureOverlayRoot;
+  });
 }
 
 /** Show the tip for a thing now (a list cursor on a row); `hideTip` puts it away. Nothing before the tooltip is installed. */
 export const showTip = (el: TipEl, text: string): void => tips?.show(el, text);
 export const hideTip = (): void => tips?.hide();
+/** Put away the tip if it is for this element (a Tooltip that unmounts). */
+export const hideTipFor = (el: TipEl): void => tips?.hideFor(el);
