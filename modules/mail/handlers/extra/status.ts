@@ -51,6 +51,13 @@ export async function health(ctx: MailCtx, input: { mailboxId?: string }): Promi
   }
   const out: { state: State; detail?: string; latencyMs?: number } = { state: worst.state };
   if (worst.state !== "healthy") out.detail = `${worst.address} ${worst.why}. Open the mailbox, check the connection and press Sync now.`;
+  // a shared inbox nobody owns (made by an agent before an inbox took its person as owner): said plainly, and it does not make the state worse
+  const orphans = rows.filter((r) => str(r, "kind") === "shared" && (r["ownerId"] === null || r["ownerId"] === undefined)).map((r) => str(r, "address"));
+  if (orphans.length > 0) {
+    const names = orphans.slice(0, 3).join(", ") + (orphans.length > 3 ? ` and ${orphans.length - 3} more` : "");
+    const line = `${orphans.length} shared ${orphans.length === 1 ? "inbox has" : "inboxes have"} no owner: ${names}. An admin can give ${orphans.length === 1 ? "it" : "each"} to a person.`;
+    out.detail = out.detail ? `${out.detail} ${line}` : line;
+  }
   out.latencyMs = Math.max(0, ctx.now() - started);
   return out;
 }

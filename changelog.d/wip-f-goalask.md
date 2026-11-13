@@ -2,3 +2,5 @@
 - An agent can start a drafted goal in the same way: when you asked in your own message, in any chat, not only the goal's own chat.
 - Goal deadlines and check-in times now reach the agent in your time zone as well as the raw number, so it stops reading them out in UTC.
 - A goal's side pane now opens on Details, with the tabs in the order Details, Activity, Files.
+- Saved email blocks, snippets and designs an agent makes for you are now yours: you see and change them, and nobody else does.
+- A shared inbox an agent creates for you is now owned by you, and the mail health check names any shared inbox that has no owner.
