@@ -150,6 +150,12 @@ interface Skipped {
   reason: string;
 }
 
+/** The column patch for the list of skipped items: nothing when this pass did not learn it, null when it is now empty. */
+function skippedPatch(known: boolean, list_: readonly Skipped[]): Row {
+  if (!known) return {};
+  return { skipped: list_.length > 0 ? JSON.stringify(list_) : null };
+}
+
 function skippedOf(row: Row): Skipped[] {
   if (isNull(row["skipped"])) return [];
   try {
@@ -1098,7 +1104,7 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
       state: "idle",
       error: null,
       last_sync_at: now,
-      ...(skippedKnown ? { skipped: skippedNow.length > 0 ? JSON.stringify(skippedNow) : null } : {}),
+      ...skippedPatch(skippedKnown, skippedNow),
       stale_since: leftover ? (isNull(row["stale_since"]) ? now : row["stale_since"]) : null,
       updated_at: now,
     });
@@ -1882,7 +1888,7 @@ async function localReport(ctx: Ctx, input: unknown): Promise<{ applied: number;
       last_sync_at: now,
       stale_since: null,
       updated_at: now,
-      ...(skippedNow !== undefined ? { skipped: skippedNow.length > 0 ? JSON.stringify(skippedNow) : null } : {}),
+      ...skippedPatch(skippedNow !== undefined, skippedNow ?? []),
     });
     ctx.emit("mount.synced", `folder/${m.folderId}`, {
       mountId: m.id,

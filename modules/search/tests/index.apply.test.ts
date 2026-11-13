@@ -423,3 +423,25 @@ test("Redaction for AI: a person still finds a redacted word in a file they may 
   await indexApply(h.ctx, { entity: "file", id: "fil_demand", op: "delete", seq: 4 });
   assert.equal(h.rows("SELECT n FROM search_agent_docs").length, 1);
 });
+
+test("a text file that lives at its provider and cannot be fetched right now is indexed by its name and path; any other read failure still fails the pass", async () => {
+  const down = (code: string) => () => {
+    throw Object.assign(new Error("down"), { error: { code } });
+  };
+  const files = (code: string) =>
+    harness({
+      respond: {
+        "files.get": (i) => ({
+          file: { fileId: i["fileId"], name: "Plan.md", kind: "markdown", folderId: "fld_a", label: 1, updatedAt: 9 },
+        }),
+        "files.folder.get": () => ({ folder: { path: "My Drive" } }),
+        "files.read": down(code),
+      },
+    });
+  const h = files("provider.unavailable");
+  await indexApply(h.ctx, { entity: "file", id: "fil_drive", op: "upsert", seq: 1 });
+  assert.equal(row(h, "fil_drive")["path"], "My Drive/Plan.md");
+  assert.equal(row(h, "fil_drive")["body"], "");
+  const bad = files("internal.unexpected");
+  await assert.rejects(() => indexApply(bad.ctx, { entity: "file", id: "fil_x", op: "upsert", seq: 1 }));
+});

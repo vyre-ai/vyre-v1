@@ -2288,7 +2288,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }
         if (!hit) return null;
         const found = { fileId: hit.id, name: hit.name };
-        const f = (await dispatchSystem("files.read", { fileId: found.fileId, as: "base64" })) as {
+        // a file that lives at its provider and cannot be fetched right now is not served (a visitor gets "not found"), never served as an empty file
+        const f = (await dispatchSystem("files.read", { fileId: found.fileId, as: "base64" }).catch((e: unknown) => {
+          const code = (e as { error?: { code?: string }; code?: string } | null)?.error?.code ?? (e as { code?: string } | null)?.code;
+          if (/^(provider\.|timeout\.|auth\.|rate_limit\.)/.test(String(code))) return {};
+          throw e;
+        })) as {
           base64?: string;
           mime?: string;
         };

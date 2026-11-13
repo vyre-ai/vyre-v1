@@ -23,6 +23,9 @@ const enc = new TextEncoder(),
   CHUNK = 128 * 1024;
 const sensitive =
   /^(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|authorization|private[_-]?key|secret|token)$/i;
+/** The causes a live (provider-held) file cannot be fetched for: nothing is lost by exporting its empty placeholder as it is. */
+const PROVIDER_DOWN = /^(provider\.|timeout\.|auth\.|rate_limit\.|validation\.not_found)/;
+
 export function credentialContent(text: string, secrets: readonly string[] = []): boolean {
   return (
     secrets.some((secret) => secret.length >= 6 && text.includes(secret)) ||
@@ -281,6 +284,8 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
               (e as { code?: string } | null)?.code;
             if (file.kind === "google_native" && code === "validation.unsupported")
               throw new SpaceExportError(`Required provider-native snapshot bytes are missing for ${id}.`);
+            // an empty placeholder of a file that lives at its provider (a Drive file never opened) holds no bytes here: when the provider cannot be reached it is exported as the empty file it is, as before
+            if (file.size === 0 && PROVIDER_DOWN.test(String(code))) return { base64: "", size: 0, version: version.n };
             throw e;
           },
         );
@@ -322,7 +327,15 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
     const currentChunks: Uint8Array[] = [];
     let currentOffset = 0;
     do {
-      const current = await read("files.read", { fileId: id, as: "base64", offset: currentOffset, length: CHUNK });
+      const current = await read("files.read", { fileId: id, as: "base64", offset: currentOffset, length: CHUNK }).catch(
+        (e: unknown) => {
+          const code =
+            (e as { error?: { code?: string }; code?: string } | null)?.error?.code ??
+            (e as { code?: string } | null)?.code;
+          if (file.size === 0 && PROVIDER_DOWN.test(String(code))) return { base64: "", size: 0, version: file.version };
+          throw e;
+        },
+      );
       if (typeof current.base64 !== "string" || current.version !== file.version || current.size !== file.size)
         throw new SpaceExportError(`Current file bytes changed during export: ${id}.`);
       const chunk = new Uint8Array(Buffer.from(current.base64, "base64"));

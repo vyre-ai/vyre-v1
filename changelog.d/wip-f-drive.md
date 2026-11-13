@@ -10,3 +10,4 @@
 - A Drive item that could not be shown is asked about again on every sync, so fixing its name or permission brings it in by itself.
 - When Drive content cannot be fetched you now see why: an expired sign-in (reconnect it), a rate limit (try again in a minute) or a file removed in Drive. A workbook with several sheets says it shows the first.
 - A picture opened in Files now draws. It was fetched without your sign-in, so the Space answered 401 and the viewer showed an empty checkerboard for every image, not only Drive ones.
+- Search, the Space export and sites served from a folder keep working when a Google Drive file cannot be fetched right now: search indexes the file by name, the export carries the empty placeholder, and a site answers not found, instead of failing the whole pass.
