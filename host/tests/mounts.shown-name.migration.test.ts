@@ -25,7 +25,9 @@ const open = () => openDb(path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-
 const columns = (db: ReturnType<typeof open>): string[] =>
   (db.all("PRAGMA table_info(mounts_item)") as { name: string }[]).map((c) => c.name);
 const rows = (db: ReturnType<typeof open>): Record<string, unknown>[] =>
-  JSON.parse(JSON.stringify(db.all("SELECT mount_id, item_key, remote_id, name, shown_name FROM mounts_item ORDER BY item_key"))) as Record<string, unknown>[];
+  JSON.parse(
+    JSON.stringify(db.all("SELECT mount_id, item_key, remote_id, name, shown_name FROM mounts_item ORDER BY item_key")),
+  ) as Record<string, unknown>[];
 
 const addNew = (root: string): void =>
   fs.copyFileSync(path.join(MIGRATIONS, NEW), path.join(root, "modules", "mounts", "migrations", NEW));
@@ -41,26 +43,107 @@ test("an rc.26 file with rows: 0005 adds shown_name as NULL to every row, keeps 
   const db = open();
   assert.equal(migrate(db, root, () => 1).length, 3);
   assert.equal(columns(db).includes("shown_name"), false, "rc.26 has no shown_name");
-  db.run("INSERT INTO mounts_mount (id, folder_id, kind, name, mode, review_changes, state, owner, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", "mnt_1", "fld_1", "google_drive", "Drive", "live_only", 1, "idle", "usr_a", 1, 1);
+  db.run(
+    "INSERT INTO mounts_mount (id, folder_id, kind, name, mode, review_changes, state, owner, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "mnt_1",
+    "fld_1",
+    "google_drive",
+    "Drive",
+    "live_only",
+    1,
+    "idle",
+    "usr_a",
+    1,
+    1,
+  );
   // the shapes rc.26 wrote: a mapped file, a folder, a Vyre-side item with no remote id yet, and a name that is only spaces' worth of text
-  db.run("INSERT INTO mounts_item (mount_id, item_key, remote_id, parent_key, file_id, folder_id, name, is_folder, native, dirty, deleted, conflict) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", "mnt_1", "itm_a", "d1", null, null, "fld_1", "Drive", 1, 0, 0, 0, 0);
-  db.run("INSERT INTO mounts_item (mount_id, item_key, remote_id, parent_key, file_id, folder_id, name, is_folder, native, dirty, deleted, conflict) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", "mnt_1", "itm_b", "d2", "itm_a", "fil_b", null, "Budget.pdf", 0, 0, 0, 0, 0);
-  db.run("INSERT INTO mounts_item (mount_id, item_key, remote_id, parent_key, file_id, folder_id, name, is_folder, native, dirty, deleted, conflict) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", "mnt_1", "itm_c", null, "itm_a", "fil_c", null, "new from Vyre.txt", 0, 0, 1, 0, 0);
-  db.run("INSERT INTO mounts_item (mount_id, item_key, remote_id, parent_key, file_id, folder_id, name, is_folder, native, dirty, deleted, conflict) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", "mnt_1", "itm_d", "d4", "itm_a", "fil_d", null, "", 0, 0, 0, 0, 0);
-  const before = JSON.parse(JSON.stringify(db.all("SELECT * FROM mounts_item ORDER BY item_key"))) as Record<string, unknown>[];
+  db.run(
+    "INSERT INTO mounts_item (mount_id, item_key, remote_id, parent_key, file_id, folder_id, name, is_folder, native, dirty, deleted, conflict) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "mnt_1",
+    "itm_a",
+    "d1",
+    null,
+    null,
+    "fld_1",
+    "Drive",
+    1,
+    0,
+    0,
+    0,
+    0,
+  );
+  db.run(
+    "INSERT INTO mounts_item (mount_id, item_key, remote_id, parent_key, file_id, folder_id, name, is_folder, native, dirty, deleted, conflict) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "mnt_1",
+    "itm_b",
+    "d2",
+    "itm_a",
+    "fil_b",
+    null,
+    "Budget.pdf",
+    0,
+    0,
+    0,
+    0,
+    0,
+  );
+  db.run(
+    "INSERT INTO mounts_item (mount_id, item_key, remote_id, parent_key, file_id, folder_id, name, is_folder, native, dirty, deleted, conflict) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "mnt_1",
+    "itm_c",
+    null,
+    "itm_a",
+    "fil_c",
+    null,
+    "new from Vyre.txt",
+    0,
+    0,
+    1,
+    0,
+    0,
+  );
+  db.run(
+    "INSERT INTO mounts_item (mount_id, item_key, remote_id, parent_key, file_id, folder_id, name, is_folder, native, dirty, deleted, conflict) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "mnt_1",
+    "itm_d",
+    "d4",
+    "itm_a",
+    "fil_d",
+    null,
+    "",
+    0,
+    0,
+    0,
+    0,
+    0,
+  );
+  const before = JSON.parse(JSON.stringify(db.all("SELECT * FROM mounts_item ORDER BY item_key"))) as Record<
+    string,
+    unknown
+  >[];
 
   addNew(root);
-  assert.deepEqual(migrate(db, root, () => 2), [{ module: "mounts", file: NEW }]);
+  assert.deepEqual(
+    migrate(db, root, () => 2),
+    [{ module: "mounts", file: NEW }],
+  );
   assert.equal(columns(db).filter((c) => c === "shown_name").length, 1);
   const after = rows(db);
   assert.equal(after.length, 4, "no row lost");
-  assert.ok(after.every((r) => r["shown_name"] === null), "every old row reads NULL");
+  assert.ok(
+    after.every((r) => r["shown_name"] === null),
+    "every old row reads NULL",
+  );
   assert.deepEqual(
     after.map((r) => [r["item_key"], r["remote_id"], r["name"]]),
     before.map((r) => [r["item_key"], r["remote_id"], r["name"]]),
     "ids and names are untouched",
   );
-  assert.deepEqual(migrate(db, root, () => 3), [], "a second run applies nothing");
+  assert.deepEqual(
+    migrate(db, root, () => 3),
+    [],
+    "a second run applies nothing",
+  );
   assert.equal(rows(db).length, 4);
   assert.equal(columns(db).filter((c) => c === "shown_name").length, 1);
 });
@@ -73,7 +156,13 @@ test("an empty rc.26 table takes 0005, and the column then holds a value", () =>
   migrate(db, root, () => 2);
   assert.equal(columns(db).includes("shown_name"), true);
   assert.deepEqual(rows(db), []);
-  db.run("INSERT INTO mounts_item (mount_id, item_key, name, shown_name) VALUES (?, ?, ?, ?)", "mnt_1", "itm_x", "Q3/Q4 plan.pdf", "Q3-Q4 plan.pdf");
+  db.run(
+    "INSERT INTO mounts_item (mount_id, item_key, name, shown_name) VALUES (?, ?, ?, ?)",
+    "mnt_1",
+    "itm_x",
+    "Q3/Q4 plan.pdf",
+    "Q3-Q4 plan.pdf",
+  );
   assert.equal(rows(db)[0]?.["shown_name"], "Q3-Q4 plan.pdf");
 });
 

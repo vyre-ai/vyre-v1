@@ -22,12 +22,20 @@ const FOLDER = `${NATIVE}folder`;
 const PDF = "application/pdf";
 const T = "2026-10-01T10:00:00.000Z";
 const T2 = "2026-10-02T10:00:00.000Z";
-const f = (id: string, name: string, extra: Row = {}): Row => ({ id, name, mimeType: PDF, modifiedTime: T, size: 10, ...extra });
+const f = (id: string, name: string, extra: Row = {}): Row => ({
+  id,
+  name,
+  mimeType: PDF,
+  modifiedTime: T,
+  size: 10,
+  ...extra,
+});
 
 function listing(w: World, items: Row[], at = "root_drv"): void {
   w.google.listings.set(at, [{ files: items }]);
   for (const it of items)
-    if (it["mimeType"] === FOLDER && !w.google.listings.has(String(it["id"]))) w.google.listings.set(String(it["id"]), [{ files: [] }]);
+    if (it["mimeType"] === FOLDER && !w.google.listings.has(String(it["id"])))
+      w.google.listings.set(String(it["id"]), [{ files: [] }]);
 }
 
 async function mountDrive(w: World): Promise<string> {
@@ -58,7 +66,11 @@ const remoteNames = (w: World, mountId: string): [unknown, unknown][] =>
 function assertInPlace(w: World, mountId: string, before: [unknown, unknown][], replacedIds: string[]): void {
   assert.deepEqual(w.google.trashed, [], "nothing is trashed at Drive");
   assert.deepEqual(w.google.folders, [], "no folder is made");
-  assert.deepEqual(w.google.replaced.map((r) => r.remoteId).sort(), [...replacedIds].sort(), "each edited file is replaced in place by its Drive id");
+  assert.deepEqual(
+    w.google.replaced.map((r) => r.remoteId).sort(),
+    [...replacedIds].sort(),
+    "each edited file is replaced in place by its Drive id",
+  );
   assert.equal(w.google.uploads.length, replacedIds.length, "one write per edited file, no extra file");
   assert.deepEqual(remoteNames(w, mountId), before, "the items keep their Drive ids and Drive names");
 }
@@ -108,7 +120,10 @@ test("(d) the second of a same-named pair inside a folder that itself got a suff
   listing(w, [f("a1", "Budget.pdf")], "fa");
   listing(w, [f("b1", "Budget.pdf"), f("b2", "Budget.pdf", { modifiedTime: T2 })], "fb");
   const mountId = await mountDrive(w);
-  assert.ok(w.files.paths().includes("Drive/Docs (Google Drive)/Budget (Google Drive).pdf"), w.files.paths().join(", "));
+  assert.ok(
+    w.files.paths().includes("Drive/Docs (Google Drive)/Budget (Google Drive).pdf"),
+    w.files.paths().join(", "),
+  );
   const before = remoteNames(w, mountId);
   editInVyre(w, "Budget (Google Drive).pdf", "inside the suffixed folder, second, edited");
   editInVyre(w, "Budget.pdf", "inside a folder, edited"); // the first one found by name: either of the first two
@@ -143,7 +158,11 @@ test("(g) still safe: the first of a pair, a unique file, a Drive-side rename th
   await call(w, "mounts.sync_now", { mountId });
   assert.deepEqual(w.google.trashed, []);
   assert.deepEqual(w.google.folders, []);
-  assert.deepEqual(w.google.replaced.map((r) => r.remoteId).sort(), ["d1x", "r1", "u1"], "the native Doc sends nothing; the rest are replaced in place");
+  assert.deepEqual(
+    w.google.replaced.map((r) => r.remoteId).sort(),
+    ["d1x", "r1", "u1"],
+    "the native Doc sends nothing; the rest are replaced in place",
+  );
   assert.deepEqual(remoteNames(w, mountId), before);
 });
 
@@ -155,16 +174,29 @@ test("(h) a real rename by a person still reaches Drive as it does today: a new 
   w.files.call("files.rename", { fileId, name: "Plan 2026.pdf" });
   const fn = localChangesConsumer.on["file.renamed"];
   assert.ok(fn);
-  fn(w.ctx.db as never, { at: w.now(), actor: "usr_owner", payload: new TextEncoder().encode(JSON.stringify({ fileId, to: "Plan 2026.pdf" })) });
+  fn(w.ctx.db as never, {
+    at: w.now(),
+    actor: "usr_owner",
+    payload: new TextEncoder().encode(JSON.stringify({ fileId, to: "Plan 2026.pdf" })),
+  });
   await call(w, "mounts.sync_now", { mountId });
-  assert.ok(w.google.uploads.some((u) => u.name === "Plan 2026.pdf"), "the typed name goes to Drive");
+  assert.ok(
+    w.google.uploads.some((u) => u.name === "Plan 2026.pdf"),
+    "the typed name goes to Drive",
+  );
   assert.deepEqual(w.google.trashed, ["u1"], "today's design: the old file is trashed after the new one is made");
 });
 
 // ---- (f) the state rc.26 left: rows with no shown_name ----
 
 const forgetShown = (w: World, mountId: string): void => {
-  for (const i of w.items(mountId)) w.ctx.db.run("UPDATE mounts_item SET shown_name = ? WHERE mount_id = ? AND item_key = ?", null, mountId, i["item_key"]);
+  for (const i of w.items(mountId))
+    w.ctx.db.run(
+      "UPDATE mounts_item SET shown_name = ? WHERE mount_id = ? AND item_key = ?",
+      null,
+      mountId,
+      i["item_key"],
+    );
   assert.ok(w.items(mountId).every((i) => i["shown_name"] === null));
 };
 
@@ -186,7 +218,12 @@ test("(f2) rows with NULL shown_name: a pass learns the name of every item with 
   forgetShown(w, mountId);
   await call(w, "mounts.sync_now", { mountId }); // backfillShown runs here
   const shown = (): Record<string, unknown> =>
-    Object.fromEntries(w.items(mountId).filter((i) => i["remote_id"] === "d1x" || i["remote_id"] === "d2x").map((i) => [i["remote_id"], i["shown_name"]]));
+    Object.fromEntries(
+      w
+        .items(mountId)
+        .filter((i) => i["remote_id"] === "d1x" || i["remote_id"] === "d2x")
+        .map((i) => [i["remote_id"], i["shown_name"]]),
+    );
   assert.deepEqual(shown(), { d1x: "Budget.pdf", d2x: "Budget (Google Drive).pdf" });
   const before = remoteNames(w, mountId);
   editInVyre(w, "Budget (Google Drive).pdf", "edited after the backfill", "agt_helper");
@@ -202,7 +239,10 @@ test("(f3) a NULL row with an edit waiting is not learned from the edit (the cha
   editInVyre(w, "Budget (Google Drive).pdf", "waiting");
   await call(w, "mounts.sync_now", { mountId });
   assert.deepEqual(w.google.trashed, []);
-  assert.deepEqual(w.google.replaced.map((r) => r.remoteId), ["d2x"]);
+  assert.deepEqual(
+    w.google.replaced.map((r) => r.remoteId),
+    ["d2x"],
+  );
 });
 
 // ---- the belt: a content edit never creates a replacement and trashes the original ----
@@ -212,7 +252,12 @@ test("belt: if the compare ever calls an edit a rename, the content edit is refu
   listing(w, [f("u1", "unique.pdf")]);
   const mountId = await mountDrive(w);
   // force the mismatch by hand: the item's stored shown name is not what Files holds, and the change is a content edit (no rename event)
-  w.ctx.db.run("UPDATE mounts_item SET shown_name = ? WHERE mount_id = ? AND remote_id = ?", "something else.pdf", mountId, "u1");
+  w.ctx.db.run(
+    "UPDATE mounts_item SET shown_name = ? WHERE mount_id = ? AND remote_id = ?",
+    "something else.pdf",
+    mountId,
+    "u1",
+  );
   editInVyre(w, "unique.pdf", "edited");
   await call(w, "mounts.sync_now", { mountId });
   assert.deepEqual(w.google.trashed, [], "nothing is trashed");
@@ -250,7 +295,10 @@ for (const kind of ["onedrive", "sharepoint"] as const) {
       mode: "server_copy",
     });
     const mountId = String(added["mountId"]);
-    const shown = w.files.paths().filter((p) => p.startsWith("Library/")).map((p) => p.replace("Library/", ""));
+    const shown = w.files
+      .paths()
+      .filter((p) => p.startsWith("Library/"))
+      .map((p) => p.replace("Library/", ""));
     assert.equal(shown.length, 2, w.files.paths().join(", "));
     const second = shown.find((n) => n !== "Budget.pdf");
     assert.ok(second, `the second of the pair has another name: ${shown.join(", ")}`);
@@ -258,7 +306,14 @@ for (const kind of ["onedrive", "sharepoint"] as const) {
     editInVyre(w, second, "second, edited");
     await call(w, "mounts.sync_now", { mountId });
     assert.deepEqual(w.graph.deleted, [], "nothing is deleted at the provider");
-    assert.deepEqual(w.graph.replaced.map((r) => r.remoteId), ["a2"], "replaced in place by its id");
-    assert.deepEqual(w.items(mountId).map((i) => [i["remote_id"], i["name"]]), before);
+    assert.deepEqual(
+      w.graph.replaced.map((r) => r.remoteId),
+      ["a2"],
+      "replaced in place by its id",
+    );
+    assert.deepEqual(
+      w.items(mountId).map((i) => [i["remote_id"], i["name"]]),
+      before,
+    );
   });
 }

@@ -31,4 +31,3 @@ export function freeNames(name: string, label: string): string[] {
   for (let n = 1; out.length < NAME_TRIES; n++) out.push(`${stem} (${n === 1 ? label : `${label} ${n}`})${ext}`);
   return out;
 }
-

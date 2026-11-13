@@ -340,7 +340,8 @@ export async function pushMoves(
       // Files may not hold ("Q3/Q4 plan.pdf" is shown as "Q3-Q4 plan.pdf"). A row from before shown_name also accepts any name a pass would have given it.
       const unchanged = !isNull(row["shown_name"])
         ? here.name === str(row["shown_name"])
-        : here.name === str(row["name"]) || freeNames(displayName(str(row["name"])), provider.label).includes(here.name);
+        : here.name === str(row["name"]) ||
+          freeNames(displayName(str(row["name"])), provider.label).includes(here.name);
       if (unchanged && target["item_key"] === row["parent_key"]) continue;
       // The belt (14 Nov 2026): a name any pass could have given the item (the provider's own, its safe display name, or the "(Google Drive)" series) is never a rename. If the compare above still
       // read it as one, a content edit would be sent as "make a new file, trash the original": that is refused, nothing at the provider is touched, and the item is flagged for a person.
@@ -356,7 +357,13 @@ export async function pushMoves(
         if (!provider.createFolder || !provider.remove) continue;
         const made = await provider.createFolder(ctx, m, { name: here.name, parentRemote });
         for (const d of subtreeOf(rows, row).slice(1)) patch(d, { remote_id: null, remote_version: null, dirty: 1 });
-        patch(row, { name: here.name, shown_name: here.name, parent_key: target["item_key"], remote_id: made.remoteId, dirty: 0 });
+        patch(row, {
+          name: here.name,
+          shown_name: here.name,
+          parent_key: target["item_key"],
+          remote_id: made.remoteId,
+          dirty: 0,
+        });
         res.moved += 1;
         await provider.remove(ctx, m, oldRemote, true);
       } else {

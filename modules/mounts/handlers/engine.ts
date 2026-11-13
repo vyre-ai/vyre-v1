@@ -114,7 +114,12 @@ function optStr(o: Row, key: string): string | undefined {
 }
 
 /** The name an item has in Files: what the last pass gave it, else the provider's own. */
-export const shownOf = (r: Row): string => (typeof r["shown_name"] === "string" && r["shown_name"] !== "" ? r["shown_name"] : typeof r["name"] === "string" ? r["name"] : "");
+export const shownOf = (r: Row): string =>
+  typeof r["shown_name"] === "string" && r["shown_name"] !== ""
+    ? r["shown_name"]
+    : typeof r["name"] === "string"
+      ? r["name"]
+      : "";
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 const flag = (v: unknown): boolean => v === 1 || v === true;
