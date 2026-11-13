@@ -4,6 +4,8 @@
 // the larger of the pass's own estimate and the largest pass that account has run, plus a quarter, so a provider that counts more than we guessed still lands under the line.
 // At the quota, learning falls back to the free rules until the reset; nothing is shown as an error.
 // Also here: the per-account pause after a rate or usage limit, with a backoff, and the cache of the model each account learns with.
+import { instantOfWall, zoneNamed } from "../../lib/clock.ts";
+import { partsIn } from "../../lib/zones.ts";
 import { setting } from "./policy.ts";
 import { num, rowsOf, str } from "./projections.ts";
 import type { MemCtx } from "./projections.ts";
@@ -43,42 +45,12 @@ export function learnTables(db: MemCtx["db"]): void {
 const isStr = (v: unknown): v is string => typeof v === "string" && v !== "";
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
 
-function partsAt(at: number, tz: string): { y: number; m: number; d: number; h: number; min: number; s: number } {
-  const f = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  });
-  const p: Record<string, number> = {};
-  for (const x of f.formatToParts(new Date(at))) if (x.type !== "literal") p[x.type] = Number(x.value);
-  return { y: p["year"]!, m: p["month"]!, d: p["day"]!, h: p["hour"]! % 24, min: p["minute"]!, s: p["second"]! };
-}
-const validZone = (tz: string): string => {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: tz });
-    return tz;
-  } catch {
-    return "UTC";
-  }
-};
-/** How far the zone is ahead of UTC at this moment, in ms. */
-const offsetAt = (at: number, tz: string): number => {
-  const p = partsAt(at, tz);
-  return Date.UTC(p.y, p.m - 1, p.d, p.h, p.min, p.s) - (at - (at % 1000));
-};
-
-/** The person's calendar day ("2026-11-03") at `at`, and when it ends (their next local midnight). */
+/** The person's calendar day ("2026-11-03") at `at`, and when it ends (their next local midnight, on the clock of that day: a day with a clock change is an hour longer or shorter). */
 export function localDay(at: number, tz: string): { day: string; resetsAt: number } {
-  const zone = validZone(tz);
-  const p = partsAt(at, zone);
-  const day = `${String(p.y).padStart(4, "0")}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`;
-  const guess = Date.UTC(p.y, p.m - 1, p.d + 1) - offsetAt(at, zone);
-  return { day, resetsAt: Date.UTC(p.y, p.m - 1, p.d + 1) - offsetAt(guess, zone) };
+  const zone = zoneNamed(tz);
+  const p = partsIn(at, zone);
+  const day = `${String(p.year).padStart(4, "0")}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+  return { day, resetsAt: instantOfWall(Date.UTC(p.year, p.month - 1, p.day + 1), zone) };
 }
 
 export async function timezoneOf(ctx: Pick<MemCtx, "call">): Promise<string> {

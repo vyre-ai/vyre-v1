@@ -134,3 +134,31 @@ test("a repeating task across a daylight saving change stays at 09:00 for the pe
     "09:00 EDT on Sunday 8 March, not 10:00: the next one keeps the person's clock",
   );
 });
+
+test("a profile zone Intl does not know never stops a repeating task coming back: it reads as UTC", async () => {
+  for (const bad of ["Karachi", "Mars/Base", "GMT+5"]) {
+    const made: Array<Record<string, unknown>> = [];
+    const h = harness({
+      now: Date.UTC(2026, 2, 6, 12),
+      calls: {
+        "tasks.create": (input) => {
+          made.push(input as Record<string, unknown>);
+          return { task: { id: "tsk_next" } };
+        },
+      },
+    });
+    h.db.run("INSERT INTO tasks_tz (person, tz) VALUES (?, ?)", alice.id, bad);
+    const due = Date.UTC(2026, 2, 7, 14);
+    const t = (
+      await h.call(
+        "tasks.create",
+        newTask({ due, recur: { every: "day" }, assigned: { kind: "person", id: alice.id } }),
+        me,
+      )
+    ).task.id as string;
+    await h.call("tasks.transition", { taskId: t, to: "doing" }, me);
+    await h.call("tasks.transition", { taskId: t, to: "done" }, me);
+    await moved(h, t);
+    assert.equal(made[0]!["due"], due + 86_400_000, `${bad}: the next one is a day later on the UTC clock`);
+  }
+});

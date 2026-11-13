@@ -7,3 +7,4 @@
 - A deadline typed at a time a spring clock change skips (2:30 AM on the night clocks go forward) now means the moment the change ends, in every time zone. A time zone saved as a fixed offset such as +05:00 keeps working as before everywhere.
 - Handing a routine to a colleague is now refused, with the reason, when they are not in the Space, cannot use the agent or cannot read the channel it posts to. Before, it went to anyone.
 - Scheduled work now has one table ready for routines and goals to share, with one rule that makes sure each time runs once (nothing you can see changes yet).
+- A repeating task whose holder's profile time zone is misspelled still comes back, on UTC, instead of stopping.

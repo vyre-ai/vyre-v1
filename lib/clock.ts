@@ -139,6 +139,8 @@ export function nextCron(spec: CronSpec, zone: string, after: number): number | 
     // wall clock order is instant order (a gap folds its times onto one instant, a repeat counts once), so the first one after `after` is the answer
     for (const h of hours)
       for (const m of mins) {
+        // on the first day nothing before the wall time of `after` can be later than it (a repeated hour counts at its first pass, a gap ends at or after its start), so those are not worked out
+        if (n === 0 && (h < start.hour || (h === start.hour && m < start.minute))) continue;
         const at = instantOfWall(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), h, m), zone);
         if (at > after) return at;
       }

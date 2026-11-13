@@ -1,7 +1,7 @@
 // The scheduler (ticket system, C). Nothing polls: a task finishing is what moves things. A task whose dependencies are met says task.ready, and the baton starts it. A finished child rolls up: the parent's holder
 // hears only when every child is finished, a child is blocked, or a child asks, and never on any other change. A repeating task comes back when it is Done. A Run that stopped takes its tasks with it.
 // Every event here can be delivered twice: task.children_settled carries what happened, and the baton wakes once per reason and child.
-import { addDays, addMonths } from "../../../lib/clock.ts";
+import { addDays, addMonths, zoneNamed } from "../../../lib/clock.ts";
 import { allTasks, emitTask, findTask, isOpen, openIndex, tzOf } from "../projections.ts";
 import type { Task, TasksCtx } from "../projections.ts";
 import { afterReview, applyMove, commitMove, planMove, submitTarget, withdraw } from "./state.ts";
@@ -10,7 +10,8 @@ type Ev = { name: string; payload: { taskId?: unknown; to?: unknown; runId?: unk
 const MAX_WAITERS = 500;
 
 /** The next date of a repeating task, the same time of day on the clock of `zone` (UTC when none): 09:00 stays 09:00 across a daylight saving change. */
-export function nextDue(from: number, every: "day" | "week" | "month", n = 1, zone = "UTC"): number {
+export function nextDue(from: number, every: "day" | "week" | "month", n = 1, zoneName = "UTC"): number {
+  const zone = zoneNamed(zoneName); // a profile zone is free text: a name Intl does not know reads as UTC, as startOfDayIn does, and never stops a task coming back
   if (every === "day") return addDays(from, n, zone);
   if (every === "week") return addDays(from, n * 7, zone);
   return addMonths(from, n, zone);

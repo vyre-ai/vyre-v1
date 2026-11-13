@@ -1053,9 +1053,30 @@ export function storeConfig(
 
 // ---- cron: five numeric fields, read in UTC ---------------------------------------------------------------------------------------------------------
 
-/** A routine's cron: five fields of numbers, lists, ranges and steps, as the agent skill teaches. Names (mon) and the @daily macros are not routine syntax. Null for anything else. */
+/**
+ * A routine's cron: five fields of numbers, lists, ranges and steps, as the agent skill teaches. Names (mon) and the @daily macros are not routine syntax. Null for anything else.
+ * A routine saved on a live Space keeps the meaning this reader always gave it, so three readings stay as they were (and are named in lib/clock-golden-kit.test.ts): a 7 in the weekday field is Sunday
+ * (0) wherever it stands, so "0-7" is Sunday only and "7/2" is Sunday, Tuesday, Thursday and Saturday, and "1-7" is refused, and "1/3" counts up to 6 (not to a 7 that would add Sunday); and a "*" inside a list ("1,*") is every value but does not make the field
+ * "any day", so the other day field still counts.
+ */
 export function parseCron(expr: string): CronSpec | null {
-  return /^[\d*,/\s-]+$/.test(expr) ? (clockCron(expr) ?? null) : null;
+  if (!/^[\d*,/\s-]+$/.test(expr)) return null;
+  const f = expr.trim().split(/\s+/);
+  if (f.length !== 5) return null;
+  const inList = (field: string): string =>
+    field.includes(",")
+      ? field
+          .split(",")
+          .map((x) => (x === "*" ? "*/1" : x))
+          .join(",")
+      : field;
+  const weekday = f[4]!.replace(/\b7\b/g, "0");
+  if ((weekday.match(/\d+/g) ?? []).some((n) => Number(n) > 6)) return null; // no weekday above 6 (7 became 0 above)
+  // "1/3" runs from 1 to the end of the field: the end of the weekday field is 6 here, not the 7 the clock reads (it would add Sunday)
+  const openStep = (x: string): string => x.replace(/^(\d+)\/(\d+)$/, "$1-6/$2");
+  f[2] = inList(f[2]!);
+  f[4] = inList(weekday.split(",").map(openStep).join(","));
+  return clockCron(f.join(" ")) ?? null;
 }
 /** A year and a day: how far ahead a routine's next time is looked for. */
 const ROUTINE_LOOK_AHEAD_DAYS = 367;

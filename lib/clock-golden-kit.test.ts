@@ -70,12 +70,10 @@ export const CRON_AGENTS: Record<string, Deliberate> = {
 };
 
 /**
- * The same rows through the routines functions (agents/projections.ts parseCron and nextRun), which keep the old grammar for names and @macros (routines.test.ts: "names are not supported") and the one year
- * look-ahead; only a weekday range that ends in 7 is read now (the other two parsers always did).
+ * The same rows through the routines functions (agents/projections.ts parseCron and nextRun): they keep the old reading of what a routine could always hold (numbers only, 7 is Sunday wherever it stands,
+ * a "*" in a list is not "any day", one year ahead), so nothing a routine could already say changes meaning and nothing is listed. The clock itself reads those differently, which CRON_AGENTS names.
  */
-export const CRON_AGENTS_WRAPPED: Record<string, Deliberate> = {
-  "0 9 * * 1-7 | 2026-01-01T12:00:00Z": D(utc("2026-01-02T09:00:00Z"), WIDER),
-};
+export const CRON_AGENTS_WRAPPED: Record<string, Deliberate> = {};
 
 /** cron_walk rows: the fires of 2026 in the clock = today's, less `missing`, plus `extra`. */
 export const WALKS: Record<string, { extra: string[]; missing: string[]; why: string[] }> = {

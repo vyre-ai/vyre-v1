@@ -6,6 +6,8 @@
 //                9 to 5 UTC would hold messages to someone in Karachi for half their day.
 //   when         now, when they are next online, or at a set time; never during away or outside their hours unless urgent. The latest of the reasons wins, and the reason is said in words.
 
+import { partsIn } from "./zones.ts";
+
 export type PresenceState = "online" | "away" | "offline" | "unknown";
 export interface Presence {
   personId: string;
@@ -87,17 +89,8 @@ export function validZone(tz: string): boolean {
 
 /** Day of week (0 is Sunday) and minutes since midnight at `at` in the zone; an unknown zone reads as UTC. */
 export function localClock(at: number, tz: string): { day: number; minutes: number } {
-  const zone = validZone(tz) ? tz : "UTC";
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: zone,
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(new Date(at));
-  const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? "";
-  const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(get("weekday"));
-  return { day: day < 0 ? 0 : day, minutes: Number(get("hour")) * 60 + Number(get("minute")) };
+  const p = partsIn(at, validZone(tz) ? tz : "UTC");
+  return { day: p.dow, minutes: p.hour * 60 + p.minute };
 }
 const mins = (hhmm: string): number => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
 
