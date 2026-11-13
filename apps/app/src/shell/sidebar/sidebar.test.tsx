@@ -72,23 +72,37 @@ test("the slot's header has a spot for the place's own buttons between the title
   assert.ok(at("sidebar-actions") > html.indexOf(">Chats<") && at("sidebar-actions") < at("sidebar-collapse"));
 });
 
-// K9 guard (13 Nov 2026): where only one panel fits, a link to an item shows the item. It used to leave the list on screen (goal and chat links at 760 wide opened nothing).
-function View_(): ReturnType<typeof Text> { const slot = useSidebarSlot(); return <Text testID="view">{slot.view}</Text>; }
+// K9 guard (13 Nov 2026): where only one panel fits, a link to an item shows the item, Back returns to the list, and a place switch resets to the list even when the new place carries an address.
+let slotNow: ReturnType<typeof useSidebarSlot> | null = null;
+function Probe(): ReturnType<typeof Text> { const slot = useSidebarSlot(); slotNow = slot; return <Text testID="view">{slot.view}</Text>; }
 
-test("a link that opens an item takes a one-panel layout from the list to the item, and Back returns to the list", async () => {
+async function drawn(r: ReturnType<typeof createRoot>, o: { hash: string; epoch: number; compact?: boolean }): Promise<string> {
+  await act(async () => { r.render(<SidebarSlotProvider {...props} epoch={o.epoch} compact={o.compact ?? true} hash={o.hash} initialEntry={{ title: "Chats", searchPlaceholder: "Search chats" }}><Probe /></SidebarSlotProvider>); });
+  await flush();
+  return (find(r.container as unknown as Parameters<typeof find>[0], "view")?.children ?? []).join("");
+}
+
+test("a link takes a one-panel layout from the list to the item; Back (pressed) returns to the list; the same address does not reopen it", async () => {
   const restore = installDom();
   try {
     const r = createRoot();
-    const draw = (hash: string): void => void r.render(<SidebarSlotProvider {...props} compact hash={hash} initialEntry={{ title: "Chats", searchPlaceholder: "Search chats" }}><View_ /></SidebarSlotProvider>);
-    const root = r.container as unknown as Parameters<typeof find>[0];
-    await act(async () => { draw(""); }); await flush();
-    assert.equal(find(root, "view")?.children?.join(""), "list", "no item open: the list");
-    await act(async () => { draw("subject=goal:gol_1"); }); await flush();
-    assert.equal(find(root, "view")?.children?.join(""), "body", "a link to a goal shows the goal");
-    await act(async () => { draw("subject=goal:gol_1"); }); await flush();
-    assert.equal(find(root, "view")?.children?.join(""), "body");
-    // a computer-width layout never changes view
-    await act(async () => { r.render(<SidebarSlotProvider {...props} compact={false} hash="subject=thread:t1" initialEntry={{ title: "Chats", searchPlaceholder: "Search" }}><View_ /></SidebarSlotProvider>); }); await flush();
-    assert.equal(find(root, "view")?.children?.join(""), "body");
+    assert.equal(await drawn(r, { hash: "", epoch: 1 }), "list", "no item open: the list");
+    assert.equal(await drawn(r, { hash: "subject=goal:gol_1", epoch: 1 }), "body", "a link to a goal shows the goal");
+    await act(async () => { slotNow!.back(); }); await flush();
+    assert.equal((find(r.container as unknown as Parameters<typeof find>[0], "view")?.children ?? []).join(""), "list", "Back, pressed, returns to the list");
+    assert.equal(await drawn(r, { hash: "subject=goal:gol_1", epoch: 1 }), "list", "the same address is not a new link: the list stays");
+    assert.equal(await drawn(r, { hash: "subject=thread:t2", epoch: 1 }), "body", "another item does open");
+    assert.equal(await drawn(r, { hash: "subject=thread:t2", epoch: 1, compact: false }), "body", "a computer-width layout always shows the body");
+  } finally { restore(); }
+});
+
+test("a place switch to a place that already has an address shows the list, not an item; a hash back to empty keeps the view", async () => {
+  const restore = installDom();
+  try {
+    const r = createRoot();
+    assert.equal(await drawn(r, { hash: "subject=goal:gol_1", epoch: 1 }), "body", "a link on first load shows the item");
+    assert.equal(await drawn(r, { hash: "subject=thread:t9", epoch: 2 }), "list", "the place switched (epoch 2): the list, whatever the new address holds");
+    assert.equal(await drawn(r, { hash: "subject=thread:t10", epoch: 2 }), "body", "then a link inside the new place opens the item");
+    assert.equal(await drawn(r, { hash: "", epoch: 2 }), "body", "an address that clears is not a link and does not change the view");
   } finally { restore(); }
 });

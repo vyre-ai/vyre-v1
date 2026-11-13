@@ -4,7 +4,7 @@
 //   <SidebarContent title="Chats" searchPlaceholder="Search chats">{(query, slot) => <ChatsSidebarItems query={query} onOpen={slot.openBody} />}</SidebarContent>
 // Put it anywhere inside the place. The shell draws it in the slot (a portal, so the place's providers still reach it). `query` is the search field's text;
 // call `slot.openBody()` when an item is chosen so the phone leaves the list for the body. A place without <SidebarContent> has no sidebar and no slot.
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { MenuIcon } from "../../../../../ui/src/Menu/index.tsx";
@@ -73,7 +73,12 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
   const [actionsOutlet, setActionsOutlet] = useState<unknown>(null);
   useEffect(() => { setCollapsedState(read()); setQuery(""); setBodyOpen(false); }, [key, p.epoch]);
   // a link to a goal, a chat or any item (an address, a notification, Cmd-K) shows that item at once, also where only one panel fits (K9, 13 Nov 2026)
-  useEffect(() => { if (p.compact && p.hash !== undefined && p.hash !== "") setBodyOpen(true); }, [p.compact, p.hash]);
+  // A place switch resets to the list even when the new place carries an address: the switch is the epoch, so a change of epoch is not a link to an item.
+  const epochSeen = useRef(p.epoch);
+  useEffect(() => {
+    if (epochSeen.current !== p.epoch) { epochSeen.current = p.epoch; return; }
+    if (p.compact && p.hash !== undefined && p.hash !== "") setBodyOpen(true);
+  }, [p.compact, p.hash, p.epoch]);
   const setCollapsed = useCallback((v: boolean) => {
     setCollapsedState(v);
     try { (p.storage ?? deviceStorage())?.setItem(key, writeCollapsed(v)); } catch { /* a full or blocked store keeps the choice for this session only */ }
