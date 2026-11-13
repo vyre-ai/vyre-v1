@@ -394,3 +394,15 @@ test("a menu with a search field opens with the caret in the search field (autoF
     assert.ok(find(plain, "menu"), "the panel is there to take focus");
   } finally { restore(); }
 });
+
+// K7 guard (13 Nov 2026): a menu entry is never cut with dots. A long label or hint wraps to a second line and the row grows with it; no row has a fixed height.
+test("a long menu label and hint wrap instead of being cut, and the row can grow", () => {
+  const html = renderToStaticMarkup(<Menu items={[{ label: "Agents reply in threads", checked: true, hint: "Answers stay out of the main chat, and the agent writes under your message" }, { label: "Open" }]} x={0} y={0} />);
+  const rows = html.split('role="menuitem"').slice(1);
+  assert.equal(rows.length, 3, "two items and Report a problem");
+  for (const row of rows) {
+    assert.doesNotMatch(row, /-webkit-line-clamp:1(?!\d)/, "no row clamps to one line");
+    assert.doesNotMatch(row, /(?<![-\w])height:28px/, "no row has a fixed 28 px height");
+  }
+  assert.match(rows[0]!, /-webkit-line-clamp:2/, "a long label wraps to two lines at most");
+});

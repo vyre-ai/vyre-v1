@@ -2,7 +2,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Row, RowWrapContext, ROW_HEIGHT, ROW_HEIGHT_WITH_NOTE, ROW_HEIGHT_TALL, rowHeight } from "./index.tsx";
+import { Row, RowWrapContext, ROW_HEIGHT, ROW_HEIGHT_WITH_NOTE, ROW_HEIGHT_TALL, rowHeight, tipIfCut } from "./index.tsx";
+import { createRoot } from "test-renderer";
+import { find, installDom, mount } from "../testing/dom.ts";
 
 test("a selected row paints the selection token on the row itself, full width", () => {
   const html = renderToStaticMarkup(<Row id="a" title="Weekly sync" selected />);
@@ -145,4 +147,34 @@ test("a title with a help mark wraps to two lines on a phone instead of clipping
   const off = renderToStaticMarkup(<Row id="w" title="Public address for file changes" titleMarks={mark} />);
   assert.match(on, /-webkit-line-clamp:2/);
   assert.doesNotMatch(off, /-webkit-line-clamp:2/);
+});
+
+// K7 guard (13 Nov 2026): a row that cuts text with dots gives the full text in the app's one tooltip, on hover and on keyboard focus; a row whose text fits gets none.
+const fakeRow = (cut: boolean): { attrs: Record<string, string>; el: Parameters<typeof tipIfCut>[0] } => {
+  const attrs: Record<string, string> = {};
+  const measured = { scrollWidth: cut ? 300 : 100, clientWidth: 100, scrollHeight: 18, clientHeight: 18 };
+  return { attrs, el: { setAttribute: (n, v) => { attrs[n] = v; }, removeAttribute: (n) => { delete attrs[n]; }, querySelectorAll: () => [measured] } };
+};
+
+test("tipIfCut puts the full text in the title attribute only when something is cut", () => {
+  const a = fakeRow(true); tipIfCut(a.el, "Blocked\nThe lead did not check in");
+  assert.equal(a.attrs["title"], "Blocked\nThe lead did not check in");
+  const b = fakeRow(false); b.attrs["title"] = "old"; tipIfCut(b.el, "x");
+  assert.equal(b.attrs["title"], undefined, "a row that fits has no tooltip, and a stale one is taken away");
+});
+
+test("a row asks for its tooltip on hover and on focus, and keeps a hint it was given", async () => {
+  const restore = installDom();
+  try {
+    const plain = await mount(createRoot, <Row id="cut" title="Needs you" note="The lead agent did not check in after two tries and the work stopped" />);
+    const node = find(plain, "row-cut")!;
+    for (const ev of ["onMouseEnter", "onFocus"]) {
+      const { attrs, el } = fakeRow(true);
+      (node.props[ev] as (e: unknown) => void)({ currentTarget: el });
+      assert.match(attrs["title"] ?? "", /Needs you\nThe lead agent did not check in/, `${ev} fills the tooltip`);
+    }
+    const hinted = await mount(createRoot, <Row id="own" title="Needs you" hint="My own words" />);
+    assert.equal(find(hinted, "row-own")!.props["title"], "My own words");
+    assert.equal(find(hinted, "row-own")!.props["onMouseEnter"], undefined, "a row with its own hint is left alone");
+  } finally { restore(); }
 });

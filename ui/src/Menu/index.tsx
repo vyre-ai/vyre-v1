@@ -420,12 +420,12 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
     >
       {entry.leading !== undefined ? <View style={[styles.leading, lit ? styles.leadingLit : null]}>{entry.leading}</View> : null}
       {entry.leading === undefined && entry.icon !== undefined && entry.icon.length > 0 ? <MenuIcon icon={entry.icon} color={ink} /> : null}
-      <Text numberOfLines={1} style={[styles.label, { color: ink }]}>{entry.label}</Text>
+      <Text numberOfLines={2} style={[styles.label, { color: ink }]}>{entry.label}</Text>
       {entry.mark !== undefined ? (Platform.OS === "web"
         ? createElement("span", { title: entry.mark, "aria-label": entry.mark, role: "img", "data-mark": "true", "data-testid": `menu-mark-${entry.label}`, style: { width: 7, height: 7, borderRadius: 4, marginLeft: "auto", flexShrink: 0, background: "var(--warn)" } })
         : <View accessibilityLabel={entry.mark} style={styles.mark} />) : null}
       {entry.count !== undefined ? <Text style={[styles.count, lit ? { color: ink, opacity: 0.8 } : null]} testID={`menu-count-${entry.label}`}>{entry.count}</Text> : null}
-      {entry.hint !== undefined ? <Text style={[styles.hint, lit ? { color: ink, opacity: 0.8 } : null]} testID={`menu-hint-${entry.label}`}>{entry.hint}</Text> : null}
+      {entry.hint !== undefined ? <Text numberOfLines={2} style={[styles.hint, lit ? { color: ink, opacity: 0.8 } : null]} testID={`menu-hint-${entry.label}`}>{entry.hint}</Text> : null}
       {entry.checked === true ? <Text style={[styles.check, entry.count !== undefined && styles.checkAfterCount, { color: ink }]}>{"✓"}</Text> : null}
     </Pressable>
   );
@@ -625,12 +625,12 @@ const styles = StyleSheet.create({
     ...({ outlineStyle: "none" } as unknown as ViewStyle),
   },
   // the lit row is the wash; the browser focus ring would draw a black box around it
-  item: { flexDirection: "row", alignItems: "center", height: 28, paddingHorizontal: 9, borderRadius: RADIUS, gap: 9, width: "100%", ...({ outlineStyle: "none" } as unknown as ViewStyle) },
+  item: { flexDirection: "row", alignItems: "center", minHeight: 28, paddingVertical: 2, paddingHorizontal: 9, borderRadius: RADIUS, gap: 9, width: "100%", ...({ outlineStyle: "none" } as unknown as ViewStyle) },
   label: { flexShrink: 1, fontSize: 13, lineHeight: 18 },
   check: { marginLeft: "auto", fontSize: 12 },
   checkAfterCount: { marginLeft: 0 },
   count: { marginLeft: "auto", minWidth: 24, textAlign: "right", fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
-  hint: { marginLeft: "auto", paddingLeft: 16, fontSize: 11.5, color: "var(--ink-4)" as string },
+  hint: { flexShrink: 4, marginLeft: "auto", paddingLeft: 16, textAlign: "right", fontSize: 11.5, color: "var(--ink-4)" as string },
   iconSlot: { width: ICON_SIZE, height: ICON_SIZE, alignItems: "center", justifyContent: "center" },
   mark: { width: 7, height: 7, borderRadius: 4, marginLeft: "auto", backgroundColor: "var(--warn)" as string },
   leading: { width: 20, height: 20, alignItems: "center", justifyContent: "center" },

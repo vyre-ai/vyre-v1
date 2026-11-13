@@ -53,6 +53,19 @@ const TITLE_IN_LINE_WRAP_S = { ...TITLE_WRAP_S, flex: "0 1 auto", minWidth: 0 } 
 export const RowWrapContext = createContext(false);
 
 const h = createElement;
+
+type Measured = { scrollWidth: number; clientWidth: number; scrollHeight: number; clientHeight: number };
+type RowEl = { setAttribute(n: string, v: string): void; removeAttribute(n: string): void; querySelectorAll(q: string): ArrayLike<Measured> };
+/**
+ * A row that cuts its text with dots gives the whole text in the app's one tooltip (the title attribute) when the pointer or the keyboard focus reaches it, and only then: a row whose text fits has no tooltip
+ * repeating what is on the screen. A row that was given its own `hint` keeps that.
+ */
+export function tipIfCut(row: RowEl | null | undefined, full: string): void {
+  if (!row) return;
+  const cut = Array.from(row.querySelectorAll("span,div")).some((n) => n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1);
+  if (cut) row.setAttribute("title", full); else row.removeAttribute("title");
+}
+
 function WebRow({ inert = false, hint, locked = false, id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "accent", tall = false, emphasis = false, note, selected = false, hovered = false, accentLit = false, leading, trailing, onPress, domProps }: RowProps): ReactElement {
   ensureRowCss();
   const filled = accentLit && hovered && !selected;
@@ -61,6 +74,8 @@ function WebRow({ inert = false, hint, locked = false, id, title, titleSuffix, t
   const { style: extra, ...dom } = (domProps ?? {}) as { style?: Record<string, unknown> } & Record<string, unknown>;
   const wrapTitle = useContext(RowWrapContext);
   const titleBase = wrapTitle ? TITLE_WRAP_S : TITLE_S;
+  const full = [titleSuffix ? `${title} ${titleSuffix}` : title, [noteLead, note].filter((x) => x).join(" \u00b7 ")].filter((x) => x !== "").join("\n");
+  const mine = hint === undefined ? (name: "onMouseEnter" | "onFocus") => (e: { currentTarget?: unknown }): void => { tipIfCut(e.currentTarget as RowEl | null, full); (dom[name] as ((e: unknown) => void) | undefined)?.(e); } : null;
   const titleEl = h("span", { style: { ...(emphasis ? { ...titleBase, ...BOLD } : titleBase), ...inkOn } }, title);
   return h(
     "div",
@@ -73,6 +88,7 @@ function WebRow({ inert = false, hint, locked = false, id, title, titleSuffix, t
         onKeyDown: (e: { key?: string; preventDefault?: () => void }) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault?.(); onPress(e as never); } },
       } : {}),
       ...dom,
+      ...(mine ? { onMouseEnter: mine("onMouseEnter"), onFocus: mine("onFocus") } : {}),
     },
     leading ? h("div", { style: LEAD_S, "data-testid": tid("-leading") }, leading) : null,
     h(
