@@ -512,6 +512,30 @@ test("the owner asks an agent in another chat to change the deadline: it does, a
   assert.match(moved.tpl, /\{who:agt_lead\} moved the deadline to \{at:\d+\}, asked by \{who:usr_owner\}\./);
 });
 
+test("an asked agent changes a goal's words, deadline, rhythm and quiet hours, and nothing that is the owner's own press", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal());
+  const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
+  w.state.turn = asking(OWNER);
+  const ok = await w.call("goals.update", { goalId: goal.id, title: "New words", outcome: "A fuller Lab 8", deadline: T0 + 6 * DAY, rhythm: { every: "day", at: "10:00" }, quiet: { from: "21:00", to: "07:00" }, finish: { ...goal.finish, line: "Registrations reach 300" } }, agent);
+  assert.equal(ok.goal.title, "New words");
+  const refused: Array<[string, Record<string, unknown>]> = [
+    ["owner", { owner: ALIZA }], ["permissions", { permissions: [{ act: "send", target: "mail.send", label: "Send email from the Lab template" }] }], ["helpers", { helpers: [{ kind: "person", id: ALIZA }] }],
+    ["leadAgentId", { leadAgentId: HELPER }], ["budget raised", { budget: { spendMicros: 99_000_000, turns: 20 } }], ["budget cap removed", { budget: { turns: 20 } }],
+    ["finish target", { finish: { ...goal.finish, target: 999 } }], ["finish source", { finish: { ...goal.finish, source: { kind: "records", type: "other", label: "Elsewhere" } } }], ["zone", { zone: "UTC" }],
+  ];
+  for (const [what, input] of refused) {
+    await assert.rejects(w.call("goals.update", { goalId: goal.id, ...input }, agent), (e: { error?: { details?: { reason?: string } } }) => e.error?.details?.reason === "owner_press_only", what);
+  }
+  assert.equal(getGoal(w.db, goal.id)!.owner, OWNER);
+  assert.equal(getGoal(w.db, goal.id)!.budget.spendMicros, 10_000_000);
+  // lowering a budget is allowed
+  const lower = await w.call("goals.update", { goalId: goal.id, budget: { spendMicros: 5_000_000, turns: 10 } }, agent);
+  assert.equal(lower.goal.budget.spendMicros, 5_000_000);
+  // the owner's own press can do all of it
+  assert.equal((await w.call("goals.update", { goalId: goal.id, budget: { spendMicros: 20_000_000, turns: 40 } }, owner)).goal.budget.spendMicros, 20_000_000);
+});
+
 test("an asked agent may pause, resume and stop the owner's goal; done stays the owner's press", async () => {
   const w = world({ count: 10 });
   const { goal } = await w.call("goals.create", labGoal());

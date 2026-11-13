@@ -183,9 +183,38 @@ export async function activityList(ctx: GoalsCtx, input: In) {
   return { activity: await worded(ctx, g, activity(ctx.db, g.id, input.limit ?? 50, input.before, isAdmin(ctx))) };
 }
 
+/** What an agent the owner asked may change in a goal: its words, deadline and rhythm. Who owns it, what it may do on its own, whom it seats and what it may spend are the owner's own press on the goal's page. */
+const ASKED_MAY = new Set(["goalId", "title", "outcome", "finish", "deadline", "rhythm", "quiet", "idempotencyKey"]);
+const ASKED_WORDS: Record<string, string> = { owner: "owner", permissions: "standing permissions", helpers: "helpers", leadAgentId: "lead agent", budget: "budget", zone: "time zone", stuckAfter: "stuck threshold", recordIds: "linked records", projectId: "project", plan: "plan" };
+const sameJson = (a: unknown, b: unknown): boolean => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+/** A finish line changes in its words only: the line, and each condition's text. The number, its source, its direction and the conditions themselves stay. */
+function finishWordsOnly(old: Finish, next: Finish): boolean {
+  const strip = (f: Finish) => ({ ...f, line: undefined, items: (f.items ?? []).map((i) => i.id) });
+  return sameJson(strip(old), strip(next)) && (old.items ?? []).length === (next.items ?? []).length;
+}
+async function ownerName(ctx: GoalsCtx, g: Goal): Promise<string> {
+  const n = (await tryCall<{ principal?: { name?: unknown } }>(ctx, "access.principals.get", { principal: { kind: "person", id: g.owner } }))?.principal?.name;
+  return typeof n === "string" && n !== "" ? n : "The owner";
+}
+async function checkAskedFields(ctx: GoalsCtx, g: Goal, input: In): Promise<void> {
+  const refuse = async (what: string): Promise<never> => raise(ctx, "validation.precondition_failed", `${await ownerName(ctx, g)} changes the ${what} on the goal's page. An agent can change a goal's words, deadline and check-in rhythm.`, { reason: "owner_press_only", field: what });
+  for (const k of Object.keys(input)) {
+    if (input[k] === undefined || ASKED_MAY.has(k)) continue;
+    if (k === "budget") {
+      const was = g.budget, now = input.budget as { spendMicros?: number; turns?: number };
+      const raised = (a: number | undefined, b: number | undefined): boolean => (a === undefined ? false : b === undefined || b > a);
+      if (raised(was.spendMicros, now.spendMicros) || raised(was.turns, now.turns)) await refuse("budget");
+      continue;
+    }
+    await refuse(ASKED_WORDS[k] ?? k);
+  }
+  if (input.finish && !finishWordsOnly(g.finish, input.finish as Finish)) await refuse("finish line (its number, source or conditions)");
+}
+
 export async function update(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
-  await mustControl(ctx, g);
+  const asked = await mustControl(ctx, g);
+  if (asked) await checkAskedFields(ctx, g, input);
   const fields: string[] = [];
   const set = <K extends keyof Goal>(k: K, v: Goal[K] | undefined, name = String(k)): void => { if (v !== undefined) { g[k] = v; fields.push(name); } };
   if (input.finish) { checkFinish(ctx, input.finish as Finish); if (input.finish.kind === "checklist") input.finish.items = input.finish.items.map((i: { id: string; done?: boolean }) => ({ ...i, done: (g.finish.items ?? []).find((o) => o.id === i.id)?.done ?? false })); }
