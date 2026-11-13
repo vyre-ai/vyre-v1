@@ -112,7 +112,21 @@ export function linkOrigin(
 }
 
 /** The page's own origin when the app runs as a web page at a local or network address: a link made from it opens for the person who copied it, on that computer or network (a Space at 127.0.0.1 or on a LAN). */
-const localWebOrigin = (): string => webOrigin((globalThis as { location?: { origin?: string } }).location?.origin)?.origin ?? "";
+const localWebOrigin = (): string => {
+  const u = webOrigin((globalThis as { location?: { origin?: string } }).location?.origin);
+  // the Windows desktop app is the page http://tauri.localhost: that is the app, not a web page at an address
+  return u && u.hostname.toLowerCase() !== "tauri.localhost" ? u.origin : "";
+};
+
+/** What a person is told when a sign-in needs an address the provider can send them back to and the Space has none. */
+export const NO_CALLBACK_WORDS =
+  "This Space has no public address yet, so a sign-in cannot come back to it. Set one under Console, Network, then try again.";
+
+/**
+ * The address a sign-in (an OAuth redirect) comes back to: the Space's public address, else a web page's own origin at a local address (it comes back to the same computer). "" in the desktop app on a Space with
+ * no public address, where the page's origin is tauri://localhost and nothing can come back to it: the caller says NO_CALLBACK_WORDS and sends nothing. Never built from location.origin by a caller.
+ */
+export const callbackOrigin = (): string => linkOrigin() || localWebOrigin();
 
 /** The in-app form, for a Space with no public address on the desktop app: the app's own resolver opens it when pasted in the new tab or the command bar (apps/app/src/shell/reach/space-link.ts). */
 const inAppLink = (kind: string, id: string): string =>

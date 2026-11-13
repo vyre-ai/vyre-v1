@@ -1,7 +1,7 @@
 // The item's own link and the call input the Share sheet builds: an artifact has its address on the Space, every other kind its vyre:// deep link, never the page the person is on.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { copyItemLink, itemLink, linkOrigin, messageLink, setLinkOrigin, withNotify } from "./rows.ts";
+import { callbackOrigin, copyItemLink, itemLink, linkOrigin, messageLink, setLinkOrigin, withNotify } from "./rows.ts";
 import { notices } from "../shell/noticeslot/model.ts";
 
 test("an artifact links to its own address on the Space; every other kind to the Space's /open link, never vyre://", () => {
@@ -86,5 +86,28 @@ test("a link is made from the Space's own address, never from the page the app r
       if (had[k]) Object.defineProperty(g, k, had[k]!);
       else delete g[k];
     }
+  }
+});
+
+test("a sign-in comes back to the Space's own address, never tauri://localhost; with none it sends nothing and the caller says why", () => {
+  const g = globalThis as Record<string, unknown>;
+  const had = Object.getOwnPropertyDescriptor(g, "location");
+  const put = (v: unknown): void => void Object.defineProperty(g, "location", { value: v, configurable: true, writable: true });
+  try {
+    put({ origin: "tauri://localhost" });
+    setLinkOrigin("https://mla.vyre.run");
+    assert.equal(callbackOrigin(), "https://mla.vyre.run");
+    put({ origin: "http://tauri.localhost" });
+    assert.equal(callbackOrigin(), "https://mla.vyre.run");
+    setLinkOrigin("http://127.0.0.1:8420");
+    assert.equal(callbackOrigin(), "", "desktop on a Space with no public address: nothing can come back");
+    put({ origin: "tauri://localhost" });
+    assert.equal(callbackOrigin(), "");
+    put({ origin: "http://127.0.0.1:8420" });
+    assert.equal(callbackOrigin(), "http://127.0.0.1:8420", "a web page at a local address comes back to the same computer");
+  } finally {
+    setLinkOrigin(null);
+    if (had) Object.defineProperty(g, "location", had);
+    else delete g.location;
   }
 });

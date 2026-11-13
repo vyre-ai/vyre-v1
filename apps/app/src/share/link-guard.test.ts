@@ -14,17 +14,27 @@ const walk = (dir: string): string[] =>
     return /\.(ts|tsx)$/.test(e.name) && !/\.test\.tsx?$/.test(e.name) && !/sample|fixture/.test(e.name) ? [p] : [];
   });
 
-test("no file but the link maker builds the address of a thing from location.origin", () => {
+test("no file but the link maker builds the address of a thing from location.origin or rt.baseUrl", () => {
   const bad: string[] = [];
   for (const dir of ["apps/app/src", "ui/src"])
     for (const f of walk(path.join(root, dir))) {
       if (f.endsWith("apps/app/src/share/rows.ts")) continue;
       const lines = fs.readFileSync(f, "utf8").split("\n");
       lines.forEach((l, i) => {
-        if (!/location\??\.origin/.test(l)) return;
-        const near = lines.slice(Math.max(0, i - 2), i + 3).join("\n");
-        if (/\/a\/\$\{|\/open\/|#subject=|\/join\//.test(near)) bad.push(`${path.relative(root, f)}:${i + 1}`);
+        // a line that takes the page's origin, or the session's base address, to make the address of a thing
+        const takesOrigin =
+          /\.(?:origin|href)\b/.test(l) ||
+          /plainLink\(/.test(l) ||
+          /\b(?:rt|runtime)\.baseUrl\b[^;\n]*\/(?:a|open)\//.test(l);
+        if (!takesOrigin) return;
+        const near = lines.slice(Math.max(0, i - 3), i + 4).join("\n");
+        if (/\/a\/\$\{|\/open\/|#subject=|#screen=|\/join\/|\/callback|plainLink\(/.test(near))
+          bad.push(`${path.relative(root, f)}:${i + 1}`);
       });
     }
-  assert.deepEqual(bad, [], "build links with itemLink / messageLink (apps/app/src/share/rows.ts), which use the Space's own address");
+  assert.deepEqual(
+    bad,
+    [],
+    "build links with itemLink / messageLink (apps/app/src/share/rows.ts), which use the Space's own address",
+  );
 });

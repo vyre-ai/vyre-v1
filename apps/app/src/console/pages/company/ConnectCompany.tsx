@@ -1,6 +1,7 @@
 // Connect your company: one screen that leads, a step at a time, for Google Workspace or Microsoft 365. It shows only what to do now, with a link to the right page at the provider, copy buttons and the section of the guide
 // that explains it. A key goes straight from here to the Vault, is checked at once, and the next step waits for the check. company.status holds where this stands, so it resumes wherever it is opened; Assistant runs the same
 // steps through the same capabilities.
+import { callbackOrigin } from "../../../share/rows.ts";
 import { useState } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 import { createElement } from "react";
@@ -608,7 +609,7 @@ function TryStep({ s, provider, refresh }: { s: Status; provider: Provider; refr
   const go = async (): Promise<void> => {
     const out = (await data.call("identity.sso_link", { provider })) as { start: string };
     void Linking.openURL(
-      `${s.space ?? (globalThis as { location?: { origin?: string } }).location?.origin ?? ""}${out.start}`,
+      `${s.space ?? callbackOrigin()}${out.start}`,
     );
     setLine("Finish in the window that opened, then press Done.");
   };

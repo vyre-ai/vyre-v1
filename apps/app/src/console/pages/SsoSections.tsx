@@ -1,6 +1,7 @@
 // "Sign in with Google" and "Sign in with Microsoft" on the Console sign-in policy page: the firm's own OIDC app. An admin pastes the app's Client ID and Client secret and names the firm's domain
 // (Microsoft also takes the Tenant ID, a GUID). The secret never goes into members.sso.set: it is put in the Vault as a Space-only item and only its handle is saved, and no page, reply or note
 // shows it again (the page learns only "set"). The page shows the redirect address to register at the provider with a Copy button, an On/Off switch, Save, and "Test it" (members.sso.test).
+import { callbackOrigin } from "../../share/rows.ts";
 import { useState } from "react";
 import type { ReactElement } from "react";
 import type { MembersSsoListOut } from "../../../../../generated/types.ts";
@@ -232,7 +233,7 @@ export function SsoSections(): ReactElement | null {
   if (!list.data) return list.error ? <ReadState error={list.error} retry={list.refresh} /> : null;
   const callback =
     gh.data?.github.callbackUrl ??
-    `${(globalThis as { location?: { origin?: string } }).location?.origin ?? ""}/auth/github/callback`;
+    `${callbackOrigin()}/auth/github/callback`;
   return (
     <>
       <SsoSection kind="google" providers={list.data.providers} callback={callback} refresh={list.refresh} />
