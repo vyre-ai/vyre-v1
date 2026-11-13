@@ -71,7 +71,7 @@ const view = (t: ToolDef): ApiTool => ({
 export function createApiTools(d: ApiToolsDeps): ApiTools {
   /** The engine's provider per thread, recorded when the turn's context is built, so the label-vs-provider rule sees it when the tool runs. */
   const providerOf = new Map<string, string>();
-  const ctxFor = (threadId: string, agentId: string, asker: string, turnId?: string): ToolCtx => {
+  const ctxFor = (threadId: string, agentId: string, asker: string, turnId?: string, callId?: string): ToolCtx => {
     const rules = d.rules?.(agentId);
     const provider = providerOf.get(threadId);
     return {
@@ -82,6 +82,7 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
       ...(rules ? { rules } : {}),
       ...(provider ? { provider } : {}),
       ...(turnId ? { turnId } : {}),
+      ...(callId ? { callId } : {}),
     };
   };
   /** tool_batch: the reads run together and each answer comes back under its request id; a request that is not an independent read is refused by itself and does not stop the rest. */
@@ -160,7 +161,7 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
       if (call.name === "tool_batch" && d.isRead) return runBatch(call.input, ctx);
       const out = await d.session.call(
         {
-          ...ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId),
+          ...ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId, call.id),
           ...(ctx.said !== undefined ? { said: ctx.said } : {}),
         },
         call.name,

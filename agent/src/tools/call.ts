@@ -8,6 +8,8 @@ import { modelError } from "./model-error.ts";
 import { PROBE_MESSAGE, probeIn } from "../../../lib/probe.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { limited, shapeOutput } from "./compact.ts";
+import { canonical, fillKey, shortHash } from "./fill.ts";
+import { rejectWords } from "./reject.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
 import type { LocalDecision } from "./local.ts";
@@ -21,6 +23,11 @@ export const NO_COMPUTER_WORDS =
 
 /** The capabilities whose results are times a person schedules by. */
 const TIMED = /^(?:calendar|mail|inbox|tasks|meetings|events|goals)\./;
+
+/** One example call for the tools where the minimal call cannot be made from the schema alone (one of several inputs is required). */
+const EXAMPLES: Readonly<Record<string, string>> = {
+  "sites.artifact_publish": 'artifact_publish {"title":"Q3 plan","html":"<h1>Q3 plan</h1>"}',
+};
 
 export type ToolOutcome =
   /** `parkOn`: a question asked of the person (ask_question): the turn waits on its block and makes no further model call until it is answered. */
@@ -84,6 +91,21 @@ export function createToolSession(deps: CallDeps): ToolSession {
   /** The searches each turn has made, so the same one is not run twice. */
   const searchedIn = new Map<string, Set<string>>();
   const newTrace = deps.traceId ?? ((): string => hex(16));
+  /** How many times this same call (tool and input) has been made in each turn: the key of a call with no id of its own. */
+  const sameCalls = new Map<string, Map<string, number>>();
+  const countSame = (ctx: ToolCtx, tool: string, input: unknown): number => {
+    const turn = ctx.turnId ?? ctx.trace?.traceId ?? "none";
+    let m = sameCalls.get(turn);
+    if (!m) {
+      m = new Map();
+      sameCalls.set(turn, m);
+      if (sameCalls.size > 200) sameCalls.delete(sameCalls.keys().next().value as string);
+    }
+    const key = `${tool}:${shortHash(canonical(input))}`;
+    const n = m.get(key) ?? 0;
+    m.set(key, n + 1);
+    return n;
+  };
   const loadedSet = (threadId: string): Set<string> => {
     let s = loadedBy.get(threadId);
     if (!s) {
@@ -307,7 +329,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
         t.cap,
         isDynamic && deps.dynamic
           ? deps.dynamic.input(ctx, t, input)
-          : limited(t.cap, unstringified(t.inputSchema, input)),
+          : fillKey(t, limited(t.cap, unstringified(t.inputSchema, input)), ctx, countSame(ctx, t.name, input)),
         seed,
       );
       if (res.status === "held") {
@@ -377,6 +399,15 @@ export function createToolSession(deps: CallDeps): ToolSession {
           details: { tool: t.name, reason: "no_new_desktop" },
         });
         return { kind: "error", error, result: { ok: false, content: { error: modelError(error) } } };
+      }
+      if (e instanceof HostError && e.error.code === "validation.bad_input") {
+        // the input was not accepted: say which input and what rule, and show a minimal call. The server's list holds paths and rules, never a value; details.errors stays on the error for the log.
+        const problems = (e.error.details as { errors?: unknown } | undefined)?.errors;
+        const list = Array.isArray(problems) ? problems.filter((p): p is string => typeof p === "string") : [];
+        if (list.length > 0) {
+          const error = { ...e.error, message: rejectWords(t, list, EXAMPLES[t.cap]) };
+          return { kind: "error", error, result: { ok: false, content: { error: modelError(error) } } };
+        }
       }
       if (e instanceof HostError)
         return { kind: "error", error: e.error, result: { ok: false, content: { error: modelError(e.error) } } };

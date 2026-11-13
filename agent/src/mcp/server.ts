@@ -325,6 +325,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
   async function callTool(
     s: Session,
     params: unknown,
+    callId?: string,
   ): Promise<{ result: Record<string, unknown> } | { invalid: string }> {
     const p = params as { name?: unknown; arguments?: unknown } | null;
     if (!p || typeof p.name !== "string" || p.name === "") return { invalid: "tools/call needs a tool name" };
@@ -334,7 +335,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     )
       return { invalid: "arguments must be an object" };
     const args = (p.arguments ?? {}) as Record<string, unknown>;
-    if (p.name === USE_TOOL) return callTool(s, { name: args["name"], arguments: args["arguments"] ?? {} });
+    if (p.name === USE_TOOL) return callTool(s, { name: args["name"], arguments: args["arguments"] ?? {} }, callId);
     const t = deps.catalog.byName(p.name);
     if (!t) return { invalid: `Unknown tool: ${p.name}` };
     const traceId = s.ctx.trace?.traceId ?? hex(16);
@@ -429,7 +430,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
 
     // the session can end while the call runs (Remove on the agent's profile): it fails here at once, whatever the call is still waiting on
     if (s.caller.kind === "outside" && !deps.defaults.has(t.name)) s.tools.preload(s.ctx.thread.threadId, [t.name]);
-    const run = s.tools.call(s.ctx, t.name, args);
+    const run = s.tools.call(callId ? { ...s.ctx, callId } : s.ctx, t.name, args);
     const out = s.caller.kind === "outside" ? await Promise.race([run, s.gone]) : await run;
     if (out === "gone") {
       const error = makeError("permission.revoked", traceId, { message: "This connection was removed." });
@@ -656,7 +657,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         if (isNote) return null;
         if (!s) return err(id, INVALID_REQUEST, "No session.");
         try {
-          const r = await callTool(s, req.params);
+          const r = await callTool(s, req.params, `${s.caller.sessionId}:${String(id)}`);
           return "invalid" in r ? err(id, INVALID_PARAMS, r.invalid) : ok(id, r.result);
         } catch {
           return err(id, INTERNAL_ERROR, "Something went wrong on our side.");
