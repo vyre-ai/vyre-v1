@@ -4,7 +4,7 @@
 // The file to open comes from the tab hash (`subject=file:<id>`); this screen never reads the hash itself.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { Viewer } from "../../../../../../ui/src/Viewer/index.tsx";
 import type { DocBlock, MarkupBox, Stroke } from "../../../../../../ui/src/Viewer/index.tsx";
@@ -52,8 +52,9 @@ export interface FileViewerProps {
 
 type Graph = CapMap["memory.graph"]["out"];
 type Load =
-  | { status: "loading" }
+  | { status: "loading"; /** the provider, when the file is a live placeholder being fetched from it */ from?: string }
   | { status: "gone" }
+  | { status: "failed"; /** the provider the content could not be got from */ from: string }
   | { status: "ready"; data: ViewerData; comments: readonly FileComment[]; markup: Markup; graph: Graph | null };
 
 export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactElement {
@@ -77,10 +78,24 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     }
   }, [layer]);
 
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
     setLoad({ status: "loading" });
     void (async () => {
+      // a live file whose content is not here yet is fetched from its provider while this waits: say so, and say what failed if it does
+      let from = "";
+      try {
+        const head = (await d.call("files.get", { fileId })) as {
+          file: { size: number; source?: { provider: string } };
+        };
+        if (head.file.source && head.file.size === 0) {
+          from = head.file.source.provider;
+          if (live) setLoad({ status: "loading", from });
+        }
+      } catch {
+        /* the real read below says what is wrong */
+      }
       try {
         const data = (await d.call("files.viewer_data", { fileId })) as ViewerData;
         const comments = ((await d.call("files.comments.list", { fileId })) as { comments: FileComment[] }).comments;
@@ -93,17 +108,21 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
             : null;
         version.current = data.file.version;
         if (live) setLoad({ status: "ready", data, comments, markup, graph });
-      } catch {
-        if (live) setLoad({ status: "gone" });
+      } catch (e) {
+        const code =
+          (e as { code?: string; error?: { code?: string } } | null)?.code ??
+          (e as { error?: { code?: string } } | null)?.error?.code;
+        if (live)
+          setLoad(from !== "" && code === "provider.unavailable" ? { status: "failed", from } : { status: "gone" });
       }
     })();
     return () => {
       live = false;
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [d, fileId]);
+  }, [d, fileId, attempt]);
 
-  const mounted = load.status === "ready" && load.data.file.source !== undefined;
+  const mounted = (load.status === "ready" && load.data.file.source !== undefined) || load.status === "failed";
   useEffect(() => {
     setLink(null);
     if (!mounted || !d.openUrl) return undefined;
@@ -164,9 +183,39 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
 
   if (load.status === "loading")
     return (
-      <View testID="file-viewer-loading" style={s.frame} accessibilityLabel="Loading the file">
+      <View
+        testID="file-viewer-loading"
+        style={s.frame}
+        accessibilityLabel={load.from ? `Getting this from ${load.from}` : "Loading the file"}
+      >
         <View style={s.skHead} />
         <View style={s.skBody} />
+        {load.from ? (
+          <Text style={s.getting} accessibilityLiveRegion="polite" testID="file-viewer-getting">
+            {`Getting this from ${load.from}`}
+          </Text>
+        ) : null}
+      </View>
+    );
+  if (load.status === "failed")
+    return (
+      <View testID="file-viewer-failed" style={s.frame} accessibilityLabel={`Could not get this from ${load.from}`}>
+        <States
+          kind="empty"
+          title={`Could not get this from ${load.from} just now`}
+          icon="offline"
+          action={{ label: "Try again", onPress: () => setAttempt((n) => n + 1) }}
+        />
+        {link && d.openUrl ? (
+          <Pressable
+            accessibilityRole="link"
+            testID="file-viewer-failed-open"
+            onPress={() => d.openUrl?.(link.webUrl)}
+            style={s.failedOpen}
+          >
+            <Text style={s.failedOpenText}>{openInWords(link.openIn)}</Text>
+          </Pressable>
+        ) : null}
       </View>
     );
   if (load.status === "gone" || !ready)
@@ -462,6 +511,17 @@ const s = StyleSheet.create({
   },
   tileText: { color: "var(--ink-3)" as string, fontSize: 8.5, fontWeight: "700" },
   typeTile: { marginRight: -10 },
+  getting: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: "42%" as unknown as number,
+    textAlign: "center",
+    fontSize: 13,
+    color: "var(--ink-3)" as string,
+  },
+  failedOpen: { alignSelf: "center", paddingHorizontal: 12, paddingVertical: 8, marginTop: -40 },
+  failedOpenText: { fontSize: 13, color: "var(--accent)" as string, fontWeight: "600" },
   note: {
     position: "absolute",
     left: 16,

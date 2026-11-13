@@ -600,3 +600,105 @@ test("mounted files get their kind the way the mount engine creates them (a name
     assert.equal(made.file.kind, kind, `${name} (${mime ?? "no mime"})`);
   }
 });
+
+// ---- a spreadsheet's rows, and a live file whose content is not here yet (13 Nov 2026: a Drive CSV opened as "0 rows, 0 columns") -------------------------------------------------------------
+
+/** A live Drive folder and an empty placeholder in it, as the mounts engine makes them. `open` is what mounts.open does when the viewer asks. */
+async function drive(
+  open: (ctx: Ctx, fileId: string) => Promise<unknown>,
+  extra: (cap: string, i: Obj) => unknown = () => undefined,
+) {
+  let ctx!: Ctx;
+  const w = world((cap, input) => {
+    const e = extra(cap, input);
+    if (e !== undefined) return e;
+    if (cap === "mounts.open") return open(ctx, String(input.fileId));
+    return undefined;
+  });
+  ctx = w.ctx;
+  const root = await personal(ctx);
+  const drv = (await call(ctx, "files.folder.create", { parentId: root, name: "My Drive", idempotencyKey: "drv" }))
+    .folder.folderId as string;
+  await call(ctx, "files.folder.settings", {
+    folderId: drv,
+    source: { mountId: "mnt_drive", provider: "Google Drive" },
+  });
+  const placeholder = async (name: string, mime: string): Promise<string> =>
+    (await call(ctx, "files.create", { folderId: drv, name, mime, idempotencyKey: `ph-${name}` })).file.fileId;
+  return { ctx, placeholder };
+}
+const CSV = "client,fee\nAcme,10\nBeta,20\n";
+
+test("viewer_data: a CSV carries its text, so the grid has rows (a spreadsheet kind used to arrive with no text at all)", async () => {
+  const { ctx } = world();
+  const id = await make(ctx, "fees.csv", "spreadsheet", { text: CSV });
+  const v = await call(ctx, "files.viewer_data", { fileId: id });
+  assert.equal(v.text, CSV);
+});
+
+test("viewer_data: a big CSV is cut at a whole row, never shown empty", async () => {
+  const { ctx } = world();
+  const rows = Array.from({ length: 13_000 }, (_, i) => `client ${i},${i}`);
+  const id = await make(ctx, "big.csv", "spreadsheet", { text: `client,fee\n${rows.join("\n")}\n` });
+  const v = await call(ctx, "files.viewer_data", { fileId: id });
+  assert.ok(typeof v.text === "string" && v.text.length > 1000 && v.text.length < 262_144, `${v.text?.length}`);
+  assert.ok(v.text.endsWith("\n"), "the cut falls between rows");
+  assert.ok(v.text.startsWith("client,fee\n"));
+});
+
+test("viewer_data: a workbook's first sheet arrives as CSV text for the grid", async () => {
+  const { ctx } = world((cap) => {
+    if (cap === "sheets.info") return { sheets: [{ name: "Fees", rows: 2, columns: ["client", "fee"] }] };
+    if (cap === "sheets.read_rows")
+      return {
+        rows: [
+          { rowId: "r1", values: { client: "Acme", fee: 10 } },
+          { rowId: "r2", values: { client: "Beta, Inc", fee: 20 } },
+        ],
+        total: 2,
+      };
+    return undefined;
+  });
+  const xls = await make(ctx, "fees.xlsx", "spreadsheet", { base64: "UEsDBA==" });
+  const v = await call(ctx, "files.viewer_data", { fileId: xls });
+  assert.equal(v.text, 'client,fee\nAcme,10\n"Beta, Inc",20\n');
+});
+
+test("viewer_data: a live placeholder is fetched before it is read, so the first open shows the content, never the empty placeholder", async () => {
+  const { ctx, placeholder } = await drive(async (c, fileId) => {
+    await call(c, "files.write", { fileId, content: { text: CSV }, reason: "Fetched from Google Drive" });
+    return { mounted: true, fetched: true, source: { cached: true } };
+  });
+  const id = await placeholder("1 - Wallet Recharge.csv", "text/csv");
+  assert.equal((await call(ctx, "files.get", { fileId: id })).file.size, 0, "it starts as an empty placeholder");
+  const v = await call(ctx, "files.viewer_data", { fileId: id });
+  assert.equal(v.text, CSV);
+  assert.equal(v.file.size, CSV.length);
+});
+
+test("viewer_data and files.read: when a live file cannot be fetched they say so, they never hand over the empty placeholder", async () => {
+  const down = new VyreErr({
+    code: "provider.unavailable",
+    message: "Drive is down.",
+    retryable: true,
+    traceId: "t",
+    next: [],
+  });
+  const { ctx, placeholder } = await drive(async () => {
+    throw down;
+  });
+  const id = await placeholder("fees.csv", "text/csv");
+  assert.equal(await code(call(ctx, "files.viewer_data", { fileId: id })), "provider.unavailable");
+  assert.equal(await code(call(ctx, "files.read", { fileId: id, as: "text" })), "provider.unavailable");
+  // an answer of "not cached" with no error is the same: the content is not here
+  const quiet = await drive(async () => ({ mounted: true, fetched: false, source: { cached: false } }));
+  const q = await quiet.placeholder("fees.csv", "text/csv");
+  assert.equal(await code(call(quiet.ctx, "files.viewer_data", { fileId: q })), "provider.unavailable");
+});
+
+test("viewer_data: a live file that really is empty in Drive opens as an empty file (cached, zero bytes)", async () => {
+  const { ctx, placeholder } = await drive(async () => ({ mounted: true, fetched: false, source: { cached: true } }));
+  const id = await placeholder("blank.csv", "text/csv");
+  const v = await call(ctx, "files.viewer_data", { fileId: id });
+  assert.equal(v.file.size, 0);
+});

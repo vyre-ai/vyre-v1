@@ -1418,6 +1418,37 @@ function unreadable(ctx: Ctx, name: string, size: number, bytes: () => Uint8Arra
   fail(ctx, "validation.unsupported", `This file is damaged, so its text cannot be read. ${openIt}`);
 }
 
+/**
+ * A file of a live mount (a Drive folder) is an empty placeholder until it is opened. Reading it opens it first: mounts.open fetches the provider's current copy (`refresh` also asks about a file that
+ * has content, so an edit made at the provider shows). A placeholder whose content could not be fetched is never handed on as an empty file: the call says the content is not here (provider.unavailable),
+ * so a viewer shows "could not get this" with Retry and an agent is not told the file is empty. A file the mounts module does not know, or one that really is empty at its provider, reads as it is.
+ */
+export async function openAtProvider(ctx: Ctx, fileId: string, refresh: boolean): Promise<Row> {
+  const before = mustFile(ctx, fileId);
+  const mounted = sourceOfFolder(ctx, String(before.folder_id)) !== undefined;
+  if (num(before.size) !== 0 && !(refresh && mounted)) return before;
+  let opened: Record<string, unknown> | undefined;
+  let failure: unknown;
+  try {
+    opened = (await ctx.call("mounts.open", { fileId })) as Record<string, unknown>;
+  } catch (e) {
+    failure = e;
+  }
+  const file = mustFile(ctx, fileId);
+  if (mounted && num(file.size) === 0 && String(file.kind) !== "google_native" && opened?.mounted !== false) {
+    const source = opened?.source as Record<string, unknown> | undefined;
+    const here = failure === undefined && opened?.mounted === true && source?.cached === true;
+    // an agent's fetch waiting for approval has no content yet either
+    if (!here && opened?.changesetId === undefined)
+      fail(
+        ctx,
+        "provider.unavailable",
+        "Vyre could not get this file from where it lives just now. Try again, or open it there.",
+      );
+  }
+  return file;
+}
+
 async function filesRead(
   ctx: Ctx,
   input: unknown,
@@ -1434,15 +1465,7 @@ async function filesRead(
   const o = rec(ctx, input);
   let file = mustFile(ctx, reqStr(ctx, o, "fileId"));
   const versionId = optStr(ctx, o, "versionId");
-  // A file of a live mount is an empty placeholder until it is opened: reading it opens it first (mounts.open fetches the provider's current copy, or answers that the file is not mounted).
-  if (num(file.size) === 0 && !versionId) {
-    try {
-      await ctx.call("mounts.open", { fileId: String(file.id) });
-    } catch {
-      /* not mounted, or the provider cannot be reached: the file reads as it is */
-    }
-    file = mustFile(ctx, String(file.id));
-  }
+  if (!versionId) file = await openAtProvider(ctx, String(file.id), false);
   let blobId = String(file.blob);
   let n = num(file.version);
   if (versionId) {

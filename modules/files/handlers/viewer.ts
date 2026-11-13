@@ -8,8 +8,21 @@
 // check access to the comment's file themselves. Restricted material (a folder labelled restricted) is never shared outside the Space.
 // @reads ../migrations/0004_viewer.sql
 
+import { writeCsv } from "./sheets.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { contentMime, fail, labelOfFolder, many, num, one, isNull, optInt, optStr, rec } from "./tree.ts";
+import {
+  contentMime,
+  fail,
+  openAtProvider,
+  labelOfFolder,
+  many,
+  num,
+  one,
+  isNull,
+  optInt,
+  optStr,
+  rec,
+} from "./tree.ts";
 
 type Row = Record<string, unknown>;
 type Obj = Record<string, unknown>;
@@ -82,7 +95,7 @@ const allowed = (
 
 async function tryCall<T>(
   ctx: Ctx,
-  cap: "previews.get" | "previews.text" | "sheets.info" | "files.read",
+  cap: "previews.get" | "previews.text" | "sheets.info" | "sheets.read_rows" | "files.read",
   input: unknown,
 ): Promise<T | undefined> {
   try {
@@ -96,6 +109,47 @@ async function tryCall<T>(
   }
 }
 
+const GRID_BYTES = 200_000;
+const GRID_ROWS = 500;
+
+/** The text the viewer's grid reads for a spreadsheet file: a delimited file as it is (cut between rows when it is long), a workbook's first sheet as CSV. */
+async function gridText(
+  ctx: Ctx,
+  file: Obj,
+  at: Obj,
+  versionId: string | undefined,
+  sheets: unknown,
+): Promise<string | undefined> {
+  const name = str(file.name).toLowerCase();
+  const ext = name.includes(".") ? name.slice(name.lastIndexOf(".") + 1) : "";
+  if (ext === "csv" || ext === "tsv" || str(file.mime) === "text/csv") {
+    const r = await tryCall<{ text?: string; truncated?: boolean }>(ctx, "files.read", {
+      ...at,
+      as: "text",
+      length: GRID_BYTES,
+    });
+    if (typeof r?.text !== "string") return undefined;
+    if (r.truncated !== true) return r.text;
+    const cut = r.text.lastIndexOf("\n");
+    return cut < 0 ? r.text : r.text.slice(0, cut + 1);
+  }
+  const first = Array.isArray(sheets) ? (sheets[0] as { name?: unknown; columns?: unknown } | undefined) : undefined;
+  if (versionId !== undefined || !first || !Array.isArray(first.columns)) return undefined;
+  const columns = first.columns.filter((c): c is string => typeof c === "string");
+  const r = await tryCall<{ rows?: { values?: Record<string, unknown> }[] }>(ctx, "sheets.read_rows", {
+    fileId: str(file.fileId),
+    ...(typeof first.name === "string" ? { sheet: first.name } : {}),
+    limit: GRID_ROWS,
+  });
+  if (!Array.isArray(r?.rows)) return undefined;
+  return writeCsv(
+    columns,
+    r.rows.map((row) => columns.map((c) => cellText(row.values?.[c]))),
+  );
+}
+const cellText = (v: unknown): string =>
+  v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
+
 async function viewerData(ctx: Ctx, input: unknown): Promise<Obj> {
   const o = rec(ctx, input);
   const fileId = reqStr(ctx, o, "fileId");
@@ -104,17 +158,11 @@ async function viewerData(ctx: Ctx, input: unknown): Promise<Obj> {
   versionOf(ctx, fileId, versionId);
   let file = ((await ctx.call("files.get", { fileId })) as { file: Obj }).file;
   // Opening a file of a connected folder asks the provider what it holds now (mounts.open), so the viewer shows the current content: a live placeholder is fetched the first time,
-  // a Google-native file is exported. Opening never makes a file; the provider stays the source. A file Vyre holds itself answers "not mounted" at once.
+  // a Google-native file is exported. Opening never makes a file; the provider stays the source. A file Vyre holds itself answers "not mounted" at once. A placeholder that could not be
+  // fetched is an error here (provider.unavailable), never an empty file drawn as if it were the real one.
   if (versionId === undefined && (isObj(file.source) || num(file.size) === 0)) {
-    try {
-      await ctx.call("mounts.open", { fileId });
-      file = ((await ctx.call("files.get", { fileId })) as { file: Obj }).file;
-    } catch (e) {
-      ctx.log.warn("files: the viewer could not open the file at its provider", {
-        fileId,
-        error: e instanceof Error ? e.message : String(e),
-      });
-    }
+    await openAtProvider(ctx, fileId, true);
+    file = ((await ctx.call("files.get", { fileId })) as { file: Obj }).file;
   }
   const kind = str(file.kind);
   const at = versionId !== undefined ? { fileId, versionId } : { fileId };
@@ -141,6 +189,9 @@ async function viewerData(ctx: Ctx, input: unknown): Promise<Obj> {
   if (kind === "spreadsheet") {
     const s = await tryCall<{ sheets?: unknown[] }>(ctx, "sheets.info", { fileId });
     if (Array.isArray(s?.sheets)) out.sheets = s.sheets;
+    // the grid is drawn from text: a CSV or TSV is its own text, a workbook's first sheet is written as CSV. Without it the viewer drew "0 rows, 0 columns" for every spreadsheet.
+    const text = await gridText(ctx, file, at, versionId, s?.sheets);
+    if (text !== undefined) out.text = text;
   }
   // a Google-native file is read from its export: a Doc's Markdown and a Sheet's CSV as text, Slides as the pages and text of a PDF, a Drawing as a picture. Editing it goes through the
   // provider (Open in Google Docs, or an agent through the provider's API), never by saving the export over it.
