@@ -33339,6 +33339,16 @@ export type SchedulerCatchUpOut = {
   ranOnce: number;
   skipped: number;
 };
+export type SchedulerClaimIn = {
+  scheduleId: string;
+  dueKey: string;
+  host: string;
+};
+export type SchedulerClaimOut = {
+  claimed: boolean;
+  fireId?: string;
+  attempt?: number;
+};
 export type SchedulerFireIn = {
   scheduleId: string;
   scheduledFor: number;
@@ -33353,7 +33363,7 @@ export type SchedulerGetOut = {
   schedule: {
     id: string;
     owner: {
-      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
       id: string;
     };
     principal: string;
@@ -33370,11 +33380,14 @@ export type SchedulerGetOut = {
     nextAt?: number;
     lastFiredAt?: number;
     createdAt: number;
+    zone?: string;
+    scope?: "private" | "shared" | "room";
+    person?: string;
   };
 };
 export type SchedulerListIn = {
   owner?: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   active?: boolean;
@@ -33385,7 +33398,7 @@ export type SchedulerListOut = {
   schedules: Array<{
       id: string;
       owner: {
-        kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+        kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
         id: string;
       };
       principal: string;
@@ -33402,6 +33415,9 @@ export type SchedulerListOut = {
       nextAt?: number;
       lastFiredAt?: number;
       createdAt: number;
+      zone?: string;
+      scope?: "private" | "shared" | "room";
+      person?: string;
     }>;
   next?: string;
   total?: number;
@@ -33413,7 +33429,7 @@ export type SchedulerMissedOut = {
   missed: Array<{
       scheduleId: string;
       owner: {
-        kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+        kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
         id: string;
       };
       scheduledFor: number;
@@ -33437,7 +33453,7 @@ export type SchedulerPauseOut = {
   schedule: {
     id: string;
     owner: {
-      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
       id: string;
     };
     principal: string;
@@ -33454,7 +33470,19 @@ export type SchedulerPauseOut = {
     nextAt?: number;
     lastFiredAt?: number;
     createdAt: number;
+    zone?: string;
+    scope?: "private" | "shared" | "room";
+    person?: string;
   };
+};
+export type SchedulerReportIn = {
+  fireId: string;
+  state: "running" | "waiting" | "done" | "failed" | "stopped";
+  runId?: string;
+  note?: string;
+};
+export type SchedulerReportOut = {
+  ok: boolean;
 };
 export type SchedulerRescheduleIn = {
   scheduleId: string;
@@ -33470,7 +33498,7 @@ export type SchedulerRescheduleOut = {
   schedule: {
     id: string;
     owner: {
-      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
       id: string;
     };
     principal: string;
@@ -33487,6 +33515,9 @@ export type SchedulerRescheduleOut = {
     nextAt?: number;
     lastFiredAt?: number;
     createdAt: number;
+    zone?: string;
+    scope?: "private" | "shared" | "room";
+    person?: string;
   };
 };
 export type SchedulerResumeIn = {
@@ -33496,7 +33527,7 @@ export type SchedulerResumeOut = {
   schedule: {
     id: string;
     owner: {
-      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
       id: string;
     };
     principal: string;
@@ -33513,6 +33544,9 @@ export type SchedulerResumeOut = {
     nextAt?: number;
     lastFiredAt?: number;
     createdAt: number;
+    zone?: string;
+    scope?: "private" | "shared" | "room";
+    person?: string;
   };
 };
 export type SchedulerRunNowIn = {
@@ -33523,7 +33557,7 @@ export type SchedulerRunNowOut = {
 };
 export type SchedulerScheduleIn = {
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   cap: string;
@@ -33536,6 +33570,19 @@ export type SchedulerScheduleIn = {
   };
   ifMissed?: "skip" | "run_once";
   principal?: string;
+  kind?: "call" | "routine" | "watch" | "goal" | "baton";
+  person?: string;
+  agentId?: string;
+  scope?: "private" | "shared" | "room";
+  roomId?: string;
+  zone?: string;
+  quiet?: {
+    from: string;
+    to: string;
+  };
+  overlap?: "skip" | "coalesce";
+  answerWithinMin?: number;
+  maxAttempts?: number;
   idempotencyKey: string;
 };
 export type SchedulerScheduleOut = {
@@ -46696,12 +46743,14 @@ export interface CapMap {
   "scheduler.can_hold": { in: SchedulerCanHoldIn; out: SchedulerCanHoldOut };
   "scheduler.cancel": { in: SchedulerCancelIn; out: SchedulerCancelOut };
   "scheduler.catch_up": { in: SchedulerCatchUpIn; out: SchedulerCatchUpOut };
+  "scheduler.claim": { in: SchedulerClaimIn; out: SchedulerClaimOut };
   "scheduler.fire": { in: SchedulerFireIn; out: SchedulerFireOut };
   "scheduler.get": { in: SchedulerGetIn; out: SchedulerGetOut };
   "scheduler.list": { in: SchedulerListIn; out: SchedulerListOut };
   "scheduler.missed": { in: SchedulerMissedIn; out: SchedulerMissedOut };
   "scheduler.next_times": { in: SchedulerNextTimesIn; out: SchedulerNextTimesOut };
   "scheduler.pause": { in: SchedulerPauseIn; out: SchedulerPauseOut };
+  "scheduler.report": { in: SchedulerReportIn; out: SchedulerReportOut };
   "scheduler.reschedule": { in: SchedulerRescheduleIn; out: SchedulerRescheduleOut };
   "scheduler.resume": { in: SchedulerResumeIn; out: SchedulerResumeOut };
   "scheduler.run_now": { in: SchedulerRunNowIn; out: SchedulerRunNowOut };
@@ -50259,7 +50308,7 @@ export type SandboxDeniedPayload = {
 export type ScheduleCanceledPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   by: string;
@@ -50267,7 +50316,7 @@ export type ScheduleCanceledPayload = {
 export type ScheduleCreatedPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   nextAt?: number;
@@ -50275,7 +50324,7 @@ export type ScheduleCreatedPayload = {
 export type ScheduleFiredPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   runId?: string;
@@ -50285,7 +50334,7 @@ export type ScheduleFiredPayload = {
 export type ScheduleMissedPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   scheduledFor: number;
@@ -50295,7 +50344,7 @@ export type ScheduleMissedPayload = {
 export type SchedulePausedPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   reason: string;
@@ -50303,7 +50352,7 @@ export type SchedulePausedPayload = {
 export type ScheduleResumedPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
 };

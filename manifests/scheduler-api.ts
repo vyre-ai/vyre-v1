@@ -10,10 +10,14 @@ const scheduleId = t.id("sch");
 const waitId = t.id("wat");
 const ifMissed = t.enm("skip", "run_once");
 const owner = t.obj({
-  kind: t.enm("automation", "journey", "agent_routine", "gate", "task", "system"),
+  kind: t.enm("automation", "journey", "agent_routine", "gate", "task", "system", "goal"),
   id: t.str({ examples: ["aut_a1b2c3"] }),
 });
 const when = t.union(t.obj({ at: t.ts() }), t.obj({ cron, tz: t.str({ examples: ["Asia/Karachi"] }) }));
+const wakeKind = t.enm("call", "routine", "watch", "goal", "baton");
+const wakeScope = t.enm("private", "shared", "room");
+const wakeOverlap = t.enm("skip", "coalesce");
+const wakeQuiet = t.obj({ from: t.str({ examples: ["22:00"] }), to: t.str({ examples: ["08:00"] }) });
 const scheduleRow = t.obj({
   id: scheduleId,
   owner,
@@ -26,6 +30,14 @@ const scheduleRow = t.obj({
   nextAt: t.opt(t.ts()),
   lastFiredAt: t.opt(t.ts()),
   createdAt: t.ts(),
+  zone: t.opt(
+    t.str({
+      description: "The zone the wake keeps its clock in; absent follows the Space",
+      examples: ["Asia/Karachi"],
+    }),
+  ),
+  scope: t.opt(wakeScope),
+  person: t.opt(id.user),
 });
 const waitOn = t.union(
   t.obj({ event: t.str(), filter: t.opt(t.json()) }),
@@ -114,6 +126,16 @@ export default defineManifest({
           when,
           ifMissed: t.opt(ifMissed),
           principal: t.opt(t.str()),
+          kind: t.opt(wakeKind),
+          person: t.opt(id.user),
+          agentId: t.opt(id.agent),
+          scope: t.opt(wakeScope),
+          roomId: t.opt(id.channel),
+          zone: t.opt(t.str({ examples: ["Asia/Karachi"] })),
+          quiet: t.opt(wakeQuiet),
+          overlap: t.opt(wakeOverlap),
+          answerWithinMin: t.opt(t.int({ minimum: 1 })),
+          maxAttempts: t.opt(t.int({ minimum: 1, maximum: 10 })),
         },
         out: { scheduleId, nextAt: t.opt(t.ts()) },
         emits: ["schedule.created"],
@@ -170,6 +192,31 @@ export default defineManifest({
         },
         level: "member",
         errors: ["validation.bad_input"],
+      },
+    ),
+    write(
+      "scheduler.claim",
+      "System: the engine claims a due fire of a wake. The one claim rule: only the writer whose conditional write changes the row goes on; a claim older than its lease is taken again",
+      {
+        in: { scheduleId, dueKey: t.str({ examples: ["1793696460000"] }), host: t.str({ examples: ["host_a"] }) },
+        out: { claimed: t.bool(), fireId: t.opt(t.str()), attempt: t.opt(t.int()) },
+        idem: "natural",
+        errors: ["validation.not_found", "permission.no_grant"],
+      },
+    ),
+    write(
+      "scheduler.report",
+      "System: the engine says how a claimed fire is going: running, waiting for a person, done, failed or stopped",
+      {
+        in: {
+          fireId: t.str(),
+          state: t.enm("running", "waiting", "done", "failed", "stopped"),
+          runId: t.opt(id.run),
+          note: t.opt(t.str()),
+        },
+        out: { ok: t.bool() },
+        idem: "natural",
+        errors: ["validation.not_found", "permission.no_grant"],
       },
     ),
     write("scheduler.fire", "Fire a due schedule: invoke its capability as its principal (called by the host tick)", {

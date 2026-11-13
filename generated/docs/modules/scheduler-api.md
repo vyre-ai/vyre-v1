@@ -4,17 +4,19 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (19)
+## Capabilities (21)
 
 - [scheduler.can_hold](../capabilities/scheduler.can_hold.md): System: may this person hold scheduled work for this agent (a routine, a goal), and read its channel? Says why not, in reasons. Gives the answer a hand-over needs
 - [scheduler.cancel](../capabilities/scheduler.cancel.md): Cancel a schedule
 - [scheduler.catch_up](../capabilities/scheduler.catch_up.md): After downtime apply each schedule if-missed rule: run once if within the missed window, else skip with a note in the owner digest
+- [scheduler.claim](../capabilities/scheduler.claim.md): System: the engine claims a due fire of a wake. The one claim rule: only the writer whose conditional write changes the row goes on; a claim older than its lease is taken again
 - [scheduler.fire](../capabilities/scheduler.fire.md): Fire a due schedule: invoke its capability as its principal (called by the host tick)
 - [scheduler.get](../capabilities/scheduler.get.md): Read one schedule
 - [scheduler.list](../capabilities/scheduler.list.md): List schedules by owner, with next and last fire times
 - [scheduler.missed](../capabilities/scheduler.missed.md): Schedules missed in a period and what was done about each
 - [scheduler.next_times](../capabilities/scheduler.next_times.md): The next fire times of a cron or schedule, for the editor preview
 - [scheduler.pause](../capabilities/scheduler.pause.md): Pause a schedule with a visible reason
+- [scheduler.report](../capabilities/scheduler.report.md): System: the engine says how a claimed fire is going: running, waiting for a person, done, failed or stopped
 - [scheduler.reschedule](../capabilities/scheduler.reschedule.md): Change the time, cron or if-missed rule of a schedule
 - [scheduler.resume](../capabilities/scheduler.resume.md): Resume a paused schedule
 - [scheduler.run_now](../capabilities/scheduler.run_now.md): Fire a schedule once now without changing its cron

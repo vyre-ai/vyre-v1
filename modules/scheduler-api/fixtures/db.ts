@@ -12,7 +12,9 @@ import type { Caller } from "./seed.ts";
 
 // Boundary B2 keeps the node:sqlite module out of the import lines of modules: only the host builds a ctx and opens databases.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
-const migration = readFileSync(new URL("../migrations/0001_scheduler_api.sql", import.meta.url), "utf8");
+const migrations = ["0001_scheduler_api.sql", "0002_campaigns_removed.sql", "0003_wake.sql"].map((f) =>
+  readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"),
+);
 export const TRACE = "0123456789abcdef0123456789abcdef";
 const IDEM_KEYED = new Set(["scheduler.schedule", "scheduler.waits.register"]);
 
@@ -44,7 +46,7 @@ const norm = (a: unknown): unknown => (a === undefined ? null : a);
 
 export function harness(o: HarnessOptions = {}) {
   const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec(migration);
+  for (const m of migrations) sqlite.exec(m);
   const raw: Db = {
     all: (sql, ...args) => sqlite.prepare(sql).all(...(args.map(norm) as never[])),
     run: (sql, ...args) => ({ changes: Number(sqlite.prepare(sql).run(...(args.map(norm) as never[])).changes) }),

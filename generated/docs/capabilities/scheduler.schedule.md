@@ -26,7 +26,7 @@ Schedule a capability call at a time or on a cron as a principal, with an if-mis
 ```ts
 type In = {
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   cap: string;
@@ -39,6 +39,19 @@ type In = {
   };
   ifMissed?: "skip" | "run_once";
   principal?: string;
+  kind?: "call" | "routine" | "watch" | "goal" | "baton";
+  person?: string;
+  agentId?: string;
+  scope?: "private" | "shared" | "room";
+  roomId?: string;
+  zone?: string;
+  quiet?: {
+    from: string;
+    to: string;
+  };
+  overlap?: "skip" | "coalesce";
+  answerWithinMin?: number;
+  maxAttempts?: number;
   idempotencyKey: string;
 };
 ```
@@ -65,18 +78,31 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "agentId": "agt_a1b2c3",
+    "answerWithinMin": 1,
     "cap": "automations.fire",
     "idempotencyKey": "idem_1",
     "ifMissed": "skip",
     "input": {},
+    "kind": "call",
+    "maxAttempts": 1,
+    "overlap": "skip",
     "owner": {
       "id": "aut_a1b2c3",
       "kind": "automation"
     },
+    "person": "usr_a1b2c3",
     "principal": "example",
+    "quiet": {
+      "from": "22:00",
+      "to": "08:00"
+    },
+    "roomId": "chn_a1b2c3",
+    "scope": "private",
     "when": {
       "at": 1760000000000
-    }
+    },
+    "zone": "Asia/Karachi"
   },
   "output": {
     "nextAt": 1760000000000,

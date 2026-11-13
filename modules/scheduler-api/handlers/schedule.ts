@@ -15,6 +15,10 @@ import {
   findSchedule,
   fireRow,
   idemFind,
+  claimFire,
+  createFire,
+  fireIdOf,
+  fireState,
   idemSave,
   isService,
   mayManage,
@@ -27,11 +31,14 @@ import {
   raise,
   nextCron,
   openWaits,
+  pruneFires,
   readPolicy,
+  reportFire,
   saveFire,
   saveMissed,
   saveSchedule,
   scheduleOut,
+  splitFireId,
   validTimeZone,
 } from "../projections.ts";
 import type { IfMissed, MissedRow, SchedCtx, Schedule, When } from "../projections.ts";
@@ -102,7 +109,24 @@ export async function schedule(ctx: SchedCtx, input: In): Promise<unknown> {
     nextAt,
     createdBy: ctx.principal.id,
     createdAt: now,
+    kind: (input.kind as Schedule["kind"] | undefined) ?? "call",
+    scope: (input.scope as Schedule["scope"] | undefined) ?? "private",
+    overlap: (input.overlap as Schedule["overlap"] | undefined) ?? "skip",
+    maxAttempts: (input.maxAttempts as number | undefined) ?? 1,
   };
+  // the Wake columns that are only there when given
+  if (typeof input.person === "string") s.person = input.person;
+  if (typeof input.agentId === "string") s.agentId = input.agentId;
+  if (typeof input.roomId === "string") s.roomId = input.roomId;
+  if (typeof input.zone === "string") {
+    if (!validTimeZone(input.zone))
+      raise(ctx, "validation.bad_input", "That time zone is not known.", { reason: "bad_tz", tz: input.zone });
+    s.zone = input.zone;
+  }
+  if (input.quiet) s.quiet = input.quiet as { from: string; to: string };
+  if (typeof input.answerWithinMin === "number") s.answerWithinMin = input.answerWithinMin;
+  if (s.scope !== "private" && s.roomId === undefined)
+    raise(ctx, "validation.bad_input", "A shared or room wake names its room.", { reason: "no_room" });
   saveSchedule(ctx.db, s);
   if (key) idemSave(ctx.db, key, s.id);
   emitSched(ctx, "schedule.created", s.id, { owner: s.owner, nextAt: s.nextAt });
@@ -385,11 +409,66 @@ export async function tick(
   const out = { fired: [] as string[], failed: [] as { scheduleId: string; error: string }[] };
   for (const s of dueSchedules(ctx.db, ctx.now())) {
     try {
-      await fire(ctx, { scheduleId: s.id, scheduledFor: s.nextAt! });
+      if (s.kind === "call") await fire(ctx, { scheduleId: s.id, scheduledFor: s.nextAt! });
+      else makeDue(ctx, s); // a wake of a routine, goal or baton: the engine claims the fire and starts its turn (scheduler.claim)
       out.fired.push(s.id);
     } catch (e) {
       out.failed.push({ scheduleId: s.id, error: (e as { message?: string } | null)?.message ?? "failed" });
     }
   }
   return out;
+}
+
+/**
+ * A time of a wake has come: its fire is made `due` (INSERT OR IGNORE on (wake, due key), so two ticks and two computers make one), and the wake moves to its next time. The target's own event
+ * (agent.routine_run_started, goal.woken) is the engine's to say when it claims the fire; here nothing has started yet.
+ */
+function makeDue(ctx: SchedCtx, s: Schedule): void {
+  const at = s.nextAt!;
+  createFire(ctx.db, s.id, String(at), at, ctx.now());
+  advance(s, at);
+  saveSchedule(ctx.db, s);
+}
+
+/**
+ * The periodic pass of the Wake table: every wake that is not a plain `call` and whose time has come gets its due fire (once, whichever computer or tick makes it), then one bounded retention pass. A `call`
+ * schedule is still fired by `tick`, as before; nothing writes a wake of another kind until routines, goals and the baton move onto the table.
+ */
+export function tickWakes(ctx: SchedCtx): { made: number; pruned: number } {
+  let made = 0;
+  for (const s of dueSchedules(ctx.db, ctx.now())) {
+    if (s.kind === "call") continue;
+    makeDue(ctx, s);
+    made += 1;
+  }
+  return { made, pruned: pruneFires(ctx.db, ctx.now()) };
+}
+
+/** One retention pass: bounded, and never a fire that is open (scheduler_api_fires, P1 "Retention"). */
+export function prune(ctx: SchedCtx): { deleted: number } {
+  return { deleted: pruneFires(ctx.db, ctx.now()) };
+}
+
+function mustBeSystem(ctx: SchedCtx): void {
+  if (!isService(ctx)) raise(ctx, "permission.no_grant", "Only the server says that.");
+}
+
+/** The engine claims a due fire (the one claim rule). `claimed` is true for the single write that changed the row. */
+export async function claim(ctx: SchedCtx, input: In): Promise<unknown> {
+  mustBeSystem(ctx);
+  const have = fireState(ctx.db, input.scheduleId, input.dueKey);
+  if (have === undefined) raise(ctx, "validation.not_found", "That fire does not exist.", { reason: "no_such_fire" });
+  const won = claimFire(ctx.db, input.scheduleId, input.dueKey, input.host, ctx.now());
+  return won
+    ? { claimed: true, fireId: fireIdOf(input.scheduleId, input.dueKey), attempt: won.attempt }
+    : { claimed: false };
+}
+
+/** The engine says where a claimed fire is. A fire already over does not move. */
+export async function report(ctx: SchedCtx, input: In): Promise<unknown> {
+  mustBeSystem(ctx);
+  const id = splitFireId(input.fireId);
+  if (!id || fireState(ctx.db, id.scheduleId, id.dueKey) === undefined)
+    raise(ctx, "validation.not_found", "That fire does not exist.", { reason: "no_such_fire" });
+  return { ok: reportFire(ctx.db, id.scheduleId, id.dueKey, input.state, input.runId, input.note, ctx.now()) };
 }

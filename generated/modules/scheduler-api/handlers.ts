@@ -8,12 +8,14 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "scheduler.can_hold": Handler<"scheduler.can_hold", X>;
   "scheduler.cancel": Handler<"scheduler.cancel", X>;
   "scheduler.catch_up": Handler<"scheduler.catch_up", X>;
+  "scheduler.claim": Handler<"scheduler.claim", X>;
   "scheduler.fire": Handler<"scheduler.fire", X>;
   "scheduler.get": Handler<"scheduler.get", X>;
   "scheduler.list": Handler<"scheduler.list", X>;
   "scheduler.missed": Handler<"scheduler.missed", X>;
   "scheduler.next_times": Handler<"scheduler.next_times", X>;
   "scheduler.pause": Handler<"scheduler.pause", X>;
+  "scheduler.report": Handler<"scheduler.report", X>;
   "scheduler.reschedule": Handler<"scheduler.reschedule", X>;
   "scheduler.resume": Handler<"scheduler.resume", X>;
   "scheduler.run_now": Handler<"scheduler.run_now", X>;

@@ -1,10 +1,23 @@
 // Scheduler module (lane L6). The host loads these handlers once the module is live (host/modules.json, ARCH 12.4).
 // `tick` is what the host scheduler glue calls on every pass: it fires every schedule that is due. `catch_up`, `waits.match` and `waits.expire` are capabilities the glue calls too.
 import { handlers } from "./handlers/index.ts";
+import { tickWakes } from "./handlers/schedule.ts";
 import { syncPolicy } from "./projections.ts";
 import type { SchedCtx } from "./projections.ts";
 
 export { handlers };
+
+/** The Wake table's pass: due fires are made, finished ones are pruned. Runs only where the scheduled-work lease is held (the host's periodic runner), so two computers never both make a fire; and if they did, the insert makes one. */
+export const periodic = {
+  "scheduler.wakes": {
+    everyMs: 10_000,
+    immediate: false,
+    run: async (ctx: SchedCtx): Promise<string[]> => {
+      const r = tickWakes(ctx);
+      return r.made + r.pruned > 0 ? [`${r.made} made, ${r.pruned} pruned`] : [];
+    },
+  },
+};
 
 /** Async consumers by name. */
 export const consumers = {
@@ -16,5 +29,5 @@ export const consumers = {
     },
   },
 };
-export { tick } from "./handlers/schedule.ts";
+export { prune, tick, tickWakes } from "./handlers/schedule.ts";
 export { dueSchedules, nextCron, parseCron } from "./projections.ts";

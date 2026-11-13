@@ -164,7 +164,21 @@ export interface Schedule {
   createdBy: string;
   createdAt: number;
   canceledAt?: number;
+  /** The Wake columns (P1): what this wake is for, whose account it runs on, who may see it, the zone it keeps its clock in (absent follows the Space), and what to do when a time comes while one is open. */
+  kind: WakeKind;
+  person?: string;
+  agentId?: string;
+  scope: WakeScope;
+  roomId?: string;
+  zone?: string;
+  quiet?: { from: string; to: string };
+  overlap: "skip" | "coalesce";
+  answerWithinMin?: number;
+  maxAttempts: number;
+  pausedBy?: string;
 }
+export type WakeKind = "call" | "routine" | "watch" | "goal" | "baton";
+export type WakeScope = "private" | "shared" | "room";
 export const CAP = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/;
 
 type Raw = Record<string, unknown>;
@@ -181,7 +195,25 @@ function rowToSchedule(r: Raw): Schedule {
     active: num(r.active) === 1,
     createdBy: r.created_by as string,
     createdAt: num(r.created_at) ?? 0,
+    kind: (str(r.kind) as WakeKind | undefined) ?? "call",
+    scope: (str(r.scope) as WakeScope | undefined) ?? "private",
+    overlap: r.overlap === "coalesce" ? "coalesce" : "skip",
+    maxAttempts: num(r.max_attempts) ?? 1,
   };
+  for (const [k, col] of [
+    ["person", "person"],
+    ["agentId", "agent_id"],
+    ["roomId", "room_id"],
+    ["zone", "zone"],
+    ["pausedBy", "paused_by"],
+  ] as const) {
+    const v = str(r[col]);
+    if (v !== undefined) s[k] = v;
+  }
+  const q = json<{ from: string; to: string } | undefined>(r.quiet, undefined);
+  if (q) s.quiet = q;
+  const aw = num(r.answer_within_min);
+  if (aw !== undefined) s.answerWithinMin = aw;
   const p = str(r.paused_reason);
   if (p !== undefined) s.pausedReason = p;
   const n = num(r.next_at);
@@ -213,8 +245,9 @@ export function dueSchedules(db: Db, now: number): Schedule[] {
 export function saveSchedule(db: Db, s: Schedule): void {
   const cron = "cron" in s.when ? s.when : undefined;
   db.run(
-    `INSERT OR REPLACE INTO scheduler_api_schedules (id, owner_kind, owner_id, principal, cap, input, at_ms, cron, tz, if_missed, active, paused_reason, next_at, last_fired_at, created_by, created_at, canceled_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO scheduler_api_schedules (id, owner_kind, owner_id, principal, cap, input, at_ms, cron, tz, if_missed, active, paused_reason, next_at, last_fired_at, created_by, created_at, canceled_at,
+       kind, person, agent_id, scope, room_id, zone, quiet, overlap, answer_within_min, max_attempts, paused_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     s.id,
     s.owner.kind,
     s.owner.id,
@@ -232,6 +265,17 @@ export function saveSchedule(db: Db, s: Schedule): void {
     s.createdBy,
     s.createdAt,
     nul(s.canceledAt),
+    s.kind,
+    nul(s.person),
+    nul(s.agentId),
+    s.scope,
+    nul(s.roomId),
+    nul(s.zone),
+    s.quiet ? js(s.quiet) : null,
+    s.overlap,
+    nul(s.answerWithinMin),
+    s.maxAttempts,
+    nul(s.pausedBy),
   );
 }
 /** The next time after `after` that a schedule's When fires; a one-shot has none once its time passed. */
@@ -253,6 +297,9 @@ export function scheduleOut(s: Schedule): Record<string, unknown> {
     nextAt: s.nextAt,
     lastFiredAt: s.lastFiredAt,
     createdAt: s.createdAt,
+    zone: s.zone,
+    scope: s.scope,
+    person: s.person,
   });
 }
 
@@ -266,15 +313,16 @@ export function idemSave(db: Db, key: string, ref: string): void {
 export function fireRow(db: Db, scheduleId: string, scheduledFor: number): { runId?: string } | undefined {
   const r = (
     db.all(
-      "SELECT run_id FROM scheduler_api_fires WHERE schedule_id = ? AND scheduled_for = ?",
+      "SELECT run_id FROM scheduler_api_fires WHERE schedule_id = ? AND due_key = ?",
       scheduleId,
-      scheduledFor,
+      String(scheduledFor),
     ) as Raw[]
   )[0];
   if (!r) return undefined;
   const runId = str(r.run_id);
   return runId !== undefined ? { runId } : {};
 }
+/** A fire of a time that was made and is over (the call was made): `done`. The due key of a time wake is the instant, in milliseconds, as text. */
 export function saveFire(
   db: Db,
   scheduleId: string,
@@ -283,12 +331,143 @@ export function saveFire(
   at: number,
 ): void {
   db.run(
-    "INSERT OR IGNORE INTO scheduler_api_fires (schedule_id, scheduled_for, run_id, fired_at) VALUES (?, ?, ?, ?)",
+    "INSERT OR IGNORE INTO scheduler_api_fires (schedule_id, due_key, scheduled_for, run_id, fired_at, state, ended_at) VALUES (?, ?, ?, ?, ?, 'done', ?)",
     scheduleId,
+    String(scheduledFor),
     scheduledFor,
     nul(runId),
     at,
+    at,
   );
+}
+
+// ---- the claim rule (P1): a fire is created once and claimed once, each a conditional write ----
+
+export type FireState =
+  | "due"
+  | "claimed"
+  | "running"
+  | "waiting"
+  | "done"
+  | "failed"
+  | "stopped"
+  | "skipped"
+  | "dropped";
+/** A claim is taken again when it is older than this. */
+export const LEASE_MS = 2 * MINUTE;
+export const fireIdOf = (scheduleId: string, dueKey: string): string => `${scheduleId}#${dueKey}`;
+export function splitFireId(fireId: string): { scheduleId: string; dueKey: string } | undefined {
+  const i = fireId.indexOf("#");
+  return i > 0 ? { scheduleId: fireId.slice(0, i), dueKey: fireId.slice(i + 1) } : undefined;
+}
+/** Makes a fire due. True when this write made the row: whoever gets true goes on, whoever gets false finds it already made. */
+export function createFire(db: Db, scheduleId: string, dueKey: string, scheduledFor: number, now: number): boolean {
+  return (
+    db.run(
+      "INSERT OR IGNORE INTO scheduler_api_fires (schedule_id, due_key, scheduled_for, fired_at, state) VALUES (?, ?, ?, ?, 'due')",
+      scheduleId,
+      dueKey,
+      scheduledFor,
+      now,
+    ).changes === 1
+  );
+}
+/** Claims a due fire, or one whose claim ran out. True only for the write that changed the row. */
+export function claimFire(
+  db: Db,
+  scheduleId: string,
+  dueKey: string,
+  host: string,
+  now: number,
+): { attempt: number } | undefined {
+  const won =
+    db.run(
+      `UPDATE scheduler_api_fires SET state = 'claimed', claimed_by = ?, lease_until = ?, attempt = attempt + 1
+         WHERE schedule_id = ? AND due_key = ? AND (state = 'due' OR (state = 'claimed' AND lease_until < ?))`,
+      host,
+      now + LEASE_MS,
+      scheduleId,
+      dueKey,
+      now,
+    ).changes === 1;
+  if (!won) return undefined;
+  const r = (
+    db.all("SELECT attempt FROM scheduler_api_fires WHERE schedule_id = ? AND due_key = ?", scheduleId, dueKey) as Raw[]
+  )[0];
+  return { attempt: num(r?.attempt) ?? 1 };
+}
+export function fireState(db: Db, scheduleId: string, dueKey: string): FireState | undefined {
+  const r = (
+    db.all("SELECT state FROM scheduler_api_fires WHERE schedule_id = ? AND due_key = ?", scheduleId, dueKey) as Raw[]
+  )[0];
+  return r ? (str(r.state) as FireState) : undefined;
+}
+const OPEN: readonly FireState[] = ["claimed", "running", "waiting"];
+const ENDED: readonly FireState[] = ["done", "failed", "stopped"];
+/** Moves a fire the engine holds on: running, waiting for a person, or ended. A fire that is not claimed, running or waiting does not move (a late report of a fire already ended changes nothing). */
+export function reportFire(
+  db: Db,
+  scheduleId: string,
+  dueKey: string,
+  state: "running" | "waiting" | "done" | "failed" | "stopped",
+  runId: string | undefined,
+  note: string | undefined,
+  now: number,
+): boolean {
+  return (
+    db.run(
+      `UPDATE scheduler_api_fires SET state = ?, run_id = COALESCE(?, run_id), skip_reason = COALESCE(?, skip_reason), ended_at = ?
+         WHERE schedule_id = ? AND due_key = ? AND state IN ('claimed', 'running', 'waiting')`,
+      state,
+      nul(runId),
+      nul(note),
+      (ENDED as readonly string[]).includes(state) ? now : null,
+      scheduleId,
+      dueKey,
+    ).changes === 1
+  );
+}
+/** Is a fire of this wake open (due, claimed, running or waiting)? The overlap rule asks. */
+export function openFire(db: Db, scheduleId: string): boolean {
+  return (
+    db.all(
+      "SELECT 1 AS x FROM scheduler_api_fires WHERE schedule_id = ? AND state IN ('due', 'claimed', 'running', 'waiting') LIMIT 1",
+      scheduleId,
+    ).length > 0
+  );
+}
+export { OPEN as OPEN_FIRE_STATES };
+
+// ---- retention: bounded, one statement per pass, never a fire that is open ----
+
+/** Most rows one pass deletes. */
+export const PRUNE_BOUND = 500;
+const KEEP_CALL_PER_WAKE = 20;
+const KEEP_FAILED_MS = 7 * DAY;
+const KEEP_HISTORY_MS = 400 * DAY;
+/**
+ * `call` and `baton` fires: the last 20 finished per wake, plus any that failed in the last 7 days. `routine`, `watch` and goal fires are history people read: kept 400 days. A fire that is due, claimed, running
+ * or waiting is never deleted. Returns how many rows went; never more than PRUNE_BOUND.
+ */
+export function pruneFires(db: Db, now: number): number {
+  const finished = "('done', 'failed', 'stopped', 'skipped', 'dropped')";
+  return db.run(
+    `DELETE FROM scheduler_api_fires WHERE rowid IN (
+       SELECT f.rowid FROM scheduler_api_fires f JOIN scheduler_api_schedules s ON s.id = f.schedule_id
+        WHERE f.state IN ${finished} AND (
+          (s.kind IN ('call', 'baton') AND NOT (f.state = 'failed' AND f.fired_at > ?)
+             AND (f.scheduled_for, f.due_key) < (
+               SELECT g.scheduled_for, g.due_key FROM scheduler_api_fires g
+                WHERE g.schedule_id = f.schedule_id AND g.state IN ${finished} AND NOT (g.state = 'failed' AND g.fired_at > ?)
+                ORDER BY g.scheduled_for DESC, g.due_key DESC LIMIT 1 OFFSET ?))
+          OR (s.kind NOT IN ('call', 'baton') AND f.fired_at < ?))
+        LIMIT ?)`,
+    now - KEEP_FAILED_MS,
+    now - KEEP_FAILED_MS,
+    KEEP_CALL_PER_WAKE - 1,
+    now - KEEP_HISTORY_MS,
+    PRUNE_BOUND,
+  ).changes;
 }
 
 export interface MissedRow {

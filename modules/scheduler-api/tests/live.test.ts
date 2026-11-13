@@ -9,8 +9,8 @@ const mine = registry.capabilities
   .map((c) => c.name)
   .sort();
 
-test("scheduler-api live: the handler map equals the manifest's 19 capabilities", () => {
-  assert.equal(mine.length, 19); // 18 and scheduler.can_hold (P1 step 3)
+test("scheduler-api live: the handler map equals the manifest's 21 capabilities", () => {
+  assert.equal(mine.length, 21); // 18, scheduler.can_hold and scheduler.claim and scheduler.report (P1 step 3)
   assert.deepEqual(Object.keys(handlers).sort(), mine);
   for (const name of mine)
     assert.equal(typeof (handlers as Record<string, unknown>)[name], "function", `${name} has a handler function`);

@@ -36,7 +36,7 @@ type Out = {
   missed: Array<{
       scheduleId: string;
       owner: {
-        kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+        kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
         id: string;
       };
       scheduledFor: number;

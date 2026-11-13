@@ -31357,6 +31357,24 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/scheduler/claim",
+    "cap": "scheduler.claim",
+    "v": 1,
+    "module": "scheduler-api",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/scheduler/fire",
     "cap": "scheduler.fire",
     "v": 1,
@@ -31449,6 +31467,24 @@ const routes5: Route[] = [
     "method": "POST",
     "path": "/v1/scheduler/pause",
     "cap": "scheduler.pause",
+    "v": 1,
+    "module": "scheduler-api",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/scheduler/report",
+    "cap": "scheduler.report",
     "v": 1,
     "module": "scheduler-api",
     "effects": "write",
@@ -33137,7 +33173,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sites/get",
@@ -33174,10 +33213,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/list",
@@ -38654,7 +38690,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/twilio/number/release",
@@ -38690,10 +38729,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/twilio/receive_webhook",
