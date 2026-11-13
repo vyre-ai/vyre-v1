@@ -10,7 +10,8 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { FolderShareSheet } from "../../../shell/providers/files-share.tsx";
 import { nameLookup } from "../../../shell/providers/records-live.ts";
-import { artifactAddress, plainLink } from "./artifact-address.ts";
+import { States } from "../../../../../../ui/src/States/index.tsx";
+import { artifactAddress, artifactHostAnswers, plainLink } from "./artifact-address.ts";
 import { available, DesktopArtifactFrame } from "./desktop-frame.tsx";
 
 type Site = CapMap["sites.get"]["out"]["site"];
@@ -32,6 +33,19 @@ export const refused = (e: unknown): boolean => {
     (e as { error?: { code?: string }; code?: string } | null)?.error?.code ?? (e as { code?: string } | null)?.code;
   return typeof code === "string" && code.startsWith("permission.");
 };
+
+/** The address this Space opens artifact pages at did not answer the app's own check. */
+class HostSilent extends Error {
+  constructor(address: string) {
+    let host = "the artifact address";
+    try {
+      host = new URL(address).host;
+    } catch {
+      /* a relative address has no host to name */
+    }
+    super(`${host} did not answer. An owner can see what to do in Console, Health.`);
+  }
+}
 
 const msg = (e: unknown): string => {
   const x = e as { error?: { message?: string }; message?: string } | null;
@@ -94,17 +108,23 @@ export function ArtifactView({
       },
       () => undefined,
     );
-    void open(!desktop).then(
-      (u) => {
-        if (live) setSrc(u);
-      },
-      (e: unknown) => {
-        if (live) {
-          if (refused(e)) setDenied(true);
-          else setFailed(msg(e));
-        }
-      },
-    );
+    void open(!desktop)
+      .then(async (u) => {
+        // a frame says nothing across origins, so the app asks the artifact host itself before it frames anything: a host that does not answer is an error here, never a white rectangle
+        if (!(await artifactHostAnswers(u))) throw new HostSilent(u);
+        return u;
+      })
+      .then(
+        (u) => {
+          if (live) setSrc(u);
+        },
+        (e: unknown) => {
+          if (live) {
+            if (refused(e)) setDenied(true);
+            else setFailed(msg(e));
+          }
+        },
+      );
     return () => {
       live = false;
     };
@@ -248,21 +268,13 @@ export function ArtifactView({
           </View>
         ) : failed !== null ? (
           <View testID="artifact-error" accessibilityRole="alert" style={s.state}>
-            <Text style={s.stateTitle}>This page couldn{"’"}t load here</Text>
-            <Text style={s.stateLine}>Your browser can still open it.</Text>
-            <View style={s.row}>
-              <Pressable accessibilityRole="button" testID="artifact-error-browser" onPress={browser} style={s.primary}>
-                <Text style={s.primaryText}>Open in browser</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                testID="artifact-error-retry"
-                onPress={() => setAttempt((n) => n + 1)}
-                style={s.btn}
-              >
-                <Text style={s.btnText}>Try again</Text>
-              </Pressable>
-            </View>
+            <States
+              kind="error"
+              message="This page could not be loaded from the Space"
+              cause={failed}
+              retryable
+              onRetry={() => setAttempt((n) => n + 1)}
+            />
           </View>
         ) : (
           <>
