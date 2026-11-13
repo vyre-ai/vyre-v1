@@ -99,7 +99,9 @@ export function Dialog({
   onPressOutside,
 }: DialogProps): ReactElement {
   const card = useRef<unknown>(null);
-  const winW = useWindowDimensions().width;
+  const win = useWindowDimensions();
+  const winW = win.width;
+  const winH = win.height;
   const full = fill && winW > 0 && winW < 560;
   useEscapeLayer(true, onClose);
   const outside = useRef(onPressOutside);
@@ -124,7 +126,13 @@ export function Dialog({
   }, []);
   if (anchor !== undefined)
     return (
-      <View ref={card as never} role="dialog" accessibilityLabel={title} testID={testID} style={s.anchored}>
+      <View
+        ref={card as never}
+        role="dialog"
+        accessibilityLabel={title}
+        testID={testID}
+        style={[s.anchored, { maxHeight: Math.max(280, Math.floor(winH * 0.7)) }]}
+      >
         <View style={s.anchoredHead}>
           <Text accessibilityRole="header" testID={titleTestID} style={s.anchoredTitle}>
             {title}

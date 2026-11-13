@@ -22,8 +22,16 @@ fs.mkdirSync(out, { recursive: true });
 const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
-const browser = await chromium.launch({ args: ["--no-sandbox"], ...(process.env.CHROME_BIN ? { executablePath: process.env.CHROME_BIN } : {}) });
+const browser = await chromium.launch({
+  args: ["--no-sandbox"],
+  ...(process.env.CHROME_BIN ? { executablePath: process.env.CHROME_BIN } : {}),
+});
 const SIZES = { w1440: [1440, 900], w900: [900, 800] };
+const fieldText = (pg) =>
+  pg.evaluate(() => {
+    const e = document.querySelector("[data-testid=composer-field]");
+    return e ? String(e.value ?? e.innerText ?? "").trim() : "";
+  });
 const log = [];
 const say = (...a) => {
   log.push(a.join(" "));
@@ -60,14 +68,7 @@ for (const skin of ["graphite", "paper"])
       await page.keyboard.press("Enter");
       await page.waitForTimeout(250);
       // a menu pick leaves the command in the field: Enter again sends it
-      if (
-        (await page
-          .locator("[data-testid=composer-field]")
-          .first()
-          .inputValue()
-          .catch(() => "")) !== ""
-      )
-        await page.keyboard.press("Enter");
+      if ((await fieldText(page)) !== "") await page.keyboard.press("Enter");
       await page.waitForTimeout(500);
     };
     const geo = async (t) => {
@@ -164,14 +165,7 @@ for (const skin of ["graphite", "paper"])
       await p2.waitForTimeout(250);
       await p2.keyboard.press("Enter");
       await p2.waitForTimeout(250);
-      if (
-        (await p2
-          .locator("[data-testid=composer-field]")
-          .first()
-          .inputValue()
-          .catch(() => "")) !== ""
-      )
-        await p2.keyboard.press("Enter");
+      if ((await fieldText(p2)) !== "") await p2.keyboard.press("Enter");
       await p2.waitForTimeout(v === "cmdslow" ? 900 : 700);
       await p2.screenshot({ path: path.join(out, `${name}-${tag}.png`) });
       say(

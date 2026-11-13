@@ -26,7 +26,7 @@ import type {
 type Spec = Exclude<CardSpec, { kind: "aside" }>;
 
 /** A read as the four things Loadable draws. `retry` reads again. */
-function useRead<T>(read: () => Promise<T>, again = 0): Load<T> {
+function useCardLoad<T>(read: () => Promise<T>, again = 0): Load<T> {
   const [round, setRound] = useState(0);
   const [load, setLoad] = useState<Load<T>>({ state: "loading" });
   useEffect(() => {
@@ -202,6 +202,7 @@ function UsageBody({ c, onSettings }: { c: UsageCard; onSettings(ref?: string): 
         ) : null}
       </Group>
       <Group title="AI accounts">
+        {/* ui-rows-lint: not a list (each account is its own block: a Row with its meters and models under it) */}
         {c.accounts.map((a, i) => (
           <Account key={`${i}:${a.name}`} a={a} open={open.has(i)} onToggle={() => toggle(i)} />
         ))}
@@ -243,6 +244,7 @@ function PermissionsBody({ c, onTake }: { c: PermissionsCard; onTake(id: string)
   return (
     <View style={st.body}>
       <Group>
+        {/* ui-rows-lint: not a list (PermissionRow draws a ui/Row) */}
         {c.rules.map((r) => (
           <PermissionRow key={r.id} r={r} onTake={() => onTake(r.id)} />
         ))}
@@ -284,7 +286,7 @@ function UsageCard_({
   onSettings,
   onConnect,
 }: CommandCardProps & { spec: Extract<Spec, { kind: "usage" }> }): ReactElement {
-  const load = useRead(spec.read);
+  const load = useCardLoad(spec.read);
   return (
     <Dialog title="Usage" anchor="composer" testID="command-card" onClose={onClose} onPressOutside={onPressOutside}>
       <Loadable
@@ -311,7 +313,7 @@ function PermissionsCard_({
   notify,
 }: CommandCardProps & { spec: Extract<Spec, { kind: "permissions" }> }): ReactElement {
   const [again, setAgain] = useState(0);
-  const load = useRead(spec.read, again);
+  const load = useCardLoad(spec.read, again);
   const take = (id: string): void =>
     void spec.takeBack(id).then(
       (n) => {
