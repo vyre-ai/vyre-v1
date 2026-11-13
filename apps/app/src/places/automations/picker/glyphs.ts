@@ -1,14 +1,18 @@
 // The glyph each of Vyre's own picker groups wears, drawn from the Automations icon set. An app is never listed here: an app wears its logo (ui/AppLogo).
+import { SHELL_ICONS } from "../../../shell/rail/icons.tsx";
 import { PATHS } from "../canvas/icons.tsx";
 import type { Mark } from "./model.ts";
 
 const OF: Readonly<Record<string, readonly string[]>> = {
-  msg: PATHS.mail,
+  msg: SHELL_ICONS.chats,
+  mail: PATHS.mail,
+  chat: SHELL_ICONS.chats,
+  phone: PATHS.phone,
   tasks: PATHS.task,
-  files: PATHS.folder,
+  files: SHELL_ICONS.files,
   docs: PATHS.sign,
   cal: PATHS.clock,
-  records: PATHS.sheet,
+  records: SHELL_ICONS.records,
   forms: PATHS.inbox,
   ai: PATHS.ai,
   logic: PATHS.branch,
@@ -23,6 +27,9 @@ export function glyphOf(mark: Mark): readonly string[] | undefined {
 
 const TINT: Readonly<Record<string, string>> = {
   msg: "#4f7bf5",
+  mail: "#4f7bf5",
+  chat: "#4f7bf5",
+  phone: "#4f7bf5",
   tasks: "#e89a0c",
   files: "#3b82f6",
   docs: "#8b5cf6",

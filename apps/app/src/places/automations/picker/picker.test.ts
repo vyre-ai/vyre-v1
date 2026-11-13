@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   addAppChoices,
+  appMarkOfStep,
   appOfStep,
+  glyphKeyOf,
   connectSheet,
   intentOfKey,
   pickerRows,
@@ -271,4 +273,24 @@ test("Add an app: known apps by name, any other name as Add 'Name'", () => {
     ["Slack"],
   );
   assert.deepEqual(addAppChoices("  ", known), []);
+});
+
+test("an email, a chat message and a text each wear their own glyph, and the Messages group wears the product's chat bubble", () => {
+  assert.equal(glyphKeyOf("send_email"), "mail");
+  assert.equal(glyphKeyOf("post_message"), "chat");
+  assert.equal(glyphKeyOf("send_sms"), "phone");
+  assert.equal(glyphKeyOf("create_task"), "tasks");
+  const rows = pickerRows(model, "");
+  const marks = Object.fromEntries(rows.flatMap((r) => (r.kind === "step" ? [[r.stepKey, r.mark.app]] : [])));
+  assert.equal(marks["send_email"], "vyre:mail");
+  assert.equal(marks["post_message"], "vyre:chat");
+  assert.notEqual(marks["send_email"], marks["post_message"]);
+});
+
+test("an app's own steps wear the app's own mark: a Drive step the Drive mark, a Gmail step the Gmail mark, a Sheets step the Sheets mark", () => {
+  assert.equal(appMarkOfStep({ key: "google.drive.create_folder", title: "x" }), "gdrive");
+  assert.equal(appMarkOfStep({ key: "google.gmail.send_message", title: "x" }), "gmail");
+  assert.equal(appMarkOfStep({ key: "google.sheets.append_values", title: "x" }), "gsheets");
+  assert.equal(appMarkOfStep({ key: "google.calendar.create_event", title: "x" }), "gcal");
+  assert.equal(appMarkOfStep({ key: "stripe.thing", title: "x" }), null);
 });

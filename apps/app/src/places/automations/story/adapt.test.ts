@@ -177,3 +177,19 @@ test("a loop is one group under 'For each ... in ...:' and parallel lanes one gr
     ],
   );
 });
+
+test("a Drive step wears the Drive mark, a chat step the chat glyph, an email step the mail glyph", () => {
+  const d: DefIn = {
+    triggers: [{ key: "form_submit" }],
+    nodes: [
+      { id: "a", key: "google.drive.create_folder", input: {}, next: ["b"] },
+      { id: "b", key: "post_message", input: { text: "x" }, next: ["c"] },
+      { id: "c", key: "send_email", input: { subject: "x" } },
+    ],
+  };
+  const r = fromDefinition(d, ctx());
+  assert.deepEqual(
+    r.steps.map((s) => s.app.id),
+    ["gdrive", "vyre:chat", "vyre:mail"],
+  );
+});

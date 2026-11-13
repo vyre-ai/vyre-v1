@@ -251,3 +251,21 @@ test("a step can be added between two steps: a slot after every row but the last
   assert.deepEqual(m.slots, ["t", "a", "b", "b1", "b2"]);
   assert.deepEqual(story({ ...base, trigger: null, steps: [] }).slots, []);
 });
+
+test("a sentence never ends on a preposition: an empty value, or text that stops after one, shows the blank", () => {
+  const ends = (template: string, values: Record<string, { text: string } | undefined>) =>
+    sentence({ template, values }).text;
+  const cases: [string, Record<string, { text: string } | undefined>][] = [
+    ["Post in {channel}: New request from {who}", { channel: { text: "#ops" } }],
+    ["Post in #ops: New request from ", {}],
+    ["Send {file} to {who}", { file: { text: "brief.pdf" } }],
+    ["Email {who} about {topic}", { who: { text: "Sam" } }],
+    ["Make a task for", {}],
+    ["Save {file} to Drive / {folder}", { file: { text: "x" } }],
+  ];
+  for (const [t, v] of cases) {
+    const text = ends(t, v);
+    assert.ok(!/\b(from|to|in|for|with|on|at|by|of|about|into)\s*$/i.test(text), `"${text}" ends on a preposition`);
+  }
+  assert.equal(ends("Post in #ops: New request from ", {}), "Post in #ops: New request from \u2026");
+});

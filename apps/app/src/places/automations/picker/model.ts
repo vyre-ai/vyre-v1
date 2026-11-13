@@ -143,8 +143,29 @@ function view(m: PickIn): View {
   return { steps, apps: m.apps.filter(usable) };
 }
 
+/** The glyph a Vyre step wears: an email, a chat message and a text are three different things; the rest wear their group's. */
+export function glyphKeyOf(key: string): string {
+  if (key === "send_email") return "mail";
+  if (key === "post_message") return "chat";
+  if (key === "send_sms") return "phone";
+  return intentOfKey(key);
+}
+
+/** An app's own mark for one of its steps (the Drive mark for a Drive step), or null when the app's own mark is the one. */
+export function appMarkOfStep(s: PickStep): string | null {
+  const k = s.key;
+  if (k.startsWith("google.gmail.")) return "gmail";
+  if (k.startsWith("google.drive.")) return "gdrive";
+  if (k.startsWith("google.sheets.")) return "gsheets";
+  if (k.startsWith("google.docs.")) return "gdocs";
+  if (k.startsWith("google.calendar.")) return "gcal";
+  return null;
+}
+
 const markOf = (v: View["steps"][number]): Mark =>
-  v.app ? { app: v.app.id, name: v.app.name } : { app: `vyre:${v.group.id}`, name: v.group.title };
+  v.app
+    ? { app: appMarkOfStep(v.step) ?? v.app.id, name: v.app.name }
+    : { app: `vyre:${glyphKeyOf(v.step.key)}`, name: v.group.title };
 
 const stepRow = (v: View["steps"][number], where?: string): StepRow => ({
   kind: "step",

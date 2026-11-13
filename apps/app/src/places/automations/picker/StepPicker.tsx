@@ -6,6 +6,7 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimens
 import type { ViewStyle } from "react-native";
 import { AppLogo } from "../../../../../../ui/src/AppLogo/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { placeBeside } from "../../../../../../ui/src/Overlay/anchor.ts";
 import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
 import { RADIUS } from "../../../../../../ui/src/tokens/radius.ts";
 import { glyphOf, tintOf } from "./glyphs.ts";
@@ -72,7 +73,7 @@ export function StepPicker(p: StepPickerProps): ReactElement {
   };
   const rows = useMemo(() => pickerRows(p.model, nav.query), [p.model, nav.query]);
   const lit = mainRows(p.model, nav)[nav.index];
-  const litId = lit === undefined ? null : lit.kind === "connect" ? "connect" : lit.id;
+  const litId = nav.open ?? (lit === undefined ? null : lit.kind === "connect" ? "connect" : lit.id);
   const sub = nav.open ? submenuOf(p.model, nav.open) : null;
   useEffect(() => {
     // a model that changed under the list (an app was just added) keeps the lit row inside it
@@ -81,28 +82,32 @@ export function StepPicker(p: StepPickerProps): ReactElement {
 
   const left = Math.max(8, Math.min(p.x, win.width - MAIN_W - 8));
   const top = Math.max(8, Math.min(p.y, win.height - 580));
-  // the actions open beside the row they belong to: its place is read from the row's element (the layer is the overlay's, never inside a ScrollView)
-  // the lit row stays in view while the arrows move through a long list
+  // the row that owns the open actions is lit and in view, and the actions open beside it: touching the picker's edge, lined up with the row (ui/Overlay/anchor placeBeside). The places are read from the elements:
+  // the layer is the overlay's, never inside a ScrollView, so window coordinates are the right ones.
+  type El = {
+    scrollIntoView?: (o: object) => void;
+    getBoundingClientRect(): { top: number; left: number; right: number; bottom: number };
+  };
+  const [subAt, setSubAt] = useState<{ left: number; top: number } | null>(null);
   useEffect(() => {
-    const doc = (
-      globalThis as { document?: { querySelector?: (q: string) => { scrollIntoView?: (o: object) => void } | null } }
-    ).document;
+    const doc = (globalThis as { document?: { querySelector?: (q: string) => El | null } }).document;
     const id = nav.open ?? litId;
-    if (id && doc?.querySelector)
-      doc.querySelector(`[data-testid="row-pk-${id}"]`)?.scrollIntoView?.({ block: "nearest" });
-  }, [nav.index, nav.open, litId]);
-  const [subTop, setSubTop] = useState<number | null>(null);
-  useEffect(() => {
-    const doc = (
-      globalThis as {
-        document?: { querySelector?: (q: string) => { getBoundingClientRect(): { top: number } } | null };
-      }
-    ).document;
-    const el = nav.open && doc?.querySelector ? doc.querySelector(`[data-testid="row-pk-${nav.open}"]`) : null;
-    setSubTop(el ? el.getBoundingClientRect().top - 5 : null);
-  }, [nav.open, nav.query]);
-  const subY = subTop === null ? top : Math.max(top, Math.min(subTop, top + 400, win.height - 380));
-  const subLeft = left + MAIN_W + 6 + SUB_W > win.width - 8 ? Math.max(8, left - SUB_W - 6) : left + MAIN_W + 6;
+    const row = id && doc?.querySelector ? doc.querySelector(`[data-testid="row-pk-${id}"]`) : null;
+    row?.scrollIntoView?.({ block: "nearest" });
+    const main = doc?.querySelector?.('[data-testid="pk-main"]') ?? null;
+    if (!nav.open || !row || !main) return setSubAt(null);
+    const r = row.getBoundingClientRect();
+    const m = main.getBoundingClientRect();
+    const at = placeBeside(
+      { left: m.left, right: m.right, top: r.top, bottom: r.bottom },
+      { width: SUB_W, height: 360 },
+      { width: win.width, height: win.height },
+    );
+    setSubAt({ left: at.left, top: at.top });
+  }, [nav.index, nav.open, nav.query, litId, win.width, win.height]);
+  const subY = subAt?.top ?? top;
+  const subLeft =
+    subAt?.left ?? (left + MAIN_W + 6 + SUB_W > win.width - 8 ? Math.max(8, left - SUB_W - 6) : left + MAIN_W + 6);
 
   const onKeyDown = (e: {
     key: string;

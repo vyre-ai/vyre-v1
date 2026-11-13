@@ -1,6 +1,7 @@
 // From a saved definition (triggers, nodes with next and branches) to what the builder page draws (design 2.5): a trigger and the steps in the order they run, each a sentence with names and data chips,
 // never a field key. Pure. The words about what is missing, who may not use an app and which steps send come in through `ctx`, from the server's own tables (lib/words/step-missing.ts, the full catalogue read).
 // A step whose app this person may not use is kept whole with one plain line: an Automation someone else built always opens whole.
+import { appMarkOfStep, glyphKeyOf } from "../picker/model.ts";
 import type { Need, StepIn, TriggerIn, Value } from "./model.ts";
 
 export interface DefNodeIn {
@@ -143,7 +144,11 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
     const known = ctx.catalog[n.key];
     const title = n.title?.trim() || known?.title || human(n.key);
     const s = sentenceOf(title, n.input, ctx);
-    const app = known?.app ?? { id: "vyre", name: "Vyre" };
+    // the mark a step wears: an app's own for its own steps (the Drive mark for a Drive step), a Vyre glyph for Vyre's
+    const own = appMarkOfStep({ key: n.key, title: "" });
+    const app = known?.app
+      ? { id: own ?? known.app.id, name: known.app.name }
+      : { id: `vyre:${glyphKeyOf(n.key)}`, name: "Vyre" };
     const needs: Need[] = [];
     if (known?.app && !ctx.canUse(known.app.id)) {
       const w = ctx.noAccess?.(known.app.name) ?? { line: `You cannot use ${known.app.name}.`, button: "Ask an admin" };

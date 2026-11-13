@@ -85,7 +85,7 @@ const chip = (label: string, from: string, sample: string) => ({ chip: { label, 
 const STEPS: StepIn[] = [
   {
     id: "a",
-    app: google,
+    app: { id: "gdrive", name: "Google Workspace" },
     action: "Save to Drive",
     template: "Save {file} to Drive / {folder}",
     values: { file: chip("Uploaded file", "A form is submitted", "brief.pdf"), folder: { text: "Clients" } },
@@ -101,10 +101,10 @@ const STEPS: StepIn[] = [
   },
   {
     id: "c",
-    app: { id: "vyre:msg", name: "Messages" },
+    app: { id: "vyre:chat", name: "Messages" },
     action: "Post a chat message",
-    template: "Post in {channel}: {text}",
-    values: { channel: { text: "#ops" }, text: { text: "New request from " } },
+    template: "Post in {channel}: New request from {name}",
+    values: { channel: { text: "#ops" }, name: chip("Name", "A form is submitted", "Sam Reyes") },
     writes: true,
   },
 ];

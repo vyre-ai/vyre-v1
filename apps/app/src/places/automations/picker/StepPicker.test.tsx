@@ -122,26 +122,33 @@ test("nothing found says so and still offers Connect an app", async () => {
   assert.ok(find(root, "row-pk-connect"));
 });
 
-test("the actions open beside the row they belong to, not at the top of the list", async () => {
+test("the row that owns the open actions is lit and in view, and the actions touch the picker and line up with it", async () => {
   const doc = globalThis as unknown as { document: { querySelector: (q: string) => unknown } };
   const had = doc.document.querySelector;
+  const seen: string[] = [];
+  const rect = (r: object) => ({ getBoundingClientRect: () => r, scrollIntoView: () => seen.push("scrolled") });
   (Dimensions as unknown as { set(d: object): void }).set({
     window: { width: 1200, height: 900, scale: 1, fontScale: 1 },
   });
   doc.document.querySelector = (q: string) =>
-    q.includes("pk-app:google")
-      ? { getBoundingClientRect: () => ({ top: 300, left: 0, right: 0, bottom: 340, height: 40, width: 380 }) }
-      : null;
+    q.includes("row-pk-app:google")
+      ? rect({ top: 300, left: 20, right: 400, bottom: 340, height: 40, width: 380 })
+      : q.includes("pk-main")
+        ? rect({ top: 120, left: 20, right: 400, bottom: 680, height: 560, width: 380 })
+        : null;
   try {
     const { el } = setup();
     const root = await mount(createRoot, el);
     for (const k of ["ArrowDown", "ArrowDown", "ArrowDown", "ArrowDown", "ArrowRight"]) await key(root, k);
     await flush();
-    const sub = find(root, "pk-sub")!;
-    const style = ([] as Record<string, unknown>[]).concat(sub.props["style"] as never).flat(3);
-    const top = style.map((x) => (x as { top?: number }).top).find((t) => t !== undefined);
-    const y = parseFloat(String(top));
-    assert.ok(y >= 290 && y <= 300, `submenu top ${String(top)} is beside its row`);
+    const row = find(root, "row-pk-app:google")!;
+    assert.equal(row.props["aria-selected"], true, "the row that owns the actions is lit");
+    assert.ok(seen.includes("scrolled"), "and scrolled into view");
+    const style = ([] as Record<string, unknown>[]).concat(find(root, "pk-sub")!.props["style"] as never).flat(3);
+    const pick = (k: string) =>
+      parseFloat(String(style.map((x) => (x as Record<string, unknown>)[k]).find((v) => v !== undefined)));
+    assert.ok(Math.abs(pick("top") - 300) <= 4, `submenu top ${pick("top")} is within 4 px of its row`);
+    assert.equal(pick("left"), 400, "and touches the picker's right edge");
   } finally {
     doc.document.querySelector = had;
   }

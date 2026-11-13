@@ -7,3 +7,4 @@
 - The new Automations screens now match the approved pictures more closely: coloured group marks in the step picker with the Connect an app row always in view, outlined and quiet buttons, a header on the first page, and a run page that opens on When with the failure in two plain lines.
 - Steps in the new builder can be added between two steps with a plus, the actions of an app open beside the row you pointed at, and each Needs-you card says since when.
 - On the Vault Connections page, connections your Space owns now show under Space connections instead of My connections.
+- The step picker opens an app's actions right beside its row, an email, a chat message and a text each have their own glyph, a Drive step shows the Drive mark, and a step sentence never ends on a dangling word.

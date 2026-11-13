@@ -45,6 +45,8 @@ export interface Sentence {
   text: string;
 }
 
+const DANGLING = /\b(from|to|in|for|with|on|at|by|of|about|into)\s*$/i;
+
 export function sentence(s: { template: string; values: Record<string, Value | undefined> }): Sentence {
   const parts: Part[] = [];
   const re = /\{(\w+)\}/g;
@@ -67,6 +69,9 @@ export function sentence(s: { template: string; values: Record<string, Value | u
     at = m.index + m[0].length;
   }
   if (at < s.template.length) push({ t: "text", v: s.template.slice(at) }, s.template.slice(at));
+  // a sentence never ends on a preposition: what should follow it is not there yet, so the blank says so
+  const last = parts.at(-1);
+  if (last && last.t === "text" && DANGLING.test(last.v)) push({ t: "blank" }, "\u2026");
   return { parts, text };
 }
 
