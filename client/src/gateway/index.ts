@@ -38,8 +38,8 @@ export interface CapCallerOptions {
 
 /** The reads a chat needs to paint its last messages. */
 const OPENS_A_CHAT = new Set(["threads.get", "chat.messages.list"]);
-/** The longest other reads wait for those two. */
-const HOLD_MS = 3000;
+/** The longest any other read waits for those two (a chat that is slow to load holds the rest of the app back this long at most, never more). */
+const HOLD_MS = 400;
 
 const loadRoutes = (): Promise<readonly RouteRow[]> => import("../../../generated/routes.ts").then((m) => m.routes);
 
@@ -109,7 +109,7 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
   // asked for after a change is never answered with one that started before it.
   const sharing = new Map<string, { p: Promise<unknown>; writes: number }>();
   let writes = 0;
-  // The reads that open a chat (the thread and its last messages) go first: other reads wait while one of them is out (at most HOLD_MS), so the browser's few connections per address are free for them.
+  // The reads that open a chat (the thread and its last messages) go first: every other READ made through this caller (any screen) waits while one of them is out, at most HOLD_MS. Writes are never held. This caller is one signed-in session's.
   let first = 0;
   const idle: (() => void)[] = [];
   const settle = (): void => { if (first === 0) for (const w of idle.splice(0)) w(); };
@@ -123,7 +123,8 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
     const read = route0?.effects === "read" && opts.signal === undefined;
     if (route0 !== undefined && route0.effects !== "read") writes += 1;
     if (read) {
-      const key = `${cap}\u0000${JSON.stringify(input)}`;
+      // the key names the capability, its exact arguments and the session token it goes out with: a read asked with other arguments, or after the token changed, is never answered by this one (and each session has its own caller, so nothing is shared between people)
+      const key = `${cap}\u0000${token ?? ""}\u0000${JSON.stringify(input)}`;
       const shared = sharing.get(key);
       if (shared !== undefined && shared.writes === writes) return shared.p;
       const p = (async () => { if (!OPENS_A_CHAT.has(cap)) await waitForFirst(); else first += 1; try { return await send(cap, input, opts, token); } finally { if (OPENS_A_CHAT.has(cap)) { first -= 1; settle(); } } })();

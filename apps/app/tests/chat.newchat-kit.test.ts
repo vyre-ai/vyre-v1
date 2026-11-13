@@ -375,3 +375,48 @@ test("new chat kit: the percentile of ten runs is the slowest run (nearest rank)
   assert.equal(pct([5, 1, 9, 3, 2, 8, 7, 4, 6, 10], 0.5), 5);
   assert.equal(pct([], 0.5), null);
 });
+
+export type StartPath = "tabplus" | "sidebar" | "first";
+/** One start path on one link, recorded with pictures. One case per file: each takes 40 to 60 s and a file's watchdog is 120 s, so the six cases cannot share a file. */
+export function definePathProbe(startPath: StartPath, label: "probe-loopback" | "probe-relay"): void {
+  const [latency, delay] = label === "probe-loopback" ? [0, 0] : [150, 1500];
+  test(`path ${startPath} (${label}): what the page shows from Enter on`, async (t) => {
+    if (!process.env["VYRE_APP_DIST"]) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
+    const rows = await runPathProbe(label, latency, delay, startPath);
+    console.log("PATH " + JSON.stringify(rows.map((r) => ({ path: r.path, step: r.step, first_ms: r.first_acknowledged_ms, transitions: r.transitions }))));
+    assert.ok(rows.length > 0);
+  });
+}
+
+/** The owner's path in a loop (new tab, Ask, Continue in a chat, the tab onto the real chat, new tab again) on one link. Rounds: VYRE_NEWCHAT_ROUNDS, else 10 on loopback and 5 on the slow link (a file's watchdog is 120 s; the slow link takes about 9 s a round on a quiet computer). One link per file.
+ *  The 50-round crash hunt runs the file directly with node --test and VYRE_NEWCHAT_ROUNDS=50. */
+export function defineLoop(label: "loopback" | "relay"): void {
+  const [latency, startDelay] = label === "loopback" ? [0, 0] : [150, 300];
+  const ROUNDS = Number(process.env["VYRE_NEWCHAT_ROUNDS"] ?? (label === "loopback" ? 10 : 5));
+  test(`new tab, ask, continue in a chat, new tab again, ${ROUNDS} rounds (${label}): no crash page, no console crash, every Ask answered and continued`, async (t) => {
+    if (!process.env["VYRE_APP_DIST"]) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
+    await walk(`loop-${label}`, latency, startDelay, async ({ page, web, v, guard, shots, api }) => {
+      const assistant = (await api("agents.list", {})).agents[0] as { agentId: string };
+      await cannedAsk(page, latency > 0 ? 2000 : 800);
+      await page.goto(`${web.origin}/chat`, { waitUntil: "load" });
+      await page.getByTestId("shell").waitFor({ timeout: 30_000 });
+      let continued = 0;
+      for (let i = 1; i <= ROUNDS; i++) {
+        v.script.push({ text: `The Lisbon team review is on Thursday [1]. Round ${i}.` });
+        v.script.push({ text: `Opened round ${i}.` });
+        await page.getByTestId("tab-strip-plus").click();
+        const box = page.getByTestId("cmdk-input");
+        // a page that never shows the search box is a crash or a hang: say which, with a picture, before anything else
+        await box.waitFor({ timeout: 20_000 }).catch(async (e: unknown) => { await page.screenshot({ path: `${shots}/loop-${label}-nobox-${i}.png` }); await guard.check(`round ${i}, after "+"`); throw e; });
+        await box.fill("Lisbon team review Thursday?");
+        await box.press("Enter");
+        await page.getByTestId("cmdk-continue").waitFor({ timeout: 40_000 }).catch(async (e: unknown) => { await page.screenshot({ path: `${shots}/loop-${label}-noanswer-${i}.png` }); throw e; });
+        await page.getByTestId("cmdk-continue").click(); continued += 1;
+        await page.getByTestId("composer-field").first().waitFor({ timeout: 30_000 }).catch(async (e: unknown) => { await page.screenshot({ path: `${shots}/loop-${label}-nochat-${i}.png` }); await guard.check(`round ${i}, after Continue in a chat`); console.log(`round ${i}: no chat composer; the page says: ${(await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 300)}`); throw e; });
+        await guard.check(`round ${i}`).catch(async (e: unknown) => { await page.screenshot({ path: `${shots}/loop-${label}-crash-${i}.png` }); throw e; });
+      }
+      assert.equal(continued, ROUNDS, "every round was answered and continued in a chat");
+      console.log(`${label}: ${ROUNDS} rounds, Continue in a chat pressed ${continued} times`);
+    });
+  });
+}

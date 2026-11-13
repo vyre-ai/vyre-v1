@@ -7,3 +7,4 @@
 - "Continue in a chat" from the search bar now opens the chat on your question and the answer at once.
 - The Chat button on an agent's page opens a new chat with that agent already picked and ready to type. The chat is made when you send, so closing it leaves no empty chat behind.
 - "Reply in Thread" opens the replies beside the chat after one request, not two.
+- A chat that is slow to open no longer holds back the rest of the app: the other screens wait for it for a fraction of a second at most, and a quick chat holds nothing back.
