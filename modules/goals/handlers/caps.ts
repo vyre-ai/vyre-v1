@@ -211,6 +211,16 @@ async function checkAskedFields(ctx: GoalsCtx, g: Goal, input: In): Promise<void
     await refuse(ASKED_WORDS[k] ?? k);
   }
   if (input.finish && !finishWordsOnly(g.finish, input.finish as Finish)) await refuse("finish line (its number, source or conditions)");
+  // slower check-ins are free; faster ones are the owner's spend, so an agent may speed them up only on a goal with a budget cap, and never past once an hour
+  if (input.rhythm) {
+    const minutes = (r: { every: string; hours?: number }): number => (r.every === "hours" ? (r.hours ?? 24) * 60 : r.every === "week" ? 7 * 1440 : 1440);
+    if (minutes(input.rhythm) < minutes(g.rhythm)) {
+      const capped = g.budget.spendMicros !== undefined || g.budget.turns !== undefined;
+      if (!capped || minutes(input.rhythm) < 60) {
+        raise(ctx, "validation.precondition_failed", `${await ownerName(ctx, g)} makes check-ins more frequent on the goal's page${capped ? ", and never more often than once an hour" : ", unless the goal has a budget"}. An agent can make them less frequent.`, { reason: "owner_press_only", field: "check-in rhythm" });
+      }
+    }
+  }
 }
 
 export async function update(ctx: GoalsCtx, input: In) {

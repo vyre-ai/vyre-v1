@@ -554,6 +554,21 @@ test("an asked agent changes a goal's words, deadline, rhythm and quiet hours, a
   assert.equal((await w.call("goals.update", { goalId: goal.id, budget: { spendMicros: 20_000_000, turns: 40 } }, owner)).goal.budget.spendMicros, 20_000_000);
 });
 
+test("an asked agent may slow check-ins freely, and speed them up only on a goal with a budget cap and never past once an hour", async () => {
+  const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
+  const speed = async (budget: Record<string, number>, rhythm: Record<string, unknown>, key: string): Promise<unknown> => {
+    const w = world({ count: 10 });
+    const { goal } = await w.call("goals.create", labGoal({ budget, idempotencyKey: key, rhythm: { every: "day", at: "09:00" } }));
+    w.state.turn = asking(OWNER);
+    return w.call("goals.update", { goalId: goal.id, rhythm }, agent).then((r: { goal: { rhythm: unknown } }) => r.goal.rhythm, (e: { error?: { details?: { reason?: string } } }) => e.error?.details?.reason);
+  };
+  assert.equal(await speed({}, { every: "hours", hours: 1 }, "r1"), "owner_press_only", "daily to hourly with no budget is refused");
+  assert.deepEqual(await speed({ turns: 40 }, { every: "hours", hours: 1 }, "r2"), { every: "hours", hours: 1 }, "with a budget it is allowed");
+  assert.equal(await speed({ turns: 40 }, { every: "hours", hours: 1 / 6 }, "r3"), "owner_press_only", "every ten minutes is refused even with a budget");
+  assert.equal(await speed({}, { every: "hours", hours: 1 / 6 }, "r4"), "owner_press_only", "and without one");
+  assert.deepEqual(await speed({}, { every: "week", day: 1, at: "09:00" }, "r5"), { every: "week", day: 1, at: "09:00" }, "slower is free");
+});
+
 test("an asked agent rewrites the plan of a draft goal, and the plan stays a draft until the owner starts it", async () => {
   const w = world({ count: 10 });
   const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
