@@ -3,7 +3,7 @@
 //   declared    a component declared under the name of a shared piece (Switch, TextButton, SmallButton, Section, Empty, Select, Choice, Stepper, Segmented, Field, Sheet, FormSheet) outside its home folder;
 //   read-hook   a declared `useScreenQuery` or `useRead`: the one data hook is `useLoad` (App/load, client/src/query);
 //   load-more   the words "Load more" by hand: the paging row of `useLoadList` draws them;
-//   crew-poll   a `setInterval` in a file that reads `crew.status` and that is not a clock (a clock ticker reads Date.now(), and `setInterval(retryLoads, ms)` is the bounded retry of a chat that is still landing, not a poll): a watched read replaces the timer;
+//   crew-poll   a `setInterval` in a file that reads `crew.status` and that is not a clock (a clock ticker reads Date.now(); one named timer is excused in EXCEPTIONS below): a watched read replaces the timer;
 // A file not in one-component.baseline.json must have none; a file in it may only go down. When you move a spot onto the shared piece, lower its count:
 //   `UPDATE_ONE_COMPONENT=1 node --import tsx --test scripts/lint/one-component.test.ts` (it lowers and never raises; a worse count is refused).
 // Out of scope: tests and test kits, the Join entry kit (apps/app/src/join: it draws before any skin or session exists, so it keeps its own pieces), ui/src/ListSections (a different job), and each piece's home folder.
@@ -71,6 +71,20 @@ const EXPORT_STAR_AS = /\bexport\s*\*\s*as\s+([A-Za-z]+)/g;
 const EXPORT_LIST = /\bexport[ \t\n]*\{([^}]*)\}(?:[ \t\n]*from[ \t\n]*["']([^"']+)["'])?/g;
 const INTERVAL = /\bsetInterval\s*\(/g;
 
+/**
+ * The timers allowed on purpose: one entry per timer, with the file, the start of its arguments, what it is, why it is allowed and when. The test pins this list: an entry whose timer is no longer in
+ * its file fails (so a stale entry cannot be left to excuse a new poll), and a new entry is a visible change of this list in review.
+ */
+export const EXCEPTIONS: ReadonlyArray<{ file: string; timer: string; what: string; why: string; added: string }> = [
+  {
+    file: "apps/app/src/places/chats/conversation/Conversation.tsx",
+    timer: "retryLoads, 1500",
+    what: "asks the session to read a chat again every 1.5 s while the chat this person just started is not readable yet",
+    why: "it ends by itself: it runs only while `refusalIsPending` is true, which is false 30 s after the chat was made (JUST_MADE_MS in shell/session/just-made.ts, tested there), when the place shows the failed state; the effect clears it on unmount. Added by 42926d5c7.",
+    added: "2026-11-13",
+  },
+];
+
 /** The text of a call's arguments, from just after its opening parenthesis to the matching one. */
 function argsAt(src: string, from: number): string {
   let depth = 1;
@@ -117,8 +131,9 @@ export function countFile(rel: string, source: string): Partial<Record<Kind, num
   if (/crew\.status/.test(src))
     for (const m of src.matchAll(INTERVAL)) {
       const args = argsAt(src, m.index! + m[0].length);
-      // a clock ticker reads Date.now(); a bounded retry hands the session's own retryLoads to the timer (it asks no capability itself, and it runs only while a thing is not readable yet)
-      if (!/Date\.now\(\)/.test(args) && !/^\s*retryLoads\s*,/.test(args)) add("crew-poll", 1);
+      // a clock ticker reads Date.now(); anything else is a poll unless EXCEPTIONS names this one timer
+      if (!/Date\.now\(\)/.test(args) && !EXCEPTIONS.some((x) => x.file === rel && args.trim().startsWith(x.timer)))
+        add("crew-poll", 1);
     }
   return out;
 }
@@ -275,4 +290,27 @@ test("Load more is the control, not a sentence that happens to contain the words
 
 test("export * as a shared name is a copy under that name", () => {
   assert.deepEqual(countFile("apps/app/src/zz/x.tsx", 'export * as Switch from "./elsewhere";'), { declared: 1 });
+});
+
+test("the timer exceptions are exactly the named ones, and each is still in its file and still ends by itself", () => {
+  assert.deepEqual(
+    EXCEPTIONS.map((x) => x.file),
+    ["apps/app/src/places/chats/conversation/Conversation.tsx"],
+  );
+  for (const x of EXCEPTIONS) {
+    const src = readFileSync(join(ROOT, x.file), "utf8");
+    assert.ok(
+      src.includes(`setInterval(${x.timer})`),
+      `${x.file}: the timer "${x.timer}" is gone: remove its exception`,
+    );
+    assert.ok(x.what && x.why && /^\d{4}-\d\d-\d\d$/.test(x.added), "an exception says what, why and when");
+  }
+  const convo = readFileSync(join(ROOT, EXCEPTIONS[0]!.file), "utf8");
+  assert.match(
+    convo,
+    /if \(!notYet\) return undefined;[\s\S]{0,200}clearInterval\(t\)/,
+    "the timer runs only while notYet and is cleared",
+  );
+  const justMade = readFileSync(join(ROOT, "apps/app/src/shell/session/just-made.ts"), "utf8");
+  assert.match(justMade, /JUST_MADE_MS = 30_000/, "the ceiling it relies on");
 });
