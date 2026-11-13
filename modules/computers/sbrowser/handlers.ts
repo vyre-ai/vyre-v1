@@ -11,6 +11,7 @@ import { spaceBrowser } from "./port.ts";
 import type { ProfileRow, SpaceBrowser } from "./port.ts";
 import { currentHold, dropHold, heldBy, setHold, touchHold } from "./hold.ts";
 import { needRoom, roomWaitLine, waitingForRoom, waitingProfiles } from "./room.ts";
+import { signInSites } from "./sites.ts";
 
 const TICKET_MS = 5 * 60_000;
 
@@ -186,7 +187,7 @@ export async function timeline(ctx: CompCtx, input: { agentId: string; runId?: s
 export async function sessions(ctx: CompCtx, input: { agentId: string }) {
   const sb = browserOrRaise(ctx);
   await mayWatch(ctx, input.agentId);
-  try { return { sessions: (await sb.sessions(input.agentId)).map((x) => ({ site: x.site, since: x.since, lastSeen: x.lastSeen })) }; } catch (e) { refuse(ctx, e); }
+  try { return { sessions: signInSites(await sb.sessions(input.agentId)).map((x) => ({ site: x.site, since: x.since, lastSeen: x.lastSeen })) }; } catch (e) { refuse(ctx, e); }
 }
 
 export async function signOut(ctx: CompCtx, input: { agentId: string; site: string }) {

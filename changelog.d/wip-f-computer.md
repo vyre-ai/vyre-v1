@@ -1,3 +1,4 @@
 - Attach on an agent's Computer tab now shows its terminal beside the chat you are in; it used to send the tab to the start page.
 - The same fix applies to every other link that opens the terminal list, the rules, All agents or an agent's computer over the page you are on: the page stays.
 - The More menu of a tab strip (the three dots after Computer, Chats, Files and Terminal) opens right under the dots you pressed, on a chat's pane, an agent's page and a record's pane; it used to open at the top right, over the agent's name and Share.
+- "Signed in on its browser" no longer lists the browser's own address (127.0.0.1), addresses inside your Space or server, or names that are not a site; it lists the sites the agent signed in to.

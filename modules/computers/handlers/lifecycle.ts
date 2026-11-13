@@ -9,6 +9,7 @@ import {
 import type { CompCtx, ComputerHost, ComputerRow, Probe, SessionInfo } from "../projections.ts";
 import { finishRecording } from "./record.ts";
 import { holdWhileMoving, migrateComputers, moveOf } from "../migrate.ts";
+import { isSignInSite } from "../sbrowser/sites.ts";
 import { bindStarter, checkRoom, claimRoom, drainWaiting, isWaiting, LIMITS, releaseRoom, waitingNote } from "../capacity.ts";
 
 type Row = Record<string, unknown>;
@@ -434,7 +435,8 @@ export async function sessionsList(ctx: CompCtx, input: { computerId: string }) 
   if (host && (c.state === "working" || c.state === "takeover")) {
     try { storeSessions(ctx, c.computerId, await host.sessions(c.computerId)); } catch { /* the last list stays */ }
   }
-  const rows = rowsOf(ctx.db, "SELECT * FROM computers_sessions WHERE computer_id = ? ORDER BY site", c.computerId);
+  // the browser's own addresses are not sites it signed in to (sbrowser/sites.ts)
+  const rows = rowsOf(ctx.db, "SELECT * FROM computers_sessions WHERE computer_id = ? ORDER BY site", c.computerId).filter((r: Row) => isSignInSite(String(r["site"])));
   return {
     sessions: rows.map((r: Row) => ({
       site: String(r["site"]), ...(r["signed_in_as"] !== null && r["signed_in_as"] !== undefined ? { signedInAs: String(r["signed_in_as"]) } : {}), since: Number(r["since"]), lastSeen: Number(r["last_seen"]),
