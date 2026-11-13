@@ -8,6 +8,7 @@ import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts"
 import type { Ctx, Sealed } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { mintUuid } from "../../../lib/ids.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 import { boundedScope } from "../../../kernel/src/seal/scope.ts";
 import { dropRecent, touchRecent } from "../projections.ts";
 import { sharedCount } from "./lists.ts";
@@ -1282,6 +1283,15 @@ async function filesRecent(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]
   return { files: recentFiles(ctx, limit).map((file) => fileOutC(ctx, file)) };
 }
 
+/**
+ * May the caller be told this folder or file exists, by its path or its name? A person, an agent (for the person it acts for) and a service a tenant made (an Automation, a form, a site) only for what they may
+ * view. The server's own services (svc_host and the system services, lib/trust.ts) find what they are setting up: they hold no grant on anyone's folder, and the Assistant, a project's or a Kit's folders are made
+ * and found by them (the agents module looks up the Agents root as the host).
+ */
+function mayFind(ctx: Ctx, type: "file" | "folder", row: Row): boolean {
+  return isTrustedService(ctx.principal) || canView(ctx, type, row);
+}
+
 /** A path answers only for what the caller may view (the same right files.get and files.folder.get check): a name nobody shows them resolves to "not in this Space", never to an id. */
 async function filesResolve(
   ctx: Ctx,
@@ -1292,7 +1302,7 @@ async function filesResolve(
     found.kind === "file"
       ? one(ctx, "SELECT * FROM files_file WHERE id = ?", found.fileId)
       : one(ctx, "SELECT * FROM files_folder WHERE id = ?", found.folderId);
-  if (!row || !canView(ctx, found.kind, row))
+  if (!row || !mayFind(ctx, found.kind, row))
     fail(ctx, "validation.not_found", "That path is not in this Space.", { field: "path" });
   return found;
 }
@@ -1563,7 +1573,7 @@ async function folderSearch(ctx: Ctx, input: unknown): Promise<{ folders: Folder
       if (scope === "folders") return !inChannels;
       return true;
     })
-    .filter((row) => canView(ctx, "folder", row)); // a folder the caller may not view is not found by its name either
+    .filter((row) => mayFind(ctx, "folder", row)); // a folder the caller may not view is not found by its name either
   return { folders: rows.slice(0, limit).map((row) => folderOut(ctx, row)) };
 }
 
