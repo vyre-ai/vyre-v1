@@ -4,3 +4,7 @@
 - A goal no longer turns "Stuck" because its lead agent could not check in, and no longer stays stuck after the cause clears.
 - A goal's check-in count is the check-ins that ran, and a turn that failed no longer counts against the goal's turn budget.
 - A failed turn reads the same in a chat and in a goal's check-in, and no longer shows "something went wrong that Vyre has no words for" for a locked Vault.
+- A goal whose check-ins cannot run shows "Not being worked" with the reason on its row and its page, in the same words as the Needs you item and the Activity line.
+- A helper whose turn failed no longer reports "The helper finished". Its task goes to you in Needs you with the cause.
+- A task an agent could not work on because your Vault is locked, your sign-in is missing or your AI account is at its limit reaches you with that cause and what to do, not only "the agent stopped".
+- An automation's AI step that cannot run because your Vault is locked or your sign-in is missing says so in plain words, and is not tried again by itself.
