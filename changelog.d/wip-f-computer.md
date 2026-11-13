@@ -6,3 +6,4 @@
 - An agent's browser screenshot of a heavy page now always comes back: a picture over the 256 KB limit for a picture kept in Files is scaled down to fit and the agent is told the size it got, instead of failing with "validation.too_large". A step's picture of a heavy page is kept too, scaled down.
 - The live browser view in an agent's Computer tab no longer flickers while you are in control: each frame is painted over the last one on a single picture, so it never goes blank between frames and the box keeps its size.
 - When something fails on the server in a way it did not expect, the server now keeps what really happened (the error's message and stack, with the trace id and secrets taken out) in its own output, so a "Something went wrong on our side" can be traced.
+- Notes for the reviewer (not a user line): the first-open failure on the owner's updated server (B6a) did not reproduce in any shape tried; see team/v1/NOTE-b6a-first-open-2026-11-13.md.
