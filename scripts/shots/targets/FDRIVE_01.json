@@ -4,6 +4,8 @@
     { "id": "FDRIVE_01-live", "route": "/m/FDRIVE_01?view=live", "proto": "files,{skin}", "waitFor": "[data-testid='live-folders']", "note": "Live folders: My Drive is Live with the quiet line '3 items could not be shown' and the list opened with a reason for each; it is not red." },
     { "id": "FDRIVE_01-csv", "route": "/m/FDRIVE_01?view=csv", "proto": "files,viewer-csv,{skin}", "waitFor": "[data-testid='vw-sheet']", "note": "A live Drive CSV after it arrived: the rows, Open in Google Drive." },
     { "id": "FDRIVE_01-loading", "route": "/m/FDRIVE_01?view=loading", "proto": "files,{skin}", "waitFor": "[data-testid='file-viewer-getting']", "note": "A live file being fetched: the quiet skeleton and the line 'Getting this from Google Drive'." },
+    { "id": "FDRIVE_01-trail", "route": "/m/FDRIVE_01?view=trail", "proto": "files,{skin}", "waitFor": "[data-testid='file-trail']", "note": "An image opened from Shared with me: a Back arrow and the path (Shared with me, then the file) above the viewer." },
+    { "id": "FDRIVE_01-trail-folder", "route": "/m/FDRIVE_01?view=trail-folder", "proto": "files,{skin}", "waitFor": "[data-testid='file-trail']", "note": "The same file opened from a folder: Files, My Drive, the file." },
     { "id": "FDRIVE_01-failed", "route": "/m/FDRIVE_01?view=failed", "proto": "files,{skin}", "waitFor": "[data-testid='file-viewer-failed']", "note": "The fetch failed: 'Could not get this from Google Drive just now', Try again and Open in Google Drive, never an empty grid." }
   ]
 }

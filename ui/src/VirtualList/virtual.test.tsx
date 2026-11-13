@@ -161,3 +161,9 @@ test("scroll windows cover the viewport in both directions", () => {
     assert.ok(current.start <= visible.start && current.end >= visible.end, `reverse frame ${frame} remains covered`);
   }
 });
+
+test("scroll memory: the list reads where it was on mount and writes where it is on every scroll (source check: the web ScrollView's event path is not drivable from the test renderer)", async () => {
+  const src = (await import("node:fs")).readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
+  assert.match(src, /const y = scrollMemory\?\.get\(\) \?\? 0;\s+if \(y > 0\) scroller\.current\?\.scrollTo\(\{ y, animated: false \}\);/);
+  assert.match(src, /scrollTop\.current = y;\s+scrollMemory\?\.set\(y\);/);
+});

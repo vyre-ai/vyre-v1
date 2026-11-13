@@ -22,6 +22,8 @@ export interface VirtualListProps<T> {
   heightOf?: (item: T, index: number) => number;
   /** Keep this row in view (a keyboard cursor moved). */
   reveal?: number;
+  /** Where the list was scrolled to, kept by the caller across the list leaving and coming back (a file opened from it): read once on mount, written as the person scrolls. Web only. */
+  scrollMemory?: { get(): number; set(y: number): void };
 }
 
 /** Text a placeholder can show for one row without calling renderItem. */

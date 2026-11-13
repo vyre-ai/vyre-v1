@@ -35,6 +35,8 @@ const SHOTS = [
   },
   { id: "csv", wait: "[data-testid='vw-sheet']" },
   { id: "loading", wait: "[data-testid='file-viewer-getting']" },
+  { id: "trail", wait: "[data-testid='file-trail']" },
+  { id: "trail-folder", wait: "[data-testid='file-trail']" },
   { id: "failed", wait: "[data-testid='file-viewer-failed']" },
 ];
 for (const skin of ["paper", "graphite"]) {

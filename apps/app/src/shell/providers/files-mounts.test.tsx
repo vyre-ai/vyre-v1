@@ -183,3 +183,11 @@ test("the status line draws its source, its words and its buttons: Pause or Resu
     "no Sync now for a computer's folder",
   );
 });
+
+test("a file opened from Files opens as the file's subject, so its tab is named for the file (not 'Files')", () => {
+  const opened: unknown[] = [];
+  const rt = sampleRuntime({ screens: createSampleFiles().data.screens, call: async () => ({}) });
+  rt.open = (t) => void opened.push(t);
+  filesData(rt).nav.openFile("fil_1");
+  assert.deepEqual(opened, [{ subject: { type: "file", id: "fil_1" } }]);
+});

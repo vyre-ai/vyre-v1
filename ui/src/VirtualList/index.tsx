@@ -100,6 +100,7 @@ function WindowedList<T>({
   onEndReached,
   heightOf,
   reveal,
+  scrollMemory,
 }: VirtualListProps<T>) {
   const [viewport, setViewport] = useState(DEFAULT_VIEWPORT);
   const [scrolled, setScrolled] = useState<VirtualWindow | null>(null);
@@ -120,6 +121,12 @@ function WindowedList<T>({
     [heightOf || keyOf ? data : data.length, heightOf, rowHeight, version],
   );
   const scroller = useRef<ScrollView | null>(null);
+  // a list that comes back (the person left it for a file and returned) is where they left it
+  useEffect(() => {
+    const y = scrollMemory?.get() ?? 0;
+    if (y > 0) scroller.current?.scrollTo({ y, animated: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     if (reveal === undefined || reveal < 0 || reveal >= data.length) return;
     const top = offsets[reveal],
@@ -139,6 +146,7 @@ function WindowedList<T>({
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       const y = e.nativeEvent.contentOffset.y;
       scrollTop.current = y;
+      scrollMemory?.set(y);
       // Re-render only when the set of rows changes, not on every scroll event.
       const height = e.nativeEvent.layoutMeasurement.height || viewport;
       setScrolled((cur) => {
@@ -153,7 +161,7 @@ function WindowedList<T>({
       }
       if (!nearEnd) ended.current = false;
     },
-    [onEndReached, total, offsets, viewport, computed, rowHeight],
+    [onEndReached, total, offsets, viewport, computed, rowHeight, scrollMemory],
   );
 
   const onMeasure = useCallback((key: string, h: number) => {

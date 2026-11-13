@@ -629,6 +629,26 @@ export function Viewer(props: ViewerViewProps): ReactElement {
     props.onEdit?.(next);
   };
   const pick = (t: MarkupTool): void => setTool((x) => (x === t ? null : t));
+  // Esc leaves a markup tool (Draw, Pin) before it leaves anything else: it is taken here, in the capture phase, so a screen's own Esc (back to the list) sees it was used
+  useEffect(() => {
+    if (tool === null || Platform.OS !== "web") return undefined;
+    const doc = (
+      globalThis as {
+        document?: {
+          addEventListener(t: string, f: (e: KeyboardEvent) => void, capture?: boolean): void;
+          removeEventListener(t: string, f: (e: KeyboardEvent) => void, capture?: boolean): void;
+        };
+      }
+    ).document;
+    if (doc === undefined) return undefined;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      setTool(null);
+    };
+    doc.addEventListener("keydown", onKey, true);
+    return () => doc.removeEventListener("keydown", onKey, true);
+  }, [tool]);
 
   const iconBtn = (
     label: string,

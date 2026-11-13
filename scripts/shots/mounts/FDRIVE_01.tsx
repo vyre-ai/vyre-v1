@@ -11,6 +11,7 @@ import { FileViewer } from "../../../apps/app/src/places/files/viewer/FileViewer
 import { FilesViewerDataProvider } from "../../../apps/app/src/places/files/viewer/data.tsx";
 import { createSampleViewer } from "../../../apps/app/src/places/files/viewer/sample.ts";
 import type { ViewerData } from "../../../apps/app/src/places/files/viewer/model.ts";
+import { FileTrail } from "../../../apps/app/src/places/files/viewer/FileTrail.tsx";
 import { LiveFolders } from "../../../apps/app/src/places/files/live/LiveFolders.tsx";
 import { liveRow } from "../../../apps/app/src/places/files/live/model.ts";
 
@@ -170,11 +171,48 @@ function Viewer({ mode }: { mode: "csv" | "loading" | "failed" }): ReactNode {
   );
 }
 
+/** An image shared with the person, opened from Shared with me: the Back arrow and the path above the viewer. */
+function Trail({ where }: { where: "shared" | "folder" }): ReactNode {
+  const files = useMemo(() => createSampleFiles(withDrive), []);
+  const viewer = useMemo(() => {
+    const v = createSampleViewer();
+    const row = v.rows.get("f_offer")!;
+    row.data = { ...row.data, file: { ...row.data.file, name: "MLA logo.png" } } as ViewerData;
+    return { ...v.data, pathOf: () => "Shared with me" };
+  }, []);
+  const data = useMemo(
+    () => ({
+      ...files.data,
+      call: async (cap: string, input: unknown): Promise<unknown> =>
+        cap === "files.get"
+          ? { file: { fileId: "f_offer", name: "MLA logo.png", folderId: "fld_drive" } }
+          : files.data.call(cap, input),
+    }),
+    [files],
+  );
+  return (
+    <FilesDataProvider value={data}>
+      <FilesStateProvider
+        initial={{ where: where === "shared" ? { kind: "shared" } : { kind: "folder", id: "fld_drive" } }}
+      >
+        <View style={{ flex: 1, minHeight: 0 }}>
+          <FileTrail fileId="f_offer" onBack={() => undefined} />
+          <FilesViewerDataProvider value={viewer}>
+            <FileViewer fileId="f_offer" />
+          </FilesViewerDataProvider>
+        </View>
+      </FilesStateProvider>
+    </FilesDataProvider>
+  );
+}
+
 function Page({ q }: { q: URLSearchParams }): ReactNode {
   const view = q.get("view") ?? "list";
   return (
     <View style={{ flex: 1, minHeight: 0 }} testID={`fdrive-${view}`}>
-      {view === "csv" || view === "loading" || view === "failed" ? (
+      {view === "trail" || view === "trail-folder" ? (
+        <Trail where={view === "trail" ? "shared" : "folder"} />
+      ) : view === "csv" || view === "loading" || view === "failed" ? (
         <Viewer mode={view} />
       ) : view === "live" ? (
         <Live />
