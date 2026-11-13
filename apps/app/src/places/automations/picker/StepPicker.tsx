@@ -82,6 +82,15 @@ export function StepPicker(p: StepPickerProps): ReactElement {
   const left = Math.max(8, Math.min(p.x, win.width - MAIN_W - 8));
   const top = Math.max(8, Math.min(p.y, win.height - 580));
   // the actions open beside the row they belong to: its place is read from the row's element (the layer is the overlay's, never inside a ScrollView)
+  // the lit row stays in view while the arrows move through a long list
+  useEffect(() => {
+    const doc = (
+      globalThis as { document?: { querySelector?: (q: string) => { scrollIntoView?: (o: object) => void } | null } }
+    ).document;
+    const id = nav.open ?? litId;
+    if (id && doc?.querySelector)
+      doc.querySelector(`[data-testid="row-pk-${id}"]`)?.scrollIntoView?.({ block: "nearest" });
+  }, [nav.index, nav.open, litId]);
   const [subTop, setSubTop] = useState<number | null>(null);
   useEffect(() => {
     const doc = (
@@ -92,7 +101,7 @@ export function StepPicker(p: StepPickerProps): ReactElement {
     const el = nav.open && doc?.querySelector ? doc.querySelector(`[data-testid="row-pk-${nav.open}"]`) : null;
     setSubTop(el ? el.getBoundingClientRect().top - 5 : null);
   }, [nav.open, nav.query]);
-  const subY = subTop === null ? top : Math.max(8, Math.min(subTop, win.height - 380));
+  const subY = subTop === null ? top : Math.max(top, Math.min(subTop, top + 400, win.height - 380));
   const subLeft = left + MAIN_W + 6 + SUB_W > win.width - 8 ? Math.max(8, left - SUB_W - 6) : left + MAIN_W + 6;
 
   const onKeyDown = (e: {
