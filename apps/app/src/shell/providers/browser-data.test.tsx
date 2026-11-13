@@ -131,7 +131,7 @@ test("a press on the web is the browser's click: its place comes from clientX an
   assert.deepEqual(pressPoint({ nativeEvent: { locationX: 12, locationY: 34 } }), { x: 12, y: 34 });
   assert.deepEqual(pressPoint({ nativeEvent: { clientX: 500, clientY: 300 }, currentTarget: { getBoundingClientRect: () => ({ left: 400, top: 250 }) } }), { x: 100, y: 50 });
   assert.equal(pressPoint({ nativeEvent: { clientX: 0, clientY: 0, detail: 0 }, currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 0 }) } }), null, "the click a browser makes for Space on a focused view has detail 0");
-  assert.equal(pressPoint({}), null, "a press with no place (Space on the focused view) is not a click");
+  assert.deepEqual(pressPoint({}), { x: 0, y: 0 }, "an event with nothing to go on (a test double) keeps the corner");
 });
 
 test("the left button is browserd's button 1: its buttons are numbered from 1, and 0 does not exist", () => {

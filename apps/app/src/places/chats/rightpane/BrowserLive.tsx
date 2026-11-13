@@ -26,7 +26,7 @@ export function pointOf(x: number, y: number, box: { width: number; height: numb
 }
 
 /**
- * Where a press was, inside the view, in CSS pixels, or null when it has no place (a key pressed on the view). React Native's own `locationX` and `locationY` when the event has them; on the web a press event is the browser's click, which has only the window's
+ * Where a press was, inside the view, in CSS pixels, or null when it was not a press at all but a key pressed on the view (the browser's click for Space or Enter has detail 0). React Native's own `locationX` and `locationY` when the event has them; on the web a press event is the browser's click, which has only the window's
  * `clientX` and `clientY`, taken from the box of the element that was pressed. (Without this every click in control mode went to the page's top left corner: `?? 0`.)
  */
 type PressEvent = { nativeEvent?: unknown; currentTarget?: unknown };
@@ -37,7 +37,7 @@ export function pressPoint(e: PressEvent): { x: number; y: number } | null {
   if (n.detail === 0) return null;
   const box = (e.currentTarget as { getBoundingClientRect?: () => { left: number; top: number } } | undefined)?.getBoundingClientRect?.();
   if (box && typeof n.clientX === "number" && typeof n.clientY === "number") return { x: n.clientX - box.left, y: n.clientY - box.top };
-  return null;
+  return { x: 0, y: 0 };
 }
 
 /** The left button as browserd numbers it. */

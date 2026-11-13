@@ -97,7 +97,7 @@ test("the same capability and message is written once a minute, then counted", a
 
 test("an error thrown inside a call that resolved a Vault value never carries the value to the line or the row", async () => {
   const value = "hunter2-vault-value-9981";
-  const { seen, rows } = await boom((traceId) => { noteCallSecret(traceId, value); return new Error(`login failed for ${value} at https://example.com`); });
+  const { seen, rows } = await boom((traceId: string) => { noteCallSecret(traceId, value); return new Error(`login failed for ${value} at https://example.com`); });
   assert.equal(seen.length, 1);
   assert.ok(!JSON.stringify(seen[0]).includes(value), "the line does not carry it");
   assert.ok(!JSON.stringify(rows).includes(value), "nor does the row");
