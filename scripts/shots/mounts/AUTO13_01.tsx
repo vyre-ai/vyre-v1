@@ -149,7 +149,7 @@ export default function Mount(): ReactNode {
                 id: "n1",
                 automation: "New lead follow-up",
                 why: "Step 2, Text to me, could not run: the Twilio key is missing.",
-                at: 2,
+                at: Date.now() - 1.5 * 3600_000,
                 runId: "r4",
                 app: "twilio",
                 fix: { label: "Add the key", kind: "key" },
@@ -158,7 +158,7 @@ export default function Mount(): ReactNode {
                 id: "n2",
                 automation: "Invoice reminders",
                 why: "Waiting for you to approve 4 invoices before they go out.",
-                at: 1,
+                at: Date.now() - 26 * 3600_000,
                 runId: "r3",
                 app: "stripe",
                 fix: { label: "Approve all 4", kind: "approve" },
@@ -339,7 +339,13 @@ export default function Mount(): ReactNode {
                 values: { who: { text: "me" } },
                 writes: true,
               },
-              { id: "c", app: google, action: "Add a row", template: "Add a row", values: {} },
+              {
+                id: "c",
+                app: { id: "gsheets", name: "Google Workspace" },
+                action: "Add a row",
+                template: "Add a row",
+                values: {},
+              },
             ],
             {
               a: {
