@@ -60,6 +60,15 @@ type Out = {
         tasksDone: number;
         tasks: number;
       };
+      blocked?: {
+        cause: "person" | "limit" | "transient" | "other";
+        what: string;
+        fix: string;
+        since: number;
+        until?: number;
+        missed: number;
+        code: string;
+      };
       projectId?: string;
       updatedAt: number;
     }>;
@@ -88,6 +97,15 @@ type Out = {
   "output": {
     "goals": [
       {
+        "blocked": {
+          "cause": "person",
+          "code": "example",
+          "fix": "example",
+          "missed": 1,
+          "since": 1760000000000,
+          "until": 1760000000000,
+          "what": "example"
+        },
         "deadline": 1760000000000,
         "folderId": "fld_a1b2c3",
         "id": "gol_a1b2c3",

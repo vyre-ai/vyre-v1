@@ -127,6 +127,16 @@ const progress = t.obj({
   tasksDone: t.int(),
   tasks: t.int(),
 });
+// what holds a goal's check-ins back, in words (only while something does): the cause, what happened, the one thing to do, since when, and when it goes on by itself
+const blocked = t.obj({
+  cause: t.enm("person", "limit", "transient", "other"),
+  what: t.str(),
+  fix: t.str(),
+  since: t.ts(),
+  until: t.opt(t.ts()),
+  missed: t.int({ minimum: 0 }),
+  code: t.str(),
+});
 const seat = t.obj({ kind: t.enm("person", "agent"), id: t.str(), inChat: t.bool(), error: t.opt(t.str()) });
 const goalRow = t.obj({
   id: goalId,
@@ -152,7 +162,10 @@ const goalRow = t.obj({
   progress,
   nextCheckinAt: t.opt(t.ts()),
   lastCheckinAt: t.opt(t.ts()),
+  blocked: t.opt(blocked),
+  // check-ins that ran: a wake-up for a check-in that the lead answered, not the times the clock asked for one
   checkins: t.int(),
+  // money the goal's turns cost; a turn on a person's own AI plan has no price of its own, so a goal that runs on one reads 0
   spentMicros: t.int(),
   turns: t.int(),
   stuckAfter: t.int({ minimum: 1 }),
@@ -176,6 +189,7 @@ const goalLine = t.obj({
   deadline: t.ts(),
   nextCheckinAt: t.opt(t.ts()),
   progress,
+  blocked: t.opt(blocked),
   projectId: t.opt(id.project),
   updatedAt: t.ts(),
 });
