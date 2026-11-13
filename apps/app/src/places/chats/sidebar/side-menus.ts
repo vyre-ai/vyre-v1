@@ -113,12 +113,11 @@ export function rowMenu(x: Item, pinned: boolean, d: RowDo, can: RowCan = {}): M
         sep,
         it("Leave channel", d.leave, { danger: true }),
       ]);
-    case "dm":
     case "person":
       return clean([
         ...openGroup(x, d, "Message"),
         sep,
-        ...(x.kind === "dm" ? mark() : []),
+        ...(x.threadId !== undefined ? mark() : []),
         pin,
         mute,
         sep,
@@ -175,12 +174,16 @@ export interface FixedDo {
   openArtifacts?: () => void;
   newTask?: () => void;
   newNote?: () => void;
+  fold?: () => void;
+  unfold?: () => void;
 }
 /** Tasks: Open, a new tab, New task. */
-export function tasksMenu(d: FixedDo, keyOf: KeyOf = defaultKey): MenuEntry[] {
+export function tasksMenu(d: FixedDo, keyOf: KeyOf = defaultKey, folded = false): MenuEntry[] {
   return tidy([
     it("Open", d.open, { hint: HINT.open }),
     it("Open in a new tab", d.openTab, { hint: HINT.tab }),
+    sep,
+    folded ? it("Unfold", d.unfold, { hint: "\u2192" }) : it("Fold", d.fold, { hint: "\u2190" }),
     sep,
     it("New task", d.newTask, { hint: keyOf("task.new") }),
   ]);
@@ -207,12 +210,13 @@ export interface HeadDo {
   invite?: () => void;
   newAgent?: () => void;
   unpinAll?: () => void;
+  newGoal?: () => void;
 }
 /** A section head, and its "N more" (the head's menu): Fold or Unfold, then the section's own items. Needs you has no head: its Tasks row has the menu above. */
 export function headMenu(section: SectionId, folded: boolean, d: HeadDo, keyOf: KeyOf = defaultKey): MenuEntry[] {
   const own: Record<SectionId, (MenuItem | null)[]> = {
     needs: [],
-    now: [],
+    goals: [it("New goal\u2026", d.newGoal, { hint: keyOf("goal.new") })],
     pinned: [it("Unpin all", d.unpinAll, { danger: true })],
     chats: [it("Mark all as read", d.markAllRead), it("New chat", d.newChat, { hint: keyOf("chat.new") })],
     channels: [
@@ -321,7 +325,6 @@ export const ENTRY_KINDS_WITH_MENU = [
   "goal",
   "project",
   "channel",
-  "dm",
   "person",
   "agent",
   "chat",
@@ -330,5 +333,5 @@ export const ENTRY_KINDS_WITH_MENU = [
   "head",
   "more",
 ] as const;
-export const ENTRY_KINDS_WITHOUT_MENU = ["error", "none", "skeleton", "less"] as const;
+export const ENTRY_KINDS_WITHOUT_MENU = ["error", "none", "skeleton", "less", "hint"] as const;
 export const FILTER_IDS = FILTER_CHOICES.map((c) => c.id);

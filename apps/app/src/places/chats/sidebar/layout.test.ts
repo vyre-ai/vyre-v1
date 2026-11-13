@@ -26,7 +26,6 @@ const mk = (kind: ItemKind, o: Partial<Item> = {}): Item => {
   const shape: Shape = (
     {
       chat: "agent",
-      dm: "person",
       channel: "channel",
       project: "project",
       goal: "goal",
@@ -98,7 +97,7 @@ for (const c of MARK_TABLE)
 test("a task draws its verb, never a mark", () => assert.equal(markOf(mk("task", { unread: 3 })), null));
 
 test("a muted chat with a mention: the muted bell shows, nothing counts toward heads or the rail", () => {
-  const x = mk("dm", { muted: true, mentions: 2, unread: 1 });
+  const x = mk("person", { threadId: "t1", muted: true, mentions: 2, unread: 1 });
   assert.deepEqual(markOf(x), { kind: "muted" });
   assert.deepEqual(aggOf([x]), { failed: 0, mentions: 0, unread: 0, working: 0 });
   assert.equal(railCount([x]), 0);
@@ -179,10 +178,10 @@ test("40 channels and 60 chats: every cap holds, the count behind 'N more' is ex
   // heads in order, each once: the six blocks stay in view order
   assert.deepEqual(
     types(l.entries).filter((t) => t.startsWith("head")),
-    ["head:chats", "head:channels", "head:team"],
+    ["head:goals", "head:chats", "head:channels", "head:team"],
   );
   // the whole list is a few dozen rows tall, not 100+
-  assert.ok(l.entries.length <= 1 + 3 + 6 + 5 + 5 + 3 * 2 + 3, `drew ${l.entries.length}`);
+  assert.ok(l.entries.length <= 1 + 3 + 6 + 5 + 5 + 4 * 2 + 3 + 2, `drew ${l.entries.length}`);
   // fixed heights, contiguous offsets, so the window needs no measuring
   let y = 0;
   for (const e of l.entries) {
@@ -228,16 +227,16 @@ test("Needs you shows the first three waiting items, each with its one verb; the
 
 // ---------------------------------------------------------------- where an item shows, once
 
-test("a goal that is active and pinned shows once, in Pinned, not in Now", () => {
+test("a goal that is active and pinned shows once, in Pinned, not in Goals", () => {
   const g = mk("goal", { working: true, progress: { done: 3, total: 7 } });
   const l = buildLayout(input([g, mk("goal")], { pins: [g.key] }));
   const all = l.entries.flatMap((e) => (e.type === "row" ? [e.item.key] : []));
   assert.equal(all.filter((k) => k === g.key).length, 1);
   assert.ok(rows(l.entries, "pinned").some((x) => x.key === g.key));
-  assert.ok(!rows(l.entries, "now").some((x) => x.key === g.key));
+  assert.ok(!rows(l.entries, "goals").some((x) => x.key === g.key));
 });
 
-test("precedence: Needs you, then Pinned, then Now, then its own block", () => {
+test("precedence: Needs you, then Pinned, then its own block; a working chat stays a row of Chats", () => {
   const working = mk("chat", { working: true });
   const pinnedWorking = mk("chat", { working: true });
   const plain = mk("chat");
@@ -247,26 +246,107 @@ test("precedence: Needs you, then Pinned, then Now, then its own block", () => {
     [pinnedWorking.key],
   );
   assert.deepEqual(
-    s.now.map((x) => x.key),
-    [working.key],
+    s.chats.map((x) => x.key).sort(),
+    [working.key, plain.key].sort(),
+    "no Now: the working chat is in Chats once",
   );
+  assert.equal(s.goals.length, 0);
+});
+
+test("Goals: active first, then the quiet ones; finished only under the Goals filter", () => {
+  const paused = mk("goal", { quiet: true, title: "paused" });
+  const active = mk("goal", { working: true, title: "active" });
+  const done = mk("goal", { ended: true, title: "done" });
+  const s = sectionsOf([paused, active, done], [], "all");
   assert.deepEqual(
-    s.chats.map((x) => x.key),
-    [plain.key],
+    s.goals.map((x) => x.title),
+    ["active", "paused"],
+  );
+  assert.equal(sectionsOf([paused, active, done], [], "goals").goals.length, 3);
+});
+
+test("Goals has a head and rows two lines tall; cap 3 with N more", () => {
+  const gs = many(5, "goal", (i) => ({ working: i === 0, title: `g${i}` }));
+  const l = buildLayout(input(gs));
+  assert.equal(rows(l.entries, "goals").length, 3);
+  assert.equal(entry(l.entries, "more", "goals")!.hidden, 2);
+  assert.equal(entry(l.entries, "head", "goals")!.label, "Goals");
+  assert.equal(entry(l.entries, "row", "goals")!.h, 44);
+});
+
+test("a lived-in Space with no goals shows the Goals head and one quiet line with New goal; an empty Space shows no heading", () => {
+  const l = buildLayout(input([mk("chat")]));
+  const h = entry(l.entries, "hint", "goals")!;
+  assert.equal(h.text, "No goals yet");
+  assert.equal(h.action, "New goal");
+  assert.ok(types(l.entries).includes("head:goals"));
+  assert.equal(buildLayout(input([])).entries.length, 0);
+  const folded = buildLayout(input([mk("chat")], { folded: new Set<SectionId>(["goals"]) }));
+  assert.equal(entry(folded.entries, "hint"), undefined, "folded hides the line");
+  assert.equal(
+    entry(buildLayout(input([mk("chat")], { filter: "unread" })).entries, "hint"),
+    undefined,
+    "no line under a filter",
   );
 });
 
-test("Now holds a chat mid-task and every goal that has not ended; ended goals wait under Filter, Goals", () => {
-  const items = [mk("chat", { working: true }), mk("goal"), mk("goal", { ended: true })];
-  const s = sectionsOf(items, [], "all");
-  assert.equal(s.now.length, 2);
-  assert.ok(!s.now.some((x) => x.ended));
-  const only = sectionsOf(items, [], "goals").now;
-  assert.equal(only.length, 2, "the Goals filter lists goals only");
-  assert.ok(
-    only.some((x) => x.ended),
-    "and the ended one is among them",
+test("Tasks folds like the other sections: folded hides the waiting items and the more row, keeps the count", () => {
+  const tasks = many(5, "task", () => ({ verb: { label: "Allow", tone: "accent" as const } }));
+  const open = buildLayout(input(tasks));
+  assert.equal(entry(open.entries, "tasks")!.folded, false);
+  assert.equal(rows(open.entries, "needs").length, 3);
+  const l = buildLayout(input(tasks, { folded: new Set<SectionId>(["needs"]) }));
+  const t = entry(l.entries, "tasks")!;
+  assert.equal(t.folded, true);
+  assert.equal(t.count, 5, "the count stays");
+  assert.equal(rows(l.entries, "needs").length, 0);
+  assert.equal(entry(l.entries, "more", "needs"), undefined);
+  assert.equal(l.tasksCount, 5);
+  assert.equal(l.rail, 5, "a folded Tasks still counts in the rail");
+});
+
+test("Team is the whole team, most recent first; a one-to-one is that person's row and Chats never repeats it", () => {
+  const src = {
+    chats: [
+      chatRow({
+        threadId: "d",
+        kind: "person",
+        whoId: "per_1",
+        direct: true,
+        withPeople: true,
+        unread: 2,
+        lastAt: 500,
+      }),
+      chatRow({ threadId: "x", whoId: "agt_1", lastAt: 900 }),
+      chatRow({ threadId: "y", whoId: "agt_1", lastAt: 100 }),
+    ],
+    channels: [],
+    people: [
+      { id: "per_1", name: "Sara" },
+      { id: "per_2", name: "Omar" },
+    ],
+    agents: [{ agentId: "agt_1", name: "Ember" } as Agent],
+  };
+  const items = itemsFrom(src);
+  const l = buildLayout(input(items));
+  const team = rows(l.entries, "team");
+  assert.deepEqual(
+    team.map((x) => x.title),
+    ["Ember", "Sara", "Omar"],
+    "everyone, newest activity first",
   );
+  assert.equal(team.find((x) => x.title === "Sara")!.unread, 2);
+  assert.equal(team.find((x) => x.title === "Sara")!.threadId, "d");
+  assert.ok(!rows(l.entries, "chats").some((x) => x.threadId === "d" || x.title === "Sara"), "not also in Chats");
+  assert.equal(rows(l.entries, "chats").length, 2, "the agent's topic chats are rows in Chats");
+  const pinned = buildLayout(input(items, { pins: ["c:d"] }));
+  assert.ok(rows(pinned.entries, "pinned").some((x) => x.title === "Sara"));
+  assert.ok(!rows(pinned.entries, "team").some((x) => x.title === "Sara"), "a pinned person shows once");
+});
+
+test("a guest has no Goals either", () => {
+  const l = buildLayout(input([mk("chat"), mk("goal")], { guest: true }));
+  assert.ok(!types(l.entries).some((t) => t === "head:goals" || t === "hint"));
 });
 
 test("Pinned keeps the person's own order, not recency", () => {
@@ -278,7 +358,7 @@ test("Pinned keeps the person's own order, not recency", () => {
   );
 });
 
-test("Chats are newest first with muted ones last; Channels keep the Space's order, muted last; Team puts people first, online first", () => {
+test("Chats are newest first with muted ones last; Channels keep the Space's order, muted last; Team puts the most recent first, then people, online first", () => {
   const old = mk("chat", { lastAt: 1 });
   const fresh = mk("chat", { lastAt: 9 });
   const quiet = mk("chat", { lastAt: 99, muted: true });
@@ -292,9 +372,9 @@ test("Chats are newest first with muted ones last; Channels keep the Space's ord
     sectionsOf([c1, c2], [], "all").channels.map((x) => x.key),
     [c2.key, c1.key],
   );
-  const ag = mk("agent", { working: true });
-  const away = mk("person", { presence: "away" });
-  const on = mk("person", { presence: "online" });
+  const ag = mk("agent", { working: true, lastAt: 0 });
+  const away = mk("person", { presence: "away", lastAt: 0 });
+  const on = mk("person", { presence: "online", lastAt: 0 });
   assert.deepEqual(
     sectionsOf([ag, away, on], [], "all").team.map((x) => x.key),
     [on.key, away.key, ag.key],
@@ -341,9 +421,9 @@ test("a Personal Space has no Channels and calls Team Agents", () => {
   assert.equal(entry(l.entries, "head", "team")!.label, "Agents");
 });
 
-test("a Space with chats shows Tasks, then Chats; Now, Pinned and Channels show only when they have something", () => {
+test("a Space with chats shows Tasks, then Chats; Pinned and Channels show only when they have something", () => {
   const l = buildLayout(input([mk("chat")]));
-  assert.deepEqual(types(l.entries), ["tasks", "head:chats", "row"]);
+  assert.deepEqual(types(l.entries), ["tasks", "head:goals", "hint", "head:chats", "row"]);
   assert.equal(l.foot.notes?.new, 0);
 });
 
@@ -443,8 +523,8 @@ test("rail: every waiting task, plus mentions, plus a new direct message; plain 
     mk("task"),
     mk("task"),
     mk("chat", { mentions: 2 }),
-    mk("dm", { unread: 4 }),
-    mk("dm", { unread: 1, mentions: 1 }),
+    mk("person", { threadId: "t2", unread: 4 }),
+    mk("person", { threadId: "t3", unread: 1, mentions: 1 }),
     mk("chat", { unread: 9 }),
     mk("channel", { unread: 3 }),
     mk("chat", { muted: true, mentions: 5 }),
@@ -458,7 +538,7 @@ test("the rail equals the sum of the sidebar's Tasks count, mention badges and d
   const items = [
     mk("task"),
     mk("chat", { mentions: 2 }),
-    mk("dm", { unread: 1 }),
+    mk("person", { threadId: "t4", unread: 1 }),
     mk("channel", { mentions: 1 }),
     mk("chat", { unread: 5 }),
   ];
@@ -468,7 +548,7 @@ test("the rail equals the sum of the sidebar's Tasks count, mention badges and d
     0,
   );
   const dmDots = l.entries.reduce(
-    (n, e) => n + (e.type === "row" && e.item.kind === "dm" && e.mark?.kind === "unread" ? 1 : 0),
+    (n, e) => n + (e.type === "row" && e.item.kind === "person" && e.mark?.kind === "unread" ? 1 : 0),
     0,
   );
   assert.equal(l.rail, l.tasksCount + mentionBadges + dmDots);
@@ -524,8 +604,7 @@ test("itemsFrom: shapes by who a chat is with; the Assistant is one shape everyw
   assert.equal(shape("c:a"), "assistant");
   assert.equal(shape("c:b"), "agent");
   assert.equal(shape("c:c"), "group");
-  assert.equal(shape("c:d"), "person");
-  assert.equal(items.find((x) => x.key === "c:d")!.kind, "dm");
+  assert.ok(!items.some((x) => x.key === "c:d" && x.kind === "chat"), "a one-to-one is not a chat row");
   assert.equal(shape("f:assistant"), "assistant", "the Team row and the chat row are the same shape");
 });
 
@@ -553,7 +632,7 @@ test("itemsFrom: an actor shows once: a person with a direct message is that row
   });
   assert.deepEqual(
     items.filter((x) => x.kind === "person").map((x) => x.title),
-    ["Omar"],
+    ["Sara", "Omar"],
   );
   assert.ok(!items.some((x) => x.key === "c:gc"));
   const g = items.find((x) => x.kind === "goal")!;

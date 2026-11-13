@@ -7,6 +7,7 @@ import type { Item, ItemKind, LayoutEntry, LayoutInput, SectionId, Shape } from 
 import {
   ErrorView,
   HeadView,
+  HintView,
   ItemRow,
   LessView,
   MoreView,
@@ -58,12 +59,16 @@ const row = (x: Item, o: Partial<LayoutInput> = {}, state = st, handlers = on): 
 const SHAPES: { name: string; x: Item; has: RegExp[]; hasNot?: RegExp[] }[] = [
   {
     name: "person: a marble with presence",
-    x: mk("dm", "person", { faces: [{ id: "usr_1", name: "Sara Malik" }], presence: "online", title: "Sara Malik" }),
+    x: mk("person", "person", {
+      faces: [{ id: "usr_1", name: "Sara Malik" }],
+      presence: "online",
+      title: "Sara Malik",
+    }),
     has: [/data-testid="face-Sara Malik"/, /data-testid="presence"/],
   },
   {
     name: "person away: the away ring",
-    x: mk("dm", "person", { faces: [{ id: "usr_1", name: "Omar Reyes" }], presence: "away", title: "Omar Reyes" }),
+    x: mk("person", "person", { faces: [{ id: "usr_1", name: "Omar Reyes" }], presence: "away", title: "Omar Reyes" }),
     has: [/data-testid="presence-away"/],
   },
   {
@@ -157,7 +162,7 @@ test("a working chat's face wears the moving ring; a waiting task's face wears t
   assert.match(html, /waiting/);
 });
 
-test("a Needs you row is two lines with its verb; Blocked is amber; Now rows are two lines; others one", () => {
+test("a Needs you row is two lines with its verb; Blocked is amber; Goals rows are two lines; others one", () => {
   const task = mk("task", "task", {
     verb: { label: "Blocked", tone: "warn" },
     sub: "Sol needs a key to continue",
@@ -187,7 +192,7 @@ test("a name is never cut without a way to read it: the full name and who it is 
   );
   assert.equal(tipOf(mk("chat", "agent", { failed: "Stopped" })).who, "Agent · Stopped");
   assert.equal(tipOf(mk("channel", "channel", { private: true })).who, "Private channel");
-  assert.equal(tipOf(mk("dm", "person")).who, "Direct message");
+  assert.equal(tipOf(mk("person", "person")).who, "Person");
   assert.equal(tipText(mk("chat", "agent", { muted: true })), "Launch crew\nAgent · Muted");
 });
 
@@ -283,4 +288,33 @@ test("a filter that finds nothing says so with Show all; loading draws quiet bar
       renderToStaticMarkup(<SkeletonView entry={e as Extract<LayoutEntry, { type: "skeleton" }>} />),
       new RegExp(`height:${e.h}px`),
     );
+});
+
+test("Tasks has a chevron that folds and a name that opens; folded, the count stays", () => {
+  const tasks = [
+    mk("task", "task", { verb: { label: "Allow", tone: "accent" } }),
+    mk("task", "task", { verb: { label: "Review", tone: "accent" } }),
+  ];
+  const open = renderToStaticMarkup(
+    <TasksRow entry={entryOf(layoutOf(tasks), "tasks")} state={st} on={{ press: () => {}, fold: () => {} }} />,
+  );
+  assert.match(open, /aria-label="Fold Tasks"/);
+  const f = renderToStaticMarkup(
+    <TasksRow
+      entry={entryOf(layoutOf(tasks, { folded: new Set<SectionId>(["needs"]) }), "tasks")}
+      state={st}
+      on={{ press: () => {}, fold: () => {} }}
+    />,
+  );
+  assert.match(f, /aria-label="Unfold Tasks"/);
+  assert.match(f, /data-folded="true"/);
+  assert.match(f, /data-testid="mark-mention"[^>]*>[\s\S]*?>2</);
+  assert.match(f, /aria-label="Tasks, 2 need you"/);
+});
+
+test("the quiet line of a lived-in Space with no goals", () => {
+  const l = layoutOf([mk("chat", "agent")]);
+  const html = renderToStaticMarkup(<HintView entry={entryOf(l, "hint")} onPress={() => {}} />);
+  assert.match(html, /No goals yet/);
+  assert.match(html, /aria-label="New goal"/);
 });

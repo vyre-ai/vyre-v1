@@ -26,9 +26,7 @@ export const SHAPE_WORDS: Record<Shape, string> = {
 };
 /** The words under a name on hover: what it is, then what is going on with it. */
 export function tipOf(x: Item): { title: string; who: string } {
-  const bits: string[] = [
-    x.kind === "dm" ? "Direct message" : x.private === true ? "Private channel" : SHAPE_WORDS[x.shape],
-  ];
+  const bits: string[] = [x.private === true ? "Private channel" : SHAPE_WORDS[x.shape]];
   if (x.progress) bits.push(`${x.progress.done} of ${x.progress.total}`);
   if (x.failed !== undefined) bits.push(x.failed === "" ? "Failed" : x.failed);
   else if (x.muted) bits.push("Muted");
@@ -231,6 +229,8 @@ export interface EntryState {
 }
 export interface EntryHandlers {
   press(): void;
+  /** The Tasks chevron: fold or unfold (the name opens the place). */
+  fold?: () => void;
   /** The "..." button: the row's menu at a point. */
   more?: (x: number, y: number) => void;
   /** Spread on the row's element: right-click, the Menu key, a long press and the hint keys (useContextMenu.on). */
@@ -270,7 +270,7 @@ function MoreButton({
   );
 }
 
-/** A row of a block: Needs you and Now rows are two lines (the title, then what is waiting or what it is doing), the rest one. The title stays one line; the full name and who it is show on hover. */
+/** A row of a block: Needs you and Goals rows are two lines (the title, then what is waiting or what it is doing), the rest one. The title stays one line; the full name and who it is show on hover. */
 export function ItemRow({
   entry,
   state,
@@ -323,7 +323,7 @@ export function ItemRow({
   );
 }
 
-/** The fixed row at the top: Tasks, its count in accent. Nothing else carries a number here but a mention and a folded head. */
+/** The fixed row at the top: Tasks. Its chevron folds the waiting items under it, its name opens the Tasks place, and the count stays in the accent needs-you tone folded or not. */
 export function TasksRow({
   entry,
   state,
@@ -342,7 +342,20 @@ export function TasksRow({
       hovered={state.cursor && !state.selected}
       onPress={on.press}
       leading={
-        <View style={s.lead as never}>
+        <View style={s.tasksLead as never}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={entry.folded ? "Unfold Tasks" : "Fold Tasks"}
+            accessibilityState={{ expanded: !entry.folded }}
+            testID="toggle-needs"
+            onPress={(ev) => {
+              (ev as unknown as { stopPropagation?: () => void }).stopPropagation?.();
+              on.fold?.();
+            }}
+            style={s.chevHit as never}
+          >
+            <Glyph name={entry.folded ? "arrow" : "chev"} size={10} color="var(--ink-4)" />
+          </Pressable>
           <Glyph name="task" size={16} color="var(--ink-2)" />
         </View>
       }
@@ -354,8 +367,31 @@ export function TasksRow({
           </View>
         </View>
       }
-      domProps={{ ...(on.dom ?? {}), "aria-label": entry.count > 0 ? `Tasks, ${entry.count} need you` : "Tasks" }}
+      domProps={{
+        ...(on.dom ?? {}),
+        "aria-label": entry.count > 0 ? `Tasks, ${entry.count} need you` : "Tasks",
+        "data-folded": String(entry.folded),
+      }}
     />,
+  );
+}
+
+/** One quiet line in a section with nothing in it: "No goals yet" and its one action. */
+export function HintView({ entry, onPress }: { entry: Entry<"hint">; onPress(): void }): ReactElement {
+  return wrap(
+    entry,
+    <View testID={`hint-${entry.section}`} style={s.err as never}>
+      <Text style={s.errText as never}>{entry.text}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={entry.action}
+        testID={`hint-${entry.section}-action`}
+        onPress={onPress}
+        style={s.retry as never}
+      >
+        <Text style={s.retryText as never}>{entry.action}</Text>
+      </Pressable>
+    </View>,
   );
 }
 
@@ -529,6 +565,8 @@ const s = StyleSheet.create({
     borderWidth: 2,
     borderColor: "var(--warn)" as string,
   },
+  tasksLead: { flexDirection: "row", alignItems: "center", gap: 4 },
+  chevHit: { width: 16, height: 22, alignItems: "center", justifyContent: "center" },
   lead: { width: BOX, height: BOX, alignItems: "center", justifyContent: "center" },
   marks: { flexDirection: "row", alignItems: "center", gap: 4 },
   markBox: { width: 18, height: 18, alignItems: "center", justifyContent: "center" },

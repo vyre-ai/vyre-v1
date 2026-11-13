@@ -10,7 +10,17 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { useContextMenu } from "../../../../../../ui/src/Menu/context.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/props.ts";
 import { detectPlatform } from "../../../shell/keyboard/useShellKeys.ts";
-import { ErrorView, HeadView, ItemRow, LessView, MoreView, NoneView, SkeletonView, TasksRow } from "./SideEntries.tsx";
+import {
+  ErrorView,
+  HeadView,
+  HintView,
+  ItemRow,
+  LessView,
+  MoreView,
+  NoneView,
+  SkeletonView,
+  TasksRow,
+} from "./SideEntries.tsx";
 import { LANDS_ON, headOf, listKey, moveKey } from "./side-keys.ts";
 import { headMenu, rowMenu, tasksMenu } from "./side-menus.ts";
 import type { FixedDo, HeadDo, RowCan, RowDo } from "./side-menus.ts";
@@ -38,6 +48,8 @@ export interface SidebarListProps {
   /** Option-Shift-Down and Up: the next or previous unread row. */
   nextUnread(dir: 1 | -1): void;
   openFilter(): void;
+  /** "New goal" on the quiet "No goals yet" line. */
+  newGoal(): void;
   copyLink(x: Item): void;
   /** A letter typed on the list: the command bar opens with it. */
   search(text: string): void;
@@ -61,7 +73,11 @@ export function entryMenu(
         p.can ?? {},
       );
     case "tasks":
-      return tasksMenu({ ...p.tasksDo, open: p.openTasks });
+      return tasksMenu(
+        { ...p.tasksDo, open: p.openTasks, fold: () => p.fold("needs"), unfold: () => p.fold("needs") },
+        undefined,
+        e.folded,
+      );
     case "head":
     case "more":
     case "less": {
@@ -107,6 +123,8 @@ export function SidebarList(p: SidebarListProps): ReactElement {
         return e.opens === "tasks" ? p.openTasks() : p.toggleMore(e.section);
       case "less":
         return p.toggleMore(e.section);
+      case "hint":
+        return p.newGoal();
       case "error":
         return p.retry(e.section);
     }
@@ -141,7 +159,11 @@ export function SidebarList(p: SidebarListProps): ReactElement {
       h?.onKeyDown?.(ev);
       if ((ev as { defaultPrevented?: boolean }).defaultPrevented === true) return;
     }
-    const a = listKey(ev, at ? { type: at.type, ...(at.type === "head" ? { folded: at.folded } : {}) } : null, mac());
+    const a = listKey(
+      ev,
+      at ? { type: at.type, ...(at.type === "head" || at.type === "tasks" ? { folded: at.folded } : {}) } : null,
+      mac(),
+    );
     if (!a) return;
     ev.preventDefault?.();
     switch (a.do) {
@@ -153,7 +175,7 @@ export function SidebarList(p: SidebarListProps): ReactElement {
         return at?.type === "row" ? p.open(at.item, "tab") : undefined;
       case "fold":
       case "unfold":
-        return at?.type === "head" ? p.fold(at.section) : undefined;
+        return at?.type === "head" ? p.fold(at.section) : at?.type === "tasks" ? p.fold("needs") : undefined;
       case "toHead":
         return at ? setCursor(headOf(entries, at.key) ?? cursor) : undefined;
       case "escape":
@@ -176,7 +198,9 @@ export function SidebarList(p: SidebarListProps): ReactElement {
     const on = handlersOf(e);
     switch (e.type) {
       case "tasks":
-        return <TasksRow entry={e} state={state} on={on} />;
+        return <TasksRow entry={e} state={state} on={{ ...on, fold: () => p.fold("needs") }} />;
+      case "hint":
+        return <HintView entry={e} onPress={p.newGoal} />;
       case "row":
         return <ItemRow entry={e} state={state} on={on} />;
       case "head":

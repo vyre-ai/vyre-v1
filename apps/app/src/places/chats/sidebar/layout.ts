@@ -8,22 +8,22 @@ import type { ProjectLine } from "../projects/model.ts";
 // ---------------------------------------------------------------- the words of the design
 
 /** The six blocks, top to bottom. Needs you is the Tasks row with its waiting items under it; the others have a head. */
-export type SectionId = "needs" | "now" | "pinned" | "chats" | "channels" | "team";
-export const SECTION_ORDER: readonly SectionId[] = ["needs", "now", "pinned", "chats", "channels", "team"];
+export type SectionId = "needs" | "goals" | "pinned" | "chats" | "channels" | "team";
+export const SECTION_ORDER: readonly SectionId[] = ["needs", "goals", "pinned", "chats", "channels", "team"];
 export const SECTION_LABEL: Record<SectionId, string> = {
   needs: "Needs you",
-  now: "Now",
+  goals: "Goals",
   pinned: "Pinned",
   chats: "Chats",
   channels: "Channels",
   team: "Team",
 };
 /** Hard caps (design 2.4): "N more" carries the marks of what it hides, so nothing is hidden silently and nothing pushes the rest away. */
-export const CAPS: Record<SectionId, number> = { needs: 3, now: 4, pinned: 6, chats: 6, channels: 5, team: 5 };
+export const CAPS: Record<SectionId, number> = { needs: 3, goals: 3, pinned: 6, chats: 6, channels: 5, team: 5 };
 /** What a failed read of a section says it could not load: "Couldn't load chats". */
 export const SECTION_WHAT: Record<SectionId, string> = {
   needs: "what needs you",
-  now: "what is happening now",
+  goals: "goals",
   pinned: "pinned items",
   chats: "chats",
   channels: "channels",
@@ -35,7 +35,7 @@ export const H = { row: 32, two: 44, head: 34, more: 28, error: 32, none: 40, ta
 export const MAX_PIN_DIGITS = 9;
 
 /** What a row is, which says where it lives and which menu it has. */
-export type ItemKind = "chat" | "dm" | "channel" | "project" | "goal" | "person" | "agent" | "task";
+export type ItemKind = "chat" | "channel" | "project" | "goal" | "person" | "agent" | "task";
 /** What a row looks like at its left: person, agent, Assistant, group, channel, project, goal (progress ring), task (the asking face with the amber ring). */
 export type Shape = "person" | "agent" | "assistant" | "group" | "channel" | "project" | "goal" | "task";
 
@@ -82,6 +82,10 @@ export interface Item {
   private?: boolean;
   /** Other people are in this chat: its menu offers Leave, not Delete (delete is only for a chat of me and agents). */
   withPeople?: boolean;
+  /** A goal that is not moving (waiting, paused, planning, draft): drawn quieter and listed after the active ones. */
+  quiet?: boolean;
+  /** A person's one-to-one chat: the row opens it, and its unread, mentions, muted and last activity are that person's. */
+  threadId?: string;
   /** The Assistant row of Team: it has no Pause, Edit instructions or Delete. */
   assistant?: boolean;
 }
@@ -144,7 +148,7 @@ export function railCount(items: readonly Item[]): number {
     }
     if (x.muted || x.archived) continue;
     if (x.mentions > 0) n += x.mentions;
-    else if (x.kind === "dm" && x.unread > 0) n++;
+    else if (x.kind === "person" && x.unread > 0) n++;
   }
   return n;
 }
@@ -225,7 +229,9 @@ export function showingLine(items: readonly Item[], f: FilterId): { text: string
 // ---------------------------------------------------------------- the flat list of entries
 
 export type LayoutEntry = { key: string; y: number; h: number } & (
-  | { type: "tasks"; count: number }
+  | { type: "tasks"; count: number; folded: boolean }
+  /** One quiet line in a section with nothing in it: "No goals yet" with its one action. */
+  | { type: "hint"; section: SectionId; text: string; action: string }
   | { type: "row"; section: SectionId; item: Item; mark: Mark | null; digit?: number }
   | { type: "head"; section: SectionId; label: string; count: number; folded: boolean; agg: Agg; marks: Mark[] }
   /** "N more": opens in place, except under Needs you, where it opens Tasks. It carries the marks of what it hides. */
@@ -283,9 +289,8 @@ const byChats = (a: Item, b: Item): number =>
   b.lastAt - a.lastAt ||
   a.title.localeCompare(b.title) ||
   a.key.localeCompare(b.key);
-const CHAT_KINDS: readonly ItemKind[] = ["chat", "dm"];
 
-/** The members of each block after the design's order of precedence: Needs you, then Pinned, then Now, then the item's own block. An item shows once. */
+/** The members of each block after the design's order of precedence: Needs you, then Pinned, then the item's own block. An item shows once. */
 export function sectionsOf(items: readonly Item[], pins: readonly string[], f: FilterId): Record<SectionId, Item[]> {
   const ok = items.filter((x) => passes(x, f));
   const used = new Set<string>();
@@ -296,29 +301,29 @@ export function sectionsOf(items: readonly Item[], pins: readonly string[], f: F
   const needs = take(ok.filter((x) => x.kind === "task"));
   const byKey = new Map(ok.map((x) => [x.key, x]));
   const pinned = take(pins.flatMap((k) => (byKey.has(k) && !used.has(k) ? [byKey.get(k)!] : [])));
-  // Now: an agent mid-task in a chat, a goal in motion; then every other goal that has not ended (a goal is work in motion)
-  const live = (x: Item): boolean =>
-    !used.has(x.key) &&
-    ((x.working && (x.kind === "chat" || x.kind === "dm" || x.kind === "goal")) ||
-      (x.kind === "goal" && !x.ended && f === "all"));
-  const nowItems = take(ok.filter((x) => live(x)));
   const rest = ok.filter((x) => !used.has(x.key));
-  const goals = rest.filter((x) => x.kind === "goal");
-  const chats = rest.filter((x) => CHAT_KINDS.includes(x.kind) || (f === "archived" && x.archived)).sort(byChats);
+  // Goals: active first, each with its live line; then the quiet ones (waiting, paused); finished ones only under the filter
+  const goalsAll = rest.filter((x) => x.kind === "goal");
+  const goals = [...goalsAll.filter((x) => x.quiet !== true), ...goalsAll.filter((x) => x.quiet === true)];
+  // a running agent stays a row of Chats with its working ring: there is no Now block
+  const chats = rest.filter((x) => x.kind === "chat" || (f === "archived" && x.archived)).sort(byChats);
   const channels = rest
     .filter((x) => x.kind === "channel" || x.kind === "project")
     .map((x, n) => ({ x, n }))
     .sort((a, b) => Number(a.x.muted) - Number(b.x.muted) || a.n - b.n)
     .map((e) => e.x);
+  // Team is the whole team the person may reach, most recent first: a one-to-one is that person's row (Chats never repeats it)
   const team = rest
     .filter((x) => x.kind === "person" || x.kind === "agent")
     .sort(
       (a, b) =>
+        b.lastAt - a.lastAt ||
         Number(b.kind === "person") - Number(a.kind === "person") ||
         (ORDER_PRESENCE[a.presence ?? "away"] ?? 2) - (ORDER_PRESENCE[b.presence ?? "away"] ?? 2) ||
-        Number(b.working) - Number(a.working),
+        a.title.localeCompare(b.title) ||
+        a.key.localeCompare(b.key),
     );
-  return { needs, now: [...nowItems, ...goals], pinned, chats, channels, team };
+  return { needs, goals, pinned, chats, channels, team };
 }
 
 /** The first `cap` of a list; the open row, if cut, swaps in for the last shown. The rest is what "N more" holds. */
@@ -333,7 +338,9 @@ export function capList(list: readonly Item[], cap: number, open: string | null)
 /** The six blocks of the sidebar as one flat list of typed entries with fixed heights. */
 export function buildLayout(i: LayoutInput): Layout {
   const failed = i.failed ?? new Set<SectionId>();
-  const items = i.guest ? i.items.filter((x) => x.kind !== "person" && x.kind !== "agent") : i.items;
+  const items = i.guest
+    ? i.items.filter((x) => x.kind !== "person" && x.kind !== "agent" && x.kind !== "goal")
+    : i.items;
   const out: LayoutEntry[] = [];
   let y = 0;
   const push = <E extends Omit<LayoutEntry, "y" | "h">>(e: E, h: number): void => {
@@ -384,13 +391,15 @@ export function buildLayout(i: LayoutInput): Layout {
   }
 
   const sec = sectionsOf(items, i.pins, i.filter);
-  if (!filtered) push({ key: "tasks", type: "tasks", count: sec.needs.length }, H.tasks);
+  const needsFolded = i.folded.has("needs") && !filtered;
+  if (!filtered) push({ key: "tasks", type: "tasks", count: sec.needs.length, folded: needsFolded }, H.tasks);
   for (const s of SECTION_ORDER) {
     if (s === "channels" && i.personal === true) continue;
-    if (s === "team" && i.guest === true) continue;
+    if ((s === "team" || s === "goals") && i.guest === true) continue;
     const list = sec[s];
     const fail = failed.has(s);
     if (s === "needs") {
+      if (needsFolded) continue;
       const { shown, hidden } = filtered ? { shown: list, hidden: [] } : capList(list, CAPS.needs, null);
       if (fail) push({ key: "e:needs", type: "error", section: s, what: SECTION_WHAT.needs }, H.error);
       for (const x of shown) push({ key: x.key, type: "row", section: s, item: x, mark: null }, H.two);
@@ -409,7 +418,8 @@ export function buildLayout(i: LayoutInput): Layout {
         );
       continue;
     }
-    if (list.length === 0 && !fail) continue;
+    const noGoals = s === "goals" && list.length === 0 && !filtered && !fail;
+    if (list.length === 0 && !fail && !noGoals) continue;
     const folded = i.folded.has(s) && !filtered;
     const label = s === "team" && i.personal === true ? "Agents" : SECTION_LABEL[s];
     const agg = aggOf(list);
@@ -418,11 +428,15 @@ export function buildLayout(i: LayoutInput): Layout {
       H.head,
     );
     if (folded) continue;
+    if (noGoals) {
+      push({ key: "hint:goals", type: "hint", section: s, text: "No goals yet", action: "New goal" }, H.row);
+      continue;
+    }
     if (fail) {
       push({ key: `e:${s}`, type: "error", section: s, what: SECTION_WHAT[s] }, H.error);
       if (list.length === 0) continue;
     }
-    const h = s === "now" ? H.two : H.row;
+    const h = s === "goals" ? H.two : H.row;
     const expanded = filtered || i.more.has(s);
     const { shown, hidden } = expanded ? { shown: list, hidden: [] } : capList(list, CAPS[s], i.open);
     for (const x of shown) {
@@ -482,6 +496,8 @@ export interface ItemSource {
   asks?: ReadonlySet<string>;
   /** Goal chats are the Goal row's, never a second row. */
   goalThreads?: ReadonlySet<string>;
+  /** The live line under a goal: "Editing upload.ts", "Next check-in Wed 9:00". */
+  goalLine?: (g: GoalLine) => string;
   /** Agent names by id, for a waiting task's asker. */
   agentName?: (id: string) => string;
 }
@@ -509,26 +525,24 @@ export function itemsFrom(s: ItemSource): Item[] {
   const out: Item[] = [];
   const failedOf = (k: string): { failed?: string } => (s.failed?.has(k) ? { failed: s.failed.get(k) ?? "" } : {});
   const assistantId = s.assistant?.agentId;
-  const dmWith = new Set<string>();
+  const dms = new Map<string, ChatRow>();
   const seen = new Set<string>();
   for (const r of s.chats) {
     if (seen.has(r.threadId) || s.goalThreads?.has(r.threadId) === true || r.goalId !== undefined) continue;
     seen.add(r.threadId);
     const key = `c:${r.threadId}`;
     const direct = r.direct === true;
-    if (direct && r.whoId) dmWith.add(r.whoId);
+    // a one-to-one is its person's row in Team, not a row of Chats
+    if (direct && r.whoId) {
+      if (!dms.has(r.whoId)) dms.set(r.whoId, r);
+      continue;
+    }
     const group = !direct && (r.members !== undefined || (r.withPeople === true && r.kind === "person"));
-    const shape: Shape = direct
-      ? "person"
-      : group
-        ? "group"
-        : r.whoId !== undefined && r.whoId === assistantId
-          ? "assistant"
-          : "agent";
+    const shape: Shape = group ? "group" : r.whoId !== undefined && r.whoId === assistantId ? "assistant" : "agent";
     out.push({
       ...base(),
       key,
-      kind: direct ? "dm" : "chat",
+      kind: "chat",
       shape,
       title: r.title,
       faces: r.members
@@ -545,7 +559,6 @@ export function itemsFrom(s: ItemSource): Item[] {
       withPeople: r.withPeople === true,
       ask: s.asks?.has(r.threadId) === true,
       lastAt: r.lastAt,
-      ...(direct && r.whoId && s.presence?.get(r.whoId) ? { presence: s.presence.get(r.whoId)! } : {}),
       ...failedOf(key),
     });
   }
@@ -596,6 +609,8 @@ export function itemsFrom(s: ItemSource): Item[] {
       faces: [{ id: g.leadAgentId, name: s.agentName?.(g.leadAgentId) ?? "Agent" }],
       working: g.status === "active",
       ended: ENDED.has(g.status),
+      quiet: g.status !== "active" && !ENDED.has(g.status),
+      ...(s.goalLine ? { sub: s.goalLine(g) } : g.statusReason ? { sub: g.statusReason } : {}),
       progress: { done: p.tasksDone, total: p.tasks },
       lastAt: g.updatedAt,
       ...failedOf(key),
@@ -613,19 +628,40 @@ export function itemsFrom(s: ItemSource): Item[] {
       verb: needsVerb(n),
     });
   }
-  for (const p of s.people ?? []) {
-    if (dmWith.has(p.id)) continue;
-    out.push({
+  const personRow = (id: string, name: string): Item => {
+    const dm = dms.get(id);
+    const key = dm ? `c:${dm.threadId}` : `p:${id}`;
+    const pres = s.presence?.get(id);
+    return {
       ...base(),
-      key: `p:${p.id}`,
+      key,
       kind: "person",
       shape: "person",
-      title: p.name,
-      faces: [{ id: p.id, name: p.name }],
-      muted: muted("person", p.id),
-      ...(s.presence?.get(p.id) ? { presence: s.presence.get(p.id)! } : {}),
-    });
-  }
+      title: name,
+      faces: [{ id, name }],
+      muted: muted("person", id) || (dm !== undefined && (dm.muted === true || muted("thread", dm.threadId))),
+      ...(dm
+        ? {
+            threadId: dm.threadId,
+            unread: dm.unread + (dm.repliesUnread ?? 0),
+            mentions: s.mentions?.get(key) ?? 0,
+            draft: s.drafts?.has(key) === true,
+            lastAt: dm.lastAt,
+            archived: dm.archived === true,
+            ...failedOf(key),
+          }
+        : {}),
+      ...(pres ? { presence: pres } : {}),
+    };
+  };
+  const listed = new Set((s.people ?? []).map((p) => p.id));
+  for (const p of s.people ?? []) out.push(personRow(p.id, p.name));
+  // a one-to-one with someone not in the directory read yet is still that person's row
+  for (const [id, dm] of dms) if (!listed.has(id)) out.push(personRow(id, dm.who));
+  const agentLast = new Map<string, number>();
+  for (const r of s.chats)
+    if (r.direct !== true && r.whoId !== undefined && r.members === undefined)
+      agentLast.set(r.whoId, Math.max(agentLast.get(r.whoId) ?? 0, r.lastAt));
   for (const a of [...(s.assistant ? [s.assistant as Agent] : []), ...(s.agents ?? [])]) {
     const isAssistant = a.agentId === assistantId;
     out.push({
@@ -638,6 +674,7 @@ export function itemsFrom(s: ItemSource): Item[] {
       muted: muted("agent", a.agentId),
       assistant: isAssistant,
       working: s.workingAgents?.has(a.agentId) === true,
+      lastAt: agentLast.get(a.agentId) ?? 0,
     });
   }
   return out;

@@ -72,7 +72,7 @@ const lived = (): Item[] => [
   mk("task", "task", { verb: { label: "Allow", tone: "accent" }, sub: "Docs is holding the send" }),
   mk("chat", "agent", { working: true, sub: "Editing upload.ts" }),
   mk("goal", "goal", { progress: { done: 3, total: 7 } }),
-  mk("dm", "person", { mentions: 2 }),
+  mk("person", "person", { mentions: 2 }),
   mk("chat", "assistant", { faces: [{ id: "assistant", name: "Assistant" }] }),
   mk("chat", "group", { unread: 1 }),
   mk("chat", "agent", { failed: "Stopped" }),
@@ -104,7 +104,7 @@ test("every entry of a lived-in Space is a typed entry that is pressed, and ever
       assert.equal(m, null, `${e.type} has no menu`);
     else assert.ok(m && m.length > 0, `${kind} has a menu`);
   }
-  for (const k of ["task", "chat", "goal", "dm", "channel", "project", "person", "agent", "tasks", "head"])
+  for (const k of ["task", "chat", "goal", "channel", "project", "person", "agent", "tasks", "head"])
     assert.ok(seen.has(k), `${k} drawn`);
   assert.ok((ENTRY_KINDS_WITH_MENU as readonly string[]).includes("more"));
 });
@@ -121,10 +121,15 @@ test('"N more", "Show less" and a head share the head menu; Tasks has its own', 
   });
   const p = props(l);
   const labels = (e: LayoutEntry) => (entryMenu(e, p, new Set()) ?? []).flatMap((m) => ("label" in m ? [m.label] : []));
-  const head = l.entries.find((e) => e.type === "head")!;
+  const head = l.entries.find((e) => e.type === "head" && e.section === "chats")!;
   const more = l.entries.find((e) => e.type === "more")!;
   assert.deepEqual(labels(more), labels(head));
-  assert.deepEqual(labels(l.entries.find((e) => e.type === "tasks")!), ["Open", "Open in a new tab", "New task"]);
+  assert.deepEqual(labels(l.entries.find((e) => e.type === "tasks")!), [
+    "Open",
+    "Open in a new tab",
+    "Fold",
+    "New task",
+  ]);
 });
 
 test("a pinned row's menu says Unpin; the same row elsewhere says Pin", () => {

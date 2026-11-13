@@ -93,7 +93,8 @@ const KINDS: { kind: ItemKind; o?: Partial<Item>; want: string[] }[] = [
     ],
   },
   {
-    kind: "dm",
+    kind: "person",
+    o: { threadId: "t" },
     want: [
       "Message",
       "Open in a new tab",
@@ -163,7 +164,7 @@ KINDS.forEach((c, n) =>
 );
 
 test("every kind of row has a menu (the 8 of 16 entries that had none now do)", () => {
-  const kinds: ItemKind[] = ["chat", "dm", "channel", "project", "goal", "person", "agent", "task"];
+  const kinds: ItemKind[] = ["chat", "channel", "project", "goal", "person", "agent", "task"];
   for (const k of kinds) assert.ok(rowMenu(item(k), false, ALL).length > 0, k);
 });
 
@@ -226,13 +227,13 @@ test("Notes & artifacts: Open, each tab by name, a new tab, New note", () => {
   assert.deepEqual(labels(m), ["Open", "Open Notes", "Open Artifacts", "Open in a new tab", "New note"]);
 });
 
-const HEAD_TABLE: { section: "pinned" | "chats" | "channels" | "team" | "now"; folded: boolean; want: string[] }[] = [
+const HEAD_TABLE: { section: "pinned" | "chats" | "channels" | "team" | "goals"; folded: boolean; want: string[] }[] = [
   { section: "chats", folded: false, want: ["Fold", "Mark all as read", "New chat"] },
   { section: "chats", folded: true, want: ["Unfold", "Mark all as read", "New chat"] },
   { section: "channels", folded: false, want: ["Fold", "New channel…", "Browse channels…"] },
   { section: "team", folded: false, want: ["Fold", "Invite someone…", "New agent…"] },
   { section: "pinned", folded: false, want: ["Fold", "Unpin all"] },
-  { section: "now", folded: false, want: ["Fold"] },
+  { section: "goals", folded: false, want: ["Fold", "New goal\u2026"] },
 ];
 for (const c of HEAD_TABLE)
   test(`head menu: ${c.section}${c.folded ? " folded" : ""}`, () => {
@@ -247,6 +248,7 @@ for (const c of HEAD_TABLE)
       invite: f,
       newAgent: f,
       unpinAll: f,
+      newGoal: f,
     });
     assert.deepEqual(labels(m), c.want);
   });

@@ -9,6 +9,8 @@ import type { ListAction, ListKey } from "./side-keys.ts";
 const ROW = { type: "row" } as const;
 const HEAD_OPEN = { type: "head", folded: false } as const;
 const HEAD_FOLDED = { type: "head", folded: true } as const;
+const TASKS_OPEN = { type: "tasks", folded: false } as const;
+const TASKS_FOLDED = { type: "tasks", folded: true } as const;
 
 const TABLE: {
   name: string;
@@ -28,6 +30,15 @@ const TABLE: {
   { name: "Left on an open head folds it", e: { key: "ArrowLeft" }, at: HEAD_OPEN, want: { do: "fold" } },
   { name: "Left on a folded head stays on it", e: { key: "ArrowLeft" }, at: HEAD_FOLDED, want: { do: "toHead" } },
   { name: "Right on a folded head unfolds it", e: { key: "ArrowRight" }, at: HEAD_FOLDED, want: { do: "unfold" } },
+  { name: "Left on Tasks folds it", e: { key: "ArrowLeft" }, at: TASKS_OPEN, want: { do: "fold" } },
+  { name: "Right on folded Tasks unfolds it", e: { key: "ArrowRight" }, at: TASKS_FOLDED, want: { do: "unfold" } },
+  { name: "Space on Tasks folds or unfolds", e: { key: " " }, at: TASKS_OPEN, want: { do: "fold" } },
+  {
+    name: "Enter on Tasks opens the place (the list presses it), never folds",
+    e: { key: "Enter" },
+    at: TASKS_OPEN,
+    want: { do: "enter" },
+  },
   { name: "Right on a row does nothing", e: { key: "ArrowRight" }, at: ROW, want: null },
   { name: "Space on an open head folds it", e: { key: " " }, at: HEAD_OPEN, want: { do: "fold" } },
   { name: "Space on a folded head unfolds it", e: { key: " " }, at: HEAD_FOLDED, want: { do: "unfold" } },
@@ -103,8 +114,8 @@ test("every row, head and 'N more' is reachable by arrow; a skeleton, an error a
   assert.deepEqual(reach.slice(0, 2), ["tasks", "head"]);
   assert.ok(reach.includes("more"));
   assert.ok(!l.entries.some((e) => e.type === "error" && LANDS_ON.includes(e.type)));
-  const head = l.entries.find((e) => e.type === "head")!;
   const row = l.entries.find((e) => e.type === "row")!;
+  const head = l.entries.find((e) => e.type === "head" && e.section === (row as { section: string }).section)!;
   assert.equal(headOf(l.entries, row.key), head.key, "Left on a row goes to its head");
   assert.equal(headOf(l.entries, "tasks"), null);
 });
