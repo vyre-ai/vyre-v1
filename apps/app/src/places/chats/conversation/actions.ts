@@ -146,21 +146,28 @@ export async function takeBack(data: ConversationData, rule: AllowRule): Promise
   await data.call("gate.allow.remove", { id: rule.id });
 }
 
-/** A person's Always allow can be given again with gate.allow.set; an automation's permission cannot (the call makes only Always allow rules). */
-export const canGiveBack = (r: AllowRule): boolean => r.kind === "always";
+const DAY_MS = 86_400_000;
+/** Whole days left on a rule, rounded DOWN: an Undo may never leave the agent with more than it had. Null: it cannot be said exactly (no expiry, or under a day left). */
+export function daysToGiveBack(r: AllowRule, now: number): number | null {
+  if (r.expiresAt === undefined) return null;
+  const days = Math.floor((r.expiresAt - now) / DAY_MS);
+  return days >= 1 ? Math.min(90, days) : null;
+}
 
-/** Give an Always allow back as it was: same act, target, agent and chat; the time left becomes whole days (at least one, at most 90), the call's own range. */
+/** A person's Always allow can be given again with gate.allow.set (an automation's permission cannot), and only when the days left are expressible without rounding up. */
+export const canGiveBack = (r: AllowRule, now: number): boolean =>
+  r.kind === "always" && daysToGiveBack(r, now) !== null;
+
+/** Give an Always allow back as it was, never wider: same act, target, agent and chat; the whole days left (rounded down). */
 export async function giveBack(data: ConversationData, rule: AllowRule, now: number): Promise<void> {
-  const days =
-    rule.expiresAt === undefined
-      ? undefined
-      : Math.min(90, Math.max(1, Math.ceil((rule.expiresAt - now) / 86_400_000)));
+  const days = daysToGiveBack(rule, now);
+  if (rule.kind !== "always" || days === null) throw new Error("This permission cannot be given back exactly.");
   await data.call("gate.allow.set", {
     act: rule.act,
     target: rule.target,
     ...(rule.agentId !== undefined ? { agentId: rule.agentId } : {}),
     ...(rule.threadId !== undefined ? { threadId: rule.threadId } : {}),
-    ...(days !== undefined ? { days } : {}),
+    days,
   });
 }
 

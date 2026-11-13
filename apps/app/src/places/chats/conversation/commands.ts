@@ -116,7 +116,7 @@ async function run(
         if (!rule) return notice(`There is no rule ${pick[1]}. Say /permissions to see the list.`);
         await act.takeBack(data, rule);
         return notice(`Took back: ${act.permissionText(rule)}`, {
-          ...(act.canGiveBack(rule)
+          ...(act.canGiveBack(rule, data.clock().now)
             ? {
                 undo: async () => {
                   await act.giveBack(data, rule, data.clock().now);
@@ -133,7 +133,7 @@ async function run(
             id: r.id,
             text: act.permissionText(r),
             ...(r.expiresAt !== undefined ? { until: r.expiresAt } : {}),
-            restorable: act.canGiveBack(r),
+            restorable: act.canGiveBack(r, data.clock().now),
           })),
         },
       };

@@ -1240,7 +1240,7 @@ test("/permissions hands back the rules as data; the rule's id travels with it a
   assert.deepEqual(
     res.card.rules.map((x) => [x.id, x.text, x.restorable]),
     [
-      ["rul_1", "Always allow Run tests in the project folder", true],
+      ["rul_1", "Always allow Run tests in the project folder", false], // no expiry on record: it cannot be given back exactly,
       ["rul_2", "An automation may act to whoever its step reaches", false],
     ],
   );
@@ -1248,6 +1248,7 @@ test("/permissions hands back the rules as data; the rule's id travels with it a
 });
 
 test("taking a permission back says so with an Undo that gives it again through gate.allow.set; an automation's permission has no Undo", async () => {
+  const NOW = rig().data.clock().now;
   const rules = [
     {
       id: "rul_1",
@@ -1256,7 +1257,7 @@ test("taking a permission back says so with an Undo that gives it again through 
       target: "Run tests",
       agentId: "agt_a",
       threadId: "thr_t",
-      expiresAt: 5 * 86_400_000 + 1000,
+      expiresAt: NOW + 5 * 86_400_000 + 1000,
     },
     { id: "rul_2", kind: "standing", act: "approve", target: "*", automationId: "aut_1" },
   ];
@@ -1377,4 +1378,42 @@ test("each of the 17 commands ends in the kind the table says (a hint or an erro
       `/${c.id}: ${JSON.stringify(got).slice(0, 160)}`,
     );
   }
+});
+
+test("an Undo of a take-back never leaves the agent with more than it had: whole days rounded down, nothing wider", async () => {
+  const NOW = rig().data.clock().now;
+  const H = 3_600_000;
+  const base = { id: "rul_1", kind: "always", act: "send", target: "Run tests", agentId: "agt_a", threadId: "thr_t" };
+  const take = async (rule: Record<string, unknown>) => {
+    const r = rig({
+      "gate.allow.list": () => ({ rules: [rule] }),
+      "gate.allow.remove": () => ({ ok: true }),
+      "gate.allow.set": () => ({}),
+    });
+    await runSlash("/permissions remove 1", r.env);
+    return { r, n: r.results.at(-1) as Extract<CommandResult, { kind: "notice" }> };
+  };
+  // 36 hours left: one whole day goes back, not two
+  const a = await take({ ...base, expiresAt: NOW + 36 * H });
+  assert.ok(a.n.undo);
+  await a.n.undo!();
+  const set = a.r.last("gate.allow.set")!.input;
+  assert.deepEqual(set, { act: "send", target: "Run tests", agentId: "agt_a", threadId: "thr_t", days: 1 });
+  // 5 hours left: no whole day, so no Undo; the line only says it was taken back
+  const b = await take({ ...base, expiresAt: NOW + 5 * H });
+  assert.equal(b.n.text, "Took back: Always allow Run tests");
+  assert.equal(b.n.undo, undefined);
+  // no expiry on record: the call cannot say that exactly, so no Undo
+  const c = await take({ ...base });
+  assert.equal(c.n.undo, undefined);
+  // a rule with no agent or chat is given back with none: never wider
+  const d = await take({
+    id: "rul_1",
+    kind: "always",
+    act: "send",
+    target: "Run tests",
+    expiresAt: NOW + 3 * 86_400_000 + H,
+  });
+  await d.n.undo!();
+  assert.deepEqual(d.r.last("gate.allow.set")!.input, { act: "send", target: "Run tests", days: 3 });
 });

@@ -64,6 +64,9 @@ import { AsideList } from "./Aside.tsx";
 import type { AsideItem } from "./Aside.tsx";
 import { commandItems, lastActionable, runSlash } from "./commands.ts";
 import { cardLines } from "./command-result.ts";
+import { ACTION_NOTICE_MS, notices } from "../../../shell/noticeslot/model.ts";
+import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
+import { useNoticeLive } from "../../../shell/noticeslot/use-notice.ts";
 import type { CommandResult } from "./command-result.ts";
 import type { CommandEnv } from "./commands.ts";
 import { parseSlash } from "../../../../../../lib/chat-commands.ts";
@@ -127,7 +130,6 @@ import {
   matchLine,
   mentionsIn,
   mergePages,
-  modelLabel,
   pendingMessage,
   placeholderFor,
   queueNote,
@@ -425,12 +427,11 @@ function ConversationView(): ReactElement {
   const [olderMore, setOlderMore] = useState<boolean | null>(null);
   const [cursor, setCursor] = useState<number | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
-  const [line, setLine] = useState("");
   // the question island: put-away questions (this session) and the one the person stepped to
   const [putAway, setPutAway] = useState<ReadonlySet<string>>(() => new Set());
   const [islandAt, setIslandAt] = useState<string | null>(null);
-  /** A line with an Undo (a drop that shared something): the taking-back runs when it is pressed. */
-  const [undo, setUndo] = useState<(() => void) | null>(null);
+  /** The notice this chat last raised in the title bar's slot, so the next one replaces it and Escape can close it. */
+  const [saidId, setSaidId] = useState<string | null>(null);
   // text asked for by a pane or a page ("Ask about this file"): taken when this conversation opens and whenever it is asked again, after what the person had typed
   const [seed, setSeed] = useState<{ value: string; n: number }>(() => ({ value: data.fill?.take() ?? "", n: 0 }));
   const [typed, setTyped] = useState(seed.value);
@@ -501,10 +502,26 @@ function ConversationView(): ReactElement {
     [data.fill],
   );
 
-  const say = useCallback((text: string) => {
-    setLine(text);
-    setUndo(null);
+  /** One quiet line in the title bar's notice slot (it clears itself after 6 seconds), with one action where there is one (Undo, Retry). A new line replaces the last. Nothing stays above the composer. */
+  /** /model: raised to open the composer's own model menu. */
+  const [panelAt, setPanelAt] = useState(0);
+  const saidRef = useRef<string | null>(null);
+  const speak = useCallback((text: string, action?: { label: string; run: () => void }) => {
+    if (saidRef.current !== null) notices.resolve(saidRef.current);
+    const id = notices.pass(text, action, { ms: ACTION_NOTICE_MS });
+    saidRef.current = id;
+    setSaidId(id);
   }, []);
+  const say = useCallback((text: string) => speak(text), [speak]);
+  const unsay = useCallback(() => {
+    if (saidRef.current === null) return;
+    notices.resolve(saidRef.current);
+    saidRef.current = null;
+    setSaidId(null);
+  }, []);
+  const saidLive = useNoticeLive(saidId);
+  useEscapeLayer(saidLive, unsay);
+  useEffect(() => unsay, [unsay]);
   /** A rejected write: say what did not happen and that it can be tried again. The page keeps what it showed. */
   const fail =
     (what: string) =>
@@ -756,13 +773,19 @@ function ConversationView(): ReactElement {
   /** Where a command's result goes, by its kind (command-result.ts). */
   const showResult = (r: CommandResult): void => {
     if (r.kind === "notice") {
-      setLine(r.text);
       const { undo: back, failed } = r;
       const again = back ?? failed?.retry;
-      setUndo(
+      speak(
+        r.text,
         again
-          ? () => () => void Promise.resolve(again()).catch(fail(back ? "Could not undo that." : "Could not do that."))
-          : null,
+          ? {
+              label: back ? "Undo" : "Retry",
+              run: () => {
+                unsay();
+                void Promise.resolve(again()).catch(fail(back ? "Could not undo that." : "Could not do that."));
+              },
+            }
+          : undefined,
       );
     } else if (r.kind === "card") {
       if (r.card.kind === "aside") {
@@ -772,7 +795,7 @@ function ConversationView(): ReactElement {
           .then((a) => setAsides((cur) => [...cur, { id: a.asideThreadId, question }]), fail("Could not ask that."));
       } else say(cardLines(r.card, data.clock().now).join("\n"));
     } else if (r.kind === "menu") {
-      if (lead) modelMenu(8, 120);
+      if (lead) setPanelAt((n) => n + 1);
       else add.open({ threadId: data.threadId, name: thread.title ?? "" });
     }
   };
@@ -793,7 +816,7 @@ function ConversationView(): ReactElement {
   const submit = (payload: ComposerSend, kind: SendKind): void => {
     // a slash command is not a message: it runs, and nothing is posted (a name that is not a command is an ordinary message)
     if (payload.files.length === 0 && parseSlash(payload.text, pluginNames(data.pluginCommands?.())) !== null) {
-      setLine("");
+      unsay();
       setTyped("");
       void runSlash(payload.text, commandEnv());
       return;
@@ -826,7 +849,7 @@ function ConversationView(): ReactElement {
       setAlso(false);
     }
     setPending((cur) => [...cur, p]);
-    setLine("");
+    unsay();
     setTyped("");
     typedRef.current = "";
     setSeed((x) => (x.value === "" ? x : { value: "", n: x.n }));
@@ -951,44 +974,6 @@ function ConversationView(): ReactElement {
     else data.nav.openAgent(id);
   };
   const peopleMenu = (x: number, y: number): void => add.showPeople({ thread, x, y, onOpenAgent: openFace });
-  const modelMenu = (x: number, y: number): void => {
-    if (!lead) return;
-    void act.listModels(data).then(
-      (models) =>
-        menu.show(
-          [
-            { head: `Model for ${nameOf(lead.agentId)}` } as MenuEntry,
-            ...collect(
-              models,
-              (m): MenuEntry => ({
-                label: m.title,
-                checked:
-                  m.model === lead.model ||
-                  (m.alias !== undefined && m.alias === lead.model) ||
-                  modelLabel(lead.model ?? "") === m.title,
-                onSelect: () => {
-                  if (!m.allowed) {
-                    say(`${m.title} is not allowed here. Ask an admin for access.`);
-                    return;
-                  }
-                  void act
-                    .setModel(data, lead.agentId, m)
-                    .then(
-                      () => say(`${nameOf(lead.agentId)} now answers with ${m.title}`),
-                      fail("Could not switch the model."),
-                    );
-                },
-              }),
-            ),
-          ],
-          x,
-          y,
-          "other",
-          { label: "Model" },
-        ),
-      fail("Could not list the models."),
-    );
-  };
   const moreEntries = (): MenuEntry[] => {
     const mine: MenuEntry[] =
       thread.kind === "chat"
@@ -1302,13 +1287,13 @@ function ConversationView(): ReactElement {
       const p = pending.find((x) => `pending:${x.key}` === id);
       if (p) {
         setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "sending" as const } : x)));
-        setLine("");
+        unsay();
         run(p);
       }
     },
     discardSend: (id) => {
       setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id));
-      setLine("");
+      unsay();
     },
     showMenu: (entries, x, y, label) => menu.show(entries, x, y, "context", { label }),
     ...(lead
@@ -1561,9 +1546,12 @@ function ConversationView(): ReactElement {
       return;
     }
     void shareWithAgents(data, items, agents, data.newKey()).then((done) => {
-      setLine(sharedLine(done));
-      setUndo(() => () => {
-        void undoShare(data, done.grants).then(() => say("Taken back."), fail("Could not take it back."));
+      speak(sharedLine(done), {
+        label: "Undo",
+        run: () => {
+          unsay();
+          void undoShare(data, done.grants).then(() => say("Taken back."), fail("Could not take it back."));
+        },
       });
     }, fail("Could not share that."));
   };
@@ -1976,12 +1964,6 @@ function ConversationView(): ReactElement {
             <TextButton label="Continue" testID="hop-continue" onPress={() => commandEnv().send(CONTINUE_TEXT)} />
           </View>
         ) : null}
-        {line ? (
-          <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}>
-            <Text style={st.lineText}>{line}</Text>
-            {undo ? <TextButton link label="Undo" testID="conversation-undo" onPress={undo} /> : null}
-          </View>
-        ) : null}
         {outsideOffline && !closed ? (
           <Text testID="outside-offline" style={st.outsideOffline}>
             {outsideOffline}
@@ -2099,6 +2081,7 @@ function ConversationView(): ReactElement {
               barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
               suggest={composerSuggest(data)}
               preview={(item) => previewOf(data, item)}
+              openPanelAt={panelAt}
               renderPanel={(agent, close, narrowPanel) => (
                 <ChatBrain
                   data={data}
