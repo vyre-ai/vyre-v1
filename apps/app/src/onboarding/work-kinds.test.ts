@@ -38,7 +38,9 @@ test("every tool carries its own mark: an inline mark or a brand icon file that 
   assert.deepEqual(suggest(TOOLS, "slack", [])[0], ["Slack", "slack"]);
   const here = path.dirname(fileURLToPath(import.meta.url));
   const inline = new Set(
-    [...readFileSync(path.join(here, "ProviderLogo.tsx"), "utf8").matchAll(/"([a-z0-9]+)":\["[Mm]/g)].map((m) => m[1]),
+    [
+      ...readFileSync(path.join(here, "ProviderLogo.tsx"), "utf8").matchAll(/(?:^|\s)"?([a-z0-9]+)"?:\s*\[\s*"[Mm]/g),
+    ].map((m) => m[1]),
   );
   for (const [name, key] of TOOLS) {
     assert.notEqual(key, "", `${name} has no mark`);

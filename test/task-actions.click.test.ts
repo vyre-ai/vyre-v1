@@ -21,7 +21,7 @@ const REVIEWED: Record<string, string> = {
 test("only reviewed tasks offer a bare resolved action", () => {
   const root = path.resolve(import.meta.dirname, "..");
   const found = walk(path.join(root, "modules"))
-    .filter((f) => /actions: \[\{ key: "resolved"/.test(readFileSync(f, "utf8")))
+    .filter((f) => /actions:\s*\[\s*\{\s*key:\s*"resolved"/.test(readFileSync(f, "utf8")))
     .map((f) => path.relative(root, f));
   assert.deepEqual(found.sort(), Object.keys(REVIEWED).sort());
 });

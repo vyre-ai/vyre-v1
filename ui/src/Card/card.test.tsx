@@ -143,8 +143,8 @@ test("one radius for the card, its fields and its buttons, from the token; butto
   assert.equal(RADIUS, 12);
   const src = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
   for (const k of ["card", "body", "input", "btn"])
-    assert.match(src, new RegExp(`  ${k}: \\{[^\\n]*borderRadius: RADIUS`), k);
-  assert.match(src, /btn: \{ height: 32,/);
-  assert.match(src, /btnTall: \{ height: 44 \}/);
-  assert.doesNotMatch(src, /  card: \{[^\n]*borderWidth/);
+    assert.match(src, new RegExp(`  ${k}: \\{[^}]*borderRadius: RADIUS`), k);
+  assert.match(src, /btn: \{\s*height: 32,/);
+  assert.match(src, /btnTall: \{\s*height: 44,?\s*\}/);
+  assert.doesNotMatch(src, /  card: \{[^}]*borderWidth/);
 });

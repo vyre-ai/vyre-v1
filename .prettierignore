@@ -17,6 +17,10 @@ relay/worker/shell-dist/
 # Vendored third-party code (pinned by hash in relay/client/vendor/PINS-qr.json).
 **/vendor/
 
+# Files a script writes and a test compares byte for byte (rerun the script, never format them).
+apps/chrome/src/ui/faces.js
+apps/app/src/fixtures/prototype-data.ts
+
 # Fixtures a test compares byte for byte, and test evidence.
 apps/desktop/src-tauri/fixtures/
 shots-evidence/

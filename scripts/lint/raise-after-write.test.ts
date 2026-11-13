@@ -110,3 +110,23 @@ test("raise-after-write: a callback written inline is not read, and a one-line w
     [],
   );
 });
+
+test("raise-after-write: a write in an if condition and the refusal that if guards are one statement, however the formatter wraps it", () => {
+  const oneLine = `async function f(ctx, input) {\n  if (ctx.db.run("UPDATE t SET s = 'taken' WHERE id = ? AND s = 'open'", input.id).changes !== 1) raise(ctx, "auth.expired", "no");\n  return {};\n}`;
+  const wrapped = `async function f(ctx, input) {\n  if (\n    ctx.db.run("UPDATE t SET s = 'taken' WHERE id = ? AND s = 'open'", input.id).changes !== 1\n  )\n    raise(ctx, "auth.expired", "no");\n  return {};\n}`;
+  const block = `async function f(ctx, input) {\n  if (ctx.db.run("UPDATE t SET s = 'taken' WHERE id = ?", input.id).changes !== 1) {\n    raise(ctx, "auth.expired", "no");\n  }\n  return {};\n}`;
+  assert.deepEqual(run(oneLine), []);
+  assert.deepEqual(run(wrapped), []);
+  assert.deepEqual(run(block), []);
+  // a refusal after the if is still a finding
+  const after = `async function f(ctx, input) {\n  if (\n    ctx.db.run("UPDATE t SET s = 'taken' WHERE id = ?", input.id).changes !== 1\n  )\n    return {};\n  raise(ctx, "auth.expired", "no");\n}`;
+  assert.equal(run(after).length, 1);
+});
+
+test("raise-after-write: a write in a branch that ends in a return over several lines does not count for what follows", () => {
+  const src = `async function f(ctx, input) {\n  if (input.undo) {\n    ctx.db.run("DELETE FROM t");\n    return {\n      ok: true,\n      n: 1,\n    };\n  }\n  if (!input.to) raise(ctx, "validation.bad_input", "no");\n  return {};\n}`;
+  assert.deepEqual(run(src), []);
+  // a branch that ends in an unbraced if is not a return
+  const open = `async function f(ctx, input) {\n  if (input.undo) {\n    ctx.db.run("DELETE FROM t");\n    if (input.more)\n      return { ok: true };\n  }\n  if (!input.to) raise(ctx, "validation.bad_input", "no");\n  return {};\n}`;
+  assert.equal(run(open).length, 1);
+});

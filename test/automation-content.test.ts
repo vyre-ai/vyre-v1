@@ -36,7 +36,7 @@ test("every declared trigger but schedule, manual and button is from outside, wi
   const keys = [
     ...fs
       .readFileSync(new URL("../manifests/automations.ts", import.meta.url), "utf8")
-      .matchAll(/trigger\('([a-z_]+)'/g),
+      .matchAll(/trigger\(\s*["']([a-z_]+)["']/g),
   ].map((m) => m[1]!);
   assert.ok(keys.length >= 13, `${keys.length}`);
   for (const k of INTERNAL_TRIGGERS) assert.ok(keys.includes(k), `${k} is a trigger`);

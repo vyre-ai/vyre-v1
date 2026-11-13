@@ -12,18 +12,25 @@ import { lineCol, matchDelim } from "./finding.ts";
 
 export type SilentCall = { file: string; line: number; key: string; message: string };
 
-const RECEIVER = /(?:^|[^\w$.])((?:[A-Za-z_$][\w$]*(?:\?)?\.)*[A-Za-z_$][\w$]*)(\?)?\.call\(/g;
+// the receiver chain may wrap onto several lines (`void data\n  .call(...)`), as a formatter lays it out
+const RECEIVER = /(?:^|[^\w$.])((?:[A-Za-z_$][\w$]*(?:\?)?\s*\.\s*)*[A-Za-z_$][\w$]*)\s*(\?)?\s*\.\s*call\(/g;
 const CALLERS = /^(?:data|rt|api|caller|runtime|space|session|client|gw|gateway|ctx|replica|cap|call|d|h)$/;
 
+/** How many arguments the call between `open` and `close` has. A trailing comma (a formatter adds one after the last argument of a call that wraps) does not start another. */
 function splitArgs(code: string, open: number, close: number): number {
   let depth = 0,
     n = 1,
-    any = false;
+    any = false,
+    comma = false;
   for (let i = open + 1; i < close - 1; i++) {
     const c = code[i]!;
+    if (comma && !/\s/.test(c)) {
+      n++;
+      comma = false;
+    }
     if (c === "(" || c === "[" || c === "{") depth++;
     else if (c === ")" || c === "]" || c === "}") depth--;
-    else if (c === "," && depth === 0) n++;
+    else if (c === "," && depth === 0) comma = true;
     if (!/\s/.test(c)) any = true;
   }
   return any ? n : 0;
@@ -35,8 +42,8 @@ export function checkNoSilentCalls(file: string, source: string): SilentCall[] {
   const seen = new Map<string, number>();
   RECEIVER.lastIndex = 0;
   for (let m = RECEIVER.exec(code); m; m = RECEIVER.exec(code)) {
-    const recv = m[1]!;
-    const start = m.index + m[0].length - "call(".length - 1 - (m[2] ? 1 : 0) - recv.length;
+    const recv = m[1]!.replace(/\s+/g, "");
+    const start = m.index + (m[0].startsWith(m[1]!) ? 0 : 1);
     const open = m.index + m[0].length - 1;
     const last = recv.split(".").pop()!;
     const firstArg = source.slice(open + 1, open + 40).trimStart();

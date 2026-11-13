@@ -119,10 +119,13 @@ test("panel.state says which of the four things is wrong", async () => {
 
 test("the panel shows a different message for each cause, and none of them says the app is missing unless the host is", () => {
   const src = fs.readFileSync(path.resolve(import.meta.dirname, "../src/panel/panel.js"), "utf8");
-  assert.match(src, /S\.status === "no_host"\) return e\(mark\(26\), "This browser can't find the Vyre app"/);
-  assert.match(src, /S\.status === "needs_reload"\) return e\(mark\(26\), "Vyre needs updating: reload the extension"/);
-  assert.match(src, /S\.status === "needs_app_update"\) return e\(mark\(26\), "Update the Vyre app"/);
-  assert.match(src, /S\.status === "offline"\) return e\(mark\(26\), "The Vyre app is not running"/);
+  assert.match(src, /S\.status === "no_host"\)\s*return e\(\s*mark\(26\),\s*"This browser can't find the Vyre app"/);
+  assert.match(
+    src,
+    /S\.status === "needs_reload"\)\s*return e\(\s*mark\(26\),\s*"Vyre needs updating: reload the extension"/,
+  );
+  assert.match(src, /S\.status === "needs_app_update"\)\s*return e\(\s*mark\(26\),\s*"Update the Vyre app"/);
+  assert.match(src, /S\.status === "offline"\)\s*return e\(\s*mark\(26\),\s*"The Vyre app is not running"/);
   assert.doesNotMatch(src, /not on this computer/);
 });
 

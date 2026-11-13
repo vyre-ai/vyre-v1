@@ -33,3 +33,26 @@ test("no-silent-calls: a key names the file, the capability and the nth call, so
     ["apps/app/src/x.tsx#a.b#1", "apps/app/src/x.tsx#a.b#2"],
   );
 });
+
+test("no-silent-calls: a call the formatter wrapped (receiver on its own line, a trailing comma after the only argument) is read like the one-line call", () => {
+  assert.equal(
+    f(`const go = () => {\n  void data\n    .call("a.b", { id })\n    .then((out) => setSaved(out));\n};`).length,
+    1,
+  );
+  assert.equal(
+    f(
+      `const go = () => {\n  void data\n    .call("a.b", { id })\n    .then((out) =>\n      setSaved(\n        out,\n      ),\n    );\n};`,
+    ).length,
+    1,
+  );
+  assert.equal(
+    f(
+      `const go = () => {\n  void data\n    .call("a.b", { id })\n    .then(\n      (out) => ok(out),\n      (e) => fail(e),\n    );\n};`,
+    ).length,
+    0,
+  );
+  assert.equal(
+    f(`const go = () => {\n  void data\n    .call("a.b", { id })\n    .catch(() => undefined);\n};`).length,
+    0,
+  );
+});

@@ -27,6 +27,36 @@ function exemptionAbove(source: string, index: number): { reason: string; at: nu
   return m ? { reason: (m[1] ?? "").trim(), at: prevStart + m.index } : null;
 }
 
+/**
+ * The same comment when the formatter put lines between it and the `.map(`: the comment is on the line just above an element or statement, and the `.map(` sits inside that element
+ * or statement. The element runs from the line below the comment over every line indented deeper than it, and over the closing lines (`)`, `}`, `</Tag>`, `/>`) at its own indent;
+ * the next line at its indent or less ends it. So the comment still covers one element and nothing after it.
+ */
+function exemptionAround(source: string, index: number): { reason: string; at: number } | null {
+  const lines = source.split("\n");
+  const lineOf = source.slice(0, index).split("\n").length - 1;
+  const indentOf = (l: string): number => l.length - l.trimStart().length;
+  const starts: number[] = [];
+  for (let at = 0, k = 0; k < lines.length; at += lines[k]!.length + 1, k++) starts.push(at);
+  for (let c = lineOf - 1; c >= 0 && lineOf - c <= 80; c--) {
+    const m = EXEMPT.exec(lines[c]!);
+    if (!m) continue;
+    const first = c + 1;
+    if (first > lineOf || lines[first]!.trim() === "") continue;
+    const base = indentOf(lines[first]!);
+    let last = first;
+    for (let k = first + 1; k < lines.length; k++) {
+      const text = lines[k]!.trim();
+      if (text === "") continue;
+      const indent = indentOf(lines[k]!);
+      if (indent > base || (indent === base && /^(?:[)\]}]|<\/|\/>)/.test(text))) last = k;
+      else break;
+    }
+    if (lineOf <= last) return { reason: (m[1] ?? "").trim(), at: starts[c]! + m.index };
+  }
+  return null;
+}
+
 export function checkUiRows(file: string, source: string): Finding[] {
   const out: Finding[] = [];
   const starts: number[] = [];
@@ -36,7 +66,7 @@ export function checkUiRows(file: string, source: string): Finding[] {
   starts.sort((a, b) => a - b);
   for (const start of starts) {
     // an author's "not a list" note, with a reason, says this .map builds tiles or cards, not list rows
-    const ex = exemptionAbove(source, start);
+    const ex = exemptionAbove(source, start) ?? exemptionAround(source, start);
     if (ex) {
       if (ex.reason) continue;
       out.push(finding(RULE, file, source, ex.at, "ui-rows-lint: not a list needs a reason in parentheses"));

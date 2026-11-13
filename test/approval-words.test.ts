@@ -55,14 +55,14 @@ function valueAt(rest: string): string {
 }
 
 /** A reviewer's verbs, not an approval: a review is feedback on the work ("Looks good", "Send back" with fixes), and the tasks model keeps Reviewer and Approver as separate slots
- * (lead, 5 Nov). Only these lines may say Send back; each must still exist and still say it. */
+ * (lead, 5 Nov). Only these lines may say Send back; each is the line that says it, and must still exist. */
 export const REVIEWER_LINES: ReadonlyArray<readonly [file: string, has: string]> = [
-  ["modules/tasks/handlers/state.ts", 'review: [{ key: "approve", label: "Looks good"'],
-  ["manifests/tasks.ts", "{ key: 'send_back', label: 'Send back'"],
-  ["apps/app/src/places/chats/tasks/moves.ts", 'key: "send_back", label: "Send back"'],
-  ["apps/app/src/places/chats/tasks/TaskDetail.tsx", '<Btn label="Looks good" primary testID="task-approve"'],
-  ["apps/app/src/places/chats/needsyou/sample.ts", 'const review = [{ key: "review", label: "Looks good" }'],
-  ["apps/app/src/shell/places-fixture/sample-a.ts", 'const review = [{ key: "review", label: "Looks good" }'],
+  ["modules/tasks/handlers/state.ts", '{ key: "send_back", label: "Send back", note: "required" }'],
+  ["manifests/tasks.ts", '{ key: "send_back", label: "Send back"'],
+  ["apps/app/src/places/chats/tasks/moves.ts", 'label: "Send back",'],
+  ["apps/app/src/places/chats/tasks/TaskDetail.tsx", '<Btn label="Send back" testID="task-send-back"'],
+  ["apps/app/src/places/chats/needsyou/sample.ts", '{ key: "send_back", label: "Send back"'],
+  ["apps/app/src/shell/places-fixture/sample-a.ts", '{ key: "send_back", label: "Send back"'],
   [
     "apps/app/src/places/chats/conversation/crew-card.tsx",
     '{ label: "Send back", onPress: () => setBack(true), testID: `crew-back-${c.jobId}` }',
@@ -88,6 +88,17 @@ export function oldWords(line: string): string[] {
     if (t.split(/\s+/).length <= 3 && OLD.test(t)) out.push(t);
   } // button text, not a sentence
   return out;
+}
+
+/** The line at `i` with the lines a formatter wrapped under it: a value on the next line (`label:` at the end of a line), and the `? a`, `: b`, `&& c` lines of a wrapped expression. */
+export function wrapped(lines: readonly string[], i: number): string {
+  let text = lines[i]!;
+  for (let k = i + 1; k < lines.length && k <= i + 6; k++) {
+    const next = lines[k]!.trim();
+    if (!(/[:=]\s*\{?$/.test(text.trimEnd()) || /^(?:\?|:|&&|\|\||\?\?|\+)\s/.test(next))) break;
+    text += ` ${next}`;
+  }
+  return text;
 }
 
 function files(dir: string, out: string[] = []): string[] {
@@ -134,13 +145,13 @@ test("every approval in apps/, ui/ and the labels the server sends (modules/, ma
   for (const abs of ["apps", "ui", "modules", "manifests", "agent"].flatMap((d) => files(path.join(ROOT, d)))) {
     const rel = path.relative(ROOT, abs).split(path.sep).join("/");
     if (NOT_APPROVALS[rel]) continue;
-    fs.readFileSync(abs, "utf8")
-      .split("\n")
-      .forEach((l, i) => {
-        if (/^\s*(?:\/\/|\*)/.test(l)) return;
-        const reviewer = REVIEWER_LINES.some(([f, has]) => f === rel && l.includes(has));
-        for (const w of oldWords(l)) if (!(reviewer && w === "Send back")) hits.push(`${rel}:${i + 1} "${w}"`);
-      });
+    const lines = fs.readFileSync(abs, "utf8").split("\n");
+    lines.forEach((l, i) => {
+      if (/^\s*(?:\/\/|\*)/.test(l)) return;
+      const reviewer = REVIEWER_LINES.some(([f, has]) => f === rel && l.includes(has));
+      for (const w of oldWords(wrapped(lines, i)))
+        if (!(reviewer && w === "Send back")) hits.push(`${rel}:${i + 1} "${w}"`);
+    });
   }
   assert.deepEqual(
     hits,
@@ -171,4 +182,10 @@ test("every place named as not an approval still exists and still uses the word"
       `${rel} no longer uses an old word: take it off the list`,
     );
   }
+});
+
+test("a label a formatter wrapped onto the next lines is read with its line", () => {
+  const lines = ["const a = {", "  label:", '    "Approve",', "  title: x", '    ? "Reject"', '    : "Allow",', "};"];
+  assert.deepEqual(oldWords(wrapped(lines, 1)), ["Approve"]);
+  assert.deepEqual(oldWords(wrapped(lines, 3)), ["Reject"]);
 });

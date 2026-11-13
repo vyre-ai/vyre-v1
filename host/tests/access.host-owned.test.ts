@@ -18,22 +18,48 @@ const files = (dir: string): string[] =>
       d.isDirectory() ? files(path.join(dir, d.name)) : d.name.endsWith(".ts") ? [path.join(dir, d.name)] : [],
     );
 
+/**
+ * The text of the `payload:` property of the object literal that holds the `"resource.created"` at `from`, on one line, or null when that object has none. Only a `payload:` at the
+ * same nesting as the event name counts, so one inside an `if` body or a nested object is another statement's. The expression runs to the comma that ends the property, so it reads
+ * the same however the formatter wrapped it.
+ */
+const payloadOf = (text: string, from: number): string | null => {
+  let depth = 0;
+  for (let i = from; i < Math.min(text.length, from + 3000); i++) {
+    const c = text[i]!;
+    if (c === "(" || c === "[" || c === "{") depth++;
+    else if (c === ")" || c === "]" || c === "}") {
+      depth--;
+      if (depth < 0) return null;
+    } else if (depth === 0 && /^payload\s*:/.test(text.slice(i, i + 12)) && /[\s,{(]/.test(text[i - 1] ?? " ")) {
+      let nest = 0;
+      let j = text.indexOf(":", i) + 1;
+      for (; j < text.length; j++) {
+        const ch = text[j]!;
+        if (ch === "(" || ch === "[" || ch === "{") nest++;
+        else if (ch === ")" || ch === "]" || ch === "}") {
+          if (nest === 0) break;
+          nest--;
+        } else if (ch === "," && nest === 0) break;
+      }
+      return `payload: ${text
+        .slice(text.indexOf(":", i) + 1, j)
+        .replace(/\s+/g, " ")
+        .trim()}`;
+    }
+  }
+  return null;
+};
+
 test("1 every host registration in the Space owner's name carries the mark", () => {
   const unmarked: string[] = [];
   let seen = 0;
   for (const f of files(SRC)) {
     const text = fs.readFileSync(f, "utf8");
     for (const m of text.matchAll(/["']resource\.created["']/g)) {
-      // the statement around it: up to the next line that closes an appendResult call or the object, at most six lines
-      const tail = text
-        .slice(m.index!, m.index! + 1200)
-        .split("\n")
-        .slice(0, 6)
-        .join("\n");
-      // the payload, which the host writes on one line: its owner is the Space owner when it names access.owner() or cfg.owner
-      const at = tail.search(/payload\s*:/);
-      if (at < 0) continue;
-      const payload = tail.slice(at).split("\n")[0]!;
+      // the payload: its owner is the Space owner when it names access.owner() or cfg.owner
+      const payload = payloadOf(text, m.index!);
+      if (payload === null) continue;
       if (!/access\.owner\(\)|cfg\.owner/.test(payload)) continue;
       seen++;
       if (!/^payload\s*:\s*(spaceOwned|hostOwned)\(/.test(payload))

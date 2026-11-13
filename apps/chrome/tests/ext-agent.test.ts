@@ -520,10 +520,9 @@ async function ready(over = {}) {
 
 test("every chrome tool in the computers manifest has a handler, and the capability each executes is the manifest's", () => {
   const manifest = fs.readFileSync(path.join(REPO, "manifests/computers.ts"), "utf8");
-  const found = [...manifest.matchAll(/'(computers\.chrome\.[a-z_]+)'[\s\S]*?mcpName: '(chrome_[a-z]+)'/g)].map((m) => [
-    m[2],
-    m[1],
-  ]);
+  const found = [
+    ...manifest.matchAll(/["'](computers\.chrome\.[a-z_]+)["'][\s\S]*?mcpName: ["'](chrome_[a-z]+)["']/g),
+  ].map((m) => [m[2], m[1]]);
   assert.ok(found.length >= 22, `found ${found.length} chrome tools in the manifest`);
   for (const [tool, cap] of found) assert.equal(TOOLS[tool], cap, `${tool} executes ${cap}`);
   assert.deepEqual(

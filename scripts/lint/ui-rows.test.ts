@@ -206,3 +206,16 @@ test("ui-rows lint: `ui-rows-lint: not a list (<reason>)` on the line above a .m
     1,
   );
 });
+
+test("ui-rows lint: a `not a list` comment above an element covers a .map inside that element, and nothing after it", () => {
+  const wrapped = (comment: string) =>
+    `export const view = (\n  <Box>\n    ${comment}\n    <View style={st.tr}>\n      {head.map((h) => (\n        <Text key={h}>{h}</Text>\n      ))}\n    </View>\n    <View>\n      {rows.map((r) => (\n        <Text key={r}>{r}</Text>\n      ))}\n    </View>\n  </Box>\n);`;
+  assert.equal(hitsOf(wrapped("{/* nothing here */}")).length, 2);
+  const hits = hitsOf(wrapped("{/* ui-rows-lint: not a list (a table's header cells) */}"));
+  assert.equal(hits.length, 1, "only the second element's map is still a list");
+  assert.equal(hits[0]!.line, 11);
+  const ternary = `export const view = (\n  <Box>\n    {/* ui-rows-lint: not a list (chips) */}\n    {chips.length === 0 ? (\n      <Text>None</Text>\n    ) : (\n      chips.map((c) => (\n        <Chip key={c}>{c}</Chip>\n      ))\n    )}\n    {rows.map((r) => (\n      <Text key={r}>{r}</Text>\n    ))}\n  </Box>\n);`;
+  const t = hitsOf(ternary);
+  assert.equal(t.length, 1);
+  assert.equal(t[0]!.line, 12);
+});

@@ -53,7 +53,7 @@ test("every area an agent works in has tools named, and each line names the tool
 
 test("it is in the stable rules section of a turn's context", async () => {
   const src = readFileSync(new URL("../context.ts", import.meta.url), "utf8");
-  assert.match(src, /add\("rules", true, .*CAPABILITY_MAP\)/);
+  assert.match(src, /add\(\s*"rules",\s*true,[\s\S]{0,12000}?CAPABILITY_MAP,?\s*\)/);
 });
 
 test("the stable rules ask for independent tool calls to be made together", () => {

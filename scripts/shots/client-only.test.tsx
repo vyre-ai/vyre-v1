@@ -21,5 +21,5 @@ test("the server draws the same page twice, and for every window size: no mount 
 
 test("the mount route wraps every mount in it", () => {
   const route = fs.readFileSync(new URL("./app/app/m/[id].tsx", import.meta.url), "utf8");
-  assert.match(route, /<ClientOnly><Mount \/><\/ClientOnly>/);
+  assert.match(route, /<ClientOnly>\s*<Mount \/>\s*<\/ClientOnly>/);
 });

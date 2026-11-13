@@ -240,7 +240,7 @@ test("the macOS desktop release path verifies, mounts, installs and exercises th
   const smoke = fs.readFileSync(path.resolve(dir, "../../apps/desktop/tests/shell.heavy.test.ts"), "utf8");
   assert.match(runner, /VYRE_SHELL_RELAUNCH/);
   assert.match(smoke, /VYRE_SHELL_RELAUNCH/);
-  assert.match(smoke, /test\("the installed shell relaunches after a clean exit"/);
+  assert.match(smoke, /test\(\s*"the installed shell relaunches after a clean exit"/);
   assert.doesNotMatch(
     smoke,
     /if \(RELAUNCH\) await exerciseBuiltShell/,
@@ -253,7 +253,7 @@ test("the macOS desktop release path verifies, mounts, installs and exercises th
   );
   assert.match(
     smoke,
-    /tell application id \\"ai\.vyre\.desktop\\" to quit/,
+    /tell application id \\?"ai\.vyre\.desktop\\?" to quit/,
     "macOS smoke must exercise the app's normal quit lifecycle before relaunching",
   );
   assert.match(smoke, /CloseMainWindow\(\)/, "Windows smoke must close the spawned process's real top-level window");

@@ -1480,7 +1480,7 @@ test("the phone sheet pads its bottom by the safe-area inset, so nothing sits un
   // the shell's phone card carries the inset (shared with the people list on a phone)
   assert.match(
     String(readFileSync(new URL("./parts.tsx", import.meta.url), "utf8")),
-    /cardPhone:[^\n]*safe-area-inset-bottom/,
+    /cardPhone:[^}]*safe-area-inset-bottom/,
   );
 });
 

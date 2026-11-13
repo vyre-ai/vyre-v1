@@ -35,9 +35,12 @@ test("every column added from code is probed by name", () => {
         `${f}: the later columns are each probed`,
       );
     }
-    for (const line of src.split("\n")) {
+    const lines = src.split("\n");
+    for (const [n, line] of lines.entries()) {
       const m = /ADD COLUMN "?(\w+)"?/.exec(line);
-      if (!m || line.trimStart().startsWith("//") || /catch/.test(line)) continue; // a comment, or an attempt made on every start that a duplicate column only skips
+      // a comment, or an attempt made on every start that a duplicate column only skips: in one line with its catch, or the only statement of a try block that a catch follows
+      const tried = lines[n - 1]?.trim() === "try {" && /^\}\s*catch\b/.test(lines[n + 1]?.trim() ?? "");
+      if (!m || line.trimStart().startsWith("//") || /catch/.test(line) || tried) continue;
       const col = m[1]!;
       assert.ok(
         new RegExp(`SELECT "?${col}"? FROM|table_info|c\\.name === "${col}"`).test(src),

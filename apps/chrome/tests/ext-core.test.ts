@@ -168,8 +168,9 @@ test("every capability the extension names exists in the frozen contract, or is 
     .join("\n");
   const vault = fs.readFileSync(path.join(REPO, "manifests/vault.ts"), "utf8");
   for (const c of Object.keys(CAPABILITIES)) {
-    if (c.startsWith("vault.")) assert.ok(vault.includes(`'${c}'`), `${c} is in manifests/vault.ts`);
-    else assert.ok(all.includes(`'${c}'`) || c in PENDING, `${c} is in a manifest or pending from a lane`);
+    const named = (text: string): boolean => text.includes(`"${c}"`) || text.includes(`'${c}'`);
+    if (c.startsWith("vault.")) assert.ok(named(vault), `${c} is in manifests/vault.ts`);
+    else assert.ok(named(all) || c in PENDING, `${c} is in a manifest or pending from a lane`);
   }
 });
 

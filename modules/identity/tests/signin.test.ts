@@ -276,7 +276,7 @@ test("GitHub: link, sign in once the Space is named, refuse a stranger, honour t
 test("the passkey factor is declared deferred and answers not implemented; SSO is reserved", async () => {
   const h = await world();
   const manifest = readFileSync(new URL("../../../manifests/identity.ts", import.meta.url), "utf8");
-  assert.equal((manifest.match(/since: '1\.1\.0'/g) ?? []).length, 2);
+  assert.equal((manifest.match(/since: ["']1\.1\.0["']/g) ?? []).length, 2);
   await assert.rejects(
     handlers["identity.passkey_register"](h.as(P.personId), { attestation: {}, name: "key" }),
     (e) => codeOf(e) === "internal.not_implemented",

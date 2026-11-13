@@ -223,21 +223,36 @@ export function labelOf(n: number): Label {
   return LABEL_OF[Math.max(0, Math.min(3, n))] ?? "public";
 }
 
+// One `perm(key, area, title, risk, [roles], ...)` call of manifests/permissions.ts, in either quote style and over as many lines as the formatter wrote it. The groups are the key, area,
+// title and risk (each a double-quoted or a single-quoted string) and the text inside the roles array.
+const QUOTED = String.raw`(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')`;
+const PERM_CALL = new RegExp(
+  String.raw`\bperm\(\s*${QUOTED}\s*,\s*${QUOTED}\s*,\s*${QUOTED}\s*,\s*${QUOTED}\s*,\s*\[([^\]]*)\]`,
+  "g",
+);
+
+/** The permission rows of the catalogue source: key, area, title and the built-in roles that hold it. A `perm(` call that does not parse is an error, not a row left out. */
+export function catalogueRows(src: string): { key: string; area: string; title: string; roles: string[] }[] {
+  const rows = [...src.matchAll(PERM_CALL)].map((m) => ({
+    key: m[1] ?? m[2] ?? "",
+    area: m[3] ?? m[4] ?? "",
+    title: m[5] ?? m[6] ?? "",
+    roles: [...(m[9] ?? "").matchAll(/["']([^"']+)["']/g)].map((r) => r[1]!),
+  }));
+  const calls = [...src.matchAll(/\bperm\(\s*["']/g)].length;
+  if (rows.length !== calls) throw new Error(`catalogue has ${calls} perm( calls and ${rows.length} of them parsed`);
+  return rows;
+}
+
 /** Permission keys per built-in role, from manifests/permissions.ts (the catalogue the generator seeds). */
 export function parseCatalogue(src: string): Map<string, string[]> {
   const sets = new Map<string, Set<string>>(ROLE_NAMES.map((r) => [r, new Set()]));
-  let seen = 0;
-  for (const line of src.split("\n")) {
-    const m = /^\s*perm\('([^']+)', '[^']+', '[^']*', '[^']+', \[([^\]]*)\]/.exec(line);
-    if (!line.includes("perm('")) continue;
-    seen++;
-    if (!m) throw new Error(`catalogue line did not parse: ${line.trim()}`);
-    const key = m[1]!;
-    const who = m[2] ?? "";
-    for (const role of ROLE_NAMES) if (role !== "guest" && who.includes(`'${role}'`)) sets.get(role)!.add(key);
+  const rows = catalogueRows(src);
+  if (rows.length < 50) throw new Error(`catalogue parsed ${rows.length} permissions`);
+  for (const { key, roles } of rows) {
+    for (const role of ROLE_NAMES) if (role !== "guest" && roles.includes(role)) sets.get(role)!.add(key);
     sets.get("owner")!.add(key);
   }
-  if (seen < 50) throw new Error(`catalogue parsed ${seen} permissions`);
   return new Map([...sets].map(([k, v]) => [k, [...v].sort()]));
 }
 

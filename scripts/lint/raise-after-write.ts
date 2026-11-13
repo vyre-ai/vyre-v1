@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { matchDelim } from "./finding.ts";
 
 export type RawFinding = { file: string; fn: string; writeLine: number; raiseLine: number; message: string };
 
@@ -138,6 +139,15 @@ type Nested = { first: number; last: number; name: string | undefined; writes: b
 const NESTED_OPEN =
   /(?:=>\s*|\bfunction\b[^{]*\)\s*(?::[^{]*)?|^\s*(?:async\s+)?(?!(?:if|for|while|switch|catch|return)\b)\w+\s*\([^)]*\)\s*(?::[^{]+)?)\{/;
 
+/** Does this line end by opening a block of statements (an `if (...) {`, `else {`, `=> {`, `case x: {`), not an object literal (`return {`, `foo({`, `const a = {`)? */
+function opensBlock(line: string): boolean {
+  if (!line.endsWith("{")) return false;
+  const before = line.slice(0, -1).trimEnd();
+  if (before === "" || /^(?:case\b|default\b)/.test(line)) return true;
+  if (/^(?:export\s+)?(?:default\s+)?(?:abstract\s+)?(?:class|interface|enum|namespace)\b/.test(line)) return true;
+  return /(?:[)>]|\belse|\btry|\bfinally|\bdo|=>)$/.test(before);
+}
+
 export function checkRaiseAfterWrite(file: string, rawSource: string): RawFinding[] {
   const code = scrub(rawSource);
   const rawLines = rawSource.split("\n");
@@ -162,6 +172,35 @@ export function checkRaiseAfterWrite(file: string, rawSource: string): RawFindin
   };
   const isWrite = (l: number): boolean =>
     WRITE.test(codeLines[l]!) && !/CREATE\s|PRAGMA/i.test(rawLines.slice(l, l + 3).join(" "));
+  // A write in the condition of an `if` and the refusal that `if` guards are one statement (`if (db.run("UPDATE ... WHERE status = 'open'").changes !== 1) raise(...)`): the update changed
+  // no row when it refuses, so nothing is left behind. A formatter lays that statement over several lines; the last line of the guarded statement is where the cover ends.
+  const coverOf = (l: number): number => {
+    const w = WRITE.exec(codeLines[l]!);
+    if (!w) return l;
+    // the match starts on the character before the write (a `(` in `if (db.run(`), which is part of the condition
+    const at = lineStarts[l]! + w.index;
+    for (let i = at + (/[\w$]/.test(code[at]!) ? 0 : 1), depth = 0; i >= 0; i--) {
+      const ch = code[i - 1];
+      if (ch === ")") depth++;
+      else if (ch === "(") {
+        if (depth > 0) depth--;
+        else if (/\bif\s*$/.test(code.slice(Math.max(0, i - 13), i - 1))) {
+          let k = matchDelim(code, i - 1, "(", ")");
+          while (k < code.length && /\s/.test(code[k]!)) k++;
+          if (code[k] === "{") return lineOf(matchDelim(code, k, "{", "}") - 1);
+          let nest = 0;
+          for (; k < code.length; k++) {
+            const c = code[k]!;
+            if (c === "(" || c === "{" || c === "[") nest++;
+            else if (c === ")" || c === "}" || c === "]") nest--;
+            else if (c === ";" && nest <= 0) break;
+          }
+          return lineOf(Math.min(k, code.length - 1));
+        }
+      } else if ((ch === ";" || ch === "{" || ch === "}") && depth === 0) return l;
+    }
+    return l;
+  };
   const out: RawFinding[] = [];
   const seen = new Set<string>();
   for (let h = 0; h < rawLines.length; h++) {
@@ -206,8 +245,10 @@ export function checkRaiseAfterWrite(file: string, rawSource: string): RawFindin
       .filter((n) => n.name !== undefined)
       .map((n) => ({ n, call: new RegExp(`(?<![\\w$.])${n.name!.replace(/\$/g, "\\$")}\\(`) }));
     let depth = 0;
-    let pending: { line: number; depth: number } | null = null;
+    let pending: { line: number; depth: number; cover: number } | null = null;
     let lastCode = "";
+    let stmtFirst = "";
+    let continued = false;
     const report = (writeLine: number, raiseLine: number): void => {
       const key = `${writeLine}:${raiseLine}`;
       if (seen.has(key)) return;
@@ -232,15 +273,21 @@ export function checkRaiseAfterWrite(file: string, rawSource: string): RawFindin
         if (/\bcatch\b/.test(trimmed) && pending && pending.depth > lineDepth - (startsClose ? 1 : 0)) pending = null;
         // the other branch of the if that holds the write is never run after it
         if (startsClose && /^\}\s*else\b/.test(trimmed) && pending && pending.depth >= lineDepth) pending = null;
-        if (pending && REFUSE.test(text) && !(WRITE.test(text) && l === pending.line)) {
+        if (
+          pending &&
+          REFUSE.test(text) &&
+          !(WRITE.test(text) && l === pending.line) &&
+          !(l > pending.line && l <= pending.cover)
+        ) {
           report(pending.line, l);
           stop = true;
           break;
         }
-        if (!pending && isWrite(l) && !/\breturn\b/.test(text)) pending = { line: l, depth: lineDepth };
+        if (!pending && isWrite(l) && !/\breturn\b/.test(text))
+          pending = { line: l, depth: lineDepth, cover: coverOf(l) };
         for (const { n, call } of named) {
           if (!call.test(text) || l === n.first) continue;
-          if (n.writes && !pending && !/\breturn\b/.test(text)) pending = { line: l, depth: lineDepth };
+          if (n.writes && !pending && !/\breturn\b/.test(text)) pending = { line: l, depth: lineDepth, cover: l };
           if (n.refuseLine >= 0 && pending) {
             report(pending.line, n.refuseLine);
             stop = true;
@@ -254,9 +301,20 @@ export function checkRaiseAfterWrite(file: string, rawSource: string): RawFindin
       }
       if (pending && depth < pending.depth) {
         if (/^(?:return\b|throw\b|raise\(|refuse\(|fail\()/.test(startsClose ? lastCode : trimmed)) pending = null;
-        else pending = { line: pending.line, depth: depth };
+        else pending = { ...pending, depth: depth };
       }
-      if (trimmed !== "" && !startsClose) lastCode = trimmed;
+      // lastCode is the first line of the last statement, so a `return {` that runs over several lines still reads as a return
+      if (trimmed !== "") {
+        if (!startsClose) {
+          if (!continued) stmtFirst = trimmed;
+          lastCode = stmtFirst;
+        }
+        continued = !(
+          /[;}]$/.test(trimmed) ||
+          opensBlock(trimmed) ||
+          (/^(?:case\b|default\b)/.test(trimmed) && trimmed.endsWith(":"))
+        );
+      }
     }
   }
   return out;
