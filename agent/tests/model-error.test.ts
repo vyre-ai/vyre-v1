@@ -1,7 +1,8 @@
 // What a model reads of a failed tool (owner, 4 Nov): a code and a plain sentence, no trace and no internal id; the code's own reason word stays, because a caller tells refusals apart by it.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { modelError } from "../src/tools/model-error.ts";
+import { looksLikeCode } from "../../lib/words/errors.ts";
+import { REPLY_RULE, modelError, safeContent } from "../src/tools/model-error.ts";
 
 const err = (details: Record<string, unknown>) =>
   ({ code: "permission.no_grant", message: "No.", traceId: "t", details }) as never;
@@ -25,4 +26,84 @@ test("ids and traces are taken out of the words", () => {
     traceId: "14d3abcd14d3abcd",
   } as never);
   assert.ok(!/fil_a1b2|14d3abcd/.test(e.message), e.message);
+});
+
+// 13 Nov 2026 (owner): agents printed permission.above_clearance, validation.precondition_failed, internal.unexpected and validation.too_large to him. An agent repeats what a failed call hands it, so what it is
+// handed leads with the plain sentence and what to do, then the rule for reporting it; the code stays in the data as a reference for support.
+const FAMILIES = [
+  ["permission", "permission.above_clearance", "That is restricted."],
+  ["permission", "permission.role_lacks_permission", "Not allowed."],
+  ["validation", "validation.bad_input", "Bad."],
+  ["validation (not found)", "validation.not_found", "No such file."],
+  ["validation (precondition)", "validation.precondition_failed", "Not now."],
+  ["internal", "internal.unexpected", "Boom."],
+  ["too large", "validation.too_large", "Too big."],
+] as const;
+
+for (const [family, code] of FAMILIES) {
+  test(`a refused call of the ${family} family (${code}) reads in plain words first, then the rule, and keeps the code only for support`, () => {
+    // the server's own message carries a code, as several do, so the table's words must stand in
+    const e = modelError({ code, message: `${code} (trace 14d3abcd14d3abcd)`, traceId: "14d3abcd14d3abcd" } as never);
+    assert.equal(Object.keys(e)[0], "say", "the plain sentence comes first");
+    assert.equal(Object.keys(e)[1], "reply", "then the rule for reporting it");
+    assert.equal(e.reply, REPLY_RULE);
+    assert.match(e.reply, /Do not show codes/);
+    assert.equal(looksLikeCode(e.say), false, `the sentence a person may hear has a code in it: ${e.say}`);
+    assert.ok(e.say.length > 20 && /[.]/.test(e.say), e.say);
+    assert.equal(e.supportCode, code, "the code is kept");
+    assert.equal(Object.keys(e).at(-1), "supportCode", "last, marked as a reference for support");
+    assert.equal("code" in e, false, "no bare `code` for a model to repeat");
+    assert.equal(JSON.stringify({ say: e.say, reply: e.reply }).includes(code), false);
+  });
+}
+
+test("what the agent is told when its own clearance is short names the agent, not the person, and says to stop", () => {
+  const e = modelError({ code: "permission.above_clearance", message: "", traceId: "t" } as never);
+  assert.match(e.say, /I am cleared to open/);
+  assert.match(e.say, /Only an admin can change/);
+  const r = modelError({ code: "permission.role_lacks_permission", message: "", traceId: "t" } as never);
+  assert.match(r.say, /I am not allowed to do that here/);
+});
+
+test("a plain message the server wrote for this very failure leads, and the table's next step follows it", () => {
+  const e = modelError({
+    code: "permission.role_lacks_permission",
+    message: "This pane only has view access to what you are looking at.",
+    traceId: "t",
+  } as never);
+  assert.match(e.say, /^This pane only has view access to what you are looking at\. /);
+});
+
+test("the error envelope an agent receives, as one snapshot", () => {
+  const e = modelError({
+    code: "permission.above_clearance",
+    message: "That item is above your clearance.",
+    traceId: "14d3abcd14d3abcd",
+    retryable: false,
+    details: { tool: "vault_use", reason: "above_clearance", internal: "vit_1234567890abcdef" },
+    next: [{ kind: "ask_access", label: "Ask for access", action: { cap: "access.request", input: {} } }],
+  } as never);
+  assert.equal(
+    JSON.stringify(e, null, 1),
+    JSON.stringify(
+      {
+        say: "That item is above your clearance. Only an admin can change what I may open. Say so and stop; do not look for another way.",
+        reply: REPLY_RULE,
+        message: "That item is above your clearance.",
+        details: { reason: "above_clearance", tool: "vault_use" },
+        next: [{ label: "Ask for access" }],
+        supportCode: "permission.above_clearance",
+      },
+      null,
+      1,
+    ),
+  );
+});
+
+test("the same shape reaches a CLI engine through the server's tool result", () => {
+  const out = safeContent({ error: { code: "validation.too_large", message: "", traceId: "t" } }) as {
+    error: ReturnType<typeof modelError>;
+  };
+  assert.equal(Object.keys(out.error)[0], "say");
+  assert.equal(out.error.supportCode, "validation.too_large");
 });

@@ -5,6 +5,7 @@
 //               what was never offered, and the invoke pipeline intersects access, applies the Gate and writes the audit row
 // Nothing here decides access. A tool being listed grants nothing.
 import { safeContent } from "../tools/model-error.ts";
+
 import { PROBE_MESSAGE, probeIn } from "../../../lib/probe.ts";
 import { createToolSession } from "../tools/call.ts";
 import { decideLocal, dialFor } from "../tools/local.ts";
@@ -32,6 +33,14 @@ import { searchTools } from "../tools/access.ts";
 import { HostError } from "../../../host/src/routes/errors.ts";
 import { heldCard, workCardOf } from "../tools/work-cards.ts";
 import type { McpCaller, McpHttpRequest, McpHttpResponse, McpServer, McpServerDeps } from "./types.ts";
+
+/** structuredContent for a machine: the error as a model reads it, plus `code` (the same value as supportCode). */
+function withMachineCode(v: unknown): unknown {
+  const e = (v as { error?: { supportCode?: unknown } } | null)?.error;
+  return e && typeof e === "object" && typeof e.supportCode === "string"
+    ? { ...(v as object), error: { ...e, code: e.supportCode } }
+    : v;
+}
 
 export const PROTOCOL_VERSIONS: readonly string[] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 export const MAX_RESULT_CHARS = 512 * 1024;
@@ -305,7 +314,8 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
   const textResult = (value0: unknown, isError: boolean, structured0?: unknown): Record<string, unknown> => {
     // an error reaches the model as a code and a plain sentence: no trace and no internal id (tools/model-error.ts)
     const value = isError && typeof value0 === "object" ? safeContent(value0) : value0;
-    const structured = isError && structured0 !== undefined ? safeContent(structured0) : structured0;
+    // the machine copy keeps `code` for a client that branches on it; what the model reads (the text) has it only as supportCode
+    const structured = isError && structured0 !== undefined ? withMachineCode(safeContent(structured0)) : structured0;
     let text = typeof value === "string" ? value : JSON.stringify(value);
     const cut = text.length > MAX_RESULT_CHARS;
     if (cut) text = `${text.slice(0, MAX_RESULT_CHARS)}\n[cut: ${text.length - MAX_RESULT_CHARS} more characters]`;

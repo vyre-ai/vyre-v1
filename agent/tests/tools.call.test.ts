@@ -247,8 +247,8 @@ test("a crash inside the server reaches the agent as a plain sentence naming the
   });
   const out = await session.call(ctx(), "memory_search", { q: "notes" });
   const content =
-    out.kind === "error" ? (out.result.content as { error: { code: string; message: string } }).error : null;
-  assert.equal(content?.code, "internal.unexpected");
+    out.kind === "error" ? (out.result.content as { error: { supportCode: string; message: string } }).error : null;
+  assert.equal(content?.supportCode, "internal.unexpected");
   assert.match(
     content?.message ?? "",
     /memory_search could not finish on the server just now, and nothing was changed/,

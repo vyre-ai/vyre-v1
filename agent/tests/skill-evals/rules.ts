@@ -270,8 +270,10 @@ const errorReport: Check = (scn) => {
     if (!isCall(s) || !s.result || !("error" in s.result) || !s.result.error) return;
     const e = s.result.error;
     const say = finalSay(scn.trace);
-    if (!say.includes(e.code)) out.push({ step: i, message: "the answer does not give the error code" });
-    if (!say.includes(e.traceId)) out.push({ step: i, message: "the answer does not give the trace id" });
+    // owner, 13 Nov 2026: the person hears what happened and what they can do, in plain words; the code and the trace id are for support and stay out unless asked for
+    if (say.includes(e.code)) out.push({ step: i, message: "the answer shows the error code to the person" });
+    if (say.includes(e.traceId)) out.push({ step: i, message: "the answer shows the trace id to the person" });
+    if (say.trim() === "") out.push({ step: i, message: "the answer does not say what happened" });
     if (!e.retryable && scn.trace.slice(i + 1).some((n) => isCall(n) && n.call === s.call))
       out.push({ step: i, message: "retries an error that says it is not retryable" });
   });
