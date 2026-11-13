@@ -86,3 +86,15 @@ test("a typed message that starts the turn counts, and a steering line that was 
   h.ctx.db.run("UPDATE engine_thread_queue SET steer = 1, state = 'consumed' WHERE qseq = ?", qseq);
   assert.deepEqual(H["engine.turn.asked_by"](agentCtx(h), {}).askedBy, { person: PERSON, messageIds: ["msg_a"], at: 5000 });
 });
+
+test("a failed watcher turn retried by the owner is still a routine turn, so it is not asked for", async () => {
+  const h = harness(); say(h, "msg_a", 1, "person", PERSON);
+  const q = run(h, { kind: "message", messageId: "msg_a", from: PERSON, routine: true });
+  const turnId = String(h.rows("SELECT turn_id FROM engine_turns WHERE qseq = ?", q)[0]!["turn_id"]);
+  await H["engine.turn.finish"](h.ctx, { turnId, outcome: "failed", error: { code: "provider.unavailable", message: "Down", next: [], traceId: "0123456789abcdef0123456789abcdef" } });
+  await H["engine.turn.retry"]({ ...h.ctx, principal: { kind: "person", id: PERSON } }, { turnId });
+  const retry = h.rows("SELECT qseq, routine FROM engine_thread_queue ORDER BY qseq DESC LIMIT 1")[0]!;
+  assert.equal(retry["routine"], 1, "the retry keeps the routine mark");
+  h.ctx.db.run("UPDATE engine_thread_queue SET state = 'running' WHERE qseq = ?", retry["qseq"]);
+  assert.equal(H["engine.turn.asked_by"](agentCtx(h), {}).askedBy, undefined);
+});
