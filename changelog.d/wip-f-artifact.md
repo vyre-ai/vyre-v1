@@ -8,3 +8,6 @@
 - A one-time link that has been used, shown inside Vyre, no longer offers "Open Vyre" (which opened the app inside itself).
 - `vyre-server doctor` checks that the Space's artifact address resolves to this server and answers as this Space, and names the DNS record to add when it does not. `VYRE_ARTIFACT_HOST` can now be set from the server's settings file.
 - An agent's browser step whose saved picture cannot be drawn now says "No picture of this step could be taken" instead of showing a blank box.
+- In the desktop app, an open artifact keeps its place and state while the Share sheet or the "..." menu is open: the page steps aside and comes back as it was, with no flash and no reload. It only reloads (at a fresh address) if the app no longer has the page.
+- Sharing an artifact, file or folder now says what happened in the top bar ("Shared with Ada", or that it did not go through). Sharing with an agent, such as the Assistant, no longer fails because of an empty level.
+- An agent computer's live screen asks for a new stream ticket when its picture stream fails, instead of reusing one that is spent.
