@@ -25,14 +25,14 @@ test("goals live (CLI engine): Resume after Pause wakes the lead and the CLI rea
     const prompts = (): number => { let n = 0; const walk = (p: string): void => { let es: fs.Dirent[] = []; try { es = fs.readdirSync(p, { withFileTypes: true }); } catch { return; } for (const e of es) { const q = path.join(p, e.name); if (e.isDirectory()) walk(q); else if (q.includes(`${path.sep}.fake-claude${path.sep}sessions${path.sep}`)) n += fs.readFileSync(q, "utf8").split("\n").length - 1; } }; walk(dir); return n; };
     const wakes = (): Array<{ reason: string; state: string }> => new DatabaseSync(d.paths.modules, { readOnly: true }).prepare("SELECT reason, state FROM goals_wake ORDER BY created_at").all() as Array<{ reason: string; state: string }>;
     const queue = (): Array<{ kind: string; state: string }> => new DatabaseSync(d.paths.modules, { readOnly: true }).prepare("SELECT kind, state FROM engine_thread_queue ORDER BY qseq").all() as Array<{ kind: string; state: string }>;
-    // the start wake runs the CLI (the fake never checks in, so the wake is offered once more and the goal goes stuck: let that settle)
-    await waitFor(async () => { await d.hooks?.pump?.(); return prompts() >= 2 ? true : null; }, 120_000, () => `${hostLog(d)} ${JSON.stringify([prompts(), wakes(), queue()])}`);
+    // the start wake runs the CLI (the fake may check in or not: let any second offer settle)
+    await waitFor(async () => { await d.hooks?.pump?.(); return prompts() >= 1 ? true : null; }, 120_000, () => `${hostLog(d)} ${JSON.stringify([prompts(), wakes(), queue()])}`);
     for (let i = 0; i < 20; i++) { await d.hooks?.pump?.(); await new Promise((r) => setTimeout(r, 300)); }
     // the owner talks to the lead in the goal's chat first: the CLI session is warm and has served typed turns
     const threadId = made.goal.threadId as string;
     for (const n of [1, 2]) {
       await ok(d, "chat.post", { threadId, body: `hello ${n}`, mentions: [{ kind: "agent", id: lead }], idempotencyKey: `r-hello-${n}` });
-      await waitFor(async () => { await d.hooks?.pump?.(); return prompts() >= 2 + n ? true : null; }, 60_000, () => JSON.stringify([prompts(), queue()]));
+      await waitFor(async () => { await d.hooks?.pump?.(); return prompts() >= 1 + n ? true : null; }, 60_000, () => JSON.stringify([prompts(), queue()]));
     }
     for (let i = 0; i < 10; i++) { await d.hooks?.pump?.(); await new Promise((r) => setTimeout(r, 300)); }
     const before = prompts();
