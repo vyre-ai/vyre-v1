@@ -136,7 +136,7 @@ export function linkedTo(
       ? ({ ...h, of: of.get(h.id) } as Hit)
       : h.kind === "chat" && taskChats.has(h.id)
         ? ({ ...h, of: taskChats.get(h.id) } as Hit)
-        : h.kind === "chat" && mainOf.has(h.id)
+        : (h.kind === "chat" || h.kind === "channel") && mainOf.has(h.id)
           ? ({ ...h, of: mainOf.get(h.id) } as Hit)
           : h,
   );

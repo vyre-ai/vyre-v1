@@ -116,6 +116,10 @@ test("kinds: no id, no repeat, no unasked notice", async (t) => {
       threadId: string;
     };
     await call("chat.post", { threadId: reply.threadId, body: "Replies about the standup agenda" });
+    // open it once, so it is a recently used channel: the device then holds it by its thread id while the server's hit has the channel id
+    await page.goto(`${web.origin}/chat`, { waitUntil: "load" });
+    await page.getByText("standup-room", { exact: true }).first().click({ timeout: 30_000 });
+    await page.getByText("Notes for the standup go here").first().waitFor({ timeout: 30_000 });
 
     // 3. the command bar: "launch" lists each thing once and shows no id
     await page.keyboard.press("Control+K");
@@ -160,6 +164,14 @@ test("kinds: no id, no repeat, no unasked notice", async (t) => {
       `the channel's main thread is not a second row under Chats: ${JSON.stringify(roomRows)}`,
     );
     assert.ok(roomRows.includes("Channels"), `the channel row stays: ${JSON.stringify(roomRows)}`);
+    const afterCh = roomRows.slice(roomRows.indexOf("Channels") + 1);
+    const endCh = afterCh.findIndex((r) => heads.includes(r));
+    const channelLines = (endCh < 0 ? afterCh : afterCh.slice(0, endCh)).filter((r) => /^#?standup-room$/i.test(r));
+    assert.equal(
+      channelLines.length,
+      1,
+      `a recently used channel shows once under Channels: ${JSON.stringify(roomRows)}`,
+    );
     assert.ok(
       roomRows.some((r) => r.includes("Replies about the standup agenda")),
       `its reply thread is its own row: ${JSON.stringify(roomRows)}`,
