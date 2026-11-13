@@ -245,6 +245,10 @@ test("a Space on a loopback address reads This computer on Sign-in, never 127.0.
   assert.ok(has(out, "This computer, Owner"), "the loopback Space is named by where it is");
   assert.ok(!has(out, "127.0.0.1"), "no loopback address is shown");
   assertNoRawIds(out, "Settings, Sign-in");
+  // a Space with no address reads its role alone, with no leading comma
+  const none = { ...s, data: { ...s.data, spaces: s.data.spaces.map((sp, i) => (i === 0 ? { ...sp, addr: "" } : sp)) } } as SampleSettings;
+  const bare = html(none, { initialPage: "signin" });
+  assert.ok(has(bare, ">Owner<") && !has(bare, ">, Owner"), "no leading comma");
 });
 
 test("Copy from another Space offers only what that Space has, never the title, and applying copies it here", async () => {

@@ -162,7 +162,7 @@ function YourSpaces(): ReactElement {
     list.push(
       <SettingsRow
         key={sp.id} id={i === 0 ? "signin.spaces" : `space.${sp.id}`} label={sp.name} first={i === 0} lead={<Mark name={sp.name} size={26} />}
-        sub={`${addressWords(sp.addr, "")}${sp.kind === "personal" ? "" : `, ${sp.role}`}${sp.needsYou > 0 ? `, ${sp.needsYou} waiting on you` : ""}`}
+        sub={[addressWords(sp.addr, { fallback: "" }), sp.kind === "personal" ? "" : sp.role, sp.needsYou > 0 ? `${sp.needsYou} waiting on you` : ""].filter(Boolean).join(", ")}
         control={
           leaving ? (
             <>

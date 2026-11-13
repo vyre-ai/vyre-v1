@@ -64,10 +64,11 @@ function RowField({ label, value, onChange, onCommit, testID, width, placeholder
 }
 const skinFace = (id: string): ReactElement => { const k = skins.find(x => x.id === id); return k ? <View style={[st.swatch, { backgroundColor: k.palette.win, borderColor: k.palette.me }]}><View style={[st.dot, { backgroundColor: k.palette.accent }]}/></View> : <View style={[st.swatch, { flexDirection: 'row', overflow: 'hidden', borderColor: '#d8d6d0' }]}><View style={{ width: 8, height: 16, backgroundColor: '#f4f3ef' }}/><View style={{ width: 8, height: 16, backgroundColor: '#1b1b1d' }}/></View>; };
 const skinOptions = [{ key: system.id, title: system.name }, ...skins.map(k => ({ key: k.id, title: k.name }))];
-const copyAddress = (text: string): void => { void (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard?.writeText(text).catch(() => undefined); };
+/** Writes to the clipboard and says whether it worked: "Copied" is only ever said after the write has resolved. */
+export const copyText = async (text: string): Promise<boolean> => { try { const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard; if (!clip) return false; await clip.writeText(text); return true; } catch { return false; } };
 export function SpaceProfile(): ReactElement {
     const result = useRead<CapMap['spaces.get']['out']>('spaces.get');
-    const [name, setName] = useState(''), [legal, setLegal] = useState(''), [mode, setMode] = useState('relay'), [host, setHost] = useState(''), [confirm, setConfirm] = useState(false), [copied, setCopied] = useState(false), [idCopied, setIdCopied] = useState(false);
+    const [name, setName] = useState(''), [legal, setLegal] = useState(''), [mode, setMode] = useState('relay'), [host, setHost] = useState(''), [confirm, setConfirm] = useState(false), [said, setSaid] = useState<Record<string, string>>({});
     const action = useAction(result.refresh);
     // the Space's own time zone: chosen first, saved after one line says what it changes
     const [pendingZone, setPendingZone] = useState<string | null>(null);
@@ -88,13 +89,15 @@ export function SpaceProfile(): ReactElement {
     const saveLegal = (): void => { const next = legal.trim(); if (next !== (space.legalName ?? '')) void action.run('spaces.update', { legalName: next }, 'Legal name saved.'); };
     const saveDefault = (change: { skin?: string; timezone?: string }, said: string): void => { const next = { skin: current.skin, timezone: current.timezone, ...change }; if (next.skin !== current.skin || next.timezone !== current.timezone) void action.run('spaces.update', { defaults: { ...space.defaults, ...next } }, said); };
     const mono = (text: string): ReactElement => <Text style={st.mono} numberOfLines={1}>{text}</Text>;
-    const address = space.address.host ?? 'This device';
-    const addressShown = addressWords(space.address.host, 'This device');
+    const address = space.address.host ?? '';
+    // a loopback address is this computer only for a person on it; from another computer it is the server's own
+    const addressShown = addressWords(space.address.host, { fallback: 'This computer', viewer: (globalThis as { location?: { host?: string } }).location?.host });
+    const copy = (key: string, text: string): void => { void copyText(text).then((ok) => { setSaid((cur) => ({ ...cur, [key]: ok ? 'Copied' : 'Could not copy' })); setTimeout(() => setSaid((cur) => { const { [key]: _gone, ...rest } = cur; return rest; }), 1500); }); };
     return <View testID="console-space-infra"><Section title="Identity"><Group>
         <SpaceLogoRow spaceName={isNamed(space.name) ? space.name : "Vyre"} logoFileId={space.logoFileId ?? null} onSaved={result.refresh}/>
         <Line index={1}><Row id="space-name" title="Name" trailing={<RowField label="Space name" testID="infra-space-name" placeholder="Name your Space" value={name} onChange={setName} onCommit={saveName} width={220}/>}/></Line>
         <Line index={2}><Row id="space-legal" tall title="Legal name" note="Shown on public pages and emails" trailing={<RowField label="Legal name" testID="infra-space-legal" value={legal} onChange={setLegal} onCommit={saveLegal} width={260}/>}/></Line>
-        <Line index={3}><Row id="space-address-now" title="Address" trailing={<View style={st.inline}>{mono(addressShown)}<Button label={copied ? 'Copied' : 'Copy'} testID="space-address-copy" onPress={() => { copyAddress(address); setCopied(true); setTimeout(() => setCopied(false), 1500); }}/></View>}/></Line>
+        <Line index={3}><Row id="space-address-now" title="Address" trailing={<View style={st.inline}>{mono(addressShown)}<Button label={said['address'] ?? 'Copy'} testID="space-address-copy" onPress={() => copy('address', address)}/></View>}/></Line>
     </Group>{action.note ? <Note>{action.note}</Note> : null}</Section>
     <Section title="Time zone"><Group>
         <Line index={0}><Row id="space-timezone-now" tall title="Space time zone" note="Every shared place reads times in it. People see their own time beside it." trailing={<ZonePicker label="Space time zone" testID="infra-space-timezone" value={pendingZone ?? space.timezone ?? deviceZone()} disabled={action.busy} onChange={(zone) => setPendingZone(zone === (space.timezone ?? '') ? null : zone)}/>}/></Line>
@@ -119,7 +122,7 @@ export function SpaceProfile(): ReactElement {
     </Group></Section>
     {confirm ? <Section title="Review change"><Group><Note>{`Change the address to ${mode === 'relay' ? 'Vyre relay' : host}? Devices keep the pinned Space key.`}</Note><Actions><Button label="Cancel" onPress={() => setConfirm(false)}/><Button label="Confirm" testID="infra-space-confirm" danger disabled={action.busy} onPress={() => void action.run('spaces.switch_address', { mode, ...(mode === 'own_domain' ? { host: host.trim() } : {}) }, 'Change accepted. Refresh this Space to see the current state.').then(out => { if (out) setConfirm(false); })}/></Actions></Group></Section> : null}
     <Section title="Details"><Group>
-        <Line index={0}><Row id="space-id" title="Space ID" trailing={<Button label={idCopied ? 'Copied' : 'Copy'} testID="space-id-copy" onPress={() => { copyAddress(space.id); setIdCopied(true); setTimeout(() => setIdCopied(false), 1500); }}/>}/></Line>
+        <Line index={0}><Row id="space-id" title="Space ID" trailing={<View style={st.inline}><Text style={st.mono} testID="space-id-value" selectable>{space.id}</Text><Button label={said['id'] ?? 'Copy'} testID="space-id-copy" onPress={() => copy('id', space.id)}/></View>}/></Line>
         <Line index={1}><Row id="space-fingerprint" title="Key fingerprint" trailing={mono(space.fingerprint)}/></Line>
         <Line index={2}><Row id="space-host" title="Hosted on" trailing={<Text style={st.plain} numberOfLines={1}>{space.hostedOn ?? 'This server'}</Text>}/></Line>
         <Line index={3}><Row id="space-created" title="Created" trailing={<Text style={st.plain} testID="space-created-value" numberOfLines={1}>{createdLine(space.createdAt)}</Text>}/></Line>
