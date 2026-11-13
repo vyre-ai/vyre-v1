@@ -15,7 +15,10 @@ export interface ToolOutcomeLike {
 }
 
 export function toolRunnerFrom(
-  call: (c: { id: string; name: string; input: unknown }, ctx: Parameters<ToolRunner>[1]) => Promise<ToolOutcomeLike>,
+  call: (
+    c: { id: string; name: string; input: unknown; synthetic?: true },
+    ctx: Parameters<ToolRunner>[1],
+  ) => Promise<ToolOutcomeLike>,
 ): ToolRunner {
   return async (c, ctx): Promise<ToolRunResult> => {
     const out = await call(c, ctx);

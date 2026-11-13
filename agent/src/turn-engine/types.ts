@@ -260,7 +260,7 @@ export type EngineEvent =
 export type DriverEvent =
   | { type: "text"; text: string }
   | { type: "thinking"; text: string }
-  | { type: "tool_call"; id: string; name: string; input: unknown }
+  | { type: "tool_call"; id: string; name: string; input: unknown; synthetic?: true }
   /** The model finished a step that asked for tools and now waits for their results: the calls yielded since the last step are the whole batch. Only a driver with parallelTools says it. */
   | { type: "tool_wait" }
   | { type: "block"; kind: string; payload?: unknown }

@@ -93,6 +93,7 @@ function decoder(): StreamDecoder {
               id: typeof fc["id"] === "string" && fc["id"] !== "" ? fc["id"] : `gcall_${n}`,
               name: String(fc["name"]),
               input: fc["args"] ?? {},
+              ...(typeof fc["id"] === "string" && fc["id"] !== "" ? {} : { synthetic: true as const }),
             },
           });
         }

@@ -401,7 +401,13 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
           } else if (d.type === "thinking") yield { type: "thinking", text: d.text };
           else if (d.type === "tool_call") {
             pending.push(d.call);
-            yield { type: "tool_call", id: d.call.id, name: d.call.name, input: d.call.input };
+            yield {
+              type: "tool_call",
+              id: d.call.id,
+              name: d.call.name,
+              input: d.call.input,
+              ...(d.call.synthetic ? { synthetic: true as const } : {}),
+            };
           } else if (d.type === "usage") {
             Object.assign(u, d.usage);
             for (const k of Object.keys(d.usage)) told.add(k);

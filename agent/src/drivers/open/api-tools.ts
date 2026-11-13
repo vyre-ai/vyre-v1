@@ -161,7 +161,7 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
       if (call.name === "tool_batch" && d.isRead) return runBatch(call.input, ctx);
       const out = await d.session.call(
         {
-          ...ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId, call.id),
+          ...ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId, call.synthetic ? undefined : call.id),
           ...(ctx.said !== undefined ? { said: ctx.said } : {}),
         },
         call.name,

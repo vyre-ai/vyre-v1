@@ -109,6 +109,7 @@ test(
       asker: "usr_dana",
       thread: { threadId: "thr_1", kind: "chat" as const, planMode: false },
       turnId: "trn_fc1",
+      callId: "toolu_fc1",
     };
 
     assert.deepEqual(
@@ -124,7 +125,7 @@ test(
       data?: { exitCode?: number; output?: string };
     };
     assert.deepEqual([out.data?.exitCode, out.data?.output], [0, "hi"]);
-    assert.match((sent[0] as { idempotencyKey?: string }).idempotencyKey ?? "", /^ag:trn_fc1:terminal_run:/);
+    assert.match((sent[0] as { idempotencyKey?: string }).idempotencyKey ?? "", /^ag:trn_fc1:toolu_fc1$/);
 
     assert.equal(await manager.sleep(AGENT), true);
     const w0 = Date.now();

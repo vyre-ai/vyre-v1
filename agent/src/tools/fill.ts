@@ -92,10 +92,21 @@ export interface Filled {
 }
 
 /**
- * The input the capability gets: the model's own, with the spellings the tool names differently read as the tool's, and what the tool layer owns filled in. `n` counts this same call in this turn, so a call
- * repeated on purpose is a new call and the same call replayed after a restart is the same call.
+ * The input the capability gets: the model's own, with the spellings the tool names differently read as the tool's, and what the tool layer owns filled in.
  */
-export function fillInput(t: ToolDef, input: unknown, ctx: ToolCtx, n: number): Filled {
+/** A call id as a part of a key: kept when short, else a fixed-length hash of it (the store refuses a long key). Not a secret. */
+export function idPart(id: string): string {
+  if (id.length <= 80) return id;
+  let a = 0x811c9dc5,
+    b = 0x1b873593;
+  for (let i = 0; i < id.length; i++) {
+    a = Math.imul(a ^ id.charCodeAt(i), 0x01000193) >>> 0;
+    b = Math.imul(b ^ id.charCodeAt(i), 0x85ebca6b) >>> 0;
+  }
+  return `h${a.toString(16).padStart(8, "0")}${b.toString(16).padStart(8, "0")}${id.length}`;
+}
+
+export function fillInput(t: ToolDef, input: unknown, ctx: ToolCtx): Filled {
   if (input === null || typeof input !== "object" || Array.isArray(input)) return { input, filled: [], renamed: [] };
   const props = schemaOf(t).properties ?? {};
   const out: Record<string, unknown> = { ...(input as Record<string, unknown>) };
@@ -136,11 +147,11 @@ export function fillInput(t: ToolDef, input: unknown, ctx: ToolCtx, n: number): 
     }
   }
   if (t.keyed === true && (typeof out["idempotencyKey"] !== "string" || out["idempotencyKey"] === "")) {
-    // one call is one key: the call's own id when the engine has one (a retry of that call carries the same id, so it makes the same thing once; two calls the model makes on purpose have two ids). Only a call with
-    // no id falls back to turn, tool, input and the count of that same call in the turn.
-    out["idempotencyKey"] = ctx.callId
-      ? `ag:${ctx.turnId ?? ""}:${ctx.callId}`
-      : `ag:${ctx.turnId ?? ctx.trace?.traceId ?? "t"}:${t.name}:${shortHash(canonical({ ...out, idempotencyKey: undefined }))}:${n}`;
+    // Rule K: a key is derived only from a real identity, the turn id AND the call id (the provider's own id for the call: a synthesised id is never handed over). When either is missing the key is random for this
+    // call, so the call acts, exactly as when a model made up a fresh key itself. Never a constant, never the input's hash, never a counter: the store keeps keys 30 days, and a repeated "publish the weekly report"
+    // must not return last week's.
+    out["idempotencyKey"] =
+      ctx.turnId && ctx.callId ? `ag:${ctx.turnId}:${idPart(ctx.callId)}` : `ag:r:${globalThis.crypto.randomUUID()}`;
     filled.push("idempotencyKey");
   }
   return { input: out, filled, renamed };

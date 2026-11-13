@@ -28,6 +28,8 @@ export interface ToolCall {
   id: string;
   name: string;
   input: unknown;
+  /** The id was made up by the decoder because the provider sent none (Google, an OpenAI-compatible server with an empty id). Such an id repeats from one step to the next, so it is never an identity (agent/src/tools/fill.ts). */
+  synthetic?: true;
 }
 
 /** The conversation a provider call is built from. Rebuilt from the thread on every send; the only state kept between sends is the connection. */

@@ -356,7 +356,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
       ...(t.effects !== "read" && t.planMode === "blocked" ? { askable: true } : {}),
     };
     try {
-      const filled = isDynamic ? null : fillInput(t, limited(t.cap, unstringified(t.inputSchema, input)), ctx, tally.n);
+      const filled = isDynamic ? null : fillInput(t, limited(t.cap, unstringified(t.inputSchema, input)), ctx);
       const res = await deps.invoke(
         t.cap,
         isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : (filled?.input ?? input),

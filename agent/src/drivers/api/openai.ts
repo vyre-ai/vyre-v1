@@ -115,7 +115,12 @@ function decoder(): StreamDecoder {
           continue;
         }
       }
-      const call: ToolCall = { id: c.id || `call_${index}`, name: c.name, input };
+      const call: ToolCall = {
+        id: c.id || `call_${index}`,
+        name: c.name,
+        input,
+        ...(c.id ? {} : { synthetic: true as const }),
+      };
       out.push({ type: "tool_call", call });
     }
     calls.clear();

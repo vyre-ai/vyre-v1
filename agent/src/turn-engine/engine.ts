@@ -62,7 +62,7 @@ export type ToolRunResult = ToolResult & {
   };
 };
 export type ToolRunner = (
-  call: { id: string; name: string; input: unknown },
+  call: { id: string; name: string; input: unknown; synthetic?: true },
   ctx: ToolContext,
 ) => Promise<ToolRunResult>;
 
@@ -1135,9 +1135,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         let ended = false;
         // A step that asks for several tools: the calls are collected (the session yields them, then tool_wait) and run together when they are independent reads; everything else runs after, one at a time, in order.
         const parallel = session.parallelTools === true && opts.toolClass !== undefined;
-        const batch: { id: string; name: string; input: unknown }[] = [];
+        const batch: { id: string; name: string; input: unknown; synthetic?: true }[] = [];
         const runBatch = async (
-          calls: readonly { id: string; name: string; input: unknown }[],
+          calls: readonly { id: string; name: string; input: unknown; synthetic?: true }[],
         ): Promise<"ok" | "parked" | "cancelled"> => {
           const toolCtx = { threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker };
           const cap = Math.max(1, opts.maxParallel ?? MAX_PARALLEL);
@@ -1227,14 +1227,19 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
               afterTool = true;
               queue.touch(st.thread.id, item.qseq);
               if (parallel) {
-                batch.push({ id: ev.id, name: ev.name, input: ev.input });
+                batch.push({
+                  id: ev.id,
+                  name: ev.name,
+                  input: ev.input,
+                  ...(ev.synthetic ? { synthetic: true as const } : {}),
+                });
                 break;
               }
               inTool = true;
               const trace = traceTool(info, { id: ev.id, name: ev.name, startedAt: now(), ...detailOf(ev.input) });
               const result = await runTool(
                 opts.callTool,
-                { id: ev.id, name: ev.name, input: ev.input },
+                { id: ev.id, name: ev.name, input: ev.input, ...(ev.synthetic ? { synthetic: true as const } : {}) },
                 {
                   threadId: st.thread.id,
                   turnId: turn.id,
@@ -1610,7 +1615,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
 
   async function runTool(
     fn: ToolRunner | undefined,
-    call: { id: string; name: string; input: unknown },
+    call: { id: string; name: string; input: unknown; synthetic?: true },
     ctx: ToolContext,
   ): Promise<ToolRunResult> {
     if (!fn) return { ok: false, content: { code: "no_tools", message: "this engine has no tool runner" } };
