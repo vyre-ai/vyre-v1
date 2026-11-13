@@ -573,7 +573,7 @@
     {
       "deferred": false,
       "name": "artifact_publish",
-      "summary": "THE way to show something you made: publish it privately; the person gets a card in the chat to open it. The result says whether it was opened for them (opened). Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
+      "summary": "Needs a title and exactly one of html, fileId, folderId, path or port. THE way to show what you made: publishes it privately, the person gets a card to open. Example: artifact_publish {\"title\":\"Q3 plan\",\"html\":\"<h1>Q3</h1>\"}. Same title or artifactId updates the link. No title: its <title> is used",
       "toolset": "sites"
     },
     {

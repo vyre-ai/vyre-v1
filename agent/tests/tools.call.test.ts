@@ -140,6 +140,7 @@ test("the seed names the agent as principal, the asker as who it acts for, and c
     run: "run_9",
     thread: "T1",
     origin: "agent",
+    callMeta: { tool: "records_get", first: true },
     provider: "anthropic",
     approval: undefined,
   });

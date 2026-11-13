@@ -669,8 +669,26 @@ async function artifactPublish(
   )
     fail(ctx, "validation.bad_input", "A thumbnail is a small png, jpeg or webp data URL.", { field: "thumb" });
   let computerId = optStr(ctx, o, "computerId");
-  if ([html, fileId, folderIn, localPath, port].filter((v) => v !== undefined).length !== 1)
-    fail(ctx, "validation.bad_input", "Give one of html, fileId, folderId, path or port.", { field: "html" });
+  const given = (
+    [
+      ["html", html],
+      ["fileId", fileId],
+      ["folderId", folderIn],
+      ["path", localPath],
+      ["port", port],
+    ] as const
+  )
+    .filter(([, v]) => v !== undefined)
+    .map(([k]) => k);
+  if (given.length !== 1)
+    fail(
+      ctx,
+      "validation.bad_input",
+      given.length === 0
+        ? 'Say what to publish: give exactly one of html, fileId, folderId, path or port, for example {"title":"Q3 plan","html":"<h1>Q3 plan</h1>"}.'
+        : `You gave ${given.join(" and ")}. Give exactly one of html, fileId, folderId, path or port.`,
+      { field: "html" },
+    );
   // a port with no computer named is on the agent's own computer, when it has one
   if (port !== undefined && computerId === undefined && ctx.principal.kind === "agent") {
     try {

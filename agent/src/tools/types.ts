@@ -25,6 +25,8 @@ export interface ToolDef {
   local: LocalKind;
   /** The capability has a Gate rule (outward or risky acts). */
   gated: boolean;
+  /** The capability needs an idempotency key (`create`): the tool layer makes one, so the model is not shown it (agent/src/tools/fill.ts). */
+  keyed?: boolean;
   /** What the capability acts on: the resource type and the JSON pointer of its id in the input. Absent for a capability with no single target. */
   resource?: { type: string; id: string };
 }
