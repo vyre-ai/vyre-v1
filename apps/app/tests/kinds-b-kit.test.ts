@@ -41,3 +41,18 @@ export async function joinMaya(browser: Browser, origin: string, call: Call): Pr
   const mayaId = await maya.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].personId as string);
   return { maya, mayaId };
 }
+
+/** A guest of one channel joins through the join screens from the link threads.invite_guest made. */
+export async function joinGuest(browser: Browser, origin: string, link: string): Promise<Page> {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const guest = await ctx.newPage();
+  const u = new URL(link);
+  await guest.goto(origin + u.pathname + u.hash);
+  await guest.getByTestId("step-accept").waitFor({ timeout: 20_000 });
+  await guest.getByTestId("web").click(); await guest.getByTestId("first").fill("Gus"); await guest.getByTestId("last").fill("Guest"); await guest.getByTestId("next").click();
+  await guest.getByTestId("username").fill("gus"); await guest.getByTestId("password").fill(PASSWORD); await guest.getByTestId("confirm").fill(PASSWORD); await guest.getByTestId("next").click();
+  await guest.getByTestId("device").fill("Gus's browser"); await guest.getByTestId("next").click();
+  await guest.getByTestId("ai-none").click(); await guest.getByTestId("next").click();
+  await dismissOnboarding(guest);
+  return guest;
+}
