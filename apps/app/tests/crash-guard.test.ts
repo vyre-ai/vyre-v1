@@ -44,11 +44,13 @@ test("an id shown on the page fails the check, naming the step and the id; names
   await assert.rejects(() => guardCrashes(fakePage("Home folder fld_01a1d27b165742ddb20032cbd182aaf9").page).check("Agent"), /an id is shown to the person/);
 });
 
-test("no page may show an id on purpose: the opt-out list is empty and an unlisted name fails (adding one needs the owner's word and a reason)", async () => {
-  assert.deepEqual(Object.keys(IDS_ON_PURPOSE), []);
-  const { page } = fakePage("Space  Northwind  spc_01a1d27b165742ddb20032cbd182aaf9");
+test("the pages that may show an id on purpose are exactly one (owner, 13 Nov 2026); naming it skips the scan, an unlisted name fails", async () => {
+  assert.deepEqual(Object.keys(IDS_ON_PURPOSE), ["space-id"], "a new opt-out is a decision: add it here, with its reason, and tell the lead");
+  for (const reason of Object.values(IDS_ON_PURPOSE)) assert.ok(reason.length > 20 && reason.includes("13 Nov 2026"));
+  const { page } = fakePage("Space ID spc_01a1d27b165742ddb20032cbd182aaf9");
+  await guardCrashes(page).check("Console, Space", { idsOnPurpose: "space-id" });
   await assert.rejects(() => guardCrashes(page).check("Console, Space"), /an id is shown to the person/);
-  await assert.rejects(() => guardCrashes(page).check("Console, Space", { idsOnPurpose: "space-id" }), /not a listed reason/);
+  await assert.rejects(() => guardCrashes(page).check("Console, Space", { idsOnPurpose: "anything" as never }), /not a listed reason/);
 });
 
 test("the scan reads the app's text, not what a person wrote: when the page can say which text is the app's, only that is scanned", async () => {

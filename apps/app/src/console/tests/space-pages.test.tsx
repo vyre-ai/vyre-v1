@@ -47,15 +47,15 @@ const withClipboard = async (write: (t: string) => Promise<void>, run: () => Pro
   try { await run(); } finally { if (had) Object.defineProperty(g, "navigator", had); else delete g.navigator; }
 };
 
-test("General never shows the Space id: the row is the Space's name with Copy Space ID; a loopback address reads This computer (owner, 13 Nov 2026)", async () => {
+test("General shows the Space name and, quietly, the Space ID in full beside Copy Space ID (owner, 13 Nov 2026: admins may see it); a loopback address reads This computer", async () => {
   const p = await mountPage(createRoot, <SpaceProfile />, { "spaces.get": SPACE("usr_sample", { id: SPACE_ID, address: { mode: "relay", host: "127.0.0.1:41471" } }) });
   try {
     const t = p.text();
-    assert.ok(t.includes("Copy Space ID") && p.has("space-id-copy"), "Copy Space ID is there");
-    assert.ok(!t.includes(SPACE_ID), "the id itself is not shown");
+    assert.ok(t.includes("Copy Space ID") && p.has("space-id-copy") && p.has("space-id-value"), "Copy Space ID and the value are there");
+    assert.ok(t.includes(SPACE_ID), "an admin can read and quote the Space ID");
     assert.ok(t.includes("This computer"), "a loopback address reads This computer");
     assert.doesNotMatch(t, /127\.0\.0\.1/);
-    assertNoRawIds(t, "Console, Space, General");
+    assertNoRawIds(t.replace(SPACE_ID, ""), "Console, Space, General (the Space ID aside)");
   } finally { p.restore(); }
 });
 

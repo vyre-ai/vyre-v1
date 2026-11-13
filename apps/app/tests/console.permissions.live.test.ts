@@ -152,7 +152,7 @@ test("production Console Permissions: matrix, exceptions, the person page, the c
       assert.equal(await memberPage.getByTestId("console").count(), 0, "no Console frame for a member");
       assert.equal(await memberPage.getByTestId("console-nav").count(), 0, "no navigation");
       const body = await memberPage.locator("body").innerText();
-      for (const secret of ["Maya Chen", "Dana Whitfield", "Elena Rivera", "Delivery", "Audit log"]) assert.ok(!body.includes(secret), `no admin data on the page: ${secret}`);
+      for (const secret of ["Maya Chen", "Dana Whitfield", "Elena Rivera", "Delivery", "Audit log", "Copy Space ID"]) assert.ok(!body.includes(secret), `no admin data on the page: ${secret}`);
       await shot(memberPage, "console-member-refused.png");
       assert.deepEqual(memberErrors, []);
       await memberContext.close();
