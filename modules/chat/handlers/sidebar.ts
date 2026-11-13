@@ -75,6 +75,40 @@ function todaysSources(ctx: ChatCtx, safe: Safe): SideSources {
   };
 }
 
+/**
+ * The second implementation behind the port: the per-person state module. Pins come in the person's own manual order (state.list pinned, smaller is higher); mutes stay chat's own until they move; the chat things are the
+ * kind chat (a chat, a one-to-one, a channel's own chat: the thing is the thread id). It is not the one in use: `sources` below says which is, and it is the stars-and-mutes one until the state module is on main.
+ * Goals, projects and agents are not state things yet, so their pins stay on the stars, after the others.
+ */
+export function stateSources(
+  ctx: ChatCtx,
+  safe: Safe,
+  channelOf: (threadId: string) => string | undefined,
+): SideSources {
+  return {
+    async pins() {
+      const out = new Map<string, number>();
+      const r = await safe<{ rows?: { thing: { type: string; id: string }; pin?: number | null }[] }>("state.list", {
+        flag: "pinned",
+        type: "chat",
+        limit: 500,
+      });
+      let n = 0;
+      for (const row of [...(r?.rows ?? [])].sort((a, b) => (a.pin ?? 1e9) - (b.pin ?? 1e9))) {
+        const ch = channelOf(row.thing.id);
+        out.set(ch ? `ch:${ch}` : `c:${row.thing.id}`, n++);
+      }
+      for (const [k, i] of await todaysSources(ctx, safe).pins())
+        if (!k.startsWith("c:") && !k.startsWith("ch:") && !out.has(k)) out.set(k, n + i);
+      return out;
+    },
+    mutedThreads: () => mutedOf(ctx, askerOf(ctx)),
+  };
+}
+
+/** Which source answers pins and mutes: ONE line to switch. Today: the caller's stars and chat's own mutes. */
+export const PINS_FROM_STATE_MODULE = false;
+
 type Safe = <T>(cap: string, input: Record<string, unknown>) => Promise<T | null>;
 const safeOf =
   (ctx: ChatCtx): Safe =>
@@ -149,6 +183,16 @@ const base = (): Omit<Item, "key" | "kind" | "shape" | "title"> => ({
   lastAt: 0,
 });
 
+const defaultSources = (ctx: ChatCtx, safe: Safe): SideSources =>
+  PINS_FROM_STATE_MODULE
+    ? stateSources(ctx, safe, (thread) => {
+        const r = ctx.db.all("SELECT id FROM chat_channel WHERE mainThread = ? AND deleted_at IS NULL", thread) as {
+          id?: string;
+        }[];
+        return r[0]?.id === undefined ? undefined : String(r[0].id);
+      })
+    : todaysSources(ctx, safe);
+
 export async function chatsSidebar(
   ctx: ChatCtx,
   input: { filter?: string; more?: { section: Exclude<SectionId, "needs">; after?: string; limit?: number } },
@@ -164,7 +208,7 @@ export async function chatsSidebar(
     );
   const safe = safeOf(ctx);
   const member = canChat(ctx);
-  const src = (sources ?? todaysSources)(ctx, safe);
+  const src = (sources ?? defaultSources)(ctx, safe);
   const [pins, mentionsOut, needsOut, goalsOut, projectsOut, agentsOut, peopleOut] = await Promise.all([
     src.pins(),
     safe<{ counts?: { threadId: string; mentions: number }[] }>("notifications.unseen_by_thread", {}),

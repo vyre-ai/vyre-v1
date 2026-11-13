@@ -248,3 +248,54 @@ test("a chat whose latest turn failed is marked failed with words, from one engi
   );
   assert.deepEqual(contractErrors("chats.sidebar", "out", out), []);
 });
+
+test("the state module is the second source behind the same port: pins in the person's own manual order, a channel's own chat keyed as the channel, other pins after on the stars", async () => {
+  const { stateSources } = await import("../handlers/sidebar.ts");
+  const answers: Record<string, unknown> = {
+    "state.list": {
+      rows: [
+        { thing: { type: "chat", id: "thr_b" }, pin: 2 },
+        { thing: { type: "chat", id: "thr_main" }, pin: 1 },
+        { thing: { type: "chat", id: "thr_a" }, pin: 3 },
+      ],
+    },
+    "stars.list": { stars: [{ resource: { type: "project", id: "prj_x" }, title: "x", at: 5 }] },
+  };
+  const hn = harness({
+    calls: { "state.list": () => answers["state.list"], "stars.list": () => answers["stars.list"] } as never,
+  });
+  const safe = async <T>(cap: string): Promise<T | null> => (answers[cap] as T) ?? null;
+  const pins = await stateSources(hn.ctx, safe as never, (t) => (t === "thr_main" ? "chn_gen" : undefined)).pins();
+  assert.deepEqual(
+    [...pins.entries()],
+    [
+      ["ch:chn_gen", 0],
+      ["c:thr_b", 1],
+      ["c:thr_a", 2],
+      ["pj:prj_x", 3],
+    ],
+  );
+});
+
+test("the chat kind for the state module: the audience and the rule of who may see a chat are its members, the entries are its messages", async () => {
+  const { chatKind, stateKinds } = await import("../state.ts");
+  const { openRaw } = await import("../fixtures/harness.ts");
+  const raw = openRaw();
+  const hn = harness({ raw });
+  const t = await agentChat(hn, "one");
+  await h["chat.post"]!(hn.ctx, { threadId: t, body: "two", idempotencyKey: "two" });
+  assert.deepEqual(
+    stateKinds.map((k) => k.type),
+    ["chat"],
+  );
+  const members = chatKind.audience(raw as never, t, { people: [], mayView: () => false });
+  assert.ok(members.includes(DANA), "the starter is in the audience");
+  assert.equal(chatKind.visible(raw as never, t, DANA, { people: [], mayView: () => false }), true);
+  assert.equal(
+    chatKind.visible(raw as never, t, "usr_stranger", { people: [], mayView: () => false }),
+    false,
+    "nobody can pin or mute a chat they cannot see",
+  );
+  assert.equal(chatKind.entries(raw as never, t).length, 2);
+  assert.equal(chatKind.heads(raw as never).find((x) => x.thing === t)!.head, 2);
+});

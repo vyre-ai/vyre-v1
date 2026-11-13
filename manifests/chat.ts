@@ -1378,6 +1378,8 @@ export default defineManifest({
     // (a guest, who may not start chats, gets only the chats and channels they are in: no goals, no team, no agents). The SOURCE of pins and mutes is an internal detail (today the caller's stars and the chat module's own mutes;
     // the per-person state module when it clears): the shape does not change with it, and `pinned` is an order index, 0 the first. Presence lives only in chats.presence so this answer and its patches stay quiet. A draft is the
     // device's own knowledge and is never in it. Each section answers its first PAGE rows (50) in the order the sidebar draws them, with `total` and a cursor `next`; `more` pages one section (limit at most 100).
+    // Names: a row names its people and agents by ID only (`personId`, `agentId`, `faceIds`): the app resolves them from its own directory, which is already narrowed for a guest. Chats, channels, goals, projects and tasks carry their titles.
+    // `failed` and `failedLine` come from engine.thread_states, asked once for the rows the answer carries; `failedLine` is words, never a code or a trace id. `working` is not here: it is in chats.presence.
     // Watched like the other live reads: it is a `q` of the chats.sidebar screen with live = true, so the session re-reads it on a change batch.
     read(
       "chats.sidebar",

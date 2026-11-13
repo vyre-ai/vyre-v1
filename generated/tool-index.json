@@ -8725,6 +8725,54 @@
       "toolset": "meta"
     },
     {
+      "deferred": true,
+      "name": "state_counts",
+      "summary": "My badges: for each scope how many things have something unread (not done, not muted) and how many entries that is",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_get",
+      "summary": "My state on up to 500 things: how far I read, unread, done, starred, followed, muted",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_layout_get",
+      "summary": "How I arranged my screens: my layout values (all, or the named keys). A small value for each registered key, mine alone",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_layout_set",
+      "summary": "Set one layout value, or clear it with null. Only registered keys, each with a small size limit; it is never a place for content",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_list",
+      "summary": "My things by what I did with them: starred, following, done, unread, muted, pinned (in my own order) or any (everything I have set on anything: one read paints a whole screen). Each row carries the thing's whole state",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_read",
+      "summary": "Mark a thing read up to a position, mark it unread, or mark it unread from a position. Give exactly one of upto, unread, fromPos",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_read_scope",
+      "summary": "Mark everything in one badge read, or only what arrived before a time",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_set",
+      "summary": "Mark a thing done or open again, star it, follow or leave it, set Alert me on replies, mute it, or pin it (`pin: {}` puts it last among my pins of this kind, `{ after: null }` first, `{ after: thing }` right below that pin; `pin: null` takes it off). Give at least one",
+      "toolset": "meta"
+    },
+    {
       "deferred": false,
       "name": "steps_test",
       "summary": "Run one step in test mode with sample data: reads run for real, writes and sends are stubbed",
