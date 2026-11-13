@@ -65,3 +65,14 @@ test("a chat tab whose chat the person cannot open says Chats, not New chat; a t
   assert.equal(await run(Object.assign(new Error("x"), { code: "permission.no_grant" })), "Chats");
   assert.equal(await run(Object.assign(new Error("x"), { code: "timeout" })), "New chat");
 });
+
+test("a second refused chat reuses the one refusal tab; the place's own Chats tab is never taken for one", async () => {
+  const { staleRefusalTab } = await import("./titles.ts");
+  const place = { key: "chats", title: "Chats", hash: "", pinned: true };
+  const a = { key: "chats#a", title: "Chats", hash: "subject=thread:a" }, b = { key: "chats#b", title: "Chats", hash: "subject=thread:b" };
+  const real = { key: "chats#r", title: "Launch plan", hash: "subject=thread:r" };
+  assert.equal(staleRefusalTab([place, real, a], "chats#a", "chats#a"), null, "the first refusal has nothing to replace");
+  assert.equal(staleRefusalTab([place, a, real, b], "chats#b", "chats#b"), "chats#a", "the older refusal tab closes");
+  assert.equal(staleRefusalTab([place, a, b], "chats#b", "chats#a"), "chats#b", "when the older one is on screen, the new one goes instead");
+  assert.equal(staleRefusalTab([place, real, b], "chats#b", "chats#b"), null, "a named chat and the place tab are not refusals");
+});

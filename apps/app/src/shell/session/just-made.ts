@@ -16,9 +16,13 @@ export function isJustMade(threadId: string, now: number = Date.now()): boolean 
   return at !== undefined && now - at <= JUST_MADE_MS;
 }
 
-/** What a chat.start answer names, if it names a thread. */
+/** The capabilities whose answer is a thread this person has just made: a chat or an ask, a channel (its main thread), and a helper's thread. */
+export const MAKES_A_THREAD: readonly string[] = ["chat.start", "channels.create", "chat.helper.start"];
+
+/** What the answer of one of those names: the thread of a chat (`thread`), of a helper (`helper`) or a channel's main thread (`channel.mainThreadId`). */
 export function threadOfStart(out: unknown): string | null {
-  const id = (out as { thread?: { threadId?: unknown } } | null)?.thread?.threadId;
+  const o = (out ?? {}) as { thread?: { threadId?: unknown }; helper?: { threadId?: unknown }; channel?: { mainThreadId?: unknown } };
+  const id = o.thread?.threadId ?? o.helper?.threadId ?? o.channel?.mainThreadId;
   return typeof id === "string" && id !== "" ? id : null;
 }
 

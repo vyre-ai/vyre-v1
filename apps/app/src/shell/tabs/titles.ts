@@ -111,6 +111,17 @@ export const REFUSED_CHAT_TAB = "Chats";
 /** A read the server refused (not yours or not found): permission.* or validation.not_found. */
 export const isRefusedRead = (e: unknown): boolean => { const c = (e as { code?: unknown } | null)?.code; return typeof c === "string" && (c.startsWith("permission.") || c === "validation.not_found"); };
 
+/**
+ * Three links to chats the person cannot open would leave three tabs that all say "Chats". The tab that was just found refused keeps its place; an older refusal tab (an item tab named "Chats", not the place's own
+ * tab, which has no item) is the one to close, unless it is the one on screen, in which case the new one goes instead. Returns the key to close, or null.
+ */
+export function staleRefusalTab(tabs: ReadonlyArray<{ key: string; title: string; hash?: string | undefined; pinned?: boolean | undefined }>, justRefused: string, active: string): string | null {
+  const refused = (t: { title: string; hash?: string | undefined; pinned?: boolean | undefined }): boolean => t.title === REFUSED_CHAT_TAB && t.hash !== undefined && t.hash !== "" && t.pinned !== true;
+  const older = tabs.find((t) => t.key !== justRefused && refused(t));
+  if (older === undefined) return null;
+  return older.key === active ? justRefused : older.key;
+}
+
 export function followTitle(session: TitleSession, ask: Ask, retitle: (title: string, empty?: boolean) => void): () => void {
   let off = false;
   const read = (a: Ask): Promise<string | null> => session.call(a.cap, a.input).then(async (out) => {

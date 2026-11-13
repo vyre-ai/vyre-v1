@@ -2,7 +2,7 @@
 // Lane f-newchat: its PendingChat must not resolve into Conversation's refusal for an id in this list; `refusalIsPending(failure, threadId)` (this folder's just-made.ts) is the call Conversation makes at the line `const notYet = ...`; PendingChat must resolve through it, not around it.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { JUST_MADE_MS, isJustMade, noteMade, refusalIsPending, threadOfStart } from "./just-made.ts";
+import { JUST_MADE_MS, MAKES_A_THREAD, isJustMade, noteMade, refusalIsPending, threadOfStart } from "./just-made.ts";
 import { refusalFinal } from "../../../../../ui/src/States/retry.ts";
 
 const NOT_FOUND = { message: "That chat does not exist or is not yours.", code: "validation.not_found" };
@@ -24,6 +24,9 @@ test("a refused read of a chat just made is not a refusal; of any other chat it 
 
 test("what a chat.start answer names", () => {
   assert.equal(threadOfStart({ thread: { threadId: "thr_1" } }), "thr_1");
+  assert.equal(threadOfStart({ channel: { mainThreadId: "thr_main" } }), "thr_main", "a channel made by channels.create: its main thread");
+  assert.equal(threadOfStart({ helper: { threadId: "thr_helper" } }), "thr_helper", "a helper's thread");
+  assert.deepEqual([...MAKES_A_THREAD].sort(), ["channels.create", "chat.helper.start", "chat.start"]);
   assert.equal(threadOfStart({}), null);
   assert.equal(threadOfStart(null), null);
 });

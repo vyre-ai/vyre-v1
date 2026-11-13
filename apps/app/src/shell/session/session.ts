@@ -1,5 +1,5 @@
 import { judge, needsJudging, noAccessLine } from "../reach/target.ts";
-import { noteMade, threadOfStart } from "./just-made.ts";
+import { MAKES_A_THREAD, noteMade, threadOfStart } from "./just-made.ts";
 import type { Judge } from "../reach/target.ts";
 import { adminPages } from "../providers/settings-admin.ts";
 import { createLinkPolicy } from "../reach/policy.ts";
@@ -267,7 +267,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const call: CapCall = (cap, input, given) => {
     const sent = gated(cap, input, given?.idempotencyKey ? given : { ...given, idempotencyKey: attemptKey() });
     // a chat this person just started is not refused while its row is still landing (shell/session/just-made.ts)
-    if (cap === "chat.start") void Promise.resolve(sent).then((out) => { const id = threadOfStart(out); if (id !== null) noteMade(id); }, () => undefined);
+    if (MAKES_A_THREAD.includes(cap)) void Promise.resolve(sent).then((out) => { const id = threadOfStart(out); if (id !== null) noteMade(id); }, () => undefined);
     return sent;
   };
 
