@@ -86,7 +86,7 @@ export function rejectWords(
     const { path, rule } = parseProblem(raw);
     const first = path.split("/").filter((x) => x !== "")[0] ?? "";
     // a key the tool layer owns is never the model's to fix
-    if (first === "idempotencyKey") continue;
+    if (first === "idempotencyKey" || (first === "threadId" && rule === "required")) continue;
     said.add(ruleWords(leaf(path), rule, s.properties?.[first]));
     if (said.size === 4) break;
   }

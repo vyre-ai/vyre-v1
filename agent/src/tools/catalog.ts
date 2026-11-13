@@ -1,5 +1,7 @@
 // Join the generated tool list with the capability registry: a tool needs its capability's level, effects and Gate flag, and nothing may be added by hand.
 import { connectCardOn, isConnectCap } from "../../../lib/connect-switch.ts";
+import { probeIn } from "../../../lib/probe.ts";
+import { fillsThread } from "./fill.ts";
 import { HIDDEN_FROM_MODEL } from "./versions.ts";
 import type { AgentToolRow, Catalog, Effects, LocalKind, McpToolRow, RegistryCapRow, ToolDef } from "./types.ts";
 
@@ -9,28 +11,50 @@ const LOCAL: ReadonlySet<string> = new Set(["terminal", "chrome", "screen", "fil
 type Obj = { properties?: Record<string, unknown>; required?: string[]; [k: string]: unknown };
 
 /**
- * What a model is shown of a tool's input. The idempotency key is the tool layer's, so it is not listed and not required (13 Nov 2026: "my first publish attempt was rejected as bad input" was a missing idempotencyKey that
- * no description mentioned). The server still validates the full input.
+ * What a model is shown of a tool's input. The idempotency key is the tool layer's, and a chat the tool names is this chat unless the model says another: neither is something it has to write, so neither is
+ * listed as required (13 Nov 2026: "my first publish attempt was rejected as bad input" was a missing idempotencyKey that no description mentioned). The server still validates the full input.
  */
+/**
+ * An example in a schema is shown to a model that reads it (a CLI engine through the MCP bridge shows the whole schema). A model copies an example whole, and one that is a placeholder (an example.com address) is
+ * refused by the placeholder guard (lib/probe.ts), so a first call that copied it fails. Those examples are not shown; an id's example stays, it shows the shape.
+ */
+function withoutPlaceholderExamples(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(withoutPlaceholderExamples);
+  if (v === null || typeof v !== "object") return v;
+  const out: Record<string, unknown> = {};
+  for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+    if (k === "examples" && Array.isArray(x)) {
+      const keep = x.filter((e) => probeIn(e) === null);
+      if (keep.length > 0) out[k] = keep;
+      continue;
+    }
+    out[k] = withoutPlaceholderExamples(x);
+  }
+  return out;
+}
+
 export function modelSchema(schema: unknown, cap?: string): { schema: unknown; keyed: boolean } {
-  const raw = schema as Obj | null;
-  if (raw === null || typeof raw !== "object" || raw.properties === undefined) return { schema, keyed: false };
+  const raw = withoutPlaceholderExamples(schema) as Obj | null;
+  if (raw === null || typeof raw !== "object" || raw.properties === undefined) return { schema: raw, keyed: false };
   // version inputs the tool layer fills for the model are not shown to it (agent/src/tools/versions.ts)
   const hide = cap === undefined ? undefined : HIDDEN_FROM_MODEL[cap];
-  let props: Record<string, unknown> = raw.properties;
-  let required = raw.required ?? [];
+  let props: Record<string, unknown> = { ...raw.properties };
+  let required = [...(raw.required ?? [])];
   if (hide !== undefined) {
     props = Object.fromEntries(Object.entries(props).filter(([k]) => !hide.includes(k)));
     required = required.filter((r) => !hide.includes(r));
   }
-  const s: Obj = hide === undefined ? raw : { ...raw, properties: props, required };
   const keyed = "idempotencyKey" in props && required.includes("idempotencyKey");
-  if (!keyed) return { schema: s, keyed: false };
-  const { idempotencyKey: _k, ...rest } = props;
-  return {
-    schema: { ...s, properties: rest, required: required.filter((r) => r !== "idempotencyKey") },
-    keyed: true,
-  };
+  if (keyed) {
+    delete props["idempotencyKey"];
+    required = required.filter((r) => r !== "idempotencyKey");
+  }
+  if (cap !== undefined && fillsThread({ cap, inputSchema: schema as ToolDef["inputSchema"] })) {
+    const th = props["threadId"] as { description?: string } | undefined;
+    if (th) props["threadId"] = { ...th, description: th.description ?? "The chat. Leave it out for this chat." };
+    required = required.filter((r) => r !== "threadId");
+  }
+  return { schema: { ...raw, properties: props, required }, keyed };
 }
 
 export function buildCatalog(

@@ -134,3 +134,29 @@ test("a template is called a template, and a worked example is called one that w
     /The shape of a call \(replace each <\.\.\.>/,
   );
 });
+
+test("artifact_publish: html with no title takes the page's own title", async () => {
+  const { s, sent } = session();
+  const out = await s.call(c(), "artifact_publish", { html: PAGE });
+  assert.equal(out.kind, "result", JSON.stringify(out.kind === "error" ? out.result.content : ""));
+  assert.equal((sent[0]?.input as { title?: string }).title, "Q3 plan");
+});
+
+test("artifact_publish: html with no title and no title in the page is refused naming title, with a minimal call", async () => {
+  const { s } = session();
+  const out = await s.call(c(), "artifact_publish", { html: "<p>hi there</p>" });
+  assert.equal(out.kind, "error");
+  const words = JSON.stringify(out.kind === "error" ? out.result.content : "");
+  assert.match(words, /title/);
+  assert.match(words, /artifact_publish/);
+  assert.match(words, /html/);
+});
+
+test("no tool shows an example that the placeholder guard refuses: a model copies an example whole", () => {
+  const { loaded } = session();
+  const shown = loaded.catalog.all.filter((t) => /example\.(com|org|net)/i.test(JSON.stringify(t.inputSchema)));
+  assert.deepEqual(
+    shown.map((t) => t.name),
+    [],
+  );
+});
