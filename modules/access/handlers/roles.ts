@@ -336,11 +336,30 @@ function viewerOf(ctx: AccessCtx, store: ReturnType<typeof storeOf>): { id: stri
   return { id, admin: store.snapshot().info(id)?.perms.has("access.manage") === true };
 }
 
+/** Does the caller see the Space as a whole (View on the Space)? A guest does not, nor does any role cut down like one. No authorize (module tests): yes. */
+function seesSpace(ctx: AccessCtx): boolean {
+  const host = ctx as unknown as { authorize?: (action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => { effect?: string } };
+  return typeof host.authorize !== "function" || host.authorize({ perm: null, level: "view" }, { type: "space", id: (ctx as unknown as { space: string }).space }).effect === "allow";
+}
+/** Who a caller without View on the Space may see: themselves, and every member and agent of the channels they list (channels.list answers only the ones they were added to). */
+async function guestReach(ctx: AccessCtx, me: string): Promise<Set<string>> {
+  const out = new Set<string>([me]);
+  const call = (ctx as unknown as { call?: (cap: string, input: unknown) => Promise<unknown> }).call;
+  if (typeof call !== "function") return out;
+  try {
+    const listed = (await call("channels.list", {})) as { channels?: Array<{ members?: Array<{ id: string }>; agents?: Array<{ agentId: string }> }> };
+    for (const c of listed.channels ?? []) { for (const m of c.members ?? []) out.add(m.id); for (const a of c.agents ?? []) out.add(a.agentId); }
+  } catch { /* the guest keeps to themselves */ }
+  return out;
+}
+
 export async function principalsList(ctx: AccessCtx, input: { kind?: PKind; status?: "invited" | "active" | "suspended" | "removed"; q?: string; cursor?: string; limit?: number }) {
   const store = storeOf(ctx);
   const q = input.q?.toLowerCase();
   const viewer = viewerOf(ctx, store);
-  const all = [...store.principals.values()].map((p) => principalView(store, p, viewer)).filter((p) => {
+  // a guest has no View on the Space (the door lets any member in, level member): they get themselves and who is in the channels they were added to, so names show in those channels and nobody else is listed
+  const reach = viewer && !seesSpace(ctx) ? await guestReach(ctx, viewer.id) : null;
+  const all = [...store.principals.values()].filter((p) => reach === null || reach.has(p.id)).map((p) => principalView(store, p, viewer)).filter((p) => {
     if (input.kind && p.kind !== input.kind) return false;
     if (input.status && p.status !== input.status) return false;
     if (q && !p.name.toLowerCase().includes(q) && !p.id.includes(q)) return false;

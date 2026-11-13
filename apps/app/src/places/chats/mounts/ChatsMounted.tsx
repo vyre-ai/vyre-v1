@@ -17,7 +17,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { Principal } from "../../../shell/session/runtime-data.ts";
 import { conversationData } from "../../../shell/providers/chats-data.ts";
 import type { ChatsActions } from "../../../shell/providers/chats-data.ts";
-import { allows } from "../../../shell/providers/runtime.tsx";
+import { GATE, allows } from "../../../shell/providers/runtime.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { AgentPage, AgentPageLoading } from "../agentpage/AgentPage.tsx";
 import { ComputerPopup, ComputerPopupLoading } from "../computer/ComputerPopup.tsx";
@@ -412,6 +412,10 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   else if (route.view === "artifacts") main = <ArtifactsPage rt={rt} />;
   else if (route.view === "artifact") main = <ArtifactView key={route.artifactId} rt={rt} artifactId={route.artifactId} share={route.share === true} back={() => act({ t: "artifacts" })} gone={() => act({ t: "artifacts" })} />;
   else if (route.view === "notes") main = <NotesPage rt={rt} nameOf={nameOf} noteId={route.noteId ?? null} {...(route.take ? { takeNonce: route.take } : {})} {...(notesInitial ? { initial: notesInitial } : {})} />;
+  else if (route.view === "new" && !allows(rt, GATE.newChat)) {
+    // a guest of a channel or two starts no chats (chat.start is refused them): the start is a line about where to go, and on a phone the list itself
+    main = <View testID="chats-guest-start" style={{ flex: 1, minHeight: 0 }}>{stacked ? <ChatsSidebar data={side} open={openKey} {...(window ? { window } : {})} /> : <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}><Text style={{ fontSize: 15, fontWeight: "600", color: "var(--ink)" as string }}>Pick a channel to read and reply</Text><Text style={{ fontSize: 13, color: "var(--ink-3)" as string, paddingTop: 6, textAlign: "center" }}>The channels you were added to are on the left.</Text></View>}</View>;
+  }
   else if (route.view === "new") {
     main = <Landing rt={rt} nameOf={nameOf} kindOf={(id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person")} openChat={go.chat} openTasks={() => act({ t: "tasks" })} openNeed={(id) => go.needs(id)} openProfile={profile} fill={(t) => fill.set(t)} newKey={newKey} say={setLine} {...(stacked ? { list: <ChatsSidebar data={side} open={openKey} {...(window ? { window } : {})} /> } : {})} />;
   }

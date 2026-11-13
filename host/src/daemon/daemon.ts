@@ -1,4 +1,5 @@
 import { workspaceInTurn } from "./workspace-turns.ts";
+import { threadHome, threadMoveInto, underChannelOf } from "../gateway/resources.ts";
 import { ownsSubject } from "./own-subject.ts";
 import { isExportItself, waitForQuiet } from "./export-quiet.ts";
 import { createChoiceSource } from "./forms-choices.ts";
@@ -1452,6 +1453,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         ensureResource: async (r) => {
           if ((r.type === "conversation" || r.type === "mail_message") && r.id !== null) { await ensureRow(r.type, r.id); return; }
+          if (r.type === "thread" && r.id !== null) { await ensureThreadInChannel(r.id); return; }
           const key = r.type === "connector" ? r.id : r.id === null && r.type === "connection" ? r.parent ?? null : null;
           if (key && builtinConnectors.has(key)) await ensureBuiltinConnector(key);
         },
@@ -1841,6 +1843,36 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           ensuringRow.set(id, p);
         }
         return p;
+      };
+      // A channel's chat and the reply threads under its messages live in the channel (threadHome in host/src/gateway/resources.ts), so what the channel is shared with reaches them. Threads made before that were registered
+      // under the Space: the first call that names one moves it into its channel, once, so a guest invited to an old channel can use it too. The same rule decides both, from the chat's own row.
+      const movingThread = new Map<string, Promise<void>>();
+      const ensureThreadInChannel = async (id: string): Promise<void> => {
+        const have = access.snap.resource(id);
+        if (!have || have.type !== "thread") return;
+        let row: { kind?: string | null; title?: string | null; channelId?: string | null; parentThreadId?: string | null; parentMessageId?: string | null } | undefined;
+        try { row = db!.all(`SELECT kind, title, channelId, parentThreadId, parentMessageId FROM chat_thread WHERE id = ? AND deleted_at IS NULL`, id)[0] as typeof row; } catch { return; }
+        if (!row) return;
+        // a reply thread is a titled-by-nobody thread under a message (a teammate's handoff thread always carries its note as its title)
+        const reply = row.kind === "thread" && !row.title && !!row.parentMessageId;
+        // a reply thread follows the thread it replies in, so that one is moved first
+        if (reply && row.parentThreadId) await ensureThreadInChannel(row.parentThreadId);
+        const home = threadHome({ kind: row.kind, channelId: row.channelId, parentThreadId: row.parentThreadId, replyThread: reply }, (t) => underChannelOf((x) => access.snap.resource(x), t));
+        const moved = threadMoveInto(have, home, home !== null && access.snap.resource(home) !== undefined);
+        if (moved === null) return;
+        let p = movingThread.get(id);
+        if (!p) {
+          p = (async () => {
+            const r = await spaceLog.appendResult({
+              id: `evt_res_${id}_in_${moved.parent_id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: id,
+              payload: moved as unknown as Record<string, unknown>,
+            });
+            if (!r.ok) throw new Error(`could not move the thread ${id} into its channel: ${r.message}`);
+            if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
+          })().finally(() => movingThread.delete(id));
+          movingThread.set(id, p);
+        }
+        await p;
       };
       const ensureBuiltinConnector = (key: string): Promise<void> => {
         let p = ensuringConnector.get(key);

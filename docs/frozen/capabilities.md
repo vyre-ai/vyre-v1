@@ -144,3 +144,9 @@ Signed: lead, 12 Nov 2026
 The description of the optional `blocked` line on `automations.vault_usage` steps now reads "a host not allowed for it" instead of "a host no longer allowed for it". The line itself (key-run.ts) is now one neutral sentence for a host that was removed and one never approved: "#Key is not allowed to go to <host>. Allow it on the key's page, or change this step." Description only: no field, type or error changes.
 
 Signed: lead, 12 Nov 2026
+
+## 13 Nov 2026: access.principals.list is open to every member, and a guest gets a short list (lane f-guest)
+
+`access.principals.list@1` now declares level `member` (it was `view` on the Space). A guest holds no View on the Space, so the call was refused them and every name in their channel read "Someone". The input and output are unchanged. The handler (modules/access/handlers/roles.ts principalsList) answers a caller who lacks View on the Space (a guest) with themselves and the people and agents of the channels they were added to (what channels.list shows them), and nobody else; every other caller gets the list as before. This opens no new data: those names already come back in the channel's own reads.
+
+Signed: pending, the lead (13 Nov 2026)

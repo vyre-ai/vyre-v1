@@ -1,0 +1,5 @@
+- A guest of a channel can now open it, read what was said, and (at reply level) post, open a thread and mention the channel's agent. Before, the channel was listed but every open was refused with "You can't open this chat". A guest still sees and opens only the channels they were added to.
+- A guest sees the names of the people and agents in their channels, not "Someone", and nobody else is listed.
+- A guest's sidebar no longer offers People and Agents (a chat with either is refused them), and their start page says to pick a channel instead of offering a chat that cannot start.
+- Channels made before this release open for guests too: the first time one is used, its chat is moved under its channel.
+- A guest of a channel reads and replies in the threads under its messages too, at the level they were invited at; a thread an agent or a person started from the channel (a helper, a handoff, an Ask pane, an aside) stays closed to them.

@@ -109,7 +109,7 @@ export default defineManifest({
 
   capabilities: [
     // ---- people and other principals
-    read('access.principals.list', 'List principals (people, agents, outside actors, services) with roles and groups', { ...V, in: { kind: t.opt(t.enm('person', 'agent', 'actor', 'service')), status: t.opt(t.enm('invited', 'active', 'suspended', 'removed')), q: t.opt(t.str()), ...pageIn }, out: { principals: t.arr(principalRow), ...pageOut }, tool: 'meta', cli: 'vyre access principals' }),
+    read('access.principals.list', 'List principals (people, agents, outside actors, services) with roles and groups', { ...V, level: 'member', in: { kind: t.opt(t.enm('person', 'agent', 'actor', 'service')), status: t.opt(t.enm('invited', 'active', 'suspended', 'removed')), q: t.opt(t.str()), ...pageIn }, out: { principals: t.arr(principalRow), ...pageOut }, tool: 'meta', cli: 'vyre access principals' }),
     read('access.principals.get', 'Read one principal', { ...V, in: { principal: principalRef }, out: { principal: principalRow }, tool: 'meta' }),
     read('access.principals.effective', 'Effective permissions, grants held and things owned for one principal (computed)', { ...V, in: { principal: principalRef }, out: { permissions: t.arr(t.str()), roles: t.arr(id.role), grants: t.arr(grantRow), owns: t.arr(resourceRef) }, perm: 'access.manage', tool: 'engineer' }),
 

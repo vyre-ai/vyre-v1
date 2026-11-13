@@ -180,7 +180,8 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
         seen.add(id);
         // a Vault item lives in its folder (so a Mine folder's privacy covers what is in it), whatever the call's own input names
         // and a Vault folder made inside another lives in that one, so the outer folder's label and grants cover it as Files folders do
-        const inFolder = s.type === "vault_item" ? pointer(ev.payload, "/folderId") : s.type === "vault_folder" ? pointer(a.input, "/parentId") : undefined;
+        // a channel's chat (its main thread) and the reply threads under its messages live in the channel, so what the channel is shared with (a guest invited to it) reaches them. Nothing else that hangs off a channel does: threadHome
+        const inFolder = s.type === "vault_item" ? pointer(ev.payload, "/folderId") : s.type === "vault_folder" ? pointer(a.input, "/parentId") : s.type === "thread" ? threadHome({ kind: pointer(ev.payload, "/kind"), channelId: pointer(ev.payload, "/channelId"), parentThreadId: pointer(ev.payload, "/parentThreadId"), replyThread: a.cap.name === "chat.thread" }, (t) => underChannel(deps, t)) : undefined;
         const holder = typeof inFolder === "string" && (deps.exists(inFolder) || seen.has(inFolder)) ? inFolder : given;
         const container = typeof holder === "string" && holder !== id && (deps.exists(holder) || seen.has(holder)) ? holder : a.space;
         // a birth event that names its owner (agent.created names ownerId) says whose the object is; otherwise the person the call acts for
@@ -197,4 +198,37 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
       return out;
     },
   };
+}
+
+/** Is this resource a channel, or inside one? Walks parents in the access snapshot, bounded. */
+export function underChannelOf(resource: ((id: string) => ResourceRow | undefined) | undefined, from: string): boolean {
+  let at: string | null = from;
+  for (let depth = 0; at !== null && depth < 16; depth++) {
+    if (ID_SHAPE["channel"]!.test(at)) return true;
+    at = resource?.(at)?.parent_id ?? null;
+  }
+  return false;
+}
+const underChannel = (deps: Pick<RegistrarDeps, "resource">, from: string): boolean => underChannelOf(deps.resource, from);
+
+/**
+ * Where a chat thread lives for access, so a grant on a channel reaches the right threads and no others. Exactly two kinds of thread belong to a channel:
+ *  - its own chat (kind channel, the thread named by the channel), which lives in the channel;
+ *  - a reply thread opened under one of its messages (chat.thread), which lives in the thread it replies in, when that thread is already in a channel (a reply under a reply stays in the channel).
+ * Every other thread keeps the Space as its parent, so a channel's grant does not reach it: a person's one-to-one, an aside, a private Assistant chat, an agent's own chats, a task's or goal's chat, a Run's chat, and the
+ * helper and teammate (handoff) threads an agent starts from a message. Returns the parent's id, or null (the Space).
+ */
+export function threadHome(t: { kind: unknown; channelId: unknown; parentThreadId: unknown; replyThread: boolean }, inChannel: (parent: string) => boolean): string | null {
+  if (t.kind === "channel" && typeof t.channelId === "string" && ID_SHAPE["channel"]!.test(t.channelId)) return t.channelId;
+  if (t.replyThread && t.kind === "thread" && typeof t.parentThreadId === "string" && ID_SHAPE["thread"]!.test(t.parentThreadId) && inChannel(t.parentThreadId)) return t.parentThreadId;
+  return null;
+}
+
+/**
+ * The registration that moves a thread made before channel threads lived in their channel: the same row with its home as its parent, or null when there is nothing to move (not one of the two kinds that belong to
+ * a channel, the home is not a known resource, or it is already there).
+ */
+export function threadMoveInto(have: ResourceRow | undefined, home: string | null | undefined, homeKnown: boolean): ResourceRow | null {
+  if (!have || have.type !== "thread" || !home || !homeKnown || have.parent_id === home) return null;
+  return { ...have, parent_id: home };
 }
