@@ -3,7 +3,16 @@
 // open, and what the tool layer refuses (another person's folder as a working directory or in a command, a project folder of a project the asker is not on).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { askerPlace, ensureCommand, folderOf, inOtherFolder, otherFolders, projectsNamed } from "../asker.ts";
+import {
+  askerPlace,
+  ensureCommand,
+  folderOf,
+  inOtherFolder,
+  namesMirror,
+  otherFolders,
+  ownersHomeRefs,
+  projectsNamed,
+} from "../asker.ts";
 import { handlers } from "../impl.ts";
 import { bindHost, bindPlace, bindTeam } from "../projections.ts";
 import type { TermCtx } from "../projections.ts";
@@ -41,11 +50,18 @@ test("another person's folder is found in a path or a command, in every spelling
   assert.equal(inOtherFolder("~/people/usr_ana", "usr_ben"), true);
   assert.equal(inOtherFolder("/home/agent/people/usr_ben/work", "usr_ben"), false);
   assert.equal(inOtherFolder("/home/agent", "usr_ben"), false);
+  assert.deepEqual(
+    ownersHomeRefs("cat /home/agent/.gitconfig /home/agent/.ssh/id_rsa; ls /home/agent; cd /home/agent/people/usr_ben"),
+    [".gitconfig", ".ssh", ""],
+  );
+  assert.deepEqual(ownersHomeRefs("ls /home/agent/projects/p /home/agent/Vyre/x /home/agentx"), []);
+  assert.equal(namesMirror("ls ~/Vyre/notes"), true);
+  assert.equal(namesMirror("ls ~/VyreX"), false);
   assert.deepEqual(projectsNamed("cd ~/projects/prj_a && ls /home/agent/projects/prj_b/x"), ["prj_a", "prj_b"]);
 });
 
 function setup(
-  agent: { ownerId?: string; kind?: string; runtime?: string },
+  agent: { ownerId?: string; kind?: string; runtime?: string; folderId?: string },
   allow: (type: string, id: string | null) => boolean = () => true,
 ) {
   reset();
@@ -86,7 +102,10 @@ test("a turn for a person who is not the agent's owner opens its shell in their 
 });
 
 test("the tool layer refuses another person's folder as a working directory and in a command, and a project folder of a project the asker is not on", async () => {
-  const w = setup({ ownerId: "usr_maya", kind: "agent" }, (type, id) => !(type === "project" && id === "prj_other"));
+  const w = setup(
+    { ownerId: "usr_maya", kind: "agent", folderId: "fld_dex" },
+    (type, id) => !(type === "project" && id === "prj_other") && type !== "folder",
+  );
   const ben = w.turn("usr_ben");
   const refused = async (input: Record<string, unknown>): Promise<unknown> => {
     try {
@@ -108,7 +127,48 @@ test("the tool layer refuses another person's folder as a working directory and 
     "not refused",
     "a project the asker is on",
   );
+  // the agent's own home (the owner's keys, config, history) by plain path, and the Files mirror when the asker may not view the agent's folder
+  assert.equal(await refused({ command: "cat /home/agent/.gitconfig" }), "owners_home");
+  assert.equal(await refused({ command: "cat /home/agent/.ssh/id_ed25519" }), "owners_home");
+  assert.equal(await refused({ command: "pwd", cwd: "/home/agent", session: "c" }), "owners_home");
+  assert.equal(await refused({ command: "ls ~/Vyre/plans" }), "files_folder");
   // a person's own tab and the owner are not bound by the text of a command
   const maya = w.turn("usr_maya");
   await h["terminal.run"]!(maya, { command: "echo hi", idempotencyKey: idem() });
+});
+
+test("a person who leaves the Space: their folder is taken out of every workspace, their open terminals close, the agent's home and the others are not touched", async () => {
+  const { onPersonGone } = await import("../handlers/sessions.ts");
+  const { removeCommand } = await import("../asker.ts");
+  const w = setup({ ownerId: "usr_maya", kind: "agent" });
+  await h["terminal.run"]!(w.turn("usr_ben"), { command: "echo hi", idempotencyKey: idem() });
+  const open = (): number =>
+    (w.hn.rows("SELECT * FROM terminal_sessions WHERE owner = ? AND closed_at IS NULL", "usr_ben") as unknown[]).length;
+  assert.equal(open(), 1);
+  const removed: Array<[string, string]> = [];
+  const done = await onPersonGone(
+    w.hn.ctx,
+    { payload: { personId: "usr_ben" } },
+    async () => ["agt_dex", "agt_two"],
+    async (agentId, place) => {
+      removed.push([agentId, place.home]);
+    },
+  );
+  assert.deepEqual(done, ["agt_dex", "agt_two"]);
+  assert.deepEqual(removed, [
+    ["agt_dex", "/home/agent/people/usr_ben"],
+    ["agt_two", "/home/agent/people/usr_ben"],
+  ]);
+  assert.equal(open(), 0, "closed");
+  assert.deepEqual(
+    await onPersonGone(
+      w.hn.ctx,
+      { payload: { personId: "agt_x" } },
+      async () => ["a"],
+      async () => undefined,
+    ),
+    [],
+  );
+  const cmd = removeCommand(askerPlace("usr_ben")).join(" ");
+  assert.ok(cmd.includes("/home/agent/people/usr_ben") && !/\/home\/agent\s/.test(cmd), cmd);
 });

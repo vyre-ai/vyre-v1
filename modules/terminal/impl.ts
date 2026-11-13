@@ -4,7 +4,15 @@
 // is read back with capture-pane. Live frames come from a tmux control-mode client (`%output` lines, decoded here).
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { forgetExpiredWorkspaces, onAgentGone, onAgentRestored, openTabForRun, stopRuns } from "./handlers/sessions.ts";
+import {
+  forgetExpiredWorkspaces,
+  onAgentGone,
+  onAgentRestored,
+  onPersonGone,
+  openTabForRun,
+  stopRuns,
+} from "./handlers/sessions.ts";
+import { removeCommand } from "./asker.ts";
 import {
   bindWorkspaceStatus,
   bindHost,
@@ -1229,6 +1237,19 @@ export const hostCalls = {
 
 /** What the module reads from the event log (host/src/daemon/consumers.ts runs each after commit, at least once). */
 export const consumers = {
+  /** A person left the Space: their folder in every shared agent's workspace is removed with the rest of their data (asker.ts). */
+  "terminal.person_gone": {
+    on: ["member.removed"],
+    run: (ctx: TermCtx, event: { payload: { personId?: unknown } }): Promise<string[]> =>
+      onPersonGone(
+        ctx,
+        event,
+        async () => (workspaceManager ? (await workspaceManager.list()).map((w) => w.agentId) : []),
+        async (agentId, place) => {
+          await workspaceManager?.exec(agentId, removeCommand(place), { quiet: true });
+        },
+      ),
+  },
   /** An agent went to Trash (deleted, or the Assistant of a person removed from the Space): its sessions close and its workspace's container and room go; what it kept stays (handlers/sessions.ts onAgentGone). */
   "terminal.agent_gone": {
     on: ["agent.deleted"],

@@ -83,13 +83,21 @@ test(
       { cmd: "pwd", cwd: anaDir, session: "elsewhere" },
       { cmd: `cat ${anaDir}/a-private.txt` },
       { cmd: "pwd", cwd: mine, session: "mine" },
-      { cmd: "pwd", cwd: "/home/agent", session: "agenthome" },
+      { cmd: "cat /home/agent/.gitconfig" },
+      { cmd: "cat /home/agent/.git-credentials" },
+      { cmd: "ls /home/agent/.ssh" },
     ]);
     console.log("REFUSED ", JSON.stringify(refused));
     assert.equal(refused[0]!.ok, false, "a working directory in Ana's folder is refused");
     assert.equal(refused[1]!.ok, false, "a command that names Ana's folder is refused");
     assert.equal(refused[2]!.ok, true, "his own folder is fine");
-    assert.equal(refused[3]!.ok, true, "the agent's own home is fine");
+    for (const [i, what] of [
+      [3, ".gitconfig"],
+      [4, ".git-credentials"],
+      [5, ".ssh"],
+    ] as const)
+      assert.equal(refused[i]!.ok, false, `the agent's own ${what} by plain path is refused`);
+    assert.match(refused[5]!.error ?? "", /agent's own home/);
 
     // the owner, her Assistant and a turn for nobody keep the agent's home as it was
     const keep = await w.turn(w.owner, "maya-1", [{ cmd: 'echo "$HOME|$HISTFILE"' }]);
@@ -211,5 +219,34 @@ test(
     check(await reads("slept"), "after a sleep");
     await w.restart();
     check(await reads("restarted"), "after a restart");
+  },
+);
+
+// Lead, 13 Nov: a turn for nobody (a routine) uses the place of the person the work belongs to. A routine's run is started as the routine's owner, so its tool calls act for them: a routine Ana owns
+// browses and types as Ana, never as the agent's owner.
+test(
+  "a routine owned by Ana runs its commands in Ana's place, not the agent owner's",
+  { skip, timeout: 900_000 },
+  async (t) => {
+    const w = await world();
+    t.after(() => w.close());
+    const saved = await w.owner.call("agents.routine.save", {
+      agentId: w.agent,
+      title: "Ana's morning check",
+      cron: "0 3 * * *",
+      prompt: `RUN routine-ana ${JSON.stringify([{ cmd: 'echo "$HOME"' }])}`,
+    });
+    assert.equal(saved.status, 200, JSON.stringify(saved.data));
+    const routineId = saved.data.routine.routineId as string;
+    const handed = await w.owner.call("agents.routine.delegate", {
+      agentId: w.agent,
+      routineId,
+      to: { kind: "person", id: w.ana.id },
+    });
+    assert.equal(handed.status, 200, JSON.stringify(handed.data));
+    const ran = await w.owner.call("agents.routine.run_now", { agentId: w.agent, routineId });
+    assert.equal(ran.status, 200, JSON.stringify(ran.data));
+    const got = await w.waitFor("routine-ana");
+    assert.equal(got[0]!.text, `/home/agent/people/${w.ana.id.replace(/[^A-Za-z0-9_-]/g, "_")}`, "Ana's place");
   },
 );

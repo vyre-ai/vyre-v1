@@ -43,6 +43,8 @@ export interface World {
   ben: { id: string; call: Caller };
   /** Post `steps` as `who` in a chat of their own with agent X (or `agentId`), wait for the turn to record, and return the answers. */
   turn(who: { id: string; call: Caller }, key: string, steps: Step[], agentId?: string): Promise<Got[]>;
+  /** Wait for the answers a script recorded under `key` (a turn started some other way: a routine). */
+  waitFor(key: string): Promise<Got[]>;
   /** Stop the daemon and start it again on the same data folder (what an update does); everyone signs in again. */
   restart(): Promise<void>;
   close(): Promise<void>;
@@ -55,7 +57,9 @@ export async function world(): Promise<World> {
   const before = new Set(await workspaceNames());
   const results = new Map<string, Got[]>();
   const model = scriptedModel(async function* (input, run) {
-    const m = /^RUN (\S+) (\[.*\])$/s.exec(input.trigger?.body ?? "");
+    // a person's message carries the script in its body; a routine's run carries it in the routine's prompt (the notice)
+    const text = `${input.trigger?.body ?? ""}\n${String((input as { notice?: string }).notice ?? "")}`;
+    const m = /(?:^|\n)RUN (\S+) (\[.*\])/.exec(text);
     if (!m) return;
     const steps = JSON.parse(m[2]!) as Step[];
     yield* run("tool_search", { query: "terminal run command" });
@@ -119,6 +123,9 @@ export async function world(): Promise<World> {
     assert.equal(item.status, 200, JSON.stringify(item.data));
     const done = await call("providers.subscription_complete", { flowId: flow.data.flowId });
     assert.equal(done.status, 200, JSON.stringify(done.data));
+    // a routine or a wake runs on a person's own subscription only with this switch on
+    const use = await call("providers.set_space_use", { providerId: done.data.provider.id, allow: true });
+    assert.equal(use.status, 200, JSON.stringify(use.data));
   }
   const agent = (
     await s.api("agents.create", { name: "Dex", role: "You help the whole team.", idempotencyKey: "aw-dex" })
@@ -141,6 +148,16 @@ export async function world(): Promise<World> {
         mentions: [{ kind: "agent", id: agentId }],
       });
       assert.equal(posted.status, 200, `chat.post: ${JSON.stringify(posted.data)}`);
+      return waitFor(
+        async () => {
+          await w.d.hooks?.pump?.();
+          return results.get(key) ?? null;
+        },
+        180_000,
+        () => hostLog(w.d),
+      );
+    },
+    async waitFor(key) {
       return waitFor(
         async () => {
           await w.d.hooks?.pump?.();

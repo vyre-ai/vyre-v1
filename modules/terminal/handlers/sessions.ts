@@ -6,7 +6,7 @@
 // The machine does the work through the TerminalHost port (projections.ts); this module keeps what Vyre knows about a session and enforces who may do what in it.
 import { STOPPED_LINE } from "../stop-line.ts";
 import { hasOwnPlace } from "../../../lib/asker-place.ts";
-import { askerPlace, inOtherFolder, otherFolders, projectsNamed } from "../asker.ts";
+import { askerPlace, inOtherFolder, namesMirror, otherFolders, ownersHomeRefs, projectsNamed } from "../asker.ts";
 import type { AskerPlace } from "../asker.ts";
 import {
   MAX_RULES,
@@ -114,6 +114,7 @@ interface AgentFacts {
   kind?: string;
   runtime?: string;
   name?: string;
+  folderId?: string;
 }
 
 // ---- the workspace a call works in, and who it is there ----------------------------------------------------------------------------------------------------
@@ -222,9 +223,30 @@ export async function askerPlaceFor(
  * What the tool layer refuses in a turn that has a place of its own: a working directory or a command that names another person's folder, or the folder of a project the person is not on. A shell can
  * still build a path the text does not show (`cd ..; cat`): that is the user id, which one container cannot split (see the report).
  */
-function keepOut(ctx: TermCtx, place: AskerPlace, texts: ReadonlyArray<string | undefined>): void {
+async function keepOut(
+  ctx: TermCtx,
+  place: AskerPlace,
+  agentId: string,
+  texts: ReadonlyArray<string | undefined>,
+): Promise<void> {
   for (const text of texts) {
     if (text === undefined || text === "") continue;
+    // the agent's own home (its owner's sign-ins, history, keys): a person's own folder is their home, so nothing of the agent's is theirs to name
+    if (ownersHomeRefs(text).length > 0)
+      raise(ctx, "permission.role_lacks_permission", "That is the agent's own home. Work in your own folder.", {
+        reason: "owners_home",
+      });
+    // the mirror of the agent's Files folder: only for a person who may view that folder in Files
+    if (namesMirror(text)) {
+      const folder = (await lookup(ctx, agentId)).agent?.folderId;
+      if (
+        folder === undefined ||
+        ctx.authorize({ perm: null, level: "view" }, { type: "folder", id: folder }).effect !== "allow"
+      )
+        raise(ctx, "permission.role_lacks_permission", "That folder in Files is not one you may open.", {
+          reason: "files_folder",
+        });
+    }
     if (otherFolders(text, place.person).length > 0 || inOtherFolder(text, place.person))
       raise(ctx, "permission.role_lacks_permission", "That is another person's folder. Work in your own.", {
         reason: "other_persons_folder",
@@ -466,7 +488,7 @@ async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown
   // a person who uses a shared agent without owning it works in a folder of their own (asker.ts)
   const place =
     a.host === "agent_computer" && a.agentId !== undefined ? await askerPlaceFor(ctx, a.agentId, owner) : undefined;
-  if (place !== undefined) keepOut(ctx, place, [a.cwd]);
+  if (place !== undefined) await keepOut(ctx, place, a.agentId as string, [a.cwd]);
   let started: { cwd: string; title?: string };
   try {
     started = await hostOf(ctx).open({
@@ -1041,7 +1063,7 @@ export async function run(ctx: TermCtx, a: RunInput) {
   // a person who uses a shared agent without owning it: the command and its folder may not name another person's folder (asker.ts)
   if (s.host === "agent_computer" && s.agentId !== undefined) {
     const place = await askerPlaceFor(ctx, s.agentId, owner);
-    if (place !== undefined) keepOut(ctx, place, [a.cwd, command]);
+    if (place !== undefined) await keepOut(ctx, place, s.agentId, [a.cwd, command]);
   }
   const host = await hostFor(ctx, s);
   const timeoutMs = (a.timeoutSec ?? DEFAULT_TIMEOUT_SEC) * 1000;
@@ -1454,6 +1476,39 @@ export async function isDangerCall(_ctx: unknown, input: unknown): Promise<boole
  */
 /** Is this agent in Trash now (agents_agent.deletedAt, bound by the daemon)? undefined when it cannot be told. */
 export type InTrash = (agentId: string) => boolean | undefined;
+
+/**
+ * A person was removed from the Space or left it (member.removed): their folder in every shared agent's workspace goes with their other data, and their open terminals close. `removeFrom` takes the folder out of
+ * one workspace. The agent's own home and the other people's folders are not touched. Their sessions in the agent's own Assistant go with the Assistant (onAgentGone).
+ */
+export async function onPersonGone(
+  ctx: TermCtx,
+  event: { payload: { personId?: unknown } },
+  agents: () => Promise<string[]>,
+  removeFrom: (agentId: string, place: AskerPlace) => Promise<void>,
+): Promise<string[]> {
+  ensure(ctx.db);
+  const person = event.payload.personId;
+  if (typeof person !== "string" || !person.startsWith("usr_")) return [];
+  const open = (
+    ctx.db.all("SELECT terminal_id FROM terminal_sessions WHERE owner = ? AND closed_at IS NULL", person) as Row[]
+  ).map((r) => String(r["terminal_id"]));
+  const at = ctx.now();
+  for (const id of open) {
+    ctx.db.run("UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?", at, id);
+    ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" });
+  }
+  const done: string[] = [];
+  for (const agentId of await agents()) {
+    try {
+      await removeFrom(agentId, askerPlace(person));
+      done.push(agentId);
+    } catch {
+      /* an agent in Trash, or a workspace that will not start: its folder goes with its volumes */
+    }
+  }
+  return done;
+}
 
 export async function onAgentGone(
   ctx: TermCtx,

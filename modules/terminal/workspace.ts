@@ -2103,7 +2103,9 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
           if (have.listeners.size === 0) have.stop();
         };
       }
-      const file = `/tmp/.vyre-stream-${session}`;
+      // a person's own (asker.ts): in their tmux folder, made private, not in the /tmp every turn shares
+      const file =
+        place === undefined ? `/tmp/.vyre-stream-${session}` : `${place.tmuxEnv["TMUX_TMPDIR"]}/stream-${session}`;
       const listeners = new Set<(line: string) => void>([onLine]);
       let stopped = false;
       const entry = {
@@ -2126,7 +2128,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
         try {
           await m.exec(
             agentId,
-            ["sh", "-c", ': > "$2"; tmux pipe-pane -t "$1" "cat >> $2"', "sh", session, file],
+            ["sh", "-c", 'umask 077; : > "$2"; tmux pipe-pane -t "$1" "cat >> $2"', "sh", session, file],
             env === undefined ? undefined : { env },
           );
           while (!stopped) {
