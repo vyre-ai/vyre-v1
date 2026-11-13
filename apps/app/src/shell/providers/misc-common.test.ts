@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { nameOf } from "./misc-common.ts";
-import { NAME_LOADING, nameLookup } from "./records-live.ts";
+import { NAME_LOADING, NAME_UNAVAILABLE, nameLookup } from "./records-live.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 const rt = (ready: boolean): ShellRuntime =>
@@ -41,4 +41,16 @@ test("ready and found: the name; ready and missing: a plain word; not ready: the
     nameLookup(rt(true))("usr_gone0123456789ab"),
     "the same resolver as Records and Chats",
   );
+});
+
+test("a directory that failed to load reads Name unavailable, not an ellipsis for ever", () => {
+  const failed = {
+    me: { id: "usr_me", name: "Olivia Park" },
+    principals: {
+      subscribe: () => () => undefined,
+      getSnapshot: () => ({ status: "loading", error: { message: "offline" } }),
+    },
+  } as unknown as ShellRuntime;
+  assert.equal(nameLookup(failed)("usr_maya"), NAME_UNAVAILABLE);
+  assert.equal(nameLookup(failed)("usr_me"), "Olivia Park");
 });

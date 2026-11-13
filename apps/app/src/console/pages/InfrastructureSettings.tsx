@@ -701,8 +701,7 @@ export function SpaceProfile(): ReactElement {
           <Line index={0}>
             <Row
               id="space-id"
-              title={isNamed(space.name) ? space.name : "This Space"}
-              note="Space ID"
+              title="Space ID"
               trailing={
                 <View style={st.inline}>
                   <Text selectable testID="space-id-value" style={st.mono} numberOfLines={1}>

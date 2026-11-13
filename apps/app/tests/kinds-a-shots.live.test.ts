@@ -86,6 +86,32 @@ test("f-kinds-a pictures", async (t) => {
         ],
       },
     }).catch((e: Error) => fs.writeFileSync(path.join(out, "automation-definition-refused.txt"), e.message));
+    // steps with no card of their own: their inputs hold ids (a file, a folder, a record), which a card must name in words, never print
+    const tidy = await call("automations.create", { name: "Tidy files" });
+    await call("automations.update", {
+      automationId: (tidy.automation?.id ?? tidy.automation?.automationId) as string,
+      definition: {
+        triggers: [{ key: "webhook" }],
+        start: ["t1"],
+        nodes: [
+          {
+            id: "t1",
+            key: "files.move",
+            input: {
+              fileId: "fil_01a1d27b165742ddb20032cbd182aaf9",
+              toFolderId: "fld_01a1d27b165742ddb20032cbd182aaf9",
+            },
+            next: ["t2"],
+          },
+          {
+            id: "t2",
+            key: "records.update",
+            input: { recordId: "rec_01a1d27b165742ddb20032cbd182aaf9", type: "lead", url: "https://x.example" },
+            next: [],
+          },
+        ],
+      },
+    }).catch((e: Error) => fs.writeFileSync(path.join(out, "automation-tidy-refused.txt"), e.message));
     for (const nm of ["launch-week", "launch-plan", "launch-retro", "launch-party"])
       await call("channels.create", { name: nm, visibility: "public" });
     const agents = (await call("agents.list", {})).agents as { id: string; name: string }[];
@@ -188,6 +214,14 @@ test("f-kinds-a pictures", async (t) => {
         .waitFor({ timeout: 20_000 })
         .catch(() => undefined);
       await shot("1-step-cards", skin);
+      await page.getByText("Tidy files", { exact: true }).first().click({ timeout: 30_000 });
+      await page.getByTestId("card-t1").waitFor({ timeout: 20_000 });
+      const sub = await page.getByTestId("card-sub-t1").innerText();
+      assert.ok(
+        /File|folder/i.test(sub) && !/fil_|fld_|\bid\b/i.test(sub),
+        `the step card names its inputs in words: ${sub}`,
+      );
+      await shot("1b-step-cards-generic", skin);
 
       // 2. Console Home: the collapsed run, then the same row opened
       await page.goto(`${web.origin}/console?skin=${skin}`, { waitUntil: "load" });
@@ -222,20 +256,19 @@ test("f-kinds-a pictures", async (t) => {
       );
       await shot("3-command-bar", skin);
       // a task and a chat that only share a name (not linked by id) are two rows; a task with its own thread is one
-      for (const [word, tag, expect] of [
-        ["announcement", "3-command-bar-same-name-unlinked", "announcement"],
-        ["venue", "3-command-bar-task-once", "venue"],
+      for (const [word, tag, heads] of [
+        ["announcement", "3-command-bar-same-name-unlinked", ["Chats", "Tasks"]],
+        ["venue", "3-command-bar-task-once", ["Tasks"]],
       ] as const) {
         await page.getByTestId("cmdk-input").fill(word);
         await page.waitForFunction(
           (w) => {
             const t = document.querySelector("[data-testid=cmdk-list]")?.textContent ?? "";
-            return t.includes(w) && !t.includes("launch-week");
+            return w.every((h) => t.includes(h)) && !t.includes("launch-week");
           },
-          expect,
+          [...heads],
           { timeout: 20_000 },
         );
-        await page.waitForTimeout(600); // the server's rows arrive after the device's
         await shot(tag, skin);
       }
       await page.keyboard.press("Escape");

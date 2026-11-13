@@ -21,7 +21,10 @@ export const IDS_ON_PURPOSE = {
 } as const;
 export type IdsOnPurpose = keyof typeof IDS_ON_PURPOSE;
 
-/** What the scan does not read: text a person wrote or named (code, pre-formatted text, fields, editable text, anything marked data-user-content). The app's own text is everything else. */
+/**
+ * What the scan does not read: code and pre-formatted text, fields and editable text, and any element marked data-user-content. No element carries that mark yet, so a chat message or a name drawn as plain text
+ * is still scanned (with the narrow id shape it only matters when someone pastes a real minted id). The app's own text is everything else.
+ */
 export const USER_CONTENT = "pre, code, kbd, samp, textarea, input, [contenteditable], [data-user-content]";
 
 interface PageLike {

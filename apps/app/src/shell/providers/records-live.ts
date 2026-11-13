@@ -20,6 +20,9 @@ export function capLive<T>(rt: ShellRuntime, cap: string, input: Record<string, 
 /** What a name reads while the directory has not answered (or failed to): not "Someone", which would say the person is unknown. */
 export const NAME_LOADING = "\u2026";
 
+/** What a name reads when the directory failed to load: a plain word that does not claim the person is unknown, and that does not stay an ellipsis for ever. */
+export const NAME_UNAVAILABLE = "Name unavailable";
+
 /**
  * The name of a person, agent or group by id. While the directory has not loaded (or failed) it is NAME_LOADING, never a word that claims the person is unknown; once it has loaded, one it does not
  * hold is a plain word ("Someone", "An agent"). The id itself is never the answer.
@@ -28,7 +31,8 @@ export function nameLookup(rt: ShellRuntime): (id: string) => string {
   return (id) => {
     if (id === rt.me.id) return rt.me.name;
     const s = rt.principals.getSnapshot();
-    if (s.status !== "ready") return NAME_LOADING;
+    // a directory that failed is a loading query that carries its error (client QueryState): it reads as failed, not as loading for ever
+    if (s.status !== "ready") return (s as { error?: unknown }).error ? NAME_UNAVAILABLE : NAME_LOADING;
     const p: Principal | undefined = s.data.find((x) => x.id === id);
     // never a raw id: a service (svc_host) is Vyre, and anyone not known is a plain word
     return p ? p.name : unnamed(id);
