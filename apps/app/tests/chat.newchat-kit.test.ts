@@ -6,8 +6,8 @@
 // path changes). From the key press on, the page notes when (a) the person's own message is on screen in a message row, (b) the selected tab is named for the chat, (c) a working mark is on screen,
 // (d) the agent's first words are on screen, and every /v1 request it makes. The budget: (a), (b) and (c) within 100 ms of the key press, on loopback and with the delay (V1-SPEC speed budgets, send shows < 16 ms, new chat < 100 ms).
 // VYRE_NEWCHAT_RUNS sets the runs per case (default 5; the lane's measurement used 10). VYRE_NEWCHAT_OUT names a directory for the numbers and the shots.
-import test from "node:test";
 import assert from "node:assert/strict";
+import { pct } from "./chat.newchat-pct-kit.test.ts";
 import fs from "node:fs";
 import http from "node:http";
 import net from "node:net";
@@ -154,11 +154,7 @@ const RECORDER = `(() => {
   requestAnimationFrame(tick);
 })();`;
 
-export const pct = (xs: number[], p: number): number | null => {
-  if (xs.length === 0) return null;
-  const s = [...xs].sort((a, b) => a - b);
-  return Math.round(s[Math.max(0, Math.ceil(p * s.length) - 1)]!);
-};
+export { pct } from "./chat.newchat-pct-kit.test.ts";
 
 interface Marks {
   a?: number;
@@ -913,151 +909,157 @@ export function within(
   );
 }
 
-test("new chat kit: the percentile of ten runs is the slowest run (nearest rank), and an empty list has none", () => {
-  assert.equal(pct([5, 1, 9, 3, 2, 8, 7, 4, 6, 10], 0.95), 10);
-  assert.equal(pct([5, 1, 9, 3, 2, 8, 7, 4, 6, 10], 0.5), 5);
-  assert.equal(pct([], 0.5), null);
-});
-
 export type StartPath = "tabplus" | "tabplus-ask" | "sidebar" | "first";
 /** One start path on one link, recorded with pictures. One case per file: each takes 40 to 60 s and a file's watchdog is 120 s, so the six cases cannot share a file. */
-export function definePathProbe(startPath: StartPath, label: "probe-loopback" | "probe-relay"): void {
+export function definePathProbe(startPath: StartPath, label: "probe-loopback" | "probe-relay") {
   const [latency, delay] = label === "probe-loopback" ? [0, 0] : [150, 1500];
-  test(`path ${startPath} (${label}): what the page shows from Enter on`, async (t) => {
-    if (!process.env["VYRE_APP_DIST"]) {
-      if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
-      t.skip("VYRE_APP_DIST required for production browser evidence");
-      return;
-    }
-    const rows = await runPathProbe(label, latency, delay, startPath);
-    console.log(
-      "PATH " +
-        JSON.stringify(
-          rows.map((r) => ({
-            path: r.path,
-            step: r.step,
-            first_ms: r.first_acknowledged_ms,
-            transitions: r.transitions,
-          })),
-        ),
-    );
-    assert.ok(rows.length > 0);
-  });
+  return [
+    `path ${startPath} (${label}): what the page shows from Enter on`,
+    async (t: { skip(m?: string): void }) => {
+      if (!process.env["VYRE_APP_DIST"]) {
+        if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
+        t.skip("VYRE_APP_DIST required for production browser evidence");
+        return;
+      }
+      const rows = await runPathProbe(label, latency, delay, startPath);
+      console.log(
+        "PATH " +
+          JSON.stringify(
+            rows.map((r) => ({
+              path: r.path,
+              step: r.step,
+              first_ms: r.first_acknowledged_ms,
+              transitions: r.transitions,
+            })),
+          ),
+      );
+      assert.ok(rows.length > 0);
+    },
+  ] as const;
 }
 
 /** The owner's path in a loop (new tab, Ask, Continue in a chat, the tab onto the real chat, new tab again) on one link. Rounds: VYRE_NEWCHAT_ROUNDS, else 10 on loopback and 5 on the slow link (a file's watchdog is 120 s; the slow link takes about 9 s a round on a quiet computer). One link per file.
  *  The 50-round crash hunt runs the file directly with node --test and VYRE_NEWCHAT_ROUNDS=50. */
-export function defineLoop(label: "loopback" | "relay"): void {
+export function defineLoop(label: "loopback" | "relay") {
   const [latency, startDelay] = label === "loopback" ? [0, 0] : [150, 300];
   const ROUNDS = Number(process.env["VYRE_NEWCHAT_ROUNDS"] ?? (label === "loopback" ? 10 : 5));
-  test(`new tab, ask, continue in a chat, new tab again, ${ROUNDS} rounds (${label}): no crash page, no console crash, every Ask answered and continued`, async (t) => {
-    if (!process.env["VYRE_APP_DIST"]) {
-      if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
-      t.skip("VYRE_APP_DIST required for production browser evidence");
-      return;
-    }
-    await walk(`loop-${label}`, latency, startDelay, async ({ page, web, v, guard, shots, api }) => {
-      const assistant = (await api("agents.list", {})).agents[0] as { agentId: string };
-      await cannedAsk(page, latency > 0 ? 2000 : 800);
-      await page.goto(`${web.origin}/chat`, { waitUntil: "load" });
-      await page.getByTestId("shell").waitFor({ timeout: 30_000 });
-      let continued = 0;
-      for (let i = 1; i <= ROUNDS; i++) {
-        v.script.push({ text: `The Lisbon team review is on Thursday [1]. Round ${i}.` });
-        v.script.push({ text: `Opened round ${i}.` });
-        await page.getByTestId("tab-strip-plus").click();
-        const box = page.getByTestId("cmdk-input");
-        // a page that never shows the search box is a crash or a hang: say which, with a picture, before anything else
-        await box.waitFor({ timeout: 20_000 }).catch(async (e: unknown) => {
-          await page.screenshot({ path: `${shots}/loop-${label}-nobox-${i}.png` });
-          await guard.check(`round ${i}, after "+"`);
-          throw e;
-        });
-        await box.fill("Lisbon team review Thursday?");
-        await box.press("Alt+Enter"); // Enter starts a chat in a new tab (13 Nov); the Ask is the chord
-        await page
-          .getByTestId("cmdk-continue")
-          .waitFor({ timeout: 40_000 })
-          .catch(async (e: unknown) => {
-            await page.screenshot({ path: `${shots}/loop-${label}-noanswer-${i}.png` });
-            throw e;
-          });
-        await page.getByTestId("cmdk-continue").click();
-        continued += 1;
-        await page
-          .getByTestId("composer-field")
-          .first()
-          .waitFor({ timeout: 30_000 })
-          .catch(async (e: unknown) => {
-            await page.screenshot({ path: `${shots}/loop-${label}-nochat-${i}.png` });
-            await guard.check(`round ${i}, after Continue in a chat`);
-            console.log(
-              `round ${i}: no chat composer; the page says: ${(
-                await page
-                  .locator("body")
-                  .innerText()
-                  .catch(() => "")
-              )
-                .replace(/\s+/g, " ")
-                .slice(0, 300)}`,
-            );
-            throw e;
-          });
-        await guard.check(`round ${i}`).catch(async (e: unknown) => {
-          await page.screenshot({ path: `${shots}/loop-${label}-crash-${i}.png` });
-          throw e;
-        });
+  return [
+    `new tab, ask, continue in a chat, new tab again, ${ROUNDS} rounds (${label}): no crash page, no console crash, every Ask answered and continued`,
+    async (t: { skip(m?: string): void }) => {
+      if (!process.env["VYRE_APP_DIST"]) {
+        if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
+        t.skip("VYRE_APP_DIST required for production browser evidence");
+        return;
       }
-      assert.equal(continued, ROUNDS, "every round was answered and continued in a chat");
-      console.log(`${label}: ${ROUNDS} rounds, Continue in a chat pressed ${continued} times`);
-    });
-  });
+      await walk(`loop-${label}`, latency, startDelay, async ({ page, web, v, guard, shots, api }) => {
+        const assistant = (await api("agents.list", {})).agents[0] as { agentId: string };
+        await cannedAsk(page, latency > 0 ? 2000 : 800);
+        await page.goto(`${web.origin}/chat`, { waitUntil: "load" });
+        await page.getByTestId("shell").waitFor({ timeout: 30_000 });
+        let continued = 0;
+        for (let i = 1; i <= ROUNDS; i++) {
+          v.script.push({ text: `The Lisbon team review is on Thursday [1]. Round ${i}.` });
+          v.script.push({ text: `Opened round ${i}.` });
+          await page.getByTestId("tab-strip-plus").click();
+          const box = page.getByTestId("cmdk-input");
+          // a page that never shows the search box is a crash or a hang: say which, with a picture, before anything else
+          await box.waitFor({ timeout: 20_000 }).catch(async (e: unknown) => {
+            await page.screenshot({ path: `${shots}/loop-${label}-nobox-${i}.png` });
+            await guard.check(`round ${i}, after "+"`);
+            throw e;
+          });
+          await box.fill("Lisbon team review Thursday?");
+          await box.press("Alt+Enter"); // Enter starts a chat in a new tab (13 Nov); the Ask is the chord
+          await page
+            .getByTestId("cmdk-continue")
+            .waitFor({ timeout: 40_000 })
+            .catch(async (e: unknown) => {
+              await page.screenshot({ path: `${shots}/loop-${label}-noanswer-${i}.png` });
+              throw e;
+            });
+          await page.getByTestId("cmdk-continue").click();
+          continued += 1;
+          await page
+            .getByTestId("composer-field")
+            .first()
+            .waitFor({ timeout: 30_000 })
+            .catch(async (e: unknown) => {
+              await page.screenshot({ path: `${shots}/loop-${label}-nochat-${i}.png` });
+              await guard.check(`round ${i}, after Continue in a chat`);
+              console.log(
+                `round ${i}: no chat composer; the page says: ${(
+                  await page
+                    .locator("body")
+                    .innerText()
+                    .catch(() => "")
+                )
+                  .replace(/\s+/g, " ")
+                  .slice(0, 300)}`,
+              );
+              throw e;
+            });
+          await guard.check(`round ${i}`).catch(async (e: unknown) => {
+            await page.screenshot({ path: `${shots}/loop-${label}-crash-${i}.png` });
+            throw e;
+          });
+        }
+        assert.equal(continued, ROUNDS, "every round was answered and continued in a chat");
+        console.log(`${label}: ${ROUNDS} rounds, Continue in a chat pressed ${continued} times`);
+      });
+    },
+  ] as const;
 }
 
 /**
  * The owner's own way: "+" in the tab strip, type, Enter. The new tab becomes the chat in the same tab: his words, the tab's name and the working mark within the budget, the chat made once, the agent answers.
  * "heyy" is a one-word message (it used to be a dead end), "long" a sentence (it used to run an Ask). One link per file.
  */
-export function definePlus(kind: "heyy" | "long", label: "loopback" | "relay"): void {
+export function definePlus(kind: "heyy" | "long", label: "loopback" | "relay") {
   const [latency, delay] = label === "loopback" ? [0, 0] : [150, 1500];
-  test(`new tab, ${kind === "heyy" ? "a one-word message" : "a long message"}, Enter (${label}): his words, the tab's name and the working mark are on screen within ${BUDGET_MS} ms, one chat, the agent answers`, async (t) => {
-    if (!process.env["VYRE_APP_DIST"]) {
-      if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
-      t.skip("VYRE_APP_DIST required for production browser evidence");
-      return;
-    }
-    const got = await runCase(`plus-${kind}-${label}`, latency, delay, {
-      plus: true,
-      ...(kind === "heyy" ? { runs: 3, text: (i: number) => `Heyy${i}` } : {}),
-    });
-    within(`plus-${kind}-${label}`, got);
-    assert.equal(got.d.length, kind === "heyy" ? 3 : RUNS, "the agent answered every message");
-  });
+  return [
+    `new tab, ${kind === "heyy" ? "a one-word message" : "a long message"}, Enter (${label}): his words, the tab's name and the working mark are on screen within ${BUDGET_MS} ms, one chat, the agent answers`,
+    async (t: { skip(m?: string): void }) => {
+      if (!process.env["VYRE_APP_DIST"]) {
+        if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
+        t.skip("VYRE_APP_DIST required for production browser evidence");
+        return;
+      }
+      const got = await runCase(`plus-${kind}-${label}`, latency, delay, {
+        plus: true,
+        ...(kind === "heyy" ? { runs: 3, text: (i: number) => `Heyy${i}` } : {}),
+      });
+      within(`plus-${kind}-${label}`, got);
+      assert.equal(got.d.length, kind === "heyy" ? 3 : RUNS, "the agent answered every message");
+    },
+  ] as const;
 }
 
 /** The Ask is still there as its own choice: Alt+Enter in the new tab runs the Ask (a canned answer), starts no chat, and "Continue in a chat" is offered as before. */
-export function definePlusAsk(): void {
-  test("new tab, a question, Alt+Enter: the Ask runs, no chat is made, Continue in a chat is offered", async (t) => {
-    if (!process.env["VYRE_APP_DIST"]) {
-      if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
-      t.skip("VYRE_APP_DIST required for production browser evidence");
-      return;
-    }
-    await walk("plus-ask", 0, 0, async ({ page, web, relay, guard, shots }) => {
-      await cannedAsk(page, 300);
-      await page.goto(`${web.origin}/chat`, { waitUntil: "load" });
-      await page.getByTestId("shell").waitFor({ timeout: 30_000 });
-      await page.getByTestId("tab-strip-plus").click();
-      const box = page.getByTestId("cmdk-input");
-      await box.waitFor({ timeout: 20_000 });
-      await box.fill("Lisbon team review Thursday?");
-      await page.getByTestId("row-ask").waitFor({ timeout: 10_000 });
-      assert.match(await page.getByTestId("row-ask").innerText(), /Alt\+Enter|⌥⏎/, "the Ask row shows its chord");
-      await page.screenshot({ path: `${shots}/plus-ask-row.png` });
-      await box.press("Alt+Enter");
-      await page.getByTestId("cmdk-continue").waitFor({ timeout: 20_000 });
-      assert.equal(relay.starts, 0, "no chat was made");
-      await guard.check("plus ask");
-    });
-  });
+export function definePlusAsk() {
+  return [
+    "new tab, a question, Alt+Enter: the Ask runs, no chat is made, Continue in a chat is offered",
+    async (t: { skip(m?: string): void }) => {
+      if (!process.env["VYRE_APP_DIST"]) {
+        if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
+        t.skip("VYRE_APP_DIST required for production browser evidence");
+        return;
+      }
+      await walk("plus-ask", 0, 0, async ({ page, web, relay, guard, shots }) => {
+        await cannedAsk(page, 300);
+        await page.goto(`${web.origin}/chat`, { waitUntil: "load" });
+        await page.getByTestId("shell").waitFor({ timeout: 30_000 });
+        await page.getByTestId("tab-strip-plus").click();
+        const box = page.getByTestId("cmdk-input");
+        await box.waitFor({ timeout: 20_000 });
+        await box.fill("Lisbon team review Thursday?");
+        await page.getByTestId("row-ask").waitFor({ timeout: 10_000 });
+        assert.match(await page.getByTestId("row-ask").innerText(), /Alt\+Enter|⌥⏎/, "the Ask row shows its chord");
+        await page.screenshot({ path: `${shots}/plus-ask-row.png` });
+        await box.press("Alt+Enter");
+        await page.getByTestId("cmdk-continue").waitFor({ timeout: 20_000 });
+        assert.equal(relay.starts, 0, "no chat was made");
+        await guard.check("plus ask");
+      });
+    },
+  ] as const;
 }
