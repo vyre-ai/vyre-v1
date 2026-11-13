@@ -4,7 +4,7 @@
 import type { Handler } from "../../host/src/invoke.ts";
 import { backfill, finished } from "./backfill.ts";
 import * as h from "./handlers/index.ts";
-import { stateKinds } from "./state.ts";
+import { seamFor, stateKinds } from "./state.ts";
 import type { InboxCtx } from "./projections.ts";
 import { matchClosingTask, matchNewClosingTask, recipientsSearchWithMembers } from "./handlers/recipients-members.ts";
 
@@ -69,4 +69,26 @@ export const periodic = {
 export const hostCalls = {
   "inbox.state_backfill": (ctx: InboxCtx, input: { dryRun?: boolean }) =>
     backfill(ctx, { dryRun: input?.dryRun !== false }),
+};
+
+/**
+ * Who can open a conversation changes when a grant, a role, a group, a mailbox's privacy, a follow or an owner changes. The people whose row of a conversation no longer fits leave it (it drops out of
+ * their lists and badge at once), and the people who can open it again come back with nothing unread. A badge that counts what a person can no longer open would tell them it exists.
+ */
+export const consumers = {
+  "inbox.state_access": {
+    on: [
+      "grant.created",
+      "grant.updated",
+      "grant.revoked",
+      "access.changed",
+      "mailbox.privacy_changed",
+      "conversation.follow_changed",
+      "conversation.matched",
+      "conversation.unmatched",
+    ],
+    run: async (ctx: InboxCtx): Promise<void> => {
+      (await seamFor(ctx)).reconcile("conversation");
+    },
+  },
 };

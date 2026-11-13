@@ -35,6 +35,7 @@ test("no row means read, open, not starred, not followed, not muted", () => {
     follow: null,
     alert: false,
     mutedUntil: null,
+    pinRank: null,
     hidden: false,
   });
   assert.equal(counted(s), false);

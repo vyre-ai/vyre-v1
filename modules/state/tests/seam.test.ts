@@ -176,7 +176,8 @@ test("a thing the person cannot see is not found", () => {
   );
   assert.throws(
     () => stateOf(fx).set(OMAR, { type: "nothing", id: "x" }, { star: true }),
-    (e) => e instanceof StateRefusal && e.code === "bad_input",
+    (e) => e instanceof StateRefusal && e.code === "not_found",
+    "a kind nobody registered answers as a thing that is not there",
   );
 });
 
@@ -208,7 +209,10 @@ test("star, follow, alert and mute are separate flags; a mute leaves the badge a
     "the badge waits for the sweep: it never reads the clock",
   );
   assert.deepEqual(stateOf(fx).verify({}).problems, [], "so nothing is out of step");
-  assert.deepEqual(stateOf(fx).sweep(), [{ person: MAYA, thing: c }]);
+  assert.deepEqual(
+    stateOf(fx).sweep().map((x) => ({ person: x.person, thing: x.thing })),
+    [{ person: MAYA, thing: c }],
+  );
   assert.deepEqual(badge(fx, MAYA), { scope: "box:main", things: 1, entries: 1 });
   assert.deepEqual(stateOf(fx).sweep(), [], "and a second sweep finds nothing");
   stateOf(fx).set(MAYA, c, { mute: { until: MUTE_FOREVER } });
@@ -406,15 +410,12 @@ test("verify finds and repairs a wrong badge, and a thing the module no longer h
     ["count"],
   );
   assert.deepEqual(badge(fx, MAYA), { scope: "box:main", things: 1, entries: 1 });
-  fx.db.run("DELETE FROM fx_entry WHERE thing = 'cnv_one'");
-  assert.deepEqual(
-    stateOf(fx)
-      .verify({ repair: true })
-      .problems.map((p) => p.kind),
-    ["head"],
-  );
-  assert.equal(unreadOf(fx, MAYA, c), 0);
-  assert.deepEqual(stateOf(fx).verify({ deep: true }).problems, []);
+  // the module's answer is what it says, never what it leaves out: a thing it does not list is unknown, not gone, and nobody's place in it is lowered
+  stateOf(fx).read(MAYA, c, { upto: 1 });
+  fx.db.run("DELETE FROM fx_thing WHERE id = 'cnv_one'"); // heads() now omits it
+  assert.deepEqual(stateOf(fx).verify({ repair: true, deep: true }).problems, []);
+  assert.equal(stateOf(fx).stateOf(MAYA, [c])[0]!.readUpto, 1, "her read position is untouched");
+  assert.equal(fx.db.all("SELECT head FROM state_thing WHERE id = 'cnv_one'").length, 1, "and so is the head");
 });
 
 // ---- a property test: random operations, and after every one the stored numbers equal what verify recounts
@@ -455,11 +456,16 @@ for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
       const p = pick([...t.members]);
       const roll = r();
       trail.push(`${t.type}:${t.id} ${p} ${roll.toFixed(2)}`);
+      // an operation that is one person's own (a read, a flag, a read_scope) leaves every other person's rows exactly as they were
+      const others = (who: string): string =>
+        JSON.stringify(fx.db.all("SELECT * FROM state_person WHERE person <> ? ORDER BY person, type, id", who));
+      const own = roll >= 0.34 && roll < 0.76 ? others(p) : null;
       if (roll < 0.34)
         fx.post(ref, r() < 0.2 ? pick([...t.members]) : STRANGER, { mentions: r() < 0.3 ? [pick(people)] : [] });
       else if (roll < 0.46) st.read(p, ref, { upto: Math.floor(r() * 12) });
       else if (roll < 0.52) st.read(p, ref, { fromPos: 1 + Math.floor(r() * 6) });
       else if (roll < 0.56) st.read(p, ref, { unread: true });
+      else if (roll < 0.58) st.readScope(p, t.scope);
       else if (roll < 0.66) st.set(p, ref, { done: r() < 0.6 });
       else if (roll < 0.72) st.set(p, ref, { mute: r() < 0.5 ? { until: fx.clock.t + Math.floor(r() * 5000) } : null });
       else if (roll < 0.76) st.set(p, ref, { star: r() < 0.5, follow: pick(["following", "left", null] as const) });
@@ -511,6 +517,7 @@ for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
       } else if (roll < 0.94) open();
       else if (roll < 0.97) st.sweep();
       else fx.clock.t += Math.floor(r() * 4000);
+      if (own !== null) assert.equal(others(p), own, `seed ${seed}, step ${step}: ${p}'s own operation moved someone else's rows`);
       const found = st.verify({ deep: true, repair: false }).problems;
       assert.deepEqual(
         found,

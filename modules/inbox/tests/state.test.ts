@@ -15,6 +15,7 @@ import {
 } from "../handlers/index.ts";
 import { rawDbOf } from "../../../host/src/ctx/db.ts";
 import { harness, LEE, link } from "../fixtures/harness.ts";
+import { consumers } from "../impl.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { StateRefusal, stateSeamOf } from "../../../host/src/seams/state.ts";
 import { readSeam, thingOf } from "../state.ts";
@@ -196,4 +197,19 @@ test("Jonas cannot learn that Maya's private conversation exists by pinning, mut
     0,
     "nothing was stored for him",
   );
+});
+
+test("when a person's access to the shared inbox ends, the conversation leaves their badge and lists at once, and returns with nothing unread when it comes back", async () => {
+  const h = setup();
+  const id = await inbound(h, 2);
+  const store = readSeam(h.ctx);
+  assert.equal(store.counts(JONAS, [`mailbox:${SHARED}`])[0]!.things, 1);
+  h.hideFrom(JONAS, { type: "mailbox", id: SHARED });
+  await consumers["inbox.state_access"].run(h.ctx);
+  assert.equal(store.counts(JONAS, [`mailbox:${SHARED}`])[0]!.things, 0, "his badge no longer counts it");
+  assert.equal(store.counts(MAYA, [`mailbox:${SHARED}`])[0]!.things, 1, "Maya's is the same");
+  assert.deepEqual(store.list(JONAS, { flag: "unread", limit: 10 }).rows, []);
+  h.restoreTo(JONAS, { type: "mailbox", id: SHARED });
+  await consumers["inbox.state_access"].run(h.ctx);
+  assert.equal(stateOf(h, JONAS, id).unread, 0, "back, with nothing unread");
 });

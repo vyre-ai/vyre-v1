@@ -24,11 +24,12 @@ import {
   unreadOf,
 } from "../../../lib/state.ts";
 import type { Change, Entry, Flag, PersonState, Reopen } from "../../../lib/state.ts";
+import { LAYOUT_KEYS, LAYOUT_MAX_KEYS, layoutRefusal } from "../../../lib/state-layout.ts";
 import { rawDbOf } from "../ctx/db.ts";
 import type { RawDb } from "../ctx/db.ts";
 
-/** The module's raw connection. `tx` is there on the real database; a hand-built test fake without it runs the writes one by one. */
-export type StateDb = RawDb & { tx?<T>(fn: () => T): T };
+/** The module's raw connection with its transaction: every call writes in one `tx`, so a handle without one is refused (stateSeamOf). */
+export type StateDb = RawDb & { tx<T>(fn: () => T): T };
 
 export interface Thing {
   type: string;
@@ -60,8 +61,8 @@ export interface StateKind {
   /** the newest position of every thing of this kind that has entries, in one query: what `verify` compares with the head it kept */
   heads(db: RawDb): readonly { thing: string; head: number; at?: number }[];
   reopen: Reopen;
-  /** may this person see the thing? Absent: they are in the audience */
-  visible?(db: RawDb, thing: string, person: string, env: StateEnv): boolean;
+  /** may this person see the thing? A kind says so itself: the people it reaches are not always the people it can list */
+  visible(db: RawDb, thing: string, person: string, env: StateEnv): boolean;
 }
 
 export class StateRefusal extends Error {
@@ -110,6 +111,8 @@ export interface VerifyOptions {
   repair?: boolean;
   /** recount every row of every thing from its entries (tests, release evidence), not only the things whose head differs */
   deep?: boolean;
+  /** with `deep`: only things whose newest entry is at or after this time (a cheap pass that still finds a recent lost arrival) */
+  since?: number;
 }
 export interface VerifyReport {
   problems: Problem[];
@@ -125,9 +128,11 @@ export interface ThingState {
   follow: "following" | "left" | null;
   alert: boolean;
   muted: number | null;
+  /** the place of the pin among this person's pins of the kind (smaller is higher); null when not pinned */
+  pin: number | null;
 }
 
-export type ListFlag = "starred" | "following" | "done" | "unread" | "muted";
+export type ListFlag = "starred" | "following" | "done" | "unread" | "muted" | "pinned" | "any";
 export interface ListQuery {
   flag: ListFlag;
   type?: string;
@@ -139,13 +144,22 @@ export interface ListRow {
   thing: Thing;
   at: number;
   unread: number;
+  state: ThingState;
 }
+
+/** A pin: where it goes among the person's pins of that kind. `{}` the end, `{ after: null }` the top, `{ after: thing }` right below that one; null takes the pin off. */
+export type PinIn = null | { after?: Thing | null };
+export type SetIn = Omit<Change, "pin"> & { pin?: PinIn };
 
 type Row = Record<string, unknown>;
 const num = (v: unknown): number => (typeof v === "number" ? v : Number(v ?? 0));
 const numOrNull = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
 
-const STATE_COLS = "read_upto, unread, done_at, starred_at, follow, alert, muted_until, hidden, scope_type, scope_id";
+/** how many things a long pass handles in one transaction */
+const SLICE = 200;
+const NOT_HERE = "That is not here, or you cannot see it.";
+const STATE_COLS =
+  "read_upto, unread, done_at, starred_at, follow, alert, muted_until, pin_rank, hidden, scope_type, scope_id";
 function toState(r: Row): PersonState {
   return {
     readUpto: num(r["read_upto"]),
@@ -155,6 +169,7 @@ function toState(r: Row): PersonState {
     follow: r["follow"] === "following" || r["follow"] === "left" ? r["follow"] : null,
     alert: num(r["alert"]) === 1,
     mutedUntil: numOrNull(r["muted_until"]),
+    pinRank: numOrNull(r["pin_rank"]),
     hidden: num(r["hidden"]) === 1,
   };
 }
@@ -167,6 +182,7 @@ const view = (thing: Thing, s: PersonState, at: number): ThingState => ({
   follow: s.follow,
   alert: s.alert,
   muted: isMuted(s, at) ? s.mutedUntil : null,
+  pin: s.pinRank,
 });
 
 export interface StateStore {
@@ -189,16 +205,29 @@ export interface StateStore {
   lose(person: string, scope: string): number;
   /** the thing was deleted or purged: every row and count of it goes */
   forget(thing: Thing): void;
-  /** clear every mute whose time has passed, so those things count in a badge again; answers who and what */
-  sweep(): { person: string; thing: Thing }[];
+  /**
+   * One person's access to one thing ended (removed from a chat, a conversation unshared): its row leaves their lists and badge at once, their flags are kept. A kind's owner calls this on every
+   * audience change (or lets `reconcile` find it): a badge that counts what a person can no longer open leaks that it exists.
+   */
+  leave(person: string, thing: Thing): boolean;
+  /** access to one thing came back: the row returns with its flags and nothing unread */
+  enter(person: string, thing: Thing): boolean;
+  /** ask the kind, for every row of its things, whether the person can still see it, and leave or enter to match. Never removes a row on a partial answer: only `visible` saying no does. */
+  reconcile(type?: string): { left: number; entered: number };
+  /** clear mutes whose time has passed (at most `limit` per call, the oldest first), so those things count in a badge again; answers who and what */
+  sweep(limit?: number): { person: string; thing: Thing; result: ChangeResult }[];
+  /** a person's layout values (all, or the named keys) */
+  layoutGet(person: string, keys?: readonly string[]): LayoutValue[];
+  /** set one registered key to a small JSON value, or null to clear it */
+  layoutSet(person: string, key: string, value: unknown): LayoutValue;
   verify(o?: VerifyOptions): VerifyReport;
   followersOf(thing: Thing): string[];
   stateOf(person: string, things: readonly Thing[]): ThingState[];
   canSee(person: string, thing: Thing): boolean;
   /** `trusted`: the caller has already decided the person may open the thing (the module's own guard ran), so the kind is not asked again */
   read(person: string, thing: Thing, req: ReadRequestIn, o?: { trusted?: boolean }): ChangeResult;
-  readScope(person: string, scope: string, before?: number): { marked: number; things: Thing[] };
-  set(person: string, thing: Thing, change: Change, o?: { trusted?: boolean }): ChangeResult;
+  readScope(person: string, scope: string, before?: number): { marked: number; things: Thing[]; count: { things: number; entries: number } };
+  set(person: string, thing: Thing, change: SetIn, o?: { trusted?: boolean }): ChangeResult;
   list(person: string, q: ListQuery): { rows: ListRow[]; next?: string };
   counts(person: string, scopes?: readonly string[]): { scope: string; things: number; entries: number }[];
 }
@@ -210,14 +239,23 @@ export interface ArriveResult {
 export interface ChangeResult {
   state: ThingState;
   changed: Flag[];
+  /** the badge the thing counts in, as it is now */
+  count: { scope: string; things: number; entries: number };
+}
+export interface LayoutValue {
+  key: string;
+  value: unknown;
+  version: number;
+  at: number;
 }
 
 export function createStateStore(db: StateDb, now: () => number, env: StateEnv = NO_ENV): StateStore {
   const kinds = KINDS.get(db) ?? new Map<string, StateKind>();
-  const tx = <T>(fn: () => T): T => (db.tx ? db.tx(fn) : fn());
+  const tx = <T>(fn: () => T): T => db.tx(fn);
   const kindOf = (type: string): StateKind => {
     const k = (KINDS.get(db) ?? kinds).get(type);
-    if (!k) throw new StateRefusal("bad_input", `Nothing keeps state for ${type}.`);
+    // the same answer as a thing that is not there: the set of kinds is not something a caller can learn
+    if (!k) throw new StateRefusal("not_found", NOT_HERE);
     return k;
   };
 
@@ -262,10 +300,10 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
     const s = splitScope(scope);
     const at = now();
     db.run(
-      `INSERT INTO state_person (person, type, id, read_upto, unread, done_at, starred_at, follow, alert, muted_until, scope_type, scope_id, hidden, version, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+      `INSERT INTO state_person (person, type, id, read_upto, unread, done_at, starred_at, follow, alert, muted_until, pin_rank, scope_type, scope_id, hidden, version, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
        ON CONFLICT (person, type, id) DO UPDATE SET read_upto = excluded.read_upto, unread = excluded.unread, done_at = excluded.done_at, starred_at = excluded.starred_at,
-         follow = excluded.follow, alert = excluded.alert, muted_until = excluded.muted_until, scope_type = excluded.scope_type, scope_id = excluded.scope_id,
+         follow = excluded.follow, alert = excluded.alert, muted_until = excluded.muted_until, pin_rank = excluded.pin_rank, scope_type = excluded.scope_type, scope_id = excluded.scope_id,
          hidden = excluded.hidden, version = version + 1, updated_at = excluded.updated_at`,
       person,
       t.type,
@@ -277,6 +315,7 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
       after.follow,
       after.alert ? 1 : 0,
       after.mutedUntil,
+      after.pinRank,
       s.type,
       s.id,
       after.hidden ? 1 : 0,
@@ -354,7 +393,7 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
    * Every row of the thing, recounted from the entries the module holds now. `cap`: entries after this position are not counted and the head stays at or below it (a merge or a split must not
    * count an entry whose arrival has not been made yet; `arrive` does that, with its rules for who it reaches and what it reopens).
    */
-  const recountThing = (t: Thing, k: StateKind, cap?: number): void => {
+  const recountThing = (t: Thing, k: StateKind, cap?: number, clamp = true): void => {
     const all = k.entries(db, t.id);
     const entries = cap === undefined ? all : all.filter((e) => e.pos <= cap);
     const head = entries.reduce((m, e) => Math.max(m, e.pos), 0);
@@ -370,7 +409,7 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
     ) as Row[]) {
       const person = String(r["person"]);
       const before = toState(r);
-      const after = recount({ ...before, readUpto: Math.min(before.readUpto, head) }, entries, person);
+      const after = recount(clamp ? { ...before, readUpto: Math.min(before.readUpto, head) } : before, entries, person);
       if (after.unread !== before.unread || after.readUpto !== before.readUpto) put(person, t, scope, before, after);
     }
   };
@@ -497,6 +536,54 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
       return n;
     });
 
+  const leave: StateStore["leave"] = (person, t) =>
+    tx(() => {
+      const before = rowOf(person, t);
+      if (!before || before.hidden) return false;
+      const scope = joinScope(...scopeOf(person, t));
+      put(person, t, scope, before, { ...before, hidden: true });
+      return true;
+    });
+
+  const enter: StateStore["enter"] = (person, t) =>
+    tx(() => {
+      const before = rowOf(person, t);
+      if (!before || !before.hidden) return false;
+      const head = headRow(t)?.head ?? before.readUpto;
+      put(person, t, joinScope(...scopeOf(person, t)), before, { ...before, hidden: false, readUpto: head, unread: 0 });
+      return true;
+    });
+
+  /** the badge a person's row of a thing counts in, as the row itself says */
+  const scopeOf = (person: string, t: Thing): [string, string] => {
+    const r = db.all("SELECT scope_type, scope_id FROM state_person WHERE person = ? AND type = ? AND id = ?", person, t.type, t.id)[0] as
+      | Row
+      | undefined;
+    return [String(r?.["scope_type"] ?? ""), String(r?.["scope_id"] ?? "")];
+  };
+
+  const reconcile: StateStore["reconcile"] = (only) => {
+    let left = 0,
+      entered = 0;
+    for (const type of only ? [only] : [...(KINDS.get(db) ?? kinds).keys()]) {
+      if (!(KINDS.get(db) ?? kinds).has(type)) continue;
+      // each person's row is asked of the kind on its own, in slices, so a long list never holds the connection
+      const rows = db.all("SELECT person, id, hidden FROM state_person WHERE type = ?", type) as Row[];
+      for (let i = 0; i < rows.length; i += SLICE) {
+        tx(() => {
+          for (const r of rows.slice(i, i + SLICE)) {
+            const t = { type, id: String(r["id"]) };
+            const person = String(r["person"]);
+            const sees = canSee(person, t);
+            if (!sees && num(r["hidden"]) === 0 && leave(person, t)) left += 1;
+            else if (sees && num(r["hidden"]) === 1 && enter(person, t)) entered += 1;
+          }
+        });
+      }
+    }
+    return { left, entered };
+  };
+
   const followersOf: StateStore["followersOf"] = (t) =>
     (
       db.all(
@@ -539,41 +626,90 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
 
   const canSee: StateStore["canSee"] = (person, t) => {
     const k = kindOf(t.type);
-    return k.visible ? k.visible(db, t.id, person, env) : k.audience(db, t.id, env).includes(person);
+    return k.visible(db, t.id, person, env);
   };
   const mustSee = (person: string, t: Thing): StateKind => {
     const k = kindOf(t.type);
-    if (!canSee(person, t)) throw new StateRefusal("not_found", "That is not here, or you cannot see it.");
+    if (!canSee(person, t)) throw new StateRefusal("not_found", NOT_HERE);
     return k;
   };
 
-  const result = (t: Thing, before: PersonState | null, after: PersonState, head: number): ChangeResult => ({
+  const countOf = (person: string, scope: string): { scope: string; things: number; entries: number } =>
+    counts(person, [scope])[0]!;
+  const result = (
+    person: string,
+    t: Thing,
+    scope: string,
+    before: PersonState | null,
+    after: PersonState,
+    head: number,
+  ): ChangeResult => ({
     state: view(t, after, now()),
     changed: changedFlags(before, after, head),
+    count: countOf(person, scope),
   });
 
   const read: StateStore["read"] = (person, t, req, o) =>
     tx(() => {
       const k = o?.trusted ? kindOf(t.type) : mustSee(person, t);
       const entries = k.entries(db, t.id);
-      const head = Math.max(headRow(t)?.head ?? 0, ...entries.map((e) => e.pos));
+      let head = headRow(t)?.head ?? 0;
+      for (const e of entries) if (e.pos > head) head = e.pos;
       const before = rowOf(person, t);
       const after = readRow(before, head, entries, person, req);
-      if (after === null) return result(t, before, before ?? blank(head), head);
-      if (before === null || JSON.stringify(before) !== JSON.stringify(after))
-        put(person, t, k.scope(db, t.id), before, after);
-      return result(t, before, after, head);
+      const scope = k.scope(db, t.id);
+      if (after === null) return result(person, t, scope, before, before ?? blank(head), head);
+      if (before === null || JSON.stringify(before) !== JSON.stringify(after)) put(person, t, scope, before, after);
+      return result(person, t, scope, before, after, head);
     });
+
+  /** where a pin goes: a number between its neighbours, so a move writes one row. Renumbers the person's pins of the kind when two neighbours get too close to split. */
+  const rankOf = (person: string, t: Thing, pin: PinIn): number | null => {
+    if (pin === null) return null;
+    const others = (): { id: string; rank: number }[] =>
+      (
+        db.all(
+          "SELECT id, pin_rank FROM state_person WHERE person = ? AND type = ? AND pin_rank IS NOT NULL AND id <> ? ORDER BY pin_rank, id",
+          person,
+          t.type,
+          t.id,
+        ) as Row[]
+      ).map((r) => ({ id: String(r["id"]), rank: num(r["pin_rank"]) }));
+    let rows = others();
+    if (pin.after === undefined) return (rows[rows.length - 1]?.rank ?? 0) + 1;
+    if (pin.after === null) return (rows[0]?.rank ?? 2) - 1;
+    if (pin.after.type !== t.type) throw new StateRefusal("bad_input", "A pin goes among pins of the same kind.");
+    let i = rows.findIndex((r) => r.id === pin.after!.id);
+    if (i < 0) throw new StateRefusal("bad_input", "That is not one of your pins.");
+    if (rows[i + 1] !== undefined && rows[i + 1]!.rank - rows[i]!.rank < 1e-9) {
+      rows.forEach((r, n) =>
+        db.run(
+          "UPDATE state_person SET pin_rank = ?, version = version + 1, updated_at = ? WHERE person = ? AND type = ? AND id = ?",
+          n + 1,
+          now(),
+          person,
+          t.type,
+          r.id,
+        ),
+      );
+      rows = others();
+      i = rows.findIndex((r) => r.id === pin.after!.id);
+    }
+    const lo = rows[i]!.rank;
+    const hi = rows[i + 1]?.rank;
+    return hi === undefined ? lo + 1 : (lo + hi) / 2;
+  };
 
   const set: StateStore["set"] = (person, t, change, o) =>
     tx(() => {
       const k = o?.trusted ? kindOf(t.type) : mustSee(person, t);
       const head = headRow(t)?.head ?? 0;
       const before = rowOf(person, t);
-      const after = setRow(before, head, change, now());
-      if (before === null || JSON.stringify(before) !== JSON.stringify(after))
-        put(person, t, k.scope(db, t.id), before, after);
-      return result(t, before, after, head);
+      const { pin, ...flags } = change;
+      const after = setRow(before, head, pin === undefined ? flags : { ...flags, pin: rankOf(person, t, pin) }, now());
+      const scope = k.scope(db, t.id);
+      if (before === null || JSON.stringify(before) !== JSON.stringify(after)) put(person, t, scope, before, after);
+      return result(person, t, scope, before, after, head);
     });
 
   const readScope: StateStore["readScope"] = (person, scope, before) =>
@@ -611,10 +747,14 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
         before ?? null,
       );
       bump(person, scope, { things: -things, entries: -entries });
-      return { marked: rows.length, things: rows.map((r) => ({ type: String(r["type"]), id: String(r["id"]) })) };
+      return {
+        marked: rows.length,
+        things: rows.map((r) => ({ type: String(r["type"]), id: String(r["id"]) })),
+        count: { things: counts(person, [scope])[0]!.things, entries: counts(person, [scope])[0]!.entries },
+      };
     });
 
-  const FLAGS: Record<ListFlag, { where: string; at: string; args: (now: number) => unknown[] }> = {
+  const FLAGS: Record<ListFlag, { where: string; at: string; asc?: true; args: (now: number) => unknown[] }> = {
     starred: { where: "p.starred_at IS NOT NULL", at: "p.starred_at", args: () => [] },
     following: { where: "p.follow = 'following'", at: "COALESCE(t.head_at, p.updated_at)", args: () => [] },
     done: { where: "p.done_at IS NOT NULL", at: "p.done_at", args: () => [] },
@@ -624,6 +764,15 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
       args: (now) => [now],
     },
     muted: { where: "p.muted_until IS NOT NULL AND p.muted_until > ?", at: "p.updated_at", args: (now) => [now] },
+    // the person's own order, the top first
+    pinned: { where: "p.pin_rank IS NOT NULL", at: "p.pin_rank", asc: true, args: () => [] },
+    // everything the person has set on anything: what a screen reads once to paint pins, stars, mutes and follows
+    any: {
+      where:
+        "(p.starred_at IS NOT NULL OR p.follow IS NOT NULL OR p.done_at IS NOT NULL OR p.muted_until IS NOT NULL OR p.pin_rank IS NOT NULL OR p.alert = 1)",
+      at: "COALESCE(t.head_at, p.updated_at)",
+      args: () => [],
+    },
   };
 
   const list: StateStore["list"] = (person, q) => {
@@ -644,24 +793,29 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
       const [at, type, id] = q.cursor.split("|");
       if (at === undefined || type === undefined || id === undefined || !Number.isFinite(Number(at)))
         throw new StateRefusal("bad_input", "That page marker is not one of ours.");
-      where.push(`(${f.at} < ? OR (${f.at} = ? AND (p.type > ? OR (p.type = ? AND p.id > ?))))`);
+      const beyond = f.asc ? ">" : "<";
+      where.push(`(${f.at} ${beyond} ? OR (${f.at} = ? AND (p.type > ? OR (p.type = ? AND p.id > ?))))`);
       args.push(Number(at), Number(at), type, type, id);
     }
     const rows = db.all(
-      `SELECT p.type AS type, p.id AS id, p.unread AS unread, ${f.at} AS at FROM state_person p
+      `SELECT p.type AS type, p.id AS id, ${f.at} AS at FROM state_person p
        LEFT JOIN state_thing t ON t.type = p.type AND t.id = p.id
-       WHERE ${where.join(" AND ")} ORDER BY at DESC, p.type ASC, p.id ASC LIMIT ?`,
+       WHERE ${where.join(" AND ")} ORDER BY at ${f.asc ? "ASC" : "DESC"}, p.type ASC, p.id ASC LIMIT ?`,
       ...args,
       q.limit + 1,
     ) as Row[];
     const page = rows.slice(0, q.limit);
     const last = page[page.length - 1];
+    // a person whose access to a thing ended after the row was made does not see it listed (the row is hidden by `leave`, and this is the backstop for a kind owner that has not said so yet)
+    const things = page.map((r) => ({ type: String(r["type"]), id: String(r["id"]) }));
+    const states = stateOf(person, things);
+    const out: ListRow[] = [];
+    page.forEach((r, i) => {
+      if (!canSee(person, things[i]!)) return;
+      out.push({ thing: things[i]!, at: num(r["at"]), unread: states[i]!.unread, state: states[i]! });
+    });
     return {
-      rows: page.map((r) => ({
-        thing: { type: String(r["type"]), id: String(r["id"]) },
-        at: num(r["at"]),
-        unread: num(r["unread"]),
-      })),
+      rows: out,
       ...(rows.length > q.limit && last
         ? { next: `${num(last["at"])}|${String(last["type"])}|${String(last["id"])}` }
         : {}),
@@ -709,84 +863,126 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
     return out;
   };
 
-  const sweep: StateStore["sweep"] = () =>
+  const sweep: StateStore["sweep"] = (limit = 500) =>
     tx(() => {
-      const cleared: { person: string; thing: Thing }[] = [];
+      const cleared: { person: string; thing: Thing; result: ChangeResult }[] = [];
       for (const r of db.all(
-        `SELECT person, type, id, ${STATE_COLS} FROM state_person WHERE muted_until IS NOT NULL AND muted_until <= ?`,
+        `SELECT person, type, id, ${STATE_COLS} FROM state_person WHERE muted_until IS NOT NULL AND muted_until <= ? ORDER BY muted_until LIMIT ?`,
         now(),
+        limit,
       ) as Row[]) {
         const before = toState(r);
         const thing = { type: String(r["type"]), id: String(r["id"]) };
-        put(
-          String(r["person"]),
-          thing,
-          joinScope(String(r["scope_type"]), String(r["scope_id"])),
-          before,
-          unmuted(before),
-        );
-        cleared.push({ person: String(r["person"]), thing });
+        const person = String(r["person"]);
+        const scope = joinScope(String(r["scope_type"]), String(r["scope_id"]));
+        const after = unmuted(before);
+        put(person, thing, scope, before, after);
+        cleared.push({ person, thing, result: result(person, thing, scope, before, after, after.readUpto) });
       }
       return cleared;
     });
 
-  const verify: StateStore["verify"] = (o = {}) =>
+  const layoutRow = (r: Row): LayoutValue => ({
+    key: String(r["key"]),
+    value: JSON.parse(String(r["value"])) as unknown,
+    version: num(r["version"]),
+    at: num(r["updated_at"]),
+  });
+  const layoutGet: StateStore["layoutGet"] = (person, keys) => {
+    const rows = db.all("SELECT key, value, version, updated_at FROM state_layout WHERE person = ? ORDER BY key", person) as Row[];
+    return rows.map(layoutRow).filter((v) => !keys || keys.includes(v.key));
+  };
+  const layoutSet: StateStore["layoutSet"] = (person, key, value) =>
     tx(() => {
-      if (o.repair) sweep();
-      const problems: Problem[] = [];
-      let repaired = 0;
-      // 1 heads: what the module holds against what the seam kept
-      for (const [type, k] of KINDS.get(db) ?? kinds) {
-        const real = new Map(k.heads(db).map((h) => [h.thing, h]));
-        const kept = new Map(
-          (db.all("SELECT id, head FROM state_thing WHERE type = ?", type) as Row[]).map((r) => [
-            String(r["id"]),
-            num(r["head"]),
-          ]),
-        );
-        const ids = new Set([...real.keys(), ...kept.keys()]);
-        for (const id of ids) {
-          const t = { type, id };
-          const want = real.get(id)?.head ?? 0;
-          const have = kept.get(id) ?? 0;
-          if (want !== have) {
-            problems.push({ kind: "head", thing: t, detail: `head is ${have}, the entries say ${want}` });
-            if (o.repair) {
-              if (want > have) {
-                // a missing arrival: replay what the head never saw, in order, as arrive would have
-                const scope = k.scope(db, id);
-                for (const e of [...k.entries(db, id)].filter((x) => x.pos > have).sort((a, b) => a.pos - b.pos))
-                  applyArrival(t, k, { pos: e.pos, by: e.by, at: real.get(id)?.at ?? now() }, have, scope);
-              } else recountThing(t, k);
-              repaired += 1;
-            }
-          }
-          if (!o.deep) continue;
-          // every row against the entries (a row whose person lost access is not kept up, and is reset when they gain it back)
-          const entries = k.entries(db, id);
-          for (const r of db.all(
-            "SELECT person, " + STATE_COLS + " FROM state_person WHERE type = ? AND id = ?",
-            type,
-            id,
-          ) as Row[]) {
-            const person = String(r["person"]);
-            const s = toState(r);
-            if (s.hidden || (o.person && o.person !== person)) continue;
-            const recounted = unreadOf(entries, s.readUpto, person);
-            if (recounted === s.unread) continue;
-            problems.push({
-              kind: "unread",
-              person,
-              thing: t,
-              detail: `unread is ${s.unread}, the entries say ${recounted}`,
-            });
-            if (o.repair) {
-              put(person, t, joinScope(String(r["scope_type"]), String(r["scope_id"])), s, { ...s, unread: recounted });
-              repaired += 1;
-            }
-          }
-        }
+      const have = db.all("SELECT version FROM state_layout WHERE person = ? AND key = ?", person, key)[0] as Row | undefined;
+      if (value === null) {
+        if (!(key in LAYOUT_KEYS)) throw new StateRefusal("bad_input", `${key} is not a layout key.`);
+        db.run("DELETE FROM state_layout WHERE person = ? AND key = ?", person, key);
+        return { key, value: null, version: num(have?.["version"]) + 1, at: now() };
       }
+      const why = layoutRefusal(key, value);
+      if (why) throw new StateRefusal("bad_input", why);
+      if (!have && num((db.all("SELECT COUNT(*) AS n FROM state_layout WHERE person = ?", person)[0] as Row)["n"]) >= LAYOUT_MAX_KEYS)
+        throw new StateRefusal("bad_input", "That is more layout settings than one person can keep.");
+      const version = num(have?.["version"]) + 1;
+      db.run(
+        `INSERT INTO state_layout (person, key, value, version, updated_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (person, key) DO UPDATE SET value = excluded.value, version = excluded.version, updated_at = excluded.updated_at`,
+        person,
+        key,
+        JSON.stringify(value),
+        version,
+        now(),
+      );
+      return { key, value, version, at: now() };
+    });
+
+  const verify: StateStore["verify"] = (o = {}) => {
+    if (o.repair) sweep();
+    const problems: Problem[] = [];
+    let repaired = 0;
+    // 1 heads: what the module holds against what the seam kept. The module's answer is what it says, never what it leaves out: a thing it does not list is unknown (an archived or hidden thing
+    // may be left out of `heads`), not gone, and nobody's read position is lowered for it. Only `retract`, which the module calls when it removes an entry, takes positions down.
+    for (const [type, k] of KINDS.get(db) ?? kinds) {
+      const real = new Map(k.heads(db).map((h) => [h.thing, h]));
+      const kept = new Map(
+        (db.all("SELECT id, head FROM state_thing WHERE type = ?", type) as Row[]).map((r) => [
+          String(r["id"]),
+          num(r["head"]),
+        ]),
+      );
+      const ids = [...real.keys()];
+      // in slices, each its own transaction: a long pass never holds the connection for the whole server
+      for (let i = 0; i < ids.length; i += SLICE) {
+        tx(() => {
+          for (const id of ids.slice(i, i + SLICE)) {
+            const t = { type, id };
+            const want = real.get(id)!.head;
+            const have = kept.get(id) ?? 0;
+            if (want !== have) {
+              problems.push({ kind: "head", thing: t, detail: `head is ${have}, the entries say ${want}` });
+              if (o.repair) {
+                if (want > have) {
+                  // a missing arrival: replay what the head never saw, in order, as arrive would have
+                  const scope = k.scope(db, id);
+                  for (const e of [...k.entries(db, id)].filter((x) => x.pos > have).sort((a, b) => a.pos - b.pos))
+                    applyArrival(t, k, { pos: e.pos, by: e.by, at: real.get(id)?.at ?? now() }, have, scope);
+                } else recountThing(t, k, undefined, false);
+                repaired += 1;
+              }
+            }
+            if (!o.deep || (o.since !== undefined && (real.get(id)?.at ?? 0) < o.since)) continue;
+            // every row against the entries (a row whose person lost access is not kept up, and is reset when they gain it back). This is what finds an arrival lost before a later one.
+            const entries = k.entries(db, id);
+            for (const r of db.all(
+              "SELECT person, " + STATE_COLS + " FROM state_person WHERE type = ? AND id = ?",
+              type,
+              id,
+            ) as Row[]) {
+              const person = String(r["person"]);
+              const s = toState(r);
+              if (s.hidden || (o.person && o.person !== person)) continue;
+              const recounted = unreadOf(entries, s.readUpto, person);
+              if (recounted === s.unread) continue;
+              problems.push({
+                kind: "unread",
+                person,
+                thing: t,
+                detail: `unread is ${s.unread}, the entries say ${recounted}`,
+              });
+              if (o.repair) {
+                put(person, t, joinScope(String(r["scope_type"]), String(r["scope_id"])), s, {
+                  ...s,
+                  unread: recounted,
+                });
+                repaired += 1;
+              }
+            }
+          }
+        });
+      }
+    }
+    return tx(() => {
       // 2 counts: what is stored against what the people's rows add up to
       const want = truth(o);
       const stored = new Map<string, { person: string; scope: string; things: number; entries: number }>();
@@ -849,6 +1045,7 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
       }
       return { problems, repaired };
     });
+  };
 
   return {
     arrive,
@@ -859,7 +1056,12 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
     gain,
     lose,
     forget,
+    leave,
+    enter,
+    reconcile,
     sweep,
+    layoutGet,
+    layoutSet,
     verify,
     followersOf,
     stateOf,

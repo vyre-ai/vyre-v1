@@ -4,12 +4,14 @@ import { fail } from "../../host/src/routes/errors.ts";
 import { StateRefusal, stateSeamOf } from "../../host/src/seams/state.ts";
 import { accessEnv, stateEnvOf } from "../../host/src/seams/state-env.ts";
 import type { StateStore, Thing } from "../../host/src/seams/state.ts";
-import { isHostService } from "../../lib/trust.ts";
+import { isHostService, isOwnPress } from "../../lib/trust.ts";
 
 export interface StateCtx {
   space: string;
   principal: { kind: "person" | "agent" | "actor" | "service"; id: string };
   actingFor?: string | undefined;
+  /** where the call came from: `user` (their own press), `sync` (their own queue), `mcp`, `engine`, `hook`... */
+  origin?: string | undefined;
   trace: { traceId: string };
   now(): number;
   db: { all(sql: string, ...args: unknown[]): unknown[]; run(sql: string, ...args: unknown[]): { changes: number } };
@@ -17,7 +19,7 @@ export interface StateCtx {
     name: string,
     subject: string,
     payload: unknown,
-    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+    opts?: { vis?: "space" | "participants" | "owner" | "private"; onBehalf?: string },
   ): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
   /** each person on their own grants (the host's ctx.mayAll): what a kind asks to know whether a person may open a thing. A hand-built test ctx may omit it. */
@@ -61,11 +63,17 @@ export function hostOnly(ctx: Pick<StateCtx, "principal" | "trace">): void {
 }
 
 /**
- * Writing for a person by an agent acting for them needs the person's own switch, `state.agents_may_triage`, off by default. A person's own press, and an agent with no one to act for, never need it.
- * A setting that cannot be read counts as off.
+ * Whose hand made this call. A person's own press (their own session or their own offline queue, no one acting for them) is free. Everything else writes a person's state only while that person's switch,
+ * `state.agents_may_triage`, is on (default off): an agent acting for them, a person who came through the MCP door (an outside agent runs as its person), a call the engine or a routine made as them, a
+ * service or an outside actor acting for them. An agent, a service or an actor with no one to act for has rows of its own and needs no switch. A setting that cannot be read counts as off.
+ * (Lane f-asker's "the owner asked" rule, a turn the person started by their own message, joins here when that lane merges; it only widens what is free.)
  */
 export async function mayWrite(ctx: StateCtx): Promise<void> {
-  if (ctx.principal.kind !== "agent" || ctx.actingFor === undefined || ctx.actingFor === ctx.principal.id) return;
+  const own =
+    ctx.principal.kind === "person"
+      ? isOwnPress({ principal: ctx.principal, origin: ctx.origin, actingFor: ctx.actingFor })
+      : ctx.actingFor === undefined || ctx.actingFor === ctx.principal.id;
+  if (own) return;
   let on = false;
   try {
     const s = (await ctx.call("settings.get", { key: "state.agents_may_triage" })) as {

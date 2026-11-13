@@ -56,7 +56,7 @@ test("state.get answers my state, and leaves out what I cannot see", async () =>
   assert.equal(jonas.states[0]!.unread, 2, "Jonas has his own");
   assert.equal(
     await failure(() => run("state.get", h.person(MAYA), { things: [{ type: "no_such_kind", id: "x" }] })),
-    "validation.bad_input",
+    "validation.not_found",
   );
 });
 

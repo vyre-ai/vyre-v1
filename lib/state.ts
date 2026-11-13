@@ -24,6 +24,8 @@ export interface PersonState {
   /** "Alert me on replies" */
   alert: boolean;
   mutedUntil: number | null;
+  /** a pin and its place among the person's pins of that kind of thing (smaller is higher); null when not pinned */
+  pinRank: number | null;
   /** the person lost access: the row keeps its flags but leaves every list and count until access comes back */
   hidden: boolean;
 }
@@ -51,6 +53,7 @@ export const blank = (head: number): PersonState => ({
   follow: null,
   alert: false,
   mutedUntil: null,
+  pinRank: null,
   hidden: false,
 });
 
@@ -133,7 +136,8 @@ export function read(
   if ("upto" in req) upto = Math.max(s.readUpto, Math.min(req.upto, head));
   else if ("fromPos" in req) upto = Math.max(0, Math.min(req.fromPos - 1, head));
   else {
-    const newest = Math.max(-1, ...entries.filter((e) => e.by !== person).map((e) => e.pos));
+    let newest = -1;
+    for (const e of entries) if (e.by !== person && e.pos > newest) newest = e.pos;
     if (newest < 0) return null;
     upto = Math.min(s.readUpto, newest - 1);
   }
@@ -147,10 +151,12 @@ export interface Change {
   follow?: Follow | null;
   alert?: boolean;
   mute?: { until: number } | null;
+  /** the place of the pin, already worked out (smaller is higher); null unpins. The seam turns "after this one" into a rank. */
+  pin?: number | null;
 }
 
 /** Which of the flags a change moved: the words of the `state.changed` event. */
-export type Flag = "read" | "done" | "star" | "follow" | "mute";
+export type Flag = "read" | "done" | "star" | "follow" | "mute" | "pin";
 
 export function set(row: PersonState | null, head: number, c: Change, now: number): PersonState {
   const s = { ...(row ?? blank(head)) };
@@ -159,6 +165,7 @@ export function set(row: PersonState | null, head: number, c: Change, now: numbe
   if (c.follow !== undefined) s.follow = c.follow;
   if (c.alert !== undefined) s.alert = c.alert;
   if (c.mute !== undefined) s.mutedUntil = c.mute === null ? null : c.mute.until;
+  if (c.pin !== undefined) s.pinRank = c.pin;
   return s;
 }
 
@@ -171,6 +178,7 @@ export function changedFlags(before: PersonState | null, after: PersonState, hea
   if ((b.starredAt === null) !== (after.starredAt === null)) out.push("star");
   if (b.follow !== after.follow || b.alert !== after.alert) out.push("follow");
   if (b.mutedUntil !== after.mutedUntil) out.push("mute");
+  if (b.pinRank !== after.pinRank) out.push("pin");
   return out;
 }
 
@@ -187,6 +195,7 @@ export function merge(a: PersonState, b: PersonState): PersonState {
     follow: a.follow === "following" || b.follow === "following" ? "following" : (a.follow ?? b.follow),
     alert: a.alert || b.alert,
     mutedUntil: a.mutedUntil !== null && b.mutedUntil !== null ? Math.min(a.mutedUntil, b.mutedUntil) : null,
+    pinRank: a.pinRank === null ? b.pinRank : b.pinRank === null ? a.pinRank : Math.min(a.pinRank, b.pinRank),
     hidden: a.hidden && b.hidden,
   };
 }

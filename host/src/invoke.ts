@@ -1123,7 +1123,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       traceId: trace.traceId,
       spanId: trace.spanId,
       actor: seed.principal.id,
-      ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}),
+      ...(opts?.onBehalf ? { onBehalf: opts.onBehalf } : seed.actingFor ? { onBehalf: seed.actingFor } : {}),
       ...(seed.device ? { device: seed.device } : {}),
       ...(seed.run ? { runId: seed.run } : {}),
       ...(opts?.cause ? { cause: opts.cause } : {}),
@@ -1177,6 +1177,11 @@ export function createInvoke(deps: InvokeDeps): Invoke {
           throw fail("internal.unexpected", trace.traceId, {
             message: "Something went wrong on our side.",
             details: { cap: c.name, event: name, errors: bad.slice(0, 5) },
+          });
+        if (opts?.onBehalf !== undefined && !isHostService(seed.principal))
+          throw fail("internal.unexpected", trace.traceId, {
+            message: "Something went wrong on our side.",
+            details: { cap: c.name, event: name, why: "only the host service may make an event on someone's behalf" },
           });
         const ev = envelope(name, subject, payload, seed, trace, depth, opts);
         buf.push(ev as EventEnvelope);

@@ -1,6 +1,7 @@
 // state (contract P2, 13 Nov 2026): what one person has done with one thing, kept apart from the thing. Read (a position, not a flag), done (one state: Done in the Inbox is Archive in Chats), star,
 // follow, mute. One row per person and thing; two people never share one, so one person's read can never clear another's.
 // DECISION: a thing is `{ type, id }` with an open type, not a resourceRef: the things that carry state (an Inbox conversation, a notice) are not access resources, and each kind of thing says who can see it (the module's `audience`).
+// DECISION (lead's review, 13 Nov): every state event is `vis: private`: only the person it is about, the one who made it, and (for the host's own changes, such as a mute ending) the person it is made on behalf of ever read it; the Space owner does not.
 // DECISION: every call works on `actingFor ?? principal`. Reading is always allowed; an agent acting for a person changes that person's state only while the person's setting `state.agents_may_triage` is on (default off).
 // DECISION: the seven internal calls (arrive, retract, merge, gain, lose, forget, verify) are the host's own: a module reaches them through the seam in host/src/seams/state.ts, in one transaction with the rows they move.
 import { defineManifest, ev, read, setting, t, write } from "../packages/contracts/src/index.ts";
@@ -12,7 +13,7 @@ const scope = t.str({
   description: "A badge: `mailbox:<id>`, `number:<id>`, `chats`, `threads` or `notices:<place>`",
 });
 const follow = t.enm("following", "left");
-const flag = t.enm("read", "done", "star", "follow", "mute");
+const flag = t.enm("read", "done", "star", "follow", "mute", "pin");
 const stateRow = t.obj({
   thing,
   readUpto: t.int({ minimum: 0, description: "The newest entry I have read" }),
@@ -25,12 +26,23 @@ const stateRow = t.obj({
   follow: t.nullable(follow),
   alert: t.bool({ description: "Alert me on replies" }),
   muted: t.nullable(t.ts({ description: "Muted until this time; a very large value means for good" })),
+  pin: t.nullable(
+    t.num({ description: "Where my pin sits among my pins of this kind of thing (smaller is higher); null when not pinned" }),
+  ),
+});
+const count = t.obj({ scope, things: t.int({ minimum: 0 }), entries: t.int({ minimum: 0 }) });
+const layoutValue = t.obj({
+  key: t.str({ examples: ["chats.sidebar.folds"] }),
+  value: t.json(),
+  version: t.int({ minimum: 0 }),
+  at: t.ts(),
 });
 const listRow = t.obj({
   thing,
   title: t.str(),
   at: t.ts({ description: "When it was starred, done, or last had an entry, by the filter" }),
   unread: t.int({ minimum: 0 }),
+  state: stateRow,
 });
 const problem = t.obj({
   kind: t.enm("head", "unread", "count"),
@@ -42,7 +54,7 @@ const problem = t.obj({
 
 const V = { level: "member" } as const;
 /** The host's own: no tool, no screen, and the handler refuses anyone but the server. */
-const INTERNAL: CapOpts = { ...V, risk: "low", audit: "none", offline: "online", errors: ["validation.not_found"] };
+const INTERNAL: CapOpts = { ...V, risk: "low", audit: "none", offline: "online", errors: ["permission.no_grant"] };
 
 export default defineManifest({
   id: "state",
@@ -50,17 +62,39 @@ export default defineManifest({
   owner: "L7a",
 
   events: [
-    ev("state.changed", "One person's state on one thing changed: read, done, star, follow or mute", {
-      p: {
-        person: t.str(),
-        thing,
-        changed: t.arr(flag),
-        now: t.ts(),
-        by: t.str({ description: "Who did it: the person, or the agent that acted for them" }),
+    ev(
+      "state.changed",
+      "One person's state on one thing changed (read, done, star, follow, mute or pin): the event carries the new state of that thing and the badge it counts in, so a screen patches its row without asking again",
+      {
+        p: {
+          person: t.str(),
+          thing,
+          changed: t.arr(flag),
+          now: t.ts(),
+          by: t.str({
+            description: "Who did it: the person, or the agent that acted for them; the host for a mute that ended",
+          }),
+          state: stateRow,
+          count,
+        },
+        subject: ["entity", "/thing/id"],
+        vis: "private",
       },
-      subject: ["entity", "/thing/id"],
-      vis: "owner",
+    ),
+    ev("state.scope_read", "A person marked everything in one badge read: one event for the whole badge, with its new count", {
+      p: { person: t.str(), scope, marked: t.int({ minimum: 0 }), count, now: t.ts(), by: t.str() },
+      subject: ["entity", "/scope"],
+      vis: "private",
     }),
+    ev(
+      "state.layout_changed",
+      "A person's layout value changed (how they arranged a screen): their other devices take the new value",
+      {
+        p: { person: t.str(), key: t.str(), value: t.json(), version: t.int({ minimum: 0 }), now: t.ts(), by: t.str() },
+        subject: ["entity", "/key"],
+        vis: "private",
+      },
+    ),
   ],
 
   capabilities: [
@@ -71,10 +105,10 @@ export default defineManifest({
       tool: "meta",
       deferred: true,
     }),
-    read("state.list", "My things by what I did with them: starred, following, done, unread or muted", {
+    read("state.list", "My things by what I did with them: starred, following, done, unread, muted, pinned (in my own order) or any (everything I have set on anything: one read paints a whole screen). Each row carries the thing's whole state", {
       ...V,
       in: {
-        flag: t.enm("starred", "following", "done", "unread", "muted"),
+        flag: t.enm("starred", "following", "done", "unread", "muted", "pinned", "any"),
         type: t.opt(t.str()),
         scope: t.opt(scope),
         cursor: t.opt(t.str()),
@@ -122,7 +156,7 @@ export default defineManifest({
       ...V,
       in: { scope, before: t.opt(t.ts()) },
       out: { marked: t.int({ minimum: 0 }) },
-      emits: ["state.changed"],
+      emits: ["state.scope_read"],
       offline: "queue",
       idem: "natural",
       tool: "meta",
@@ -131,7 +165,7 @@ export default defineManifest({
     }),
     write(
       "state.set",
-      "Mark a thing done or open again, star it, follow or leave it, set Alert me on replies, or mute it. Give at least one",
+      "Mark a thing done or open again, star it, follow or leave it, set Alert me on replies, mute it, or pin it (`pin: {}` puts it last among my pins of this kind, `{ after: null }` first, `{ after: thing }` right below that pin; `pin: null` takes it off). Give at least one",
       {
         ...V,
         in: {
@@ -141,6 +175,7 @@ export default defineManifest({
           follow: t.opt(t.nullable(follow)),
           alert: t.opt(t.bool()),
           mute: t.opt(t.nullable(t.obj({ until: t.ts() }))),
+          pin: t.opt(t.nullable(t.obj({ after: t.opt(t.nullable(thing)) }))),
         },
         out: { state: stateRow },
         emits: ["state.changed"],
@@ -149,6 +184,33 @@ export default defineManifest({
         tool: "meta",
         deferred: true,
         errors: ["validation.not_found", "permission.no_grant"],
+      },
+    ),
+
+    read(
+      "state.layout.get",
+      "How I arranged my screens: my layout values (all, or the named keys). A small value for each registered key, mine alone",
+      {
+        ...V,
+        in: { keys: t.opt(t.arr(t.str())) },
+        out: { values: t.arr(layoutValue) },
+        tool: "meta",
+        deferred: true,
+      },
+    ),
+    write(
+      "state.layout.set",
+      "Set one layout value, or clear it with null. Only registered keys, each with a small size limit; it is never a place for content",
+      {
+        ...V,
+        in: { key: t.str({ examples: ["chats.sidebar.folds"] }), value: t.json() },
+        out: { value: layoutValue },
+        emits: ["state.layout_changed"],
+        offline: "queue",
+        idem: "natural",
+        tool: "meta",
+        deferred: true,
+        errors: ["permission.no_grant", "validation.bad_input"],
       },
     ),
 

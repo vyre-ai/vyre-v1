@@ -17,7 +17,9 @@ export const JONAS = "usr_jonas";
 export const OMAR = "usr_omar";
 export const HELPER = "agt_helper";
 export const STRANGER = "outside@example.com";
-export const MIGRATION = fileURLToPath(new URL("../migrations/0001_state.sql", import.meta.url));
+export const MIGRATIONS = ["0001_state.sql", "0002_state_pin_layout.sql"].map((f) =>
+  fileURLToPath(new URL(`../migrations/${f}`, import.meta.url)),
+);
 
 const FIXTURE_TABLES = `
 CREATE TABLE IF NOT EXISTS fx_thing (id TEXT PRIMARY KEY, kind TEXT NOT NULL, scope TEXT NOT NULL);
@@ -31,6 +33,8 @@ export const fixtureKind = (type: string, reopen: Reopen): StateKind => ({
   reopen,
   audience: (db, thing) =>
     (db.all("SELECT person FROM fx_member WHERE thing = ?", thing) as { person: string }[]).map((r) => r.person),
+  visible: (db, thing, person) =>
+    db.all("SELECT 1 FROM fx_member WHERE thing = ? AND person = ?", thing, person).length > 0,
   scope: (db, thing) =>
     (db.all("SELECT scope FROM fx_thing WHERE id = ?", thing)[0] as { scope: string } | undefined)?.scope ?? "box:main",
   entries: (db, thing) =>
@@ -59,7 +63,7 @@ export interface Fx {
 
 export function openFx(file = ":memory:"): Fx {
   const db = openDb(file);
-  db.exec(readFileSync(MIGRATION, "utf8"));
+  for (const m of MIGRATIONS) db.exec(readFileSync(m, "utf8"));
   db.exec(FIXTURE_TABLES);
   registerStateKind(db, fixtureKind("conversation", "new_entry"));
   registerStateKind(db, fixtureKind("chat", "mention"));
@@ -123,29 +127,35 @@ export interface Emitted {
 export interface Harness {
   fx: Fx;
   emitted: Emitted[];
+  /** the options each emitted event carried (vis, onBehalf), in the same order */
+  emitOpts: Record<string, unknown>[];
   calls: { cap: string; input: unknown }[];
   /** a ctx for a caller; `settings` answers `settings.get` for the agent switch */
-  as(principal: StateCtx["principal"], opts?: { actingFor?: string; triage?: boolean | "unreadable" }): StateCtx;
+  as(principal: StateCtx["principal"], opts?: { actingFor?: string; origin?: string; triage?: boolean | "unreadable" }): StateCtx;
   person(id: string): StateCtx;
 }
 
 export function harness(fx: Fx = openFx()): Harness {
   const emitted: Emitted[] = [];
+  const emitOpts: Record<string, unknown>[] = [];
   const calls: { cap: string; input: unknown }[] = [];
   const h: Harness = {
     fx,
     emitted,
+    emitOpts,
     calls,
     as(principal, opts = {}) {
       return {
         space: "spc_test",
         principal,
         ...(opts.actingFor === undefined ? {} : { actingFor: opts.actingFor }),
+        origin: opts.origin ?? "user",
         trace: { traceId: TRACE },
         now: () => fx.clock.t,
         db: scopedDb("state", fx.db, TRACE),
-        emit(name, subject, payload) {
+        emit(name, subject, payload, opts) {
           emitted.push({ name, subject, payload: payload as Record<string, unknown> });
+          emitOpts.push({ ...opts });
           return null;
         },
         async call(cap, input) {

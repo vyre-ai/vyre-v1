@@ -1,6 +1,5 @@
 // The six public capabilities of state and the host's own internal calls. Every public call is about `actingFor ?? principal`; a thing the caller cannot see is not_found.
-import type { ThingState } from "../../../host/src/seams/state.ts";
-import type { Change } from "../../../lib/state.ts";
+import type { ChangeResult, LayoutValue, SetIn, ThingState } from "../../../host/src/seams/state.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import { guarded, hostOnly, mayWrite, storeOf, storeWithPeople, subjectOf } from "../projections.ts";
 import type { StateCtx } from "../projections.ts";
@@ -8,14 +7,17 @@ import type { StateCtx } from "../projections.ts";
 type Thing = { type: string; id: string };
 const DEFAULT_PAGE = 50;
 
-/** state.changed, once per thing whose state moved: who it is about, what moved, and who did it. */
-function announce(ctx: StateCtx, person: string, thing: Thing, changed: readonly string[]): void {
-  if (changed.length === 0) return;
+/**
+ * state.changed, once per thing whose state moved. It is private: only the person it is about and whoever made the change read it. It carries the thing's new state and the badge it counts in, so a screen
+ * patches its row without asking again.
+ */
+function announce(ctx: StateCtx, person: string, thing: Thing, r: ChangeResult): void {
+  if (r.changed.length === 0) return;
   ctx.emit(
     "state.changed",
     thing.id,
-    { person, thing, changed, now: ctx.now(), by: ctx.principal.id },
-    { vis: "owner" },
+    { person, thing, changed: r.changed, now: ctx.now(), by: ctx.principal.id, state: r.state, count: r.count },
+    { vis: "private" },
   );
 }
 
@@ -59,6 +61,7 @@ export async function list(
         title: titles[i]?.title ?? r.thing.id,
         at: r.at,
         unread: r.unread,
+        state: r.state,
       })),
       ...(page.next ? { next: page.next } : {}),
     };
@@ -85,7 +88,7 @@ export async function readCall(
           ? { fromPos: input.fromPos }
           : { unread: true as const };
     const r = storeOf(ctx).read(me, input.thing, req);
-    announce(ctx, me, input.thing, r.changed);
+    announce(ctx, me, input.thing, r);
     return { unread: r.state.unread };
   });
 }
@@ -95,7 +98,21 @@ export async function readScope(ctx: StateCtx, input: { scope: string; before?: 
   return guarded(ctx, () => {
     const me = subjectOf(ctx);
     const r = storeOf(ctx).readScope(me, input.scope, input.before);
-    for (const t of r.things) announce(ctx, me, t, ["read"]);
+    // one event for the whole badge, never one for each of thousands of things
+    if (r.marked > 0)
+      ctx.emit(
+        "state.scope_read",
+        input.scope,
+        {
+          person: me,
+          scope: input.scope,
+          marked: r.marked,
+          count: { scope: input.scope, ...r.count },
+          now: ctx.now(),
+          by: ctx.principal.id,
+        },
+        { vis: "private" },
+      );
     return { marked: r.marked };
   });
 }
@@ -109,22 +126,43 @@ export async function setCall(
     follow?: "following" | "left" | null;
     alert?: boolean;
     mute?: { until: number } | null;
+    pin?: { after?: Thing | null } | null;
   },
 ): Promise<{ state: ThingState }> {
-  const change: Change = {
+  const change: SetIn = {
     ...(input.done !== undefined ? { done: input.done } : {}),
     ...(input.star !== undefined ? { star: input.star } : {}),
     ...(input.follow !== undefined ? { follow: input.follow } : {}),
     ...(input.alert !== undefined ? { alert: input.alert } : {}),
     ...(input.mute !== undefined ? { mute: input.mute } : {}),
+    ...(input.pin !== undefined ? { pin: input.pin } : {}),
   };
-  if (Object.keys(change).length === 0) return bad(ctx, "Give at least one of done, star, follow, alert or mute.");
+  if (Object.keys(change).length === 0) return bad(ctx, "Give at least one of done, star, follow, alert, mute or pin.");
   await mayWrite(ctx);
   return guarded(ctx, () => {
     const me = subjectOf(ctx);
     const r = storeOf(ctx).set(me, input.thing, change);
-    announce(ctx, me, input.thing, r.changed);
+    announce(ctx, me, input.thing, r);
     return { state: r.state };
+  });
+}
+
+export async function layoutGet(ctx: StateCtx, input: { keys?: string[] }): Promise<{ values: LayoutValue[] }> {
+  return guarded(ctx, () => ({ values: storeOf(ctx).layoutGet(subjectOf(ctx), input.keys) }));
+}
+
+export async function layoutSet(ctx: StateCtx, input: { key: string; value: unknown }): Promise<{ value: LayoutValue }> {
+  await mayWrite(ctx);
+  return guarded(ctx, () => {
+    const me = subjectOf(ctx);
+    const value = storeOf(ctx).layoutSet(me, input.key, input.value);
+    ctx.emit(
+      "state.layout_changed",
+      input.key,
+      { person: me, key: value.key, value: value.value, version: value.version, now: ctx.now(), by: ctx.principal.id },
+      { vis: "private" },
+    );
+    return { value };
   });
 }
 

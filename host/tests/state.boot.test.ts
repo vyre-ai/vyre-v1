@@ -19,7 +19,7 @@ test("the state module migrates at boot and answers its public calls through the
         name: string;
       }[]
     ).map((r) => r.name);
-    assert.deepEqual(tables, ["state_count", "state_person", "state_thing"]);
+    assert.deepEqual(tables, ["state_count", "state_layout", "state_person", "state_thing"]);
 
     const counts = await post(d, "/v1/state/counts", {});
     assert.equal(counts.status, 200);
@@ -30,8 +30,8 @@ test("the state module migrates at boot and answers its public calls through the
 
     // a kind nobody registered is a plain refusal, never a crash; a conversation that is not there is not found (the Inbox registers its kind at boot)
     const set = await post(d, "/v1/state/set", { thing: NO_KIND, star: true });
-    assert.equal(set.status, 422);
-    assert.equal(((await set.json()) as { error: { code: string } }).error.code, "validation.bad_input");
+    assert.equal(set.status, 404);
+    assert.equal(((await set.json()) as { error: { code: string } }).error.code, "validation.not_found");
     const read = await post(d, "/v1/state/read", { thing: THING, upto: 1 });
     assert.equal(read.status, 404);
     assert.equal(((await read.json()) as { error: { code: string } }).error.code, "validation.not_found");

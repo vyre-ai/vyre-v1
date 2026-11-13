@@ -2,7 +2,7 @@
 // contacts.route_owner, contacts.address.*, records.get/create/search, tasks.create, follows.toggle, mail.message.get, mail.mailbox.list, telephony.number.list,
 // meetings.list, access.groups.list). Every call is checked against the frozen input schema of its capability, as the invoke pipeline would, and the stand-ins
 // answer in the frozen output shape. Access is open unless a test denies a resource.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { registry } from "../../../generated/registry.ts";
 import { scopedDb } from "../../../host/src/ctx/db.ts";
@@ -15,7 +15,7 @@ import { ensure } from "../projections.ts";
 import { conversationKind } from "../state.ts";
 
 /** The `state` module's tables, made the way the host makes them: by that module's own migration. */
-const STATE_MIGRATION = fileURLToPath(new URL("../../state/migrations/0001_state.sql", import.meta.url));
+const STATE_MIGRATIONS = fileURLToPath(new URL("../../state/migrations/", import.meta.url));
 
 export const NOW = 1_760_000_000_000;
 export const HOUR = 3_600_000;
@@ -135,7 +135,7 @@ export function harness(opts: HarnessOptions = {}) {
 
   // a real SQLite behind the host's own table guard, with the state module's tables: what a booted server has, so the Inbox's per-person state runs through the same seam
   const raw = openDb(":memory:");
-  raw.exec(readFileSync(STATE_MIGRATION, "utf8"));
+  for (const f of readdirSync(STATE_MIGRATIONS).sort()) raw.exec(readFileSync(`${STATE_MIGRATIONS}${f}`, "utf8"));
   registerStateKind(raw, conversationKind);
   const people = opts.people ?? [(opts.principal ?? { id: "usr_maya01" }).id];
   const ctx: InboxCtx = {
@@ -401,6 +401,10 @@ export function harness(opts: HarnessOptions = {}) {
     },
     as(principal: InboxCtx["principal"]): InboxCtx {
       return Object.assign(Object.create(ctx) as InboxCtx, { principal });
+    },
+    /** their grants open the resource again */
+    restoreTo(person: string, resource: { type: string; id: string }): void {
+      hidden.get(person)?.delete(`${resource.type}:${resource.id}`);
     },
     /** this person's own grants no longer open the resource (they lost access to it) */
     hideFrom(person: string, resource: { type: string; id: string }): void {
