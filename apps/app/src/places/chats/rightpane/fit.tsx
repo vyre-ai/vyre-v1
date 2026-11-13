@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
+import { anchorOfFocus } from "../mounts/route.ts";
 import { MORE_KEY, TAB_EXTRA, fitTabs, tabWidth } from "./model.ts";
 
 /** Real text widths, by tab title, measured by onLayout of a hidden row set in the strip's own type. Until they arrive the fit uses the model's estimate. */
@@ -37,7 +38,7 @@ export interface FitMenu { show(entries: MenuEntry[], x: number, y: number, kind
 
 /**
  * The tabs to draw at `width` (the strip's own width, the same number fitTabs takes) and the select handler that opens the More menu for the folded ones.
- * `left` is the strip's left edge in the window; the menu opens just under the More tab, which is the last one drawn.
+ * The menu opens just under the More tab that was pressed (read from the focused control); `left` and `top` are the fallback when nothing is focused: the strip's left edge in the window, and its row.
  */
 export function useFittedTabs<K extends string>(
   tabs: readonly { key: K; title: string }[], active: K, width: number,
@@ -52,8 +53,10 @@ export function useFittedTabs<K extends string>(
   const select = (key: string): void => {
     if (key === MORE_KEY) {
       const rest: MenuEntry[] = fitted.hidden.map((t) => ({ label: t.title, onSelect: () => o.pick(t.key) }));
-      const x = o.left + fitted.shown.reduce((n, t) => n + widthOf(t.title), 0);
-      o.menu.show(rest, Math.max(0, x), o.top, "other");
+      // the menu opens where the control was pressed: just under the focused More tab. The window position worked out from the tabs' widths is only for a press that left no focus to read.
+      const guess = { x: Math.max(0, o.left + fitted.shown.reduce((n, t) => n + widthOf(t.title), 0)), y: o.top };
+      const at = anchorOfFocus(guess);
+      o.menu.show(rest, at.x, at.y, "other");
       return;
     }
     const hit = tabs.find((t) => t.key === key);

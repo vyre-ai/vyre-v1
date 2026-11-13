@@ -267,8 +267,9 @@ export function linkedTo(s: Shown, hash: string): Shown {
 
 /** Where a popover opens: under the control that has the focus (a mouse press and a key press both leave it there), never at the pointer. */
 export function anchorOfFocus(fallback: { x: number; y: number } = { x: 8, y: 48 }): { x: number; y: number } {
-  const doc = (globalThis as { document?: { activeElement?: { getBoundingClientRect?: () => { left: number; bottom: number; width: number; height: number } } | null } }).document;
-  const box = doc?.activeElement?.getBoundingClientRect?.();
+  const doc = (globalThis as { document?: { body?: unknown; activeElement?: { getBoundingClientRect?: () => { left: number; bottom: number; width: number; height: number } } | null } }).document;
+  // nothing focused leaves the page's body as the active element: its box is the whole page, not a control
+  const box = doc?.activeElement === doc?.body ? undefined : doc?.activeElement?.getBoundingClientRect?.();
   if (!box || (box.width === 0 && box.height === 0)) return fallback;
   return { x: box.left, y: box.bottom + 4 };
 }
