@@ -8955,6 +8955,9 @@ export type ComputersChromeScreenshotOut = {
   fileId: string;
   width: number;
   height: number;
+  pageWidth?: number;
+  pageHeight?: number;
+  scale?: number;
 };
 export type ComputersChromeSendIn = {
   computerId?: string;
@@ -42898,6 +42901,13 @@ export type ThreadsMoveOut = {
     preview?: string;
   };
 };
+export type ThreadsOpenStateIn = {
+  threadId: string;
+};
+export type ThreadsOpenStateOut = {
+  exists: boolean;
+  closed: boolean;
+};
 export type ThreadsOutsideAgentAddIn = {
   threadId: string;
   agentId: string;
@@ -47077,6 +47087,7 @@ export interface CapMap {
   "threads.members.add": { in: ThreadsMembersAddIn; out: ThreadsMembersAddOut };
   "threads.members.remove": { in: ThreadsMembersRemoveIn; out: ThreadsMembersRemoveOut };
   "threads.move": { in: ThreadsMoveIn; out: ThreadsMoveOut };
+  "threads.open_state": { in: ThreadsOpenStateIn; out: ThreadsOpenStateOut };
   "threads.outside_agent.add": { in: ThreadsOutsideAgentAddIn; out: ThreadsOutsideAgentAddOut };
   "threads.outside_agent.remove": { in: ThreadsOutsideAgentRemoveIn; out: ThreadsOutsideAgentRemoveOut };
   "threads.poke": { in: ThreadsPokeIn; out: ThreadsPokeOut };

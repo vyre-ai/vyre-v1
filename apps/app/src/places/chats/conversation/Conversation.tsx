@@ -148,7 +148,8 @@ import {
   faceDoor,
 } from "./model.ts";
 import type { Message, Pending, SendKind, Thread } from "./model.ts";
-import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
+import { LoadFailed, failureOf, retryLoads } from "../../../../../../ui/src/States/Loads.tsx";
+import { refusalIsPending } from "../../../shell/session/just-made.ts";
 import { itemLink, messageLink } from "../../../share/rows.ts";
 import { createMenuApi } from "../menus/actions.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
@@ -694,7 +695,14 @@ function ConversationView(): ReactElement {
       live = false;
     };
   }, [data.call, data.nav.openSpaceAiKey]);
-  if (failed) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
+  // a chat this person started a moment ago is not readable yet: that is not a refusal, so the loading mark stays and the read is asked again
+  const notYet = failed !== undefined && refusalIsPending(failed, data.threadId);
+  useEffect(() => {
+    if (!notYet) return undefined;
+    const t = setInterval(retryLoads, 1500);
+    return () => clearInterval(t);
+  }, [notYet]);
+  if (failed && !notYet) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading />;
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;

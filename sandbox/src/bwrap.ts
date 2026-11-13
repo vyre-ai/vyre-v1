@@ -2,6 +2,8 @@
 // dropped, and the process dies with its parent. Files are enforced by the kernel. The network is shared with the machine and steered through the egress proxy by variables: that is not a wall,
 // so `enforcement.network` says "proxy-env" and the engine driver may refuse to start where a wall is required. Windows has no native sandbox: its CLI engines run in WSL2 with this same profile.
 import { proxyEnv } from "./docker.ts";
+import { identityBinds } from "./identity.ts";
+import type { Who } from "./identity.ts";
 import { validateSpec } from "./policy.ts";
 import type { PolicyOptions } from "./policy.ts";
 import { SandboxError } from "./types.ts";
@@ -23,6 +25,8 @@ export interface BwrapOptions {
   proxyPort?: number;
   /** Extra read-only folders for the program being run. */
   programRead?: readonly string[];
+  /** The user the sandbox runs as (its uid and gid get the name `agent`). Default: the process's own. */
+  identity?: Who;
 }
 
 export interface WrappedCommand {
@@ -44,6 +48,12 @@ export function bwrapCommand(
   const a: string[] = ["--die-with-parent", "--new-session", "--unshare-all", "--cap-drop", "ALL"];
   if (o.proxyPort !== undefined) a.push("--share-net");
   for (const p of [...SYSTEM_RO, ...(o.programRead ?? [])]) a.push("--ro-bind-try", p, p);
+  a.push(
+    ...identityBinds(o.identity, [
+      ...checked.mounts.filter((m) => m.mode === "rw").map((m) => m.host),
+      ...(checked.scratch !== undefined ? [checked.scratch] : []),
+    ]),
+  );
   a.push(
     "--symlink",
     "usr/bin",

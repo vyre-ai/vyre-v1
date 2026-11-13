@@ -316,7 +316,7 @@ export function KnowsTab({
       type: "block",
       node: (
         <View testID="knows-about" style={st.about}>
-          <Text testID="knows-about-scope" style={st.hint}>
+          <Text testID="knows-about-scope" style={[st.hint, st.inset]}>
             {priv ? ABOUT_PRIVATE : ABOUT_SHARED}
           </Text>
           {lines.slice(0, ABOUT_LIMIT).map(({ f, place }) => (
@@ -331,20 +331,22 @@ export function KnowsTab({
             />
           ))}
           {lines.length === 0 ? (
-            <Text testID="knows-about-empty" style={st.hint}>
+            <Text testID="knows-about-empty" style={[st.hint, st.inset]}>
               {priv ? "Nothing about you yet." : "Nothing on your public profile yet."}
             </Text>
           ) : null}
           {memory.nav.openAboutYou ? (
-            <LinkButton
-              label={
-                lines.length > ABOUT_LIMIT
-                  ? `See all ${lines.length} in Memory and privacy`
-                  : "Edit in Memory and privacy"
-              }
-              testID="knows-about-open"
-              onPress={() => memory.nav.openAboutYou?.()}
-            />
+            <View style={st.insetLink}>
+              <LinkButton
+                label={
+                  lines.length > ABOUT_LIMIT
+                    ? `See all ${lines.length} in Memory and privacy`
+                    : "Edit in Memory and privacy"
+                }
+                testID="knows-about-open"
+                onPress={() => memory.nav.openAboutYou?.()}
+              />
+            </View>
           ) : null}
         </View>
       ),
@@ -765,15 +767,15 @@ const st = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
-    paddingHorizontal: 8,
+    paddingHorizontal: 24,
     paddingTop: 12,
     paddingBottom: 2,
   },
   headText: { flexShrink: 1, fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   headRight: { flexDirection: "row", alignItems: "center", gap: 4 },
   forYou: { fontSize: 11.5, color: "var(--ink-3)" as string },
-  scope: { paddingHorizontal: 8, paddingBottom: 8, fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
-  err: { paddingHorizontal: 8, paddingBottom: 6, fontSize: 12, color: "var(--danger)" as string },
+  scope: { paddingHorizontal: 24, paddingBottom: 8, fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
+  err: { paddingHorizontal: 24, paddingBottom: 6, fontSize: 12, color: "var(--danger)" as string },
   hint: { fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string },
   asof: {
     flexDirection: "row",
@@ -815,7 +817,10 @@ const st = StyleSheet.create({
   },
   asofText: { flex: 1, fontSize: 12, color: "var(--ink-2)" as string },
   map: { paddingHorizontal: 8, paddingTop: 8, paddingBottom: 4, gap: 8 },
-  about: { paddingHorizontal: 8, paddingBottom: 6, gap: 2 },
+  about: { paddingHorizontal: 16, paddingBottom: 6, gap: 2 },
+  // text lines in the About block sit where the pane's labels and rows put their text (24), which the block's own 16 plus the 8 of a row makes for rows
+  inset: { paddingHorizontal: 8 },
+  insetLink: { paddingHorizontal: 8, marginLeft: -4 }, // a link button carries 4 of its own
   mapHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   mapIcon: {
     width: 30,
@@ -868,9 +873,9 @@ const st = StyleSheet.create({
     boxShadow: "inset 0 0 0 1px var(--line-2)",
     outlineStyle: "none",
   } as object,
-  more: { paddingHorizontal: 8, paddingVertical: 2, alignItems: "flex-start" },
+  more: { paddingHorizontal: 24, paddingVertical: 2, alignItems: "flex-start" },
   footer: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 24,
     paddingTop: 12,
     paddingBottom: 10,
     flexDirection: "row",

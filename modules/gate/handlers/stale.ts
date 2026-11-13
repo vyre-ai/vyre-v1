@@ -14,12 +14,14 @@ async function closedWhy(ctx: GateCtx, h: Hold): Promise<string | null> {
   if (ctx.now() - h.createdAt >= STALE_MS) return NOTE_STALE;
   if (h.threadId && ctx.call) {
     try {
-      const t = ((await ctx.call("threads.get", { threadId: h.threadId })) as { thread?: { closedAt?: unknown } })
-        .thread;
-      if (t && t.closedAt !== undefined && t.closedAt !== null) return NOTE_CHAT;
-    } catch (e) {
-      // a chat that is gone ends its asks; any other failure to read it leaves the hold as it was
-      if ((e as { error?: { code?: string } })?.error?.code === "validation.not_found") return NOTE_CHAT;
+      // the chat's own answer about itself: a private chat the system may not read still says whether it exists and is closed
+      const s = (await ctx.call("threads.open_state", { threadId: h.threadId })) as {
+        exists?: boolean;
+        closed?: boolean;
+      };
+      if (s.exists === false || s.closed === true) return NOTE_CHAT;
+    } catch {
+      // any failure to ask leaves the hold as it was: only a chat that says it is gone or closed ends its asks
     }
   }
   if (h.taskId && ctx.call) {

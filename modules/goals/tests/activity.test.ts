@@ -12,14 +12,21 @@ const claim = (w: World, e: { payload: Record<string, any> }) =>
 test("every reason a wake can carry has words, and none reads as its key", () => {
   const dir = new URL("../handlers/", import.meta.url);
   const reasons = new Set<string>(["retry"]);
+  let read = 0;
+  let calls = 0;
   for (const f of readdirSync(dir)) {
     const src = readFileSync(new URL(f, dir), "utf8");
-    // Read the whole file with its whitespace folded, so the scan does not depend on how Prettier wrapped a call.
+    // Read the whole file with its whitespace folded, so the scan does not depend on how Prettier wrapped a call or what the arguments are called.
     const flat = src.replace(/\s+/g, " ");
-    for (const call of flat.matchAll(/queueWake\( ?ctx, g,([^`;]*?)(?:undefined|`|;)/g))
+    for (const call of flat.matchAll(/queueWake\( ?[^,;]+, [^,;]+,([^`;]*?)(?:undefined|`|;)/g)) {
+      read++;
       for (const m of call[1]!.matchAll(/(?<!=== )"([a-z_]+)"/g)) reasons.add(m[1]!);
-    for (const m of flat.matchAll(/resumeGoal\(ctx, g, "([a-z_]+)"\)/g)) reasons.add(m[1]!);
+    }
+    for (const m of flat.matchAll(/resumeGoal\( ?[^,;]+, [^,;]+, "([a-z_]+)"\)/g)) reasons.add(m[1]!);
+    // every call the scan cannot read must fail the test: count every queueWake( except the declaration
+    calls += (flat.match(/queueWake\(/g) ?? []).length - (flat.match(/function queueWake\(/g) ?? []).length;
   }
+  assert.ok(calls > 0 && read === calls, `the scan read ${read} of ${calls} queueWake calls in the handlers`);
   for (const r of [
     "start",
     "checkin",

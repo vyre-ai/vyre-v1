@@ -5,9 +5,21 @@ import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
 import { States } from "./index.tsx";
 
-export { RETRY_LOADS_EVENT, failureOf, onRetryLoads, retryLoads } from "./retry.ts";
+export {
+  BACK_LABEL,
+  BACK_TO_START_EVENT,
+  REFUSED_CAUSE,
+  RETRY_LOADS_EVENT,
+  backToStart,
+  failureOf,
+  isRefused,
+  onBackToStart,
+  onRetryLoads,
+  refusalFinal,
+  retryLoads,
+} from "./retry.ts";
 export type { LoadFailure } from "./retry.ts";
-import { retryLoads } from "./retry.ts";
+import { BACK_LABEL, REFUSED_CAUSE, backToStart, isRefused, retryLoads } from "./retry.ts";
 import type { LoadFailure } from "./retry.ts";
 
 /** The error a place draws where its content would be: "Couldn't load <what>", the reason, Retry, and the trace id behind Details. */
@@ -16,12 +28,27 @@ export function LoadFailed({
   failure,
   onRetry = retryLoads,
   testID = "load-failed",
+  refusable = true,
 }: {
   what: string;
   failure: LoadFailure;
   onRetry?: () => void;
   testID?: string;
+  /** False where a person cannot be refused (the list of what needs them): the read failed, so Retry stays. */ refusable?: boolean;
 }): ReactElement {
+  // a refusal is not a failure to wait out: say so plainly and offer no Retry, which could never work
+  if (refusable && isRefused(failure))
+    return (
+      <View testID={testID} style={st.fill}>
+        <States
+          kind="error"
+          message={`You can't open ${what}`}
+          cause={REFUSED_CAUSE}
+          action={{ label: BACK_LABEL, onPress: backToStart }}
+          {...(failure.traceId ? { traceId: failure.traceId } : {})}
+        />
+      </View>
+    );
   return (
     <View testID={testID} style={st.fill}>
       <States

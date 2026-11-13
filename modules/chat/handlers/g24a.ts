@@ -17,6 +17,7 @@ import {
   threadOut,
 } from "../projections.ts";
 import type { ChatCtx, Mode, ThreadKind, ThreadRec } from "../projections.ts";
+import { isHostService } from "../../../lib/trust.ts";
 import { canSpeak, mayGovernChannel, rootOf } from "./post.ts";
 import { mentions } from "./pace.ts";
 import { applyMode } from "./modes.ts";
@@ -98,6 +99,18 @@ const isPrivateRoot = (root: ThreadRec): boolean => root.kind === "chat" || root
 
 export async function get(ctx: ChatCtx, input: { threadId: string }) {
   return out(ctx, load(ctx, input.threadId).id);
+}
+
+/**
+ * For the host's clean-up jobs (the stale-hold sweep): does the chat still exist, and is it closed. The system principal may not read a private chat (load answers not_found), and "I may not see it" is not "it is gone",
+ * so this answers from the row itself and returns nothing else: no title, members or text. People and agents get nothing from it.
+ */
+export async function openState(ctx: ChatCtx, input: { threadId: string }) {
+  ensure(ctx.db);
+  if (!isHostService(ctx.principal))
+    raise(ctx, "permission.no_grant", "Only the Space itself asks whether a chat is still open.");
+  const t = threadBy(ctx.db, input.threadId);
+  return { exists: t !== null, closed: t !== null && t.closedAt !== undefined && t.closedAt !== null };
 }
 
 export interface ListInput {
@@ -548,6 +561,7 @@ export async function move(ctx: ChatCtx, input: { threadId: string; projectId: s
 
 export const g24aHandlers = {
   "threads.get": get,
+  "threads.open_state": openState,
   "threads.list": list,
   "threads.close": close,
   "threads.reopen": reopen,
