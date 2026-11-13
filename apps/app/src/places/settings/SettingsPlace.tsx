@@ -7,7 +7,9 @@ import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
-import { PAGE, useIsPersonal, useScreenQuery, useSettingsData } from "./data.tsx";
+import { PAGE, useIsPersonal, useSettingsData } from "./data.tsx";
+import { useLoad } from "../../load/useLoad.ts";
+import { Loadable } from "../../../../../ui/src/States/Loadable.tsx";
 import { PAGES, PAGE_SUB, homeOf, pageByKey, searchRows, spacePagesFor } from "./model.ts";
 import type { Hit, PageKey, SettingRow, SpacePage } from "./model.ts";
 import { ComputerPage, SignInPage } from "./pages-b.tsx";
@@ -69,8 +71,8 @@ function SettingsBody({
   const [found, setFound] = useState<string | null>(initialFound);
   const [cursor, setCursor] = useState(0);
   const search = useRef<{ focus?: () => void } | null>(null);
-  const list = useScreenQuery<ListOut>(PAGE, "rows", {});
-  const rows: readonly SettingRow[] = list.status === "ready" ? list.data.rows : [];
+  const list = useLoad<ListOut>({ screen: [PAGE, "rows", {}] });
+  const rows: readonly SettingRow[] = list.state === "ready" ? list.data.rows : [];
   const personal = useIsPersonal();
   const spaceRows = useSpaceRows(personal);
   const hits = useMemo(() => searchRows(rows, q, { personal }), [rows, q, personal]);
@@ -415,12 +417,10 @@ function SettingsBody({
           <SavedBar />
           {searching ? (
             searchPage
-          ) : list.status === "ready" ? (
-            body
           ) : (
-            <Text style={n.none} accessibilityRole="progressbar">
-              Loading
-            </Text>
+            <Loadable load={list} what="settings">
+              {() => body}
+            </Loadable>
           )}
         </View>
       </ScrollView>

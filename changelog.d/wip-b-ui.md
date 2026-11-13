@@ -1,0 +1,8 @@
+- Nothing a person sees changes: a new check stops new one-off copies of shared pieces (switches, buttons, section headings, empty states, data reads) from being added.
+- Settings now says "Couldn't load settings" with a Retry button when its read fails, instead of showing "Loading" for ever.
+- The Inbox list now says "Couldn't load the Inbox" with a Retry button when its read fails, instead of showing the grey loading rows for ever.
+- Nothing a person sees changes: lists that load page by page, and changes that show at once and undo themselves if they fail, now have one shared way to do it.
+- The on/off switches in Automations, Files and the share sheet now match the Settings switch in size and look, and answer Space and Enter.
+- Nothing a person sees changes: Settings shares its switch with the rest of the app, and the text boxes of Settings, the Console and other places now share one name for the check that stops a second copy.
+- Nothing a person sees changes: the check that stops a second copy of a shared piece now runs in CI and also catches copies hidden in memo, classes, aliases and other spellings of Load more.
+- The routine switches in the chat pane and the agent page now look like every other switch (accent, same size) and answer Space and Enter.

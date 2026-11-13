@@ -9,7 +9,7 @@ import { Empty, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { ObjectList } from "../objects/ObjectList.tsx";
 import type { ObjectListRow } from "../objects/ObjectList.tsx";
-import { Actions, Button, Field, FormSheet, Note, pickRow, ReadState, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, TextBox, FormSheet, Note, pickRow, ReadState, useAction, useRead } from "./shared.tsx";
 import { Choice } from "./ai-controls.tsx";
 
 type HoldsOut = CapMap["governance.holds.list"]["out"];
@@ -225,7 +225,7 @@ export function Holds(): ReactElement {
             <Note>{placePreview.title} will stop expiring and cannot be erased until this hold is released.</Note>
           ) : (
             <>
-              <Field
+              <TextBox
                 label="Find a person, file, folder, channel or chat"
                 value={query}
                 onChange={(value) => {
@@ -259,7 +259,7 @@ export function Holds(): ReactElement {
               ) : query.trim() && !searching ? (
                 <Empty icon="search">Nothing found</Empty>
               ) : null}
-              <Field
+              <TextBox
                 label="Reason"
                 value={reason}
                 onChange={(value) => {

@@ -283,33 +283,6 @@ export function Select({
   );
 }
 
-export function Switch({
-  on,
-  onChange,
-  label,
-  testID,
-}: {
-  on: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-  testID?: string;
-}): ReactElement {
-  return (
-    <Pressable
-      role="switch"
-      aria-checked={on}
-      accessibilityLabel={label}
-      accessibilityState={{ checked: on }}
-      onPress={() => onChange(!on)}
-      testID={testID}
-      style={[s.sw, on && s.swOn]}
-      {...webProps({ title: label })}
-    >
-      <View style={[s.knob, on && s.knobOn]} />
-    </Pressable>
-  );
-}
-
 /** Two or three choices in one pill; the chosen one sits raised. A radio group, so arrows move and aria-checked is real. */
 export function Segmented<T extends string>({
   options,
