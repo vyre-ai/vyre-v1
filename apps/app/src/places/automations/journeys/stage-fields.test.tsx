@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { act } from "react";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
+import { fakeEscape } from "../../../../../../ui/src/testing/escape.ts";
 import type { Node } from "../../../../../../ui/src/testing/dom.ts";
 import { AutomationsDataProvider } from "../canvas/data.tsx";
 import { ConfigExtrasProvider } from "../config/data.tsx";
@@ -135,4 +136,18 @@ test("a read-only designer lists the fields and has no controls", async () => {
     assert.ok(find(o.root, "stage-fields"));
     for (const l of ["fields", "needToEnter", "needToLeave"]) assert.equal(find(o.root, `add-${l}`), null);
   } finally { await o.stop(); restore(); }
+});
+
+test("Esc puts away the new field box without making a field", async () => {
+  const restore = installDom(); const esc = fakeEscape();
+  const o = await open("intake");
+  try {
+    await press(find(o.root, "add-fields"));
+    await press(find(o.root, "menu-item-New field"));
+    await typeInto(find(o.root, "stage-field-name"), "Passport number");
+    assert.ok(find(o.root, "stage-field-form") !== null);
+    await act(async () => { esc.esc(); }); await flush();
+    assert.ok(find(o.root, "stage-field-form") === null, "Esc closes the form");
+    assert.deepEqual(o.calls.map((c) => c.cap), [], "no field was made, nothing was designed");
+  } finally { await o.stop(); esc.restore(); restore(); }
 });

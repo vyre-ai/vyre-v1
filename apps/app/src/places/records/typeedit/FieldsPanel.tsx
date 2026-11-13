@@ -1,6 +1,7 @@
 // The Fields panel of a table: every field of the type with show or hide in this view, and the edits a person makes to the type itself: add a field, rename, change type, delete (to the
 // field Trash, restorable), move up or down. Each edit is a schema change previewed with schema.diff and applied on exactly that preview; a destructive one asks once, with the count.
 import { useEffect, useState } from "react";
+import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Dialog } from "../../../../../../ui/src/Dialog/index.tsx";
@@ -82,6 +83,14 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
   const [renaming, setRenaming] = useState<{ key: string; text: string } | null>(null);
   const readTrash = (): void => { void call("schema.trash.list", {}).then((out) => setTrash((out as CapMap["schema.trash.list"]["out"]).items), () => undefined); };
   const change = useSchemaChange(call, () => { readTrash(); });
+  // Esc cancels the inline name box that is open (the newest first), exactly as its Cancel does
+  useEscapeLayer(renaming !== null || newGroup !== null || stageName !== null || adding || mode === "rename", () => {
+    if (renaming !== null) setRenaming(null);
+    else if (newGroup !== null) setNewGroup(null);
+    else if (stageName !== null) setStageName(null);
+    else if (adding) { setAdding(false); change.cancel(); }
+    else setMode(null);
+  });
   useEffect(() => {
     let live = true;
     if (given === undefined) void call("schema.field_types", {}).then((out) => { if (live) setFieldTypes((out as CapMap["schema.field_types"]["out"]).fieldTypes); }, () => undefined);
