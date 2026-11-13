@@ -85,6 +85,9 @@
   "apps/app/src/places/chats/computer/data.tsx": {
     "read-hook": 1
   },
+  "apps/app/src/places/chats/computer/LiveScreen.tsx": {
+    "declared": 1
+  },
   "apps/app/src/places/chats/conversation/Conversation.tsx": {
     "crew-poll": 1
   },
