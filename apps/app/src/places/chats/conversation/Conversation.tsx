@@ -91,6 +91,8 @@ import { createMenuApi } from "../menus/actions.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
 import { chatHeaderEntries, isArchivedIn } from "./chat-header-menu.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
+import { PendingOpening } from "../landing/PendingChat.tsx";
+import { pendingFor, releasePending } from "../landing/pending.ts";
 import { offsetMinAt, zoneName } from "../../../../../../lib/zones.ts";
 
 type ThreadOut = CapMap["threads.get"]["out"];
@@ -143,8 +145,9 @@ export function headerTier(width: number): "full" | "lead" | "bare" {
   return width <= 0 || width >= 720 ? "full" : width >= 420 ? "lead" : "bare";
 }
 
-/** The frame before data: a header bar, messages the size of real ones and a composer box, so nothing moves when the thread arrives. */
-export function ConversationLoading(): ReactElement {
+/** The frame before data: a header bar, messages the size of real ones and a composer box, so nothing moves when the thread arrives. A chat this window has just started opens on the person's own first message. */
+export function ConversationLoading({ threadId }: { threadId?: string } = {}): ReactElement {
+  if (threadId !== undefined && pendingFor(threadId) !== undefined) return <PendingOpening threadId={threadId} />;
   return (
     <View testID="conversation-loading" accessibilityLabel="Loading" style={st.root}>
       <View style={st.head} />
@@ -393,8 +396,11 @@ function ConversationView(): ReactElement {
   const agentMeta = useRef<readonly AgentMeta[] | null>(null);
   // which open questions have their own card on screen: the island docks the ones that do not (a hook, so before the early returns)
   const cardsInView = useCardsInView(messagesQ.status === "loading" ? NO_IDS : openQuestions(mergePages(around ?? messagesQ.data.messages, older)).map((x) => x.id));
+  // the first message this window sent is on screen from the thread's own messages now: the held copy has done its job
+  const loaded = threadQ.status !== "loading" && messagesQ.status !== "loading";
+  useEffect(() => { if (loaded) releasePending(data.threadId); }, [loaded, data.threadId]);
   if (failed) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
-  if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading />;
+  if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading threadId={data.threadId} />;
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;
   const all = mergePages(around ?? live, older);

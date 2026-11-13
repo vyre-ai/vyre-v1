@@ -50,6 +50,8 @@ import type { CaptureCounter, Go, LineAction } from "./data.ts";
 import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
 import { START, fromHash, linkedTo, openKeyOf, personOfHash, step, workOf } from "./route.ts";
+import { PendingChat } from "../landing/PendingChat.tsx";
+import { firstWords } from "../landing/pending.ts";
 import { Landing } from "../landing/Landing.tsx";
 import { ThreadSide } from "./ThreadSide.tsx";
 import { ArtifactsPage } from "./ArtifactsPage.tsx";
@@ -111,6 +113,8 @@ export interface ChatsMountedProps {
   opened?: (target: { subject?: { type: string; id: string }; screen?: string; args?: Record<string, unknown> }) => void;
   /** The middle is about to change: the shell keeps a still copy on screen until the next view is ready. */
   onSwitch?: () => void;
+  /** Names the selected tab for the chat that is starting, before the chat has an id. */
+  onTitle?: (title: string) => void;
   /** Closes the tab this page sits in: a page that is finished leaves no stale tab behind. */
   closeSelf?: () => void;
   /** A phone: what opens from the first screen goes on top of its history, so Back returns here. */
@@ -121,7 +125,7 @@ export interface ChatsMountedProps {
   notesInitial?: NotesInitial;
 }
 
-export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch, closeSelf, stacked = false, openInNewTab, notesInitial }: ChatsMountedProps): ReactElement {
+export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch, onTitle, closeSelf, stacked = false, openInNewTab, notesInitial }: ChatsMountedProps): ReactElement {
   const [shown, setShown] = useState<Shown>(() => initial ?? (hash === "" ? START : fromHash(hash)));
   const [line, setLineState] = useState<{ text: string; action?: LineAction } | null>(null);
   const setLine = useCallback((text: string, action?: LineAction): void => setLineState(action ? { text, action } : { text }), []);
@@ -209,6 +213,9 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     });
     return () => { live = false; };
   }, [asking?.agentId, asking?.scopeType, asking?.scopeId, asking?.bringFrom, asking?.draft, asking?.first, rt, act, fill]);
+  const titleTab = useRef(onTitle);
+  titleTab.current = onTitle;
+  useEffect(() => { if (asking?.first) titleTab.current?.(firstWords(asking.first)); }, [asking?.first]);
   const go = useMemo<Go>(() => createGo(rt, act, nameOf, setLine), [rt, act, nameOf]);
   // right tabs: what was opened from a chat, closable, after the pane's own. Pressing any face or name opens that profile here, person or agent.
   const [rightTabs, setRightTabs] = useState<readonly ProfileTab[]>([]);
@@ -413,15 +420,17 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   else if (route.view === "artifact") main = <ArtifactView key={route.artifactId} rt={rt} artifactId={route.artifactId} share={route.share === true} back={() => act({ t: "artifacts" })} gone={() => act({ t: "artifacts" })} />;
   else if (route.view === "notes") main = <NotesPage rt={rt} nameOf={nameOf} noteId={route.noteId ?? null} {...(route.take ? { takeNonce: route.take } : {})} {...(notesInitial ? { initial: notesInitial } : {})} />;
   else if (route.view === "new") {
-    main = <Landing rt={rt} nameOf={nameOf} kindOf={(id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person")} openChat={go.chat} openTasks={() => act({ t: "tasks" })} openNeed={(id) => go.needs(id)} openProfile={profile} fill={(t) => fill.set(t)} newKey={newKey} say={setLine} {...(stacked ? { list: <ChatsSidebar data={side} open={openKey} {...(window ? { window } : {})} /> } : {})} />;
+    main = <Landing rt={rt} nameOf={nameOf} kindOf={(id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person")} openChat={go.chat} openTasks={() => act({ t: "tasks" })} openNeed={(id) => go.needs(id)} openProfile={profile} fill={(t) => fill.set(t)} newKey={newKey} say={setLine} {...(onTitle ? { title: onTitle } : {})} {...(stacked ? { list: <ChatsSidebar data={side} open={openKey} {...(window ? { window } : {})} /> } : {})} />;
   }
+  // an Ask or a chat that opens with the person's own first message (Home's Ask, a task, a project, an agent): his words and the working mark are on screen while the thread is found or made
+  else if (asking !== null && asking.first) main = <PendingChat title={firstWords(asking.first)} text={asking.first} files={[]} lead={asking.agentId === "assistant" ? rt.assistant.name : nameOf(asking.agentId)} phase="sending" />;
   else if (conv) {
     const work = thread.status === "ready" ? workOf(thread.data.thread) : null;
     const live = { ...conv, tail: <ChatWork rt={rt} threadId={conv.threadId} nameOf={nameOf} openTask={openSideTask} openProfile={(who) => { if (who.kind === "agent") go.agent(who.id); else rt.open({ subject: { type: "contact", id: who.id } }); }} /> };
     main = work && width >= WORKSPACE_MIN_W ? <Workspace rt={rt} work={work}><Conversation key={conv.threadId} data={live} /></Workspace> : <Conversation key={conv.threadId} data={live} />;
   }
   else if (channelOpen !== null && channelFailed?.id === channelOpen) main = <LoadFailed what="this channel" failure={channelFailed.failure} onRetry={() => setChannelTry((n) => n + 1)} testID="channel-failed" />;
-  else main = <ConversationLoading />;
+  else main = <ConversationLoading {...(route.view === "chat" && route.threadId ? { threadId: route.threadId } : {})} />;
 
   /* ---------- the right ---------- */
   const rightTab = rightTabs.find((t) => t.key === rightOn);

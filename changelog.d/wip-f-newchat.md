@@ -1,0 +1,3 @@
+- The first message of a new chat now shows the moment you press Enter: your words, the tab named for them and the "thinking" mark are on screen at once, however slow the connection to the Space is. Before, nothing showed until the Space had made the chat and the chat had loaded, which took several seconds on a Space reached over the internet.
+- If a new chat cannot be made, your message stays on screen with Retry and Discard. Retry sends the same message again and never makes a second chat or a second copy of the message.
+- A chat opened from an Ask, a task or a project with a first message of its own now opens on that message at once, in the same way.

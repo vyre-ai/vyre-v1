@@ -28,6 +28,8 @@ import { each } from "../../../shell/sidebar/model.ts";
 import { Glyph } from "../sidebar/parts.tsx";
 import { useLive } from "../mounts/live.ts";
 import { LANDING_NEEDS, moreLine, realAssistant, startFailure, startInput, workingChats, workingLine } from "./model.ts";
+import { PendingChat } from "./PendingChat.tsx";
+import { firstWords, holdPending } from "./pending.ts";
 import type { NeedItem, NeedsOut, RecentOut, WithEntry } from "./model.ts";
 import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 
@@ -43,11 +45,16 @@ export interface LandingProps {
   fill(text: string): void;
   newKey(): string;
   say(text: string): void;
+  /** Names the tab for the chat that is starting, before the chat has an id. */
+  title?(title: string): void;
   /** The phone has no sidebar sheet: its list of chats sits under the first screen. */
   list?: ReactNode;
 }
 
 const isAssistant = (rt: ShellRuntime, id: string): boolean => id === rt.assistant.id;
+
+/** A first message on its way: what the key press captured, so a Retry sends the same thing under the same key. */
+interface Sent { key: string; text: string; files: ComposerSend["files"]; title: string; lead: WithEntry; picked: readonly WithEntry[]; choice: NewChoice; held: readonly AccessPick[]; phase: "sending" | "failed"; note?: string }
 
 export function Landing(p: LandingProps): ReactElement {
   const { rt } = p;
@@ -83,27 +90,51 @@ export function Landing(p: LandingProps): ReactElement {
   const hasInbox = useInboxSources(rt.screens, rt.me.id);
   const mailRow = hasInbox === false ? <SetupLine key="mail" testID="landing-setup-mail" title="Email and calendar" sub="Gmail, Outlook or a number" done={false} open={() => rt.open({ screen: "settings.page", args: { page: "mail" } })} /> : null;
 
-  const start = useCallback((payload: ComposerSend): Promise<void> => {
+  // The first message paints at once (budget: within 100 ms of the key press, on any network): the page shows his words and the working mark from the key press, the chat starts behind them with the key made here,
+  // and the tab opens on the chat when it has an id. A failure shows under his message with Retry, which sends the same key, so a lost answer never makes a twin.
+  const [sent, setSent] = useState<Sent | null>(null);
+  const begin = useCallback(async (s: Sent, slash: boolean): Promise<void> => {
+    try {
+      const assistantId = await realAssistant(rt.assistant.id, (cap, input) => rt.call(cap as never, input as never));
+      if (assistantId === null) throw new Error("no assistant yet");
+      const c = s.choice;
+      const out = await rt.call("chat.start", {
+        kind: "chat", ...startInput(s.picked, assistantId), ...(slash || s.title === "" ? {} : s.files.length > 0 ? { title: s.title } : { first: s.text, title: s.title }), ...(c.model ? { model: c.model } : {}), ...(c.provider ? { provider: c.provider } : {}), ...(c.effort ? { effort: c.effort } : {}), idempotencyKey: s.key,
+      });
+      const id = (out as CapMap["chat.start"]["out"]).thread.threadId;
+      // what goes in after the chat exists: the mode, files, the people picked that chat.start cannot take. A slash command waits for all of it (its words wait in the chat's composer); a message opens first.
+      const after = async (): Promise<void> => {
+        if (c.mode !== "auto") await rt.call("threads.set_mode", { threadId: id, mode: c.mode });
+        if (s.files.length > 0) await postWithFiles(uploadDeps(rt), id, s.text, s.files, `landing:${id}`).catch((e: unknown) => p.say(e instanceof Error && /too large|cannot be read|could not be saved/.test(e.message) ? e.message : "The chat started, but the files did not go. Add them in the chat."));
+        const kept = s.held.filter((h) => (h.kind === "outside" || h.kind === "new" || h.kind === "guest") || s.picked.some((w) => w.id === h.id));
+        if (kept.length > 0) await runAfterStart(sheetDeps, id, kept);
+      };
+      if (slash) { await after().catch(() => { throw new Error("start"); }); p.fill(s.text); p.openChat(id); return; }
+      holdPending(id, { title: s.title, text: s.text, files: s.files.map((f) => f.name), lead: s.lead.name });
+      p.openChat(id);
+      void after().catch(() => p.say("The chat started, but not everything you picked went in. Check it in the chat."));
+    } catch (e: unknown) { throw new Error(startFailure(e)); }
+  }, [rt, p, sheetDeps]);
+  const fail = useCallback((key: string, e: unknown): void => setSent((cur) => (cur !== null && cur.key === key ? { ...cur, phase: "failed", note: e instanceof Error ? e.message : "Could not start the chat." } : cur)), []);
+  const start = useCallback((payload: ComposerSend): Promise<void> | void => {
     const text = payload.text.trim();
     // files dropped, pasted or picked here go with the first message, the way the chat's own composer sends them
     const files = payload.files;
     const slash = text.startsWith("/") && files.length === 0;
-    const words = (text || files[0]?.name || "").split(/\s+/).slice(0, 6).join(" ");
-    return realAssistant(rt.assistant.id, (cap, input) => rt.call(cap as never, input as never)).then((assistantId) => {
-      if (assistantId === null) throw new Error("no assistant yet");
-      return rt.call("chat.start", {
-      kind: "chat", ...startInput(picked, assistantId), ...(slash || words === "" ? {} : files.length > 0 ? { title: words } : { first: text, title: words }), ...(choice.model ? { model: choice.model } : {}), ...(choice.provider ? { provider: choice.provider } : {}), ...(choice.effort ? { effort: choice.effort } : {}), idempotencyKey: p.newKey(),
-      });
-    }).then(async (out) => {
-      const id = (out as CapMap["chat.start"]["out"]).thread.threadId;
-      if (choice.mode !== "auto") await rt.call("threads.set_mode", { threadId: id, mode: choice.mode });
-      if (files.length > 0) await postWithFiles(uploadDeps(rt), id, text, files, `landing:${id}`).catch((e: unknown) => p.say(e instanceof Error && /too large|cannot be read|could not be saved/.test(e.message) ? e.message : "The chat started, but the files did not go. Add them in the chat."));
-      const kept = held.filter((h) => (h.kind === "outside" || h.kind === "new" || h.kind === "guest") || picked.some((w) => w.id === h.id));
-      if (kept.length > 0) await runAfterStart(sheetDeps, id, kept);
-      if (slash) p.fill(text);
-      p.openChat(id);
-    }).catch((e: unknown) => { throw new Error(startFailure(e)); });
-  }, [picked, choice, rt, p, held, sheetDeps]);
+    const title = firstWords(text, files[0]?.name);
+    const s: Sent = { key: p.newKey(), text, files, title, lead: picked.find((w) => w.kind !== "person") ?? you, picked, choice, held, phase: "sending" };
+    // a slash command and a send with nothing in it have no message to show: they wait for the chat, and the composer says if it could not start
+    if (slash || title === "") return begin(s, slash);
+    p.title?.(title);
+    setSent(s);
+    begin(s, false).catch((e: unknown) => fail(s.key, e));
+  }, [picked, choice, p, held, begin, fail, you]);
+  const retry = useCallback((): void => {
+    if (sent === null) return;
+    const s = { ...sent, phase: "sending" as const };
+    setSent(s);
+    begin(s, false).catch((e: unknown) => fail(s.key, e));
+  }, [sent, begin, fail]);
 
   const withSheet = (): void => sheet.pick({
     name: "this new chat",
@@ -118,6 +149,9 @@ export function Landing(p: LandingProps): ReactElement {
   const lead = picked.find((w) => w.kind !== "person") ?? you;
   const strip = newChatStrip(lead, choice, accounts ?? []);
 
+  if (sent !== null) {
+    return <PendingChat title={sent.title} text={sent.text} files={sent.files.map((f) => f.name)} lead={sent.lead.name} phase={sent.phase} {...(sent.note ? { note: sent.note } : {})} onRetry={retry} onDiscard={() => setSent(null)} />;
+  }
   return (
     <ScrollView testID="chats-landing" style={st.root} contentContainerStyle={st.content} keyboardShouldPersistTaps="handled">
       <View style={[st.column, belowPhone(width) ? st.columnNarrow : null]}>
