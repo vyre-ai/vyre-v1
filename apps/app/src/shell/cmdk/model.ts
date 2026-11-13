@@ -190,6 +190,13 @@ export function oneEach(hits: readonly Hit[]): Hit[] {
     if (mine.snippet === undefined && t.snippet !== undefined) out[seen] = { ...mine, snippet: t.snippet };
   }
   const present = new Set(out.map((h) => keyOf(h)));
+  // a channel's own chat is about to go: the words it was found by stay, on the channel's row, when that row has none of its own
+  for (const h of out) {
+    const of = (h as LinkedHit).of;
+    if (h.kind !== "chat" || h.snippet === undefined || of === undefined || !of.startsWith("channel:")) continue;
+    const to = out.findIndex((x) => keyOf(x) === of);
+    if (to !== -1 && out[to]!.snippet === undefined) out[to] = { ...out[to]!, snippet: h.snippet };
+  }
   return out
     .filter((h) => {
       // only a hit that says it IS another hit's own (by id) goes; two things that share a title are two rows, told apart by their second line

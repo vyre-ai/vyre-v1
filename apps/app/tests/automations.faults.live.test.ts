@@ -7,10 +7,13 @@ import { bootFreshSpace, claimOnEdge, dismissOnboarding, edge } from "./real-app
 
 const PASSWORD = "fixture password 123";
 
-test("production Automations: missing input in words, and a step menu with only what is connected", async () => {
+test("production Automations: missing input in words, and a step menu with only what is connected", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) {
-    assert.fail("VYRE_APP_DIST required: a walk that skips without the app build is not a pass");
+    // as every walk: required (the release-evidence walks job runs it with --no-skip, where a skip fails), skipped in a shard that has no app build
+    if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
+    t.skip("VYRE_APP_DIST required for production browser evidence");
+    return;
   }
   const { chromium } = await import("playwright-core");
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();

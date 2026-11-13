@@ -1,1 +1,2 @@
 - The check that every button in the app does something now runs in its own CI job, once for a Personal Space and once for a team Space, so it finishes inside the time limit (CI-only change).
+- In search, a channel found through its own chat keeps the words it was found by on the channel's row.

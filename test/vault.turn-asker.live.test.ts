@@ -736,7 +736,8 @@ function planned(
         for (const c of plan(/(fld_[a-z0-9]+)/.exec(all)?.[1])) {
           yield* call("tool_search", { query: c.name });
           const r = yield* call(c.name, c.input);
-          out.results.push(`${c.name}:${JSON.stringify(r).slice(0, 300)}`);
+          // 1500, not 300: a refusal now leads with the sentence a model says and the rule for reporting it, and the reason follows them
+          out.results.push(`${c.name}:${JSON.stringify(r).slice(0, 1500)}`);
         }
         if (submit) {
           const r = yield* call("task_submit", { taskId, outputs: { note: "Done" }, summary: "Done" });
