@@ -15,7 +15,7 @@ export function hasOwnPlace(
   agentId: string,
   person: string | undefined,
 ): person is string {
-  if (person === undefined || person === "" || person === agentId || person.startsWith("agt_")) return false;
+  if (person === undefined || person === "" || person === agentId || !person.startsWith("usr_")) return false;
   // an agent whose owner is not known (its facts could not be read, a stand-in without one) is the agent's own place: nothing changes
   if (agent === undefined || agent === null || agent.ownerId === undefined || agent.ownerId === "") return false;
   if (agent.kind === "assistant" || agent.runtime === "outside") return false;
