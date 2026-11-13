@@ -18,7 +18,7 @@ test("an item owned by an agent is not reachable for Rob who asks that agent, bu
   (h.ctx as { actingFor?: string }).actingFor = ROB;
   assert.equal(await refusedWith(v.itemGet(h.ctx, { itemId })), "permission.no_grant", "Rob, through the agent, gets the item's metadata");
   assert.ok((await v.itemsList(h.ctx, {} as never).then((r) => JSON.stringify(r), () => "")).includes("Agent key") === false, "and does not find it in a list");
-  (h.ctx as { actingFor?: string }).actingFor = undefined;
+  delete (h.ctx as { actingFor?: string }).actingFor;
   assert.equal(String(out(out(await v.itemGet(h.ctx, { itemId })).item).id), itemId, "the agent acting for nobody still works with its own item");
   void MAYA;
 });
