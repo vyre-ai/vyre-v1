@@ -2,7 +2,7 @@
 import type { ReactElement } from "react";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
-import { ATTENTION_PAGE, ATTENTION_SENTENCE } from "../pages/overview/Overview.tsx";
+import { ATTENTION_PAGE, ATTENTION_SENTENCE, attentionNote } from "../pages/overview/Overview.tsx";
 import { forHowLong } from "./format.ts";
 import { useConsoleData, useScreenQuery } from "./data.tsx";
 import { Glyph } from "./glyphs.tsx";
@@ -17,6 +17,11 @@ export function itemsHere(items: Out["attention"], page: string): Out["attention
   return items.filter((a) => { const to = resolve(ATTENTION_PAGE[a.kind]); return tab !== undefined && tab.views.some((x) => x.page === to); });
 }
 
+/** The line under a Needs you row on a page: what it is and for how long, never the title said again (K14, 13 Nov: the AI page read "Your team has no AI account" twice). Null when it would only repeat the title. */
+export function hereNote(a: Out["attention"][number], now: number): string | null {
+  return a.kind === "home_channel" ? `${ATTENTION_SENTENCE[a.kind]}${forHowLong(now, a.since)}` : attentionNote(a, now);
+}
+
 export function NeedsHere({ page }: { page: string }): ReactElement | null {
   const data = useConsoleData();
   const q = useScreenQuery<Out>("console.overview", "overview", {});
@@ -27,10 +32,10 @@ export function NeedsHere({ page }: { page: string }): ReactElement | null {
   return (
     <Section title="Needs you" count={here.length}>
       <Group testID="needs-here">
-        {here.map((a, i) => (
-          <Row key={`${a.kind}-${a.ref ?? i}`} id={`needs-${a.kind}-${a.ref ?? i}`} title={a.title} note={`${ATTENTION_SENTENCE[a.kind]}${forHowLong(now, a.since)}`} leading={<Lead><Glyph name="warn" size={16} color="var(--warn)" /></Lead>}
+        {here.map((a, i) => { const note = hereNote(a, now); return (
+          <Row key={`${a.kind}-${a.ref ?? i}`} id={`needs-${a.kind}-${a.ref ?? i}`} title={a.title} {...(note ? { note } : {})} leading={<Lead><Glyph name="warn" size={16} color="var(--warn)" /></Lead>}
             trailing={<LinkButton label={a.next} onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])} testID={`needs-go-${i}`} />} onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])} />
-        ))}
+        ); })}
       </Group>
     </Section>
   );

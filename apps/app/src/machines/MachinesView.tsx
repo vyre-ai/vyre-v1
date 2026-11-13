@@ -135,7 +135,7 @@ export function MachineList({ data, who, narrow, now, onOpen, onAdd, onApprove, 
         <Tile icon="server" label="Computers" big={st.online} sub={`${st.offline}`} />
         <Tile icon="warn" label="Needs attention" big={String(st.attention)} sub={st.attentionWords} warn={st.attention > 0} />
         <Tile icon="ok" label="Running now" big={st.turns.split(",")[0]!} sub={st.turns.split(",").slice(1).join(",").trim()} />
-        <Tile icon="data" label="Room left" big={String(st.room)} sub={`Average across ${plural(st.takingWork, "computer")} that take work`} />
+        <Tile icon="data" label="Room left" big={String(st.room)} sub={`Average across ${st.takingWork} ${st.takingWork === 1 ? "computer that takes" : "computers that take"} work`} />
       </View>
       {data.waiting.length > 0 ? (
         <Block title="Waiting for approval" count={data.waiting.length} testID="machines-waiting">

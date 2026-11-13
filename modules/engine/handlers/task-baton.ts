@@ -512,7 +512,7 @@ async function escalate(ctx: Pick<EngineCtx, "db">, host: BatonHost, task: Baton
   const minutes = nudgeMinutesOf(task);
   try {
     await host.call("tasks.create", {
-      kind: "unblock", title: `An agent stopped on "${task.title}"`, summary: `The ${role === "assigned" ? "doer" : role} ended its turn ${minutes} minutes ago without handing the task on. Look at the thread, then mark this done to wake it again.`,
+      kind: "unblock", title: `An agent stopped on "${task.title}"`, summary: `The ${role === "assigned" ? "agent doing it" : role} stopped ${minutes} minutes ago without passing the task on. Read the chat to see why, then mark this done to start it again.`,
       assigned: to, parentTaskId: task.id, ...(task.recordId ? { recordId: task.recordId } : {}), idempotencyKey: `baton-escalate:${task.id}:${row.sig}`,
     });
   } catch (e) { host.log?.("a stopped agent task could not be escalated", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }); return false; }

@@ -31,3 +31,11 @@ test("a Needs you row never says its title twice; an older one says for how long
     assert.equal(attentionNote({ kind, title, since: NOW - 3 * 3_600_000, next: "Set up" }, NOW), `${title} for 3 h`);
   }
 });
+
+test("the Needs you strip on a page says a card's title once: no second line when the line would repeat it (K14, 13 Nov)", async () => {
+  const { hereNote } = await import("../shell/NeedsHere.tsx");
+  const none = { kind: "no_ai_account" as const, title: "Your team has no AI account", since: NOW - 5_000, next: "Set up" };
+  assert.equal(hereNote(none, NOW), null, "a new card has one line");
+  assert.equal(hereNote({ ...none, since: NOW - 3 * 3_600_000 }, NOW), "Your team has no AI account for 3 h");
+  assert.match(hereNote({ kind: "failing_check", title: "Disk space is low", since: NOW - 60_000, next: "Open Server" }, NOW) ?? "", /^A health check is failing/);
+});

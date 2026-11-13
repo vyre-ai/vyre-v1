@@ -14,6 +14,8 @@ export interface Item {
   at: number;
   /** one line */
   title: string;
+  /** the word at the left of the row when the kind's own word would be wrong ("Created", not "Change", for the row that says it was created) */
+  label?: string;
   /** a second, quieter line */
   note?: string;
   /** who did it, when the source says */
@@ -23,13 +25,13 @@ export interface Item {
 }
 
 /** The words that name a kind at the left of a row. */
-export const KIND_LABEL: Readonly<Record<Kind, string>> = { edit: "Edit", comment: "Comment", mail: "Email", text: "Text", call: "Call", meeting: "Meeting", file: "File", task: "Task", run: "Run", chat: "Chat" };
+export const KIND_LABEL: Readonly<Record<Kind, string>> = { edit: "Change", comment: "Comment", mail: "Email", text: "Text", call: "Call", meeting: "Meeting", file: "File", task: "Task", run: "Run", chat: "Chat" };
 
 const clip = (s: string, n = 120): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 type Activity = CapMap["records.activity"]["out"]["entries"][number];
 export const fromActivity = (rows: readonly Activity[], def: TypeDef | undefined, names: (id: string) => string): Item[] =>
-  rows.map((e) => ({ id: `edit:${e.id}`, kind: "edit", at: e.at, title: activityLine(e, def, names), ...(e.actor ? { actor: e.actor } : {}) }));
+  rows.map((e) => ({ id: `edit:${e.id}`, kind: "edit", at: e.at, title: activityLine(e, def, names), ...(e.kind === "created" ? { label: "Created" } : {}), ...(e.actor ? { actor: e.actor } : {}) }));
 
 type Comment = CapMap["records.comments.list"]["out"]["comments"][number];
 export const fromComments = (rows: readonly Comment[], names: (id: string) => string): Item[] =>

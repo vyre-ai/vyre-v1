@@ -166,12 +166,12 @@ export function KnowsTab({ deps, memory, spaceName, window }: { deps: PaneDeps; 
       key: "about", type: "block",
       node: (
         <View testID="knows-about" style={st.about}>
-          <Text testID="knows-about-scope" style={st.hint}>{priv ? ABOUT_PRIVATE : ABOUT_SHARED}</Text>
+          <Text testID="knows-about-scope" style={[st.hint, st.inset]}>{priv ? ABOUT_PRIVATE : ABOUT_SHARED}</Text>
           {lines.slice(0, ABOUT_LIMIT).map(({ f, place }) => (
             <Row key={f.factId} id={`about-${f.factId}`} title={f.text} note={place} {...(f.lineLink ?? f.sourceLink ? { onPress: () => memory.nav.openLink((f.lineLink ?? f.sourceLink)!) } : {})} />
           ))}
-          {lines.length === 0 ? <Text testID="knows-about-empty" style={st.hint}>{priv ? "Nothing about you yet." : "Nothing on your public profile yet."}</Text> : null}
-          {memory.nav.openAboutYou ? <LinkButton label={lines.length > ABOUT_LIMIT ? `See all ${lines.length} in Memory and privacy` : "Edit in Memory and privacy"} testID="knows-about-open" onPress={() => memory.nav.openAboutYou?.()} /> : null}
+          {lines.length === 0 ? <Text testID="knows-about-empty" style={[st.hint, st.inset]}>{priv ? "Nothing about you yet." : "Nothing on your public profile yet."}</Text> : null}
+          {memory.nav.openAboutYou ? <View style={st.insetLink}><LinkButton label={lines.length > ABOUT_LIMIT ? `See all ${lines.length} in Memory and privacy` : "Edit in Memory and privacy"} testID="knows-about-open" onPress={() => memory.nav.openAboutYou?.()} /></View> : null}
         </View>
       ),
     });
@@ -382,12 +382,12 @@ const st = StyleSheet.create({
   fill: { flex: 1, minHeight: 0 },
   sk: { padding: 8, gap: 12 },
   skBar: { height: 12, borderRadius: 6, backgroundColor: "var(--sunk)" as string },
-  head: { minHeight: 34, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: 8, paddingTop: 12, paddingBottom: 2 },
+  head: { minHeight: 34, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: 24, paddingTop: 12, paddingBottom: 2 },
   headText: { flexShrink: 1, fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   headRight: { flexDirection: "row", alignItems: "center", gap: 4 },
   forYou: { fontSize: 11.5, color: "var(--ink-3)" as string },
-  scope: { paddingHorizontal: 8, paddingBottom: 8, fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
-  err: { paddingHorizontal: 8, paddingBottom: 6, fontSize: 12, color: "var(--danger)" as string },
+  scope: { paddingHorizontal: 24, paddingBottom: 8, fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
+  err: { paddingHorizontal: 24, paddingBottom: 6, fontSize: 12, color: "var(--danger)" as string },
   hint: { fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string },
   asof: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 8, marginTop: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9, backgroundColor: "var(--sunk)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object,
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 6 },
@@ -397,7 +397,10 @@ const st = StyleSheet.create({
   chip: { fontSize: 11.5, color: "var(--ink-3)" as string, paddingHorizontal: 7, paddingVertical: 1, borderRadius: 7, backgroundColor: "var(--sunk)" as string, overflow: "hidden" },
   asofText: { flex: 1, fontSize: 12, color: "var(--ink-2)" as string },
   map: { paddingHorizontal: 8, paddingTop: 8, paddingBottom: 4, gap: 8 },
-  about: { paddingHorizontal: 8, paddingBottom: 6, gap: 2 },
+  about: { paddingHorizontal: 16, paddingBottom: 6, gap: 2 },
+  // text lines in the About block sit where the pane's labels and rows put their text (24), which the block's own 16 plus the 8 of a row makes for rows
+  inset: { paddingHorizontal: 8 },
+  insetLink: { paddingHorizontal: 8, marginLeft: -4 },   // a link button carries 4 of its own
   mapHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   mapIcon: { width: 30, height: 30, borderRadius: 8, borderWidth: 1, borderColor: "var(--line)" as string, alignItems: "center", justifyContent: "center", backgroundColor: "var(--raised)" as string },
   mapName: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
@@ -415,6 +418,6 @@ const st = StyleSheet.create({
   actions: { position: "absolute", right: 6, top: 6, flexDirection: "row" },
   editRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   input: { flex: 1, minWidth: 0, height: 28, paddingHorizontal: 9, borderRadius: 7, backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 12.5, boxShadow: "inset 0 0 0 1px var(--line-2)", outlineStyle: "none" } as object,
-  more: { paddingHorizontal: 8, paddingVertical: 2, alignItems: "flex-start" },
-  footer: { paddingHorizontal: 8, paddingTop: 12, paddingBottom: 10, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4 },
+  more: { paddingHorizontal: 24, paddingVertical: 2, alignItems: "flex-start" },
+  footer: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4 },
 });

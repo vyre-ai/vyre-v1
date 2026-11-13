@@ -30,7 +30,7 @@ export function EverythingTab({ type, recordId, def, onComments }: { type: strin
   const rows: ReactElement[] = items.map((it) => (
     <View key={it.id} style={s.row}>
       <Row
-        id={`ev:${it.id}`} title={it.title} {...(it.note ? { note: it.note } : {})} leading={<Text style={s.kind}>{KIND_LABEL[it.kind]}</Text>}
+        id={`ev:${it.id}`} title={it.title} {...(it.note ? { note: it.note } : {})} leading={<Text style={s.kind}>{it.label ?? KIND_LABEL[it.kind]}</Text>}
         trailing={<Text style={s.when}>{ago(it.at, now)}</Text>} {...(open(it) ? { onPress: open(it)! } : {})}
       />
     </View>

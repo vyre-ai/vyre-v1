@@ -37,7 +37,7 @@ test("the list: a strip, the alerts with Open, one row per machine and what an a
   assert.ok(out.includes("Vyre 7%") && out.includes("Private"), "another person's computer: Vyre's share only");
   assert.ok(out.includes("Seen 2 h ago") && out.includes("No data"), "an offline machine says when it was seen");
   assert.ok(out.includes('data-testid="machines-add"') && out.includes("Add a server"));
-  assert.ok(out.includes("Your desktop: Irfad&#x27;s MacBook Pro") && out.includes("Skipped. Busy. Its turn limit is reached"), "the order: the busy desktop is skipped");
+  assert.ok(out.includes("Your desktop: Irfad&#x27;s MacBook Pro") && out.includes("Skipped. It is busy: it is running as much as it may"), "the order: the busy desktop is skipped");
   assert.ok(out.includes("The Space server: Northwind server"));
 });
 

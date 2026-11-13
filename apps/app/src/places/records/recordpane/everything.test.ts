@@ -77,3 +77,12 @@ test("the feed is drawn once, final: a row for a thing the person cannot open lo
   const broken = await withReach((async () => { throw new Error("down"); }) as never, feed);
   assert.deepEqual(broken, feed, "a Space that does not answer leaves the rows as they are");
 });
+
+test("K14 (13 Nov): the row that says a record was created is labelled Created, and other changes Change, never Edit", async () => {
+  const { fromActivity, KIND_LABEL } = await import("./everything.ts");
+  const names = (id: string): string => (id === "usr_o" ? "Olivia Owner" : id);
+  const rows = fromActivity([{ id: "a1", at: 1, actor: "usr_o", kind: "created" }, { id: "a2", at: 2, actor: "usr_o", kind: "removed" }] as never, undefined, names);
+  assert.equal(rows[0]!.label, "Created");
+  assert.equal(rows[1]!.label, undefined);
+  assert.equal(KIND_LABEL.edit, "Change");
+});

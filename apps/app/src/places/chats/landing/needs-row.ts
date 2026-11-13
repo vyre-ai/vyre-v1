@@ -36,3 +36,12 @@ export function needsRow(item: NeedsItem, nameOf: (id: string) => string): Needs
     requester: t.createdBy, reason: item.reason,
   };
 }
+
+/**
+ * The line under a Needs you row: what kind of thing it is, who asked, then its summary. The system asks for some of them (a blocked task, a connection that needs you); "Vyre" there reads as the person who
+ * blocked it, so the system's name is left out and the line starts with what happened (K14, 13 Nov 2026).
+ */
+export function needsLine(row: Pick<NeedsRow, "kind" | "requester" | "sub">, nameOf: (id: string) => string): string {
+  const who = row.requester.startsWith("svc_") ? "" : nameOf(row.requester);
+  return [row.kind, who, row.sub].filter(Boolean).join(" \u00b7 ");
+}

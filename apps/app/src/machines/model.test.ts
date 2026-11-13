@@ -83,5 +83,5 @@ test("Where work runs: the order is kept, a busy machine is skipped and the firs
     { name: "Berlin box", label: "Your server", roomN: 8, why: "disk", online: true, drain: false },
     { name: "Northwind server", label: "The Space server", roomN: 53, why: "cpu", online: true, drain: false },
   ]);
-  assert.deepEqual(lines.map((l) => [l.use, l.note]), [[false, "Skipped. Busy. Its turn limit is reached"], [true, "Next turn runs here"], [false, "Skipped. Busy. Disk is nearly full"], [false, "Has room, not needed"]]);
+  assert.deepEqual(lines.map((l) => [l.use, l.note]), [[false, "Skipped. It is busy: it is running as much as it may"], [true, "The next job runs here"], [false, "Skipped. It is busy: its disk is nearly full"], [false, "Has room, not needed"]]);
 });

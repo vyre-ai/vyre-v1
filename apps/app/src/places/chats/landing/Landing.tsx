@@ -12,12 +12,13 @@ import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/
 import type { AccessPick } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
 import { sq } from "../../../../../../ui/src/SidePane/host.tsx";
+import { tipIfCut } from "../../../../../../ui/src/Row/index.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useResume } from "../../../onboarding/resume-context.ts";
 import { SetupRows, setupNote } from "../../../onboarding/SetupRows.tsx";
 import { useInboxSources } from "../../../shell/rail/inbox-sources.ts";
-import { needsRow } from "./needs-row.ts";
+import { needsLine, needsRow } from "./needs-row.ts";
 import { useAddSheet, runAfterStart } from "../addsheet/index.ts";
 import { prettyModel, useAccounts } from "../conversation/brain.tsx";
 import { NewChatBrain, newChatStrip } from "../conversation/new-chat-brain.tsx";
@@ -175,6 +176,9 @@ export function Landing(p: LandingProps): ReactElement {
 }
 
 /** One thing that needs you: who asks, what, and the one action. Open waits on hover. */
+/** The row's text is cut to one line: hovering or focusing it gives the whole of it in the app's one tooltip (ui/Row's tipIfCut), and opening the row shows it in full in Needs you. */
+const tipCut = (sub: string, title: string) => (e: { currentTarget?: unknown }): void => tipIfCut(e.currentTarget as Parameters<typeof tipIfCut>[0], `${title}\n${sub}`);
+
 function NeedRow({ item, rt, nameOf, kindOf, openNeed, openProfile, say }: { item: NeedItem } & LandingProps): ReactElement {
   const row = needsRow(item, nameOf);
   const [over, setOver] = useState(false);
@@ -183,14 +187,15 @@ function NeedRow({ item, rt, nameOf, kindOf, openNeed, openProfile, say }: { ite
     void Promise.resolve(rt.call("tasks.act", { taskId: row.id, action: row.actionKey })).then(() => say(`${row.actionLabel} · ${row.title}`), () => say("Could not do that. Try again."));
   };
   const kind = kindOf(row.requester);
+  const sub = needsLine(row, nameOf);
   return (
     <View testID={`landing-need-${row.id}`} style={[st.need, over && st.hover]} {...sq("row")} {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }}>
       <Pressable role="button" aria-label={`${nameOf(row.requester)}'s profile`} testID={`landing-face-${row.id}`} onPress={() => openProfile(row.requester)}>
         <Avatar {...avatarOf({ id: row.requester, name: nameOf(row.requester), kind })} size={28} state="waiting" />
       </Pressable>
-      <Pressable role="button" aria-label={row.title} onPress={() => openNeed(row.id)} style={st.needText}>
+      <Pressable role="button" aria-label={row.title} onPress={() => openNeed(row.id)} style={st.needText} {...{ onMouseEnter: tipCut(sub, row.title), onFocus: tipCut(sub, row.title) }}>
         <Text numberOfLines={1} style={st.needTitle}>{row.title}</Text>
-        <Text numberOfLines={1} style={st.needSub}>{[row.kind, nameOf(row.requester), row.sub].filter(Boolean).join(" · ")}</Text>
+        <Text numberOfLines={1} style={st.needSub}>{sub}</Text>
       </Pressable>
       <View style={st.needActs}>
         {over ? <Pressable role="button" testID={`landing-open-${row.id}`} onPress={() => openNeed(row.id)} style={st.quietBtn} {...sq("row")}><Text style={st.quietText}>Open</Text></Pressable> : null}

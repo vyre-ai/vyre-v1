@@ -38,7 +38,7 @@ class RootBoundary extends Component<{ children: ReactNode }, { failed: boolean 
   override componentDidCatch(error: Error): void { console.error(`vyre root crashed: ${error.message.slice(0, 160)}`); }
   override render(): ReactNode {
     if (!this.state.failed) return this.props.children;
-    return <States kind="error" message="Couldn't open Vyre" cause="Something went wrong while it started." retryable onRetry={() => (globalThis as { location?: { assign(url: string): void } }).location?.assign("/")} />;
+    return <States kind="error" message="Couldn't open Vyre" cause="Something went wrong. Try again to reload it." retryable onRetry={() => (globalThis as { location?: { assign(url: string): void } }).location?.assign("/")} />;
   }
 }
 
