@@ -1,6 +1,6 @@
 // The owner asks an agent to change a goal, on a booted daemon: chat, engine, bridge, goals, access and the Gate are real, the model is a stand-in that calls the goal tool its message names.
-// The nested call goals.update/extend -> engine.turn.asked_by is the real one (ctx.thread, the agent principal and depth come from the server). An API-engine path only: a CLI engine over MCP
-// reaches the same capability through the same seed (agent/src/mcp/server.ts binds the thread server-side) but cannot be driven from this harness without a real CLI.
+// The nested call goals.update/extend -> engine.turn.asked_by is the real one (ctx.thread, the agent principal and depth come from the server). The API-engine path; the CLI engine over MCP is
+// host/tests/goals.asked-by.cli.live.test.ts.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { boot, call, clock, connect, hostLog, newAgent, seededDir, waitFor } from "./memory-live-kit.ts";
@@ -58,7 +58,7 @@ function stand(): { open: OpenSession; results: Result[] } {
   return { open, results };
 }
 
-test("goals live: the owner asks an agent in another chat to move the deadline and it does, logged with the asking message; a goal wake and a poke are refused", { timeout: 120_000 }, async () => {
+test("goals live (API engine): the owner asks an agent in another chat to move the deadline and it does, logged with the asking message; a goal wake and a poke are refused", { timeout: 120_000 }, async () => {
   const m = stand();
   const d = await boot(seededDir(), m.open);
   const pumping = setInterval(() => void d.hooks?.pump?.(), 100);
@@ -101,8 +101,10 @@ test("goals live: the owner asks an agent in another chat to move the deadline a
 
     // the owner presses Pause on the goal card: the card is posted as the owner by the server, not typed, so the lead's turn it may start is not asked
     await ok(d, "goals.pause", { goalId });
-    await new Promise((r) => setTimeout(r, 8_000));
+    // wait for the lead's turn the press starts (the thing, not a fixed time), and require that one ran: the check is empty without it
+    await waitFor(async () => (m.results.some((r) => r.turn.startsWith("other")) ? true : null), 60_000, () => `${hostLog(d)} ${JSON.stringify(m.results)}`);
     const others = m.results.filter((r) => r.turn.startsWith("other"));
+    assert.ok(others.length >= 1, "a lead turn ran after the Pause press");
     assert.ok(others.every((r) => !r.ok), `a turn nobody asked for changed the goal: ${JSON.stringify(others)}`);
     assert.equal((await ok(d, "goals.get", { goalId })).goal.deadline, later);
     console.log(`lead turns after the Pause press that tried the owner's controls: ${others.length}`);
