@@ -4,6 +4,7 @@
 // `host.open(tab, input)`. Every card has a right-click menu (long press on a phone), is reachable by keyboard, and paints the quiet
 // hover; colours are skin tokens, so a skin switch repaints with no re-render.
 
+import { isRawId } from "../../../../lib/id-shapes.ts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -317,7 +318,7 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
       <Head testID={`blk-question-${block.id}`} title={d.prompt.split("\n")[0] ?? d.prompt} />
       {d.prompt.includes("\n") ? <Text testID={`blk-question-${block.id}-why`} style={styles.why}>{d.prompt.slice(d.prompt.indexOf("\n") + 1).trim()}</Text> : null}
       {answered ? (
-        <StatusLine tone="ok" testID={`blk-question-${block.id}-answered`} text={`${d.answeredBy !== "" ? `${d.answeredBy} answered` : "You answered"}: ${answerLine(d.options, sent)}`} />
+        <StatusLine tone="ok" testID={`blk-question-${block.id}-answered`} text={`${whoAnswered(host, d.answeredBy)}: ${answerLine(d.options, sent)}`} />
       ) : (
         <>
           {d.mode !== "free" ? (
@@ -634,6 +635,14 @@ const HOVER = { backgroundColor: "var(--hover)" };
 const SELECTED = { backgroundColor: "var(--sel)" };
 
 const textBase: TextStyle = { color: "var(--ink)" as string, fontSize: 13, lineHeight: 19 };
+
+/** "Maya answered", "You answered": the person who answered is named through the host's directory, never by the id the block stores (owner, 13 Nov 2026). A stored name that is not an id is kept as it is. */
+function whoAnswered(host: BlockHost, answeredBy: string): string {
+  if (answeredBy === "" || answeredBy === host.meId) return "You answered";
+  if (!isRawId(answeredBy)) return `${answeredBy} answered`;
+  const name = host.nameOf?.(answeredBy);
+  return `${name === undefined || isRawId(name) ? "Someone" : name} answered`;
+}
 
 const styles = StyleSheet.create({
   card: { marginVertical: 8, borderRadius: 12, backgroundColor: "var(--raised)" as string, paddingHorizontal: 12, paddingVertical: 10, maxWidth: 560, width: "100%" },
