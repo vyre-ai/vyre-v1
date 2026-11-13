@@ -181,7 +181,15 @@ test("every channel shows once: its main thread (indexed as a chat) is the chann
   const rt2 = {
     screens: {
       query: () => ({
-        getSnapshot: () => ({ status: "ready", data: { channels: [{ channelId: "chn_dddddddd01", mainThreadId: "thr_main0001" }, { channelId: "chn_dddddddd02", mainThreadId: "thr_main0002", recordId: "rec_eeeeeeee01" }] } }),
+        getSnapshot: () => ({
+          status: "ready",
+          data: {
+            channels: [
+              { channelId: "chn_dddddddd01", mainThreadId: "thr_main0001" },
+              { channelId: "chn_dddddddd02", mainThreadId: "thr_main0002", recordId: "rec_eeeeeeee01" },
+            ],
+          },
+        }),
       }),
     },
   } as unknown as ShellRuntime;
