@@ -159,3 +159,26 @@ test("nothing else changes: a member, and an agent that holds the Guest role as 
     "an agent is never a guest",
   );
 });
+
+test("a check that names no capability (a list, a sync filter, a handler's own check) rests on the grant alone, and an unlisted capability is refused", () => {
+  const s = world();
+  assert.equal(
+    authorize(s, {
+      principal: "usr_view",
+      action: { perm: null, level: "view" },
+      resource: { type: "thread", id: "thr_main" },
+      now: NOW,
+    }).effect,
+    "allow",
+  );
+  assert.equal(
+    authorize(s, {
+      principal: "usr_reply",
+      action: { perm: null, level: "use" },
+      resource: { type: "thread", id: "thr_main" },
+      cap: "chat.not_classified_yet",
+      now: NOW,
+    }).effect,
+    "deny",
+  );
+});
