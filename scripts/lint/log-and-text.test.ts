@@ -63,3 +63,12 @@ test("no-em-dash-or-section-sign flags the em dash and the section sign", () => 
   assert.equal(checkNoEmDashOrSectionSign("docs/copy.md", plain).length, 0);
   assert.equal(checkNoEmDashOrSectionSign("docs/copy.md", en).length, 0);
 });
+
+test("the files that define or report the forbidden characters hold none themselves, so the lint passes them when a branch changes them", async () => {
+  const { readFileSync } = await import("node:fs");
+  for (const file of ["tools/gen/src/validate.ts", "scripts/import-0.6.ts"]) {
+    const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
+    assert.deepEqual(checkNoEmDashOrSectionSign(file, source), [], file);
+    assert.deepEqual(checkNoContentInLogs(file, source), [], file);
+  }
+});

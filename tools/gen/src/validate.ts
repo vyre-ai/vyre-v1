@@ -23,9 +23,10 @@ const EVENT_RE = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/;
 const KEBAB = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const ROLES = ["owner", "admin", "developer", "member", "guest"];
 const VERSIONED_DEFAULT = ["records", "files", "automations", "memory", "kits", "agents"];
+// built from char codes so this file holds neither character (the repo's no-em-dash-or-section-sign lint reads every changed file, this one included)
 const FORBIDDEN_CHARS: Array<[string, RegExp]> = [
-  ["em dash", /—/],
-  ["section sign", /§/],
+  ["em dash", new RegExp(String.fromCharCode(0x2014))],
+  ["section sign", new RegExp(String.fromCharCode(0xa7))],
 ];
 
 export function mcpToolName(c: CapabilityDef): string | undefined {

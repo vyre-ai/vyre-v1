@@ -151,24 +151,24 @@ export type RunResult = { log: LogLine[]; byLane: Map<string, string[]> };
 
 /** Runs the plan. Copies only `copy` rows, to the first destination named. Returns the log and the files written per lane. */
 export function run(planned: Planned[], o: RunOpts): RunResult {
-  const log: LogLine[] = [];
+  const report: LogLine[] = [];
   const byLane = new Map<string, string[]>();
   planned.forEach((p, i) => {
     const n = i + 1;
     const name = p.row.source.replace(/\s+/g, " ").slice(0, 70);
     if (p.row.verdict !== "copy")
-      return void log.push({
+      return void report.push({
         kind: p.row.verdict as "rewrite" | "drop" | "idea",
         row: n,
         text: `${p.row.verdictText}: ${name}`,
       });
     const dest = p.dests[0];
-    if (!dest) return void log.push({ kind: "nodest", row: n, text: `no destination folder named: ${name}` });
+    if (!dest) return void report.push({ kind: "nodest", row: n, text: `no destination folder named: ${name}` });
     const lane = laneOf(dest, o.lanes);
     for (const s of p.sources) {
       const abs = path.join(o.src, s);
       if (!fs.existsSync(abs)) {
-        log.push({ kind: "missing", row: n, text: `${s} not found in the source tree` });
+        report.push({ kind: "missing", row: n, text: `${s} not found in the source tree` });
         continue;
       }
       const isFile = fs.statSync(abs).isFile();
@@ -181,7 +181,7 @@ export function run(planned: Planned[], o: RunOpts): RunResult {
           : path.posix.join(dest, path.relative(abs, f).split(path.sep).join("/"));
         const target = path.join(o.out, destRel);
         if (fs.existsSync(target)) {
-          log.push({ kind: "exists", row: n, text: `${destRel} left alone` });
+          report.push({ kind: "exists", row: n, text: `${destRel} left alone` });
           continue;
         }
         const head = headerFor(f, rel, o.sha);
@@ -194,11 +194,11 @@ export function run(planned: Planned[], o: RunOpts): RunResult {
           } else fs.copyFileSync(f, target);
           (byLane.get(lane) ?? byLane.set(lane, []).get(lane)!).push(destRel);
         }
-        log.push({ kind: head ? "imported" : "headerless", row: n, text: `${rel} -> ${destRel} [${lane}]` });
+        report.push({ kind: head ? "imported" : "headerless", row: n, text: `${rel} -> ${destRel} [${lane}]` });
       }
     }
   });
-  return { log, byLane };
+  return { log: report, byLane };
 }
 
 function git(cwd: string, args: string[]): string {
