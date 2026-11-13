@@ -85,7 +85,8 @@ import {
   WINDOW, beforeCursor, byOrder, collect, keyAlreadyUsed, withUploaded, afterFailure, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
   directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeLabel, timeline, titleOf, whoLine, workingAgents, withoutAnswered, faceDoor } from "./model.ts";
 import type { Message, Pending, SendKind, Thread } from "./model.ts";
-import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
+import { LoadFailed, failureOf, retryLoads } from "../../../../../../ui/src/States/Loads.tsx";
+import { refusalIsPending } from "../../../shell/session/just-made.ts";
 import { itemLink, messageLink } from "../../../share/rows.ts";
 import { createMenuApi } from "../menus/actions.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
@@ -393,7 +394,10 @@ function ConversationView(): ReactElement {
   const agentMeta = useRef<readonly AgentMeta[] | null>(null);
   // which open questions have their own card on screen: the island docks the ones that do not (a hook, so before the early returns)
   const cardsInView = useCardsInView(messagesQ.status === "loading" ? NO_IDS : openQuestions(mergePages(around ?? messagesQ.data.messages, older)).map((x) => x.id));
-  if (failed) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
+  // a chat this person started a moment ago is not readable yet: that is not a refusal, so the loading mark stays and the read is asked again
+  const notYet = failed !== undefined && refusalIsPending(failed, data.threadId);
+  useEffect(() => { if (!notYet) return undefined; const t = setInterval(retryLoads, 1500); return () => clearInterval(t); }, [notYet]);
+  if (failed && !notYet) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading />;
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;

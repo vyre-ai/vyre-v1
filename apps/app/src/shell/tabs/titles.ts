@@ -106,13 +106,18 @@ export interface TitleSession {
  * Names a tab for its item: its one name (a chat: lib/chat-name.ts), else its own name, else the next read, else the ask's own empty name ("New chat"). A chat is read again whenever it changes, so the tab follows
  * its renames. Returns the stop.
  */
+/** What a chat tab says when the chat cannot be opened: the place, nothing false about the chat. */
+export const REFUSED_CHAT_TAB = "Chats";
+/** A read the server refused (not yours or not found): permission.* or validation.not_found. */
+export const isRefusedRead = (e: unknown): boolean => { const c = (e as { code?: unknown } | null)?.code; return typeof c === "string" && (c.startsWith("permission.") || c === "validation.not_found"); };
+
 export function followTitle(session: TitleSession, ask: Ask, retitle: (title: string, empty?: boolean) => void): () => void {
   let off = false;
   const read = (a: Ask): Promise<string | null> => session.call(a.cap, a.input).then(async (out) => {
     // the item's one name first when it needs more reads (a chat: who is in it); then its own name; then the next read
     const full = a.resolve ? await a.resolve(out, session.call, session.me?.id ?? "").catch(() => null) : null;
     return full ?? a.name(out) ?? (a.next ? read(a.next) : null);
-  }, () => null);
+  }, (e) => (ask.empty === "New chat" && isRefusedRead(e) ? REFUSED_CHAT_TAB : null));   // a chat the person cannot open is not "New chat": the tab says only the place
   let latest = 0;
   const run = (): void => {
     const mine = ++latest;

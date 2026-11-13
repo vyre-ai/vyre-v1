@@ -50,3 +50,18 @@ test("a tab opened on an artifact is named for the artifact", () => {
   assert.equal(ask.name({ site: { siteId: "sit_1", name: "Pricing comparison" } }), "Pricing comparison");
   assert.equal(ask.name({ site: {} }), null);
 });
+
+test("a chat tab whose chat the person cannot open says Chats, not New chat; a transient failure keeps the blank-chat name", async () => {
+  const { followTitle, askForHash, REFUSED_CHAT_TAB } = await import("./titles.ts");
+  const ask = askForHash("chats", "subject=thread:thr_x")!;
+  const run = async (err: unknown): Promise<string> => {
+    let got = "";
+    const stop = followTitle({ call: () => Promise.reject(err), hooks: { capQuery: () => ({ subscribe: () => () => undefined }) } } as never, ask, (t) => { got = t; });
+    await new Promise((r) => setTimeout(r, 10)); stop();
+    return got;
+  };
+  assert.equal(REFUSED_CHAT_TAB, "Chats");
+  assert.equal(await run(Object.assign(new Error("x"), { code: "validation.not_found" })), "Chats");
+  assert.equal(await run(Object.assign(new Error("x"), { code: "permission.no_grant" })), "Chats");
+  assert.equal(await run(Object.assign(new Error("x"), { code: "timeout" })), "New chat");
+});

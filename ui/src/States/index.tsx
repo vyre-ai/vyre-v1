@@ -107,6 +107,7 @@ export function ErrorState({ props, startOpen = false }: { props: ErrorProps; st
       <Text style={styles.title}>{props.message}</Text>
       {line ? <Text style={styles.sub} testID="state-cause">{line}</Text> : null}
       {props.retryable ? <View style={styles.actions}><Button label={retrying ? "Trying again…" : "Retry"} busy={retrying} onPress={retry} primary testID="state-retry" /></View> : null}
+      {props.action && !props.retryable ? <View style={styles.actions}><Button label={props.action.label} onPress={props.action.onPress} primary testID="state-action" /></View> : null}
       <Pressable accessibilityRole="button" onPress={() => setOpen(!open)} testID="state-details" style={styles.detailsLink}>
           <Text style={styles.detailsText}>{open ? "Hide details" : "Details"}</Text>
       </Pressable>

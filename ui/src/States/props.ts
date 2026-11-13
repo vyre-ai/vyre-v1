@@ -34,6 +34,8 @@ export interface ErrorProps {
   retryable?: boolean;
   traceId?: string;
   onRetry?: () => void;
+  /** The way out of a state that cannot be retried (a refusal): one button under the words. */
+  action?: StateAction;
 }
 
 export type StateProps = EmptyProps | OfflineProps | ErrorProps;

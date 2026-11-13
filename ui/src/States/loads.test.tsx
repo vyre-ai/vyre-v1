@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../testing/dom.ts";
-import { LoadFailed, RETRY_LOADS_EVENT, failureOf, isRefused } from "./Loads.tsx";
+import { BACK_TO_START_EVENT, LoadFailed, RETRY_LOADS_EVENT, failureOf, isRefused } from "./Loads.tsx";
 import { Quiet } from "./Quiet.tsx";
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -79,4 +79,24 @@ test("a read that can work on a second try keeps its Retry", async () => {
       assert.ok(find(root, "state-retry"), `${code || "no code"}: Retry stays`);
     }
   } finally { restore(); }
+});
+
+// C (review, 13 Nov): a refusal is a dead end unless it offers the way out; "what needs you" cannot be refused by a person, so its read failing keeps Retry.
+test("a refused read offers Back to Chats, which sends the one event the place hears; what needs you keeps Retry", async () => {
+  const restore = installDom();
+  const g = globalThis as { dispatchEvent?: unknown; CustomEvent?: unknown };
+  const sent: string[] = [];
+  g.dispatchEvent = (e: { type: string }) => { sent.push(e.type); return true; };
+  g.CustomEvent = class { type: string; constructor(t: string) { this.type = t; } };
+  try {
+    const refused = await mount(createRoot, <LoadFailed what="this chat" failure={{ message: "x", code: "validation.not_found" }} />);
+    assert.match(textOf(find(refused, "state-action")), /Back to Chats/);
+    await press(find(refused, "state-action"));
+    await flush();
+    assert.deepEqual(sent, [BACK_TO_START_EVENT]);
+    const needs = await mount(createRoot, <LoadFailed what="what needs you" refusable={false} failure={{ message: "x", code: "validation.not_found" }} />);
+    assert.ok(find(needs, "state-retry"), "a list that cannot be refused keeps Retry");
+    assert.equal(find(needs, "state-action"), null);
+    assert.match(textOf(find(needs, "load-failed")), /Couldn't load what needs you/);
+  } finally { delete g.dispatchEvent; delete g.CustomEvent; restore(); }
 });

@@ -1,4 +1,5 @@
 import { judge, needsJudging, noAccessLine } from "../reach/target.ts";
+import { noteMade, threadOfStart } from "./just-made.ts";
 import type { Judge } from "../reach/target.ts";
 import { adminPages } from "../providers/settings-admin.ts";
 import { createLinkPolicy } from "../reach/policy.ts";
@@ -263,7 +264,12 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const door = keyDoor(o.baseUrl) !== null;
   const gated: CapCall = withVaultGate(once, aiHome === "here" || door ? unlockVault : undefined, () => rehandKey(o.baseUrl, token ?? ""));
   // one idempotency key per logical call: the gate's retry after the password, and any other send of the same call, carries the same opts and so the same key
-  const call: CapCall = (cap, input, given) => gated(cap, input, given?.idempotencyKey ? given : { ...given, idempotencyKey: attemptKey() });
+  const call: CapCall = (cap, input, given) => {
+    const sent = gated(cap, input, given?.idempotencyKey ? given : { ...given, idempotencyKey: attemptKey() });
+    // a chat this person just started is not refused while its row is still landing (shell/session/just-made.ts)
+    if (cap === "chat.start") void Promise.resolve(sent).then((out) => { const id = threadOfStart(out); if (id !== null) noteMade(id); }, () => undefined);
+    return sent;
+  };
 
   const purgeListeners = new Set<(epoch: number) => void>();
   let live: LiveStatus = "offline";

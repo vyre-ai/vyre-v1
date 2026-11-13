@@ -33,7 +33,13 @@ test("kinds-b: a member's refused links say so plainly with no Retry", async (t)
     assert.match(chatText, /You can't open this chat/);
     assert.doesNotMatch(chatText, /does not exist|Couldn't load/);
     assert.equal(await maya.getByTestId("state-retry").count(), 0, "a chat she cannot open offers no Retry");
+    assert.ok(!(await maya.locator("body").innerText()).includes("New chat"), "the tab does not call a chat she cannot open a new chat");
     await maya.screenshot({ path: path.join(shots, "9-member-chat.png") });
+    await maya.getByTestId("state-action").click();   // Back to Chats: the start, where the list is
+    await maya.getByTestId("composer-field").first().waitFor({ timeout: 20_000 });
+    assert.equal(await maya.getByTestId("conversation-failed").count(), 0, "Back to Chats leaves the refusal");
+    await maya.goto(`${web.origin}/chat#subject=thread:${agentChat}`, { waitUntil: "load" });
+    await maya.getByTestId("conversation-failed").waitFor({ timeout: 20_000 });
     await maya.goto(`${web.origin}/chat#subject=goal:gol_0000000000000000`, { waitUntil: "load" });
     await maya.getByTestId("goal-refused").waitFor({ timeout: 20_000 });
     assert.match(await maya.getByTestId("goal-refused").innerText(), /You can't open this goal/);
