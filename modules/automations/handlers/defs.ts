@@ -356,10 +356,49 @@ async function supportOf(ctx: AutoCtx): Promise<Support> {
   }
 }
 
-/** The steps this server cannot run, hidden from the catalogue. A step that is here but not yet usable is not hidden: its problem shows when it is turned on. */
+/** The apps whose steps are listed only when the app is connected: the step key's start, the app's name in words, and how connected is read. */
+const APP_STEPS = [
+  { start: "google.", connector: "google" },
+  { start: "ms.", connector: "microsoft" },
+  { start: "github.", connector: "github" },
+] as const;
+
+/**
+ * The apps connected on this Space that the caller may use (owner, 13 Nov 2026: "it should only show me the things that I have in vault and have access to"). Google and Microsoft are connections: the
+ * list of connections is the product's own access check (a person sees the Space's connections and their own, nobody else's), and a connection still waiting to be finished is not connected. GitHub is
+ * the caller's own GitHub, or the Space's app when the caller may read it. A check that cannot be made counts as not connected: nothing is listed that could not be used.
+ */
+async function connectedApps(ctx: AutoCtx): Promise<Set<string>> {
+  const out = new Set<string>();
+  if (!ctx.call) return out;
+  const call = ctx.call;
+  const rows = await call("connections.list", { whose: "all", limit: 500 }).then(
+    (r) => (r as { connections?: { connector?: unknown; state?: unknown }[] } | null)?.connections ?? [],
+    () => [],
+  );
+  for (const c of rows) if (typeof c.connector === "string" && c.state !== "pending") out.add(c.connector);
+  const mine = await call("github.me.status", {}).then(
+    (r) => (r as { connected?: unknown } | null)?.connected === true,
+    () => false,
+  );
+  const space = mine
+    ? true
+    : await call("github.installations.list", {}).then(
+        (r) => ((r as { installations?: unknown[] } | null)?.installations ?? []).length > 0,
+        () => false,
+      );
+  if (space) out.add("github");
+  return out;
+}
+
+/** The steps this server cannot run, or whose app is not connected for the caller, hidden from the catalogue. A step that is here but not yet usable is not hidden: its problem shows when it is turned on. */
 async function hiddenSteps(ctx: AutoCtx): Promise<Set<string>> {
   const s = await supportOf(ctx);
-  return new Set([...(s.code.available ? [] : ["code"]), ...(s.ai.available ? [] : ["ai"])]);
+  const apps = await connectedApps(ctx);
+  const unconnected = registry.steps
+    .filter((st) => APP_STEPS.some((a) => st.key.startsWith(a.start) && !apps.has(a.connector)))
+    .map((st) => st.key);
+  return new Set([...(s.code.available ? [] : ["code"]), ...(s.ai.available ? [] : ["ai"]), ...unconnected]);
 }
 
 async function providersOf(ctx: AutoCtx, kind: Automation["kind"], explicit = false): Promise<AccountLite[] | null> {

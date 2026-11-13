@@ -2,3 +2,4 @@
 - Build a connector, Bring in from your CRM and Edit mapping appear only when your assistant can build connectors or you can allow it, and pressing one allows it first.
 - Your assistant no longer prints error codes such as permission.above_clearance. It tells you what happened and what you can do in plain words, and gives a code only if you ask for it. The Failures list in Automations analytics reads in words too.
 - A step that is missing something says what to do ("Send for signature: choose the file to send for signature.") and its card chip says what is missing in a few words ("Needs a file"), never a field name or the word "error".
+- The step menu lists Google, Microsoft and GitHub actions only for apps connected on your Space that you may use. Your assistant proposes steps from the same list.
