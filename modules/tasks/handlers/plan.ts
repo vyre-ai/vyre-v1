@@ -37,7 +37,7 @@ function fresh(ctx: TasksCtx, title: string, assigned: Assignee, notes: Record<s
   const now = ctx.now();
   return {
     id: newTaskId(), kind: "work", title, state: INITIAL_STATE.work, blocks: [], actions: [], assigned, fileIds: [], dependsOn: [], followers: [], workingNotes: notes, labels: [], fields: {}, reviewLoops: 0,
-    createdBy: ctx.principal.id, createdAt: now, updatedAt: now, version: 0, ...(ctx.thread ? { source: { kind: "chat" as const, id: ctx.thread } } : ctx.run ? { source: { kind: "run" as const, id: ctx.run } } : {}),
+    createdBy: ctx.principal.id, ...(ctx.principal.kind === "agent" && ctx.actingFor?.startsWith("usr_") ? { createdFor: ctx.actingFor } : {}), createdAt: now, updatedAt: now, version: 0, ...(ctx.thread ? { source: { kind: "chat" as const, id: ctx.thread } } : ctx.run ? { source: { kind: "run" as const, id: ctx.run } } : {}),
   };
 }
 

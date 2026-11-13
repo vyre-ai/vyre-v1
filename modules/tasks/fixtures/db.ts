@@ -17,6 +17,7 @@ const schema = readFileSync(new URL("../../../generated/modules/tasks/schema.sql
 const migration = readFileSync(new URL("../migrations/0001_tasks_state.sql", import.meta.url), "utf8");
 const tickets = readFileSync(new URL("../migrations/0002_ticket_fields.sql", import.meta.url), "utf8");
 const clockSql = readFileSync(new URL("../migrations/0003_clock.sql", import.meta.url), "utf8");
+const createdForSql = readFileSync(new URL("../migrations/0004_created_for.sql", import.meta.url), "utf8");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
 export interface Ev { name: string; subject: string; payload: Record<string, unknown>; opts?: Record<string, unknown> | undefined; id: string }
@@ -43,6 +44,7 @@ export function harness(o: HarnessOptions = {}) {
   sqlite.exec(migration);
   sqlite.exec(tickets);
   sqlite.exec(clockSql);
+  sqlite.exec(createdForSql);
   const raw: Db = {
     all: (sql, ...args) => sqlite.prepare(sql).all(...(args.map(norm) as never[])),
     run: (sql, ...args) => ({ changes: Number(sqlite.prepare(sql).run(...(args.map(norm) as never[])).changes) }),
@@ -60,7 +62,7 @@ export function harness(o: HarnessOptions = {}) {
     const allowed = emitsOf(cap);
     return {
       space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}), origin: (who as { origin?: string }).origin ?? "user",   // a call as from the app, as the gateway makes it
-      trace: { traceId: TRACE }, ...(who.device ? { device: who.device } : {}),
+      trace: { traceId: TRACE }, ...(who.device ? { device: who.device } : {}), ...(who.thread ? { thread: who.thread } : {}),
       now: () => clock,
       db: scopedDb("tasks", raw, TRACE),
       emit(name, subject, payload, opts) {

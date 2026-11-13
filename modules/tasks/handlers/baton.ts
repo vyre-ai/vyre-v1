@@ -9,7 +9,7 @@
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 import type { JsonSchema } from "../../../packages/contracts/src/types.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
-import { allTasks, clean, emitTask, getTask, holds, isOpen, out, raise, readPolicy, touch, visibleTo, whoIs } from "../projections.ts";
+import { allTasks, clean, emitTask, getTask, holds, isOpen, out, raise, readPolicy, touch, visibleTo, whoIs, whoOn } from "../projections.ts";
 import type { Assignee, Task, TaskState, TasksCtx } from "../projections.ts";
 import { afterReview, checkMove, commitMove, create, dependenciesAdd, label, submitTarget } from "./state.ts";
 import { postLine, syncThread } from "./thread.ts";
@@ -149,7 +149,7 @@ export async function ask(ctx: TasksCtx, input: In): Promise<unknown> {
   const question = text(input.question);
   if (!question) raise(ctx, "validation.bad_input", "Write the question.", { errors: ["/question: required"] });
   if (t.state !== "todo" && t.state !== "doing") notYourTurn(ctx, t, "asking");
-  if (!holds(t, "assigned", whoIs(ctx))) raise(ctx, "validation.precondition_failed", "Only the person this step belongs to can do that.", { reason: "wrong_actor", action: "ask" });
+  if (!holds(t, "assigned", whoOn(ctx, t))) raise(ctx, "validation.precondition_failed", "Only the person this step belongs to can do that.", { reason: "wrong_actor", action: "ask" });
   const to: Assignee | undefined = input.to ? (input.to as Assignee) : fallbackPerson(t);
   if (!to) raise(ctx, "validation.precondition_failed", "Say who to ask: this task has no person to put a question to.", { reason: "nobody_to_ask" });
   // the same question asked again while it is open is the same question
@@ -170,7 +170,7 @@ export async function block(ctx: TasksCtx, input: In): Promise<unknown> {
   const reason = text(input.reason);
   if (!reason) raise(ctx, "validation.bad_input", "Say what is in the way.", { errors: ["/reason: required"] });
   if (t.state !== "todo" && t.state !== "doing") notYourTurn(ctx, t, "reporting a block");
-  if (!holds(t, "assigned", whoIs(ctx))) raise(ctx, "validation.precondition_failed", "Only the person this step belongs to can do that.", { reason: "wrong_actor", action: "block" });
+  if (!holds(t, "assigned", whoOn(ctx, t))) raise(ctx, "validation.precondition_failed", "Only the person this step belongs to can do that.", { reason: "wrong_actor", action: "block" });
   const named = json<Assignee | null>(t.workingNotes[NOTE.escalateTo], null);
   const to = named && typeof named.id === "string" ? named : fallbackPerson(t);
   if (!to) raise(ctx, "validation.precondition_failed", "This task has nobody to escalate to.", { reason: "nobody_to_escalate" });
@@ -202,7 +202,7 @@ export async function review(ctx: TasksCtx, input: In): Promise<unknown> {
   if (fixes.length === 0) raise(ctx, "validation.precondition_failed", "Send it back with numbered fixes: say exactly what to change.", { reason: "fixes_required" });
   // an agent reviewer that has sent the work back as often as the Space allows hands the decision to a person, who is not held to the limit
   const policy = readPolicy(ctx.db);
-  if (ctx.principal.kind !== "person" && t.reviewLoops >= policy.reviewLoopLimit && holds(t, "reviewer", whoIs(ctx))) {
+  if (ctx.principal.kind !== "person" && t.reviewLoops >= policy.reviewLoopLimit && holds(t, "reviewer", whoOn(ctx, t))) {
     const person = fallbackPerson(t);
     if (!person) raise(ctx, "validation.precondition_failed", `Work was sent back ${t.reviewLoops} times already. A person decides now.`, { reason: "review_loop_limit", limit: policy.reviewLoopLimit });
     const from = t.reviewer ?? null;
