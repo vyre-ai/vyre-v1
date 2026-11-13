@@ -338,11 +338,11 @@ test("no card's second line is template code: a {{ }} reference reads as the chi
   // the Weekly digest he opened: a step whose inputs are plain fields, and one whose text brings in the trigger
   assert.equal(
     subtitleOf({ id: "s1", key: "set_fields", input: { type: "{{ trigger.type }}", recordId: "{{ trigger.recordId }}" }, next: [] }, { step: name }),
-    "type ‹Trigger · Type› · recordId ‹Trigger · Record id›",
+    "type ‹Trigger · Type› · recordId ‹The record that started this›",
   );
   assert.equal(
     subtitleOf({ id: "s2", key: "post_message", input: { text: "A new {{ trigger.type }} came in from a form. Open record {{ trigger.recordId }} to follow up." }, next: [] }, { step: name }),
-    "text A new ‹Trigger · Type› came in from a form. Open record ‹Trigger · Record id› to follow up.",
+    "text A new ‹Trigger · Type› came in from a form. Open record ‹The record that started this› to follow up.",
   );
   assert.equal(subtitleOf({ id: "s3", key: "post_message", input: { text: "Found {{ steps.find.out.count }} and {{ steps.gone.out }}" }, next: [] }, { step: name }), "text Found ‹Find the lead · Count› and ‹gone›");
   // every kind of step that summarises its inputs, each with a template in every field it reads: none shows braces
@@ -363,7 +363,7 @@ test("no card's second line is template code: a {{ }} reference reads as the chi
   const def: Definition = { triggers: [{ key: "record_change" }], start: ["a"], nodes: nodes.map((n, i) => ({ ...n, next: i + 1 < nodes.length ? [nodes[i + 1]!.id] : [] })) };
   for (const c of layout(def).cards) assert.ok(!c.sub.includes("{{") && !/\bid\b/i.test(c.sub), `card ${c.id}: "${c.sub}"`);
   // a reference with no friendly name falls back to the field's words, never "id"
-  assert.equal(subtitleOf({ id: "s4", key: "post_message", input: { text: "{{ trigger.contactId }} {{ steps.find.out.id }}" }, next: [] }, { step: name }), "text \u2039Trigger \u00b7 Contact\u203a \u2039Find the lead \u00b7 Reference\u203a");
+  assert.equal(subtitleOf({ id: "s4", key: "post_message", input: { text: "{{ trigger.invoiceId }} {{ steps.find.out.id }}" }, next: [] }, { step: name }), "text \u2039Trigger \u00b7 Invoice\u203a \u2039Find the lead \u00b7 Reference\u203a");
 });
 
 test("an AI step whose account is gone says so in words, never with the account's id (owner, 13 Nov 2026)", () => {
